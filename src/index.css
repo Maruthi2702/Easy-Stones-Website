@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap');
+
+:root {
+  /* Midnight Aurora palette */
+  --bg-primary: #040611;
+  --bg-secondary: #0b1020;
+  --bg-card: rgba(11, 16, 32, 0.85);
+  --glass-background: rgba(11, 16, 32, 0.6);
+
+  --text-primary: #f4f7ff;
+  --text-secondary: #b4c2e2;
+  --text-light: #94a2c7;
+  --text-muted: #7683a7;
+
+  --accent-primary: #5de0e6;
+  --accent-secondary: #a855f7;
+  --accent-tertiary: #f472b6;
+  --accent-hover: #22d3ee;
+  --accent-glow: rgba(93, 224, 230, 0.4);
+  --status-success: #5eead4;
+  --status-warning: #facc15;
+  --status-danger: #fb7185;
+  --status-info: #93c5fd;
+
+  --border-color: rgba(148, 163, 184, 0.25);
+  --border-hover: rgba(148, 163, 184, 0.4);
+
+  --font-main: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Playfair Display', 'Times New Roman', serif;
+
+  --shadow-sm: 0 6px 18px rgba(2, 6, 23, 0.25);
+  --shadow-md: 0 12px 32px rgba(2, 6, 23, 0.4);
+  --shadow-lg: 0 24px 60px rgba(2, 6, 23, 0.55);
+  --shadow-hover: 0 30px 80px rgba(2, 6, 23, 0.65);
+  --shadow-glow: 0 0 40px var(--accent-glow);
+
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.3s ease;
+  --transition-slow: 0.6s ease;
+
+  --gradient-primary: linear-gradient(120deg, var(--accent-primary), var(--accent-secondary));
+  --gradient-text: linear-gradient(100deg, #ffffff, #d1d9ff 45%, #7dd3fc 100%);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: color var(--transition-base);
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  transition: all var(--transition-base);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
+}
+
+/* Utilities */
+.container {
+  max-width: 1400px; /* Wider container like EasyStones */
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0);
+  }
+}
