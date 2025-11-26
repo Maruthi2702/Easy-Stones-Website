@@ -5,7 +5,7 @@ const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   category: { type: String, required: true },
   price: { type: String },
-  collection: { type: String },
+  collectionType: { type: String },
   availability: { type: String, default: 'In Stock' },
   image: { type: String },
   isNewArrival: { type: Boolean, default: false },
@@ -23,6 +23,13 @@ const productSchema = new mongoose.Schema({
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
+});
+
+// Virtual property to map 'collection' to 'collectionType'
+productSchema.virtual('collection').get(function() {
+  return this.collectionType;
+}).set(function(value) {
+  this.collectionType = value;
 });
 
 // Ensure virtuals are included when converting to JSON
