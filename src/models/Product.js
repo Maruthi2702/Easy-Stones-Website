@@ -5,7 +5,7 @@ const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   category: { type: String, required: true },
   price: { type: String },
-  collectionName: { type: String, alias: 'collection' }, // 'collection' is a reserved word in some contexts, but we can alias it
+  collection: { type: String },
   availability: { type: String, default: 'In Stock' },
   image: { type: String },
   isNewArrival: { type: Boolean, default: false },
