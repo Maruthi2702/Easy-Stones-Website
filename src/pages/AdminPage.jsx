@@ -1,259 +1,418 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft } from 'lucide-react';
 import { products as initialProducts } from '../data/products';
 import './AdminPage.css';
 
 const AdminPage = () => {
-  // Initialize products with thickness and sizes if they don't exist
-  const [products, setProducts] = useState(
-    initialProducts.map(p => ({
-      ...p,
-      thickness: p.thickness || [],
-      sizes: p.sizes || []
-    }))
-  );
-  const [saveStatus, setSaveStatus] = useState(null);
+  const [products, setProducts] = useState(initialProducts);
+  const [selectedProductId, setSelectedProductId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null);
 
-  const collections = ['Luxe', 'Prestige', 'Signature', 'Basic'];
-  const categories = ['Quartz', 'Granite', 'Marble', 'Quartzite'];
-  const thicknessOptions = ['1.5CM', '2CM', '3CM'];
-  const sizeOptions = ['126 * 63', '135 * 77', '136 * 78', '138 * 79', '139 * 80', '143 * 80'];
+  // Initialize selected product when products change or on first load
+  const selectedProduct = products.find(p => p.id === selectedProductId);
 
-  const handleCollectionChange = (productId, newCollection) => {
-    setProducts(prevProducts =>
-      prevProducts.map(product =>
-        product.id === productId
-          ? { ...product, collection: newCollection }
-          : product
-      )
-    );
+  // Filter products for sidebar
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
+  const handleSelectProduct = (id) => {
+    setSelectedProductId(id);
+    setSaveStatus(null);
+    window.scrollTo(0, 0);
   };
 
-  const handlePriceChange = (productId, newPrice) => {
-    setProducts(prevProducts =>
-      prevProducts.map(product =>
-        product.id === productId
-          ? { ...product, price: newPrice }
-          : product
-      )
-    );
+  const handleAddProduct = () => {
+    const newId = Math.max(...products.map(p => p.id), 0) + 1;
+    const newProduct = {
+      id: newId,
+      name: 'New Product',
+      category: 'Quartz',
+      price: '$0.00/sqft',
+      collection: 'Basic',
+      availability: 'In Stock',
+      image: '/images/products/placeholder.jpg',
+      isNew: true,
+      thickness: ['3CM'],
+      sizes: [],
+      description: '',
+      primaryColor: '',
+      accentColor: '',
+      style: '',
+      variations: 'Low',
+      finishes: ['Polished'],
+      applications: ['Countertops', 'Backsplash', 'Wall Cladding']
+    };
+
+    setProducts([newProduct, ...products]);
+    setSelectedProductId(newId);
+    setSaveStatus({ type: 'info', message: 'New product created. Fill in details and save.' });
   };
 
-  const handleCategoryChange = (productId, newCategory) => {
-    setProducts(prevProducts =>
-      prevProducts.map(product =>
-        product.id === productId
-          ? { ...product, category: newCategory }
-          : product
-      )
-    );
+  const handleDeleteProduct = (id) => {
+    if (window.confirm('Are you sure you want to delete this product? This cannot be undone.')) {
+      const newProducts = products.filter(p => p.id !== id);
+      setProducts(newProducts);
+      if (selectedProductId === id) {
+        setSelectedProductId(null);
+      }
+      saveData(newProducts); // Auto-save on delete
+    }
   };
 
-  const handleThicknessChange = (productId, thickness) => {
-    setProducts(prevProducts =>
-      prevProducts.map(product => {
-        if (product.id === productId) {
-          const currentThickness = product.thickness || [];
-          const newThickness = currentThickness.includes(thickness)
-            ? currentThickness.filter(t => t !== thickness)
-            : [...currentThickness, thickness];
-          return { ...product, thickness: newThickness };
-        }
-        return product;
-      })
-    );
+  const handleChange = (field, value) => {
+    if (!selectedProduct) return;
+
+    setProducts(prev => prev.map(p =>
+      p.id === selectedProductId ? { ...p, [field]: value } : p
+    ));
   };
 
-  const handleSizeChange = (productId, size) => {
-    setProducts(prevProducts =>
-      prevProducts.map(product => {
-        if (product.id === productId) {
-          const currentSizes = product.sizes || [];
-          const newSizes = currentSizes.includes(size)
-            ? currentSizes.filter(s => s !== size)
-            : [...currentSizes, size];
-          return { ...product, sizes: newSizes };
-        }
-        return product;
-      })
-    );
+  const handleArrayChange = (field, value, isChecked) => {
+    if (!selectedProduct) return;
+
+    const currentArray = selectedProduct[field] || [];
+    let newArray;
+
+    if (isChecked) {
+      newArray = [...currentArray, value];
+    } else {
+      newArray = currentArray.filter(item => item !== value);
+    }
+
+    handleChange(field, newArray);
   };
 
-  const handleAvailabilityChange = (productId, newAvailability) => {
-    setProducts(prevProducts =>
-      prevProducts.map(product =>
-        product.id === productId
-          ? { ...product, availability: newAvailability }
-          : product
-      )
-    );
-  };
-
-
-  const saveChanges = async () => {
+  const saveData = async (productsToSave = products) => {
     setIsSaving(true);
     setSaveStatus(null);
 
     try {
       const response = await fetch('http://localhost:3001/api/products/save', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ products }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products: productsToSave }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to save products');
-      }
-
       const data = await response.json();
-      setSaveStatus('success');
-      console.log('✅ Products saved:', data);
 
-      setTimeout(() => setSaveStatus(null), 3000);
+      if (data.success) {
+        setSaveStatus({ type: 'success', message: 'Changes saved successfully!' });
+        setTimeout(() => setSaveStatus(null), 3000);
+      } else {
+        throw new Error(data.error || 'Failed to save');
+      }
     } catch (error) {
-      console.error('❌ Error saving products:', error);
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus(null), 5000);
+      console.error('Error saving:', error);
+      setSaveStatus({ type: 'error', message: 'Failed to save changes. Check server.' });
     } finally {
       setIsSaving(false);
     }
   };
 
-  return (
-    <div className="admin-page">
-      <div className="container">
-        <div className="admin-header">
-          <h1 className="admin-title">Collection Management</h1>
-          <p className="admin-subtitle">Manage product collections, prices, categories, thickness, and sizes</p>
-        </div>
+  // Options
+  const collections = ['Luxe', 'Prestige', 'Signature', 'Basic'];
+  const categories = ['Quartz', 'Granite', 'Marble', 'Quartzite'];
+  const thicknessOptions = ['1.5CM', '2CM', '3CM'];
+  const sizeOptions = ['126 * 63', '135 * 77', '136 * 78', '138 * 79', '139 * 80', '143 * 80'];
+  const finishOptions = ['Polished', 'Honed', 'Leathered', 'Concrete'];
+  const applicationOptions = ['Countertops', 'Backsplash', 'Wall Cladding', 'Flooring', 'Shower Walls'];
 
-        <div className="admin-actions">
-          <button
-            className={`save-btn ${isSaving ? 'saving' : ''}`}
-            onClick={saveChanges}
-            disabled={isSaving}
-          >
-            <span className="icon">{isSaving ? '⏳' : '💾'}</span>
-            {isSaving ? 'Saving...' : 'Save Changes'}
+  return (
+    <div className="admin-container">
+      {/* Sidebar */}
+      <div className="admin-sidebar">
+        <div className="sidebar-header">
+          <h2>Products</h2>
+          <button className="add-btn" onClick={handleAddProduct}>
+            <Plus size={18} /> New
           </button>
         </div>
 
-        {saveStatus === 'success' && (
-          <div className="status-message success">
-            ✅ Changes saved successfully! Refresh the main page to see updates.
+        <div className="search-box">
+          <Search size={16} className="search-icon" />
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        <div className="product-list">
+          {filteredProducts.map(product => (
+            <div
+              key={product.id}
+              className={`product-list-item ${selectedProductId === product.id ? 'active' : ''}`}
+              onClick={() => handleSelectProduct(product.id)}
+            >
+              <img src={product.image} alt={product.name} className="list-thumb" />
+              <div className="list-info">
+                <span className="list-name">{product.name}</span>
+                <span className="list-meta">{product.collection} • {product.category}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="admin-main">
+        <div className="main-header">
+          <h1>Product Editor</h1>
+          <div className="header-actions">
+            {selectedProduct && (
+              <button
+                className="delete-btn"
+                onClick={() => handleDeleteProduct(selectedProduct.id)}
+              >
+                <Trash2 size={18} /> Delete
+              </button>
+            )}
+            <button
+              className={`save-btn ${isSaving ? 'saving' : ''}`}
+              onClick={() => saveData()}
+              disabled={isSaving}
+            >
+              <Save size={18} /> {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+
+        {saveStatus && (
+          <div className={`status-message ${saveStatus.type}`}>
+            {saveStatus.message}
           </div>
         )}
 
-        {saveStatus === 'error' && (
-          <div className="status-message error">
-            ❌ Failed to save changes. Make sure the backend server is running.
-          </div>
-        )}
+        {selectedProduct ? (
+          <div className="edit-form">
+            {/* Basic Info */}
+            <section className="form-section">
+              <h3>Basic Information</h3>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Product Name</label>
+                  <input
+                    type="text"
+                    value={selectedProduct.name}
+                    onChange={(e) => handleChange('name', e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Price</label>
+                  <input
+                    type="text"
+                    value={selectedProduct.price}
+                    onChange={(e) => handleChange('price', e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Category</label>
+                  <select
+                    value={selectedProduct.category}
+                    onChange={(e) => handleChange('category', e.target.value)}
+                  >
+                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Collection</label>
+                  <select
+                    value={selectedProduct.collection}
+                    onChange={(e) => handleChange('collection', e.target.value)}
+                  >
+                    {collections.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+            </section>
 
-        <div className="products-table-container">
-          <table className="products-table">
-            <thead>
-              <tr>
-                <th>Image</th>
-                <th>Product Name</th>
-                <th>Price</th>
-                <th>Category</th>
-                <th>Collection</th>
-                <th>Availability</th>
-                <th>Thickness</th>
-                <th>Sizes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((product) => (
-                <tr key={product.id}>
-                  <td>
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="product-thumbnail"
+            {/* Status & Media */}
+            <section className="form-section">
+              <h3>Status & Media</h3>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Availability</label>
+                  <select
+                    value={selectedProduct.availability || 'In Stock'}
+                    onChange={(e) => handleChange('availability', e.target.value)}
+                    className={`status-select ${selectedProduct.availability?.toLowerCase().replace(' ', '-')}`}
+                  >
+                    <option value="In Stock">In Stock</option>
+                    <option value="Out of Stock">Out of Stock</option>
+                    <option value="Low Stock">Low Stock</option>
+                  </select>
+                </div>
+                <div className="form-group checkbox-wrapper">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={selectedProduct.isNew || false}
+                      onChange={(e) => handleChange('isNew', e.target.checked)}
                     />
-                  </td>
-                  <td className="product-name">{product.name}</td>
-                  <td>
+                    <span>Mark as New Arrival</span>
+                  </label>
+                </div>
+                <div className="form-group full-width">
+                  <label>Image Path</label>
+                  <div className="image-input-wrapper">
                     <input
                       type="text"
-                      value={product.price}
-                      onChange={(e) => handlePriceChange(product.id, e.target.value)}
-                      className="price-input"
+                      value={selectedProduct.image}
+                      onChange={(e) => handleChange('image', e.target.value)}
                     />
-                  </td>
-                  <td>
-                    <select
-                      value={product.category}
-                      onChange={(e) => handleCategoryChange(product.id, e.target.value)}
-                      className="category-select"
-                    >
-                      {categories.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <select
-                      value={product.collection}
-                      onChange={(e) => handleCollectionChange(product.id, e.target.value)}
-                      className="collection-select"
-                    >
-                      {collections.map((collection) => (
-                        <option key={collection} value={collection}>
-                          {collection}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <select
-                      value={product.availability || 'In Stock'}
-                      onChange={(e) => handleAvailabilityChange(product.id, e.target.value)}
-                      className="availability-select"
-                    >
-                      <option value="In Stock">In Stock</option>
-                      <option value="Out of Stock">Out of Stock</option>
-                    </select>
-                  </td>
-                  <td>
-                    <div className="checkbox-group">
-                      {thicknessOptions.map((thickness) => (
-                        <label key={thickness} className="checkbox-label">
-                          <input
-                            type="checkbox"
-                            checked={(product.thickness || []).includes(thickness)}
-                            onChange={() => handleThicknessChange(product.id, thickness)}
-                          />
-                          <span>{thickness}</span>
-                        </label>
-                      ))}
+                    <div className="image-preview">
+                      <img src={selectedProduct.image} alt="Preview" onError={(e) => e.target.src = '/images/products/placeholder.jpg'} />
                     </div>
-                  </td>
-                  <td>
-                    <div className="checkbox-group">
-                      {sizeOptions.map((size) => (
-                        <label key={size} className="checkbox-label">
-                          <input
-                            type="checkbox"
-                            checked={(product.sizes || []).includes(size)}
-                            onChange={() => handleSizeChange(product.id, size)}
-                          />
-                          <span>{size}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Details */}
+            <section className="form-section">
+              <h3>Details & Description</h3>
+              <div className="form-group full-width">
+                <label>Description</label>
+                <textarea
+                  rows="4"
+                  value={selectedProduct.description || ''}
+                  onChange={(e) => handleChange('description', e.target.value)}
+                  placeholder="Enter product description..."
+                />
+              </div>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Primary Color</label>
+                  <input
+                    type="text"
+                    value={selectedProduct.primaryColor || ''}
+                    onChange={(e) => handleChange('primaryColor', e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Accent Color</label>
+                  <input
+                    type="text"
+                    value={selectedProduct.accentColor || ''}
+                    onChange={(e) => handleChange('accentColor', e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Style</label>
+                  <input
+                    type="text"
+                    value={selectedProduct.style || ''}
+                    onChange={(e) => handleChange('style', e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Variations</label>
+                  <select
+                    value={selectedProduct.variations || 'Low'}
+                    onChange={(e) => handleChange('variations', e.target.value)}
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            {/* Specifications */}
+            <section className="form-section">
+              <h3>Specifications</h3>
+
+              <div className="specs-group">
+                <label>Thickness</label>
+                <div className="checkbox-grid">
+                  {thicknessOptions.map(opt => (
+                    <label key={opt} className="checkbox-pill">
+                      <input
+                        type="checkbox"
+                        checked={(selectedProduct.thickness || []).includes(opt)}
+                        onChange={(e) => handleArrayChange('thickness', opt, e.target.checked)}
+                      />
+                      <span>{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="specs-group">
+                <label>Sizes</label>
+                <div className="checkbox-grid">
+                  {sizeOptions.map(opt => (
+                    <label key={opt} className="checkbox-pill">
+                      <input
+                        type="checkbox"
+                        checked={(selectedProduct.sizes || []).includes(opt)}
+                        onChange={(e) => handleArrayChange('sizes', opt, e.target.checked)}
+                      />
+                      <span>{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="specs-group">
+                <label>Finishes</label>
+                <div className="checkbox-grid">
+                  {finishOptions.map(opt => (
+                    <label key={opt} className="checkbox-pill">
+                      <input
+                        type="checkbox"
+                        checked={(selectedProduct.finishes || []).includes(opt)}
+                        onChange={(e) => handleArrayChange('finishes', opt, e.target.checked)}
+                      />
+                      <span>{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="specs-group">
+                <label>Applications</label>
+                <div className="checkbox-grid">
+                  {applicationOptions.map(opt => (
+                    <label key={opt} className="checkbox-pill">
+                      <input
+                        type="checkbox"
+                        checked={(selectedProduct.applications || []).includes(opt)}
+                        onChange={(e) => handleArrayChange('applications', opt, e.target.checked)}
+                      />
+                      <span>{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <div className="form-actions-bottom">
+              <button
+                className={`save-btn ${isSaving ? 'saving' : ''}`}
+                onClick={() => saveData()}
+                disabled={isSaving}
+              >
+                <Save size={18} /> {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+
+          </div>
+        ) : (
+          <div className="empty-selection">
+            <ImageIcon size={48} />
+            <h2>Select a product to edit</h2>
+            <p>Or create a new product to get started</p>
+            <button className="primary-btn" onClick={handleAddProduct}>
+              Create New Product
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

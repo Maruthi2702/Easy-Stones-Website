@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap');
 
 :root {
-  /* Dark Theme with Teal Accents (MSI Surfaces style) */
+  /* Dark Theme with Gold Accents */
   --bg-primary: #000000;
   --bg-secondary: #0a0a0a;
   --bg-card: #1a1a1a;
@@ -12,11 +12,11 @@
   --text-light: #808080;
   --text-muted: #606060;
 
-  --accent-primary: #00bcd4; /* Teal/Cyan */
-  --accent-secondary: #00acc1;
-  --accent-tertiary: #26c6da;
-  --accent-hover: #0097a7;
-  --accent-glow: rgba(0, 188, 212, 0.3);
+  --accent-primary: #d4af37; /* Gold */
+  --accent-secondary: #c5a028;
+  --accent-tertiary: #e6c25e;
+  --accent-hover: #b3922b;
+  --accent-glow: rgba(212, 175, 55, 0.3);
   
   --status-success: #10b981;
   --status-warning: #f59e0b;
@@ -40,7 +40,7 @@
   --transition-slow: 0.6s ease;
 
   --gradient-primary: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  --gradient-text: linear-gradient(135deg, #00bcd4, #00acc1);
+  --gradient-text: linear-gradient(135deg, #d4af37, #c5a028);
 }
 
 * {

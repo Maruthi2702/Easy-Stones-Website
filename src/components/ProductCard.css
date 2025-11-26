@@ -112,10 +112,12 @@
   opacity: 0;
   transition: opacity var(--transition-base);
   z-index: 2;
+  pointer-events: none; /* Disable overlay completely */
+  display: none; /* Hide overlay */
 }
 
 .product-card:hover .card-overlay {
-  opacity: 1;
+  opacity: 0; /* Keep hidden on hover */
 }
 
 .view-btn {
@@ -125,7 +127,7 @@
   border-radius: 100px;
   font-weight: 700;
   font-size: 0.95rem;
-  display: flex;
+  display: none; /* Hide button */
   align-items: center;
   gap: 0.5rem;
   transform: translateY(30px) scale(0.9);
@@ -137,6 +139,7 @@
 
 .product-card:hover .view-btn {
   transform: translateY(0) scale(1);
+  display: none; /* Keep hidden on hover */
 }
 
 .view-btn:hover {

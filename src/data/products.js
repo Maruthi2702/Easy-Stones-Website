@@ -8,7 +8,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Arabesco_Croma.jpg",
+    "image": "/images/products/Arabesco_Croma.jpg",
     "isNew": true,
     "collection": "Luxe",
     "thickness": [
@@ -16,6 +16,14 @@ export const products = [
     ],
     "sizes": [
       "136 * 78"
+    ],
+    "finishes": [
+      "Polished"
+    ],
+    "applications": [
+      "Countertops",
+      "Backsplash",
+      "Wall Cladding"
     ]
   },
   {
@@ -27,8 +35,8 @@ export const products = [
       "Slab"
     ],
     "availability": "Out of Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Venato.png",
-    "isNew": true,
+    "image": "/images/products/Calacatta_Venato.png",
+    "isNew": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -46,7 +54,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Luminous_White.jpg",
+    "image": "/images/products/Luminous_White.jpg",
     "isNew": false,
     "collection": "Signature",
     "thickness": [
@@ -65,8 +73,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Mykonos.jpg",
-    "isNew": true,
+    "image": "/images/products/Mykonos.jpg",
+    "isNew": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -84,8 +92,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Savoy.png",
-    "isNew": false,
+    "image": "/images/products/Calacatta_Savoy.png",
+    "isNew": true,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -103,8 +111,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Shadow_Gold.jpg",
-    "isNew": false,
+    "image": "/images/products/Shadow_Gold.jpg",
+    "isNew": true,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -122,7 +130,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Sonoma.jpg",
+    "image": "/images/products/Sonoma.jpg",
     "isNew": false,
     "collection": "Prestige",
     "thickness": [
@@ -141,7 +149,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Statuario_Opus.jpg",
+    "image": "/images/products/Statuario_Opus.jpg",
     "isNew": true,
     "collection": "Luxe",
     "thickness": [
@@ -160,14 +168,22 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Bella.jpg",
-    "isNew": true,
+    "image": "/images/products/Calacatta_Bella.jpg",
+    "isNew": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
     ],
     "sizes": [
       "136 * 78"
+    ],
+    "finishes": [
+      "Polished"
+    ],
+    "applications": [
+      "Countertops",
+      "Backsplash",
+      "Wall Cladding"
     ]
   },
   {
@@ -179,7 +195,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Mystique.jpg",
+    "image": "/images/products/Mystique.jpg",
     "isNew": false,
     "collection": "Basic",
     "thickness": [
@@ -198,7 +214,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Bianco_Carrara.jpg",
+    "image": "/images/products/Bianco_Carrara.jpg",
     "isNew": false,
     "collection": "Basic",
     "thickness": [
@@ -217,7 +233,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Shadow.jpg",
+    "image": "/images/products/Shadow.jpg",
     "isNew": false,
     "collection": "Signature",
     "thickness": [
@@ -236,7 +252,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Panda.jpg",
+    "image": "/images/products/Panda.jpg",
     "isNew": false,
     "collection": "Luxe",
     "thickness": [
@@ -255,7 +271,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Olympic.jpg",
+    "image": "/images/products/Olympic.jpg",
     "isNew": false,
     "collection": "Basic",
     "thickness": [
@@ -276,7 +292,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Nero_Marquina.jpg",
+    "image": "/images/products/Nero_Marquina.jpg",
     "isNew": true,
     "collection": "Signature",
     "thickness": [
@@ -295,7 +311,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Luxor_Oro.jpg",
+    "image": "/images/products/Luxor_Oro.jpg",
     "isNew": true,
     "collection": "Luxe",
     "thickness": [
@@ -314,7 +330,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Himalaya_White.jpg",
+    "image": "/images/products/Himalaya_White.jpg",
     "isNew": false,
     "collection": "Signature",
     "thickness": [
@@ -333,7 +349,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Feather_White.jpg",
+    "image": "/images/products/Feather_White.jpg",
     "isNew": false,
     "collection": "Basic",
     "thickness": [
@@ -354,7 +370,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Elusive_White.jpg",
+    "image": "/images/products/Elusive_White.jpg",
     "isNew": false,
     "collection": "Basic",
     "thickness": [
@@ -375,7 +391,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Designer_White.jpg",
+    "image": "/images/products/Designer_White.jpg",
     "isNew": false,
     "collection": "Basic",
     "thickness": [
@@ -396,7 +412,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Crystal.jpg",
+    "image": "/images/products/Crystal.jpg",
     "isNew": false,
     "collection": "Basic",
     "thickness": [
@@ -417,7 +433,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Cascada.jpg",
+    "image": "/images/products/Cascada.jpg",
     "isNew": false,
     "collection": "Basic",
     "thickness": [
@@ -438,7 +454,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Carrara_Deluxe.jpg",
+    "image": "/images/products/Carrara_Deluxe.jpg",
     "isNew": false,
     "collection": "Basic",
     "thickness": [
@@ -457,8 +473,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Wow.jpg",
-    "isNew": true,
+    "image": "/images/products/Calacatta_Wow.jpg",
+    "isNew": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -476,8 +492,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta%20_Venus.jpg",
-    "isNew": true,
+    "image": "/images/products/Calacatta%20_Venus.jpg",
+    "isNew": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -495,7 +511,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Umi.jpg",
+    "image": "/images/products/Calacatta_Umi.jpg",
     "isNew": false,
     "collection": "Prestige",
     "thickness": [
@@ -514,8 +530,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Tesoro.jpg",
-    "isNew": true,
+    "image": "/images/products/Calacatta_Tesoro.jpg",
+    "isNew": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -533,7 +549,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Rama.jpg",
+    "image": "/images/products/Calacatta_Rama.jpg",
     "isNew": false,
     "collection": "Prestige",
     "thickness": [
@@ -552,8 +568,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Mia.jpg",
-    "isNew": true,
+    "image": "/images/products/Calacatta_Mia.jpg",
+    "isNew": false,
     "collection": "Prestige",
     "thickness": [
       "3CM",
@@ -572,7 +588,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Arabesco_Verde.jpg",
+    "image": "/images/products/Arabesco_Verde.jpg",
     "isNew": true,
     "collection": "Luxe",
     "thickness": [
@@ -591,8 +607,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Structure_Gray.jpg",
-    "isNew": false,
+    "image": "/images/products/Structure_Gray.jpg",
+    "isNew": true,
     "collection": "Basic",
     "thickness": [
       "3CM"
@@ -610,8 +626,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Structure_Gray_Matte.jpg",
-    "isNew": false,
+    "image": "/images/products/Structure_Gray_Matte.jpg",
+    "isNew": true,
     "collection": "Basic",
     "thickness": [
       "3CM"
@@ -629,7 +645,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Cararra_Prima_Gold.jpg",
+    "image": "/images/products/Cararra_Prima_Gold.jpg",
     "isNew": true,
     "collection": "Basic",
     "thickness": [
@@ -648,8 +664,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Travete_Tempest.jpg",
-    "isNew": false,
+    "image": "/images/products/Travete_Tempest.jpg",
+    "isNew": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -667,7 +683,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Statuario_Marina.jpg",
+    "image": "/images/products/Statuario_Marina.jpg",
     "isNew": true,
     "collection": "Luxe",
     "thickness": [
@@ -686,7 +702,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Statuario_Fantasia.jpg",
+    "image": "/images/products/Statuario_Fantasia.jpg",
     "isNew": true,
     "collection": "Luxe",
     "thickness": [
@@ -705,8 +721,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Statuario_Piedmont.jpg",
-    "isNew": false,
+    "image": "/images/products/Statuario_Piedmont.jpg",
+    "isNew": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -724,7 +740,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Sole.jpg",
+    "image": "/images/products/Calacatta_Sole.jpg",
     "isNew": true,
     "collection": "Luxe",
     "thickness": [
@@ -743,7 +759,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Nero.jpg",
+    "image": "/images/products/Calacatta_Nero.jpg",
     "isNew": true,
     "collection": "Luxe",
     "thickness": [
@@ -762,8 +778,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Carbon.jpg",
-    "isNew": false,
+    "image": "/images/products/Carbon.jpg",
+    "isNew": true,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -781,8 +797,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Statuario_Dorato.jpg",
-    "isNew": true,
+    "image": "/images/products/Statuario_Dorato.jpg",
+    "isNew": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -800,7 +816,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Calacatta_Zurich.jpg",
+    "image": "/images/products/Calacatta_Zurich.jpg",
     "isNew": false,
     "collection": "Signature",
     "thickness": [
@@ -819,8 +835,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Cosmic.jpg",
-    "isNew": false,
+    "image": "/images/products/Cosmic.jpg",
+    "isNew": true,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -838,7 +854,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Carrara_Prima.jpg",
+    "image": "/images/products/Carrara_Prima.jpg",
     "isNew": false,
     "collection": "Basic",
     "thickness": [
@@ -857,8 +873,8 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "https://easystones.com/quartz/new-moda/Statuary_Waves_45.jpg",
-    "isNew": true,
+    "image": "/images/products/Statuary_Waves_45.jpg",
+    "isNew": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
