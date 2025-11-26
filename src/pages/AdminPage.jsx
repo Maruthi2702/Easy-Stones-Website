@@ -21,7 +21,9 @@ const AdminPage = () => {
         const response = await fetch(`${API_URL}/api/products`);
         if (response.ok) {
           const data = await response.json();
-          if (data && data.length > 0) {
+          // Only use API data if it has the collection field populated
+          // Otherwise keep using fallback data which has all fields
+          if (data && data.length > 0 && data[0].collection) {
             setProducts(data);
           }
         }
