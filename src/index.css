@@ -1,38 +1,38 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap');
 
 :root {
-  /* White & Gold Luxury palette */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f9fafb;
-  --bg-card: #ffffff;
-  --glass-background: rgba(255, 255, 255, 0.8);
+  /* Dark Theme with Teal Accents (MSI Surfaces style) */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-card: #1a1a1a;
+  --glass-background: rgba(0, 0, 0, 0.8);
 
-  --text-primary: #111827;
-  --text-secondary: #4b5563;
-  --text-light: #6b7280;
-  --text-muted: #9ca3af;
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --text-light: #808080;
+  --text-muted: #606060;
 
-  --accent-primary: #d4af37; /* Gold */
-  --accent-secondary: #c5a028;
-  --accent-tertiary: #e6c25e;
-  --accent-hover: #b3922b;
-  --accent-glow: rgba(212, 175, 55, 0.25);
+  --accent-primary: #00bcd4; /* Teal/Cyan */
+  --accent-secondary: #00acc1;
+  --accent-tertiary: #26c6da;
+  --accent-hover: #0097a7;
+  --accent-glow: rgba(0, 188, 212, 0.3);
   
   --status-success: #10b981;
   --status-warning: #f59e0b;
   --status-danger: #ef4444;
   --status-info: #3b82f6;
 
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-hover: rgba(0, 0, 0, 0.15);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.2);
 
   --font-main: 'Inter', system-ui, -apple-system, sans-serif;
   --font-display: 'Playfair Display', 'Times New Roman', serif;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  --shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.7);
+  --shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.8);
   --shadow-glow: 0 0 20px var(--accent-glow);
 
   --transition-fast: 0.15s ease;
@@ -40,7 +40,7 @@
   --transition-slow: 0.6s ease;
 
   --gradient-primary: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  --gradient-text: linear-gradient(135deg, #d4af37, #b3922b);
+  --gradient-text: linear-gradient(135deg, #00bcd4, #00acc1);
 }
 
 * {

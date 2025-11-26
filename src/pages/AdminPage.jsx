@@ -79,6 +79,17 @@ const AdminPage = () => {
     );
   };
 
+  const handleAvailabilityChange = (productId, newAvailability) => {
+    setProducts(prevProducts =>
+      prevProducts.map(product =>
+        product.id === productId
+          ? { ...product, availability: newAvailability }
+          : product
+      )
+    );
+  };
+
+
   const saveChanges = async () => {
     setIsSaving(true);
     setSaveStatus(null);
@@ -150,6 +161,7 @@ const AdminPage = () => {
                 <th>Price</th>
                 <th>Category</th>
                 <th>Collection</th>
+                <th>Availability</th>
                 <th>Thickness</th>
                 <th>Sizes</th>
               </tr>
@@ -197,6 +209,16 @@ const AdminPage = () => {
                           {collection}
                         </option>
                       ))}
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      value={product.availability || 'In Stock'}
+                      onChange={(e) => handleAvailabilityChange(product.id, e.target.value)}
+                      className="availability-select"
+                    >
+                      <option value="In Stock">In Stock</option>
+                      <option value="Out of Stock">Out of Stock</option>
                     </select>
                   </td>
                   <td>

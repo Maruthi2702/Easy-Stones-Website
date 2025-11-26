@@ -124,16 +124,20 @@ const ProductDetail = () => {
             </div>
 
             <div className="specs-list">
+              <h3>Size Options</h3>
+              <div className="pill-list">
+                {(product.sizes && product.sizes.length > 0)
+                  ? product.sizes.map(s => <span key={s} className="pill">{s}</span>)
+                  : <span className="pill">Contact for sizes</span>
+                }
+              </div>
+            </div>
+
+            <div className="specs-list">
               <h3>Applications</h3>
               <div className="pill-list">
                 {detail.applications.map(a => <span key={a} className="pill">{a}</span>)}
               </div>
-            </div>
-
-            <div className="detail-actions">
-              <a className="primary-btn" href={heroImage} download>
-                <Download size={18} /> Download Spec Sheet
-              </a>
             </div>
           </div>
         </div>

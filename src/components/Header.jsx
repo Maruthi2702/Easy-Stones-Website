@@ -11,13 +11,7 @@ const Header = ({ searchValue, onSearchChange }) => {
     <header className="header glass-panel">
       <div className="container header-content">
         <div className="logo">
-          <span className="logo-icon">
-            <ShoppingBag size={24} color="#5de0e6" />
-          </span>
-          <div className="logo-copy">
-            <h1 className="logo-text">EASY STONES</h1>
-            <p className="logo-subtitle">YOUR GLOBAL DESIGN SOURCE</p>
-          </div>
+          <img src="/logo.png" alt="Easy Stones" className="logo-image" />
         </div>
 
         <nav className="nav-desktop">
@@ -30,7 +24,16 @@ const Header = ({ searchValue, onSearchChange }) => {
         </nav>
 
         <div className="header-actions">
-          <button className="request-quote-btn">Request Quote</button>
+          <div className="search-container">
+            <Search size={20} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchValue}
+              onChange={handleSearchChange}
+              className="search-input"
+            />
+          </div>
           <button className="icon-btn menu-btn" aria-label="Menu">
             <Menu size={24} color="#000" />
           </button>

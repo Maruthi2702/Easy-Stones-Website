@@ -233,6 +233,38 @@
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
+.availability-select {
+  padding: 0.5rem 1rem;
+  border: 1.5px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  min-width: 130px;
+}
+
+.availability-select:hover {
+  border-color: var(--accent-primary);
+}
+
+.availability-select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.availability-select option[value="In Stock"] {
+  color: var(--status-success);
+}
+
+.availability-select option[value="Out of Stock"] {
+  color: var(--status-danger);
+}
+
+
 .checkbox-group {
   display: flex;
   flex-direction: column;

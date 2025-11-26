@@ -22,6 +22,9 @@ const ProductGrid = ({ searchTerm = '' }) => {
       filtered = filtered.filter((product) => product.name.toLowerCase().startsWith(trimmed));
     }
 
+    // Sort alphabetically by name
+    filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
+
     return filtered;
   }, [searchTerm, activeCollection]);
 

@@ -26,7 +26,7 @@ export const products = [
     "size": [
       "Slab"
     ],
-    "availability": "In Stock",
+    "availability": "Out of Stock",
     "image": "https://easystones.com/quartz/new-moda/Calacatta_Venato.png",
     "isNew": true,
     "collection": "Prestige",
@@ -106,8 +106,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Shadow_Gold.jpg",
     "isNew": false,
     "collection": "Signature",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 11,
@@ -159,8 +163,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Calacatta_Bella.jpg",
     "isNew": true,
     "collection": "Prestige",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "136 * 78"
+    ]
   },
   {
     "id": 14,
@@ -174,8 +182,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Mystique.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 15,
@@ -189,8 +201,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Bianco_Carrara.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "136 * 78"
+    ]
   },
   {
     "id": 16,
@@ -204,8 +220,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Shadow.jpg",
     "isNew": false,
     "collection": "Signature",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "139 * 80"
+    ]
   },
   {
     "id": 17,
@@ -219,8 +239,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Panda.jpg",
     "isNew": false,
     "collection": "Luxe",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ]
   },
   {
     "id": 18,
@@ -234,8 +258,14 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Olympic.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM",
+      "2CM"
+    ],
+    "sizes": [
+      "135 * 77",
+      "126 * 63"
+    ]
   },
   {
     "id": 19,
@@ -249,8 +279,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Nero_Marquina.jpg",
     "isNew": true,
     "collection": "Signature",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ]
   },
   {
     "id": 20,
@@ -264,8 +298,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Luxor_Oro.jpg",
     "isNew": true,
     "collection": "Luxe",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 21,
@@ -279,8 +317,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Himalaya_White.jpg",
     "isNew": false,
     "collection": "Signature",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "135 * 77"
+    ]
   },
   {
     "id": 22,
@@ -294,8 +336,14 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Feather_White.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM",
+      "2CM"
+    ],
+    "sizes": [
+      "135 * 77",
+      "126 * 63"
+    ]
   },
   {
     "id": 23,
@@ -309,8 +357,14 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Elusive_White.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "2CM",
+      "3CM"
+    ],
+    "sizes": [
+      "135 * 77",
+      "126 * 63"
+    ]
   },
   {
     "id": 24,
@@ -324,8 +378,14 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Designer_White.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "2CM",
+      "3CM"
+    ],
+    "sizes": [
+      "135 * 77",
+      "126 * 63"
+    ]
   },
   {
     "id": 25,
@@ -339,8 +399,14 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Crystal.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "2CM",
+      "3CM"
+    ],
+    "sizes": [
+      "135 * 77",
+      "126 * 63"
+    ]
   },
   {
     "id": 26,
@@ -354,8 +420,14 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Cascada.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "2CM",
+      "3CM"
+    ],
+    "sizes": [
+      "135 * 77",
+      "126 * 63"
+    ]
   },
   {
     "id": 27,
@@ -369,8 +441,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Carrara_Deluxe.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "135 * 77"
+    ]
   },
   {
     "id": 28,
@@ -384,8 +460,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Calacatta_Wow.jpg",
     "isNew": true,
     "collection": "Prestige",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 29,
@@ -399,8 +479,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Calacatta%20_Venus.jpg",
     "isNew": true,
     "collection": "Prestige",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 30,
@@ -414,8 +498,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Calacatta_Umi.jpg",
     "isNew": false,
     "collection": "Prestige",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 31,
@@ -429,8 +517,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Calacatta_Tesoro.jpg",
     "isNew": true,
     "collection": "Prestige",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 32,
@@ -444,8 +536,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Calacatta_Rama.jpg",
     "isNew": false,
     "collection": "Prestige",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ]
   },
   {
     "id": 33,
@@ -459,8 +555,13 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Calacatta_Mia.jpg",
     "isNew": true,
     "collection": "Prestige",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM",
+      "2CM"
+    ],
+    "sizes": [
+      "139 * 80"
+    ]
   },
   {
     "id": 34,
@@ -474,8 +575,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Arabesco_Verde.jpg",
     "isNew": true,
     "collection": "Luxe",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 36,
@@ -489,8 +594,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Structure_Gray.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ]
   },
   {
     "id": 37,
@@ -504,8 +613,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Structure_Gray_Matte.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ]
   },
   {
     "id": 40,
@@ -519,8 +632,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Cararra_Prima_Gold.jpg",
     "isNew": true,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "136 * 78"
+    ]
   },
   {
     "id": 41,
@@ -534,8 +651,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Travete_Tempest.jpg",
     "isNew": false,
     "collection": "Luxe",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 42,
@@ -549,8 +670,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Statuario_Marina.jpg",
     "isNew": true,
     "collection": "Luxe",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 43,
@@ -564,8 +689,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Statuario_Fantasia.jpg",
     "isNew": true,
     "collection": "Luxe",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 44,
@@ -579,8 +708,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Statuario_Piedmont.jpg",
     "isNew": false,
     "collection": "Luxe",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ]
   },
   {
     "id": 46,
@@ -594,8 +727,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Calacatta_Sole.jpg",
     "isNew": true,
     "collection": "Luxe",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ]
   },
   {
     "id": 47,
@@ -609,8 +746,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Calacatta_Nero.jpg",
     "isNew": true,
     "collection": "Luxe",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ]
   },
   {
     "id": 48,
@@ -624,8 +765,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Carbon.jpg",
     "isNew": false,
     "collection": "Prestige",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "136 * 78"
+    ]
   },
   {
     "id": 49,
@@ -639,8 +784,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Statuario_Dorato.jpg",
     "isNew": true,
     "collection": "Prestige",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ]
   },
   {
     "id": 50,
@@ -654,8 +803,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Calacatta_Zurich.jpg",
     "isNew": false,
     "collection": "Signature",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "135 * 77"
+    ]
   },
   {
     "id": 51,
@@ -669,8 +822,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Cosmic.jpg",
     "isNew": false,
     "collection": "Signature",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ]
   },
   {
     "id": 52,
@@ -684,8 +841,12 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Carrara_Prima.jpg",
     "isNew": false,
     "collection": "Basic",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "136 * 78"
+    ]
   },
   {
     "id": 53,
@@ -699,7 +860,11 @@ export const products = [
     "image": "https://easystones.com/quartz/new-moda/Statuary_Waves_45.jpg",
     "isNew": true,
     "collection": "Prestige",
-    "thickness": [],
-    "sizes": []
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ]
   }
 ];
