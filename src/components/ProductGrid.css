@@ -36,6 +36,41 @@
   box-shadow: var(--shadow-glow);
 }
 
+/* Collection Tabs */
+.collection-tabs {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 3rem;
+  flex-wrap: wrap;
+  animation: fadeUp 0.8s ease 0.5s backwards;
+}
+
+.collection-tab {
+  padding: 0.75rem 1.75rem;
+  background: transparent;
+  border: 1.5px solid var(--border-color);
+  border-radius: 50px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all var(--transition-base);
+  cursor: pointer;
+}
+
+.collection-tab:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  transform: translateY(-2px);
+}
+
+.collection-tab.active {
+  background: var(--gradient-primary);
+  border-color: var(--accent-primary);
+  color: #ffffff;
+  box-shadow: var(--shadow-glow);
+  font-weight: 600;
+}
+
 .product-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

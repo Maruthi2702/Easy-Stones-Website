@@ -6,6 +6,7 @@ export const getImageFileName = (imageUrl = '') => {
 };
 
 export const getLocalImagePath = (imageUrl = '') => {
+  if (imageUrl.startsWith('http')) return imageUrl;
   const filename = getImageFileName(imageUrl);
   return filename ? `/images/${filename}` : '';
 };

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Download } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Download, ZoomIn, Maximize2 } from 'lucide-react';
 import { products } from '../data/products';
 import { getLocalImagePath } from '../utils/imagePath';
 import './ProductDetail.css';
@@ -11,6 +11,8 @@ const defaultDescription = (name) =>
 const ProductDetail = () => {
   const navigate = useNavigate();
   const { productId } = useParams();
+  const [viewMode, setViewMode] = useState('slab'); // 'slab' | 'closeup'
+
   const product = products.find((item) => item.id.toString() === productId);
 
   if (!product) {
@@ -37,96 +39,104 @@ const ProductDetail = () => {
     style: product.style ?? 'Modern',
     primaryColor: product.primaryColor ?? product.category,
     accentColor: product.accentColor ?? 'Soft Veining',
-    gallery: (product.gallery ?? [product.image]).map((src) => getLocalImagePath(src)),
   };
 
   return (
     <section className="product-detail container">
-      <button className="back-link" onClick={() => navigate(-1)}>
-        <ArrowLeft size={16} /> Back to colors
-      </button>
+      <div className="product-layout">
+        {/* Visuals Section */}
+        <div className="product-visuals">
+          <button className="back-link" onClick={() => navigate(-1)}>
+            <ArrowLeft size={16} /> Back to colors
+          </button>
 
-      <div className="detail-hero glass-panel">
-        <div className="detail-media">
-          <img src={heroImage} alt={product.name} loading="lazy" />
-        </div>
-        <div className="detail-summary">
-          <p className="detail-label">Quartz Color</p>
-          <h1>{product.name}</h1>
-          <p className="detail-description">{detail.description}</p>
-          <div className="detail-tags">
-            <span>{product.category}</span>
-            <span>{product.availability}</span>
-            <span>{detail.style}</span>
+          <div className={`main-image-container ${viewMode}`}>
+            <img
+              src={heroImage}
+              alt={product.name}
+              className={`main-image ${viewMode === 'closeup' ? 'zoomed' : ''}`}
+            />
           </div>
-          <div className="detail-cta">
-            <a className="primary" href={heroImage} download>
-              <Download size={16} /> Download cut sheet
-            </a>
-            <button className="secondary" onClick={() => navigate('/')}>
-              View all colors <ArrowRight size={16} />
+
+          <div className="view-toggles">
+            <button
+              className={`toggle-btn ${viewMode === 'slab' ? 'active' : ''}`}
+              onClick={() => setViewMode('slab')}
+            >
+              <Maximize2 size={18} /> Full Slab
+            </button>
+            <button
+              className={`toggle-btn ${viewMode === 'closeup' ? 'active' : ''}`}
+              onClick={() => setViewMode('closeup')}
+            >
+              <ZoomIn size={18} /> Close Up
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="detail-grid">
-        <div className="detail-card glass-panel">
-          <h2>Product Info</h2>
-          <dl>
-            <div>
-              <dt>Primary Color(s)</dt>
-              <dd>{detail.primaryColor}</dd>
+        {/* Info Section */}
+        <div className="product-info">
+          <div className="info-header">
+            <p className="detail-label">Quartz Color</p>
+            <h1>{product.name}</h1>
+            <div className="detail-tags">
+              <span className="tag">{product.category}</span>
+              <span className="tag available">{product.availability}</span>
             </div>
-            <div>
-              <dt>Accent Color(s)</dt>
-              <dd>{detail.accentColor}</dd>
-            </div>
-            <div>
-              <dt>Available Finishes</dt>
-              <dd>{detail.finishes.join(', ')}</dd>
-            </div>
-            <div>
-              <dt>Thickness Options</dt>
-              <dd>{detail.thickness.join(' · ')}</dd>
-            </div>
-            <div>
-              <dt>Variations</dt>
-              <dd>{detail.variations}</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="detail-card glass-panel">
-          <h2>Applications</h2>
-          <ul>
-            {detail.applications.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-          <p className="muted">
-            Rated for residential and commercial countertops, islands, accent
-            walls, and vertical surfaces.
-          </p>
-        </div>
-
-        <div className="detail-card glass-panel">
-          <h2>Sizes</h2>
-          <ul>
-            {product.size.map((entry) => (
-              <li key={entry}>{entry}</li>
-            ))}
-          </ul>
-          <p className="muted">Prefabricated options available upon request.</p>
-        </div>
-      </div>
-
-      <div className="detail-gallery">
-        {detail.gallery.map((src, index) => (
-          <div className="gallery-card glass-panel" key={`${src}-${index}`}>
-            <img src={src} alt={`${product.name} view ${index + 1}`} />
           </div>
-        ))}
+
+          <div className="info-body">
+            <p className="detail-description">{detail.description}</p>
+
+            <div className="specs-grid">
+              <div className="spec-item">
+                <span className="spec-label">Primary Color</span>
+                <span className="spec-value">{detail.primaryColor}</span>
+              </div>
+              <div className="spec-item">
+                <span className="spec-label">Accent Color</span>
+                <span className="spec-value">{detail.accentColor}</span>
+              </div>
+              <div className="spec-item">
+                <span className="spec-label">Style</span>
+                <span className="spec-value">{detail.style}</span>
+              </div>
+              <div className="spec-item">
+                <span className="spec-label">Variations</span>
+                <span className="spec-value">{detail.variations}</span>
+              </div>
+            </div>
+
+            <div className="specs-row">
+              <div className="specs-list">
+                <h3>Available Finishes</h3>
+                <div className="pill-list">
+                  {detail.finishes.map(f => <span key={f} className="pill">{f}</span>)}
+                </div>
+              </div>
+
+              <div className="specs-list">
+                <h3>Thickness Options</h3>
+                <div className="pill-list">
+                  {detail.thickness.map(t => <span key={t} className="pill">{t}</span>)}
+                </div>
+              </div>
+            </div>
+
+            <div className="specs-list">
+              <h3>Applications</h3>
+              <div className="pill-list">
+                {detail.applications.map(a => <span key={a} className="pill">{a}</span>)}
+              </div>
+            </div>
+
+            <div className="detail-actions">
+              <a className="primary-btn" href={heroImage} download>
+                <Download size={18} /> Download Spec Sheet
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

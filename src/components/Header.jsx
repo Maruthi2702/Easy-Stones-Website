@@ -21,25 +21,18 @@ const Header = ({ searchValue, onSearchChange }) => {
         </div>
 
         <nav className="nav-desktop">
-          <a href="#" className="nav-link active">New Arrivals</a>
-          <a href="#" className="nav-link">Collections</a>
-          <a href="#" className="nav-link">Accessories</a>
-          <a href="#" className="nav-link">Sale</a>
+          <a href="#" className="nav-link">Home</a>
+          <a href="#" className="nav-link active">Products</a>
+          <a href="#" className="nav-link">Live Inventory</a>
+          <a href="#" className="nav-link">Blog</a>
+          <a href="#" className="nav-link">Design Inspiration</a>
+          <a href="#" className="nav-link">More</a>
         </nav>
 
         <div className="header-actions">
-          <div className="header-search glass-panel">
-            <Search size={18} />
-            <input
-              type="text"
-              placeholder="Search colors by name…"
-              value={searchValue}
-              onChange={handleSearchChange}
-              aria-label="Search colors by name"
-            />
-          </div>
+          <button className="request-quote-btn">Request Quote</button>
           <button className="icon-btn menu-btn" aria-label="Menu">
-            <Menu size={20} />
+            <Menu size={24} color="#000" />
           </button>
         </div>
       </div>
