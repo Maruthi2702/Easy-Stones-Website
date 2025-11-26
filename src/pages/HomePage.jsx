@@ -10,8 +10,9 @@ import { products as fallbackProducts } from '../data/products';
 const HomePage = ({ searchTerm }) => {
   const location = useLocation();
   const [activeCategory, setActiveCategory] = useState('Moda Quartz');
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Initialize with fallback data immediately so user sees something while API wakes up
+  const [products, setProducts] = useState(fallbackProducts);
+  const [loading, setLoading] = useState(false); // Don't show full page loader
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -21,16 +22,11 @@ const HomePage = ({ searchTerm }) => {
           const data = await response.json();
           if (data && data.length > 0) {
             setProducts(data);
-          } else {
-            setProducts(fallbackProducts);
           }
-        } else {
-          console.warn('Failed to fetch products, using fallback');
-          setProducts(fallbackProducts);
         }
       } catch (error) {
         console.error('Error fetching products:', error);
-        setProducts(fallbackProducts);
+        // Keep using fallback data (already set)
       } finally {
         setLoading(false);
       }
