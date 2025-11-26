@@ -1,42 +1,14 @@
 export const products = [
   {
-    "id": 59,
-    "name": "Taj Mahal PST Face P",
-    "category": "MODA PST",
-    "price": "$18.00/sqft",
-    "collection": "Prestige",
-    "availability": "In Stock",
-    "image": "/images/products/placeholder.jpg",
-    "isNew": true,
-    "thickness": [
-      "3CM"
-    ],
-    "sizes": [
-      "143 * 80"
-    ],
-    "description": "",
-    "primaryColor": "",
-    "accentColor": "",
-    "style": "",
-    "variations": "Low",
-    "finishes": [
-      "Polished"
-    ],
-    "applications": [
-      "Countertops",
-      "Backsplash",
-      "Wall Cladding"
-    ]
-  },
-  {
-    "id": 58,
-    "name": "Taj Mahal PST Face M - Matte",
-    "category": "MODA PST",
-    "price": "$20.00/sqft",
+    "id": 60,
+    "name": "Perla Oro",
+    "category": "Quartz",
+    "price": "$24.00/sqft",
     "collection": "Luxe",
     "availability": "In Stock",
-    "image": "/images/products/placeholder.jpg",
+    "image": "/images/products/Perla_Oro_CutOut_SJ_1764187134601-130555324.png",
     "isNew": true,
+    "showInSlider": false,
     "thickness": [
       "3CM"
     ],
@@ -58,13 +30,73 @@ export const products = [
     ]
   },
   {
+    "id": 59,
+    "name": "Taj Mahal PST Face P",
+    "category": "MODA PST",
+    "price": "$18.00/sqft",
+    "collection": "Prestige",
+    "availability": "In Stock",
+    "image": "/images/products/Taj_Mahal_Face_P_1764181852710-309719608.png",
+    "isNew": true,
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "143 * 80"
+    ],
+    "description": "",
+    "primaryColor": "",
+    "accentColor": "",
+    "style": "",
+    "variations": "Low",
+    "finishes": [
+      "Polished"
+    ],
+    "applications": [
+      "Countertops",
+      "Backsplash",
+      "Wall Cladding"
+    ],
+    "showInSlider": true
+  },
+  {
+    "id": 58,
+    "name": "Taj Mahal PST Face M - Matte",
+    "category": "MODA PST",
+    "price": "$20.00/sqft",
+    "collection": "Luxe",
+    "availability": "In Stock",
+    "image": "/images/products/WhatsApp_Image_2025_11_26_at_10_08_40_1764180581763-242856245.jpeg",
+    "isNew": true,
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ],
+    "description": "",
+    "primaryColor": "",
+    "accentColor": "",
+    "style": "",
+    "variations": "Low",
+    "finishes": [
+      "Polished"
+    ],
+    "applications": [
+      "Countertops",
+      "Backsplash",
+      "Wall Cladding"
+    ],
+    "showInSlider": false
+  },
+  {
     "id": 57,
     "name": "Taj Mahal PST Face M - Polish",
     "category": "MODA PST",
     "price": "$20.00/sqft",
     "collection": "Luxe",
     "availability": "In Stock",
-    "image": "/images/products/placeholder.jpg",
+    "image": "/images/products/WhatsApp_Image_2025_11_26_at_10_08_40_1764180605514-506382773.jpeg",
     "isNew": true,
     "thickness": [
       "3CM"
@@ -93,7 +125,7 @@ export const products = [
     "price": "$22.00/sqft",
     "collection": "Luxe",
     "availability": "In Stock",
-    "image": "/images/products/placeholder.jpg",
+    "image": "/images/products/Taj_Mahal_PST_Face_T_1764186781740-865139128.jpg",
     "isNew": true,
     "thickness": [
       "3CM"
@@ -122,7 +154,7 @@ export const products = [
     "price": "$30.00/sqft",
     "collection": "Luxe",
     "availability": "In Stock",
-    "image": "/images/products/WhatsApp_Image_2025_10_29_at_18_15_58_1764155064094-929542081.jpeg",
+    "image": "/images/products/WhatsApp_Image_2025_11_26_at_10_08_40__1__1764180624544-92692573.jpeg",
     "isNew": true,
     "thickness": [
       "3CM"
@@ -330,7 +362,7 @@ export const products = [
       "Backsplash",
       "Wall Cladding"
     ],
-    "showInSlider": true
+    "showInSlider": false
   },
   {
     "id": 14,
@@ -474,7 +506,7 @@ export const products = [
     "sizes": [
       "138 * 79"
     ],
-    "showInSlider": true
+    "showInSlider": false
   },
   {
     "id": 21,
@@ -647,7 +679,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "/images/products/Calacatta%20_Venus.jpg",
+    "image": "/images/products/Calacatta__Venus_1764178268357-771920226.jpg",
     "isNew": false,
     "collection": "Prestige",
     "thickness": [
@@ -745,7 +777,7 @@ export const products = [
       "Slab"
     ],
     "availability": "In Stock",
-    "image": "/images/products/Arabesco_Verde.jpg",
+    "image": "/images/products/Arabesco_Verde_SJ_Full_1764183642682-577367890.png",
     "isNew": true,
     "collection": "Luxe",
     "thickness": [
@@ -754,7 +786,7 @@ export const products = [
     "sizes": [
       "138 * 79"
     ],
-    "showInSlider": false
+    "showInSlider": true
   },
   {
     "id": 36,
