@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Download, ZoomIn, Maximize2 } from 'lucide-react';
 import { products } from '../data/products';
 import { getLocalImagePath } from '../utils/imagePath';
@@ -11,14 +11,26 @@ const defaultDescription = (name) =>
 const ProductDetail = () => {
   const navigate = useNavigate();
   const { productId } = useParams();
+  const location = useLocation();
   const [viewMode, setViewMode] = useState('slab'); // 'slab' | 'closeup'
 
   const product = products.find((item) => item.id.toString() === productId);
 
+  // Get category from location state or fallback to product category or default
+  const backCategory = location.state?.fromCategory;
+
+  const handleBack = () => {
+    if (backCategory) {
+      navigate('/', { state: { activeCategory: backCategory } });
+    } else {
+      navigate(-1);
+    }
+  };
+
   if (!product) {
     return (
       <section className="product-detail container">
-        <button className="back-link" onClick={() => navigate('/')}>
+        <button className="back-link" onClick={handleBack}>
           <ArrowLeft size={16} /> Back to collection
         </button>
         <div className="detail-error glass-panel">
@@ -29,6 +41,7 @@ const ProductDetail = () => {
   }
 
   const heroImage = getLocalImagePath(product.image);
+  // ... rest of detail object ...
   const detail = {
     description: product.description ?? defaultDescription(product.name),
     thickness: product.thickness ?? ['1.5 CM', '2 CM', '3 CM'],
@@ -46,8 +59,8 @@ const ProductDetail = () => {
       <div className="product-layout">
         {/* Visuals Section */}
         <div className="product-visuals">
-          <button className="back-link" onClick={() => navigate(-1)}>
-            <ArrowLeft size={16} /> Back to colors
+          <button className="back-link" onClick={handleBack}>
+            <ArrowLeft size={16} /> Back
           </button>
 
           <div className={`main-image-container ${viewMode}`}>
@@ -56,21 +69,20 @@ const ProductDetail = () => {
               alt={product.name}
               className={`main-image ${viewMode === 'closeup' ? 'zoomed' : ''}`}
             />
-          </div>
-
-          <div className="view-toggles">
-            <button
-              className={`toggle-btn ${viewMode === 'slab' ? 'active' : ''}`}
-              onClick={() => setViewMode('slab')}
-            >
-              <Maximize2 size={18} /> Full Slab
-            </button>
-            <button
-              className={`toggle-btn ${viewMode === 'closeup' ? 'active' : ''}`}
-              onClick={() => setViewMode('closeup')}
-            >
-              <ZoomIn size={18} /> Close Up
-            </button>
+            <div className="view-toggles">
+              <button
+                className={`toggle-btn ${viewMode === 'slab' ? 'active' : ''}`}
+                onClick={() => setViewMode('slab')}
+              >
+                <Maximize2 size={18} /> Full Slab
+              </button>
+              <button
+                className={`toggle-btn ${viewMode === 'closeup' ? 'active' : ''}`}
+                onClick={() => setViewMode('closeup')}
+              >
+                <ZoomIn size={18} /> Close Up
+              </button>
+            </div>
           </div>
         </div>
 

@@ -111,33 +111,7 @@
   transition-delay: 0.8s;
 }
 
-.slide-btn {
-  padding: 1rem 2.5rem;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  opacity: 0;
-  transform: translateY(20px);
-  backdrop-filter: blur(10px);
-}
 
-.carousel-slide.active .slide-btn {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 1s;
-}
-
-.slide-btn:hover {
-  background: #fff;
-  color: #000;
-  border-color: #fff;
-}
 
 /* Controls */
 .carousel-controls {

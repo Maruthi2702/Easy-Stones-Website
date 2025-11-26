@@ -7,6 +7,8 @@ const AdminPage = () => {
   const [products, setProducts] = useState(initialProducts);
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('All');
+  const [filterCollection, setFilterCollection] = useState('All');
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
 
@@ -14,9 +16,12 @@ const AdminPage = () => {
   const selectedProduct = products.find(p => p.id === selectedProductId);
 
   // Filter products for sidebar
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase())
-  ).sort((a, b) => a.name.localeCompare(b.name));
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory === 'All' || p.category === filterCategory;
+    const matchesCollection = filterCollection === 'All' || p.collection === filterCollection;
+    return matchesSearch && matchesCategory && matchesCollection;
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
   const handleSelectProduct = (id) => {
     setSelectedProductId(id);
@@ -35,6 +40,7 @@ const AdminPage = () => {
       availability: 'In Stock',
       image: '/images/products/placeholder.jpg',
       isNew: true,
+      showInSlider: false,
       thickness: ['3CM'],
       sizes: [],
       description: '',
@@ -114,8 +120,33 @@ const AdminPage = () => {
 
   // Options
   const collections = ['Luxe', 'Prestige', 'Signature', 'Basic'];
-  const categories = ['Quartz', 'Granite', 'Marble', 'Quartzite'];
+  const categories = ['Quartz', 'Granite', 'Marble', 'Quartzite', 'MODA PST'];
   const thicknessOptions = ['1.5CM', '2CM', '3CM'];
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const response = await fetch('http://localhost:3001/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        handleChange('image', data.filePath);
+      } else {
+        alert('Failed to upload image');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Error uploading image');
+    }
+  };
   const sizeOptions = ['126 * 63', '135 * 77', '136 * 78', '138 * 79', '139 * 80', '143 * 80'];
   const finishOptions = ['Polished', 'Honed', 'Leathered', 'Concrete'];
   const applicationOptions = ['Countertops', 'Backsplash', 'Wall Cladding', 'Flooring', 'Shower Walls'];
@@ -139,6 +170,25 @@ const AdminPage = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+
+        <div className="filter-box">
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="sidebar-filter"
+          >
+            <option value="All">All Categories</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select
+            value={filterCollection}
+            onChange={(e) => setFilterCollection(e.target.value)}
+            className="sidebar-filter"
+          >
+            <option value="All">All Collections</option>
+            {collections.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
 
         <div className="product-list">
@@ -256,14 +306,39 @@ const AdminPage = () => {
                     <span>Mark as New Arrival</span>
                   </label>
                 </div>
-                <div className="form-group full-width">
-                  <label>Image Path</label>
-                  <div className="image-input-wrapper">
+                <div className="form-group checkbox-wrapper">
+                  <label className="checkbox-label">
                     <input
-                      type="text"
-                      value={selectedProduct.image}
-                      onChange={(e) => handleChange('image', e.target.value)}
+                      type="checkbox"
+                      checked={selectedProduct.showInSlider || false}
+                      onChange={(e) => handleChange('showInSlider', e.target.checked)}
                     />
+                    <span>Show in Home Slider</span>
+                  </label>
+                </div>
+                <div className="form-group full-width">
+                  <label>Product Image</label>
+                  <div className="image-input-wrapper">
+                    <div className="image-upload-controls">
+                      <input
+                        type="text"
+                        value={selectedProduct.image}
+                        onChange={(e) => handleChange('image', e.target.value)}
+                        placeholder="Image URL or path"
+                        className="image-url-input"
+                      />
+                      <div className="file-upload-btn-wrapper">
+                        <button className="secondary-btn upload-btn">
+                          <ImageIcon size={16} /> Upload Image
+                        </button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="file-input-hidden"
+                        />
+                      </div>
+                    </div>
                     <div className="image-preview">
                       <img src={selectedProduct.image} alt="Preview" onError={(e) => e.target.src = '/images/products/placeholder.jpg'} />
                     </div>

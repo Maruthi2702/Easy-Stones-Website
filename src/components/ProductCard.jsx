@@ -4,11 +4,15 @@ import { ArrowUpRight } from 'lucide-react';
 import { getLocalImagePath } from '../utils/imagePath';
 import './ProductCard.css';
 
-const ProductCard = ({ product }) => {
+const ProductCard = ({ product, activeCategory }) => {
   const imageSrc = getLocalImagePath(product.image);
 
   return (
-    <Link to={`/product/${product.id}`} className="product-card glass-panel">
+    <Link
+      to={`/product/${product.id}`}
+      className="product-card glass-panel"
+      state={{ fromCategory: activeCategory }}
+    >
       <div className="card-image-container">
         <img
           src={imageSrc}

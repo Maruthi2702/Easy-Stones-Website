@@ -1,5 +1,150 @@
 export const products = [
   {
+    "id": 59,
+    "name": "Taj Mahal PST Face P",
+    "category": "MODA PST",
+    "price": "$18.00/sqft",
+    "collection": "Prestige",
+    "availability": "In Stock",
+    "image": "/images/products/placeholder.jpg",
+    "isNew": true,
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "143 * 80"
+    ],
+    "description": "",
+    "primaryColor": "",
+    "accentColor": "",
+    "style": "",
+    "variations": "Low",
+    "finishes": [
+      "Polished"
+    ],
+    "applications": [
+      "Countertops",
+      "Backsplash",
+      "Wall Cladding"
+    ]
+  },
+  {
+    "id": 58,
+    "name": "Taj Mahal PST Face M - Matte",
+    "category": "MODA PST",
+    "price": "$20.00/sqft",
+    "collection": "Luxe",
+    "availability": "In Stock",
+    "image": "/images/products/placeholder.jpg",
+    "isNew": true,
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ],
+    "description": "",
+    "primaryColor": "",
+    "accentColor": "",
+    "style": "",
+    "variations": "Low",
+    "finishes": [
+      "Polished"
+    ],
+    "applications": [
+      "Countertops",
+      "Backsplash",
+      "Wall Cladding"
+    ]
+  },
+  {
+    "id": 57,
+    "name": "Taj Mahal PST Face M - Polish",
+    "category": "MODA PST",
+    "price": "$20.00/sqft",
+    "collection": "Luxe",
+    "availability": "In Stock",
+    "image": "/images/products/placeholder.jpg",
+    "isNew": true,
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ],
+    "description": "",
+    "primaryColor": "",
+    "accentColor": "",
+    "style": "",
+    "variations": "Low",
+    "finishes": [
+      "Polished"
+    ],
+    "applications": [
+      "Countertops",
+      "Backsplash",
+      "Wall Cladding"
+    ]
+  },
+  {
+    "id": 56,
+    "name": "Taj Mahal PST Face T",
+    "category": "MODA PST",
+    "price": "$22.00/sqft",
+    "collection": "Luxe",
+    "availability": "In Stock",
+    "image": "/images/products/placeholder.jpg",
+    "isNew": true,
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "138 * 79"
+    ],
+    "description": "",
+    "primaryColor": "",
+    "accentColor": "",
+    "style": "",
+    "variations": "Low",
+    "finishes": [
+      "Polished"
+    ],
+    "applications": [
+      "Countertops",
+      "Backsplash",
+      "Wall Cladding"
+    ]
+  },
+  {
+    "id": 55,
+    "name": "Taj Mahal PST Face F",
+    "category": "MODA PST",
+    "price": "$30.00/sqft",
+    "collection": "Luxe",
+    "availability": "In Stock",
+    "image": "/images/products/WhatsApp_Image_2025_10_29_at_18_15_58_1764155064094-929542081.jpeg",
+    "isNew": true,
+    "thickness": [
+      "3CM"
+    ],
+    "sizes": [
+      "126 * 63"
+    ],
+    "description": "",
+    "primaryColor": "",
+    "accentColor": "",
+    "style": "",
+    "variations": "Low",
+    "finishes": [
+      "Polished"
+    ],
+    "applications": [
+      "Countertops",
+      "Backsplash",
+      "Wall Cladding"
+    ]
+  },
+  {
     "id": 5,
     "name": "Arabesco Croma",
     "category": "Quartz",
@@ -184,7 +329,8 @@ export const products = [
       "Countertops",
       "Backsplash",
       "Wall Cladding"
-    ]
+    ],
+    "showInSlider": true
   },
   {
     "id": 14,
@@ -327,7 +473,8 @@ export const products = [
     ],
     "sizes": [
       "138 * 79"
-    ]
+    ],
+    "showInSlider": true
   },
   {
     "id": 21,
@@ -546,7 +693,8 @@ export const products = [
     ],
     "sizes": [
       "138 * 79"
-    ]
+    ],
+    "showInSlider": true
   },
   {
     "id": 32,
@@ -585,7 +733,8 @@ export const products = [
     ],
     "sizes": [
       "139 * 80"
-    ]
+    ],
+    "showInSlider": true
   },
   {
     "id": 34,
@@ -604,7 +753,8 @@ export const products = [
     ],
     "sizes": [
       "138 * 79"
-    ]
+    ],
+    "showInSlider": false
   },
   {
     "id": 36,
@@ -718,7 +868,8 @@ export const products = [
     ],
     "sizes": [
       "138 * 79"
-    ]
+    ],
+    "showInSlider": true
   },
   {
     "id": 44,

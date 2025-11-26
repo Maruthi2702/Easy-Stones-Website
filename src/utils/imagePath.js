@@ -6,8 +6,14 @@ export const getImageFileName = (imageUrl = '') => {
 };
 
 export const getLocalImagePath = (imageUrl = '') => {
+  if (!imageUrl) return '';
   if (imageUrl.startsWith('http')) return imageUrl;
+  
+  // If path already starts with /images, return it as is
+  if (imageUrl.startsWith('/images')) return imageUrl;
+  
+  // Otherwise assume it's a filename in /images/products/
   const filename = getImageFileName(imageUrl);
-  return filename ? `/images/${filename}` : '';
+  return filename ? `/images/products/${filename}` : '';
 };
 

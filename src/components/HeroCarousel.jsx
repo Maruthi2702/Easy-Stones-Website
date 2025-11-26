@@ -3,35 +3,35 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getLocalImagePath } from '../utils/imagePath';
 import './HeroCarousel.css';
 
-const slides = [
-    {
-        image: 'Calacatta_Bella.jpg',
-        title: 'Moda Quartz',
-        subtitle: 'Timeless Elegance for Modern Living'
-    },
-    {
-        image: 'Statuario_Fantasia.jpg',
-        title: 'Moda Quartz',
-        subtitle: 'Engineered for Perfection'
-    },
-    {
-        image: 'Calacatta_Venato.png',
-        title: 'Moda Quartz',
-        subtitle: 'The Beauty of Natural Stone'
-    },
-    {
-        image: 'Arabesco_Croma.jpg',
-        title: 'Moda Quartz',
-        subtitle: 'Luxury in Every Detail'
-    },
-    {
-        image: 'Calacatta_Zurich.jpg',
-        title: 'Moda Quartz',
-        subtitle: 'Designed to Inspire'
-    }
-];
+import { products } from '../data/products';
 
 const HeroCarousel = () => {
+    // Filter products marked for slider
+    const sliderProducts = products.filter(p => p.showInSlider);
+
+    // Fallback slides if no products selected
+    const defaultSlides = [
+        {
+            image: 'Calacatta_Bella.jpg',
+            title: 'Moda Quartz',
+            subtitle: 'Timeless Elegance for Modern Living'
+        },
+        {
+            image: 'Statuario_Fantasia.jpg',
+            title: 'Moda Quartz',
+            subtitle: 'Engineered for Perfection'
+        }
+    ];
+
+    const slides = sliderProducts.length > 0
+        ? sliderProducts.map(p => ({
+            image: p.image,
+            title: p.category,
+            subtitle: p.name,
+            id: p.id
+        }))
+        : defaultSlides;
+
     const [current, setCurrent] = useState(0);
 
     useEffect(() => {
@@ -64,7 +64,7 @@ const HeroCarousel = () => {
                             <span className="slide-title-main">{slide.title}</span>
                         </h1>
                         <p className="slide-subtitle">{slide.subtitle}</p>
-                        <button className="slide-btn">View Collection</button>
+
                     </div>
                 </div>
             ))}

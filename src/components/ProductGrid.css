@@ -1,5 +1,5 @@
 .product-section {
-  padding-top: 6rem;
+  padding-top: 0;
   padding-bottom: 6rem;
   position: relative;
 }
@@ -97,6 +97,22 @@
 .product-grid .product-card:nth-child(5) { animation-delay: 0.3s; }
 .product-grid .product-card:nth-child(6) { animation-delay: 0.35s; }
 .product-grid .product-card:nth-child(n+7) { animation-delay: 0.4s; }
+.colors-container {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2.25rem;
+  margin-top: 1rem;
+}
+
+.color-item {
+  background: var(--bg-primary);
+  padding: 1rem;
+  text-align: center;
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
 
 @media (max-width: 1200px) {
   .product-grid {

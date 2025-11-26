@@ -3,16 +3,34 @@ import ProductCard from './ProductCard';
 import { products } from '../data/products';
 import './ProductGrid.css';
 
-const ProductGrid = ({ searchTerm = '' }) => {
+const ProductGrid = ({ searchTerm = '', activeCategory = 'Moda Quartz' }) => {
   const [activeCollection, setActiveCollection] = useState('All');
 
   const collections = ['All', 'Luxe', 'Prestige', 'Signature', 'Basic'];
 
+
+
+
+  // Reset active collection when category changes
+  React.useEffect(() => {
+    setActiveCollection('All');
+  }, [activeCategory]);
+
   const filteredProducts = useMemo(() => {
     let filtered = products;
 
-    // Filter by collection
-    if (activeCollection !== 'All') {
+    // Filter by Category
+    if (activeCategory === 'Moda Quartz') {
+      filtered = filtered.filter(p => p.category === 'Quartz');
+    } else {
+      filtered = filtered.filter(p => p.category === activeCategory);
+    }
+
+    // ... rest of logic
+
+
+    // Filter by collection (only for Quartz/Moda Quartz for now)
+    if (activeCategory === 'Moda Quartz' && activeCollection !== 'All') {
       filtered = filtered.filter((product) => product.collection === activeCollection);
     }
 
@@ -26,38 +44,34 @@ const ProductGrid = ({ searchTerm = '' }) => {
     filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
 
     return filtered;
-  }, [searchTerm, activeCollection]);
+  }, [searchTerm, activeCollection, activeCategory]);
 
   return (
     <section className="product-section container">
-      <div className="section-header">
-        <h2 className="section-title">Moda Quartz</h2>
-      </div>
 
-      {/* Collection Tabs */}
-      <div className="collection-tabs">
-        {collections.map((collection) => (
-          <button
-            key={collection}
-            className={`collection-tab ${activeCollection === collection ? 'active' : ''}`}
-            onClick={() => setActiveCollection(collection)}
-          >
-            {collection}
-          </button>
-        ))}
-      </div>
 
-      {filteredProducts.length === 0 ? (
-        <div className="empty-state glass-panel">
-          <p>No products found{searchTerm ? ` starting with "${searchTerm}"` : ''} in {activeCollection} collection.</p>
-        </div>
-      ) : (
-        <div className="product-grid">
-          {filteredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
+      {/* Collection Tabs - Only show for Moda Quartz */}
+      {activeCategory === 'Moda Quartz' && (
+        <div className="collection-tabs">
+          {collections.map((collection) => (
+            <button
+              key={collection}
+              className={`collection-tab ${activeCollection === collection ? 'active' : ''}`}
+              onClick={() => setActiveCollection(collection)}
+            >
+              {collection}
+            </button>
           ))}
         </div>
       )}
+
+
+      {/* Product Grid */}
+      <div className="product-grid">
+        {filteredProducts.map((product) => (
+          <ProductCard key={product.id} product={product} activeCategory={activeCategory} />
+        ))}
+      </div>
     </section>
   );
 };

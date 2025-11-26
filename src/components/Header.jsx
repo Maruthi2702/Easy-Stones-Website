@@ -1,4 +1,4 @@
-import React from 'react';
+import { NavLink, Link } from 'react-router-dom';
 import { ShoppingBag, Menu, Search } from 'lucide-react';
 import './Header.css';
 
@@ -10,13 +10,13 @@ const Header = ({ searchValue, onSearchChange }) => {
   return (
     <header className="header glass-panel">
       <div className="container header-content">
-        <div className="logo">
+        <Link to="/" className="logo">
           <img src="/logo.png" alt="Easy Stones" className="logo-image" />
-        </div>
+        </Link>
 
         <nav className="nav-desktop">
-          <a href="#" className="nav-link">Home</a>
-          <a href="#" className="nav-link active">Products</a>
+          <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>Home</NavLink>
+          <Link to="/" className="nav-link">Products</Link>
           <a href="#" className="nav-link">Live Inventory</a>
           <a href="#" className="nav-link">Blog</a>
           <a href="#" className="nav-link">Design Inspiration</a>
