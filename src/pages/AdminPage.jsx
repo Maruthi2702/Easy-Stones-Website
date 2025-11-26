@@ -1,17 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft } from 'lucide-react';
-import { products as initialProducts } from '../data/products';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, API_URL } from '../config/api';
+import { products as fallbackProducts } from '../data/products';
 import './AdminPage.css';
 
 const AdminPage = () => {
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterCollection, setFilterCollection] = useState('All');
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/products`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.length > 0) {
+            setProducts(data);
+          } else {
+            setProducts(fallbackProducts);
+          }
+        } else {
+          setProducts(fallbackProducts);
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        setProducts(fallbackProducts);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   // Initialize selected product when products change or on first load
   const selectedProduct = products.find(p => p.id === selectedProductId);
@@ -151,6 +177,14 @@ const AdminPage = () => {
   const sizeOptions = ['126 * 63', '135 * 77', '136 * 78', '138 * 79', '139 * 80', '143 * 80'];
   const finishOptions = ['Polished', 'Honed', 'Leathered', 'Concrete'];
   const applicationOptions = ['Countertops', 'Backsplash', 'Wall Cladding', 'Flooring', 'Shower Walls'];
+
+  if (loading) {
+    return (
+      <div className="page-loader">
+        <div className="loader-spinner"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-container">

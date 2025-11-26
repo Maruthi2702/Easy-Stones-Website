@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Download, ZoomIn, Maximize2 } from 'lucide-react';
-import { products } from '../data/products';
 import { getLocalImagePath } from '../utils/imagePath';
+import { API_URL } from '../config/api';
+import { products as fallbackProducts } from '../data/products';
 import './ProductDetail.css';
 
 const defaultDescription = (name) =>
@@ -13,8 +14,41 @@ const ProductDetail = () => {
   const { productId } = useParams();
   const location = useLocation();
   const [viewMode, setViewMode] = useState('slab'); // 'slab' | 'closeup'
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const product = products.find((item) => item.id.toString() === productId);
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        // First try to find in fallback data to show something immediately if possible (optional)
+        // or just fetch from API.
+
+        const response = await fetch(`${API_URL}/api/products`);
+        if (response.ok) {
+          const data = await response.json();
+          const found = data.find((item) => item.id.toString() === productId);
+          if (found) {
+            setProduct(found);
+          } else {
+            // Fallback to local data if not found in API (e.g. API empty)
+            const localFound = fallbackProducts.find((item) => item.id.toString() === productId);
+            setProduct(localFound);
+          }
+        } else {
+          const localFound = fallbackProducts.find((item) => item.id.toString() === productId);
+          setProduct(localFound);
+        }
+      } catch (error) {
+        console.error('Error fetching product:', error);
+        const localFound = fallbackProducts.find((item) => item.id.toString() === productId);
+        setProduct(localFound);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [productId]);
 
   // Get category from location state or fallback to product category or default
   const backCategory = location.state?.fromCategory;
@@ -26,6 +60,14 @@ const ProductDetail = () => {
       navigate(-1);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="page-loader">
+        <div className="loader-spinner"></div>
+      </div>
+    );
+  }
 
   if (!product) {
     return (

@@ -1,9 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import ProductCard from './ProductCard';
-import { products } from '../data/products';
 import './ProductGrid.css';
 
-const ProductGrid = ({ searchTerm = '', activeCategory = 'Moda Quartz' }) => {
+const ProductGrid = ({ searchTerm = '', activeCategory = 'Moda Quartz', products = [], loading = false }) => {
   const [activeCollection, setActiveCollection] = useState('All');
 
   const collections = ['All', 'Luxe', 'Prestige', 'Signature', 'Basic'];
@@ -44,10 +43,15 @@ const ProductGrid = ({ searchTerm = '', activeCategory = 'Moda Quartz' }) => {
     filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
 
     return filtered;
-  }, [searchTerm, activeCollection, activeCategory]);
+  }, [searchTerm, activeCollection, activeCategory, products]);
 
   return (
     <section className="product-section container">
+      {loading && (
+        <div className="grid-loader">
+          <div className="loader-spinner"></div>
+        </div>
+      )}
 
 
       {/* Collection Tabs - Only show for Moda Quartz */}
