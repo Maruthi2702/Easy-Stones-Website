@@ -11,12 +11,21 @@ const defaultDescription = (name) =>
 
 const ProductDetail = () => {
   const navigate = useNavigate();
-  const { productId } = useParams();
+  const { productId } = useParams(); // This now contains the slug
   const location = useLocation();
   const [viewMode, setViewMode] = useState('slab'); // 'slab' | 'closeup'
 
+  // Function to convert product name to slug
+  const createSlug = (name) => name
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+
   // Initialize with fallback data immediately
-  const initialProduct = fallbackProducts.find((item) => item.id.toString() === productId);
+  // Try to match by slug first, fallback to ID for backwards compatibility
+  const initialProduct = fallbackProducts.find((item) =>
+    createSlug(item.name) === productId || item.id.toString() === productId
+  );
   const [product, setProduct] = useState(initialProduct);
   const [loading, setLoading] = useState(false); // Don't show full page loader
 
@@ -26,7 +35,10 @@ const ProductDetail = () => {
         const response = await fetch(`${API_URL}/api/products`);
         if (response.ok) {
           const data = await response.json();
-          const found = data.find((item) => item.id.toString() === productId);
+          // Find by slug first, fallback to ID for backwards compatibility
+          const found = data.find((item) =>
+            createSlug(item.name) === productId || item.id.toString() === productId
+          );
           if (found) {
             setProduct(found);
           }

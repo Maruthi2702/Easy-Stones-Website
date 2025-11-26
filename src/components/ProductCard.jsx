@@ -7,11 +7,17 @@ import './ProductCard.css';
 const ProductCard = ({ product, activeCategory }) => {
   const imageSrc = getLocalImagePath(product.image);
 
+  // Convert product name to URL-friendly slug
+  const productSlug = product.name
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '');
+
   return (
     <Link
-      to={`/product/${product.id}`}
+      to={`/product/${productSlug}`}
       className="product-card glass-panel"
-      state={{ fromCategory: activeCategory }}
+      state={{ fromCategory: activeCategory, productId: product.id }}
     >
       <div className="card-image-container">
         <img
