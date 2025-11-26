@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft } from 'lucide-react';
 import { products as initialProducts } from '../data/products';
+import { API_ENDPOINTS } from '../config/api';
 import './AdminPage.css';
 
 const AdminPage = () => {
@@ -96,7 +97,7 @@ const AdminPage = () => {
     setSaveStatus(null);
 
     try {
-      const response = await fetch('http://localhost:3001/api/products/save', {
+      const response = await fetch(API_ENDPOINTS.SAVE_PRODUCTS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ products: productsToSave }),
@@ -131,7 +132,7 @@ const AdminPage = () => {
     formData.append('image', file);
 
     try {
-      const response = await fetch('http://localhost:3001/api/upload', {
+      const response = await fetch(API_ENDPOINTS.UPLOAD, {
         method: 'POST',
         body: formData,
       });

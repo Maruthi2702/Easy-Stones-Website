@@ -69,20 +69,21 @@ const ProductDetail = () => {
               alt={product.name}
               className={`main-image ${viewMode === 'closeup' ? 'zoomed' : ''}`}
             />
-            <div className="view-toggles">
-              <button
-                className={`toggle-btn ${viewMode === 'slab' ? 'active' : ''}`}
-                onClick={() => setViewMode('slab')}
-              >
-                <Maximize2 size={18} /> Full Slab
-              </button>
-              <button
-                className={`toggle-btn ${viewMode === 'closeup' ? 'active' : ''}`}
-                onClick={() => setViewMode('closeup')}
-              >
-                <ZoomIn size={18} /> Close Up
-              </button>
-            </div>
+          </div>
+
+          <div className="view-toggles">
+            <button
+              className={`toggle-btn ${viewMode === 'slab' ? 'active' : ''}`}
+              onClick={() => setViewMode('slab')}
+            >
+              <Maximize2 size={18} /> Full Slab
+            </button>
+            <button
+              className={`toggle-btn ${viewMode === 'closeup' ? 'active' : ''}`}
+              onClick={() => setViewMode('closeup')}
+            >
+              <ZoomIn size={18} /> Close Up
+            </button>
           </div>
         </div>
 
