@@ -5,14 +5,15 @@ import { products as fallbackProducts } from '../data/products';
 import './AdminPage.css';
 
 const AdminPage = () => {
-  const [products, setProducts] = useState([]);
+  // Initialize with fallback data immediately
+  const [products, setProducts] = useState(fallbackProducts);
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterCollection, setFilterCollection] = useState('All');
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Don't show full page loader
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -22,15 +23,11 @@ const AdminPage = () => {
           const data = await response.json();
           if (data && data.length > 0) {
             setProducts(data);
-          } else {
-            setProducts(fallbackProducts);
           }
-        } else {
-          setProducts(fallbackProducts);
         }
       } catch (error) {
         console.error('Error fetching products:', error);
-        setProducts(fallbackProducts);
+        // Keep using fallback data (already set)
       } finally {
         setLoading(false);
       }
@@ -178,13 +175,7 @@ const AdminPage = () => {
   const finishOptions = ['Polished', 'Honed', 'Leathered', 'Concrete'];
   const applicationOptions = ['Countertops', 'Backsplash', 'Wall Cladding', 'Flooring', 'Shower Walls'];
 
-  if (loading) {
-    return (
-      <div className="page-loader">
-        <div className="loader-spinner"></div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="admin-container">
