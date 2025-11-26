@@ -101,13 +101,18 @@ app.post('/api/products/save', async (req, res) => {
     }
 
     // Bulk write operations
-    const operations = products.map(product => ({
-      updateOne: {
-        filter: { id: product.id },
-        update: { $set: product },
-        upsert: true
-      }
-    }));
+    // Bulk write operations
+    const operations = products.map(product => {
+      // Remove _id and __v to prevent "immutable field" errors during update
+      const { _id, __v, ...productData } = product;
+      return {
+        updateOne: {
+          filter: { id: product.id },
+          update: { $set: productData },
+          upsert: true
+        }
+      };
+    });
 
     if (operations.length > 0) {
       await Product.bulkWrite(operations);

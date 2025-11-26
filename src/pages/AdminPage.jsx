@@ -132,11 +132,11 @@ const AdminPage = () => {
         setSaveStatus({ type: 'success', message: 'Changes saved successfully!' });
         setTimeout(() => setSaveStatus(null), 3000);
       } else {
-        throw new Error(data.error || 'Failed to save');
+        throw new Error(data.details || data.error || 'Failed to save');
       }
     } catch (error) {
       console.error('Error saving:', error);
-      setSaveStatus({ type: 'error', message: 'Failed to save changes. Check server.' });
+      setSaveStatus({ type: 'error', message: `Failed to save: ${error.message}` });
     } finally {
       setIsSaving(false);
     }
