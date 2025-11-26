@@ -1,0 +1,1 @@
+const a=(t="")=>{if(!t)return"";const e=t.split("/");return decodeURIComponent(e[e.length-1]||"").replace(/\s+/g,"_")},o=(t="")=>{if(!t)return"";if(t.startsWith("http"))return t;const e="/Easy-Stones-Website/",s=e.endsWith("/")?e.slice(0,-1):e;if(t.startsWith("/images"))return`${s}${t}`;const n=a(t);return n?`${s}/images/products/${n}`:""};export{o as g};

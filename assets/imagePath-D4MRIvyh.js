@@ -1,1 +1,0 @@
-const s=(t="")=>{if(!t)return"";const e=t.split("/");return decodeURIComponent(e[e.length-1]||"").replace(/\s+/g,"_")},r=(t="")=>{if(!t)return"";if(t.startsWith("http")||t.startsWith("/images"))return t;const e=s(t);return e?`/images/products/${e}`:""};export{r as g};
