@@ -222,6 +222,14 @@ export const products = [
     ],
     "sizes": [
       "136 * 78"
+    ],
+    "finishes": [
+      "Polished"
+    ],
+    "applications": [
+      "Countertops",
+      "Backsplash",
+      "Wall Cladding"
     ]
   },
   {

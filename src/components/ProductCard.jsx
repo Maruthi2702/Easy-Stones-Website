@@ -10,7 +10,13 @@ const ProductCard = ({ product }) => {
   return (
     <Link to={`/product/${product.id}`} className="product-card glass-panel">
       <div className="card-image-container">
-        <img src={imageSrc} alt={product.name} className="card-image" />
+        <img
+          src={imageSrc}
+          alt={product.name}
+          className="card-image"
+          loading="lazy"
+          decoding="async"
+        />
         {product.isNew && <span className="badge new">NEW</span>}
         <div className="card-overlay">
           <span className="view-btn">
