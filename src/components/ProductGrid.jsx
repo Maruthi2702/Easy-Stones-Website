@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import ProductCard from './ProductCard';
 import './ProductGrid.css';
 
-const ProductGrid = ({ searchTerm = '', activeCategory = 'Moda Quartz', products = [], loading = false }) => {
+const ProductGrid = ({ searchTerm = '', onSearchChange, activeCategory = 'Moda Quartz', products = [], loading = false }) => {
   const [activeCollection, setActiveCollection] = useState('All');
 
   const collections = ['All', 'Luxe', 'Prestige', 'Signature', 'Basic'];
@@ -52,6 +53,18 @@ const ProductGrid = ({ searchTerm = '', activeCategory = 'Moda Quartz', products
           <div className="loader-spinner"></div>
         </div>
       )}
+
+      {/* Search Bar */}
+      <div className="search-container-grid">
+        <Search size={20} className="search-icon" />
+        <input
+          type="text"
+          placeholder="Search products..."
+          value={searchTerm}
+          onChange={(e) => onSearchChange?.(e.target.value)}
+          className="search-input"
+        />
+      </div>
 
 
       {/* Collection Tabs - Only show for Moda Quartz */}

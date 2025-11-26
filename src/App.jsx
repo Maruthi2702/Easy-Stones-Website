@@ -18,17 +18,15 @@ const PageLoader = () => (
 );
 
 function App() {
-  const [searchTerm, setSearchTerm] = useState('');
-
   return (
     <div className="app">
       <ScrollToTop />
       <div className="bg-gradient"></div>
-      <Header searchValue={searchTerm} onSearchChange={setSearchTerm} />
+      <Header />
       <main>
         <Suspense fallback={<PageLoader />}>
           <Routes>
-            <Route path="/" element={<HomePage searchTerm={searchTerm} />} />
+            <Route path="/" element={<HomePage />} />
             <Route path="/product" element={<Navigate to="/" replace />} />
             <Route path="/product/:productId" element={<ProductDetail />} />
             <Route path="/admin" element={<AdminPage />} />

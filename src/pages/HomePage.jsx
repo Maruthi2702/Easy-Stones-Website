@@ -7,9 +7,10 @@ import { API_URL } from '../config/api';
 // Fallback data in case API fails initially or for static build
 import { products as fallbackProducts } from '../data/products';
 
-const HomePage = ({ searchTerm }) => {
+const HomePage = () => {
   const location = useLocation();
   const [activeCategory, setActiveCategory] = useState('Moda Quartz');
+  const [searchTerm, setSearchTerm] = useState('');
   // Initialize with fallback data immediately so user sees something while API wakes up
   const [products, setProducts] = useState(fallbackProducts);
   const [loading, setLoading] = useState(false); // Don't show full page loader
@@ -51,6 +52,7 @@ const HomePage = ({ searchTerm }) => {
       />
       <ProductGrid
         searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
         activeCategory={activeCategory}
         products={products}
         loading={loading}
