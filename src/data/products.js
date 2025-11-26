@@ -7,7 +7,7 @@ export const products = [
     "collection": "Luxe",
     "availability": "In Stock",
     "image": "/images/products/Perla_Oro_CutOut_SJ_1764187134601-130555324.png",
-    "isNew": true,
+    "isNewArrival": true,
     "showInSlider": false,
     "thickness": [
       "3CM"
@@ -37,7 +37,7 @@ export const products = [
     "collection": "Prestige",
     "availability": "In Stock",
     "image": "/images/products/Taj_Mahal_Face_P_1764181852710-309719608.png",
-    "isNew": true,
+    "isNewArrival": true,
     "thickness": [
       "3CM"
     ],
@@ -67,7 +67,7 @@ export const products = [
     "collection": "Luxe",
     "availability": "In Stock",
     "image": "/images/products/WhatsApp_Image_2025_11_26_at_10_08_40_1764180581763-242856245.jpeg",
-    "isNew": true,
+    "isNewArrival": true,
     "thickness": [
       "3CM"
     ],
@@ -97,7 +97,7 @@ export const products = [
     "collection": "Luxe",
     "availability": "In Stock",
     "image": "/images/products/WhatsApp_Image_2025_11_26_at_10_08_40_1764180605514-506382773.jpeg",
-    "isNew": true,
+    "isNewArrival": true,
     "thickness": [
       "3CM"
     ],
@@ -126,7 +126,7 @@ export const products = [
     "collection": "Luxe",
     "availability": "In Stock",
     "image": "/images/products/Taj_Mahal_PST_Face_T_1764186781740-865139128.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "thickness": [
       "3CM"
     ],
@@ -155,7 +155,7 @@ export const products = [
     "collection": "Luxe",
     "availability": "In Stock",
     "image": "/images/products/WhatsApp_Image_2025_11_26_at_10_08_40__1__1764180624544-92692573.jpeg",
-    "isNew": true,
+    "isNewArrival": true,
     "thickness": [
       "3CM"
     ],
@@ -186,7 +186,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Arabesco_Croma.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -213,7 +213,7 @@ export const products = [
     ],
     "availability": "Out of Stock",
     "image": "/images/products/Calacatta_Venato.png",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -232,7 +232,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Luminous_White.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -251,7 +251,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Mykonos.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -270,7 +270,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta_Savoy.png",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -289,7 +289,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Shadow_Gold.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -308,7 +308,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Sonoma.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -327,7 +327,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Statuario_Opus.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -346,7 +346,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta_Bella.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -374,7 +374,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Mystique.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Basic",
     "thickness": [
       "3CM"
@@ -393,7 +393,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Bianco_Carrara.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Basic",
     "thickness": [
       "3CM"
@@ -420,7 +420,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Shadow.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -439,7 +439,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Panda.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -458,7 +458,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Olympic.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Basic",
     "thickness": [
       "3CM",
@@ -479,7 +479,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Nero_Marquina.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -498,7 +498,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Luxor_Oro.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -518,7 +518,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Himalaya_White.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -537,7 +537,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Feather_White.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Basic",
     "thickness": [
       "3CM",
@@ -558,7 +558,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Elusive_White.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Basic",
     "thickness": [
       "2CM",
@@ -579,7 +579,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Designer_White.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Basic",
     "thickness": [
       "2CM",
@@ -600,7 +600,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Crystal.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Basic",
     "thickness": [
       "2CM",
@@ -621,7 +621,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Cascada.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Basic",
     "thickness": [
       "2CM",
@@ -642,7 +642,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Carrara_Deluxe.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Basic",
     "thickness": [
       "3CM"
@@ -661,7 +661,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta_Wow.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -680,7 +680,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta__Venus_1764178268357-771920226.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -699,7 +699,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta_Umi.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -718,7 +718,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta_Tesoro.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -738,7 +738,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta_Rama.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -757,7 +757,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta_Mia.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM",
@@ -778,7 +778,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Arabesco_Verde_SJ_Full_1764183642682-577367890.png",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -798,7 +798,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Structure_Gray.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Basic",
     "thickness": [
       "3CM"
@@ -817,7 +817,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Structure_Gray_Matte.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Basic",
     "thickness": [
       "3CM"
@@ -836,7 +836,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Cararra_Prima_Gold.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Basic",
     "thickness": [
       "3CM"
@@ -855,7 +855,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Travete_Tempest.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -874,7 +874,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Statuario_Marina.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -893,7 +893,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Statuario_Fantasia.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -913,7 +913,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Statuario_Piedmont.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -932,7 +932,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta_Sole.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -951,7 +951,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta_Nero.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Luxe",
     "thickness": [
       "3CM"
@@ -970,7 +970,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Carbon.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -989,7 +989,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Statuario_Dorato.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"
@@ -1008,7 +1008,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Calacatta_Zurich.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -1027,7 +1027,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Cosmic.jpg",
-    "isNew": true,
+    "isNewArrival": true,
     "collection": "Signature",
     "thickness": [
       "3CM"
@@ -1046,7 +1046,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Carrara_Prima.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Basic",
     "thickness": [
       "3CM"
@@ -1065,7 +1065,7 @@ export const products = [
     ],
     "availability": "In Stock",
     "image": "/images/products/Statuary_Waves_45.jpg",
-    "isNew": false,
+    "isNewArrival": false,
     "collection": "Prestige",
     "thickness": [
       "3CM"

@@ -8,7 +8,7 @@ const productSchema = new mongoose.Schema({
   collectionName: { type: String, alias: 'collection' }, // 'collection' is a reserved word in some contexts, but we can alias it
   availability: { type: String, default: 'In Stock' },
   image: { type: String },
-  isNew: { type: Boolean, default: false },
+  isNewArrival: { type: Boolean, default: false },
   showInSlider: { type: Boolean, default: false },
   thickness: [{ type: String }],
   sizes: [{ type: String }],

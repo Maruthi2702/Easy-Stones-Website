@@ -63,7 +63,7 @@ const AdminPage = () => {
       collection: 'Basic',
       availability: 'In Stock',
       image: '/images/products/placeholder.jpg',
-      isNew: true,
+      isNewArrival: true,
       showInSlider: false,
       thickness: ['3CM'],
       sizes: [],
@@ -326,8 +326,8 @@ const AdminPage = () => {
                   <label className="checkbox-label">
                     <input
                       type="checkbox"
-                      checked={selectedProduct.isNew || false}
-                      onChange={(e) => handleChange('isNew', e.target.checked)}
+                      checked={selectedProduct.isNewArrival || false}
+                      onChange={(e) => handleChange('isNewArrival', e.target.checked)}
                     />
                     <span>Mark as New Arrival</span>
                   </label>

@@ -21,7 +21,7 @@ const ProductCard = ({ product, activeCategory }) => {
           loading="lazy"
           decoding="async"
         />
-        {product.isNew && <span className="badge new">NEW</span>}
+        {product.isNewArrival && <span className="badge new">NEW</span>}
         <div className="card-overlay">
           <span className="view-btn">
             View Details <ArrowUpRight size={16} />
