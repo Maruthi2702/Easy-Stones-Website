@@ -4,7 +4,11 @@ import mongoose from 'mongoose';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import Product from './src/models/Product.js';
+import Admin from './src/models/Admin.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -16,6 +20,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// JWT Secret
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones')
@@ -49,9 +56,19 @@ app.use(cors({
     // In production you might want to be stricter
     return callback(null, true);
   },
-  credentials: true
+  credentials: true // Allow cookies
 }));
 app.use(express.json({ limit: '50mb' })); // Increase limit for large payloads
+app.use(cookieParser());
+
+// Rate limiter for login attempts
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 requests per window
+  message: { error: 'Too many login attempts. Please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // API endpoint to fetch all products
 app.get('/api/products', async (req, res) => {
@@ -64,18 +81,106 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// Authentication endpoint
-app.post('/api/auth/login', express.json(), (req, res) => {
-  const { username, password } = req.body;
+// JWT Verification Middleware
+const verifyToken = (req, res, next) => {
+  const token = req.cookies.adminToken;
   
-  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-  
-  if (username === adminUsername && password === adminPassword) {
-    res.json({ success: true, message: 'Login successful' });
-  } else {
-    res.status(401).json({ success: false, message: 'Invalid credentials' });
+  if (!token) {
+    return res.status(401).json({ error: 'Access denied. No token provided.' });
   }
+  
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.adminId = decoded.adminId;
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token.' });
+  }
+};
+
+// Enhanced authentication endpoint with bcrypt and JWT
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Username and password are required' 
+      });
+    }
+    
+    // Find admin by username
+    const admin = await Admin.findOne({ username: username.toLowerCase() });
+    
+    if (!admin) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid credentials' 
+      });
+    }
+    
+    // Check if account is locked
+    if (admin.isLocked()) {
+      return res.status(423).json({ 
+        success: false, 
+        message: 'Account locked due to too many failed attempts. Try again in 15 minutes.' 
+      });
+    }
+    
+    // Verify password
+    const isMatch = await admin.comparePassword(password);
+    
+    if (!isMatch) {
+      // Increment login attempts
+      await admin.incLoginAttempts();
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid credentials' 
+      });
+    }
+    
+    // Reset login attempts on successful login
+    if (admin.loginAttempts > 0) {
+      await admin.resetLoginAttempts();
+    }
+    
+    // Generate JWT
+    const token = jwt.sign(
+      { adminId: admin._id, username: admin.username },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    // Set HTTP-only cookie
+    res.cookie('adminToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Login successful',
+      admin: { username: admin.username, email: admin.email }
+    });
+    
+  } catch (error) {
+    console.error('❌ Login error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Logout endpoint
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('adminToken');
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// Verify token endpoint
+app.get('/api/auth/verify', verifyToken, (req, res) => {
+  res.json({ valid: true });
 });
 
 // API endpoint to upload image to Cloudinary

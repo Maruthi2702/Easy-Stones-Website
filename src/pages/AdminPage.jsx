@@ -146,9 +146,17 @@ const AdminPage = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('adminAuth');
-    navigate('/admin/login');
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      navigate('/admin/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      navigate('/admin/login');
+    }
   };
 
   // Options

@@ -20,7 +20,33 @@ const PageLoader = () => (
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = localStorage.getItem('adminAuth') === 'true';
+  const [isAuthenticated, setIsAuthenticated] = React.useState(null);
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const verifyAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/verify', {
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        setIsAuthenticated(false);
+      }
+    };
+
+    verifyAuth();
+  }, []);
+
+  if (isAuthenticated === null) {
+    return <PageLoader />;
+  }
+
   return isAuthenticated ? children : <Navigate to="/admin/login" replace />;
 };
 

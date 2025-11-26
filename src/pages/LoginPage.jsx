@@ -20,13 +20,14 @@ const LoginPage = () => {
             const response = await fetch(`${API_URL}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include', // Important: Include cookies
                 body: JSON.stringify({ username, password })
             });
 
             const data = await response.json();
 
             if (data.success) {
-                localStorage.setItem('adminAuth', 'true');
+                // JWT is stored in httpOnly cookie automatically
                 navigate('/admin');
             } else {
                 setError(data.message || 'Invalid credentials');
