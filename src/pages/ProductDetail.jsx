@@ -14,34 +14,26 @@ const ProductDetail = () => {
   const { productId } = useParams();
   const location = useLocation();
   const [viewMode, setViewMode] = useState('slab'); // 'slab' | 'closeup'
-  const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
+
+  // Initialize with fallback data immediately
+  const initialProduct = fallbackProducts.find((item) => item.id.toString() === productId);
+  const [product, setProduct] = useState(initialProduct);
+  const [loading, setLoading] = useState(false); // Don't show full page loader
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        // First try to find in fallback data to show something immediately if possible (optional)
-        // or just fetch from API.
-
         const response = await fetch(`${API_URL}/api/products`);
         if (response.ok) {
           const data = await response.json();
           const found = data.find((item) => item.id.toString() === productId);
           if (found) {
             setProduct(found);
-          } else {
-            // Fallback to local data if not found in API (e.g. API empty)
-            const localFound = fallbackProducts.find((item) => item.id.toString() === productId);
-            setProduct(localFound);
           }
-        } else {
-          const localFound = fallbackProducts.find((item) => item.id.toString() === productId);
-          setProduct(localFound);
         }
       } catch (error) {
         console.error('Error fetching product:', error);
-        const localFound = fallbackProducts.find((item) => item.id.toString() === productId);
-        setProduct(localFound);
+        // Keep using fallback data (already set)
       } finally {
         setLoading(false);
       }
