@@ -104,7 +104,13 @@ app.post('/api/products/save', async (req, res) => {
     // Bulk write operations
     const operations = products.map(product => {
       // Remove _id and __v to prevent "immutable field" errors during update
-      const { _id, __v, ...productData } = product;
+      const { _id, __v, collection, ...productData } = product;
+      
+      // Map 'collection' to 'collectionType' for the schema
+      if (collection) {
+        productData.collectionType = collection;
+      }
+      
       return {
         updateOne: {
           filter: { id: product.id },
@@ -127,6 +133,29 @@ app.post('/api/products/save', async (req, res) => {
   } catch (error) {
     console.error('❌ Error saving products:', error);
     res.status(500).json({ error: 'Failed to save products', details: error.message });
+  }
+});
+
+// One-time migration endpoint to populate collectionType from collection field
+app.post('/api/migrate-collection', async (req, res) => {
+  try {
+    const products = await Product.find({});
+    let updated = 0;
+    
+    for (const product of products) {
+      // If collectionType is missing but we have the data in the request or can infer it
+      if (!product.collectionType && product.collection) {
+        product.collectionType = product.collection;
+        await product.save();
+        updated++;
+      }
+    }
+    
+    console.log(`✅ Migration complete: Updated ${updated} products`);
+    res.json({ success: true, message: `Updated ${updated} products with collectionType` });
+  } catch (error) {
+    console.error('❌ Error during migration:', error);
+    res.status(500).json({ error: 'Migration failed', details: error.message });
   }
 });
 
