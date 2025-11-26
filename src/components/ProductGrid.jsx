@@ -54,31 +54,46 @@ const ProductGrid = ({ searchTerm = '', onSearchChange, activeCategory = 'Moda Q
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="search-container-grid">
-        <Search size={20} className="search-icon" />
-        <input
-          type="text"
-          placeholder="Search products..."
-          value={searchTerm}
-          onChange={(e) => onSearchChange?.(e.target.value)}
-          className="search-input"
-        />
-      </div>
-
-
-      {/* Collection Tabs - Only show for Moda Quartz */}
+      {/* Collection Tabs with Search - Only show for Moda Quartz */}
       {activeCategory === 'Moda Quartz' && (
-        <div className="collection-tabs">
-          {collections.map((collection) => (
-            <button
-              key={collection}
-              className={`collection-tab ${activeCollection === collection ? 'active' : ''}`}
-              onClick={() => setActiveCollection(collection)}
-            >
-              {collection}
-            </button>
-          ))}
+        <div className="tabs-search-wrapper">
+          <div className="collection-tabs">
+            {collections.map((collection) => (
+              <button
+                key={collection}
+                className={`collection-tab ${activeCollection === collection ? 'active' : ''}`}
+                onClick={() => setActiveCollection(collection)}
+              >
+                {collection}
+              </button>
+            ))}
+          </div>
+
+          {/* Search Bar */}
+          <div className="search-container-grid">
+            <Search size={20} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange?.(e.target.value)}
+              className="search-input"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Show search only when not Moda Quartz */}
+      {activeCategory !== 'Moda Quartz' && (
+        <div className="search-container-grid">
+          <Search size={20} className="search-icon" />
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={searchTerm}
+            onChange={(e) => onSearchChange?.(e.target.value)}
+            className="search-input"
+          />
         </div>
       )}
 

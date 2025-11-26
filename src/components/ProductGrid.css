@@ -78,13 +78,27 @@
 }
 
 
+/* Tabs and Search Wrapper */
+.tabs-search-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 3rem;
+  flex-wrap: wrap;
+  animation: fadeUp 0.8s ease 0.5s backwards;
+}
+
+.tabs-search-wrapper .search-container-grid {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
 /* Collection Tabs */
 .collection-tabs {
   display: flex;
   gap: 0.75rem;
-  margin-bottom: 3rem;
   flex-wrap: wrap;
-  animation: fadeUp 0.8s ease 0.5s backwards;
 }
 
 .collection-tab {
