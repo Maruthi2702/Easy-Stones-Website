@@ -104,11 +104,12 @@ app.post('/api/products/save', async (req, res) => {
     // Bulk write operations
     const operations = products.map(product => {
       // Remove _id and __v to prevent "immutable field" errors during update
-      const { _id, __v, collection, ...productData } = product;
+      const { _id, __v, ...productData } = product;
       
       // Map 'collection' to 'collectionType' for the schema
-      if (collection) {
-        productData.collectionType = collection;
+      if (productData.collection) {
+        productData.collectionType = productData.collection;
+        delete productData.collection; // Remove the original to avoid conflicts
       }
       
       return {
