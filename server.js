@@ -64,6 +64,20 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
+// Authentication endpoint
+app.post('/api/auth/login', express.json(), (req, res) => {
+  const { username, password } = req.body;
+  
+  const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  
+  if (username === adminUsername && password === adminPassword) {
+    res.json({ success: true, message: 'Login successful' });
+  } else {
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
+  }
+});
+
 // API endpoint to upload image to Cloudinary
 app.post('/api/upload', upload.single('image'), async (req, res) => {
   try {

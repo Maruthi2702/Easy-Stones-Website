@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../config/api';
 import { products as fallbackProducts } from '../data/products';
 import './AdminPage.css';
 
 const AdminPage = () => {
+  const navigate = useNavigate();
   // Initialize with fallback data immediately
   const [products, setProducts] = useState(fallbackProducts);
   const [selectedProductId, setSelectedProductId] = useState(null);
@@ -144,6 +146,11 @@ const AdminPage = () => {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('adminAuth');
+    navigate('/admin/login');
+  };
+
   // Options
   const collections = ['Luxe', 'Prestige', 'Signature', 'Basic'];
   const categories = ['Quartz', 'Granite', 'Marble', 'Quartzite', 'MODA PST'];
@@ -181,6 +188,17 @@ const AdminPage = () => {
 
   return (
     <div className="admin-container">
+      {/* Admin Header */}
+      <div className="admin-header">
+        <div className="admin-header-content">
+          <h1>Admin Panel</h1>
+          <button className="logout-btn" onClick={handleLogout}>
+            <LogOut size={18} />
+            Logout
+          </button>
+        </div>
+      </div>
+
       {/* Sidebar */}
       <div className="admin-sidebar">
         <div className="sidebar-header">

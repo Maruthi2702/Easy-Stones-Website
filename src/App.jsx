@@ -1,4 +1,4 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -9,6 +9,7 @@ import './App.css';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
 
 // Loading component
 const PageLoader = () => (
@@ -16,6 +17,12 @@ const PageLoader = () => (
     <div className="loader-spinner"></div>
   </div>
 );
+
+// Protected Route component
+const ProtectedRoute = ({ children }) => {
+  const isAuthenticated = localStorage.getItem('adminAuth') === 'true';
+  return isAuthenticated ? children : <Navigate to="/admin/login" replace />;
+};
 
 function App() {
   return (
@@ -29,7 +36,15 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/product" element={<Navigate to="/" replace />} />
             <Route path="/product/:productId" element={<ProductDetail />} />
-            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin/login" element={<LoginPage />} />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminPage />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </Suspense>
       </main>

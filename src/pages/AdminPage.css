@@ -1,7 +1,59 @@
+/* Admin Header */
+.admin-header {
+  background: var(--bg-card);
+  border-bottom: 2px solid var(--border-color);
+  position: fixed;
+  top: 80px;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  box-shadow: var(--shadow-md);
+}
+
+.admin-header-content {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 1.25rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.admin-header h1 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 900;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1.5px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
 .admin-container {
   display: flex;
   height: calc(100vh - 80px); /* Subtract header height */
-  margin-top: 80px; /* Push below header */
+  margin-top: 145px; /* Push below header + admin header */
   background: var(--bg-secondary);
   overflow: hidden;
 }
