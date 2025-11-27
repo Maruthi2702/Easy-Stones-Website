@@ -232,6 +232,13 @@
   color: var(--text-light);
 }
 
+.readonly-input {
+  background-color: #f5f5f5;
+  color: #666;
+  cursor: not-allowed;
+  border-color: #ddd;
+}
+
 /* Main Content */
 .admin-main {
   flex: 1;

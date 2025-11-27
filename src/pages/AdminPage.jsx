@@ -411,26 +411,28 @@ const AdminPage = () => {
 
       {/* Main Content */}
       <div className={`admin-main ${activeTab === 'settings' ? 'full-width' : ''}`}>
-        <div className="main-header">
-          <h1>Product Editor</h1>
-          <div className="header-actions">
-            {selectedProduct && (
+        {activeTab === 'products' && (
+          <div className="main-header">
+            <h1>Product Editor</h1>
+            <div className="header-actions">
+              {selectedProduct && (
+                <button
+                  className="delete-btn"
+                  onClick={() => handleDeleteProduct(selectedProduct.id)}
+                >
+                  <Trash2 size={18} /> Delete
+                </button>
+              )}
               <button
-                className="delete-btn"
-                onClick={() => handleDeleteProduct(selectedProduct.id)}
+                className={`save-btn ${isSaving ? 'saving' : ''}`}
+                onClick={() => saveData()}
+                disabled={isSaving}
               >
-                <Trash2 size={18} /> Delete
+                <Save size={18} /> {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
-            )}
-            <button
-              className={`save-btn ${isSaving ? 'saving' : ''}`}
-              onClick={() => saveData()}
-              disabled={isSaving}
-            >
-              <Save size={18} /> {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {saveStatus && (
           <div className={`status-message ${saveStatus.type}`}>
@@ -461,6 +463,44 @@ const AdminPage = () => {
               )}
 
               <form onSubmit={saveCustomer} className="customer-form">
+                {!isNewCustomer && (
+                  <section className="form-section metadata-section">
+                    <h3>Account Details</h3>
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label>Customer ID</label>
+                        <input type="text" value={selectedCustomerId} disabled className="readonly-input" />
+                      </div>
+                      <div className="form-group">
+                        <label>Joined Date</label>
+                        <input
+                          type="text"
+                          value={customers.find(c => c._id === selectedCustomerId)?.createdAt ? new Date(customers.find(c => c._id === selectedCustomerId).createdAt).toLocaleDateString() : 'N/A'}
+                          disabled
+                          className="readonly-input"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Verified</label>
+                        <input
+                          type="text"
+                          value={customers.find(c => c._id === selectedCustomerId)?.isVerified ? 'Yes' : 'No'}
+                          disabled
+                          className="readonly-input"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Login Attempts</label>
+                        <input
+                          type="text"
+                          value={customers.find(c => c._id === selectedCustomerId)?.loginAttempts || 0}
+                          disabled
+                          className="readonly-input"
+                        />
+                      </div>
+                    </div>
+                  </section>
+                )}
                 <section className="form-section">
                   <h3>Personal Information</h3>
                   <div className="form-grid">
