@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut } from 'lucide-react';
+import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../config/api';
 import { products as fallbackProducts } from '../data/products';
 import './AdminPage.css';
@@ -15,7 +15,14 @@ const AdminPage = () => {
   const [filterCollection, setFilterCollection] = useState('All');
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
-  const [loading, setLoading] = useState(false); // Don't show full page loader
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('products');
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordStatus, setPasswordStatus] = useState(null);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -159,6 +166,46 @@ const AdminPage = () => {
     }
   };
 
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordStatus(null);
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordStatus({ type: 'error', message: 'New passwords do not match' });
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setPasswordStatus({ type: 'error', message: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPasswordStatus({ type: 'success', message: 'Password changed successfully!' });
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setTimeout(() => setPasswordStatus(null), 3000);
+      } else {
+        setPasswordStatus({ type: 'error', message: data.message || 'Failed to change password' });
+      }
+    } catch (error) {
+      console.error('Password change error:', error);
+      setPasswordStatus({ type: 'error', message: 'Failed to change password' });
+    }
+  };
+
   // Options
   const collections = ['Luxe', 'Prestige', 'Signature', 'Basic'];
   const categories = ['Quartz', 'Granite', 'Marble', 'Quartzite', 'MODA PST'];
@@ -200,6 +247,22 @@ const AdminPage = () => {
       <div className="admin-header">
         <div className="admin-header-content">
           <h1>Admin Panel</h1>
+          <div className="header-tabs">
+            <button
+              className={`tab-btn ${activeTab === 'products' ? 'active' : ''}`}
+              onClick={() => setActiveTab('products')}
+            >
+              <Package size={18} />
+              Products
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+              onClick={() => setActiveTab('settings')}
+            >
+              <Settings size={18} />
+              Settings
+            </button>
+          </div>
           <button className="logout-btn" onClick={handleLogout}>
             <LogOut size={18} />
             Logout
@@ -208,62 +271,64 @@ const AdminPage = () => {
       </div>
 
       {/* Sidebar */}
-      <div className="admin-sidebar">
-        <div className="sidebar-header">
-          <h2>Products</h2>
-          <button className="add-btn" onClick={handleAddProduct}>
-            <Plus size={18} /> New
-          </button>
-        </div>
+      {activeTab === 'products' && (
+        <div className="admin-sidebar">
+          <div className="sidebar-header">
+            <h2>Products</h2>
+            <button className="add-btn" onClick={handleAddProduct}>
+              <Plus size={18} /> New
+            </button>
+          </div>
 
-        <div className="search-box">
-          <Search size={16} className="search-icon" />
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+          <div className="search-box">
+            <Search size={16} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
 
-        <div className="filter-box">
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="sidebar-filter"
-          >
-            <option value="All">All Categories</option>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <select
-            value={filterCollection}
-            onChange={(e) => setFilterCollection(e.target.value)}
-            className="sidebar-filter"
-          >
-            <option value="All">All Collections</option>
-            {collections.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-
-        <div className="product-list">
-          {filteredProducts.map(product => (
-            <div
-              key={product.id}
-              className={`product-list-item ${selectedProductId === product.id ? 'active' : ''}`}
-              onClick={() => handleSelectProduct(product.id)}
+          <div className="filter-box">
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="sidebar-filter"
             >
-              <img src={product.image} alt={product.name} className="list-thumb" />
-              <div className="list-info">
-                <span className="list-name">{product.name}</span>
-                <span className="list-meta">{product.collection} • {product.category}</span>
+              <option value="All">All Categories</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select
+              value={filterCollection}
+              onChange={(e) => setFilterCollection(e.target.value)}
+              className="sidebar-filter"
+            >
+              <option value="All">All Collections</option>
+              {collections.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div className="product-list">
+            {filteredProducts.map(product => (
+              <div
+                key={product.id}
+                className={`product-list-item ${selectedProductId === product.id ? 'active' : ''}`}
+                onClick={() => handleSelectProduct(product.id)}
+              >
+                <img src={product.image} alt={product.name} className="list-thumb" />
+                <div className="list-info">
+                  <span className="list-name">{product.name}</span>
+                  <span className="list-meta">{product.collection} • {product.category}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content */}
-      <div className="admin-main">
+      <div className={`admin-main ${activeTab === 'settings' ? 'full-width' : ''}`}>
         <div className="main-header">
           <h1>Product Editor</h1>
           <div className="header-actions">
@@ -291,7 +356,59 @@ const AdminPage = () => {
           </div>
         )}
 
-        {selectedProduct ? (
+        {activeTab === 'settings' ? (
+          <div className="settings-container">
+            <div className="settings-section">
+              <h2>Change Password</h2>
+              <p className="section-description">Update your admin account password</p>
+
+              {passwordStatus && (
+                <div className={`status-message ${passwordStatus.type}`}>
+                  {passwordStatus.message}
+                </div>
+              )}
+
+              <form onSubmit={handlePasswordChange} className="password-form">
+                <div className="form-group">
+                  <label>Current Password</label>
+                  <input
+                    type="password"
+                    value={passwordData.currentPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                    required
+                    placeholder="Enter current password"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>New Password</label>
+                  <input
+                    type="password"
+                    value={passwordData.newPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                    required
+                    placeholder="Enter new password (min 6 characters)"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Confirm New Password</label>
+                  <input
+                    type="password"
+                    value={passwordData.confirmPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                    required
+                    placeholder="Confirm new password"
+                  />
+                </div>
+
+                <button type="submit" className="save-btn">
+                  <Save size={18} /> Change Password
+                </button>
+              </form>
+            </div>
+          </div>
+        ) : selectedProduct ? (
           <div className="edit-form">
             {/* Basic Info */}
             <section className="form-section">
