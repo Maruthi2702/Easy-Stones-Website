@@ -40,32 +40,34 @@
 .sub-nav {
   display: flex;
   justify-content: center;
-  gap: 1.5rem;
-  padding: 1rem 0;
-  background: var(--bg-secondary);
+  gap: 3rem;
+  padding: 0;
+  background: transparent;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .sub-nav button {
   background: none;
   border: none;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
+  font-size: 0.95rem;
+  color: #6b7280;
   cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
+  transition: all 0.3s ease;
+  font-weight: 400;
+  padding: 1rem 0;
+  border-bottom: 2px solid transparent;
+  position: relative;
+  letter-spacing: 0.3px;
 }
 
 .sub-nav button:hover {
-  color: var(--text-primary);
-  background: rgba(0, 0, 0, 0.05);
+  color: #1f2937;
 }
 
 .sub-nav button.active {
-  color: var(--accent-color);
-  font-weight: 600;
-  background: rgba(212, 175, 55, 0.1); /* Light gold background */
+  color: #1f2937;
+  font-weight: 500;
+  border-bottom-color: var(--accent-color);
 }
 
 .warranty-container {
