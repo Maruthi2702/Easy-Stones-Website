@@ -33,7 +33,7 @@ const Header = () => {
             </div>
           ) : (
             <Link to="/login" className="login-btn">
-              Login
+              Customer Login
             </Link>
           )}
           <button className="icon-btn menu-btn" aria-label="Menu">
