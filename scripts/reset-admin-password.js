@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import Admin from '../src/models/Admin.js';
 import dotenv from 'dotenv';
 
