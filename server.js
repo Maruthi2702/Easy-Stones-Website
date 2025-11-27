@@ -35,11 +35,25 @@ app.get('/api/debug/config', async (req, res) => {
     const adminCount = await Admin.countDocuments();
     const dbName = mongoose.connection.name;
     const host = mongoose.connection.host;
+    
+    // Check for specific user if provided
+    let userCheck = null;
+    if (req.query.username) {
+      const user = await Admin.findOne({ username: req.query.username.toLowerCase() });
+      userCheck = {
+        requested_username: req.query.username,
+        found: !!user,
+        login_attempts: user ? user.loginAttempts : null,
+        is_locked: user ? user.isLocked() : null
+      };
+    }
+
     res.json({
       connected_db: dbName,
       host: host,
       admin_count: adminCount,
-      mongo_uri_masked: process.env.MONGO_URI ? process.env.MONGO_URI.split('@')[1] : 'not_set'
+      mongo_uri_masked: process.env.MONGO_URI ? process.env.MONGO_URI.split('@')[1] : 'not_set',
+      user_check: userCheck
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
