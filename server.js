@@ -402,6 +402,11 @@ app.post('/api/customer/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
+    // Check if account is active
+    if (customer.isActive === false) {
+      return res.status(403).json({ message: 'Account is deactivated. Please contact support.' });
+    }
+
     // Check if locked
     if (customer.isLocked()) {
       return res.status(423).json({ 
@@ -589,6 +594,41 @@ app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Update customer error:', error);
     res.status(500).json({ message: `Failed to update customer: ${error.message}` });
+  }
+});
+
+// Admin: Delete customer
+app.delete('/api/admin/customers/:id', verifyToken, async (req, res) => {
+  try {
+    const customer = await Customer.findByIdAndDelete(req.params.id);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+    res.json({ success: true, message: 'Customer deleted successfully' });
+  } catch (error) {
+    console.error('Delete customer error:', error);
+    res.status(500).json({ message: 'Failed to delete customer' });
+  }
+});
+
+// Admin: Update customer status
+app.patch('/api/admin/customers/:id/status', verifyToken, async (req, res) => {
+  try {
+    const { isActive } = req.body;
+    const customer = await Customer.findByIdAndUpdate(
+      req.params.id,
+      { isActive },
+      { new: true }
+    );
+    
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+    
+    res.json({ success: true, message: `Customer ${isActive ? 'activated' : 'deactivated'} successfully` });
+  } catch (error) {
+    console.error('Update status error:', error);
+    res.status(500).json({ message: 'Failed to update customer status' });
   }
 });
 

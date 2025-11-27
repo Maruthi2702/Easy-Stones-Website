@@ -417,6 +417,67 @@ const AdminPage = () => {
     }
   };
 
+  const handleDeleteCustomer = async (id) => {
+    if (window.confirm('Are you sure you want to delete this customer? This cannot be undone.')) {
+      try {
+        const response = await fetch(`${API_URL}/api/admin/customers/${id}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          setCustomers(prev => prev.filter(c => c._id !== id));
+          if (selectedCustomerId === id) {
+            setSelectedCustomerId(null);
+          }
+          setCustomerSaveStatus({ type: 'success', message: 'Customer deleted successfully' });
+        } else {
+          const data = await response.json();
+          throw new Error(data.message || 'Failed to delete customer');
+        }
+      } catch (error) {
+        console.error('Error deleting customer:', error);
+        setCustomerSaveStatus({ type: 'error', message: error.message });
+      }
+    }
+  };
+
+  const handleToggleCustomerStatus = async (id, currentStatus) => {
+    const newStatus = !currentStatus;
+    const action = newStatus ? 'activate' : 'deactivate';
+
+    if (window.confirm(`Are you sure you want to ${action} this customer?`)) {
+      try {
+        const response = await fetch(`${API_URL}/api/admin/customers/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ isActive: newStatus })
+        });
+
+        if (response.ok) {
+          // Refresh customers list to ensure sync
+          const customersResponse = await fetch(`${API_URL}/api/admin/customers`, {
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include'
+          });
+          if (customersResponse.ok) {
+            const customersData = await customersResponse.json();
+            setCustomers(customersData);
+          }
+
+          setCustomerSaveStatus({ type: 'success', message: `Customer ${action}d successfully` });
+        } else {
+          const data = await response.json();
+          throw new Error(data.message || `Failed to ${action} customer`);
+        }
+      } catch (error) {
+        console.error(`Error ${action}ing customer:`, error);
+        setCustomerSaveStatus({ type: 'error', message: `Failed to ${action} customer: ${error.message}` });
+      }
+    }
+  };
+
   return (
     <div className="admin-container">
       {/* Admin Header */}
@@ -525,7 +586,10 @@ const AdminPage = () => {
                       <User size={20} />
                     </div>
                     <div className="list-info">
-                      <span className="list-name">{customer.firstName} {customer.lastName}</span>
+                      <span className="list-name">
+                        {customer.firstName} {customer.lastName}
+                        {customer.isActive === false && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginLeft: '0.5rem' }}>(Deactivated)</span>}
+                      </span>
                       <span className="list-meta">{customer.company || customer.email}</span>
                     </div>
                   </div>
@@ -573,6 +637,23 @@ const AdminPage = () => {
               <div className="main-header">
                 <h1>{isNewCustomer ? 'Create Customer' : 'Edit Customer'}</h1>
                 <div className="header-actions">
+                  {!isNewCustomer && (
+                    <>
+                      <button
+                        className="delete-btn"
+                        onClick={() => handleDeleteCustomer(selectedCustomerId)}
+                      >
+                        <Trash2 size={18} /> Delete
+                      </button>
+                      <button
+                        className="secondary-btn"
+                        onClick={() => handleToggleCustomerStatus(selectedCustomerId, customers.find(c => c._id === selectedCustomerId)?.isActive ?? true)}
+                        style={{ borderColor: customers.find(c => c._id === selectedCustomerId)?.isActive !== false ? '#ef4444' : '#10b981', color: customers.find(c => c._id === selectedCustomerId)?.isActive !== false ? '#ef4444' : '#10b981' }}
+                      >
+                        {customers.find(c => c._id === selectedCustomerId)?.isActive !== false ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </>
+                  )}
                   <button
                     className={`save-btn ${isSaving ? 'saving' : ''}`}
                     onClick={saveCustomer}
@@ -614,6 +695,16 @@ const AdminPage = () => {
                           value={customers.find(c => c._id === selectedCustomerId).isVerified ? 'Yes' : 'No'}
                           disabled
                           className="readonly-input"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Status</label>
+                        <input
+                          type="text"
+                          value={customers.find(c => c._id === selectedCustomerId).isActive !== false ? 'Active' : 'Deactivated'}
+                          disabled
+                          className="readonly-input"
+                          style={{ color: customers.find(c => c._id === selectedCustomerId).isActive !== false ? '#10b981' : '#ef4444' }}
                         />
                       </div>
                       <div className="form-group">

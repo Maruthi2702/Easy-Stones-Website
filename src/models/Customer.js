@@ -15,6 +15,7 @@ const customerSchema = new mongoose.Schema({
     zipCode: String
   },
   isVerified: { type: Boolean, default: false },
+  isActive: { type: Boolean, default: true },
   loginAttempts: { type: Number, default: 0 },
   lockUntil: { type: Date }
 }, { timestamps: true });
