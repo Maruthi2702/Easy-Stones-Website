@@ -284,6 +284,120 @@ const AdminPage = () => {
 
 
 
+  // Customer Management Functions
+  const handleSelectCustomer = (customer) => {
+    setSelectedCustomerId(customer._id);
+    setCustomerFormData({
+      firstName: customer.firstName || '',
+      lastName: customer.lastName || '',
+      email: customer.email || '',
+      password: '', // Don't show password
+      phone: customer.phone || '',
+      company: customer.company || '',
+      address: {
+        street: customer.address?.street || '',
+        city: customer.address?.city || '',
+        state: customer.address?.state || '',
+        zipCode: customer.address?.zipCode || ''
+      }
+    });
+    setIsNewCustomer(false);
+    setCustomerSaveStatus(null);
+    window.scrollTo(0, 0);
+  };
+
+  const handleAddCustomer = () => {
+    setSelectedCustomerId('new');
+    setCustomerFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      phone: '',
+      company: '',
+      address: {
+        street: '',
+        city: '',
+        state: '',
+        zipCode: ''
+      }
+    });
+    setIsNewCustomer(true);
+    setCustomerSaveStatus(null);
+  };
+
+  const handleCustomerChange = (field, value) => {
+    setCustomerFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleAddressChange = (field, value) => {
+    setCustomerFormData(prev => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        [field]: value
+      }
+    }));
+  };
+
+  const saveCustomer = async (e) => {
+    if (e) e.preventDefault();
+    setIsSaving(true);
+    setCustomerSaveStatus(null);
+
+    try {
+      const url = isNewCustomer
+        ? `${API_URL}/api/admin/customers`
+        : `${API_URL}/api/admin/customers/${selectedCustomerId}`;
+
+      const method = isNewCustomer ? 'POST' : 'PUT';
+
+      // Remove password if empty for updates
+      const dataToSend = { ...customerFormData };
+      if (!isNewCustomer && !dataToSend.password) {
+        delete dataToSend.password;
+      }
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(dataToSend)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCustomerSaveStatus({ type: 'success', message: `Customer ${isNewCustomer ? 'created' : 'updated'} successfully!` });
+
+        // Refresh customers list
+        const customersResponse = await fetch(`${API_URL}/api/admin/customers`, {
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+        if (customersResponse.ok) {
+          const customersData = await customersResponse.json();
+          setCustomers(customersData);
+        }
+
+        if (isNewCustomer) {
+          setIsNewCustomer(false);
+          setSelectedCustomerId(data._id || data.customer?._id); // Handle different response structures
+        }
+      } else {
+        setCustomerSaveStatus({ type: 'error', message: data.message || 'Failed to save customer' });
+      }
+    } catch (error) {
+      console.error('Error saving customer:', error);
+      setCustomerSaveStatus({ type: 'error', message: 'Failed to save customer' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="admin-container">
       {/* Admin Header */}
