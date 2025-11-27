@@ -4,6 +4,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider } from './context/AuthContext';
+import { ProductProvider } from './context/ProductContext';
 import './App.css';
 
 // Lazy load pages
@@ -57,33 +58,35 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
-      <div className="app">
-        <ScrollToTop />
-        <div className="bg-gradient"></div>
-        <Header />
-        <main>
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/product" element={<Navigate to="/" replace />} />
-              <Route path="/product/:productId" element={<ProductDetail />} />
-              <Route path="/contact" element={<ContactPage />} />
-              <Route path="/warranty" element={<WarrantyPage />} />
-              <Route path="/login" element={<CustomerLoginPage />} />
-              <Route path="/admin/login" element={<LoginPage />} />
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute>
-                    <AdminPage />
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
-          </Suspense>
-        </main>
-        <Footer />
-      </div>
+      <ProductProvider>
+        <div className="app">
+          <ScrollToTop />
+          <div className="bg-gradient"></div>
+          <Header />
+          <main>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/product" element={<Navigate to="/" replace />} />
+                <Route path="/product/:productId" element={<ProductDetail />} />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/warranty" element={<WarrantyPage />} />
+                <Route path="/login" element={<CustomerLoginPage />} />
+                <Route path="/admin/login" element={<LoginPage />} />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute>
+                      <AdminPage />
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </Suspense>
+          </main>
+          <Footer />
+        </div>
+      </ProductProvider>
     </AuthProvider>
   );
 }

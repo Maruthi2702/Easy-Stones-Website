@@ -1,6 +1,6 @@
 .footer {
   background: linear-gradient(180deg, #0a0a0a 0%, #000000 100%);
-  padding: 4rem 0 2rem;
+  padding: 2rem 0 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   color: #fff;
 }
@@ -10,7 +10,13 @@
   grid-template-columns: 2fr 1fr 1fr 1.5fr;
   gap: 3rem;
   margin-bottom: 3rem;
+  align-items: flex-start; /* ensure items align to top */
 }
+
+.link-column {
+  text-align: left; /* left align text in each column */
+}
+
 
 .footer-brand {
   max-width: 350px;

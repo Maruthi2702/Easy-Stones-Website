@@ -3,40 +3,15 @@ import { useLocation } from 'react-router-dom';
 import ProductGrid from '../components/ProductGrid';
 import HeroCarousel from '../components/HeroCarousel';
 import CategoryNav from '../components/CategoryNav';
-import { API_URL } from '../config/api';
+import { useProducts } from '../context/ProductContext';
 
 const HomePage = () => {
   const location = useLocation();
   const [activeCategory, setActiveCategory] = useState('Moda Quartz');
   const [searchTerm, setSearchTerm] = useState('');
-  // Initialize with empty array and loading state
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/products`, {
-          credentials: 'include' // Send cookies with request
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data && Array.isArray(data)) {
-            console.log(`Fetched ${data.length} products from API`);
-            setProducts(data);
-          }
-        } else {
-          console.error('Failed to fetch products:', response.statusText);
-        }
-      } catch (error) {
-        console.error('Error fetching products:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, []);
+  // Use global product context
+  const { products, loading } = useProducts();
 
   useEffect(() => {
     if (location.state?.activeCategory) {

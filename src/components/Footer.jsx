@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Linkedin } from 'lucide-react';
 import './Footer.css';
 
@@ -10,54 +11,47 @@ const Footer = () => {
                     {/* Brand Section */}
                     <div className="footer-brand">
                         <div className="footer-logo">
-                            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                                <path d="M10 10L20 5L30 10L20 15L10 10Z" fill="#D4A574" />
-                                <path d="M10 15L20 20L30 15L20 25L10 15Z" fill="#C89456" />
-                                <path d="M10 20L20 25L30 20L20 30L10 20Z" fill="#B8843D" />
-                            </svg>
+                            <img src="/images/footer-logo.png" alt="Easy Stones Logo" width="60" height="60" />
                         </div>
                         <p className="footer-desc">
                             Premium stone surfaces for residential and commercial applications.
                             Our extensive inventory includes natural stone, engineered quartz, and porcelain materials.
                         </p>
                         <div className="social-icons">
-                            <a href="#" aria-label="Facebook"><Facebook size={20} /></a>
-                            <a href="#" aria-label="Instagram"><Instagram size={20} /></a>
-                            <a href="#" aria-label="LinkedIn"><Linkedin size={20} /></a>
+                            <a href="https://www.facebook.com/EasyStonesGreensboro" aria-label="Facebook"><Facebook size={20} /></a>
+                            <a href="https://www.instagram.com/easystones_gso/#" aria-label="Instagram"><Instagram size={20} /></a>
+                            <a href="https://www.linkedin.com/company/easy-stones/" aria-label="LinkedIn"><Linkedin size={20} /></a>
                         </div>
                     </div>
 
                     {/* Products Column */}
                     <div className="link-column">
                         <h3>PRODUCTS</h3>
-                        <a href="#products">All Products</a>
-                        <a href="#natural-stone">Natural Stone</a>
-                        <a href="#quartz">Quartz</a>
-                        <a href="#natural-stones">Natural Stones</a>
-                        <a href="#live-inventory">Live Inventory</a>
+                        <Link to="/" state={{ activeCategory: 'Moda Quartz' }}>Moda Quartz</Link>
+                        <Link to="/" state={{ activeCategory: 'MODA PST' }}>Moda PST</Link>
+                        <Link to="/" state={{ activeCategory: 'Quartzite' }}>Quartzite</Link>
+                        <Link to="/" state={{ activeCategory: 'Granite' }}>Granite</Link>
+                        <Link to="/" state={{ activeCategory: 'Marble' }}>Marble</Link>
                     </div>
 
-                    {/* Company Column */}
+                    {/* Warranty Column */}
                     <div className="link-column">
-                        <h3>COMPANY</h3>
-                        <a href="#about">About Us</a>
-                        <a href="#careers">Careers</a>
-                        <a href="#locations">Locations</a>
-                        <a href="#contact">Contact Us</a>
-                        <a href="#blog">Blog</a>
+                        <h3>WARRANTY</h3>
+                        <Link to="/warranty">Warranty</Link>
+                        <Link to="/warranty?section=care">Care & Maintenance</Link>
+                        <Link to="/warranty?section=policies">Customer Policies</Link>
+                        <Link to="/warranty?section=qc">Quality Control Standards</Link>
                     </div>
 
                     {/* Contact Column */}
                     <div className="link-column">
                         <h3>CONTACT</h3>
-                        <a href="tel:+16783872900">+1 678-387-2900</a>
-                        <a href="mailto:info.atl@easystones.com">info.atl@easystones.com</a>
+                        <a href="tel:+12535143348">+1 253-514-3348</a>
+                        <a href="mailto:info.sea@easystones.com">info.sea@easystones.com</a>
                         <p className="contact-address">
-                            6080 Northbelt Drive,<br />
-                            Norcross,<br />
-                            GA 3007
+                            22601 76th Ave S,<br />
+                            Kent, WA 98032
                         </p>
-                        <a href="#locations" className="view-locations">View All Locations →</a>
                     </div>
                 </div>
 

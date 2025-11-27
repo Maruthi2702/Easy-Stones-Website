@@ -85,15 +85,17 @@ const ProductGrid = ({ searchTerm = '', onSearchChange, activeCategory = 'Moda Q
 
       {/* Show search only when not Moda Quartz */}
       {activeCategory !== 'Moda Quartz' && (
-        <div className="search-container-grid">
-          <Search size={20} className="search-icon" />
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange?.(e.target.value)}
-            className="search-input"
-          />
+        <div className="search-only-wrapper">
+          <div className="search-container-grid">
+            <Search size={20} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange?.(e.target.value)}
+              className="search-input"
+            />
+          </div>
         </div>
       )}
 

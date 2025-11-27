@@ -94,6 +94,19 @@
   flex-shrink: 0;
 }
 
+/* Search Only Wrapper - for non-Moda Quartz categories */
+.search-only-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 3rem;
+  animation: fadeUp 0.8s ease 0.5s backwards;
+}
+
+.search-only-wrapper .search-container-grid {
+  margin-bottom: 0;
+  max-width: 500px;
+}
+
 /* Collection Tabs */
 .collection-tabs {
   display: flex;

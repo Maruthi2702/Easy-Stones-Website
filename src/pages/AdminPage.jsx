@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, Users, User } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../config/api';
+import { useProducts } from '../context/ProductContext';
 import './AdminPage.css';
 
 const AdminPage = () => {
   const navigate = useNavigate();
+  const { refreshProducts } = useProducts();
   // Initialize with empty array
   const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState(null);
@@ -183,6 +185,7 @@ const AdminPage = () => {
 
       if (data.success) {
         setSaveStatus({ type: 'success', message: 'Changes saved successfully!' });
+        refreshProducts(); // Update global cache
         setTimeout(() => setSaveStatus(null), 3000);
       } else {
         throw new Error(data.details || data.error || 'Failed to save');

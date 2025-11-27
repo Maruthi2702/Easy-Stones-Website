@@ -5,10 +5,10 @@
 }
 
 .warranty-hero {
-  background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('/images/warranty-hero.jpg');
+  background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('/images/warranty-hero-new.jpg');
   background-size: cover;
   background-position: center;
-  height: 300px;
+  height: 400px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -91,7 +91,6 @@
 }
 
 .warranty-container {
-  max-width: 1000px;
   margin: 0 auto;
   padding: 2rem 2rem 4rem;
 }
@@ -217,13 +216,13 @@
 .technical-data-table {
   width: 100%;
   border-collapse: collapse;
-  background: white;
+  background: var(--bg-card);
   font-size: 0.95rem;
 }
 
 .technical-data-table thead {
   background: linear-gradient(135deg, var(--accent-color) 0%, #c9a84a 100%);
-  color: white;
+  color: #ffffff;
 }
 
 .technical-data-table th {
@@ -246,8 +245,9 @@
 
 .technical-data-table td {
   padding: 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-color);
   vertical-align: top;
+  color: var(--text-secondary);
 }
 
 .technical-data-table tbody tr {
@@ -255,11 +255,11 @@
 }
 
 .technical-data-table tbody tr:nth-child(even) {
-  background: #f9fafb;
+  background: var(--bg-secondary);
 }
 
 .technical-data-table tbody tr:hover {
-  background: rgba(212, 175, 55, 0.08);
+  background: rgba(212, 175, 55, 0.1);
   transform: scale(1.001);
 }
 
@@ -278,18 +278,18 @@
 /* Column specific styling */
 .technical-data-table td:first-child {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   width: 30%;
 }
 
 .technical-data-table td:nth-child(2) {
-  color: #4b5563;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   width: 35%;
 }
 
 .technical-data-table td:last-child {
-  color: #1f2937;
+  color: var(--text-primary);
   font-weight: 500;
   width: 35%;
 }
