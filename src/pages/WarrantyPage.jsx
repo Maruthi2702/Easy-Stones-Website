@@ -447,13 +447,13 @@ const WarrantyPage = () => {
                         className={activeSection === 'tech-data' ? 'active' : ''}
                         onClick={() => setActiveSection('tech-data')}
                     >
-                        Technical Data
+                        Customer Policies
                     </button>
                     <button
                         className={activeSection === 'safety-data' ? 'active' : ''}
                         onClick={() => setActiveSection('safety-data')}
                     >
-                        Safety Data
+                        Quality Control Standards
                     </button>
                 </div>
             </div>
