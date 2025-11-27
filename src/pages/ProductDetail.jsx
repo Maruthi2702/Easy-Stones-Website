@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Download, ZoomIn, Maximize2 } from 'lucide-react
 import { getLocalImagePath } from '../utils/imagePath';
 import { API_URL } from '../config/api';
 import { products as fallbackProducts } from '../data/products';
+import { useAuth } from '../context/AuthContext';
 import './ProductDetail.css';
 
 const defaultDescription = (name) =>
@@ -13,6 +14,7 @@ const ProductDetail = () => {
   const navigate = useNavigate();
   const { productId } = useParams(); // This now contains the slug
   const location = useLocation();
+  const { user } = useAuth();
   const [viewMode, setViewMode] = useState('slab'); // 'slab' | 'closeup'
 
   // Function to convert product name to slug
@@ -142,6 +144,12 @@ const ProductDetail = () => {
               <span className="tag">{product.category}</span>
               <span className="tag available">{product.availability}</span>
             </div>
+            {user && product.price && (
+              <div className="product-price">
+                <span className="price-label">Price:</span>
+                <span className="price-value">{product.price}</span>
+              </div>
+            )}
           </div>
 
           <div className="info-body">
