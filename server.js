@@ -80,6 +80,9 @@ const allowedOrigins = [
   'https://maruthi2702.github.io' // Allow GitHub Pages
 ].filter(Boolean);
 
+// Trust proxy - required for rate limiting behind proxies (Render, Vercel, etc.)
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
@@ -199,6 +202,44 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     
   } catch (error) {
     console.error('❌ Login error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Change Password Route
+app.post('/api/auth/change-password', verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+    }
+
+    // Get adminId from JWT token (set by verifyToken middleware)
+    const adminId = req.adminId;
+    
+    console.log('Password change attempt for adminId:', adminId);
+
+    const admin = await Admin.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin not found' });
+    }
+
+    // Verify current password
+    const isMatch = await admin.comparePassword(currentPassword);
+    if (!isMatch) {
+      console.log('Current password incorrect');
+      return res.status(401).json({ success: false, message: 'Current password is incorrect' });
+    }
+
+    // Update password (pre-save hook in Admin model will hash it)
+    admin.password = newPassword;
+    await admin.save();
+
+    console.log('Password changed successfully for adminId:', adminId);
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('❌ Password change error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
