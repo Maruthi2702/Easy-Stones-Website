@@ -29,6 +29,23 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones
   .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
 
+// DEBUG ENDPOINT - REMOVE IN PRODUCTION
+app.get('/api/debug/config', async (req, res) => {
+  try {
+    const adminCount = await Admin.countDocuments();
+    const dbName = mongoose.connection.name;
+    const host = mongoose.connection.host;
+    res.json({
+      connected_db: dbName,
+      host: host,
+      admin_count: adminCount,
+      mongo_uri_masked: process.env.MONGO_URI ? process.env.MONGO_URI.split('@')[1] : 'not_set'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
