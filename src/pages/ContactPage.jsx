@@ -59,35 +59,34 @@ const ContactPage = () => {
                         <div className="info-item">
                             <MapPin className="info-icon" size={20} />
                             <div>
-                                <p>6080 Northbelt Drive,</p>
-                                <p>Norcross, GA 30071</p>
+                                <p>22601 76th Ave S,</p>
+                                <p>Kent, WA 98032</p>
                             </div>
                         </div>
 
                         <div className="info-item">
                             <Phone className="info-icon" size={20} />
-                            <p>+1 678-387-2900</p>
+                            <p>+1 253-514-3348</p>
                         </div>
 
                         <div className="info-item">
                             <Mail className="info-icon" size={20} />
-                            <p>info.atl@easystones.com</p>
+                            <p>info.sea@easystones.com</p>
                         </div>
 
                         <div className="info-item">
                             <Clock className="info-icon" size={20} />
                             <div>
-                                <p>Mon - Fri: 9am - 5pm</p>
-                                <p>Sat: 9am - 1pm</p>
+                                <p>Mon - Fri: 8am - 5pm</p>
+                                <p>Sat: 10am - 3pm</p>
                                 <p>Sun: Closed</p>
                             </div>
                         </div>
                     </div>
-
                     {/* Embedded Map */}
                     <div className="map-container">
                         <iframe
-                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3308.8!2d-84.2!3d33.95!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x88f5a1e8e8e8e8e8%3A0x1234567890abcdef!2s6080%20Northbelt%20Dr%2C%20Norcross%2C%20GA%2030071!5e0!3m2!1sen!2sus!4v1234567890123!5m2!1sen!2sus"
+                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2702.5!2d-122.23!3d47.38!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2s22601%2076th%20Ave%20S%2C%20Kent%2C%20WA%2098032!5e0!3m2!1sen!2sus!4v1234567890123!5m2!1sen!2sus"
                             width="100%"
                             height="300"
                             style={{ border: 0, borderRadius: '12px' }}
