@@ -1,0 +1,116 @@
+.warranty-page {
+  padding-top: 80px; /* Header height */
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+.warranty-hero {
+  background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80');
+  background-size: cover;
+  background-position: center;
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: white;
+  margin-bottom: 3rem;
+}
+
+.warranty-hero h1 {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.warranty-hero p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+.warranty-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 2rem 4rem;
+}
+
+.warranty-section {
+  margin-bottom: 3rem;
+  background: var(--bg-card);
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.warranty-section h2 {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  color: var(--text-primary);
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--accent-color);
+  display: inline-block;
+}
+
+.warranty-section p {
+  color: var(--text-secondary);
+  line-height: 1.8;
+  margin-bottom: 1rem;
+}
+
+.warranty-section ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.warranty-section ul li {
+  position: relative;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.warranty-section ul li::before {
+  content: "•";
+  color: var(--accent-color);
+  font-weight: bold;
+  position: absolute;
+  left: 0;
+}
+
+.contact-section {
+  text-align: center;
+  background: var(--bg-secondary);
+}
+
+.contact-btn {
+  display: inline-block;
+  background: var(--gradient-primary);
+  color: white;
+  padding: 0.8rem 2rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  margin-top: 1rem;
+  transition: transform 0.2s ease;
+}
+
+.contact-btn:hover {
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .warranty-hero h1 {
+    font-size: 2rem;
+  }
+  
+  .warranty-container {
+    padding: 0 1rem 3rem;
+  }
+  
+  .warranty-section {
+    padding: 1.5rem;
+  }
+}
