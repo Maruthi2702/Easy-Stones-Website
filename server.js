@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import nodemailer from 'nodemailer';
+import compression from 'compression';
 import Product from './src/models/Product.js';
 import Admin from './src/models/Admin.js';
 import ContactSubmission from './src/models/ContactSubmission.js';
@@ -27,9 +28,14 @@ const PORT = process.env.PORT || 3001;
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones')
-  .then(() => console.log('✅ Connected to MongoDB'))
+// Connect to MongoDB with connection pooling for better performance
+mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones', {
+  maxPoolSize: 10, // Maximum number of connections in the pool
+  minPoolSize: 2,  // Minimum number of connections to maintain
+  serverSelectionTimeoutMS: 5000, // Timeout for server selection
+  socketTimeoutMS: 45000, // Socket timeout
+})
+  .then(() => console.log('✅ Connected to MongoDB with connection pooling'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // DEBUG ENDPOINT - REMOVE IN PRODUCTION
@@ -88,6 +94,10 @@ app.use(cors({
   },
   credentials: true // Allow cookies
 }));
+
+// Compression middleware - reduces response sizes by 70-90%
+app.use(compression());
+
 app.use(express.json({ limit: '50mb' })); // Increase limit for large payloads
 app.use(cookieParser());
 

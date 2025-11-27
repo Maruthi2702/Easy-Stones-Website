@@ -22,6 +22,11 @@ const customerSchema = new mongoose.Schema({
   loginIps: { type: [String], default: [] }
 }, { timestamps: true });
 
+// Indexes for performance optimization
+customerSchema.index({ email: 1 }, { unique: true }); // Unique index for login
+customerSchema.index({ isActive: 1 }); // Index for filtering active customers
+customerSchema.index({ priceLevel: 1 }); // Index for price level queries
+
 // Hash password before saving
 // Hash password before saving
 customerSchema.pre('save', async function() {

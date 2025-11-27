@@ -32,6 +32,13 @@ const productSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
+// Indexes for performance optimization
+productSchema.index({ id: 1 }, { unique: true }); // Unique index on id
+productSchema.index({ category: 1 }); // Index for category filtering
+productSchema.index({ name: 1 }); // Index for search
+productSchema.index({ category: 1, availability: 1 }); // Compound index for filtered queries
+productSchema.index({ showInSlider: 1 }); // Index for slider products
+
 // Virtual property to map 'collection' to 'collectionType'
 productSchema.virtual('collection').get(function() {
   return this.collectionType;
