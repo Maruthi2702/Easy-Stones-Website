@@ -146,15 +146,97 @@ const WarrantyPage = () => {
             case 'tech-data':
                 return (
                     <section className="warranty-section">
-                        <h2>Technical Data</h2>
-                        <p>Technical specifications and performance data for Moda Quartz surfaces are available upon request.</p>
+                        <h2>Technical Data - Safety Data Sheet</h2>
+
+                        <h3>SECTION 1: Identification</h3>
+                        <p><strong>Product form:</strong> Mixture</p>
+                        <p><strong>Trade name:</strong> Moda Quartz and EVQ</p>
+                        <p><strong>Recommended use:</strong> Countertop, Flooring and Wall Application</p>
+                        <p><strong>Restrictions on use:</strong> All other uses not recommended above</p>
+
+                        <h4>Supplier</h4>
+                        <p>Easy Stones<br />
+                            6080 Northbelt Drive<br />
+                            Norcross, GA 30071<br />
+                            T 678-387-2900<br />
+                            Email: techinfo@easystones.com</p>
+
+                        <p><strong>Emergency telephone number:</strong> For Hazardous Materials or Dangerous Goods Incident Spill, Leak, Fire, Exposure, or Accident Call CHEMTREC Day or Night: 1-800-424-9300 (Toll Free, USA) / 703-527-3887 (Virginia, USA) CCN 1016972</p>
+
+                        <h3>SECTION 2: Hazard(s) Identification</h3>
+                        <h4>GHS US Classification</h4>
+                        <ul>
+                            <li><strong>Carcinogenicity Category 1A:</strong> May cause cancer (Inhalation)</li>
+                            <li><strong>Specific target organ toxicity – Single exposure, Category 3:</strong> May cause respiratory irritation</li>
+                            <li><strong>Specific target organ toxicity (repeated exposure) Category 1:</strong> Causes damage to organs (lungs) through prolonged or repeated exposure (Inhalation)</li>
+                        </ul>
+
+                        <h4>Precautionary Statements</h4>
+                        <ul>
+                            <li>Obtain special instructions before use.</li>
+                            <li>Do not handle until all safety precautions have been read and understood.</li>
+                            <li>Do not breathe dust.</li>
+                            <li>Wash hands, forearms and face thoroughly after handling.</li>
+                            <li>Do not eat, drink or smoke when using this product.</li>
+                            <li>Use only outdoors or in a well-ventilated area.</li>
+                            <li>Wear protective gloves/protective clothing/eye protection/face protection.</li>
+                            <li>If inhaled: Remove person to fresh air and keep comfortable for breathing.</li>
+                            <li>Call a poison center or doctor if you feel unwell.</li>
+                            <li>Store in a well-ventilated place. Keep container tightly closed.</li>
+                            <li>Dispose of contents/container to an approved waste disposal plant.</li>
+                        </ul>
+
+                        <p><strong>Note:</strong> This product is not hazardous in the form in which it is shipped by the manufacturer. Under normal conditions of use, no adverse effects to health have been observed. Material becomes hazardous during processes which generate dust (cutting, grinding, polishing, demolishing, etc).</p>
                     </section>
                 );
             case 'safety-data':
                 return (
                     <section className="warranty-section">
-                        <h2>Safety Data</h2>
-                        <p>Moda Quartz is safe for use in food preparation areas and meets all relevant safety standards.</p>
+                        <h2>Safety Data Sheet</h2>
+
+                        <h3>SECTION 4: First-Aid Measures</h3>
+                        <p><strong>General:</strong> In the finished material form, no special first aid measures are required. The following first aid measures must be followed during any process generating dust.</p>
+
+                        <h4>After Inhalation</h4>
+                        <p>If breathing is difficult, remove victim to fresh air and keep at rest in a position comfortable for breathing. If the victim is unconscious: Lay in a stable manner on victim's side. Call a physician immediately.</p>
+
+                        <h4>After Skin Contact</h4>
+                        <p>Brush off loose particles from skin. Remove affected clothing and wash all exposed skin area with mild soap and water, followed by warm water rinse. If skin irritation occurs: Get medical advice/attention.</p>
+
+                        <h4>After Eye Contact</h4>
+                        <p>Rinse cautiously with water for several minutes. Remove contact lenses, if present and easy to do. Continue rinsing. If eye irritation persists: Get medical advice/attention.</p>
+
+                        <h3>SECTION 7: Handling and Storage</h3>
+                        <h4>Precautions for Safe Handling</h4>
+                        <ul>
+                            <li>Handle in accordance with good industrial hygiene and safety procedures.</li>
+                            <li>Do not handle until all safety precautions have been read and understood.</li>
+                            <li>Use only outdoors or in a well-ventilated area.</li>
+                            <li>Use wet cutting methods. It is not recommended to work with dry cutting methods.</li>
+                            <li>For dry cuts or other forms of processing generating dusts, select an appropriately ventilated location.</li>
+                            <li>Use personal protective equipment as required.</li>
+                            <li>Do not breathe dust.</li>
+                            <li>Avoid contact with skin, eyes and clothing.</li>
+                        </ul>
+
+                        <h4>Hygiene Measures</h4>
+                        <ul>
+                            <li>Do not eat, drink or smoke when using this product.</li>
+                            <li>Always wash hands after handling the product.</li>
+                            <li>Contaminated work clothing should not be allowed out of the workplace.</li>
+                        </ul>
+
+                        <h4>Storage Conditions</h4>
+                        <ul>
+                            <li>Store tiles or slabs in a suitably closed and covered place.</li>
+                            <li>Do not place more than 20 slabs on rack.</li>
+                            <li>Do not store for prolonged periods in direct sunlight.</li>
+                            <li>Incompatible products: Strong acids.</li>
+                        </ul>
+
+                        <h3>SECTION 8: Exposure Controls/Personal Protection</h3>
+                        <p><strong>Engineering Controls:</strong> Ensure good ventilation of the work station. Use general ventilation, local exhaust ventilation or process enclosure to keep the airborne concentrations below the permissible exposure limits.</p>
+                        <p><strong>Environmental Controls:</strong> Avoid release to the environment. Take measures to reduce or limit air emissions and releases to soil and the aquatic environment.</p>
                     </section>
                 );
             default:
