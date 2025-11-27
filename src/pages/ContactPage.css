@@ -1,6 +1,5 @@
 .contact-page {
-  min-height: calc(100vh - 80px);
-  padding: 2rem 2rem;
+  padding: 2rem 2rem 3rem;
   background: var(--bg-secondary);
 }
 
@@ -9,14 +8,14 @@
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr 1.2fr;
-  gap: 3rem;
+  gap: 2rem;
   align-items: start;
 }
 
 /* Contact Details Section */
 .contact-details {
   background: var(--bg-primary);
-  padding: 3rem;
+  padding: 2rem;
   border-radius: 16px;
   color: var(--text-primary);
   position: sticky;
@@ -65,7 +64,7 @@
 /* Contact Form Section */
 .contact-form-section {
   background: var(--bg-card);
-  padding: 3rem;
+  padding: 2rem;
   border-radius: 16px;
   border: 1px solid var(--border-color);
 }
