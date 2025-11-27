@@ -22,12 +22,10 @@ const ProductDetail = () => {
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '');
 
-  // Initialize with location state if available (prevents flicker)
-  // Otherwise start with null to show loading state instead of stale data
-  const initialProduct = location.state?.product || null;
-
-  const [product, setProduct] = useState(initialProduct);
-  const [loading, setLoading] = useState(!initialProduct); // Show loader if no initial data
+  // Always start with loading state to ensure fresh price data
+  // This prevents showing stale cached prices when customer price level changes
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -47,7 +45,6 @@ const ProductDetail = () => {
         }
       } catch (error) {
         console.error('Error fetching product:', error);
-        // Keep using fallback data (already set)
       } finally {
         setLoading(false);
       }
@@ -152,36 +149,18 @@ const ProductDetail = () => {
           <div className="info-body">
             <p className="detail-description">{detail.description}</p>
 
-
-            <div className="specs-grid">
-              <div className="spec-item">
-                <span className="spec-label">Primary Color</span>
-                <span className="spec-value">{detail.primaryColor}</span>
-              </div>
-              <div className="spec-item">
-                <span className="spec-label">Accent Color</span>
-                <span className="spec-value">{detail.accentColor}</span>
-              </div>
-              <div className="spec-item">
-                <span className="spec-label">Style</span>
-                <span className="spec-value">{detail.style}</span>
-              </div>
-              <div className="spec-item">
-                <span className="spec-label">Variations</span>
-                <span className="spec-value">{detail.variations}</span>
-              </div>
-            </div>
-
             {/* Specs and Installed Images Grid */}
             <div className="specs-installed-grid">
               {/* Left Column: Specifications */}
               <div className="specs-column">
-                <div className="specs-list">
-                  <h3>Available Finishes</h3>
-                  <div className="pill-list">
-                    {detail.finishes.map(f => <span key={f} className="pill">{f}</span>)}
+                {user && product.price && (
+                  <div className="specs-list">
+                    <h3>Price</h3>
+                    <div className="pill-list">
+                      <span className="pill price-pill">{product.price}</span>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="specs-list">
                   <h3>Thickness Options</h3>
@@ -200,14 +179,12 @@ const ProductDetail = () => {
                   </div>
                 </div>
 
-                {user && product.price && (
-                  <div className="specs-list">
-                    <h3>Price</h3>
-                    <div className="pill-list">
-                      <span className="pill">{product.price}</span>
-                    </div>
+                <div className="specs-list">
+                  <h3>Available Finishes</h3>
+                  <div className="pill-list">
+                    {detail.finishes.map(f => <span key={f} className="pill">{f}</span>)}
                   </div>
-                )}
+                </div>
 
                 <div className="specs-list">
                   <h3>Applications</h3>

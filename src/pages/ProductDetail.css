@@ -314,6 +314,14 @@
   color: var(--text-secondary);
 }
 
+.pill.price-pill {
+  background: rgba(93, 224, 230, 0.1);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
 .detail-actions {
   margin-top: 1rem;
   display: flex;
