@@ -272,6 +272,37 @@
   width: 35%;
 }
 
+/* Warranty Download Button */
+.warranty-download {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.download-pdf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.75rem;
+  background: linear-gradient(135deg, var(--accent-color) 0%, #c9a84a 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(212, 175, 55, 0.3);
+}
+
+.download-pdf-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(212, 175, 55, 0.4);
+  background: linear-gradient(135deg, #c9a84a 0%, var(--accent-color) 100%);
+}
+
+.download-pdf-btn svg {
+  flex-shrink: 0;
+}
+
 @media (max-width: 768px) {
   .warranty-hero h1 {
     font-size: 2rem;
