@@ -6,49 +6,74 @@ const WarrantyPage = () => {
         <div className="warranty-page">
             <div className="warranty-hero">
                 <div className="warranty-hero-content">
-                    <h1>Warranty Information</h1>
-                    <p>Our commitment to quality and your peace of mind.</p>
+                    <h1>Moda Quartz Resources</h1>
+                    <p>Quality, Care, and Warranty Information</p>
                 </div>
             </div>
 
             <div className="warranty-container">
                 <section className="warranty-section">
-                    <h2>Limited Lifetime Warranty</h2>
+                    <h2>Moda Quartz Overview</h2>
                     <p>
-                        Easy Stones provides a Limited Lifetime Warranty to the original owner of the installed
-                        Easy Stones quartz surfaces. This warranty covers defects in manufacturing when the product
-                        is fabricated and installed by a certified Easy Stones fabricator.
+                        Moda Quartz is a perfect blend of polymeric technology combined with the beauty and durability of natural quartz.
+                        Moda Quartz surfaces are food safe, extremely durable, very easy to maintain, and come with a transferable limited warranty.
                     </p>
                 </section>
 
                 <section className="warranty-section">
-                    <h2>Terms and Conditions</h2>
+                    <h2>Quality Attributes</h2>
                     <ul>
-                        <li>This warranty applies only to Easy Stones quartz surfacing materials and does not cover any other products, including other quartz surfacing products.</li>
-                        <li>This warranty applies only to Easy Stones quartz surfacing materials that have been permanently installed in the interior of single-family residences and have not been moved from their original installation.</li>
-                        <li>This warranty is not transferable and applies only to the original owner of the residence where the product was originally installed.</li>
+                        <li><strong>Easy to maintain:</strong> In most cases use a soft cloth or sponge with diluted mild dish soap and warm water. Clean as you go!</li>
+                        <li><strong>Nonporous:</strong> Requires no sealing.</li>
+                        <li><strong>Durable:</strong> Scratch and stain resistant.</li>
+                        <li><strong>Food Safe:</strong> Hygienic with NSF/ANSI 51 certification.</li>
+                        <li><strong>Certified:</strong> Greenguard Gold certification.</li>
+                        <li><strong>Natural Variations:</strong> Variations in color, pattern, size, shape, and shade are unique inherent qualities of the product.</li>
                     </ul>
                 </section>
 
                 <section className="warranty-section">
-                    <h2>What is Not Covered</h2>
+                    <h2>Warranty Coverage</h2>
+                    <div className="warranty-cards">
+                        <div className="warranty-card">
+                            <h3>Residential</h3>
+                            <p className="warranty-year">15 Year</p>
+                            <p>Transferable Limited Warranty</p>
+                        </div>
+                        <div className="warranty-card">
+                            <h3>Commercial</h3>
+                            <p className="warranty-year">10 Year</p>
+                            <p>Limited Warranty</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section className="warranty-section">
+                    <h2>Care & Maintenance Guidelines</h2>
                     <p>
-                        This warranty does not cover:
+                        While Moda Quartz is resistant to staining, it is not stain-proof. Minimal maintenance and routine cleaning
+                        with warm water, a mild detergent, and a soft cloth will keep your surface looking its best.
                     </p>
+
+                    <h3>Do's & Don'ts</h3>
                     <ul>
-                        <li>Routine maintenance and cleaning.</li>
-                        <li>Improper use or abuse, including but not limited to, damage from mishaps, mishandling, impact, chemical damage, or acts of nature.</li>
-                        <li>Damage due to heat, including but not limited to, damage from placing hot pots or pans directly on the surface.</li>
-                        <li>Color variations or particulate distribution in the stone.</li>
+                        <li><strong>DO</strong> use a soft cloth or sponge with mild dish soap and warm water.</li>
+                        <li><strong>DO</strong> use a trivet or hot pad. Do not transfer hot pots/pans directly onto the surface to avoid thermal shock.</li>
+                        <li><strong>DO</strong> use a cutting board. Do not cut or chop directly on the surface.</li>
+                        <li><strong>DON'T</strong> use abrasive or harsh scrub pads.</li>
+                        <li><strong>DON'T</strong> apply sealers, penetrants, or topical treatments.</li>
+                        <li><strong>DON'T</strong> expose to extreme heat (crock pots, electric skillets).</li>
+                        <li><strong>DON'T</strong> use high alkaline (high-pH) or acidic (low-pH) cleansers.</li>
+                        <li><strong>AVOID</strong> bleach, oven cleaner, Comet, Soft Scrub, SOS, pumice, paint removers, silver cleansers, or nail polish remover.</li>
                     </ul>
                 </section>
 
                 <section className="warranty-section contact-section">
-                    <h2>File a Claim</h2>
+                    <h2>Need Assistance?</h2>
                     <p>
-                        To file a warranty claim, please contact us with your proof of purchase and details of the issue.
+                        For technical support or warranty claims, please contact us.
                     </p>
-                    <a href="/contact" className="contact-btn">Contact Us</a>
+                    <a href="/contact" className="contact-btn">Contact Support</a>
                 </section>
             </div>
         </div>

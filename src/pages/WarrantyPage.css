@@ -78,11 +78,54 @@
   font-weight: bold;
   position: absolute;
   left: 0;
+  font-size: 1.2rem;
+  line-height: 1.4;
 }
 
-.contact-section {
-  text-align: center;
+.warranty-section strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.warranty-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.warranty-card {
   background: var(--bg-secondary);
+  padding: 2rem;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid var(--border-color);
+  transition: transform 0.3s ease;
+}
+
+.warranty-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--accent-color);
+}
+
+.warranty-card h3 {
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.warranty-year {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  margin: 0.5rem 0;
+  font-family: var(--font-display);
+}
+
+.warranty-section h3 {
+  font-size: 1.4rem;
+  color: var(--text-primary);
+  margin: 2rem 0 1rem;
 }
 
 .contact-btn {
