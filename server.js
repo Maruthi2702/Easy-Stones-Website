@@ -11,6 +11,7 @@ import nodemailer from 'nodemailer';
 import Product from './src/models/Product.js';
 import Admin from './src/models/Admin.js';
 import ContactSubmission from './src/models/ContactSubmission.js';
+import Customer from './src/models/Customer.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -334,6 +335,125 @@ app.post('/api/contact', async (req, res) => {
       message: 'Failed to send message. Please try again.' 
     });
   }
+});
+
+// Customer Registration Endpoint
+app.post('/api/customer/register', async (req, res) => {
+  try {
+    const { firstName, lastName, email, password, phone, company } = req.body;
+
+    // Check if customer already exists
+    const existingCustomer = await Customer.findOne({ email });
+    if (existingCustomer) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
+
+    // Create new customer
+    const customer = new Customer({
+      firstName,
+      lastName,
+      email,
+      password,
+      phone,
+      company
+    });
+
+    await customer.save();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: customer._id, type: 'customer' },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Set cookie
+    res.cookie('customerToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Registration successful',
+      user: {
+        id: customer._id,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Registration failed. Please try again.' });
+  }
+});
+
+// Customer Login Endpoint
+app.post('/api/customer/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find customer
+    const customer = await Customer.findOne({ email });
+    if (!customer) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Check if locked
+    if (customer.isLocked()) {
+      return res.status(423).json({ 
+        message: 'Account locked due to too many failed attempts. Please try again in 15 minutes.' 
+      });
+    }
+
+    // Verify password
+    const isMatch = await customer.comparePassword(password);
+    if (!isMatch) {
+      await customer.incLoginAttempts();
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Reset login attempts on success
+    await customer.resetLoginAttempts();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: customer._id, type: 'customer' },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Set cookie
+    res.cookie('customerToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Login successful',
+      user: {
+        id: customer._id,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'Login failed. Please try again.' });
+  }
+});
+
+// Customer Logout Endpoint
+app.post('/api/customer/logout', (req, res) => {
+  res.clearCookie('customerToken');
+  res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // API endpoint to upload image to Cloudinary

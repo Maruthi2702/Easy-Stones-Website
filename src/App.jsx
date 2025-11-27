@@ -9,6 +9,7 @@ import './App.css';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
+const CustomerLoginPage = lazy(() => import('./pages/CustomerLoginPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 
@@ -64,6 +65,7 @@ function App() {
             <Route path="/product" element={<Navigate to="/" replace />} />
             <Route path="/product/:productId" element={<ProductDetail />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/login" element={<CustomerLoginPage />} />
             <Route path="/admin/login" element={<LoginPage />} />
             <Route
               path="/admin"
