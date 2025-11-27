@@ -291,51 +291,128 @@ const WarrantyPage = () => {
             case 'safety-data':
                 return (
                     <section className="warranty-section">
-                        <h2>Safety Data Sheet</h2>
+                        <h2>Moda Quartz QC Standards</h2>
 
-                        <h3>SECTION 4: First-Aid Measures</h3>
-                        <p><strong>General:</strong> In the finished material form, no special first aid measures are required. The following first aid measures must be followed during any process generating dust.</p>
+                        <div className="table-responsive">
+                            <table className="technical-data-table qc-standards-table">
+                                <thead>
+                                    <tr>
+                                        <th>Defect</th>
+                                        <th>Color Category</th>
+                                        <th>Field Spec</th>
+                                        <th>Quantity / Disposition</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td rowSpan="2">Blotch</td>
+                                        <td>Double/single</td>
+                                        <td>Max 2m Diameter</td>
+                                        <td>&gt; One per quadrant<br />= Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>multi</td>
+                                        <td>Max 4mm Diameter</td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Face Side Voids</td>
+                                        <td>All</td>
+                                        <td>Any size</td>
+                                        <td>All = Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Water mark</td>
+                                        <td>Mono/single</td>
+                                        <td>Any size</td>
+                                        <td>All = Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Scratch Marks</td>
+                                        <td>All</td>
+                                        <td>Undetectable with the naked eye</td>
+                                        <td>All = Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Polishing Mark</td>
+                                        <td>All</td>
+                                        <td>Any size</td>
+                                        <td>All = Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Contaminants</td>
+                                        <td>Artificial Colored spot</td>
+                                        <td>Any size</td>
+                                        <td>All = Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Dry spot</td>
+                                        <td>All</td>
+                                        <td>Max 2 mm Diameter</td>
+                                        <td>&gt; Four per slab<br />&gt; One per Quadrant<br />= Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Surface Cracking</td>
+                                        <td>All</td>
+                                        <td>Any size</td>
+                                        <td>All = Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Fissure</td>
+                                        <td>All</td>
+                                        <td>Any size</td>
+                                        <td>All = Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Gloss</td>
+                                        <td>All</td>
+                                        <td>Glossmeter, 60°, avg. of 5</td>
+                                        <td>Single Color: &lt; 45<br />Multi Color: &lt; 60<br />= Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Backside - Void, Hole, Surface Crack, Missing Material</td>
+                                        <td>All</td>
+                                        <td>Max 1mm Diameter</td>
+                                        <td>&gt; Two per quadrant<br />= Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Thickness</td>
+                                        <td>All</td>
+                                        <td>Calipers, 4 side</td>
+                                        <td>2 cm = 19.5 – 20.5 mm<br />3 cm = 29.5 – 30.5 mm</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Proximity Standard</td>
+                                        <td>All</td>
+                                        <td>-</td>
+                                        <td>Any 2 Faults (any size) within 100mm of each other<br />= Unacceptable</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Warp</td>
+                                        <td>All</td>
+                                        <td>&lt; 1 mm over 1000 mm</td>
+                                        <td>&gt; 1mm = Unacceptable</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
 
-                        <h4>After Inhalation</h4>
-                        <p>If breathing is difficult, remove victim to fresh air and keep at rest in a position comfortable for breathing. If the victim is unconscious: Lay in a stable manner on victim's side. Call a physician immediately.</p>
-
-                        <h4>After Skin Contact</h4>
-                        <p>Brush off loose particles from skin. Remove affected clothing and wash all exposed skin area with mild soap and water, followed by warm water rinse. If skin irritation occurs: Get medical advice/attention.</p>
-
-                        <h4>After Eye Contact</h4>
-                        <p>Rinse cautiously with water for several minutes. Remove contact lenses, if present and easy to do. Continue rinsing. If eye irritation persists: Get medical advice/attention.</p>
-
-                        <h3>SECTION 7: Handling and Storage</h3>
-                        <h4>Precautions for Safe Handling</h4>
-                        <ul>
-                            <li>Handle in accordance with good industrial hygiene and safety procedures.</li>
-                            <li>Do not handle until all safety precautions have been read and understood.</li>
-                            <li>Use only outdoors or in a well-ventilated area.</li>
-                            <li>Use wet cutting methods. It is not recommended to work with dry cutting methods.</li>
-                            <li>For dry cuts or other forms of processing generating dusts, select an appropriately ventilated location.</li>
-                            <li>Use personal protective equipment as required.</li>
-                            <li>Do not breathe dust.</li>
-                            <li>Avoid contact with skin, eyes and clothing.</li>
-                        </ul>
-
-                        <h4>Hygiene Measures</h4>
-                        <ul>
-                            <li>Do not eat, drink or smoke when using this product.</li>
-                            <li>Always wash hands after handling the product.</li>
-                            <li>Contaminated work clothing should not be allowed out of the workplace.</li>
-                        </ul>
-
-                        <h4>Storage Conditions</h4>
-                        <ul>
-                            <li>Store tiles or slabs in a suitably closed and covered place.</li>
-                            <li>Do not place more than 20 slabs on rack.</li>
-                            <li>Do not store for prolonged periods in direct sunlight.</li>
-                            <li>Incompatible products: Strong acids.</li>
-                        </ul>
-
-                        <h3>SECTION 8: Exposure Controls/Personal Protection</h3>
-                        <p><strong>Engineering Controls:</strong> Ensure good ventilation of the work station. Use general ventilation, local exhaust ventilation or process enclosure to keep the airborne concentrations below the permissible exposure limits.</p>
-                        <p><strong>Environmental Controls:</strong> Avoid release to the environment. Take measures to reduce or limit air emissions and releases to soil and the aquatic environment.</p>
+                        <div className="warranty-download">
+                            <a
+                                href="/Moda Quartz QC Standards.pdf"
+                                download
+                                className="download-pdf-btn"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                Download QC Standards PDF
+                            </a>
+                        </div>
                     </section>
                 );
             default:

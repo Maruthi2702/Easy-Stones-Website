@@ -303,6 +303,12 @@
   flex-shrink: 0;
 }
 
+/* QC Standards Table - specific styling for rowspan */
+.qc-standards-table tbody tr td[rowspan] {
+  vertical-align: middle;
+  font-weight: 600;
+}
+
 @media (max-width: 768px) {
   .warranty-hero h1 {
     font-size: 2rem;
