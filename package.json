@@ -24,6 +24,7 @@
     "lucide-react": "^0.554.0",
     "mongoose": "^9.0.0",
     "multer": "^2.0.2",
+    "nodemailer": "^7.0.11",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^6.30.2",

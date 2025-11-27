@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
+import nodemailer from 'nodemailer';
 import Product from './src/models/Product.js';
 import Admin from './src/models/Admin.js';
 import path from 'path';
@@ -253,6 +254,64 @@ app.post('/api/auth/logout', (req, res) => {
 // Verify token endpoint
 app.get('/api/auth/verify', verifyToken, (req, res) => {
   res.json({ valid: true });
+});
+
+// Contact form endpoint
+app.post('/api/contact', async (req, res) => {
+  try {
+    const { name, company, email, phone, message } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !message) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Name, email, and message are required' 
+      });
+    }
+
+    // Create email transporter (configure with your email service)
+    // For now, using a test configuration - you'll need to add real credentials to .env
+    const transporter = nodemailer.createTransporter({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: process.env.SMTP_PORT || 587,
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER, // Your email
+        pass: process.env.SMTP_PASS  // Your email password or app password
+      }
+    });
+
+    // Email content
+    const mailOptions = {
+      from: process.env.SMTP_USER,
+      to: 'krish@easystones.com',
+      subject: `New Contact Form Submission from ${name}`,
+      html: `
+        <h2>New Contact Form Submission</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Company:</strong> ${company || 'N/A'}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Phone:</strong> ${phone || 'N/A'}</p>
+        <p><strong>Message:</strong></p>
+        <p>${message.replace(/\n/g, '<br>')}</p>
+      `,
+      replyTo: email
+    };
+
+    // Send email
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      await transporter.sendMail(mailOptions);
+      console.log(`✅ Contact form email sent from ${email}`);
+      res.json({ success: true, message: 'Message sent successfully!' });
+    } else {
+      // If email not configured, just log the message
+      console.log('📧 Contact form submission (email not configured):', { name, email, company, phone, message });
+      res.json({ success: true, message: 'Message received! (Email service not configured yet)' });
+    }
+  } catch (error) {
+    console.error('❌ Contact form error:', error);
+    res.status(500).json({ success: false, message: 'Failed to send message' });
+  }
 });
 
 // API endpoint to upload image to Cloudinary

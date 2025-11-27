@@ -8,6 +8,7 @@ import './App.css';
 // Lazy load pages
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 
@@ -62,6 +63,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/product" element={<Navigate to="/" replace />} />
             <Route path="/product/:productId" element={<ProductDetail />} />
+            <Route path="/contact" element={<ContactPage />} />
             <Route path="/admin/login" element={<LoginPage />} />
             <Route
               path="/admin"
