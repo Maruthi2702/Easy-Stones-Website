@@ -476,7 +476,7 @@ const AdminPage = () => {
               )}
 
               <form onSubmit={saveCustomer} className="customer-form">
-                {!isNewCustomer && (
+                {!isNewCustomer && customers.find(c => c._id === selectedCustomerId) && (
                   <section className="form-section metadata-section">
                     <h3>Account Details</h3>
                     <div className="form-grid">
@@ -488,7 +488,7 @@ const AdminPage = () => {
                         <label>Joined Date</label>
                         <input
                           type="text"
-                          value={customers.find(c => c._id === selectedCustomerId)?.createdAt ? new Date(customers.find(c => c._id === selectedCustomerId).createdAt).toLocaleDateString() : 'N/A'}
+                          value={customers.find(c => c._id === selectedCustomerId).createdAt ? new Date(customers.find(c => c._id === selectedCustomerId).createdAt).toLocaleDateString() : 'N/A'}
                           disabled
                           className="readonly-input"
                         />
@@ -497,7 +497,7 @@ const AdminPage = () => {
                         <label>Verified</label>
                         <input
                           type="text"
-                          value={customers.find(c => c._id === selectedCustomerId)?.isVerified ? 'Yes' : 'No'}
+                          value={customers.find(c => c._id === selectedCustomerId).isVerified ? 'Yes' : 'No'}
                           disabled
                           className="readonly-input"
                         />
@@ -506,7 +506,7 @@ const AdminPage = () => {
                         <label>Login Attempts</label>
                         <input
                           type="text"
-                          value={customers.find(c => c._id === selectedCustomerId)?.loginAttempts || 0}
+                          value={customers.find(c => c._id === selectedCustomerId).loginAttempts || 0}
                           disabled
                           className="readonly-input"
                         />
