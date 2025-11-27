@@ -281,13 +281,55 @@ const AdminPage = () => {
         URL.revokeObjectURL(objectUrl);
       } else {
         alert('Failed to upload image');
-        // Revert to placeholder or previous image if needed
-        // For now, we'll just leave the preview or user can try again
       }
     } catch (error) {
       console.error('Error uploading image:', error);
       alert('Error uploading image');
     }
+  };
+
+  const handleInstalledImageUpload = async (e, index) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Create a copy of current installed images or initialize empty array
+    const currentImages = [...(selectedProduct.installedImages || [])];
+
+    // Show immediate preview
+    const objectUrl = URL.createObjectURL(file);
+    currentImages[index] = objectUrl;
+    handleChange('installedImages', currentImages);
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const response = await fetch(API_ENDPOINTS.UPLOAD, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        // Update with actual server path
+        const updatedImages = [...(selectedProduct.installedImages || [])];
+        updatedImages[index] = data.filePath;
+        handleChange('installedImages', updatedImages);
+        // Clean up object URL
+        URL.revokeObjectURL(objectUrl);
+      } else {
+        alert('Failed to upload installed image');
+      }
+    } catch (error) {
+      console.error('Error uploading installed image:', error);
+      alert('Error uploading installed image');
+    }
+  };
+
+  const removeInstalledImage = (index) => {
+    const currentImages = [...(selectedProduct.installedImages || [])];
+    currentImages.splice(index, 1);
+    handleChange('installedImages', currentImages);
   };
   const sizeOptions = ['126 * 63', '135 * 77', '136 * 78', '138 * 79', '139 * 80', '143 * 80'];
   const finishOptions = ['Polished', 'Honed', 'Leathered', 'Concrete'];
@@ -1121,6 +1163,56 @@ const AdminPage = () => {
                 </div>
               )}
             </section>
+
+            {/* Installed Images Section */}
+            <div className="form-section">
+              <h3>Installed Images (Max 2)</h3>
+              <div className="form-grid">
+                {[0, 1].map((index) => (
+                  <div key={index} className="form-group">
+                    <label>Installed Image {index + 1}</label>
+                    <div className="image-input-wrapper">
+                      <div className="image-preview">
+                        {selectedProduct.installedImages && selectedProduct.installedImages[index] ? (
+                          <img
+                            src={selectedProduct.installedImages[index]}
+                            alt={`Installed ${index + 1}`}
+                            onError={(e) => { e.target.src = '/images/products/placeholder.jpg'; }}
+                          />
+                        ) : (
+                          <div className="placeholder-icon">
+                            <ImageIcon size={24} color="#666" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="image-controls">
+                        <div className="file-upload-btn-wrapper">
+                          <button className="secondary-btn upload-btn" type="button">
+                            Upload
+                          </button>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleInstalledImageUpload(e, index)}
+                            className="file-input-hidden"
+                          />
+                        </div>
+                        {selectedProduct.installedImages && selectedProduct.installedImages[index] && (
+                          <button
+                            className="secondary-btn delete-btn-small"
+                            type="button"
+                            onClick={() => removeInstalledImage(index)}
+                            style={{ marginTop: '0.5rem', borderColor: '#ef4444', color: '#ef4444' }}
+                          >
+                            <Trash2 size={14} /> Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* Specifications */}
             <section className="form-section">

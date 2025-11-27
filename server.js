@@ -757,6 +757,11 @@ app.post('/api/products/save', async (req, res) => {
           priceLevels: productData.priceLevels
         });
       }
+
+      // Debug: Log installed images
+      if (productData.installedImages) {
+        console.log(`🖼️ Saving installed images for product ${product.id} (${productData.name}):`, productData.installedImages);
+      }
       
       return {
         updateOne: {

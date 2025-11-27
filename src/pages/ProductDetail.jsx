@@ -172,49 +172,72 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            <div className="specs-row">
-              <div className="specs-list">
-                <h3>Available Finishes</h3>
-                <div className="pill-list">
-                  {detail.finishes.map(f => <span key={f} className="pill">{f}</span>)}
-                </div>
-              </div>
-
-              <div className="specs-list">
-                <h3>Thickness Options</h3>
-                <div className="pill-list">
-                  {detail.thickness.map(t => <span key={t} className="pill">{t}</span>)}
-                </div>
-              </div>
-            </div>
-
-            <div className="specs-row">
-              <div className="specs-list">
-                <h3>Size Options</h3>
-                <div className="pill-list">
-                  {(product.sizes && product.sizes.length > 0)
-                    ? product.sizes.map(s => <span key={s} className="pill">{s}</span>)
-                    : <span className="pill">Contact for sizes</span>
-                  }
-                </div>
-              </div>
-
-              {user && product.price && (
+            {/* Specs and Installed Images Grid */}
+            <div className="specs-installed-grid">
+              {/* Left Column: Specifications */}
+              <div className="specs-column">
                 <div className="specs-list">
-                  <h3>Price</h3>
+                  <h3>Available Finishes</h3>
                   <div className="pill-list">
-                    <span className="pill">{product.price}</span>
+                    {detail.finishes.map(f => <span key={f} className="pill">{f}</span>)}
                   </div>
                 </div>
-              )}
 
+                <div className="specs-list">
+                  <h3>Thickness Options</h3>
+                  <div className="pill-list">
+                    {detail.thickness.map(t => <span key={t} className="pill">{t}</span>)}
+                  </div>
+                </div>
 
-            </div>
+                <div className="specs-list">
+                  <h3>Size Options</h3>
+                  <div className="pill-list">
+                    {(product.sizes && product.sizes.length > 0)
+                      ? product.sizes.map(s => <span key={s} className="pill">{s}</span>)
+                      : <span className="pill">Contact for sizes</span>
+                    }
+                  </div>
+                </div>
 
-            <div className="specs-list">
-              <h3>Applications</h3>
-              <div className="pill-list">
-                {detail.applications.map(a => <span key={a} className="pill">{a}</span>)}
+                {user && product.price && (
+                  <div className="specs-list">
+                    <h3>Price</h3>
+                    <div className="pill-list">
+                      <span className="pill">{product.price}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="specs-list">
+                  <h3>Applications</h3>
+                  <div className="pill-list">
+                    {detail.applications.map(a => <span key={a} className="pill">{a}</span>)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Installed Images */}
+              <div className="installed-images-column">
+                <h3>Installed Gallery</h3>
+                <div className="installed-images-grid">
+                  {[0, 1].map((index) => {
+                    const img = product.installedImages && product.installedImages[index];
+                    return img ? (
+                      <div key={index} className="installed-image-card">
+                        <img
+                          src={img}
+                          alt={`${product.name} installed view ${index + 1}`}
+                          onClick={() => window.open(img, '_blank')}
+                        />
+                      </div>
+                    ) : (
+                      <div key={index} className="installed-placeholder">
+                        <p>Installed image coming soon</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
