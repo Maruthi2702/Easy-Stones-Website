@@ -321,11 +321,11 @@ const AdminPage = () => {
       </div>
 
       {/* Sidebar */}
-      {activeTab === 'products' && (
+      {(activeTab === 'products' || activeTab === 'customers') && (
         <div className="admin-sidebar">
           <div className="sidebar-header">
-            <h2>Products</h2>
-            <button className="add-btn" onClick={handleAddProduct}>
+            <h2>{activeTab === 'products' ? 'Products' : 'Customers'}</h2>
+            <button className="add-btn" onClick={activeTab === 'products' ? handleAddProduct : handleAddCustomer}>
               <Plus size={18} /> New
             </button>
           </div>
@@ -334,89 +334,70 @@ const AdminPage = () => {
             <Search size={16} className="search-icon" />
             <input
               type="text"
-              placeholder="Search products..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={`Search ${activeTab}...`}
+              value={activeTab === 'products' ? searchTerm : customerSearchTerm}
+              onChange={(e) => activeTab === 'products' ? setSearchTerm(e.target.value) : setCustomerSearchTerm(e.target.value)}
             />
           </div>
 
-          <div className="filter-box">
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="sidebar-filter"
-            >
-              <option value="All">All Categories</option>
-              {categories.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select
-              value={filterCollection}
-              onChange={(e) => setFilterCollection(e.target.value)}
-              className="sidebar-filter"
-            >
-              <option value="All">All Collections</option>
-              {collections.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-
-          <div className="product-list">
-            {filteredProducts.map(product => (
-              <div
-                key={product.id}
-                className={`product-list-item ${selectedProductId === product.id ? 'active' : ''}`}
-                onClick={() => handleSelectProduct(product.id)}
+          {activeTab === 'products' && (
+            <div className="filter-box">
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="sidebar-filter"
               >
-                <img src={product.image} alt={product.name} className="list-thumb" />
-                <div className="list-info">
-                  <span className="list-name">{product.name}</span>
-                  <span className="list-meta">{product.collection} • {product.category}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'customers' && (
-        <div className="admin-sidebar">
-          <div className="sidebar-header">
-            <h2>Customers</h2>
-            <button className="add-btn" onClick={handleAddCustomer}>
-              <Plus size={18} /> New
-            </button>
-          </div>
-
-          <div className="search-box">
-            <Search size={16} className="search-icon" />
-            <input
-              type="text"
-              placeholder="Search customers..."
-              value={customerSearchTerm}
-              onChange={(e) => setCustomerSearchTerm(e.target.value)}
-            />
-          </div>
+                <option value="All">All Categories</option>
+                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select
+                value={filterCollection}
+                onChange={(e) => setFilterCollection(e.target.value)}
+                className="sidebar-filter"
+              >
+                <option value="All">All Collections</option>
+                {collections.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
 
           <div className="product-list">
-            {filteredCustomers.length === 0 ? (
-              <div className="empty-list-message">
-                No customers found
-              </div>
-            ) : (
-              filteredCustomers.map(customer => (
+            {activeTab === 'products' ? (
+              filteredProducts.map(product => (
                 <div
-                  key={customer._id}
-                  className={`product-list-item ${selectedCustomerId === customer._id ? 'active' : ''}`}
-                  onClick={() => handleSelectCustomer(customer)}
+                  key={product.id}
+                  className={`product-list-item ${selectedProductId === product.id ? 'active' : ''}`}
+                  onClick={() => handleSelectProduct(product.id)}
                 >
-                  <div className="list-thumb-placeholder">
-                    <User size={20} />
-                  </div>
+                  <img src={product.image} alt={product.name} className="list-thumb" />
                   <div className="list-info">
-                    <span className="list-name">{customer.firstName} {customer.lastName}</span>
-                    <span className="list-meta">{customer.company || customer.email}</span>
+                    <span className="list-name">{product.name}</span>
+                    <span className="list-meta">{product.collection} • {product.category}</span>
                   </div>
                 </div>
               ))
+            ) : (
+              filteredCustomers.length === 0 ? (
+                <div className="empty-list-message">
+                  No customers found
+                </div>
+              ) : (
+                filteredCustomers.map(customer => (
+                  <div
+                    key={customer._id}
+                    className={`product-list-item ${selectedCustomerId === customer._id ? 'active' : ''}`}
+                    onClick={() => handleSelectCustomer(customer)}
+                  >
+                    <div className="list-thumb-placeholder">
+                      <User size={20} />
+                    </div>
+                    <div className="list-info">
+                      <span className="list-name">{customer.firstName} {customer.lastName}</span>
+                      <span className="list-meta">{customer.company || customer.email}</span>
+                    </div>
+                  </div>
+                ))
+              )
             )}
           </div>
         </div>
