@@ -450,10 +450,53 @@ app.post('/api/customer/login', async (req, res) => {
   }
 });
 
-// Customer Logout Endpoint
+// Customer Middleware
+const verifyCustomer = (req, res, next) => {
+  const token = req.cookies.customerToken;
+  
+  if (!token) {
+    return res.status(401).json({ message: 'Access denied. No token provided.' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+    if (decoded.type !== 'customer') {
+      return res.status(401).json({ message: 'Invalid token type.' });
+    }
+    req.customerId = decoded.id;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Invalid token.' });
+  }
+};
+
+// Get current customer
+app.get('/api/customer/me', verifyCustomer, async (req, res) => {
+  try {
+    const customer = await Customer.findById(req.customerId).select('-password');
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+    res.json({
+      id: customer._id,
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      email: customer.email
+    });
+  } catch (error) {
+    console.error('Get customer error:', error);
+    res.status(500).json({ message: 'Failed to fetch customer data' });
+  }
+});
+
+// Customer Logout
 app.post('/api/customer/logout', (req, res) => {
-  res.clearCookie('customerToken');
-  res.json({ success: true, message: 'Logged out successfully' });
+  res.clearCookie('customerToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+  res.json({ message: 'Logged out successfully' });
 });
 
 // Admin: Get all customers

@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock } from 'lucide-react';
 import { API_URL } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 import './CustomerLoginPage.css';
 
 const CustomerLoginPage = () => {
     const navigate = useNavigate();
+    const { login } = useAuth();
     const [formData, setFormData] = useState({
         email: '',
         password: ''
@@ -37,7 +39,9 @@ const CustomerLoginPage = () => {
             const data = await response.json();
 
             if (response.ok) {
-                // Redirect to home page or customer dashboard
+                // Update auth context with user data
+                login(data.user);
+                // Redirect to home page
                 navigate('/');
             } else {
                 setError(data.message || 'Authentication failed');
