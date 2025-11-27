@@ -94,23 +94,23 @@ const WarrantyPage = () => {
             case 'care':
                 return (
                     <section className="warranty-section">
-                        <h2>Care & Maintenance</h2>
+                        <h2>Moda Quartz Care & Maintenance Guidelines</h2>
                         <p>
-                            Moda Quartz is a perfect blend of polymeric technology combined with the beauty and durability of natural quartz.
-                            Moda Quartz surfaces are food safe, extremely durable, very easy to maintain and come with a transferable limited
-                            15-year residential and 10-year commercial warranty. Outlined in this document are the recommended care & maintenance
-                            guidelines required to maintain service under the limited warranty.
+                            Moda Quartz is a perfect blend of polymeric technology combined with the beauty and durability of Natural Quartz.
+                            Moda Quartz surfaces are food safe, extremely durable, very easy to maintain and come with a transferable Limited
+                            15-Year Residential and 10-Year Commercial warranty. Outlined in this document are the recommended Care & Maintenance
+                            Guidelines required to maintain service under the Limited Warranty.
                         </p>
 
                         <h3>Quality Attributes</h3>
                         <ul>
-                            <li><strong>Easy to maintain</strong> – in most cases use soft cloth, or sponge with a diluted mild dish-soap and warm water. Clean as you go!</li>
-                            <li><strong>Nonporous</strong> – requires no sealing</li>
+                            <li><strong>Easy to maintain</strong> – In most cases use soft cloth, or sponge with a diluted mild dish-soap and warm water. Clean as you go!</li>
+                            <li><strong>Nonporous</strong> – Requires no sealing</li>
                             <li>Variations in color, pattern, size, shape, and shade are unique inherent qualities of the product.</li>
-                            <li><strong>Food safe</strong> – hygienic with NSF/ANSI 51 certification</li>
-                            <li>Greenguard Gold certification</li>
-                            <li><strong>Durable</strong> – scratch & stain resistant</li>
-                            <li>Residential 15 year limited warranty; commercial 10 year limited warranty</li>
+                            <li><strong>Food Safe – Hygienic</strong> – NSF Certification in process</li>
+                            <li>Greenguard Gold Certification in process</li>
+                            <li><strong>Durable</strong> – Scratch & Stain Resistant</li>
+                            <li>Residential 15 Year Limited Warranty; Commercial 10 Year Limited Warranty</li>
                         </ul>
 
                         <h3>Care & Maintenance Guidelines</h3>
@@ -138,7 +138,7 @@ const WarrantyPage = () => {
                         </p>
                         <p>
                             It is strongly recommended to use a cutting board rather than cutting, or chopping directly on your countertop surface.
-                            Moda Quartz is extremely scratch resistant; however, no surface is scratch proof.
+                            Moda Quartz is extremely scratch resistant; HOWEVER, no surface is scratch proof.
                         </p>
                         <p>
                             Avoid placing hot objects, such as hot pans and even appliances that may emit high levels of heat as they can
@@ -147,10 +147,10 @@ const WarrantyPage = () => {
 
                         <h3>In Summary</h3>
                         <ul>
-                            <li>Easy to maintain – in most cases use soft cloth, or sponge with a diluted mild dish-soap and warm water. Clean as you go!</li>
+                            <li>Easy to maintain – In most cases use soft cloth, or sponge with a diluted mild dish-soap and warm water. Clean as you go!</li>
                             <li>High alkaline (high-pH) or acidic (low-pH) cleansers are not recommended.</li>
                             <li>Do not expose Moda Quartz to bleach, oven cleaner, Comet, Soft Scrub, SOS, pumice, batteries, paint removers, furniture stripers, tarnish, silver cleansers, or fingernail polish remover.</li>
-                            <li>Do not use abrasive, or harsh scrub pads</li>
+                            <li>Do not use abrasive, or harsh scrub pads.</li>
                             <li>Do not apply any sealer, penetrating, or topical treatments under any circumstance.</li>
                             <li>Do not expose to extreme heat – use of crock pots, electric skillets, or transferring hot pots/pans directly onto Moda Quartz surfaces is not recommended and may cause damage due to thermal shock.</li>
                             <li>Recommend use of trivet, or hot pad.</li>
