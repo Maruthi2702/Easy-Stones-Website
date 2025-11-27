@@ -51,12 +51,21 @@
   font-size: 0.9rem;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: color 0.2s;
+  transition: all 0.2s;
   font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
 }
 
 .sub-nav button:hover {
   color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.sub-nav button.active {
+  color: var(--accent-color);
+  font-weight: 600;
+  background: rgba(212, 175, 55, 0.1); /* Light gold background */
 }
 
 .warranty-container {
