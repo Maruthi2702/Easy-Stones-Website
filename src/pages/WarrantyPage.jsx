@@ -146,47 +146,112 @@ const WarrantyPage = () => {
             case 'tech-data':
                 return (
                     <section className="warranty-section">
-                        <h2>Technical Data - Safety Data Sheet</h2>
+                        <h2>Technical Data</h2>
+                        <p>Technical specifications and performance data for Moda Quartz surfaces.</p>
 
-                        <h3>SECTION 1: Identification</h3>
-                        <p><strong>Product form:</strong> Mixture</p>
-                        <p><strong>Trade name:</strong> Moda Quartz and EVQ</p>
-                        <p><strong>Recommended use:</strong> Countertop, Flooring and Wall Application</p>
-                        <p><strong>Restrictions on use:</strong> All other uses not recommended above</p>
-
-                        <h4>Supplier</h4>
-                        <p>Easy Stones<br />
-                            6080 Northbelt Drive<br />
-                            Norcross, GA 30071<br />
-                            T 678-387-2900<br />
-                            Email: techinfo@easystones.com</p>
-
-                        <p><strong>Emergency telephone number:</strong> For Hazardous Materials or Dangerous Goods Incident Spill, Leak, Fire, Exposure, or Accident Call CHEMTREC Day or Night: 1-800-424-9300 (Toll Free, USA) / 703-527-3887 (Virginia, USA) CCN 1016972</p>
-
-                        <h3>SECTION 2: Hazard(s) Identification</h3>
-                        <h4>GHS US Classification</h4>
-                        <ul>
-                            <li><strong>Carcinogenicity Category 1A:</strong> May cause cancer (Inhalation)</li>
-                            <li><strong>Specific target organ toxicity – Single exposure, Category 3:</strong> May cause respiratory irritation</li>
-                            <li><strong>Specific target organ toxicity (repeated exposure) Category 1:</strong> Causes damage to organs (lungs) through prolonged or repeated exposure (Inhalation)</li>
-                        </ul>
-
-                        <h4>Precautionary Statements</h4>
-                        <ul>
-                            <li>Obtain special instructions before use.</li>
-                            <li>Do not handle until all safety precautions have been read and understood.</li>
-                            <li>Do not breathe dust.</li>
-                            <li>Wash hands, forearms and face thoroughly after handling.</li>
-                            <li>Do not eat, drink or smoke when using this product.</li>
-                            <li>Use only outdoors or in a well-ventilated area.</li>
-                            <li>Wear protective gloves/protective clothing/eye protection/face protection.</li>
-                            <li>If inhaled: Remove person to fresh air and keep comfortable for breathing.</li>
-                            <li>Call a poison center or doctor if you feel unwell.</li>
-                            <li>Store in a well-ventilated place. Keep container tightly closed.</li>
-                            <li>Dispose of contents/container to an approved waste disposal plant.</li>
-                        </ul>
-
-                        <p><strong>Note:</strong> This product is not hazardous in the form in which it is shipped by the manufacturer. Under normal conditions of use, no adverse effects to health have been observed. Material becomes hazardous during processes which generate dust (cutting, grinding, polishing, demolishing, etc).</p>
+                        <div className="table-responsive">
+                            <table className="technical-data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Property</th>
+                                        <th>Test Standard</th>
+                                        <th>Results</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Water Absorption</td>
+                                        <td>ASTM C97<br />EN-14617-1</td>
+                                        <td>≤0.05%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Density</td>
+                                        <td>ASTM C97<br />EN-14617-1</td>
+                                        <td>≥2.1 gr/cm³</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Flexural Strength</td>
+                                        <td>ASTM C880/C880M-15<br />EN-14617-2</td>
+                                        <td>35.5-77.5 MPa<br />43-80 MPa</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Dimensional Stability</td>
+                                        <td>EN-14617-12</td>
+                                        <td>Class A</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Impact Resistance</td>
+                                        <td>EN-14617-9</td>
+                                        <td>5.0-14.4 L (J)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Compressive Strength</td>
+                                        <td>ASTM C170<br />EN-14617-15</td>
+                                        <td>Dry: 219-299 MPa; Wet: 203-274 MPa<br />157-243 MPa</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Abrasion</td>
+                                        <td>ASTM C1243-93<br />EN-14617-4</td>
+                                        <td>Volume of chord: V=59.2-107.2mm³<br />Chord length: 22.0-22.6mm</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Freeze-thaw Resistance</td>
+                                        <td>ASTM C1026<br />EN-14617-2 & EN-14167-5</td>
+                                        <td>No obvious damage after 20 freeze-thaw cycles<br />KMf25= 95.1-117.7%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Stain Resistance</td>
+                                        <td>ANSI Z 124.6</td>
+                                        <td>Pass</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Chemical Resistance</td>
+                                        <td>ANSI Z 124.6<br />EN 14617-10</td>
+                                        <td>Pass<br />Class C4</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Linear Thermal Expansion</td>
+                                        <td>ANTM 372<br />EN 14617-11</td>
+                                        <td>-30°C-100°C: 3.0-5.0 x 10 per °C<br />13.4-26.4 (10⁻⁵ ·C⁻¹)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Thermal Conductivity</td>
+                                        <td>EN 12664</td>
+                                        <td>0.445-0.475 W/(m·K)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Thermal Shock</td>
+                                        <td>EN 14617-6</td>
+                                        <td>No visual defects after 20 cycles<br />Change in mass: 0.04% to 0.06%<br />Change in flexural strength: -6.7% to 9.3%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Boiling Water Resistance</td>
+                                        <td>ANSI NEMA LD3-3.5</td>
+                                        <td>No effect</td>
+                                    </tr>
+                                    <tr>
+                                        <td>High Temperature Resistance</td>
+                                        <td>ANSI NEMA LD3-2005</td>
+                                        <td>No effect</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Surface Burning</td>
+                                        <td>ASTM E84</td>
+                                        <td>Class A</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Fire Performance</td>
+                                        <td>AS 1530.3:1999</td>
+                                        <td>Ignitability Index (0-20): 6-8<br />Spread of Flame Index (0-10): 0-3<br />Heat Developed Index (0-10): 2-3<br />Smoke Developed Index (0-10): 6-7</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Fire Classification</td>
+                                        <td>EN 13501-1</td>
+                                        <td>Wall cladding: B-s1-d0<br />Flooring and stairs: B-fl-s1</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </section>
                 );
             case 'safety-data':
