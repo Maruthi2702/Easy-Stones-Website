@@ -503,7 +503,7 @@ app.post('/api/admin/customers', verifyToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Create customer error:', error);
-    res.status(500).json({ message: 'Failed to create customer' });
+    res.status(500).json({ message: `Failed to create customer: ${error.message}` });
   }
 });
 
@@ -545,7 +545,7 @@ app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Update customer error:', error);
-    res.status(500).json({ message: 'Failed to update customer' });
+    res.status(500).json({ message: `Failed to update customer: ${error.message}` });
   }
 });
 
