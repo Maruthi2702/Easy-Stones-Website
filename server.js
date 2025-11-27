@@ -10,6 +10,7 @@ import cookieParser from 'cookie-parser';
 import nodemailer from 'nodemailer';
 import Product from './src/models/Product.js';
 import Admin from './src/models/Admin.js';
+import ContactSubmission from './src/models/ContactSubmission.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -269,14 +270,19 @@ app.post('/api/contact', async (req, res) => {
       });
     }
 
-    // Log the submission
-    console.log('📧 Contact form submission:', { 
-      name, 
-      email, 
-      company: company || 'N/A', 
-      phone: phone || 'N/A', 
-      message 
+    // Save to MongoDB
+    const contactSubmission = new ContactSubmission({
+      name,
+      company,
+      email,
+      phone,
+      message,
+      status: 'new',
+      emailSent: false
     });
+
+    await contactSubmission.save();
+    console.log('📧 Contact form saved to database:', contactSubmission._id);
 
     // Try to send email if credentials are configured
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
@@ -308,9 +314,11 @@ app.post('/api/contact', async (req, res) => {
         };
 
         await transporter.sendMail(mailOptions);
+        contactSubmission.emailSent = true;
+        await contactSubmission.save();
         console.log(`✅ Email sent to krish@easystones.com from ${email}`);
       } catch (emailError) {
-        console.error('⚠️ Email sending failed (but form submission logged):', emailError.message);
+        console.error('⚠️ Email sending failed (but saved to database):', emailError.message);
       }
     }
 
