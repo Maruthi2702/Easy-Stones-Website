@@ -40,6 +40,48 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    // Auto-logout after 10 minutes of inactivity
+    useEffect(() => {
+        if (!user) return; // Only run if user is logged in
+
+        const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
+        let inactivityTimer;
+
+        const resetTimer = () => {
+            // Clear existing timer
+            if (inactivityTimer) {
+                clearTimeout(inactivityTimer);
+            }
+
+            // Set new timer
+            inactivityTimer = setTimeout(() => {
+                console.log('Auto-logout due to inactivity');
+                logout();
+            }, INACTIVITY_TIMEOUT);
+        };
+
+        // Activity events to monitor
+        const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+
+        // Add event listeners
+        events.forEach(event => {
+            window.addEventListener(event, resetTimer);
+        });
+
+        // Start initial timer
+        resetTimer();
+
+        // Cleanup
+        return () => {
+            if (inactivityTimer) {
+                clearTimeout(inactivityTimer);
+            }
+            events.forEach(event => {
+                window.removeEventListener(event, resetTimer);
+            });
+        };
+    }, [user]);
+
     const login = (userData) => {
         setUser(userData);
     };

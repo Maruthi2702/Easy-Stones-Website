@@ -16,8 +16,10 @@ const customerSchema = new mongoose.Schema({
   },
   isVerified: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
+  priceLevel: { type: Number, default: 1, min: 1, max: 4 },
   loginAttempts: { type: Number, default: 0 },
-  lockUntil: { type: Date }
+  lockUntil: { type: Date },
+  loginIps: { type: [String], default: [] }
 }, { timestamps: true });
 
 // Hash password before saving

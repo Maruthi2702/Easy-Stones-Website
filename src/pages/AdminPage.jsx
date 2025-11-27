@@ -2,20 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, Users, User } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../config/api';
-import { products as fallbackProducts } from '../data/products';
 import './AdminPage.css';
 
 const AdminPage = () => {
   const navigate = useNavigate();
-  // Initialize with fallback data immediately
-  const [products, setProducts] = useState(fallbackProducts);
+  // Initialize with empty array
+  const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterCollection, setFilterCollection] = useState('All');
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('products');
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -51,7 +50,7 @@ const AdminPage = () => {
         const response = await fetch(`${API_URL}/api/products`);
         if (response.ok) {
           const data = await response.json();
-          if (data && data.length > 0 && data[0].collection) {
+          if (data && data.length > 0) {
             setProducts(data);
           }
         }
@@ -258,6 +257,10 @@ const AdminPage = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Show immediate preview
+    const objectUrl = URL.createObjectURL(file);
+    handleChange('image', objectUrl);
+
     const formData = new FormData();
     formData.append('image', file);
 
@@ -269,9 +272,14 @@ const AdminPage = () => {
       const data = await response.json();
 
       if (data.success) {
+        // Update with actual server path
         handleChange('image', data.filePath);
+        // Clean up object URL to avoid memory leaks
+        URL.revokeObjectURL(objectUrl);
       } else {
         alert('Failed to upload image');
+        // Revert to placeholder or previous image if needed
+        // For now, we'll just leave the preview or user can try again
       }
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -299,7 +307,8 @@ const AdminPage = () => {
         city: customer.address?.city || '',
         state: customer.address?.state || '',
         zipCode: customer.address?.zipCode || ''
-      }
+      },
+      priceLevel: customer.priceLevel || 1
     });
     setIsNewCustomer(false);
     setCustomerSaveStatus(null);
@@ -320,7 +329,8 @@ const AdminPage = () => {
         city: '',
         state: '',
         zipCode: ''
-      }
+      },
+      priceLevel: 1
     });
     setIsNewCustomer(true);
     setCustomerSaveStatus(null);
@@ -716,6 +726,18 @@ const AdminPage = () => {
                           className="readonly-input"
                         />
                       </div>
+                      <div className="form-group">
+                        <label>Price Level</label>
+                        <select
+                          value={customerFormData.priceLevel || 1}
+                          onChange={(e) => setCustomerFormData(prev => ({ ...prev, priceLevel: parseInt(e.target.value) }))}
+                        >
+                          <option value={1}>Level 1 (40% Margin)</option>
+                          <option value={2}>Level 2 (30% Margin)</option>
+                          <option value={3}>Level 3 (20% Margin)</option>
+                          <option value={4}>Level 4 (10% Margin)</option>
+                        </select>
+                      </div>
                     </div>
                   </section>
                 )}
@@ -894,14 +916,6 @@ const AdminPage = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Price</label>
-                  <input
-                    type="text"
-                    value={selectedProduct.price}
-                    onChange={(e) => handleChange('price', e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
                   <label>Category</label>
                   <select
                     value={selectedProduct.category}
@@ -1038,6 +1052,71 @@ const AdminPage = () => {
                   </select>
                 </div>
               </div>
+            </section>
+
+            {/* Pricing Section */}
+            <section className="form-section">
+              <h3>Pricing</h3>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Landing Cost ($)</label>
+                  <input
+                    type="number"
+                    value={selectedProduct.landingCost || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const cost = parseFloat(val);
+
+                      // Update the product in the products array
+                      setProducts(prev => prev.map(p => {
+                        if (p.id !== selectedProductId) return p;
+
+                        // Store as number if valid, otherwise keep the string for typing
+                        const updates = {
+                          landingCost: val === '' ? undefined : (isNaN(cost) ? val : cost)
+                        };
+
+                        if (!isNaN(cost) && val !== '') {
+                          // Round to nearest $0.50
+                          const roundToHalf = (num) => Math.round(num * 2) / 2;
+
+                          // Gross Margin Formula: Price = Cost / (1 - Margin%)
+                          updates.priceLevels = {
+                            level1: roundToHalf(cost / 0.6), // 40% margin
+                            level2: roundToHalf(cost / 0.7), // 30% margin
+                            level3: roundToHalf(cost / 0.8), // 20% margin
+                            level4: roundToHalf(cost / 0.9)  // 10% margin
+                          };
+                        }
+
+                        return { ...p, ...updates };
+                      }));
+                    }}
+                    placeholder="Enter landing cost"
+                  />
+                </div>
+              </div>
+
+              {(selectedProduct.landingCost || selectedProduct.priceLevels) && (
+                <div className="price-levels-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginTop: '1rem' }}>
+                  <div className="price-card" style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 1 (40%)</label>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>${selectedProduct.priceLevels?.level1 || 0}</div>
+                  </div>
+                  <div className="price-card" style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 2 (30%)</label>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>${selectedProduct.priceLevels?.level2 || 0}</div>
+                  </div>
+                  <div className="price-card" style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 3 (20%)</label>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>${selectedProduct.priceLevels?.level3 || 0}</div>
+                  </div>
+                  <div className="price-card" style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 4 (10%)</label>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>${selectedProduct.priceLevels?.level4 || 0}</div>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Specifications */}

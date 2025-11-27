@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import './CustomerLoginPage.css';
@@ -12,6 +12,7 @@ const CustomerLoginPage = () => {
         email: '',
         password: ''
     });
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -23,8 +24,24 @@ const CustomerLoginPage = () => {
         setError('');
     };
 
+    const validateEmail = (email) => {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // Client-side validation
+        if (!validateEmail(formData.email)) {
+            setError('Please enter a valid email address');
+            return;
+        }
+
+        if (!formData.password) {
+            setError('Password is required');
+            return;
+        }
+
         setIsSubmitting(true);
         setError('');
 
@@ -85,13 +102,21 @@ const CustomerLoginPage = () => {
                             <div className="input-wrapper">
                                 <Lock className="input-icon" size={18} />
                                 <input
-                                    type="password"
+                                    type={showPassword ? "text" : "password"}
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
                                     required
                                     placeholder="••••••••"
                                 />
+                                <button
+                                    type="button"
+                                    className="password-toggle"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    tabIndex="-1"
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
                             </div>
                         </div>
 

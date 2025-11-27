@@ -17,7 +17,7 @@ const ProductCard = ({ product, activeCategory }) => {
     <Link
       to={`/product/${productSlug}`}
       className="product-card glass-panel"
-      state={{ fromCategory: activeCategory, productId: product.id }}
+      state={{ fromCategory: activeCategory, productId: product.id, product: product }}
     >
       <div className="card-image-container">
         <img
@@ -38,7 +38,7 @@ const ProductCard = ({ product, activeCategory }) => {
       <div className="card-content">
         <div className="card-header">
           <span className="category">{product.category}</span>
-          <span className={`availability ${product.availability.toLowerCase().replace(' ', '-')}`}>
+          <span className={`availability ${product.availability.toLowerCase().replace(/\s+/g, '-')}`}>
             {product.availability}
           </span>
         </div>

@@ -4,7 +4,6 @@ const productSchema = new mongoose.Schema({
   id: { type: Number, required: true, unique: true },
   name: { type: String, required: true },
   category: { type: String, required: true },
-  price: { type: String },
   collectionType: { type: String },
   availability: { type: String, default: 'In Stock' },
   image: { type: String },
@@ -19,6 +18,13 @@ const productSchema = new mongoose.Schema({
   variations: { type: String, default: 'Low' },
   finishes: [{ type: String }],
   applications: [{ type: String }],
+  landingCost: { type: Number },
+  priceLevels: {
+    level1: { type: Number }, // 40% margin
+    level2: { type: Number }, // 30% margin
+    level3: { type: Number }, // 20% margin
+    level4: { type: Number }  // 10% margin
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -30,6 +36,14 @@ productSchema.virtual('collection').get(function() {
   return this.collectionType;
 }).set(function(value) {
   this.collectionType = value;
+});
+
+// Virtual property for 'price' - returns level1 formatted as price
+productSchema.virtual('price').get(function() {
+  if (this.priceLevels && this.priceLevels.level1) {
+    return `$${this.priceLevels.level1.toFixed(2)}/sqft`;
+  }
+  return '$0.00/sqft';
 });
 
 // Ensure virtuals are included when converting to JSON

@@ -3,11 +3,27 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getLocalImagePath } from '../utils/imagePath';
 import './HeroCarousel.css';
 
-import { products } from '../data/products';
+import { API_URL } from '../config/api';
 
 const HeroCarousel = () => {
-    // Filter products marked for slider
-    const sliderProducts = products.filter(p => p.showInSlider);
+    const [sliderProducts, setSliderProducts] = useState([]);
+
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const response = await fetch(`${API_URL}/api/products`);
+                if (response.ok) {
+                    const data = await response.json();
+                    const filtered = data.filter(p => p.showInSlider);
+                    setSliderProducts(filtered);
+                }
+            } catch (error) {
+                console.error('Error fetching slider products:', error);
+            }
+        };
+
+        fetchProducts();
+    }, []);
 
     // Fallback slides if no products selected
     const defaultSlides = [
@@ -39,7 +55,7 @@ const HeroCarousel = () => {
             setCurrent((prev) => (prev + 1) % slides.length);
         }, 5000);
         return () => clearInterval(timer);
-    }, []);
+    }, [slides.length]);
 
     const nextSlide = () => setCurrent((prev) => (prev + 1) % slides.length);
     const prevSlide = () => setCurrent((prev) => (prev - 1 + slides.length) % slides.length);

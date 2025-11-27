@@ -63,16 +63,9 @@ app.get('/api/debug/config', async (req, res) => {
   }
 });
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
-// Configure Multer for memory storage (for Cloudinary upload)
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+// Cloudinary config removed - using local storage
+// const storage = multer.memoryStorage();
+// const upload = multer({ storage: storage });
 
 // Middleware
 const allowedOrigins = [
@@ -111,7 +104,42 @@ const loginLimiter = rateLimit({
 app.get('/api/products', async (req, res) => {
   try {
     const products = await Product.find().sort({ id: -1 }); // Sort by ID descending (newest first)
-    res.json(products);
+    
+    // Check if customer is logged in
+    const token = req.cookies.customerToken;
+    let priceLevel = 1; // Default to level 1
+    
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+        if (decoded.type === 'customer') {
+          const customer = await Customer.findById(decoded.id);
+          if (customer && customer.priceLevel) {
+            priceLevel = customer.priceLevel;
+          }
+        }
+      } catch (err) {
+        // Token invalid or expired, use default level 1
+      }
+    }
+    
+    // Transform products to show price based on customer's level
+    const productsWithPrices = products.map(product => {
+      const productObj = product.toObject();
+      
+      if (productObj.priceLevels) {
+        const levelKey = `level${priceLevel}`;
+        const levelPrice = productObj.priceLevels[levelKey];
+        
+        if (levelPrice) {
+          productObj.price = `$${levelPrice.toFixed(2)}/sqft`;
+        }
+      }
+      
+      return productObj;
+    });
+    
+    res.json(productsWithPrices);
   } catch (error) {
     console.error('❌ Error fetching products:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
@@ -392,12 +420,21 @@ app.post('/api/customer/register', async (req, res) => {
 });
 
 // Customer Login Endpoint
-app.post('/api/customer/login', async (req, res) => {
+app.post('/api/customer/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Input validation
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Invalid input format' });
+    }
+
     // Find customer
-    const customer = await Customer.findOne({ email });
+    const customer = await Customer.findOne({ email: email.toLowerCase() });
     if (!customer) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -423,6 +460,15 @@ app.post('/api/customer/login', async (req, res) => {
 
     // Reset login attempts on success
     await customer.resetLoginAttempts();
+
+    // Capture and save IP address (keep last 3)
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    if (!customer.loginIps) customer.loginIps = [];
+    customer.loginIps.push(ip);
+    if (customer.loginIps.length > 3) {
+      customer.loginIps.shift(); // Remove oldest
+    }
+    await customer.save();
 
     // Generate JWT token
     const token = jwt.sign(
@@ -517,7 +563,7 @@ app.get('/api/admin/customers', verifyToken, async (req, res) => {
 // Admin: Create customer
 app.post('/api/admin/customers', verifyToken, async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, company, address } = req.body;
+    const { firstName, lastName, email, password, phone, company, address, priceLevel } = req.body;
 
     // Check if customer already exists
     const existingCustomer = await Customer.findOne({ email });
@@ -534,6 +580,7 @@ app.post('/api/admin/customers', verifyToken, async (req, res) => {
       phone,
       company,
       address,
+      priceLevel: priceLevel || 1, // Default to level 1 if not provided
       isVerified: true // Admin created accounts are verified by default
     });
 
@@ -558,7 +605,7 @@ app.post('/api/admin/customers', verifyToken, async (req, res) => {
 // Admin: Update customer
 app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, company, address } = req.body;
+    const { firstName, lastName, email, password, phone, company, address, priceLevel } = req.body;
     const customerId = req.params.id;
 
     const customer = await Customer.findById(customerId);
@@ -573,6 +620,11 @@ app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
     customer.phone = phone || customer.phone;
     customer.company = company || customer.company;
     customer.address = address || customer.address;
+    
+    // Update price level if provided
+    if (priceLevel !== undefined && priceLevel !== null) {
+      customer.priceLevel = priceLevel;
+    }
 
     // Only update password if provided
     if (password && password.trim() !== '') {
@@ -632,26 +684,44 @@ app.patch('/api/admin/customers/:id/status', verifyToken, async (req, res) => {
   }
 });
 
-// API endpoint to upload image to Cloudinary
-app.post('/api/upload', upload.single('image'), async (req, res) => {
+// Configure Multer for local storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, 'public/images/products');
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Sanitize filename and add timestamp
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    const name = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, '_');
+    cb(null, name + '_' + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({ storage: storage });
+
+// API endpoint to upload image locally
+app.post('/api/upload', upload.single('image'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Convert buffer to base64 for Cloudinary
-    const b64 = Buffer.from(req.file.buffer).toString('base64');
-    const dataURI = 'data:' + req.file.mimetype + ';base64,' + b64;
-
-    const result = await cloudinary.uploader.upload(dataURI, {
-      folder: 'easy-stones/products',
-      resource_type: 'auto'
-    });
-
-    res.json({ success: true, filePath: result.secure_url });
+    console.log('✅ File uploaded locally:', req.file.filename);
+    
+    // Return path relative to public directory
+    // The frontend expects /images/products/filename
+    const filePath = `/images/products/${req.file.filename}`;
+    
+    res.json({ success: true, filePath: filePath });
   } catch (error) {
     console.error('❌ Error uploading file:', error);
-    res.status(500).json({ error: 'Failed to upload file' });
+    res.status(500).json({ error: 'Failed to upload file', details: error.message });
   }
 });
 
@@ -678,6 +748,14 @@ app.post('/api/products/save', async (req, res) => {
       if (productData.collection) {
         productData.collectionType = productData.collection;
         delete productData.collection; // Remove the original to avoid conflicts
+      }
+      
+      // Debug: Log pricing data
+      if (productData.landingCost || productData.priceLevels) {
+        console.log(`💰 Saving pricing for product ${product.id}:`, {
+          landingCost: productData.landingCost,
+          priceLevels: productData.priceLevels
+        });
       }
       
       return {

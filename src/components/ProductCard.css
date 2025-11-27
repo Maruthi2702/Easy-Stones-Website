@@ -189,8 +189,9 @@
 }
 
 .availability.out-of-stock { 
-  color: var(--status-danger);
-  background: rgba(251, 113, 133, 0.15);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  font-weight: 800;
 }
 
 .availability.pre-order { 

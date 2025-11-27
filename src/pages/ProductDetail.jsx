@@ -3,7 +3,6 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Download, ZoomIn, Maximize2 } from 'lucide-react';
 import { getLocalImagePath } from '../utils/imagePath';
 import { API_URL } from '../config/api';
-import { products as fallbackProducts } from '../data/products';
 import { useAuth } from '../context/AuthContext';
 import './ProductDetail.css';
 
@@ -23,18 +22,19 @@ const ProductDetail = () => {
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '');
 
-  // Initialize with fallback data immediately
-  // Try to match by slug first, fallback to ID for backwards compatibility
-  const initialProduct = fallbackProducts.find((item) =>
-    createSlug(item.name) === productId || item.id.toString() === productId
-  );
+  // Initialize with location state if available (prevents flicker)
+  // Otherwise start with null to show loading state instead of stale data
+  const initialProduct = location.state?.product || null;
+
   const [product, setProduct] = useState(initialProduct);
-  const [loading, setLoading] = useState(false); // Don't show full page loader
+  const [loading, setLoading] = useState(!initialProduct); // Show loader if no initial data
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/products`);
+        const response = await fetch(`${API_URL}/api/products`, {
+          credentials: 'include' // Send cookies with request
+        });
         if (response.ok) {
           const data = await response.json();
           // Find by slug first, fallback to ID for backwards compatibility
@@ -142,7 +142,9 @@ const ProductDetail = () => {
             <h1>{product.name}</h1>
             <div className="detail-tags">
               <span className="tag">{product.category}</span>
-              <span className="tag available">{product.availability}</span>
+              <span className={`tag ${product.availability === 'Out of Stock' ? 'out-of-stock' : 'available'}`}>
+                {product.availability}
+              </span>
             </div>
 
           </div>
