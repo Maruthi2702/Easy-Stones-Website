@@ -144,16 +144,12 @@ const ProductDetail = () => {
               <span className="tag">{product.category}</span>
               <span className="tag available">{product.availability}</span>
             </div>
-            {user && product.price && (
-              <div className="product-price">
-                <span className="price-label">Price:</span>
-                <span className="price-value">{product.price}</span>
-              </div>
-            )}
+
           </div>
 
           <div className="info-body">
             <p className="detail-description">{detail.description}</p>
+
 
             <div className="specs-grid">
               <div className="spec-item">
@@ -190,14 +186,27 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            <div className="specs-list">
-              <h3>Size Options</h3>
-              <div className="pill-list">
-                {(product.sizes && product.sizes.length > 0)
-                  ? product.sizes.map(s => <span key={s} className="pill">{s}</span>)
-                  : <span className="pill">Contact for sizes</span>
-                }
+            <div className="specs-row">
+              <div className="specs-list">
+                <h3>Size Options</h3>
+                <div className="pill-list">
+                  {(product.sizes && product.sizes.length > 0)
+                    ? product.sizes.map(s => <span key={s} className="pill">{s}</span>)
+                    : <span className="pill">Contact for sizes</span>
+                  }
+                </div>
               </div>
+
+              {user && product.price && (
+                <div className="specs-list">
+                  <h3>Price</h3>
+                  <div className="pill-list">
+                    <span className="pill">{product.price}</span>
+                  </div>
+                </div>
+              )}
+
+
             </div>
 
             <div className="specs-list">
