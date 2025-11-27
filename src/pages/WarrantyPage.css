@@ -188,38 +188,88 @@
 .table-responsive {
   overflow-x: auto;
   margin: 2rem 0;
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
 }
 
 .technical-data-table {
   width: 100%;
   border-collapse: collapse;
   background: white;
-  box-shadow: var(--shadow-sm);
-}
-
-.technical-data-table thead {
-  background: var(--accent-color);
-  color: white;
-}
-
-.technical-data-table th,
-.technical-data-table td {
-  padding: 1rem;
-  text-align: left;
-  border: 1px solid var(--border-color);
-}
-
-.technical-data-table th {
-  font-weight: 600;
   font-size: 0.95rem;
 }
 
+.technical-data-table thead {
+  background: linear-gradient(135deg, var(--accent-color) 0%, #c9a84a 100%);
+  color: white;
+}
+
+.technical-data-table th {
+  padding: 1.2rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: none;
+}
+
+.technical-data-table th:first-child {
+  border-top-left-radius: 8px;
+}
+
+.technical-data-table th:last-child {
+  border-top-right-radius: 8px;
+}
+
+.technical-data-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+.technical-data-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
 .technical-data-table tbody tr:nth-child(even) {
-  background: rgba(0, 0, 0, 0.02);
+  background: #f9fafb;
 }
 
 .technical-data-table tbody tr:hover {
-  background: rgba(212, 175, 55, 0.05);
+  background: rgba(212, 175, 55, 0.08);
+  transform: scale(1.001);
+}
+
+.technical-data-table tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 8px;
+}
+
+.technical-data-table tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 8px;
+}
+
+.technical-data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Column specific styling */
+.technical-data-table td:first-child {
+  font-weight: 600;
+  color: var(--text-primary);
+  width: 30%;
+}
+
+.technical-data-table td:nth-child(2) {
+  color: #6b7280;
+  font-size: 0.9rem;
+  width: 35%;
+}
+
+.technical-data-table td:last-child {
+  color: var(--text-primary);
+  font-weight: 500;
+  width: 35%;
 }
 
 @media (max-width: 768px) {
