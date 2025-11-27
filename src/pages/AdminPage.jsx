@@ -345,6 +345,25 @@ const AdminPage = () => {
 
   const saveCustomer = async (e) => {
     if (e) e.preventDefault();
+
+    // Client-side validation
+    if (!customerFormData.firstName?.trim()) {
+      setCustomerSaveStatus({ type: 'error', message: 'First Name is required' });
+      return;
+    }
+    if (!customerFormData.lastName?.trim()) {
+      setCustomerSaveStatus({ type: 'error', message: 'Last Name is required' });
+      return;
+    }
+    if (!customerFormData.email?.trim()) {
+      setCustomerSaveStatus({ type: 'error', message: 'Email is required' });
+      return;
+    }
+    if (isNewCustomer && !customerFormData.password?.trim()) {
+      setCustomerSaveStatus({ type: 'error', message: 'Password is required for new customers' });
+      return;
+    }
+
     setIsSaving(true);
     setCustomerSaveStatus(null);
 
