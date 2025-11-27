@@ -180,115 +180,120 @@ const WarrantyPage = () => {
             case 'tech-data':
                 return (
                     <section className="warranty-section">
-                        <h2>Technical Data</h2>
-                        <p>Technical specifications and performance data for Moda Quartz surfaces.</p>
+                        <h2>Moda Quartz Customer Policies & Recommended Fabrication Practices</h2>
+                        <p>
+                            Moda Quartz is a perfect blend of polymeric technology combined with the beauty and durability of Natural Quartz.
+                            Moda Quartz surfaces are food safe, extremely durable, very easy to maintain and come with a transferable Limited
+                            15-Year Residential and 10-Year Commercial warranty. Outlined in this document are the recommended fabrication
+                            practices and other policies required to maintain service under the Limited Warranty.
+                        </p>
 
-                        <div className="table-responsive">
-                            <table className="technical-data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Property</th>
-                                        <th>Test Standard</th>
-                                        <th>Results</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>Water Absorption</td>
-                                        <td>ASTM C97<br />EN-14617-1</td>
-                                        <td>≤0.05%</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Density</td>
-                                        <td>ASTM C97<br />EN-14617-1</td>
-                                        <td>≥2.1 gr/cm³</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Flexural Strength</td>
-                                        <td>ASTM C880/C880M-15<br />EN-14617-2</td>
-                                        <td>35.5-77.5 MPa<br />43-80 MPa</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Dimensional Stability</td>
-                                        <td>EN-14617-12</td>
-                                        <td>Class A</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Impact Resistance</td>
-                                        <td>EN-14617-9</td>
-                                        <td>5.0-14.4 L (J)</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Compressive Strength</td>
-                                        <td>ASTM C170<br />EN-14617-15</td>
-                                        <td>Dry: 219-299 MPa; Wet: 203-274 MPa<br />157-243 MPa</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Abrasion</td>
-                                        <td>ASTM C1243-93<br />EN-14617-4</td>
-                                        <td>Volume of chord: V=59.2-107.2mm³<br />Chord length: 22.0-22.6mm</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Freeze-thaw Resistance</td>
-                                        <td>ASTM C1026<br />EN-14617-2 & EN-14167-5</td>
-                                        <td>No obvious damage after 20 freeze-thaw cycles<br />KMf25= 95.1-117.7%</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Stain Resistance</td>
-                                        <td>ANSI Z 124.6</td>
-                                        <td>Pass</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Chemical Resistance</td>
-                                        <td>ANSI Z 124.6<br />EN 14617-10</td>
-                                        <td>Pass<br />Class C4</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Linear Thermal Expansion</td>
-                                        <td>ANTM 372<br />EN 14617-11</td>
-                                        <td>-30°C-100°C: 3.0-5.0 x 10 per °C<br />13.4-26.4 (10⁻⁵ ·C⁻¹)</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Thermal Conductivity</td>
-                                        <td>EN 12664</td>
-                                        <td>0.445-0.475 W/(m·K)</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Thermal Shock</td>
-                                        <td>EN 14617-6</td>
-                                        <td>No visual defects after 20 cycles<br />Change in mass: 0.04% to 0.06%<br />Change in flexural strength: -6.7% to 9.3%</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Boiling Water Resistance</td>
-                                        <td>ANSI NEMA LD3-3.5</td>
-                                        <td>No effect</td>
-                                    </tr>
-                                    <tr>
-                                        <td>High Temperature Resistance</td>
-                                        <td>ANSI NEMA LD3-2005</td>
-                                        <td>No effect</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Surface Burning</td>
-                                        <td>ASTM E84</td>
-                                        <td>Class A</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Fire Performance</td>
-                                        <td>AS 1530.3:1999</td>
-                                        <td>Ignitability Index (0-20): 6-8<br />Spread of Flame Index (0-10): 0-3<br />Heat Developed Index (0-10): 2-3<br />Smoke Developed Index (0-10): 6-7</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Fire Classification</td>
-                                        <td>EN 13501-1</td>
-                                        <td>Wall cladding: B-s1-d0<br />Flooring and stairs: B-fl-s1</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <h3>Application</h3>
+                        <p>
+                            Moda Quartz is ideal for indoor applications such as kitchen and bath counter tops, shower walls, service counters,
+                            desks, flooring and decorative applications; as the colors are consistent and the surface is virtually bacteria-free
+                            when properly cleaned. Exterior applications are not recommended and void product warranty. Exposure to unfiltered
+                            direct sunlight may result in color fading and/or warping of material. Most modern windows provide a sufficient
+                            amount of filtration to prevent UV fade and warping of material. It is recommended one check with window manufacture
+                            for information regarding UV light filtration and consider product exposure to sunlight during the design process.
+                        </p>
+
+                        <h3>Composition & Materials</h3>
+                        <p>
+                            Moda Quartz is composed up to 93% natural quartz and 7% resin; as a result, variance in color, shade and pattern
+                            is an inherent trait expected of this product. Please refer to samples only as a general indication of a particular
+                            color's design pattern, aesthetics, and hue. Samples are not guaranteed to be an exact replica of Moda Quartz slabs
+                            and may vary from actual, installed Moda Quartz surface. It is the responsibility of the fabricator to visually
+                            inspect color match of any slabs to be fabricated and installed prior to cutting into the material.
+                        </p>
+                        <p>
+                            Moda Quartz is not a seamless product; seams are generally visible. Inspection of color coordination across seams
+                            and multiple pieces is strongly recommended.
+                        </p>
+                        <p>
+                            Small resin blotches or random distribution of particulates are an inherent part of the overall design and composition,
+                            and are not considered to be defects or product non-conformity.
+                        </p>
+                        <p>
+                            The quality of engineered stone will vary from brand to brand depending on the quality of resin and raw materials
+                            used in the manufacturing process.
+                        </p>
+
+                        <h3>Material Handling & Storage</h3>
+                        <p>
+                            Upon receiving the material, the protective plastic sheet must be removed and material inspected. The fabricator is
+                            ultimately responsible for inspection of Moda Quartz prior to any cutting, fabrication, and installation, since most
+                            product non-conformity* issues can be more properly addressed prior to the cutting of material or permanent installation
+                            (*claims on slab material that has not been cut, fabricated, or altered in any way shape or form).
+                        </p>
+                        <p>
+                            Material should be stored on a-frames, or on vertical racks. Metal a-frames, or racks should be padded to avoid
+                            damaging surface of material. The polished face should not be stored in direct sunlight. Avoid storing material in
+                            extreme weather/temperature conditions. Acclimate material to temperature of fabrication shop for at least 24 hours
+                            prior to cutting material. Do not cut material that is frozen. Do not heat material using any type of torch, or open
+                            flame. It is recommended that material be covered if stored outside to help protect from elements.
+                        </p>
+
+                        <h3>Product Identification</h3>
+                        <p>
+                            Moda Quartz slabs will be individually marked on the spine with a serial number label. There will also be a
+                            manufactures stamp on the back of the slabs. To obtain service under the warranty, the serial number information,
+                            customer name, physical address and product application must be submitted to Easy Surfaces Corporation.
+                        </p>
+
+                        <h3>General Fabrication & Installation Requirements</h3>
+                        <p>
+                            Fabrication of Moda Quartz differs slightly than fabrication of natural stone. As an engineered product there may
+                            be tension within the slab. This is not a defect, but rather an inherent result of the manufacturing process. To
+                            relieve tension, it is recommended that a relief cut, or relief hole be drilled prior to cutting into material.
+                            The following guidelines are to be followed when cutting Moda Quartz:
+                        </p>
+                        <ul>
+                            <li>Dress the saw blade. Make sure the diamonds are exposed. The build-up of sludge and resin from cutting natural stone and quartz slabs can coat the saw blade effectively killing the blades ability to cut while generating excess heat.</li>
+                            <li>Always cut with water.</li>
+                            <li>Pay attention to AMP draw and cut speed.</li>
+                            <li>Always cut from the outside of the slab towards the inside.</li>
+                            <li>Prior to beginning relief cut, it is recommended that a 1" diameter relief hold be drilled at the termination point of the cut. Always cut towards the relief hole.</li>
+                            <li>Make the shortest cut first.</li>
+                            <li>Inside Corners must have a minimum 3/8" radius. Square corners will create stress points in the material that may result in cracking during the fabrication process, or after installation.</li>
+                        </ul>
+
+                        <h3>Not Covered under Moda Quartz Warranty</h3>
+                        <ul>
+                            <li>Failure to comply with the recommended storage, handling, usage, care & maintenance guidelines. It is the responsibility of the Fabricator, or selling agent to advise end user on the Moda Quartz Warranty and Care & Maintenance guidelines.</li>
+                            <li>Fabrication or installation error.</li>
+                            <li>Damage caused by accidents, abuse, misuse, act of nature, job-site conditions or structural movement.</li>
+                            <li>Installed Moda Quartz surface product that is removed from the original place of installation.</li>
+                            <li>Moda Quartz is composed of natural quartz. As a result, variance in color, size, shape and particulate distribution pattern is an inherent trait expected of this product. (Slabs purchased from same lot # should match. If slabs from same lot # do not match, please notify Easy Surfaces Corporation prior to cutting and installation to resolve the issue.)</li>
+                            <li>Chips and cracks. Chips may be caused by impact. Cracks may be cause by "dry" cutting, polishing, unevenness, or settling.</li>
+                            <li>Scratches. Moda Quartz is scratch resistant, but not scratch-proof. Cutting boards are highly recommended. Material should be covered after installation to avoid damage by other trades.</li>
+                            <li>Minor conditions such as stains or water spots. Moda Quartz is stain resistant, but not stain-proof. To clean tough stains, please visit our care and maintenance section of our website at www.easystones.com</li>
+                            <li>Supplemental repair, including, but not limited to, electrical, tile or wall surfaces, and plumbing modifications necessary to repair Moda Quartz.</li>
+                            <li>Appearance of edge, re-fabrication, or polishing of surface slabs.</li>
+                            <li>Exposure to extreme heat. Trivets must be used for any hot pots, pans, crock pots, and for any heat generating items. Heat resistant pads are highly recommended.</li>
+                            <li>Seam appearance.</li>
+                        </ul>
+
+                        <p><strong>Note:</strong> Moda Quartz Policies are subject to change without notice at Easy Stones discretion. Please check with your local branch for the latest updates.</p>
+
+                        <div className="warranty-download">
+                            <a
+                                href="/Moda Quartz Customer Policies and Recommended Fabrication Practices_2023.pdf"
+                                download
+                                className="download-pdf-btn"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                Download Customer Policies PDF
+                            </a>
                         </div>
                     </section>
-                );
-            case 'safety-data':
+                ); case 'safety-data':
                 return (
                     <section className="warranty-section">
                         <h2>Moda Quartz QC Standards</h2>
