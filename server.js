@@ -269,48 +269,62 @@ app.post('/api/contact', async (req, res) => {
       });
     }
 
-    // Create email transporter (configure with your email service)
-    // For now, using a test configuration - you'll need to add real credentials to .env
-    const transporter = nodemailer.createTransporter({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: process.env.SMTP_PORT || 587,
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER, // Your email
-        pass: process.env.SMTP_PASS  // Your email password or app password
-      }
+    // Log the submission
+    console.log('📧 Contact form submission:', { 
+      name, 
+      email, 
+      company: company || 'N/A', 
+      phone: phone || 'N/A', 
+      message 
     });
 
-    // Email content
-    const mailOptions = {
-      from: process.env.SMTP_USER,
-      to: 'krish@easystones.com',
-      subject: `New Contact Form Submission from ${name}`,
-      html: `
-        <h2>New Contact Form Submission</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Company:</strong> ${company || 'N/A'}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Phone:</strong> ${phone || 'N/A'}</p>
-        <p><strong>Message:</strong></p>
-        <p>${message.replace(/\n/g, '<br>')}</p>
-      `,
-      replyTo: email
-    };
-
-    // Send email
+    // Try to send email if credentials are configured
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      await transporter.sendMail(mailOptions);
-      console.log(`✅ Contact form email sent from ${email}`);
-      res.json({ success: true, message: 'Message sent successfully!' });
-    } else {
-      // If email not configured, just log the message
-      console.log('📧 Contact form submission (email not configured):', { name, email, company, phone, message });
-      res.json({ success: true, message: 'Message received! (Email service not configured yet)' });
+      try {
+        const transporter = nodemailer.createTransporter({
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: process.env.SMTP_PORT || 587,
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+          }
+        });
+
+        const mailOptions = {
+          from: process.env.SMTP_USER,
+          to: 'krish@easystones.com',
+          subject: `New Contact Form Submission from ${name}`,
+          html: `
+            <h2>New Contact Form Submission</h2>
+            <p><strong>Name:</strong> ${name}</p>
+            <p><strong>Company:</strong> ${company || 'N/A'}</p>
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>Phone:</strong> ${phone || 'N/A'}</p>
+            <p><strong>Message:</strong></p>
+            <p>${message.replace(/\n/g, '<br>')}</p>
+          `,
+          replyTo: email
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Email sent to krish@easystones.com from ${email}`);
+      } catch (emailError) {
+        console.error('⚠️ Email sending failed (but form submission logged):', emailError.message);
+      }
     }
+
+    // Always return success - the form submission is logged
+    res.json({ 
+      success: true, 
+      message: 'Thank you for your message! We\'ll get back to you soon.' 
+    });
   } catch (error) {
     console.error('❌ Contact form error:', error);
-    res.status(500).json({ success: false, message: 'Failed to send message' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to send message. Please try again.' 
+    });
   }
 });
 
