@@ -11,9 +11,9 @@ const Header = () => {
         </Link>
 
         <nav className="nav-desktop">
-          <NavLink to="/products" className={({ isActive }) => isActive ? 'active' : ''}>Products</NavLink>
-          <NavLink to="/warranty" className={({ isActive }) => isActive ? 'active' : ''}>Warranty</NavLink>
-          <NavLink to="/contact" className={({ isActive }) => isActive ? 'active' : ''}>Contact Us</NavLink>
+          <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>Products</NavLink>
+          <NavLink to="/warranty" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Warranty</NavLink>
+          <NavLink to="/contact" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Contact Us</NavLink>
         </nav>
 
         <div className="header-actions">
