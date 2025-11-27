@@ -12,8 +12,6 @@ const Header = () => {
 
         <nav className="nav-desktop">
           <Link to="/" className="nav-link">Products</Link>
-          <a href="#" className="nav-link">Live Inventory</a>
-          <a href="#" className="nav-link">Locations</a>
           <a href="#" className="nav-link">Contact Us</a>
         </nav>
 
