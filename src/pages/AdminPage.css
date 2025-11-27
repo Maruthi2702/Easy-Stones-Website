@@ -195,9 +195,20 @@
 .list-thumb {
   width: 40px;
   height: 40px;
-  border-radius: 6px;
+  border-radius: 4px;
   object-fit: cover;
-  background: var(--bg-primary);
+  background: #333;
+}
+
+.list-thumb-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  background: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
 }
 
 .list-info {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package } from 'lucide-react';
+import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, Users, User } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../config/api';
 import { products as fallbackProducts } from '../data/products';
 import './AdminPage.css';
@@ -24,28 +24,64 @@ const AdminPage = () => {
   });
   const [passwordStatus, setPasswordStatus] = useState(null);
 
+  // Customer Management State
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerFormData, setCustomerFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    phone: '',
+    company: '',
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      zipCode: ''
+    }
+  });
+  const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [customerSaveStatus, setCustomerSaveStatus] = useState(null);
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const response = await fetch(`${API_URL}/api/products`);
         if (response.ok) {
           const data = await response.json();
-          // Only use API data if it has the collection field populated
-          // Otherwise keep using fallback data which has all fields
           if (data && data.length > 0 && data[0].collection) {
             setProducts(data);
           }
         }
       } catch (error) {
         console.error('Error fetching products:', error);
-        // Keep using fallback data (already set)
       } finally {
         setLoading(false);
       }
     };
 
+    const fetchCustomers = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/admin/customers`, {
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setCustomers(data);
+        }
+      } catch (error) {
+        console.error('Error fetching customers:', error);
+      }
+    };
+
     fetchProducts();
-  }, []);
+    if (activeTab === 'customers') {
+      fetchCustomers();
+    }
+  }, [activeTab]);
 
   // Initialize selected product when products change or on first load
   const selectedProduct = products.find(p => p.id === selectedProductId);
@@ -256,6 +292,13 @@ const AdminPage = () => {
               Products
             </button>
             <button
+              className={`tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
+              onClick={() => setActiveTab('customers')}
+            >
+              <Users size={18} />
+              Customers
+            </button>
+            <button
               className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
               onClick={() => setActiveTab('settings')}
             >
@@ -327,6 +370,45 @@ const AdminPage = () => {
         </div>
       )}
 
+      {activeTab === 'customers' && (
+        <div className="admin-sidebar">
+          <div className="sidebar-header">
+            <h2>Customers</h2>
+            <button className="add-btn" onClick={handleAddCustomer}>
+              <Plus size={18} /> New
+            </button>
+          </div>
+
+          <div className="search-box">
+            <Search size={16} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search customers..."
+              value={customerSearchTerm}
+              onChange={(e) => setCustomerSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="product-list">
+            {filteredCustomers.map(customer => (
+              <div
+                key={customer._id}
+                className={`product-list-item ${selectedCustomerId === customer._id ? 'active' : ''}`}
+                onClick={() => handleSelectCustomer(customer)}
+              >
+                <div className="list-thumb-placeholder">
+                  <User size={20} />
+                </div>
+                <div className="list-info">
+                  <span className="list-name">{customer.firstName} {customer.lastName}</span>
+                  <span className="list-meta">{customer.company || customer.email}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className={`admin-main ${activeTab === 'settings' ? 'full-width' : ''}`}>
         <div className="main-header">
@@ -356,7 +438,138 @@ const AdminPage = () => {
           </div>
         )}
 
-        {activeTab === 'settings' ? (
+        {activeTab === 'customers' ? (
+          selectedCustomerId ? (
+            <div className="edit-form">
+              <div className="main-header">
+                <h1>{isNewCustomer ? 'Create Customer' : 'Edit Customer'}</h1>
+                <div className="header-actions">
+                  <button
+                    className={`save-btn ${isSaving ? 'saving' : ''}`}
+                    onClick={saveCustomer}
+                    disabled={isSaving}
+                  >
+                    <Save size={18} /> {isSaving ? 'Saving...' : 'Save Customer'}
+                  </button>
+                </div>
+              </div>
+
+              {customerSaveStatus && (
+                <div className={`status-message ${customerSaveStatus.type}`}>
+                  {customerSaveStatus.message}
+                </div>
+              )}
+
+              <form onSubmit={saveCustomer} className="customer-form">
+                <section className="form-section">
+                  <h3>Personal Information</h3>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>First Name</label>
+                      <input
+                        type="text"
+                        value={customerFormData.firstName}
+                        onChange={(e) => handleCustomerChange('firstName', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Last Name</label>
+                      <input
+                        type="text"
+                        value={customerFormData.lastName}
+                        onChange={(e) => handleCustomerChange('lastName', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Email</label>
+                      <input
+                        type="email"
+                        value={customerFormData.email}
+                        onChange={(e) => handleCustomerChange('email', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Phone</label>
+                      <input
+                        type="tel"
+                        value={customerFormData.phone}
+                        onChange={(e) => handleCustomerChange('phone', e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Company</label>
+                      <input
+                        type="text"
+                        value={customerFormData.company}
+                        onChange={(e) => handleCustomerChange('company', e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Password {isNewCustomer ? '(Required)' : '(Leave blank to keep current)'}</label>
+                      <input
+                        type="password"
+                        value={customerFormData.password}
+                        onChange={(e) => handleCustomerChange('password', e.target.value)}
+                        required={isNewCustomer}
+                        placeholder={isNewCustomer ? "Enter password" : "Enter new password to change"}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="form-section">
+                  <h3>Address</h3>
+                  <div className="form-grid">
+                    <div className="form-group full-width">
+                      <label>Street Address</label>
+                      <input
+                        type="text"
+                        value={customerFormData.address.street}
+                        onChange={(e) => handleAddressChange('street', e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>City</label>
+                      <input
+                        type="text"
+                        value={customerFormData.address.city}
+                        onChange={(e) => handleAddressChange('city', e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>State</label>
+                      <input
+                        type="text"
+                        value={customerFormData.address.state}
+                        onChange={(e) => handleAddressChange('state', e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Zip Code</label>
+                      <input
+                        type="text"
+                        value={customerFormData.address.zipCode}
+                        onChange={(e) => handleAddressChange('zipCode', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </section>
+              </form>
+            </div>
+          ) : (
+            <div className="empty-selection">
+              <Users size={48} />
+              <h2>Select a customer to edit</h2>
+              <p>Or create a new customer account</p>
+              <button className="primary-btn" onClick={handleAddCustomer}>
+                Create New Customer
+              </button>
+            </div>
+          )
+        ) : activeTab === 'settings' ? (
           <div className="settings-container">
             <div className="settings-section">
               <h2>Change Password</h2>

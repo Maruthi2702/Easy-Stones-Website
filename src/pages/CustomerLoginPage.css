@@ -141,18 +141,9 @@
   font-size: 0.9rem;
 }
 
-.toggle-form button {
-  background: none;
-  border: none;
+.contact-admin {
   color: var(--accent-primary);
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-  font-size: 0.9rem;
-}
-
-.toggle-form button:hover {
-  color: var(--gold-light);
+  font-weight: 500;
 }
 
 @media (max-width: 640px) {

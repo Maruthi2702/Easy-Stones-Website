@@ -1,19 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Phone, Building } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 import { API_URL } from '../config/api';
 import './CustomerLoginPage.css';
 
 const CustomerLoginPage = () => {
     const navigate = useNavigate();
-    const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({
         email: '',
-        password: '',
-        firstName: '',
-        lastName: '',
-        phone: '',
-        company: ''
+        password: ''
     });
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,8 +27,7 @@ const CustomerLoginPage = () => {
         setError('');
 
         try {
-            const endpoint = isLogin ? '/api/customer/login' : '/api/customer/register';
-            const response = await fetch(`${API_URL}${endpoint}`, {
+            const response = await fetch(`${API_URL}/api/customer/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -60,77 +54,13 @@ const CustomerLoginPage = () => {
             <div className="login-container">
                 <div className="login-card">
                     <div className="login-header">
-                        <h1>{isLogin ? 'Welcome Back' : 'Create Account'}</h1>
-                        <p>{isLogin ? 'Sign in to your account' : 'Join Easy Stones today'}</p>
+                        <h1>Welcome Back</h1>
+                        <p>Sign in to your account</p>
                     </div>
 
                     {error && <div className="error-message">{error}</div>}
 
                     <form onSubmit={handleSubmit} className="login-form">
-                        {!isLogin && (
-                            <>
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label>First Name</label>
-                                        <div className="input-wrapper">
-                                            <User className="input-icon" size={18} />
-                                            <input
-                                                type="text"
-                                                name="firstName"
-                                                value={formData.firstName}
-                                                onChange={handleChange}
-                                                required={!isLogin}
-                                                placeholder="John"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label>Last Name</label>
-                                        <div className="input-wrapper">
-                                            <User className="input-icon" size={18} />
-                                            <input
-                                                type="text"
-                                                name="lastName"
-                                                value={formData.lastName}
-                                                onChange={handleChange}
-                                                required={!isLogin}
-                                                placeholder="Doe"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="form-group">
-                                    <label>Phone (Optional)</label>
-                                    <div className="input-wrapper">
-                                        <Phone className="input-icon" size={18} />
-                                        <input
-                                            type="tel"
-                                            name="phone"
-                                            value={formData.phone}
-                                            onChange={handleChange}
-                                            placeholder="+1 234-567-8900"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="form-group">
-                                    <label>Company (Optional)</label>
-                                    <div className="input-wrapper">
-                                        <Building className="input-icon" size={18} />
-                                        <input
-                                            type="text"
-                                            name="company"
-                                            value={formData.company}
-                                            onChange={handleChange}
-                                            placeholder="Your Company"
-                                        />
-                                    </div>
-                                </div>
-                            </>
-                        )}
-
                         <div className="form-group">
                             <label>Email</label>
                             <div className="input-wrapper">
@@ -162,20 +92,13 @@ const CustomerLoginPage = () => {
                         </div>
 
                         <button type="submit" className="submit-btn" disabled={isSubmitting}>
-                            {isSubmitting ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+                            {isSubmitting ? 'Please wait...' : 'Sign In'}
                         </button>
                     </form>
 
                     <div className="toggle-form">
                         <p>
-                            {isLogin ? "Don't have an account? " : "Already have an account? "}
-                            <button onClick={() => {
-                                setIsLogin(!isLogin);
-                                setError('');
-                                setFormData({ email: '', password: '', firstName: '', lastName: '', phone: '', company: '' });
-                            }}>
-                                {isLogin ? 'Sign Up' : 'Sign In'}
-                            </button>
+                            Don't have an account? <span className="contact-admin">Contact us to register.</span>
                         </p>
                     </div>
                 </div>

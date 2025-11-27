@@ -456,6 +456,99 @@ app.post('/api/customer/logout', (req, res) => {
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
+// Admin: Get all customers
+app.get('/api/admin/customers', verifyToken, async (req, res) => {
+  try {
+    const customers = await Customer.find().select('-password').sort({ createdAt: -1 });
+    res.json(customers);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch customers' });
+  }
+});
+
+// Admin: Create customer
+app.post('/api/admin/customers', verifyToken, async (req, res) => {
+  try {
+    const { firstName, lastName, email, password, phone, company, address } = req.body;
+
+    // Check if customer already exists
+    const existingCustomer = await Customer.findOne({ email });
+    if (existingCustomer) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
+
+    // Create new customer
+    const customer = new Customer({
+      firstName,
+      lastName,
+      email,
+      password,
+      phone,
+      company,
+      address,
+      isVerified: true // Admin created accounts are verified by default
+    });
+
+    await customer.save();
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Customer created successfully',
+      customer: {
+        id: customer._id,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email
+      }
+    });
+  } catch (error) {
+    console.error('Create customer error:', error);
+    res.status(500).json({ message: 'Failed to create customer' });
+  }
+});
+
+// Admin: Update customer
+app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
+  try {
+    const { firstName, lastName, email, password, phone, company, address } = req.body;
+    const customerId = req.params.id;
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    // Update fields
+    customer.firstName = firstName || customer.firstName;
+    customer.lastName = lastName || customer.lastName;
+    customer.email = email || customer.email;
+    customer.phone = phone || customer.phone;
+    customer.company = company || customer.company;
+    customer.address = address || customer.address;
+
+    // Only update password if provided
+    if (password && password.trim() !== '') {
+      customer.password = password;
+    }
+
+    await customer.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Customer updated successfully',
+      customer: {
+        id: customer._id,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email
+      }
+    });
+  } catch (error) {
+    console.error('Update customer error:', error);
+    res.status(500).json({ message: 'Failed to update customer' });
+  }
+});
+
 // API endpoint to upload image to Cloudinary
 app.post('/api/upload', upload.single('image'), async (req, res) => {
   try {
