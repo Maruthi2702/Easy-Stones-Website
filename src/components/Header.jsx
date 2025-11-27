@@ -16,6 +16,9 @@ const Header = () => {
         </nav>
 
         <div className="header-actions">
+          <Link to="/login" className="login-btn">
+            Login
+          </Link>
           <button className="icon-btn menu-btn" aria-label="Menu">
             <Menu size={24} color="#000" />
           </button>
