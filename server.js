@@ -399,7 +399,7 @@ app.post('/api/customer/register', async (req, res) => {
     res.cookie('customerToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
 
@@ -452,8 +452,10 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     }
 
     // Verify password
+    console.log(`🔐 Verifying password for ${email}`);
     const isMatch = await customer.comparePassword(password);
     if (!isMatch) {
+      console.log(`❌ Password mismatch for ${email}`);
       await customer.incLoginAttempts();
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -468,9 +470,12 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     if (customer.loginIps.length > 3) {
       customer.loginIps.shift(); // Remove oldest
     }
+    
+    console.log(`💾 Saving customer login IP for ${email}`);
     await customer.save();
 
     // Generate JWT token
+    console.log(`🔑 Generating JWT for ${email}`);
     const token = jwt.sign(
       { id: customer._id, type: 'customer' },
       process.env.JWT_SECRET,
@@ -481,10 +486,11 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     res.cookie('customerToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
 
+    console.log(`✅ Login successful for ${email}`);
     res.json({ 
       success: true, 
       message: 'Login successful',
@@ -496,8 +502,9 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Login failed. Please try again.' });
+    console.error('❌ Login error details:', error);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ message: `Login failed: ${error.message}` });
   }
 });
 
@@ -756,11 +763,6 @@ app.post('/api/products/save', async (req, res) => {
           landingCost: productData.landingCost,
           priceLevels: productData.priceLevels
         });
-      }
-
-      // Debug: Log installed images
-      if (productData.installedImages) {
-        console.log(`🖼️ Saving installed images for product ${product.id} (${productData.name}):`, productData.installedImages);
       }
       
       return {
