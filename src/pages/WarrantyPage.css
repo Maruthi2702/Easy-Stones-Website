@@ -65,7 +65,7 @@
 }
 
 .sub-nav button.active {
-  color: #1f2937;
+  color: white;
   font-weight: 500;
   border-bottom-color: var(--accent-color);
 }
