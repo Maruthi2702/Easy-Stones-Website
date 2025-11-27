@@ -94,6 +94,13 @@ const AdminPage = () => {
     return matchesSearch && matchesCategory && matchesCollection;
   }).sort((a, b) => a.name.localeCompare(b.name));
 
+  const filteredCustomers = (Array.isArray(customers) ? customers : []).filter(c =>
+    (c.firstName?.toLowerCase() || '').includes(customerSearchTerm.toLowerCase()) ||
+    (c.lastName?.toLowerCase() || '').includes(customerSearchTerm.toLowerCase()) ||
+    (c.email?.toLowerCase() || '').includes(customerSearchTerm.toLowerCase()) ||
+    (c.company && c.company.toLowerCase().includes(customerSearchTerm.toLowerCase()))
+  );
+
   const handleSelectProduct = (id) => {
     setSelectedProductId(id);
     setSaveStatus(null);
@@ -390,21 +397,27 @@ const AdminPage = () => {
           </div>
 
           <div className="product-list">
-            {filteredCustomers.map(customer => (
-              <div
-                key={customer._id}
-                className={`product-list-item ${selectedCustomerId === customer._id ? 'active' : ''}`}
-                onClick={() => handleSelectCustomer(customer)}
-              >
-                <div className="list-thumb-placeholder">
-                  <User size={20} />
-                </div>
-                <div className="list-info">
-                  <span className="list-name">{customer.firstName} {customer.lastName}</span>
-                  <span className="list-meta">{customer.company || customer.email}</span>
-                </div>
+            {filteredCustomers.length === 0 ? (
+              <div className="empty-list-message">
+                No customers found
               </div>
-            ))}
+            ) : (
+              filteredCustomers.map(customer => (
+                <div
+                  key={customer._id}
+                  className={`product-list-item ${selectedCustomerId === customer._id ? 'active' : ''}`}
+                  onClick={() => handleSelectCustomer(customer)}
+                >
+                  <div className="list-thumb-placeholder">
+                    <User size={20} />
+                  </div>
+                  <div className="list-info">
+                    <span className="list-name">{customer.firstName} {customer.lastName}</span>
+                    <span className="list-meta">{customer.company || customer.email}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
