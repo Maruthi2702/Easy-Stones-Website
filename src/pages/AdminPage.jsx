@@ -388,11 +388,11 @@ const AdminPage = () => {
           setSelectedCustomerId(data._id || data.customer?._id); // Handle different response structures
         }
       } else {
-        setCustomerSaveStatus({ type: 'error', message: data.message || 'Failed to save customer' });
+        setCustomerSaveStatus({ type: 'error', message: data.message || data.error || 'Failed to save customer' });
       }
     } catch (error) {
       console.error('Error saving customer:', error);
-      setCustomerSaveStatus({ type: 'error', message: 'Failed to save customer' });
+      setCustomerSaveStatus({ type: 'error', message: `Failed to save customer: ${error.message}` });
     } finally {
       setIsSaving(false);
     }
