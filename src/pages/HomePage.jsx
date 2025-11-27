@@ -4,16 +4,14 @@ import ProductGrid from '../components/ProductGrid';
 import HeroCarousel from '../components/HeroCarousel';
 import CategoryNav from '../components/CategoryNav';
 import { API_URL } from '../config/api';
-// Fallback data in case API fails initially or for static build
-import { products as fallbackProducts } from '../data/products';
 
 const HomePage = () => {
   const location = useLocation();
   const [activeCategory, setActiveCategory] = useState('Moda Quartz');
   const [searchTerm, setSearchTerm] = useState('');
-  // Initialize with fallback data immediately so user sees something while API wakes up
-  const [products, setProducts] = useState(fallbackProducts);
-  const [loading, setLoading] = useState(false); // Don't show full page loader
+  // Initialize with empty array and loading state
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -21,13 +19,15 @@ const HomePage = () => {
         const response = await fetch(`${API_URL}/api/products`);
         if (response.ok) {
           const data = await response.json();
-          if (data && data.length > 0) {
+          if (data && Array.isArray(data)) {
+            console.log(`Fetched ${data.length} products from API`);
             setProducts(data);
           }
+        } else {
+          console.error('Failed to fetch products:', response.statusText);
         }
       } catch (error) {
         console.error('Error fetching products:', error);
-        // Keep using fallback data (already set)
       } finally {
         setLoading(false);
       }
