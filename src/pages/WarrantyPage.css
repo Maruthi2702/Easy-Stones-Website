@@ -256,18 +256,18 @@
 /* Column specific styling */
 .technical-data-table td:first-child {
   font-weight: 600;
-  color: var(--text-primary);
+  color: #1f2937;
   width: 30%;
 }
 
 .technical-data-table td:nth-child(2) {
-  color: #6b7280;
+  color: #4b5563;
   font-size: 0.9rem;
   width: 35%;
 }
 
 .technical-data-table td:last-child {
-  color: var(--text-primary);
+  color: #1f2937;
   font-weight: 500;
   width: 35%;
 }
