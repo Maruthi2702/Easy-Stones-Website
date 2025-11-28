@@ -19,6 +19,7 @@ const productSchema = new mongoose.Schema({
   variations: { type: String, default: 'Low' },
   finishes: [{ type: String }],
   applications: [{ type: String }],
+  bookMatch: { type: String, default: 'N/A', enum: ['N/A', 'Yes', 'No'] },
   landingCost: { type: Number },
   priceLevels: {
     level1: { type: Number }, // 40% margin

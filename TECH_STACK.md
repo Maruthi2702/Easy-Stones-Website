@@ -228,6 +228,11 @@ Required on Render:
    - Kept: Price, Thickness, Size Options, Available Finishes, Applications
    - Fixed price update delay by always fetching fresh data
 
+6. **Book Match Feature**
+   - Added `bookMatch` field to Product schema (Yes/No/N/A)
+   - Admin panel dropdown for managing Book Match status
+   - Displayed in Product Detail page below Size Options
+
 ---
 
 ## Architecture Patterns

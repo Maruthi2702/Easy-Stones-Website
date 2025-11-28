@@ -128,7 +128,8 @@ const AdminPage = () => {
       style: '',
       variations: 'Low',
       finishes: ['Polished'],
-      applications: ['Countertops', 'Backsplash', 'Wall Cladding']
+      applications: ['Countertops', 'Backsplash', 'Wall Cladding'],
+      bookMatch: 'N/A'
     };
 
     setProducts([newProduct, ...products]);
@@ -1094,6 +1095,17 @@ const AdminPage = () => {
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
                     <option value="High">High</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Book Match</label>
+                  <select
+                    value={selectedProduct.bookMatch || 'N/A'}
+                    onChange={(e) => handleChange('bookMatch', e.target.value)}
+                  >
+                    <option value="N/A">N/A</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
                   </select>
                 </div>
               </div>

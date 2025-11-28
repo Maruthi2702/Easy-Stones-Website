@@ -180,6 +180,13 @@ const ProductDetail = () => {
                 </div>
 
                 <div className="specs-list">
+                  <h3>Book Match</h3>
+                  <div className="pill-list">
+                    <span className="pill">{product.bookMatch || 'N/A'}</span>
+                  </div>
+                </div>
+
+                <div className="specs-list">
                   <h3>Available Finishes</h3>
                   <div className="pill-list">
                     {detail.finishes.map(f => <span key={f} className="pill">{f}</span>)}
