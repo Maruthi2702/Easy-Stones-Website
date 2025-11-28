@@ -48,6 +48,15 @@
   margin: 0 auto;
   padding: 0 1rem;
   overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.sub-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .sub-nav button {
@@ -64,6 +73,7 @@
   font-family: var(--font-display);
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  flex-shrink: 0; /* Prevent buttons from shrinking */
 }
 
 .sub-nav button:hover {
@@ -88,6 +98,18 @@
 
 .sub-nav button.active::after {
   transform: scaleX(1);
+}
+
+@media (max-width: 768px) {
+  .sub-nav {
+    justify-content: flex-start;
+    gap: 1rem;
+  }
+  
+  .sub-nav button {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
 }
 
 .warranty-container {

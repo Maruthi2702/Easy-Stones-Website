@@ -79,6 +79,15 @@ const ProductGrid = ({ searchTerm = '', onSearchChange, activeCategory = 'Moda Q
               onChange={(e) => onSearchChange?.(e.target.value)}
               className="search-input"
             />
+            {searchTerm && (
+              <button
+                className="search-clear-btn"
+                onClick={() => onSearchChange?.('')}
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
           </div>
         </div>
       )}

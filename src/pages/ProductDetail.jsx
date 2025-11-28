@@ -210,9 +210,9 @@ const ProductDetail = () => {
                     return img ? (
                       <div key={index} className="installed-image-card">
                         <img
-                          src={img}
+                          src={getLocalImagePath(img)}
                           alt={`${product.name} installed view ${index + 1}`}
-                          onClick={() => window.open(img, '_blank')}
+                          onClick={() => window.open(getLocalImagePath(img), '_blank')}
                         />
                       </div>
                     ) : (

@@ -1,13 +1,23 @@
 import { NavLink, Link } from 'react-router-dom';
-import { Menu, LogOut } from 'lucide-react';
+import { Menu, LogOut, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useState } from 'react';
 import './Header.css';
 
 const Header = () => {
   const { user, logout } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
+  };
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
   };
 
   return (
@@ -36,11 +46,64 @@ const Header = () => {
               Customer Login
             </Link>
           )}
-          <button className="icon-btn menu-btn" aria-label="Menu">
-            <Menu size={24} color="#000" />
+          <button
+            className="icon-btn menu-btn"
+            aria-label="Menu"
+            onClick={toggleMobileMenu}
+          >
+            {isMobileMenuOpen ? <X size={24} color="#fff" /> : <Menu size={24} color="#fff" />}
           </button>
         </div>
       </div>
+
+      {/* Mobile Menu */}
+      {isMobileMenuOpen && (
+        <nav className="nav-mobile">
+          <NavLink
+            to="/"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            end
+            onClick={closeMobileMenu}
+          >
+            Products
+          </NavLink>
+          <NavLink
+            to="/warranty"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            onClick={closeMobileMenu}
+          >
+            Warranty
+          </NavLink>
+          <NavLink
+            to="/contact"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            onClick={closeMobileMenu}
+          >
+            Contact Us
+          </NavLink>
+
+          {/* Login/Logout for Mobile */}
+          {user ? (
+            <button
+              onClick={() => {
+                handleLogout();
+                closeMobileMenu();
+              }}
+              className="nav-link mobile-logout"
+            >
+              Logout ({user.firstName})
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              className="mobile-login-btn"
+              onClick={closeMobileMenu}
+            >
+              Customer Login
+            </Link>
+          )}
+        </nav>
+      )}
     </header>
   );
 };

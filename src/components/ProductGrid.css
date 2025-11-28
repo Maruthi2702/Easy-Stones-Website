@@ -77,6 +77,34 @@
   box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.1), var(--shadow-md);
 }
 
+.search-clear-btn {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base);
+  z-index: 2;
+  line-height: 1;
+  padding: 0;
+}
+
+.search-clear-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary);
+  transform: translateY(-50%) scale(1.1);
+}
+
 
 /* Tabs and Search Wrapper */
 .tabs-search-wrapper {
@@ -203,7 +231,6 @@
 
 @media (max-width: 768px) {
   .product-section {
-    padding-top: 4rem;
     padding-bottom: 4rem;
   }
   
