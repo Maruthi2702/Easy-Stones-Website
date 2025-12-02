@@ -13,6 +13,7 @@ import Product from './src/models/Product.js';
 import Admin from './src/models/Admin.js';
 import ContactSubmission from './src/models/ContactSubmission.js';
 import Customer from './src/models/Customer.js';
+import SalesCustomer from './src/models/SalesCustomer.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -557,6 +558,35 @@ app.get('/api/customer/me', verifyCustomer, async (req, res) => {
   }
 });
 
+// Customer Authentication Middleware
+const customerAuthMiddleware = async (req, res, next) => {
+  try {
+    const token = req.cookies.customerToken;
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+    
+    if (decoded.type !== 'customer') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const customer = await Customer.findById(decoded.id);
+    
+    if (!customer || !customer.isActive) {
+      return res.status(403).json({ message: 'Account inactive or not found' });
+    }
+
+    req.customerId = decoded.id;
+    req.customer = customer;
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
+
 // Customer Logout
 app.post('/api/customer/logout', (req, res) => {
   res.clearCookie('customerToken', {
@@ -820,6 +850,95 @@ app.post('/api/migrate-collection', async (req, res) => {
   } catch (error) {
     console.error('❌ Error during migration:', error);
     res.status(500).json({ error: 'Migration failed', details: error.message });
+  }
+});
+
+// ============================================
+// SALES CRM API ENDPOINTS
+// ============================================
+
+// Get all sales customers for logged-in user
+app.get('/api/sales/customers', customerAuthMiddleware, async (req, res) => {
+  try {
+    const customers = await SalesCustomer.find({ userId: req.customerId }).sort({ createdAt: -1 });
+    res.json(customers);
+  } catch (error) {
+    console.error('Error fetching sales customers:', error);
+    res.status(500).json({ message: 'Failed to fetch customers' });
+  }
+});
+
+// Create new sales customer
+app.post('/api/sales/customers', customerAuthMiddleware, async (req, res) => {
+  try {
+    const { customerName, company, address, coordinates, phone, email, notes, lastVisit, nextVisit, status, tags } = req.body;
+
+    if (!customerName || !address) {
+      return res.status(400).json({ message: 'Customer name and address are required' });
+    }
+
+    const salesCustomer = new SalesCustomer({
+      userId: req.customerId,
+      customerName,
+      company,
+      address,
+      coordinates,
+      phone,
+      email,
+      notes,
+      lastVisit,
+      nextVisit,
+      status,
+      tags
+    });
+
+    await salesCustomer.save();
+    res.status(201).json(salesCustomer);
+  } catch (error) {
+    console.error('Error creating sales customer:', error);
+    res.status(500).json({ message: 'Failed to create customer' });
+  }
+});
+
+// Update sales customer
+app.put('/api/sales/customers/:id', customerAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    // Ensure user can only update their own customers
+    const customer = await SalesCustomer.findOne({ _id: id, userId: req.customerId });
+    
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    Object.assign(customer, updates);
+    await customer.save();
+
+    res.json(customer);
+  } catch (error) {
+    console.error('Error updating sales customer:', error);
+    res.status(500).json({ message: 'Failed to update customer' });
+  }
+});
+
+// Delete sales customer
+app.delete('/api/sales/customers/:id', customerAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Ensure user can only delete their own customers
+    const customer = await SalesCustomer.findOneAndDelete({ _id: id, userId: req.customerId });
+    
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    res.json({ message: 'Customer deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting sales customer:', error);
+    res.status(500).json({ message: 'Failed to delete customer' });
   }
 });
 

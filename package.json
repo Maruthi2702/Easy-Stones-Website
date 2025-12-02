@@ -16,6 +16,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-google-maps/api": "^2.20.7",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.8.0",
     "compression": "^1.8.1",

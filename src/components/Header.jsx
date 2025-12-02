@@ -29,6 +29,7 @@ const Header = () => {
 
         <nav className="nav-desktop">
           <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>Products</NavLink>
+          {user && <NavLink to="/sales" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Sales</NavLink>}
           <NavLink to="/warranty" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Warranty</NavLink>
           <NavLink to="/contact" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Contact Us</NavLink>
         </nav>
@@ -67,6 +68,15 @@ const Header = () => {
           >
             Products
           </NavLink>
+          {user && (
+            <NavLink
+              to="/sales"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              onClick={closeMobileMenu}
+            >
+              Sales
+            </NavLink>
+          )}
           <NavLink
             to="/warranty"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}

@@ -13,6 +13,7 @@ const ProductDetail = lazy(() => import('./pages/ProductDetail'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const WarrantyPage = lazy(() => import('./pages/WarrantyPage'));
 const CustomerLoginPage = lazy(() => import('./pages/CustomerLoginPage'));
+const SalesPage = lazy(() => import('./pages/SalesPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 
@@ -72,6 +73,7 @@ function App() {
                 <Route path="/contact" element={<ContactPage />} />
                 <Route path="/warranty" element={<WarrantyPage />} />
                 <Route path="/login" element={<CustomerLoginPage />} />
+                <Route path="/sales" element={<SalesPage />} />
                 <Route path="/admin/login" element={<LoginPage />} />
                 <Route
                   path="/admin"
