@@ -7,6 +7,10 @@ const productSchema = new mongoose.Schema({
   collectionType: { type: String },
   availability: { type: String, default: 'In Stock' },
   image: { type: String },
+  colors: [{
+    name: { type: String, required: true },
+    image: { type: String }
+  }],
   installedImages: [{ type: String }], // Array to store up to 2 installed images
   isNewArrival: { type: Boolean, default: false },
   showInSlider: { type: Boolean, default: false },

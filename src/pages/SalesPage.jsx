@@ -1,398 +1,279 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, MapPin, Phone, Mail, Calendar, Tag, Trash2, Edit2, X } from 'lucide-react';
-import { API_URL } from '../config/api';
-import CustomerMap from '../components/CustomerMap';
+import React, { useState, useEffect, useRef } from 'react';
+import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { Navigation } from 'lucide-react';
 import './SalesPage.css';
 
 const SalesPage = () => {
-    const [customers, setCustomers] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [showModal, setShowModal] = useState(false);
-    const [editingCustomer, setEditingCustomer] = useState(null);
-    const [selectedCustomer, setSelectedCustomer] = useState(null);
-    const [formData, setFormData] = useState({
-        customerName: '',
-        company: '',
-        address: '',
-        phone: '',
-        email: '',
-        notes: '',
-        lastVisit: '',
-        nextVisit: '',
-        status: 'prospect',
-        tags: []
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const [userLocation, setUserLocation] = useState(null);
+    const [locationError, setLocationError] = useState(null);
+    const [savedMarkers, setSavedMarkers] = useState([]);
+    const mapRef = useRef(null);
+
+    const { isLoaded, loadError } = useJsApiLoader({
+        id: 'google-map-script',
+        googleMapsApiKey: apiKey
     });
 
+    // Load saved markers from localStorage on mount
     useEffect(() => {
-        fetchCustomers();
+        const stored = localStorage.getItem('mapMarkers');
+        if (stored) {
+            try {
+                setSavedMarkers(JSON.parse(stored));
+            } catch (error) {
+                console.error('Error loading markers:', error);
+            }
+        }
     }, []);
 
-    const fetchCustomers = async () => {
-        try {
-            const response = await fetch(`${API_URL} /api/sales / customers`, {
-                credentials: 'include'
+    // Get user's location on component mount
+    useEffect(() => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setUserLocation({
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    });
+                },
+                (error) => {
+                    console.error('Error getting location:', error);
+                    setLocationError(error.message);
+                    // Fallback to Seattle if location access is denied
+                    setUserLocation({
+                        lat: 47.6062,
+                        lng: -122.3321
+                    });
+                }
+            );
+        } else {
+            setLocationError('Geolocation is not supported by your browser');
+            // Fallback to Seattle
+            setUserLocation({
+                lat: 47.6062,
+                lng: -122.3321
             });
+        }
+    }, []);
 
-            if (response.ok) {
-                const data = await response.json();
-                setCustomers(data);
-            }
-        } catch (error) {
-            console.error('Error fetching customers:', error);
-        } finally {
-            setLoading(false);
+    const handleMapClick = (event) => {
+        const newMarker = {
+            id: Date.now(),
+            lat: event.latLng.lat(),
+            lng: event.latLng.lng(),
+            title: `Point ${savedMarkers.length + 1}`
+        };
+
+        const updatedMarkers = [...savedMarkers, newMarker];
+        setSavedMarkers(updatedMarkers);
+        localStorage.setItem('mapMarkers', JSON.stringify(updatedMarkers));
+    };
+
+    const handleRemoveMarker = (markerId) => {
+        const updatedMarkers = savedMarkers.filter(m => m.id !== markerId);
+        setSavedMarkers(updatedMarkers);
+        localStorage.setItem('mapMarkers', JSON.stringify(updatedMarkers));
+    };
+
+    const handleClearAllMarkers = () => {
+        if (window.confirm('Are you sure you want to clear all markers?')) {
+            setSavedMarkers([]);
+            localStorage.removeItem('mapMarkers');
         }
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        try {
-            const url = editingCustomer
-                ? `${API_URL} /api/sales / customers / ${editingCustomer._id} `
-                : `${API_URL} /api/sales / customers`;
-
-            const method = editingCustomer ? 'PUT' : 'POST';
-
-            const response = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify(formData)
-            });
-
-            if (response.ok) {
-                fetchCustomers();
-                handleCloseModal();
-            }
-        } catch (error) {
-            console.error('Error saving customer:', error);
+    const handleRecenter = () => {
+        if (mapRef.current && userLocation) {
+            mapRef.current.panTo(userLocation);
+            mapRef.current.setZoom(12);
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this customer?')) return;
-
-        try {
-            const response = await fetch(`${API_URL} /api/sales / customers / ${id} `, {
-                method: 'DELETE',
-                credentials: 'include'
-            });
-
-            if (response.ok) {
-                fetchCustomers();
-            }
-        } catch (error) {
-            console.error('Error deleting customer:', error);
-        }
+    const onLoad = (map) => {
+        mapRef.current = map;
     };
 
-    const handleEdit = (customer) => {
-        setEditingCustomer(customer);
-        setFormData({
-            customerName: customer.customerName,
-            company: customer.company || '',
-            address: customer.address,
-            phone: customer.phone || '',
-            email: customer.email || '',
-            notes: customer.notes || '',
-            lastVisit: customer.lastVisit ? customer.lastVisit.split('T')[0] : '',
-            nextVisit: customer.nextVisit ? customer.nextVisit.split('T')[0] : '',
-            status: customer.status,
-            tags: customer.tags || []
-        });
-        setShowModal(true);
-    };
+    if (loadError) {
+        return (
+            <div className="sales-page">
+                <div className="sales-header">
+                    <h1>Google Maps</h1>
+                </div>
+                <div className="container" style={{ padding: '2rem', textAlign: 'center' }}>
+                    <p style={{ color: '#ef4444' }}>Error loading Google Maps: {loadError.message}</p>
+                </div>
+            </div>
+        );
+    }
 
-    const handleCloseModal = () => {
-        setShowModal(false);
-        setEditingCustomer(null);
-        setFormData({
-            customerName: '',
-            company: '',
-            address: '',
-            phone: '',
-            email: '',
-            notes: '',
-            lastVisit: '',
-            nextVisit: '',
-            status: 'prospect',
-            tags: []
-        });
-    };
-
-    const filteredCustomers = customers.filter(customer =>
-        customer.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.address.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'active': return '#4ade80';
-            case 'prospect': return '#fbbf24';
-            case 'inactive': return '#94a3b8';
-            default: return '#94a3b8';
-        }
-    };
+    if (!isLoaded || !userLocation) {
+        return (
+            <div className="sales-page">
+                <div className="sales-header">
+                    <h1>Google Maps</h1>
+                </div>
+                <div className="container" style={{ padding: '2rem', textAlign: 'center' }}>
+                    <p>Loading map and detecting your location...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="sales-page">
             <div className="sales-header">
-                <div className="container">
-                    <h1>Sales CRM</h1>
-                    <p>Manage your customer visits and track your sales pipeline</p>
-                </div>
+                <h1>Google Maps</h1>
+                <p>
+                    {locationError
+                        ? `Using default location (${locationError})`
+                        : 'Centered on your current location'}
+                </p>
             </div>
-
-            <div className="container sales-container">
-                <div className="sales-toolbar">
-                    <div className="search-box">
-                        <Search size={20} />
-                        <input
-                            type="text"
-                            placeholder="Search customers..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                    <button className="btn-primary" onClick={() => setShowModal(true)}>
-                        <Plus size={20} />
-                        Add Customer
-                    </button>
-                </div>
-
-                {loading ? (
-                    <div className="loading">Loading customers...</div>
-                ) : filteredCustomers.length === 0 ? (
-                    <div className="empty-state">
-                        <MapPin size={64} />
-                        <h3>No customers yet</h3>
-                        <p>Start by adding your first customer</p>
-                        <button className="btn-primary" onClick={() => setShowModal(true)}>
-                            <Plus size={20} />
-                            Add Customer
+            <div className="container" style={{ height: 'calc(100vh - 200px)', padding: '2rem', position: 'relative' }}>
+                {/* Marker Controls */}
+                <div style={{
+                    position: 'absolute',
+                    top: '3rem',
+                    left: '3rem',
+                    zIndex: 10,
+                    backgroundColor: '#1f2937',
+                    border: '2px solid #4ade80',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+                    color: 'white',
+                    minWidth: '200px'
+                }}>
+                    <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '0.875rem', fontWeight: '600' }}>
+                        Saved Points ({savedMarkers.length})
+                    </h3>
+                    <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.75rem', color: '#9ca3af' }}>
+                        Click on the map to add markers
+                    </p>
+                    {savedMarkers.length > 0 && (
+                        <button
+                            onClick={handleClearAllMarkers}
+                            style={{
+                                width: '100%',
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '0.5rem',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: '500'
+                            }}
+                        >
+                            Clear All
                         </button>
-                    </div>
-                ) : (
-                    <div className="sales-content">
-                        {/* Map Section */}
-                        <div className="map-section">
-                            <CustomerMap
-                                customers={filteredCustomers}
-                                onCustomerClick={setSelectedCustomer}
-                                selectedCustomer={selectedCustomer}
-                                onCloseInfo={() => setSelectedCustomer(null)}
-                            />
-                        </div>
-
-                        {/* Customer List Section */}
-                        <div className="customers-section">
-                            <div className="customers-grid">
-                                {filteredCustomers.map(customer => (
-                                    <div
-                                        key={customer._id}
-                                        className={`customer-card ${selectedCustomer?._id === customer._id ? 'selected' : ''}`}
-                                        onClick={() => setSelectedCustomer(customer)}
-                                    >
-                                        <div className="customer-header">
-                                            <div>
-                                                <h3>{customer.customerName}</h3>
-                                                {customer.company && <p className="company">{customer.company}</p>}
-                                            </div>
-                                            <span
-                                                className="status-badge"
-                                                style={{ backgroundColor: getStatusColor(customer.status) }}
-                                            >
-                                                {customer.status}
-                                            </span>
-                                        </div>
-
-                                        <div className="customer-details">
-                                            <div className="detail-row">
-                                                <MapPin size={16} />
-                                                <span>{customer.address}</span>
-                                            </div>
-                                            {customer.phone && (
-                                                <div className="detail-row">
-                                                    <Phone size={16} />
-                                                    <span>{customer.phone}</span>
-                                                </div>
-                                            )}
-                                            {customer.email && (
-                                                <div className="detail-row">
-                                                    <Mail size={16} />
-                                                    <span>{customer.email}</span>
-                                                </div>
-                                            )}
-                                            {customer.nextVisit && (
-                                                <div className="detail-row">
-                                                    <Calendar size={16} />
-                                                    <span>Next visit: {new Date(customer.nextVisit).toLocaleDateString()}</span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {customer.notes && (
-                                            <div className="customer-notes">
-                                                <p>{customer.notes}</p>
-                                            </div>
-                                        )}
-
-                                        {customer.tags && customer.tags.length > 0 && (
-                                            <div className="customer-tags">
-                                                {customer.tags.map((tag, index) => (
-                                                    <span key={index} className="tag">
-                                                        <Tag size={12} />
-                                                        {tag}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        <div className="customer-actions">
-                                            <button
-                                                className="btn-icon"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleEdit(customer);
-                                                }}
-                                            >
-                                                <Edit2 size={18} />
-                                            </button>
-                                            <button
-                                                className="btn-icon btn-danger"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDelete(customer._id);
-                                                }}
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Add/Edit Modal */}
-            {showModal && (
-                <div className="modal-overlay" onClick={handleCloseModal}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h2>{editingCustomer ? 'Edit Customer' : 'Add New Customer'}</h2>
-                            <button className="btn-icon" onClick={handleCloseModal}>
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="customer-form">
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>Customer Name *</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={formData.customerName}
-                                        onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Company</label>
-                                    <input
-                                        type="text"
-                                        value={formData.company}
-                                        onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="form-group">
-                                <label>Address *</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={formData.address}
-                                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>Phone</label>
-                                    <input
-                                        type="tel"
-                                        value={formData.phone}
-                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Email</label>
-                                    <input
-                                        type="email"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>Last Visit</label>
-                                    <input
-                                        type="date"
-                                        value={formData.lastVisit}
-                                        onChange={(e) => setFormData({ ...formData, lastVisit: e.target.value })}
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Next Visit</label>
-                                    <input
-                                        type="date"
-                                        value={formData.nextVisit}
-                                        onChange={(e) => setFormData({ ...formData, nextVisit: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="form-group">
-                                <label>Status</label>
-                                <select
-                                    value={formData.status}
-                                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                                >
-                                    <option value="prospect">Prospect</option>
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
-                            </div>
-
-                            <div className="form-group">
-                                <label>Notes</label>
-                                <textarea
-                                    rows="4"
-                                    value={formData.notes}
-                                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                    placeholder="Add notes about this customer..."
-                                />
-                            </div>
-
-                            <div className="modal-actions">
-                                <button type="button" className="btn-secondary" onClick={handleCloseModal}>
-                                    Cancel
-                                </button>
-                                <button type="submit" className="btn-primary">
-                                    {editingCustomer ? 'Update' : 'Add'} Customer
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                    )}
                 </div>
-            )}
+
+                {/* Recenter Button */}
+                <button
+                    onClick={handleRecenter}
+                    style={{
+                        position: 'absolute',
+                        top: '3rem',
+                        right: '3rem',
+                        zIndex: 10,
+                        backgroundColor: '#1f2937',
+                        color: 'white',
+                        border: '2px solid #4ade80',
+                        borderRadius: '8px',
+                        padding: '0.75rem 1rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+                        transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#374151';
+                        e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#1f2937';
+                        e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                >
+                    <Navigation size={18} />
+                    My Location
+                </button>
+
+                <GoogleMap
+                    mapContainerStyle={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '12px'
+                    }}
+                    center={userLocation}
+                    zoom={12}
+                    onLoad={onLoad}
+                    onClick={handleMapClick}
+                    options={{
+                        styles: [
+                            {
+                                featureType: 'all',
+                                elementType: 'geometry',
+                                stylers: [{ color: '#242f3e' }]
+                            },
+                            {
+                                featureType: 'all',
+                                elementType: 'labels.text.stroke',
+                                stylers: [{ color: '#242f3e' }]
+                            },
+                            {
+                                featureType: 'all',
+                                elementType: 'labels.text.fill',
+                                stylers: [{ color: '#746855' }]
+                            },
+                            {
+                                featureType: 'water',
+                                elementType: 'geometry',
+                                stylers: [{ color: '#17263c' }]
+                            }
+                        ]
+                    }}
+                >
+                    {/* Blue dot marker for user's location */}
+                    <Marker
+                        position={userLocation}
+                        icon={{
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            scale: 8,
+                            fillColor: '#4285F4',
+                            fillOpacity: 1,
+                            strokeColor: '#ffffff',
+                            strokeWeight: 3
+                        }}
+                    />
+
+                    {/* Saved markers */}
+                    {savedMarkers.map((marker) => (
+                        <Marker
+                            key={marker.id}
+                            position={{ lat: marker.lat, lng: marker.lng }}
+                            title={marker.title}
+                            onClick={() => handleRemoveMarker(marker.id)}
+                            icon={{
+                                path: window.google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+                                scale: 6,
+                                fillColor: '#ef4444',
+                                fillOpacity: 1,
+                                strokeColor: '#ffffff',
+                                strokeWeight: 2,
+                                rotation: 180
+                            }}
+                        />
+                    ))}
+                </GoogleMap>
+            </div>
         </div>
     );
 };

@@ -1,5 +1,5 @@
-import React from 'react';
-import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
+import React, { useState, useCallback } from 'react';
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { MapPin } from 'lucide-react';
 
 const containerStyle = {
@@ -13,8 +13,23 @@ const defaultCenter = {
     lng: -122.4194
 };
 
-const CustomerMap = ({ customers, onCustomerClick, selectedCustomer, onCloseInfo }) => {
+const CustomerMap = ({ customers, onCustomerClick, selectedCustomer, onCloseInfo, onMapClick }) => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+    const { isLoaded, loadError } = useJsApiLoader({
+        id: 'google-map-script',
+        googleMapsApiKey: apiKey
+    });
+
+    const [map, setMap] = useState(null);
+
+    const onLoad = useCallback(function callback(map) {
+        setMap(map);
+    }, []);
+
+    const onUnmount = useCallback(function callback(map) {
+        setMap(null);
+    }, []);
 
     // Calculate map center based on customers with coordinates
     const getMapCenter = () => {
@@ -51,6 +66,25 @@ const CustomerMap = ({ customers, onCustomerClick, selectedCustomer, onCloseInfo
         );
     }
 
+    if (loadError) {
+        return (
+            <div className="map-placeholder">
+                <MapPin size={48} />
+                <h3>Error Loading Maps</h3>
+                <p>{loadError.message}</p>
+            </div>
+        );
+    }
+
+    if (!isLoaded) {
+        return (
+            <div className="map-placeholder">
+                <div className="loading-spinner"></div>
+                <p>Loading Map...</p>
+            </div>
+        );
+    }
+
     const getStatusColor = (status) => {
         switch (status) {
             case 'active': return '#4ade80';
@@ -61,75 +95,83 @@ const CustomerMap = ({ customers, onCustomerClick, selectedCustomer, onCloseInfo
     };
 
     return (
-        <LoadScript googleMapsApiKey={apiKey}>
-            <GoogleMap
-                mapContainerStyle={containerStyle}
-                center={getMapCenter()}
-                zoom={10}
-                options={{
-                    styles: [
-                        {
-                            featureType: 'all',
-                            elementType: 'geometry',
-                            stylers: [{ color: '#242f3e' }]
-                        },
-                        {
-                            featureType: 'all',
-                            elementType: 'labels.text.stroke',
-                            stylers: [{ color: '#242f3e' }]
-                        },
-                        {
-                            featureType: 'all',
-                            elementType: 'labels.text.fill',
-                            stylers: [{ color: '#746855' }]
-                        },
-                        {
-                            featureType: 'water',
-                            elementType: 'geometry',
-                            stylers: [{ color: '#17263c' }]
-                        }
-                    ]
-                }}
-            >
-                {customers
-                    .filter(customer => customer.coordinates?.lat && customer.coordinates?.lng)
-                    .map(customer => (
-                        <Marker
-                            key={customer._id}
-                            position={{ lat: customer.coordinates.lat, lng: customer.coordinates.lng }}
-                            onClick={() => onCustomerClick(customer)}
-                            icon={{
-                                path: window.google.maps.SymbolPath.CIRCLE,
-                                scale: 10,
-                                fillColor: getStatusColor(customer.status),
-                                fillOpacity: 1,
-                                strokeColor: '#ffffff',
-                                strokeWeight: 2
-                            }}
-                        />
-                    ))}
+        <GoogleMap
+            mapContainerStyle={containerStyle}
+            center={getMapCenter()}
+            zoom={10}
+            onLoad={onLoad}
+            onUnmount={onUnmount}
+            onClick={(e) => {
+                if (onMapClick) {
+                    onMapClick({
+                        lat: e.latLng.lat(),
+                        lng: e.latLng.lng()
+                    });
+                }
+            }}
+            options={{
+                styles: [
+                    {
+                        featureType: 'all',
+                        elementType: 'geometry',
+                        stylers: [{ color: '#242f3e' }]
+                    },
+                    {
+                        featureType: 'all',
+                        elementType: 'labels.text.stroke',
+                        stylers: [{ color: '#242f3e' }]
+                    },
+                    {
+                        featureType: 'all',
+                        elementType: 'labels.text.fill',
+                        stylers: [{ color: '#746855' }]
+                    },
+                    {
+                        featureType: 'water',
+                        elementType: 'geometry',
+                        stylers: [{ color: '#17263c' }]
+                    }
+                ]
+            }}
+        >
+            {customers
+                .filter(customer => customer.coordinates?.lat && customer.coordinates?.lng)
+                .map(customer => (
+                    <Marker
+                        key={customer._id}
+                        position={{ lat: customer.coordinates.lat, lng: customer.coordinates.lng }}
+                        onClick={() => onCustomerClick(customer)}
+                        icon={window.google?.maps?.SymbolPath ? {
+                            path: window.google.maps.SymbolPath.CIRCLE,
+                            scale: 10,
+                            fillColor: getStatusColor(customer.status),
+                            fillOpacity: 1,
+                            strokeColor: '#ffffff',
+                            strokeWeight: 2
+                        } : undefined}
+                    />
+                ))}
 
-                {selectedCustomer && selectedCustomer.coordinates?.lat && selectedCustomer.coordinates?.lng && (
-                    <InfoWindow
-                        position={{ lat: selectedCustomer.coordinates.lat, lng: selectedCustomer.coordinates.lng }}
-                        onCloseClick={onCloseInfo}
-                    >
-                        <div className="map-info-window">
-                            <h4>{selectedCustomer.customerName}</h4>
-                            {selectedCustomer.company && <p className="company">{selectedCustomer.company}</p>}
-                            <p className="address">{selectedCustomer.address}</p>
-                            {selectedCustomer.phone && <p className="phone">{selectedCustomer.phone}</p>}
-                            <span
-                                className="status-badge"
-                                style={{ backgroundColor: getStatusColor(selectedCustomer.status) }}
-                            >
-                                {selectedCustomer.status}
-                            </span>
-                        </div>
-                    </InfoWindow>
-                )}
-            </GoogleMap>
-        </LoadScript>
+            {selectedCustomer && selectedCustomer.coordinates?.lat && selectedCustomer.coordinates?.lng && (
+                <InfoWindow
+                    position={{ lat: selectedCustomer.coordinates.lat, lng: selectedCustomer.coordinates.lng }}
+                    onCloseClick={onCloseInfo}
+                >
+                    <div className="map-info-window">
+                        <h4>{selectedCustomer.customerName}</h4>
+                        {selectedCustomer.company && <p className="company">{selectedCustomer.company}</p>}
+                        <p className="address">{selectedCustomer.address}</p>
+                        {selectedCustomer.phone && <p className="phone">{selectedCustomer.phone}</p>}
+                        <span
+                            className="status-badge"
+                            style={{ backgroundColor: getStatusColor(selectedCustomer.status) }}
+                        >
+                            {selectedCustomer.status}
+                        </span>
+                    </div>
+                </InfoWindow>
+            )}
+        </GoogleMap>
     );
 };
 
