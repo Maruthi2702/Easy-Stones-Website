@@ -46,6 +46,19 @@ const AdminPage = () => {
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [customerSaveStatus, setCustomerSaveStatus] = useState(null);
 
+  // User Management State
+  const [users, setUsers] = useState([]);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userFormData, setUserFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    role: 'sales_rep'
+  });
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [userSaveStatus, setUserSaveStatus] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -78,9 +91,27 @@ const AdminPage = () => {
       }
     };
 
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/admin/users`, {
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUsers(data);
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    };
+
     fetchProducts();
     if (activeTab === 'customers') {
       fetchCustomers();
+    }
+    if (activeTab === 'users') {
+      fetchUsers();
     }
   }, [activeTab]);
 
@@ -101,6 +132,68 @@ const AdminPage = () => {
     (c.email?.toLowerCase() || '').includes(customerSearchTerm.toLowerCase()) ||
     (c.company && c.company.toLowerCase().includes(customerSearchTerm.toLowerCase()))
   );
+
+  const filteredUsers = (Array.isArray(users) ? users : []).filter(u =>
+    (u.username?.toLowerCase() || '').includes(userSearchTerm.toLowerCase()) ||
+    (u.email?.toLowerCase() || '').includes(userSearchTerm.toLowerCase()) ||
+    (u.role?.toLowerCase() || '').includes(userSearchTerm.toLowerCase())
+  );
+
+  const handleUserSubmit = async (e) => {
+    e.preventDefault();
+    setUserSaveStatus('saving');
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(userFormData)
+      });
+
+      if (response.ok) {
+        setUserSaveStatus('success');
+        setIsNewUser(false);
+        setUserFormData({ username: '', email: '', password: '', role: 'sales_rep' });
+        // Refresh users
+        const usersRes = await fetch(`${API_URL}/api/admin/users`, {
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+        if (usersRes.ok) {
+          const data = await usersRes.json();
+          setUsers(data);
+        }
+      } else {
+        const errorData = await response.json();
+        setErrorMessage(errorData.message || 'Failed to create user');
+        setUserSaveStatus('error');
+      }
+    } catch (error) {
+      console.error('Error saving user:', error);
+      setErrorMessage(error.message || 'Network error');
+      setUserSaveStatus('error');
+    }
+
+    setTimeout(() => setUserSaveStatus(null), 3000);
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        setUsers(users.filter(u => u._id !== userId));
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+    }
+  };
 
   const handleSelectProduct = (id) => {
     setSelectedProductId(id);
@@ -552,15 +645,19 @@ const AdminPage = () => {
               className={`tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
               onClick={() => setActiveTab('customers')}
             >
-              <Users size={18} />
-              Customers
+              <Users size={18} /> Customers
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
+              onClick={() => setActiveTab('users')}
+            >
+              <User size={18} /> Users
             </button>
             <button
               className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
               onClick={() => setActiveTab('settings')}
             >
-              <Settings size={18} />
-              Settings
+              <Settings size={18} /> Settings
             </button>
           </div>
           <button className="logout-btn" onClick={handleLogout}>
@@ -657,7 +754,7 @@ const AdminPage = () => {
       )}
 
       {/* Main Content */}
-      <div className={`admin-main ${activeTab === 'settings' ? 'full-width' : ''}`}>
+      <div className={`admin-main ${activeTab === 'settings' || activeTab === 'users' ? 'full-width' : ''}`}>
         {activeTab === 'products' && (
           <div className="main-header">
             <h1>Product Editor</h1>
@@ -895,6 +992,164 @@ const AdminPage = () => {
               </button>
             </div>
           )
+        ) : activeTab === 'users' ? (
+          <div className="admin-main full-width">
+            <div className="settings-container">
+              <div className="settings-section">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                  <div>
+                    <h2>User Management</h2>
+                    <p className="section-description">Manage internal users and assign roles.</p>
+                  </div>
+                  <button
+                    className="primary-btn"
+                    onClick={() => setIsNewUser(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    <Plus size={18} /> Add User
+                  </button>
+                </div>
+
+                {isNewUser && (
+                  <div className="form-section" style={{ marginBottom: '2rem' }}>
+                    <h3>Add New User</h3>
+                    <form onSubmit={handleUserSubmit}>
+                      <div className="form-grid">
+                        <div className="form-group">
+                          <label>Username</label>
+                          <input
+                            type="text"
+                            value={userFormData.username}
+                            onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Email</label>
+                          <input
+                            type="email"
+                            value={userFormData.email}
+                            onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Password</label>
+                          <input
+                            type="password"
+                            value={userFormData.password}
+                            onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Role</label>
+                          <select
+                            value={userFormData.role}
+                            onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
+                            style={{
+                              padding: '0.75rem',
+                              background: 'var(--bg-primary)',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '8px',
+                              color: 'var(--text-primary)'
+                            }}
+                          >
+                            <option value="sales_rep">Sales Rep</option>
+                            <option value="manager">Manager</option>
+                            <option value="director">Director</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="form-actions-bottom">
+                        <button
+                          type="button"
+                          className="secondary-btn"
+                          onClick={() => setIsNewUser(false)}
+                          style={{ marginRight: '1rem' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="save-btn"
+                          disabled={userSaveStatus === 'saving'}
+                        >
+                          {userSaveStatus === 'saving' ? 'Creating...' : 'Create User'}
+                        </button>
+                      </div>
+                      {userSaveStatus === 'success' && (
+                        <div className="status-message success">User created successfully!</div>
+                      )}
+                      {userSaveStatus === 'error' && (
+                        <div className="status-message error">
+                          {errorMessage}
+                        </div>
+                      )}
+                    </form>
+                  </div>
+                )}
+
+                <div className="product-list" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                  <div className="search-box" style={{ marginBottom: '1rem' }}>
+                    <Search className="search-icon" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Search users..."
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                    />
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                        <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Username</th>
+                        <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Email</th>
+                        <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Role</th>
+                        <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map(user => (
+                        <tr key={user._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.username}</td>
+                          <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.email || '-'}</td>
+                          <td style={{ padding: '1rem' }}>
+                            <span style={{
+                              padding: '0.25rem 0.75rem',
+                              borderRadius: '100px',
+                              fontSize: '0.85rem',
+                              background: user.role === 'admin' ? 'rgba(239, 68, 68, 0.1)' :
+                                user.role === 'director' ? 'rgba(168, 85, 247, 0.1)' :
+                                  user.role === 'manager' ? 'rgba(59, 130, 246, 0.1)' :
+                                    'rgba(16, 185, 129, 0.1)',
+                              color: user.role === 'admin' ? '#ef4444' :
+                                user.role === 'director' ? '#a855f7' :
+                                  user.role === 'manager' ? '#3b82f6' :
+                                    '#10b981'
+                            }}>
+                              {user.role === 'sales_rep' ? 'Sales Rep' :
+                                user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem' }}>
+                            <button
+                              className="secondary-btn delete-btn-small"
+                              onClick={() => handleDeleteUser(user._id)}
+                              style={{ padding: '0.5rem', borderColor: '#ef4444', color: '#ef4444' }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : activeTab === 'settings' ? (
           <div className="settings-container">
             <div className="settings-section">

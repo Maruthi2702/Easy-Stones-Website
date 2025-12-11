@@ -1,0 +1,77 @@
+/* Chat Image Upload Styles */
+.chat-input-actions {
+    display: flex;
+    align-items: center;
+    padding-right: 0.5rem;
+}
+
+.chat-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.chat-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--accent-color);
+}
+
+.chat-image-preview {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 0.5rem;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.chat-image-preview img {
+    max-height: 100px;
+    display: block;
+}
+
+.remove-image {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.remove-image:hover {
+    background: rgba(239, 68, 68, 0.8);
+}
+
+.message-image {
+    margin-bottom: 0.5rem;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    max-width: 200px;
+}
+
+.message-image img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+    transition: transform 0.2s;
+}
+
+.message-image:hover img {
+    transform: scale(1.02);
+}

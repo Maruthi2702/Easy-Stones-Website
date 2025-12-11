@@ -31,7 +31,7 @@ const ProductGrid = ({ searchTerm = '', onSearchChange, activeCategory = 'Moda Q
 
     // Filter by collection (only for Quartz/Moda Quartz for now)
     if (activeCategory === 'Moda Quartz' && activeCollection !== 'All') {
-      filtered = filtered.filter((product) => product.collection === activeCollection);
+      filtered = filtered.filter((product) => product.collectionType === activeCollection);
     }
 
     // Filter by search term

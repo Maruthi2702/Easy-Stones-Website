@@ -3,33 +3,40 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-secondary);
   padding: 2rem;
+  background: var(--bg-primary);
 }
 
 .login-container {
   width: 100%;
-  max-width: 500px;
+  max-width: 450px;
 }
 
 .login-card {
-  background: var(--bg-card);
-  border-radius: 16px;
+  width: 100%;
   padding: 3rem;
+  border-radius: 24px;
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-lg);
+  animation: fadeUp 0.6s ease backwards;
 }
 
+/* Header */
 .login-header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .login-header h1 {
   font-family: var(--font-display);
   font-size: 2rem;
-  color: var(--text-primary);
+  font-weight: 900;
   margin-bottom: 0.5rem;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .login-header p {
@@ -37,27 +44,11 @@
   font-size: 0.95rem;
 }
 
-.error-message {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  padding: 1rem;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-  text-align: center;
-  font-size: 0.9rem;
-}
-
+/* Form */
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 .form-group {
@@ -67,48 +58,46 @@
 }
 
 .form-group label {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.input-wrapper {
-  position: relative;
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.input-icon {
-  position: absolute;
-  left: 1rem;
-  color: var(--text-light);
-  pointer-events: none;
-}
-
-.input-wrapper input {
+.form-group input {
   width: 100%;
-  padding: 0.875rem 3rem 0.875rem 3rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid var(--border-color);
+  border-radius: 12px;
   color: var(--text-primary);
   font-size: 0.95rem;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base);
 }
 
-.input-wrapper input:focus {
+.form-group input:focus {
   outline: none;
   border-color: var(--accent-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
 }
 
-.input-wrapper input::placeholder {
+.form-group input::placeholder {
   color: var(--text-light);
+}
+
+/* Password Toggle */
+.password-input-wrapper {
+  position: relative;
 }
 
 .password-toggle {
   position: absolute;
   right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
   color: var(--text-light);
@@ -124,29 +113,32 @@
   color: var(--text-primary);
 }
 
+/* Submit Button */
 .submit-btn {
-  margin-top: 0.5rem;
-  padding: 1rem;
+  padding: 1rem 2rem;
   background: var(--gradient-primary);
-  color: var(--bg-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
+  color: #ffffff;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-base);
+  box-shadow: var(--shadow-glow);
+  margin-top: 0.5rem;
 }
 
 .submit-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3);
+  box-shadow: var(--shadow-glow), var(--shadow-lg);
 }
 
 .submit-btn:disabled {
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
+/* Toggle Form (Footer) */
 .toggle-form {
   margin-top: 2rem;
   text-align: center;
@@ -164,16 +156,23 @@
   font-weight: 500;
 }
 
+/* Error Message */
+.error-message {
+  padding: 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1.5px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  color: #ef4444;
+  font-size: 0.9rem;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
 @media (max-width: 640px) {
   .login-card {
     padding: 2rem 1.5rem;
   }
-
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-
   .login-header h1 {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
   }
 }

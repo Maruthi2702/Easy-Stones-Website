@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
@@ -14,6 +14,7 @@ const ContactPage = lazy(() => import('./pages/ContactPage'));
 const WarrantyPage = lazy(() => import('./pages/WarrantyPage'));
 const CustomerLoginPage = lazy(() => import('./pages/CustomerLoginPage'));
 const SalesPage = lazy(() => import('./pages/SalesPage'));
+const SalesMapPage = lazy(() => import('./pages/SalesMapPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 
@@ -57,6 +58,10 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+  const location = useLocation();
+  const isSalesPage = location.pathname.startsWith('/sales');
+  const isAdminPage = location.pathname.startsWith('/admin');
+
   return (
     <AuthProvider>
       <ProductProvider>
@@ -74,6 +79,7 @@ function App() {
                 <Route path="/warranty" element={<WarrantyPage />} />
                 <Route path="/login" element={<CustomerLoginPage />} />
                 <Route path="/sales" element={<SalesPage />} />
+                <Route path="/sales/map" element={<SalesMapPage />} />
                 <Route path="/admin/login" element={<LoginPage />} />
                 <Route
                   path="/admin"
@@ -86,7 +92,7 @@ function App() {
               </Routes>
             </Suspense>
           </main>
-          <Footer />
+          {!isSalesPage && !isAdminPage && <Footer />}
         </div>
       </ProductProvider>
     </AuthProvider>

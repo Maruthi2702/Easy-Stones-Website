@@ -1,0 +1,48 @@
+/* Full Screen Chat Styles */
+.sales-main.full-screen {
+    margin-left: 0;
+    padding: 0;
+    height: 100vh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.sales-main.full-screen .customer-tabs {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border: none;
+    border-radius: 0;
+    background: var(--bg-primary);
+}
+
+.sales-main.full-screen .tab-content {
+    flex: 1;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.sales-main.full-screen .tab-section {
+    flex: 1;
+    height: 100% !important;
+}
+
+.sales-main.full-screen .chat-container {
+    height: 100%;
+    border-radius: 0;
+}
+
+.sales-main.full-screen .chat-messages {
+    padding-bottom: 100px; /* More space for input in full screen */
+}
+
+/* Hide scrollbar in full screen chat messages if needed */
+.sales-main.full-screen .chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sales-main.full-screen .chat-messages::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+}

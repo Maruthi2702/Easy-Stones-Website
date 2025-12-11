@@ -1,6 +1,18 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+const visitSchema = new mongoose.Schema({
+  date: { type: Date, required: true },
+  purpose: String,
+  notes: String,
+  outcome: String,
+  nextAction: String,
+  image: mongoose.Schema.Types.Mixed,  // Use Mixed type for large base64 strings
+  createdBy: String,  // User ID or Customer ID who created this visit
+  createdByName: String,  // Display name of the creator
+  createdAt: { type: Date, default: Date.now }
+});
+
 const customerSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
@@ -19,7 +31,31 @@ const customerSchema = new mongoose.Schema({
   priceLevel: { type: Number, default: 1, min: 1, max: 4 },
   loginAttempts: { type: Number, default: 0 },
   lockUntil: { type: Date },
-  loginIps: { type: [String], default: [] }
+  loginIps: { type: [String], default: [] },
+  contacts: [{
+    name: { type: String, required: true },
+    phone: String,
+    email: String,
+    role: String,
+    isPrimary: { type: Boolean, default: false },
+    notes: String,
+    createdAt: { type: Date, default: Date.now }
+  }],
+  visits: [visitSchema],
+  resources: [{
+    date: { type: Date, default: Date.now },
+    customer: String,
+    location: String,
+    resourceType: String,
+    title: { type: String, required: true },
+    image: String,
+    description: String,
+    notes: String,
+    status: { type: String, default: 'Active' },
+    url: String,
+    uploadedBy: String,
+    createdAt: { type: Date, default: Date.now }
+  }]
 }, { timestamps: true });
 
 // Indexes for performance optimization

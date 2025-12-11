@@ -41,9 +41,9 @@ const LoginPage = () => {
 
     return (
         <div className="login-container">
-            <div className="login-card glass-panel">
+            <div className="login-card">
                 <div className="login-header">
-                    <h1>Admin Login</h1>
+                    <h1>User Login</h1>
                     <p>Enter your credentials to access the admin panel</p>
                 </div>
 

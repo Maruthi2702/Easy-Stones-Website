@@ -10,7 +10,7 @@ import cookieParser from 'cookie-parser';
 import nodemailer from 'nodemailer';
 import compression from 'compression';
 import Product from './src/models/Product.js';
-import Admin from './src/models/Admin.js';
+import User from './src/models/User.js';
 import ContactSubmission from './src/models/ContactSubmission.js';
 import Customer from './src/models/Customer.js';
 import SalesCustomer from './src/models/SalesCustomer.js';
@@ -33,8 +33,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones', {
   maxPoolSize: 10, // Maximum number of connections in the pool
   minPoolSize: 2,  // Minimum number of connections to maintain
-  serverSelectionTimeoutMS: 5000, // Timeout for server selection
+  serverSelectionTimeoutMS: 30000, // Increased timeout for server selection
   socketTimeoutMS: 45000, // Socket timeout
+  connectTimeoutMS: 30000, // Connection timeout
+  family: 4, // Force IPv4
 })
   .then(() => console.log('✅ Connected to MongoDB with connection pooling'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
@@ -42,14 +44,14 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones
 // DEBUG ENDPOINT - REMOVE IN PRODUCTION
 app.get('/api/debug/config', async (req, res) => {
   try {
-    const adminCount = await Admin.countDocuments();
+    const adminCount = await User.countDocuments();
     const dbName = mongoose.connection.name;
     const host = mongoose.connection.host;
     
     // Check for specific user if provided
     let userCheck = null;
     if (req.query.username) {
-      const user = await Admin.findOne({ username: req.query.username.toLowerCase() });
+      const user = await User.findOne({ username: req.query.username.toLowerCase() });
       userCheck = {
         requested_username: req.query.username,
         found: !!user,
@@ -158,6 +160,7 @@ app.get('/api/products', async (req, res) => {
 });
 
 // JWT Verification Middleware
+// JWT Verification Middleware
 const verifyToken = (req, res, next) => {
   const token = req.cookies.adminToken;
   
@@ -167,11 +170,22 @@ const verifyToken = (req, res, next) => {
   
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.adminId = decoded.adminId;
+    req.userId = decoded.userId;
+    req.userRole = decoded.role;
     next();
   } catch (error) {
     res.status(401).json({ error: 'Invalid token.' });
   }
+};
+
+// Role Authorization Middleware
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.userRole)) {
+      return res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
+    }
+    next();
+  };
 };
 
 // Enhanced authentication endpoint with bcrypt and JWT
@@ -186,10 +200,10 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       });
     }
     
-    // Find admin by username
-    const admin = await Admin.findOne({ username: username.toLowerCase() });
+    // Find user by username
+    const user = await User.findOne({ username: username.toLowerCase() });
     
-    if (!admin) {
+    if (!user) {
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid credentials' 
@@ -197,7 +211,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     }
     
     // Check if account is locked
-    if (admin.isLocked()) {
+    if (user.isLocked()) {
       return res.status(423).json({ 
         success: false, 
         message: 'Account locked due to too many failed attempts. Try again in 15 minutes.' 
@@ -205,11 +219,11 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     }
     
     // Verify password
-    const isMatch = await admin.comparePassword(password);
+    const isMatch = await user.comparePassword(password);
     
     if (!isMatch) {
       // Increment login attempts
-      await admin.incLoginAttempts();
+      await user.incLoginAttempts();
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid credentials' 
@@ -217,13 +231,17 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     }
     
     // Reset login attempts on successful login
-    if (admin.loginAttempts > 0) {
-      await admin.resetLoginAttempts();
+    if (user.loginAttempts > 0) {
+      await user.resetLoginAttempts();
     }
     
     // Generate JWT
     const token = jwt.sign(
-      { adminId: admin._id, username: admin.username },
+      { 
+        userId: user._id, 
+        username: user.username,
+        role: user.role 
+      },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -232,19 +250,81 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     res.cookie('adminToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
     
     res.json({ 
       success: true, 
       message: 'Login successful',
-      admin: { username: admin.username, email: admin.email }
+      admin: { 
+        username: user.username, 
+        email: user.email,
+        role: user.role
+      }
     });
     
   } catch (error) {
     console.error('❌ Login error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ============================================
+// USER MANAGEMENT ENDPOINTS
+// ============================================
+
+// Get all users (Admin/Director only)
+app.get('/api/admin/users', verifyToken, authorize('admin', 'director'), async (req, res) => {
+  try {
+    const users = await User.find().select('-password').sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch users' });
+  }
+});
+
+// Create new user (Admin only)
+app.post('/api/admin/users', verifyToken, authorize('admin'), async (req, res) => {
+  try {
+    const { username, password, email, role } = req.body;
+    
+    // Check if user exists
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Username already exists' });
+    }
+
+    const newUser = new User({
+      username,
+      password,
+      email,
+      role: role || 'sales_rep'
+    });
+
+    await newUser.save();
+    
+    res.status(201).json({ 
+      message: 'User created successfully', 
+      user: { 
+        id: newUser._id, 
+        username: newUser.username, 
+        email: newUser.email, 
+        role: newUser.role 
+      } 
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create user', error: error.message });
+  }
+});
+
+// Delete user (Admin only)
+app.delete('/api/admin/users/:id', verifyToken, authorize('admin'), async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete user' });
   }
 });
 
@@ -295,6 +375,25 @@ app.post('/api/auth/logout', (req, res) => {
 // Verify token endpoint
 app.get('/api/auth/verify', verifyToken, (req, res) => {
   res.json({ valid: true });
+});
+
+// Get current user info (for admin/internal users)
+app.get('/api/user/me', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json({
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ message: 'Failed to fetch user data' });
+  }
 });
 
 // Contact form endpoint
@@ -597,6 +696,369 @@ app.post('/api/customer/logout', (req, res) => {
   res.json({ message: 'Logged out successfully' });
 });
 
+// Dual Authentication Middleware - accepts both admin and customer tokens
+const verifyAnyAuth = (req, res, next) => {
+  const adminToken = req.cookies.adminToken;
+  const customerToken = req.cookies.customerToken;
+  
+  // Try admin token first
+  if (adminToken) {
+    try {
+      const decoded = jwt.verify(adminToken, JWT_SECRET);
+      req.userId = decoded.userId;
+      req.userRole = decoded.role;
+      req.authType = 'admin';
+      return next();
+    } catch (error) {
+      // Admin token invalid, try customer token
+    }
+  }
+  
+  // Try customer token
+  if (customerToken) {
+    try {
+      const decoded = jwt.verify(customerToken, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+      if (decoded.type === 'customer') {
+        req.customerId = decoded.id;
+        req.authType = 'customer';
+        return next();
+      }
+    } catch (error) {
+      // Customer token invalid
+    }
+  }
+  
+  // No valid token found
+  return res.status(401).json({ error: 'Access denied. No valid token provided.' });
+};
+
+// Customer-accessible endpoint: Get all customers (for sales page)
+app.get('/api/customers', verifyAnyAuth, async (req, res) => {
+  try {
+    const customers = await Customer.find().select('-password').sort({ createdAt: -1 });
+    res.json(customers);
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+    res.status(500).json({ message: 'Failed to fetch customers', error: error.message });
+  }
+});
+
+// ============================================
+// CONTACTS CRUD ENDPOINTS
+// ============================================
+
+// Add contact to customer
+app.post('/api/customers/:customerId/contacts', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { name, phone, email, role, isPrimary, notes } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ message: 'Contact name is required' });
+    }
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    customer.contacts.push({
+      name,
+      phone,
+      email,
+      role,
+      isPrimary: isPrimary || false,
+      notes
+    });
+
+    await customer.save();
+    res.status(201).json({ success: true, contacts: customer.contacts });
+  } catch (error) {
+    console.error('Add contact error:', error);
+    res.status(500).json({ message: 'Failed to add contact' });
+  }
+});
+
+// Update contact
+app.put('/api/customers/:customerId/contacts/:contactId', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId, contactId } = req.params;
+    const { name, phone, email, role, isPrimary, notes } = req.body;
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    const contact = customer.contacts.id(contactId);
+    if (!contact) {
+      return res.status(404).json({ message: 'Contact not found' });
+    }
+
+    if (name) contact.name = name;
+    if (phone !== undefined) contact.phone = phone;
+    if (email !== undefined) contact.email = email;
+    if (role !== undefined) contact.role = role;
+    if (isPrimary !== undefined) contact.isPrimary = isPrimary;
+    if (notes !== undefined) contact.notes = notes;
+
+    await customer.save();
+    res.json({ success: true, contacts: customer.contacts });
+  } catch (error) {
+    console.error('Update contact error:', error);
+    res.status(500).json({ message: 'Failed to update contact' });
+  }
+});
+
+// Change Password Route
+app.post('/api/auth/change-password', verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Incorrect current password' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating password' });
+  }
+});
+
+// ============================================
+// VISITS CRUD ENDPOINTS
+// ============================================
+
+// Add visit
+app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { date, purpose, notes, outcome, nextAction, image } = req.body;
+
+    if (!date) {
+      return res.status(400).json({ message: 'Visit date is required' });
+    }
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    // Get creator information based on auth type
+    let createdBy = '';
+    let createdByName = '';
+    
+    if (req.authType === 'admin') {
+      // Admin/User login
+      createdBy = req.userId;
+      const user = await User.findById(req.userId);
+      createdByName = user ? user.username : 'Unknown User';
+    } else if (req.authType === 'customer') {
+      // Customer login
+      createdBy = req.customerId;
+      const customerUser = await Customer.findById(req.customerId);
+      createdByName = customerUser ? `${customerUser.firstName} ${customerUser.lastName}` : 'Unknown Customer';
+    }
+
+    const visitData = {
+      date,
+      purpose,
+      notes,
+      outcome,
+      nextAction,
+      image,
+      createdBy,
+      createdByName
+    };
+
+    customer.visits.push(visitData);
+    await customer.save();
+
+    console.log('Saved visit with image:', !!image, 'Image length:', image ? image.length : 0);
+    res.status(201).json({ success: true, visits: customer.visits });
+  } catch (error) {
+    console.error('Add visit error:', error);
+    res.status(500).json({ message: 'Failed to add visit' });
+  }
+});
+
+// Update visit
+app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId, visitId } = req.params;
+    const { date, purpose, notes, outcome, nextAction, image } = req.body;
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    const visit = customer.visits.id(visitId);
+    if (!visit) {
+      return res.status(404).json({ message: 'Visit not found' });
+    }
+
+    if (date) visit.date = date;
+    if (purpose !== undefined) visit.purpose = purpose;
+    if (notes !== undefined) visit.notes = notes;
+    if (outcome !== undefined) visit.outcome = outcome;
+    if (nextAction !== undefined) visit.nextAction = nextAction;
+    if (image !== undefined) visit.image = image;
+
+    await customer.save();
+    res.json({ success: true, visits: customer.visits });
+  } catch (error) {
+    console.error('Update visit error:', error);
+    res.status(500).json({ message: 'Failed to update visit' });
+  }
+});
+
+// Delete visit
+app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId, visitId } = req.params;
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    customer.visits.pull(visitId);
+    await customer.save();
+
+    res.json({ success: true, visits: customer.visits });
+  } catch (error) {
+    console.error('Delete visit error:', error);
+    res.status(500).json({ message: 'Failed to delete visit' });
+  }
+});
+
+// ============================================
+// RESOURCES CRUD ENDPOINTS
+// ============================================
+
+// Add resource
+app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { title, date, customer, location, resourceType, image, description, notes, status, url, uploadedBy } = req.body;
+
+    console.log('Received resource data:', { title, date, customer, location, resourceType, hasImage: !!image, description, notes, status, url, uploadedBy });
+
+    // If title is missing but resourceType is present, use resourceType as title
+    const finalTitle = title || resourceType;
+
+    if (!finalTitle) {
+      return res.status(400).json({ message: 'Resource title or type is required' });
+    }
+
+    const customerDoc = await Customer.findById(customerId);
+    if (!customerDoc) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    const newResource = {
+      title: finalTitle,
+      date: date || new Date(),
+      customer: customer || '',
+      location: location || '',
+      resourceType: resourceType || '',
+      image: image || '',
+      description: description || '',
+      notes: notes || '',
+      status: status || 'Active',
+      url: url || '',
+      uploadedBy: uploadedBy || ''
+    };
+
+    console.log('Saving resource:', newResource);
+
+    customerDoc.resources.push(newResource);
+
+    await customerDoc.save();
+    
+    console.log('Resource saved successfully');
+    
+    res.status(201).json({ success: true, resources: customerDoc.resources });
+  } catch (error) {
+    console.error('Add resource error:', error);
+    res.status(500).json({ message: 'Failed to add resource' });
+  }
+});
+
+// Update resource
+app.put('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId, resourceId } = req.params;
+    const { title, date, customer, location, resourceType, image, description, notes, status, url, uploadedBy } = req.body;
+
+    console.log('Received update for resource:', resourceId, { title, date, customer, location, resourceType, hasImage: !!image, description, notes, status, url, uploadedBy });
+
+    const customerDoc = await Customer.findById(customerId);
+    if (!customerDoc) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    const resource = customerDoc.resources.id(resourceId);
+    if (!resource) {
+      return res.status(404).json({ message: 'Resource not found' });
+    }
+
+    if (title) resource.title = title;
+    else if (resourceType) resource.title = resourceType; // Update title if type changes and title wasn't provided
+    
+    if (date !== undefined) resource.date = date;
+    if (customer !== undefined) resource.customer = customer;
+    if (location !== undefined) resource.location = location;
+    if (resourceType !== undefined) resource.resourceType = resourceType;
+    if (image !== undefined) resource.image = image;
+    if (description !== undefined) resource.description = description;
+    if (notes !== undefined) resource.notes = notes;
+    if (status !== undefined) resource.status = status;
+    if (url !== undefined) resource.url = url;
+    if (uploadedBy !== undefined) resource.uploadedBy = uploadedBy;
+
+    console.log('Updating resource to:', resource);
+
+    await customerDoc.save();
+    console.log('Resource updated successfully');
+    
+    res.json({ success: true, resources: customerDoc.resources });
+  } catch (error) {
+    console.error('Update resource error:', error);
+    res.status(500).json({ message: 'Failed to update resource' });
+  }
+});
+
+// Delete resource
+app.delete('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId, resourceId } = req.params;
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    customer.resources.pull(resourceId);
+    await customer.save();
+
+    res.json({ success: true, resources: customer.resources });
+  } catch (error) {
+    console.error('Delete resource error:', error);
+    res.status(500).json({ message: 'Failed to delete resource' });
+  }
+});
+
 // Admin: Get all customers
 app.get('/api/admin/customers', verifyToken, async (req, res) => {
   try {
@@ -858,9 +1320,10 @@ app.post('/api/migrate-collection', async (req, res) => {
 // ============================================
 
 // Get all sales customers for logged-in user
-app.get('/api/sales/customers', customerAuthMiddleware, async (req, res) => {
+// Get all sales customers (Global access for all authenticated users)
+app.get('/api/sales/customers', verifyToken, async (req, res) => {
   try {
-    const customers = await SalesCustomer.find({ userId: req.customerId }).sort({ createdAt: -1 });
+    const customers = await SalesCustomer.find().sort({ createdAt: -1 });
     res.json(customers);
   } catch (error) {
     console.error('Error fetching sales customers:', error);
@@ -869,7 +1332,8 @@ app.get('/api/sales/customers', customerAuthMiddleware, async (req, res) => {
 });
 
 // Create new sales customer
-app.post('/api/sales/customers', customerAuthMiddleware, async (req, res) => {
+// Create new sales customer
+app.post('/api/sales/customers', verifyToken, async (req, res) => {
   try {
     const { customerName, company, address, coordinates, phone, email, notes, lastVisit, nextVisit, status, tags } = req.body;
 
@@ -878,7 +1342,7 @@ app.post('/api/sales/customers', customerAuthMiddleware, async (req, res) => {
     }
 
     const salesCustomer = new SalesCustomer({
-      userId: req.customerId,
+      userId: req.userId, // Use the authenticated user's ID
       customerName,
       company,
       address,
@@ -901,13 +1365,14 @@ app.post('/api/sales/customers', customerAuthMiddleware, async (req, res) => {
 });
 
 // Update sales customer
-app.put('/api/sales/customers/:id', customerAuthMiddleware, async (req, res) => {
+// Update sales customer
+app.put('/api/sales/customers/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
 
-    // Ensure user can only update their own customers
-    const customer = await SalesCustomer.findOne({ _id: id, userId: req.customerId });
+    // Allow update of any customer (Global access)
+    const customer = await SalesCustomer.findById(id);
     
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
@@ -924,12 +1389,13 @@ app.put('/api/sales/customers/:id', customerAuthMiddleware, async (req, res) => 
 });
 
 // Delete sales customer
-app.delete('/api/sales/customers/:id', customerAuthMiddleware, async (req, res) => {
+// Delete sales customer
+app.delete('/api/sales/customers/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Ensure user can only delete their own customers
-    const customer = await SalesCustomer.findOneAndDelete({ _id: id, userId: req.customerId });
+    // Allow delete of any customer (Global access)
+    const customer = await SalesCustomer.findByIdAndDelete(id);
     
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });

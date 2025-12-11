@@ -83,31 +83,33 @@ const CustomerLoginPage = () => {
 
                     <form onSubmit={handleSubmit} className="login-form">
                         <div className="form-group">
-                            <label>Email</label>
-                            <div className="input-wrapper">
-                                <Mail className="input-icon" size={18} />
-                                <input
-                                    type="email"
-                                    name="email"
-                                    value={formData.email}
-                                    onChange={handleChange}
-                                    required
-                                    placeholder="you@example.com"
-                                />
-                            </div>
+                            <label>
+                                <Mail size={18} />
+                                Email
+                            </label>
+                            <input
+                                type="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={handleChange}
+                                required
+                                placeholder="Enter your email"
+                            />
                         </div>
 
                         <div className="form-group">
-                            <label>Password</label>
-                            <div className="input-wrapper">
-                                <Lock className="input-icon" size={18} />
+                            <label>
+                                <Lock size={18} />
+                                Password
+                            </label>
+                            <div className="password-input-wrapper">
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
                                     required
-                                    placeholder="••••••••"
+                                    placeholder="Enter your password"
                                 />
                                 <button
                                     type="button"
@@ -121,7 +123,7 @@ const CustomerLoginPage = () => {
                         </div>
 
                         <button type="submit" className="submit-btn" disabled={isSubmitting}>
-                            {isSubmitting ? 'Please wait...' : 'Sign In'}
+                            {isSubmitting ? 'Signing in...' : 'Sign In'}
                         </button>
                     </form>
 

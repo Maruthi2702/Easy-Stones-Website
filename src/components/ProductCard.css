@@ -22,6 +22,7 @@
   padding: 2px;
   background: var(--gradient-primary);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0;
@@ -43,14 +44,14 @@
   position: relative;
   aspect-ratio: 3/2.5;
   overflow: hidden;
-  background: linear-gradient(135deg, rgba(93, 224, 230, 0.2), rgba(168, 85, 247, 0.15));
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
 }
 
 .card-image-container::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(4, 6, 17, 0) 20%, rgba(4, 6, 17, 0.8) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, 0.6) 100%);
   opacity: 0.6;
   transition: opacity var(--transition-base);
 }
@@ -104,20 +105,20 @@
 .card-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(4, 6, 17, 0.75);
-  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
   transition: opacity var(--transition-base);
   z-index: 2;
-  pointer-events: none; /* Disable overlay completely */
-  display: none; /* Hide overlay */
+  pointer-events: none;
+  display: none;
 }
 
 .product-card:hover .card-overlay {
-  opacity: 0; /* Keep hidden on hover */
+  opacity: 0;
 }
 
 .view-btn {
@@ -127,23 +128,23 @@
   border-radius: 100px;
   font-weight: 700;
   font-size: 0.95rem;
-  display: none; /* Hide button */
+  display: none;
   align-items: center;
   gap: 0.5rem;
   transform: translateY(30px) scale(0.9);
   transition: transform var(--transition-base), box-shadow var(--transition-base);
-  box-shadow: 0 12px 28px rgba(93, 224, 230, 0.35);
+  box-shadow: 0 12px 28px rgba(212, 175, 55, 0.35);
   letter-spacing: 0.03em;
   pointer-events: none;
 }
 
 .product-card:hover .view-btn {
   transform: translateY(0) scale(1);
-  display: none; /* Keep hidden on hover */
+  display: none;
 }
 
 .view-btn:hover {
-  box-shadow: 0 18px 38px rgba(93, 224, 230, 0.4);
+  box-shadow: 0 18px 38px rgba(212, 175, 55, 0.4);
   transform: translateY(-2px) scale(1.05);
 }
 

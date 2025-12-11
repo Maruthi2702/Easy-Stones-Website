@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-const adminSchema = new mongoose.Schema({
+const userSchema = new mongoose.Schema({
   username: {
     type: String,
     required: true,
@@ -19,6 +19,11 @@ const adminSchema = new mongoose.Schema({
     trim: true,
     lowercase: true
   },
+  role: {
+    type: String,
+    enum: ['sales_rep', 'manager', 'director', 'admin'],
+    default: 'sales_rep'
+  },
   loginAttempts: {
     type: Number,
     default: 0
@@ -31,7 +36,7 @@ const adminSchema = new mongoose.Schema({
 });
 
 // Hash password before saving
-adminSchema.pre('save', async function() {
+userSchema.pre('save', async function() {
   // Only hash if password is modified
   if (!this.isModified('password')) return;
   
@@ -44,17 +49,17 @@ adminSchema.pre('save', async function() {
 });
 
 // Method to compare passwords
-adminSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Check if account is locked
-adminSchema.methods.isLocked = function() {
+userSchema.methods.isLocked = function() {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 };
 
 // Increment login attempts
-adminSchema.methods.incLoginAttempts = function() {
+userSchema.methods.incLoginAttempts = function() {
   // If lock has expired, restart attempts
   if (this.lockUntil && this.lockUntil < Date.now()) {
     return this.updateOne({
@@ -76,13 +81,13 @@ adminSchema.methods.incLoginAttempts = function() {
 };
 
 // Reset login attempts
-adminSchema.methods.resetLoginAttempts = function() {
+userSchema.methods.resetLoginAttempts = function() {
   return this.updateOne({
     $set: { loginAttempts: 0 },
     $unset: { lockUntil: 1 }
   });
 };
 
-const Admin = mongoose.model('Admin', adminSchema);
+const User = mongoose.model('User', userSchema);
 
-export default Admin;
+export default User;
