@@ -107,7 +107,7 @@ app.use(cookieParser());
 // Rate limiter for login attempts
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per window
+  max: 100, // Increased limit for debugging
   message: { error: 'Too many login attempts. Please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -1412,6 +1412,9 @@ app.delete('/api/sales/customers/:id', verifyToken, async (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
+
+// Serve uploaded files from public directory
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve static files from the React app
 const distPath = path.join(__dirname, 'dist');
