@@ -93,7 +93,7 @@
   animation: shake 0.4s ease;
 }
 
-.login-btn {
+.login-submit-btn {
   padding: 1rem 2rem;
   background: var(--gradient-primary);
   border: none;
@@ -107,16 +107,16 @@
   margin-top: 0.5rem;
 }
 
-.login-btn:hover:not(:disabled) {
+.login-submit-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: var(--shadow-glow), var(--shadow-lg);
 }
 
-.login-btn:active:not(:disabled) {
+.login-submit-btn:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.login-btn:disabled {
+.login-submit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -141,7 +141,8 @@
   .login-container {
     padding: 1rem;
     align-items: flex-start; /* Align to top on mobile to avoid keyboard covering input */
-    padding-top: 4rem;
+    padding-top: 7rem; /* Increased to clear fixed header */
+    padding-bottom: 2rem;
   }
 
   .login-card {

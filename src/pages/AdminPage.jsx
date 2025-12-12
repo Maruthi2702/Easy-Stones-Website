@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, Users, User } from 'lucide-react';
+import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, Users, User, Menu, X } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../config/api';
 import { useProducts } from '../context/ProductContext';
 import './AdminPage.css';
@@ -61,6 +61,7 @@ const AdminPage = () => {
 
   // Mobile View State
   const [showMobileDetail, setShowMobileDetail] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -635,43 +636,61 @@ const AdminPage = () => {
     }
   };
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setIsMobileMenuOpen(false);
+    setShowMobileDetail(false); // Reset to list view
+    window.scrollTo(0, 0);
+  };
+
   return (
     <div className="admin-container">
       {/* Admin Header */}
       <div className="admin-header">
         <div className="admin-header-content">
-          <h1>Admin Panel</h1>
-          <div className="header-tabs">
+          <div className="admin-header-top">
+            <h1>Admin Panel</h1>
             <button
-              className={`tab-btn ${activeTab === 'products' ? 'active' : ''}`}
-              onClick={() => setActiveTab('products')}
+              className="mobile-menu-toggle"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
-              <Package size={18} />
-              Products
-            </button>
-            <button
-              className={`tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
-              onClick={() => setActiveTab('customers')}
-            >
-              <Users size={18} /> Customers
-            </button>
-            <button
-              className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
-              onClick={() => setActiveTab('users')}
-            >
-              <User size={18} /> Users
-            </button>
-            <button
-              className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
-              onClick={() => setActiveTab('settings')}
-            >
-              <Settings size={18} /> Settings
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
-          <button className="logout-btn" onClick={handleLogout}>
-            <LogOut size={18} />
-            Logout
-          </button>
+
+          <div className={`admin-header-nav ${isMobileMenuOpen ? 'open' : ''}`}>
+            <div className="header-tabs">
+              <button
+                className={`tab-btn ${activeTab === 'products' ? 'active' : ''}`}
+                onClick={() => handleTabChange('products')}
+              >
+                <Package size={18} />
+                Products
+              </button>
+              <button
+                className={`tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
+                onClick={() => handleTabChange('customers')}
+              >
+                <Users size={18} /> Customers
+              </button>
+              <button
+                className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
+                onClick={() => handleTabChange('users')}
+              >
+                <User size={18} /> Users
+              </button>
+              <button
+                className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+                onClick={() => handleTabChange('settings')}
+              >
+                <Settings size={18} /> Settings
+              </button>
+            </div>
+            <button className="logout-btn" onClick={handleLogout}>
+              <LogOut size={18} />
+              Logout
+            </button>
+          </div>
         </div>
       </div>
 
