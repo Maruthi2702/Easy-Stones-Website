@@ -59,6 +59,9 @@ const AdminPage = () => {
   const [userSaveStatus, setUserSaveStatus] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Mobile View State
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -198,6 +201,7 @@ const AdminPage = () => {
   const handleSelectProduct = (id) => {
     setSelectedProductId(id);
     setSaveStatus(null);
+    setShowMobileDetail(true); // Show detail view on mobile
     window.scrollTo(0, 0);
   };
 
@@ -228,6 +232,7 @@ const AdminPage = () => {
     setProducts([newProduct, ...products]);
     setSelectedProductId(newId);
     setSaveStatus({ type: 'info', message: 'New product created. Fill in details and save.' });
+    setShowMobileDetail(true); // Show detail view on mobile
   };
 
   const handleDeleteProduct = (id) => {
@@ -452,6 +457,7 @@ const AdminPage = () => {
     });
     setIsNewCustomer(false);
     setCustomerSaveStatus(null);
+    setShowMobileDetail(true); // Show detail view on mobile
     window.scrollTo(0, 0);
   };
 
@@ -474,6 +480,7 @@ const AdminPage = () => {
     });
     setIsNewCustomer(true);
     setCustomerSaveStatus(null);
+    setShowMobileDetail(true); // Show detail view on mobile
   };
 
   const handleCustomerChange = (field, value) => {
@@ -670,7 +677,7 @@ const AdminPage = () => {
 
       {/* Sidebar */}
       {(activeTab === 'products' || activeTab === 'customers') && (
-        <div className="admin-sidebar">
+        <div className={`admin-sidebar ${showMobileDetail ? 'mobile-hidden' : ''}`}>
           <div className="sidebar-header">
             <h2>{activeTab === 'products' ? 'Products' : 'Customers'}</h2>
             <button className="add-btn" onClick={activeTab === 'products' ? handleAddProduct : handleAddCustomer}>
@@ -755,10 +762,15 @@ const AdminPage = () => {
       )}
 
       {/* Main Content */}
-      <div className={`admin-main ${activeTab === 'settings' || activeTab === 'users' ? 'full-width' : ''}`}>
+      <div className={`admin-main ${activeTab === 'settings' || activeTab === 'users' ? 'full-width' : ''} ${!showMobileDetail && (activeTab === 'products' || activeTab === 'customers') ? 'mobile-hidden' : ''}`}>
         {activeTab === 'products' && (
           <div className="main-header">
-            <h1>Product Editor</h1>
+            <div className="header-title-group">
+              <button className="mobile-back-btn" onClick={() => setShowMobileDetail(false)}>
+                <ArrowLeft size={20} />
+              </button>
+              <h1>Product Editor</h1>
+            </div>
             <div className="header-actions">
               {selectedProduct && (
                 <button
@@ -789,7 +801,12 @@ const AdminPage = () => {
           selectedCustomerId ? (
             <div className="edit-form">
               <div className="main-header">
-                <h1>{isNewCustomer ? 'Create Customer' : 'Edit Customer'}</h1>
+                <div className="header-title-group">
+                  <button className="mobile-back-btn" onClick={() => setShowMobileDetail(false)}>
+                    <ArrowLeft size={20} />
+                  </button>
+                  <h1>{isNewCustomer ? 'Create Customer' : 'Edit Customer'}</h1>
+                </div>
                 <div className="header-actions">
                   {!isNewCustomer && (
                     <>
