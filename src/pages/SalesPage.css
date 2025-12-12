@@ -538,6 +538,7 @@
 @media (max-width: 768px) {
   .sales-container {
     flex-direction: column;
+    padding-top: 100px;
   }
 
   .sales-sidebar {

@@ -101,6 +101,14 @@
 }
 
 @media (max-width: 768px) {
+  .warranty-page {
+    padding-top: 100px;
+  }
+  
+  .warranty-nav-container {
+    top: 100px;
+  }
+
   .sub-nav {
     justify-content: flex-start;
     gap: 1rem;

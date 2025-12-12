@@ -178,6 +178,10 @@
 
 /* Responsive Design */
 @media (max-width: 968px) {
+  .contact-page {
+    margin-top: 100px;
+  }
+
   .contact-container {
     grid-template-columns: 1fr;
     gap: 2rem;

@@ -176,3 +176,11 @@
     font-size: 1.75rem;
   }
 }
+
+@media (max-width: 480px) {
+  .customer-login-page {
+    padding-top: 7rem;
+    align-items: flex-start;
+    padding-bottom: 2rem;
+  }
+}
