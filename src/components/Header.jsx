@@ -53,6 +53,14 @@ const Header = () => {
 
         <nav className="nav-desktop">
           <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>Products</NavLink>
+          <a
+            href="https://easystones.stoneprofitsweb.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="nav-link"
+          >
+            Live Inventory
+          </a>
           {user && (
             <div className="dropdown" ref={dropdownRef}>
               <button
@@ -108,6 +116,15 @@ const Header = () => {
           >
             Products
           </NavLink>
+          <a
+            href="https://easystones.stoneprofitsweb.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="nav-link"
+            onClick={closeMobileMenu}
+          >
+            Live Inventory
+          </a>
           {user && (
             <div className="mobile-dropdown">
               <button

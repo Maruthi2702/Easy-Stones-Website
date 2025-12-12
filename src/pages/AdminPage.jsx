@@ -374,11 +374,12 @@ const AdminPage = () => {
         // Clean up object URL to avoid memory leaks
         URL.revokeObjectURL(objectUrl);
       } else {
-        alert('Failed to upload image');
+        console.error('Upload failed:', data);
+        alert(`Failed to upload image: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error uploading image:', error);
-      alert('Error uploading image');
+      alert(`Error uploading image: ${error.message}`);
     }
   };
 

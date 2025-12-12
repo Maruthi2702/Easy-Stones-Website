@@ -1430,4 +1430,24 @@ if (fs.existsSync(distPath)) {
 
 app.listen(PORT, () => {
   console.log(`🚀 Backend server running on port ${PORT}`);
+  
+  // Keep-Alive Mechanism for Render Free Tier
+  // Pings the server every 5 minutes (300,000 ms) to prevent sleep
+  const keepAliveInterval = 5 * 60 * 1000; // 5 minutes
+  
+  setInterval(() => {
+    const url = process.env.RENDER_EXTERNAL_URL || process.env.FRONTEND_URL || `http://localhost:${PORT}`;
+    const healthUrl = `${url}/api/health`;
+    
+    console.log(`⏰ Sending keep-alive ping to ${healthUrl}`);
+    
+    // Use dynamic import for node-fetch or use native http/https based on protocol
+    // Simple implementation using fetch if available (Node 18+) or axios if installed
+    // Since we don't want to add dependencies, we'll use native fetch which is available in Node 18+
+    
+    fetch(healthUrl)
+      .then(res => console.log(`✅ Keep-alive ping status: ${res.status}`))
+      .catch(err => console.error(`❌ Keep-alive ping failed: ${err.message}`));
+      
+  }, keepAliveInterval);
 });
