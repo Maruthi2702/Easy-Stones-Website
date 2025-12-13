@@ -1,46 +1,54 @@
+
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useProducts } from '../context/ProductContext';
 import { getLocalImagePath } from '../utils/imagePath';
 import './HeroCarousel.css';
 
-import { API_URL } from '../config/api';
-
 const HeroCarousel = () => {
-    const [sliderProducts, setSliderProducts] = useState([]);
+    const { products, loading } = useProducts();
 
-    useEffect(() => {
-        const fetchProducts = async () => {
-            try {
-                const response = await fetch(`${API_URL}/api/products`);
-                if (response.ok) {
-                    const data = await response.json();
-                    const filtered = data.filter(p => p.showInSlider);
-                    setSliderProducts(filtered);
-                }
-            } catch (error) {
-                console.error('Error fetching slider products:', error);
-            }
-        };
+    // 1. Explicit Slider Products
+    const sliderProducts = products.filter(p => p.showInSlider);
 
-        fetchProducts();
-    }, []);
+    // Show loading skeleton if fetching and no products
+    if (loading && products.length === 0) {
+        return (
+            <section className="hero-carousel skeleton-loading">
+                <div className="carousel-slide active">
+                    <div className="slide-image-wrapper bg-gray-200 animate-pulse">
+                        <div className="slide-overlay" />
+                    </div>
+                </div>
+            </section>
+        );
+    }
 
-    // Fallback slides if no products selected
     const defaultSlides = [
         {
-            image: 'Calacatta_Bella.jpg',
-            title: 'Moda Quartz',
-            subtitle: 'Timeless Elegance for Modern Living'
+            image: "Calacatta_Bella.jpg",
+            title: "Moda Quartz",
+            subtitle: "Timeless Elegance for Modern Living"
         },
         {
-            image: 'Statuario_Fantasia.jpg',
-            title: 'Moda Quartz',
-            subtitle: 'Engineered for Perfection'
+            image: "Statuario_Fantasia.jpg",
+            title: "Moda Quartz",
+            subtitle: "Engineered for Perfection"
         }
     ];
 
-    const slides = sliderProducts.length > 0
-        ? sliderProducts.map(p => ({
+    // Determine final slides with fallback logic
+    let displayProducts = [];
+    if (sliderProducts.length > 0) {
+        displayProducts = sliderProducts;
+    } else if (products.length > 0) {
+        // Fallback: Use first 5 products if no explicit slider items
+        displayProducts = products.slice(0, 5);
+    }
+
+    // Map to slide format or use defaults if completely empty
+    const slides = displayProducts.length > 0
+        ? displayProducts.map(p => ({
             image: p.image,
             title: p.category,
             subtitle: p.name,
