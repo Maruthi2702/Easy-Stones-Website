@@ -7,19 +7,29 @@ const visitSchema = new mongoose.Schema({
   notes: String,
   outcome: String,
   nextAction: String,
-  image: mongoose.Schema.Types.Mixed,  // Use Mixed type for large base64 strings
+  image: mongoose.Schema.Types.Mixed,  // Use Mixed to support both legacy Strings and new Arrays
   createdBy: String,  // User ID or Customer ID who created this visit
   createdByName: String,  // Display name of the creator
   createdAt: { type: Date, default: Date.now }
 });
 
 const customerSchema = new mongoose.Schema({
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
-  email: { type: String, required: true, unique: true, lowercase: true },
-  password: { type: String, required: true },
-  phone: { type: String },
-  company: { type: String },
+  contactName: {
+    type: String,
+    required: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true
+  },
+  password: {
+    type: String,
+    required: true
+  },
+  company: String,
+  phone: String,
   address: {
     street: String,
     city: String,
@@ -48,7 +58,7 @@ const customerSchema = new mongoose.Schema({
     location: String,
     resourceType: String,
     title: { type: String, required: true },
-    image: String,
+    image: mongoose.Schema.Types.Mixed, // Use Mixed to support both legacy Strings and new Arrays
     description: String,
     notes: String,
     status: { type: String, default: 'Active' },

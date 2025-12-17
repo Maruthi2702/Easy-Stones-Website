@@ -30,8 +30,7 @@ const AdminPage = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [customerFormData, setCustomerFormData] = useState({
-    firstName: '',
-    lastName: '',
+    contactName: '',
     email: '',
     password: '',
     phone: '',
@@ -131,8 +130,7 @@ const AdminPage = () => {
   }).sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredCustomers = (Array.isArray(customers) ? customers : []).filter(c =>
-    (c.firstName?.toLowerCase() || '').includes(customerSearchTerm.toLowerCase()) ||
-    (c.lastName?.toLowerCase() || '').includes(customerSearchTerm.toLowerCase()) ||
+    (c.contactName?.toLowerCase() || '').includes(customerSearchTerm.toLowerCase()) ||
     (c.email?.toLowerCase() || '').includes(customerSearchTerm.toLowerCase()) ||
     (c.company && c.company.toLowerCase().includes(customerSearchTerm.toLowerCase()))
   );
@@ -442,8 +440,7 @@ const AdminPage = () => {
   const handleSelectCustomer = (customer) => {
     setSelectedCustomerId(customer._id);
     setCustomerFormData({
-      firstName: customer.firstName || '',
-      lastName: customer.lastName || '',
+      contactName: customer.contactName || '',
       email: customer.email || '',
       password: '', // Don't show password
       phone: customer.phone || '',
@@ -465,8 +462,7 @@ const AdminPage = () => {
   const handleAddCustomer = () => {
     setSelectedCustomerId('new');
     setCustomerFormData({
-      firstName: '',
-      lastName: '',
+      contactName: '',
       email: '',
       password: '',
       phone: '',
@@ -505,12 +501,8 @@ const AdminPage = () => {
     if (e) e.preventDefault();
 
     // Client-side validation
-    if (!customerFormData.firstName?.trim()) {
-      setCustomerSaveStatus({ type: 'error', message: 'First Name is required' });
-      return;
-    }
-    if (!customerFormData.lastName?.trim()) {
-      setCustomerSaveStatus({ type: 'error', message: 'Last Name is required' });
+    if (!customerFormData.contactName?.trim()) {
+      setCustomerSaveStatus({ type: 'error', message: 'Contact Name is required' });
       return;
     }
     if (!customerFormData.email?.trim()) {
@@ -636,6 +628,57 @@ const AdminPage = () => {
     }
   };
 
+  const handleBulkUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const originalText = e.target.value; // Store to clear later
+    e.target.value = ''; // Clear input to allow re-upload of same file
+
+    if (!window.confirm(`Upload ${file.name} to import customers?`)) return;
+
+    setLoading(true); // Reuse loading state or add specific one
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/customers/bulk-upload`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        let message = `Upload Complete!\nAdded: ${data.results.added}\nSkipped: ${data.results.skipped}\nErrors: ${data.results.errors.length}`;
+
+        if (data.results.errors.length > 0) {
+          message += '\n\nFirst 5 Errors:\n' + data.results.errors.slice(0, 5).join('\n');
+        }
+
+        alert(message);
+        // Refresh list
+        const customersResponse = await fetch(`${API_URL}/api/admin/customers`, {
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+        if (customersResponse.ok) {
+          const customersData = await customersResponse.json();
+          setCustomers(customersData);
+        }
+      } else {
+        alert(`Upload failed: ${data.message}`);
+      }
+    } catch (error) {
+      console.error('Bulk upload error:', error);
+      alert('Bulk upload failed due to network or server error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setIsMobileMenuOpen(false);
@@ -702,6 +745,20 @@ const AdminPage = () => {
             <button className="add-btn" onClick={activeTab === 'products' ? handleAddProduct : handleAddCustomer}>
               <Plus size={18} /> New
             </button>
+            {activeTab === 'customers' && (
+              <>
+                <input
+                  type="file"
+                  id="bulk-upload-input"
+                  accept=".xlsx, .xls"
+                  style={{ display: 'none' }}
+                  onChange={handleBulkUpload}
+                />
+                <button className="add-btn" style={{ marginLeft: '10px', backgroundColor: '#10b981' }} onClick={() => document.getElementById('bulk-upload-input').click()}>
+                  <ImageIcon size={18} /> Import Excel
+                </button>
+              </>
+            )}
           </div>
 
           <div className="search-box">
@@ -767,7 +824,7 @@ const AdminPage = () => {
                     </div>
                     <div className="list-info">
                       <span className="list-name">
-                        {customer.firstName} {customer.lastName}
+                        {customer.contactName || 'Unknown'}
                         {customer.isActive === false && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginLeft: '0.5rem' }}>(Deactivated)</span>}
                       </span>
                       <span className="list-meta">{customer.company || customer.email}</span>
@@ -925,21 +982,21 @@ const AdminPage = () => {
                   <h3>Personal Information</h3>
                   <div className="form-grid">
                     <div className="form-group">
-                      <label>First Name</label>
+                      <label>Company</label>
                       <input
                         type="text"
-                        value={customerFormData.firstName}
-                        onChange={(e) => handleCustomerChange('firstName', e.target.value)}
-                        required
+                        value={customerFormData.company}
+                        onChange={(e) => handleCustomerChange('company', e.target.value)}
                       />
                     </div>
                     <div className="form-group">
-                      <label>Last Name</label>
+                      <label>Contact Name</label>
                       <input
                         type="text"
-                        value={customerFormData.lastName}
-                        onChange={(e) => handleCustomerChange('lastName', e.target.value)}
+                        value={customerFormData.contactName}
+                        onChange={(e) => handleCustomerChange('contactName', e.target.value)}
                         required
+                        placeholder="Full Name"
                       />
                     </div>
                     <div className="form-group">
@@ -957,14 +1014,6 @@ const AdminPage = () => {
                         type="tel"
                         value={customerFormData.phone}
                         onChange={(e) => handleCustomerChange('phone', e.target.value)}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Company</label>
-                      <input
-                        type="text"
-                        value={customerFormData.company}
-                        onChange={(e) => handleCustomerChange('company', e.target.value)}
                       />
                     </div>
                     <div className="form-group">

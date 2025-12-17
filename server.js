@@ -17,6 +17,8 @@ import SalesCustomer from './src/models/SalesCustomer.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { read, utils } from 'xlsx';
+import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
@@ -73,8 +75,9 @@ app.get('/api/debug/config', async (req, res) => {
 });
 
 // Cloudinary config removed - using local storage
-// const storage = multer.memoryStorage();
-// const upload = multer({ storage: storage });
+// Cloudinary config removed - using local storage
+const memoryStorage = multer.memoryStorage();
+const uploadMemory = multer({ storage: memoryStorage });
 
 // Middleware
 const allowedOrigins = [
@@ -101,7 +104,7 @@ app.use(cors({
 // Compression middleware - reduces response sizes by 70-90%
 app.use(compression());
 
-app.use(express.json({ limit: '50mb' })); // Increase limit for large payloads
+app.use(express.json({ limit: '200mb' })); // Increase limit for large payloads (multiple images)
 app.use(cookieParser());
 
 // Rate limiter for login attempts
@@ -478,7 +481,7 @@ app.post('/api/contact', async (req, res) => {
 // Customer Registration Endpoint
 app.post('/api/customer/register', async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, company } = req.body;
+    const { contactName, email, password, phone, company } = req.body;
 
     // Check if customer already exists
     const existingCustomer = await Customer.findOne({ email });
@@ -488,8 +491,7 @@ app.post('/api/customer/register', async (req, res) => {
 
     // Create new customer
     const customer = new Customer({
-      firstName,
-      lastName,
+      contactName,
       email,
       password,
       phone,
@@ -518,8 +520,7 @@ app.post('/api/customer/register', async (req, res) => {
       message: 'Registration successful',
       user: {
         id: customer._id,
-        firstName: customer.firstName,
-        lastName: customer.lastName,
+        contactName: customer.contactName,
         email: customer.email
       }
     });
@@ -549,18 +550,6 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Check if account is active
-    if (customer.isActive === false) {
-      return res.status(403).json({ message: 'Account is deactivated. Please contact support.' });
-    }
-
-    // Check if locked
-    if (customer.isLocked()) {
-      return res.status(423).json({ 
-        message: 'Account locked due to too many failed attempts. Please try again in 15 minutes.' 
-      });
-    }
-
     // Verify password
     console.log(`🔐 Verifying password for ${email}`);
     const isMatch = await customer.comparePassword(password);
@@ -575,12 +564,6 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
 
     // Capture and save IP address (keep last 3)
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    if (!customer.loginIps) customer.loginIps = [];
-    customer.loginIps.push(ip);
-    if (customer.loginIps.length > 3) {
-      customer.loginIps.shift(); // Remove oldest
-    }
-    
     console.log(`💾 Saving customer login IP for ${email}`);
     await customer.save();
 
@@ -601,13 +584,12 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     });
 
     console.log(`✅ Login successful for ${email}`);
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Login successful',
       user: {
         id: customer._id,
-        firstName: customer.firstName,
-        lastName: customer.lastName,
+        contactName: customer.contactName,
         email: customer.email
       }
     });
@@ -621,11 +603,11 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
 // Customer Middleware
 const verifyCustomer = (req, res, next) => {
   const token = req.cookies.customerToken;
-  
+
   if (!token) {
     return res.status(401).json({ message: 'Access denied. No token provided.' });
   }
-  
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
     if (decoded.type !== 'customer') {
@@ -647,8 +629,7 @@ app.get('/api/customer/me', verifyCustomer, async (req, res) => {
     }
     res.json({
       id: customer._id,
-      firstName: customer.firstName,
-      lastName: customer.lastName,
+      contactName: customer.contactName,
       email: customer.email
     });
   } catch (error) {
@@ -661,19 +642,19 @@ app.get('/api/customer/me', verifyCustomer, async (req, res) => {
 const customerAuthMiddleware = async (req, res, next) => {
   try {
     const token = req.cookies.customerToken;
-    
+
     if (!token) {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
-    
+
     if (decoded.type !== 'customer') {
       return res.status(403).json({ message: 'Access denied' });
     }
 
     const customer = await Customer.findById(decoded.id);
-    
+
     if (!customer || !customer.isActive) {
       return res.status(403).json({ message: 'Account inactive or not found' });
     }
@@ -700,7 +681,7 @@ app.post('/api/customer/logout', (req, res) => {
 const verifyAnyAuth = (req, res, next) => {
   const adminToken = req.cookies.adminToken;
   const customerToken = req.cookies.customerToken;
-  
+
   // Try admin token first
   if (adminToken) {
     try {
@@ -713,7 +694,7 @@ const verifyAnyAuth = (req, res, next) => {
       // Admin token invalid, try customer token
     }
   }
-  
+
   // Try customer token
   if (customerToken) {
     try {
@@ -727,19 +708,36 @@ const verifyAnyAuth = (req, res, next) => {
       // Customer token invalid
     }
   }
-  
+
   // No valid token found
   return res.status(401).json({ error: 'Access denied. No valid token provided.' });
 };
 
 // Customer-accessible endpoint: Get all customers (for sales page)
+// Customer-accessible endpoint: Get all customers (for sales page) - Optimized (No images)
 app.get('/api/customers', verifyAnyAuth, async (req, res) => {
   try {
-    const customers = await Customer.find().select('-password').sort({ createdAt: -1 });
+    const customers = await Customer.find()
+      .select('-password -visits.image -resources.image')
+      .sort({ createdAt: -1 });
     res.json(customers);
   } catch (error) {
     console.error('Error fetching customers:', error);
     res.status(500).json({ message: 'Failed to fetch customers', error: error.message });
+  }
+});
+
+// Get single customer with full details (including images)
+app.get('/api/customers/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const customer = await Customer.findById(req.params.id).select('-password');
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+    res.json(customer);
+  } catch (error) {
+    console.error('Error fetching customer details:', error);
+    res.status(500).json({ message: 'Failed to fetch customer details', error: error.message });
   }
 });
 
@@ -856,7 +854,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
     // Get creator information based on auth type
     let createdBy = '';
     let createdByName = '';
-    
+
     if (req.authType === 'admin') {
       // Admin/User login
       createdBy = req.userId;
@@ -866,7 +864,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       // Customer login
       createdBy = req.customerId;
       const customerUser = await Customer.findById(req.customerId);
-      createdByName = customerUser ? `${customerUser.firstName} ${customerUser.lastName}` : 'Unknown Customer';
+      createdByName = customerUser ? customerUser.contactName : 'Unknown Customer';
     }
 
     const visitData = {
@@ -952,7 +950,7 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
     const { customerId } = req.params;
     const { title, date, customer, location, resourceType, image, description, notes, status, url, uploadedBy } = req.body;
 
-    console.log('Received resource data:', { title, date, customer, location, resourceType, hasImage: !!image, description, notes, status, url, uploadedBy });
+    console.log('Received resource data:', { title, date, customer, location, resourceType, imageCount: image ? image.length : 0, description, notes, status, url, uploadedBy });
 
     // If title is missing but resourceType is present, use resourceType as title
     const finalTitle = title || resourceType;
@@ -972,7 +970,7 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
       customer: customer || '',
       location: location || '',
       resourceType: resourceType || '',
-      image: image || '',
+      image: image || [],
       description: description || '',
       notes: notes || '',
       status: status || 'Active',
@@ -985,13 +983,13 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
     customerDoc.resources.push(newResource);
 
     await customerDoc.save();
-    
+
     console.log('Resource saved successfully');
-    
+
     res.status(201).json({ success: true, resources: customerDoc.resources });
   } catch (error) {
     console.error('Add resource error:', error);
-    res.status(500).json({ message: 'Failed to add resource' });
+    res.status(500).json({ message: `Failed to add resource: ${error.message}` });
   }
 });
 
@@ -1015,7 +1013,7 @@ app.put('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async
 
     if (title) resource.title = title;
     else if (resourceType) resource.title = resourceType; // Update title if type changes and title wasn't provided
-    
+
     if (date !== undefined) resource.date = date;
     if (customer !== undefined) resource.customer = customer;
     if (location !== undefined) resource.location = location;
@@ -1031,7 +1029,7 @@ app.put('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async
 
     await customerDoc.save();
     console.log('Resource updated successfully');
-    
+
     res.json({ success: true, resources: customerDoc.resources });
   } catch (error) {
     console.error('Update resource error:', error);
@@ -1060,6 +1058,148 @@ app.delete('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, as
 });
 
 // Admin: Get all customers
+
+// Bulk upload customers
+app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+    const workbook = read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+
+    // Read with headers (default behavior of sheet_to_json)
+    // This gives us an array of objects where keys are the column headers
+    const data = utils.sheet_to_json(sheet);
+
+    if (!data || data.length === 0) {
+        return res.status(400).json({ message: 'Sheet is empty or could not be parsed' });
+    }
+
+    // Heuristic matching to find correct columns regardless of exact name
+    // We look at the keys of the first row to determine mappings
+    const firstRow = data[0]; // Use first data row keys as schema
+    const keys = Object.keys(firstRow);
+
+    const findKey = (keywords) => {
+        return keys.find(k => keywords.some(w => k.toLowerCase().includes(w)));
+    };
+
+    // Attempt to identify columns based on likely keywords
+    const emailKey = findKey(['email', 'e-mail', 'mail']);
+    const nameKey = findKey(['contact', 'name', 'customer', 'full name']);
+    const companyKey = findKey(['company', 'business', 'organization', 'firm']);
+    const phoneKey = findKey(['phone', 'mobile', 'cell', 'tel']);
+    
+    // Address components
+    const addressKey = findKey(['address', 'street', 'location']);
+    const cityKey = findKey(['city', 'town']);
+    const stateKey = findKey(['state', 'province', 'region']);
+    const zipKey = findKey(['zip', 'postal', 'code']);
+
+    console.log('Bulk Upload - Detected Column Mapping:', { 
+        email: emailKey, 
+        name: nameKey, 
+        company: companyKey,
+        phone: phoneKey 
+    });
+
+    if (!emailKey) {
+        return res.status(400).json({ 
+            message: 'Could not detect an "Email" column. Please ensure your Excel file has a column header containing "Email".' 
+        });
+    }
+
+    const results = {
+      added: 0,
+      updated: 0,
+      skipped: 0,
+      errors: []
+    };
+
+    // Iterate through all rows
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+
+      try {
+        const rawEmail = row[emailKey];
+
+        if (!rawEmail || typeof rawEmail !== 'string') {
+            // Only report error if the row looks like it should contain data (has other fields)
+            if (Object.keys(row).length > 2) {
+                results.errors.push(`Row ${i + 2}: Missing or invalid email`);
+            }
+            continue;
+        }
+        
+        // Basic validation
+        if (!rawEmail.includes('@')) {
+             results.errors.push(`Row ${i + 2}: Invalid email format "${rawEmail}"`);
+             continue;
+        }
+
+        const email = rawEmail.toLowerCase().trim();
+
+        let customer = await Customer.findOne({ email: email });
+        
+        // Prepare data from row
+        const contactName = (nameKey && row[nameKey]) ? String(row[nameKey]).trim() : 'Unknown';
+        const company = (companyKey && row[companyKey]) ? String(row[companyKey]).trim() : contactName;
+        const phone = (phoneKey && row[phoneKey]) ? String(row[phoneKey]).trim() : '';
+        const street = (addressKey && row[addressKey]) ? String(row[addressKey]).trim() : '';
+        const city = (cityKey && row[cityKey]) ? String(row[cityKey]).trim() : '';
+        const state = (stateKey && row[stateKey]) ? String(row[stateKey]).trim() : '';
+        const zipCode = (zipKey && row[zipKey]) ? String(row[zipKey]).trim() : '';
+
+        if (customer) {
+          // Update existing customer
+          if (nameKey && row[nameKey]) customer.contactName = contactName;
+          if (companyKey && row[companyKey]) customer.company = company;
+          if (phoneKey && row[phoneKey]) customer.phone = phone;
+          
+          if (addressKey && row[addressKey]) customer.address.street = street;
+          if (cityKey && row[cityKey]) customer.address.city = city;
+          if (stateKey && row[stateKey]) customer.address.state = state;
+          if (zipKey && row[zipKey]) customer.address.zipCode = zipCode;
+          
+          await customer.save();
+          results.updated++;
+        } else {
+          const hashedPassword = await bcrypt.hash('Welcome123!', 10);
+          
+          const newCustomer = new Customer({
+            contactName: contactName,
+            email: email,
+            password: hashedPassword,
+            company: company,
+            phone: phone,
+            address: {
+              street: street,
+              city: city,
+              state: state,
+              zipCode: zipCode
+            },
+          isVerified: true,
+          priceLevel: 1 // Default level
+        });
+
+        await newCustomer.save();
+        results.added++;
+      }
+    } catch (err) {
+        results.errors.push(`Row ${i + 2}: ${err.message}`);
+      }
+    }
+
+    res.json({ success: true, message: 'Bulk upload processing complete', results });
+
+  } catch (error) {
+    console.error('Bulk upload error:', error);
+    res.status(500).json({ message: `Bulk upload failed: ${error.message}` });
+  }
+});
+
 app.get('/api/admin/customers', verifyToken, async (req, res) => {
   try {
     const customers = await Customer.find().select('-password').sort({ createdAt: -1 });
@@ -1072,7 +1212,7 @@ app.get('/api/admin/customers', verifyToken, async (req, res) => {
 // Admin: Create customer
 app.post('/api/admin/customers', verifyToken, async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, company, address, priceLevel } = req.body;
+    const { contactName, email, password, phone, company, address, priceLevel } = req.body;
 
     // Check if customer already exists
     const existingCustomer = await Customer.findOne({ email });
@@ -1082,26 +1222,24 @@ app.post('/api/admin/customers', verifyToken, async (req, res) => {
 
     // Create new customer
     const customer = new Customer({
-      firstName,
-      lastName,
+      contactName,
       email,
       password,
       phone,
       company,
       address,
-      priceLevel: priceLevel || 1, // Default to level 1 if not provided
+      priceLevel: priceLevel || 1,
       isVerified: true // Admin created accounts are verified by default
     });
 
     await customer.save();
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       message: 'Customer created successfully',
       customer: {
         id: customer._id,
-        firstName: customer.firstName,
-        lastName: customer.lastName,
+        contactName: customer.contactName,
         email: customer.email
       }
     });
@@ -1114,7 +1252,7 @@ app.post('/api/admin/customers', verifyToken, async (req, res) => {
 // Admin: Update customer
 app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, company, address, priceLevel } = req.body;
+    const { contactName, email, password, phone, company, address, priceLevel } = req.body;
     const customerId = req.params.id;
 
     const customer = await Customer.findById(customerId);
@@ -1123,17 +1261,13 @@ app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
     }
 
     // Update fields
-    customer.firstName = firstName || customer.firstName;
-    customer.lastName = lastName || customer.lastName;
+    customer.contactName = contactName || customer.contactName;
     customer.email = email || customer.email;
+    customer.password = password || customer.password;
     customer.phone = phone || customer.phone;
     customer.company = company || customer.company;
     customer.address = address || customer.address;
-    
-    // Update price level if provided
-    if (priceLevel !== undefined && priceLevel !== null) {
-      customer.priceLevel = priceLevel;
-    }
+    customer.priceLevel = priceLevel || customer.priceLevel;
 
     // Only update password if provided
     if (password && password.trim() !== '') {
@@ -1142,13 +1276,12 @@ app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
 
     await customer.save();
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Customer updated successfully',
       customer: {
         id: customer._id,
-        firstName: customer.firstName,
-        lastName: customer.lastName,
+        contactName: customer.contactName,
         email: customer.email
       }
     });
