@@ -1,9 +1,17 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
+
+// MOVED TO TOP to ensure settings apply to all models
+mongoose.set('debug', true);
+mongoose.set('autoIndex', false);
+mongoose.set('bufferCommands', false); // Disable buffering to fail fast if connection is bad
+
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
-import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
@@ -20,8 +28,6 @@ import { fileURLToPath } from 'url';
 import { read, utils } from 'xlsx';
 import bcrypt from 'bcryptjs';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -31,17 +37,72 @@ const PORT = process.env.PORT || 3001;
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-// Connect to MongoDB with connection pooling for better performance
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones', {
-  maxPoolSize: 10, // Maximum number of connections in the pool
-  minPoolSize: 2,  // Minimum number of connections to maintain
-  serverSelectionTimeoutMS: 30000, // Increased timeout for server selection
-  socketTimeoutMS: 45000, // Socket timeout
-  connectTimeoutMS: 30000, // Connection timeout
-  family: 4, // Force IPv4
-})
-  .then(() => console.log('✅ Connected to MongoDB with connection pooling'))
-  .catch(err => console.error('❌ MongoDB connection error:', err));
+const mongoOptions = {
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 10000,
+  maxPoolSize: 10,
+};
+
+mongoose.connection.on('error', err => {
+  console.error('❌ MongoDB runtime error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('⚠️ MongoDB disconnected. Attempting to reconnect...');
+});
+
+mongoose.connection.on('reconnecting', () => {
+  console.log('🔄 MongoDB reconnecting...');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('✅ MongoDB reconnected');
+});
+
+mongoose.connection.on('fullsetup', () => {
+  console.log('🌐 MongoDB connection: All nodes in replica set reachable');
+});
+
+// GLOBAL ERROR HANDLERS
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  // Give time for logs to flush before exiting if needed
+  setTimeout(() => process.exit(1), 1000);
+});
+
+// STARTUP WRAPPER
+async function startServer() {
+  console.log(`📡 Connecting to MongoDB Atlas (Wait for Ready)...`);
+  try {
+    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones', mongoOptions);
+    console.log('✅ Connected to MongoDB Atlas');
+    console.log('Connection Ready State:', mongoose.connection.readyState);
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Backend server running on port ${PORT}`);
+      
+      // Keep-Alive Mechanism for Render Free Tier
+      const keepAliveInterval = 5 * 60 * 1000;
+      setInterval(() => {
+        const url = process.env.RENDER_EXTERNAL_URL || process.env.FRONTEND_URL || `http://localhost:${PORT}`;
+        const healthUrl = `${url}/api/health`;
+        fetch(healthUrl)
+          .then(res => console.log(`✅ Keep-alive ping: ${res.status}`))
+          .catch(err => console.error(`❌ Keep-alive failed: ${err.message}`));
+      }, keepAliveInterval);
+    });
+  } catch (err) {
+    console.error('❌ MongoDB initial connection fatal error:', err);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 // DEBUG ENDPOINT - REMOVE IN PRODUCTION
 app.get('/api/debug/config', async (req, res) => {
@@ -204,7 +265,10 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     }
     
     // Find user by username
+    console.log(`🔍 Attempting to find User (Admin): ${username} (ReadyState: ${mongoose.connection.readyState})`);
+    const startQuery = Date.now();
     const user = await User.findOne({ username: username.toLowerCase() });
+    console.log(`⏱️ Query took ${Date.now() - startQuery}ms`);
     
     if (!user) {
       return res.status(401).json({ 
@@ -429,7 +493,7 @@ app.post('/api/contact', async (req, res) => {
     // Try to send email if credentials are configured
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
       try {
-        const transporter = nodemailer.createTransporter({
+        const transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST || 'smtp.gmail.com',
           port: process.env.SMTP_PORT || 587,
           secure: false,
@@ -544,28 +608,63 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       return res.status(400).json({ message: 'Invalid input format' });
     }
 
-    // Find customer
-    const customer = await Customer.findOne({ email: email.toLowerCase() });
-    if (!customer) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+    // Trial query to check if connection is active
+    console.log(`[${new Date().toISOString()}] 🔍 CONNECTION CHECK: Running countDocuments...`);
+    try {
+      const dbCheck = await Customer.countDocuments();
+      console.log(`[${new Date().toISOString()}] ✅ CONNECTION CHECK SUCCESS: Found ${dbCheck} records`);
+    } catch (checkErr) {
+      console.error(`[${new Date().toISOString()}] ❌ CONNECTION CHECK FAILED:`, checkErr.message);
     }
 
-    // Verify password
-    console.log(`🔐 Verifying password for ${email}`);
-    const isMatch = await customer.comparePassword(password);
-    if (!isMatch) {
-      console.log(`❌ Password mismatch for ${email}`);
-      await customer.incLoginAttempts();
-      return res.status(401).json({ message: 'Invalid email or password' });
+    // Find customer - Exclude heavy arrays to prevent timeouts on high-latency networks
+    console.log(`[${new Date().toISOString()}] 🔍 DB QUERY START: Finding customer ${email}`);
+    const startQuery = Date.now();
+    let customer;
+    try {
+      customer = await Customer.findOne({ email }).select('-visits -resources');
+      console.log(`[${new Date().toISOString()}] ⏱️ DB QUERY END: Took ${Date.now() - startQuery}ms`);
+
+      if (!customer) {
+        console.log(`[${new Date().toISOString()}] ❌ Customer not found: ${email}`);
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
+
+      // Verify password
+      console.log(`[${new Date().toISOString()}] 🔐 CRYPTO START: Verifying password for ${email}`);
+      const startCrypto = Date.now();
+      const isMatch = await customer.comparePassword(password);
+      console.log(`[${new Date().toISOString()}] ⏱️ CRYPTO END: Verification took ${Date.now() - startCrypto}ms`);
+      
+      if (!isMatch) {
+        console.log(`[${new Date().toISOString()}] ❌ Password mismatch for ${email}`);
+        await customer.incLoginAttempts();
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
+    } catch (dbError) {
+      console.error(`[${new Date().toISOString()}] ❌ DB ERROR during findOne:`, dbError);
+      throw dbError; 
     }
 
-    // Reset login attempts on success
-    await customer.resetLoginAttempts();
-
-    // Capture and save IP address (keep last 3)
+    // Reset login attempts and save IP address atomically
+    // Reset login attempts and save IP address atomically using updateOne
+    // We use updateOne instead of findByIdAndUpdate/save to avoid fetching the full 1MB document back
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    console.log(`💾 Saving customer login IP for ${email}`);
-    await customer.save();
+    console.log(`💾 Updating customer login info (IP: ${ip}) for ${email}`);
+    
+    await Customer.updateOne({ _id: customer._id }, {
+      $set: { 
+        loginAttempts: 0,
+        lastLoginIp: ip
+      },
+      $unset: { lockUntil: 1 },
+      $push: { 
+        loginIps: { 
+          $each: [ip], 
+          $slice: -3 
+        } 
+      }
+    });
 
     // Generate JWT token
     console.log(`🔑 Generating JWT for ${email}`);
@@ -623,7 +722,7 @@ const verifyCustomer = (req, res, next) => {
 // Get current customer
 app.get('/api/customer/me', verifyCustomer, async (req, res) => {
   try {
-    const customer = await Customer.findById(req.customerId).select('-password');
+    const customer = await Customer.findById(req.customerId).select('-password -visits -resources');
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
@@ -1543,7 +1642,13 @@ app.delete('/api/sales/customers/:id', verifyToken, async (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
+  const dbStatusMap = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    dbStatus: dbStatusMap[mongoose.connection.readyState] || 'unknown',
+    dbHost: mongoose.connection.host
+  });
 });
 
 // Serve uploaded files from public directory
@@ -1560,27 +1665,3 @@ if (fs.existsSync(distPath)) {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
-
-app.listen(PORT, () => {
-  console.log(`🚀 Backend server running on port ${PORT}`);
-  
-  // Keep-Alive Mechanism for Render Free Tier
-  // Pings the server every 5 minutes (300,000 ms) to prevent sleep
-  const keepAliveInterval = 5 * 60 * 1000; // 5 minutes
-  
-  setInterval(() => {
-    const url = process.env.RENDER_EXTERNAL_URL || process.env.FRONTEND_URL || `http://localhost:${PORT}`;
-    const healthUrl = `${url}/api/health`;
-    
-    console.log(`⏰ Sending keep-alive ping to ${healthUrl}`);
-    
-    // Use dynamic import for node-fetch or use native http/https based on protocol
-    // Simple implementation using fetch if available (Node 18+) or axios if installed
-    // Since we don't want to add dependencies, we'll use native fetch which is available in Node 18+
-    
-    fetch(healthUrl)
-      .then(res => console.log(`✅ Keep-alive ping status: ${res.status}`))
-      .catch(err => console.error(`❌ Keep-alive ping failed: ${err.message}`));
-      
-  }, keepAliveInterval);
-});

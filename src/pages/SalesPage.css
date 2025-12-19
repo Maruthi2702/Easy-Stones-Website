@@ -286,11 +286,13 @@
 .sales-main {
   flex: 1;
   margin-left: 300px; /* Default pinned state */
-  padding: 2rem;
-  overflow-y: auto;
+  padding: 0;
+  overflow: hidden; /* Changed from auto to prevent double scrollbars */
   height: calc(100vh - 80px);
   min-width: 0;
-  padding-bottom: 50px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -300,189 +302,97 @@
 
 /* Customer Header */
 .customer-header {
-  margin-bottom: 2rem;
+  margin-bottom: 0;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 1.25rem 2rem 0 2rem;
+}
+
+.header-main {
+  display: flex;
   justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
 .customer-name {
-  font-size: 2rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, #fff 0%, #e5e5e5 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-}
-
-/* Info Boxes */
-.info-boxes {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1.25rem;
-  margin-bottom: 2rem;
-}
-
-.info-box {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.info-box:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(212, 175, 55, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
-.info-box label {
-  display: block;
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  opacity: 0.8;
-}
-
-.info-box p {
+  color: #FFFFFF;
   margin: 0;
-  font-size: 1rem;
-  color: var(--text-primary);
-  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-.status-active {
-  color: #10b981 !important;
-  text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
-}
-
-.status-inactive {
-  color: #ef4444 !important;
-  text-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
-}
-
-/* Three Column Layout */
-.detail-columns {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.detail-column {
-  background: rgba(18, 18, 18, 0.6);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 1.5rem;
-  transition: all 0.3s ease;
-}
-
-.detail-column:hover {
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-}
-
-.detail-column h3 {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--accent-color);
-  margin: 0 0 1.25rem 0;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  text-transform: uppercase;
-  letter-spacing: 1px;
+.customer-meta {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-top: 2px;
 }
 
-.column-content {
-  font-size: 0.9rem;
-}
-
-.address-line {
-  margin: 0 0 0.35rem 0;
-  color: var(--text-primary);
-  line-height: 1.6;
-}
-
-.text-muted {
-  color: var(--text-secondary);
-  font-style: italic;
-  opacity: 0.7;
-}
-
-.contact-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  color: var(--text-primary);
-  padding: 0.5rem;
-  border-radius: 8px;
-  transition: background 0.2s;
-}
-
-.contact-item:hover {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.contact-item svg {
-  color: var(--accent-color);
-  flex-shrink: 0;
-  opacity: 0.9;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.875rem;
-  font-size: 0.9rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
-}
-
-.info-row:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.info-row label {
-  color: var(--text-secondary);
+.customer-location {
+  font-size: 0.8rem;
+  color: #9CA3AF !important;
   font-weight: 500;
 }
 
-.info-row span {
-  color: var(--text-primary);
+.meta-separator {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 0.8rem;
+}
+
+.status-pill {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
   font-weight: 600;
 }
 
-/* Tabs */
-/* Header Layout */
-.header-left {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.status-pill.inactive {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
 }
 
-.title-row {
+.price-level-tag {
+  font-size: 0.75rem;
+  color: #9CA3AF;
+  font-weight: 500;
+}
+
+/* ... Info Boxes ... */
+
+/* ... */
+
+/* Tabs */
+/* Header Layout */
+.header-right {
   display: flex;
-  align-items: baseline;
-  gap: 2rem;
+  align-items: center;
+}
+
+.info-toggle-btn {
+  background: transparent;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.info-toggle-btn:hover, .info-toggle-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #FFFFFF;
 }
 
 /* Header Tabs */
@@ -490,30 +400,29 @@
   display: flex;
   gap: 1.5rem;
   align-items: center;
+  margin-top: 0.75rem;
 }
 
 .header-tab {
   background: transparent;
   border: none;
-  color: var(--text-secondary);
+  color: #9CA3AF;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
+  padding: 0.5rem 0;
   position: relative;
   transition: all 0.2s;
+  border-bottom: 2px solid transparent;
 }
 
 .header-tab:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  color: #FFFFFF;
 }
 
 .header-tab.active {
-  background: #e5c04a; /* Gold hardcoded */
-  color: #000;
-  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+  color: #FFFFFF;
+  border-bottom: 2px solid #007AFF; /* iOS/Modern Blue */
 }
 
 .header-tab.active::after {
@@ -521,9 +430,35 @@
 }
 
 .tab-content {
-  padding: 1.5rem 0;
-  height: calc(100vh - 280px);
-  min-height: 600px;
+  padding: 0; /* Remove padding here to allow tab sections to control it */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Critical for internal scrolls to work */
+  overflow: hidden;
+}
+
+.tab-section {
+  padding: 1.5rem 2rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.tab-section.visits-tab {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Contact table specific wrapper */
+.data-table {
+  margin-top: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
 }
 
 .contacts-table {
@@ -609,19 +544,44 @@
 @media (max-width: 768px) {
   .sales-container {
     flex-direction: column;
-    padding-top: 100px;
+    padding-top: 60px; /* Reduced header height space */
   }
 
+  /* Mobile: Sidebar (Master View) */
   .sales-sidebar {
-    position: relative;
+    position: fixed;
+    top: 60px;
+    left: 0;
     width: 100%;
-    top: 0;
-    max-height: 400px;
+    height: calc(100vh - 60px);
+    z-index: 100;
+    background: var(--bg-primary); /* Solid bg */
+    border-right: none;
+    transform: translateX(0);
+    transition: transform 0.3s ease;
   }
 
+  .sales-sidebar.closed {
+    transform: translateX(-100%);
+  }
+
+  /* Mobile: Main Content (Detail View) */
   .sales-main {
-    margin-left: 0;
+    margin-left: 0 !important; /* Force no margin */
     padding: 1rem;
+    width: 100%;
+    height: calc(100vh - 60px);
+    position: fixed;
+    top: 60px;
+    left: 0;
+    overflow-y: auto;
+    background: var(--bg-primary);
+    z-index: 50; /* Below sidebar when sidebar is open */
+  }
+  
+  .sales-main.full-width {
+      /* When sidebar is closed (detail view), main is visible */
+      z-index: 50; 
   }
 
   .info-boxes {
@@ -636,6 +596,103 @@
     white-space: nowrap;
     flex: 0 0 auto;
     min-width: 100px;
+  }
+
+  /* --- Mobile Table Card View --- */
+  .data-table table, 
+  .data-table thead, 
+  .data-table tbody, 
+  .data-table th, 
+  .data-table td, 
+  .data-table tr,
+  .resources-table table, 
+  .resources-table thead, 
+  .resources-table tbody, 
+  .resources-table th, 
+  .resources-table td, 
+  .resources-table tr { 
+    display: block; 
+  }
+
+  /* Hide headers */
+  .data-table thead tr,
+  .resources-table thead tr { 
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+
+  .data-table tr,
+  .resources-table tr { 
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 0.5rem;
+  }
+
+  .data-table td,
+  .resources-table td { 
+    /* Behave  like a "row" */
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05); 
+    position: relative;
+    padding-left: 50%; 
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: right;
+  }
+
+  .data-table td:last-child,
+  .resources-table td:last-child {
+      border-bottom: none;
+  }
+
+  .data-table td::before,
+  .resources-table td::before { 
+    /* Now like a table header */
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    margin-right: auto; /* Push content to right */
+    text-align: left;
+  }
+
+  /* Resource Filters Stacking */
+  .resources-filters {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1.5rem;
+  }
+
+  .filter-row {
+      flex-direction: column;
+      gap: 1rem;
+  }
+
+  .filter-actions {
+      width: 100%;
+      flex-direction: column;
+  }
+  
+  .filter-actions button {
+      width: 100%;
+  }
+
+  /* Resource Details Grid */
+  .resource-details {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+  }
+  
+  /* Visits Chat Bubble Max Width */
+  .chat-message {
+      max-width: 90%;
   }
 }
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, User, Plus, Edit2, Trash2, X, Eye, Send, MoreVertical, Paperclip, Image as ImageIcon, Maximize2, Minimize2, Pin, PinOff, Menu, ChevronLeft } from 'lucide-react';
+import { Search, User, Plus, Edit2, Trash2, X, Eye, Send, MoreVertical, Paperclip, Image as ImageIcon, Maximize2, Minimize2, Pin, PinOff, Menu, ChevronLeft, Info } from 'lucide-react';
+
 import { API_URL } from '../config/api';
 import './SalesPage.css';
 import './SalesPageChat.css';
@@ -67,6 +68,19 @@ const SalesPage = () => {
         return saved !== null ? JSON.parse(saved) : true;
     });
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768);
+            if (window.innerWidth > 768) {
+                setIsSidebarOpen(true);
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     useEffect(() => {
         localStorage.setItem('sidebarPinned', JSON.stringify(isPinned));
@@ -310,9 +324,19 @@ const SalesPage = () => {
     const handleSelectCustomer = (customer) => {
         setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
         setSelectedCustomerId(customer._id);
+        // On mobile, close sidebar (list view) to show details
+        if (isMobile) {
+            setIsSidebarOpen(false);
+        }
         // fetchSingleCustomer is triggered by useEffect
         setActiveTab('visits');
         window.scrollTo(0, 0);
+    };
+
+    const handleMobileBack = () => {
+        setIsSidebarOpen(true); // Show list
+        // Optional: clear selection if you want to unmount details, but keeping it keeps state
+        // setSelectedCustomerId(null);
     };
 
     const getPriceLevelLabel = (level) => {
@@ -899,53 +923,68 @@ const SalesPage = () => {
                             {/* Customer Header - Hide in full screen chat */}
                             {!isChatFullScreen && (
                                 <div className="customer-header">
-                                    <div className="header-left">
-                                        <div className="title-row">
-                                            <h1 className="customer-name">
-                                                {selectedCustomer.company || selectedCustomer.contactName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}
-                                            </h1>
-                                            <div className="header-tabs">
-                                                <button
-                                                    className={`header-tab ${activeTab === 'visits' ? 'active' : ''}`}
-                                                    onClick={() => setActiveTab('visits')}
-                                                >
-                                                    Visits
+                                    <div className="header-main">
+                                        <div className="header-left">
+                                            {isMobile && (
+                                                <button className="icon-btn mobile-back-btn" onClick={handleMobileBack} style={{ background: 'transparent', border: 'none', padding: '0', marginRight: '0.5rem' }}>
+                                                    <ChevronLeft size={28} color="#007AFF" />
                                                 </button>
-                                                <button
-                                                    className={`header-tab ${activeTab === 'resources' ? 'active' : ''}`}
-                                                    onClick={() => setActiveTab('resources')}
-                                                >
-                                                    Resources
-                                                </button>
-                                                <button
-                                                    className={`header-tab ${activeTab === 'contacts' ? 'active' : ''}`}
-                                                    onClick={() => setActiveTab('contacts')}
-                                                >
-                                                    Contacts
-                                                </button>
+                                            )}
+                                            <div className="name-block">
+                                                <h1 className="customer-name">
+                                                    {selectedCustomer.company || selectedCustomer.contactName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}
+                                                </h1>
+                                                <div className="customer-meta">
+                                                    {selectedCustomer.address && (selectedCustomer.address.city || selectedCustomer.address.state) && (
+                                                        <span className="customer-location">
+                                                            {selectedCustomer.address.city}{selectedCustomer.address.city && selectedCustomer.address.state ? ', ' : ''}{selectedCustomer.address.state}
+                                                        </span>
+                                                    )}
+                                                    <span className="meta-separator">•</span>
+                                                    <span className={`status-pill ${selectedCustomer.isActive !== false ? 'active' : 'inactive'}`}>
+                                                        {selectedCustomer.isActive !== false ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                    <span className="meta-separator">•</span>
+                                                    <span className="price-level-tag">Level {selectedCustomer.priceLevel}</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                                            <span className={`status-badge ${selectedCustomer.isActive ? 'status-active' : 'status-inactive'}`}>
-                                                ● {selectedCustomer.isActive ? 'Active' : 'Inactive'}
-                                            </span>
-                                            <span className="text-muted">
-                                                Level {selectedCustomer.priceLevel}
-                                            </span>
+                                        <div className="header-right">
+                                            <button
+                                                className={`info-toggle-btn ${showCustomerInfo ? 'active' : ''}`}
+                                                onClick={() => setShowCustomerInfo(!showCustomerInfo)}
+                                                title={showCustomerInfo ? 'Hide Info' : 'Show Info'}
+                                            >
+                                                <Info size={20} />
+                                            </button>
                                         </div>
                                     </div>
-                                    <button
-                                        className="btn-secondary"
-                                        onClick={() => setShowCustomerInfo(!showCustomerInfo)}
-                                    >
-                                        {showCustomerInfo ? 'Hide Info' : 'Show Info'}
-                                    </button>
+                                    <div className="header-tabs">
+                                        <button
+                                            className={`header-tab ${activeTab === 'visits' ? 'active' : ''}`}
+                                            onClick={() => setActiveTab('visits')}
+                                        >
+                                            Conversation
+                                        </button>
+                                        <button
+                                            className={`header-tab ${activeTab === 'resources' ? 'active' : ''}`}
+                                            onClick={() => setActiveTab('resources')}
+                                        >
+                                            Files
+                                        </button>
+                                        <button
+                                            className={`header-tab ${activeTab === 'contacts' ? 'active' : ''}`}
+                                            onClick={() => setActiveTab('contacts')}
+                                        >
+                                            More
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
                             {/* Collapsible Info Section - Hide in full screen chat */}
                             {!isChatFullScreen && showCustomerInfo && (
-                                <>
+                                <div className="customer-info-section">
                                     {/* Info Boxes Row */}
                                     <div className="info-boxes">
                                         <div className="info-box">
@@ -1025,8 +1064,9 @@ const SalesPage = () => {
                                             </div>
                                         </div>
                                     </div>
-                                </>
-                            )}     <div className="tab-content">
+                                </div>
+                            )}
+                            <div className="tab-content">
                                 {activeTab === 'contacts' && (
                                     <div className="tab-section">
                                         <div className="tab-header">
@@ -1052,13 +1092,13 @@ const SalesPage = () => {
                                                     {selectedCustomer.contacts && selectedCustomer.contacts.length > 0 ? (
                                                         selectedCustomer.contacts.map(contact => (
                                                             <tr key={contact._id}>
-                                                                <td>{contact.name}</td>
-                                                                <td>{contact.phone || '-'}</td>
-                                                                <td>{contact.email || '-'}</td>
-                                                                <td>{contact.role || '-'}</td>
-                                                                <td>{contact.isPrimary ? 'Yes' : 'No'}</td>
-                                                                <td>{contact.notes || '-'}</td>
-                                                                <td>
+                                                                <td data-label="Name">{contact.name}</td>
+                                                                <td data-label="Phone">{contact.phone || '-'}</td>
+                                                                <td data-label="Email">{contact.email || '-'}</td>
+                                                                <td data-label="Role">{contact.role || '-'}</td>
+                                                                <td data-label="Primary">{contact.isPrimary ? 'Yes' : 'No'}</td>
+                                                                <td data-label="Notes">{contact.notes || '-'}</td>
+                                                                <td data-label="Actions">
                                                                     <div className="action-buttons">
                                                                         <button className="icon-btn edit" onClick={() => handleEditContact(contact)}>
                                                                             <Edit2 size={14} />
@@ -1082,8 +1122,8 @@ const SalesPage = () => {
                                 )}
 
                                 {activeTab === 'visits' && (
-                                    <div className="tab-section" style={{ height: '100%', padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                                        <div className="chat-header-actions" style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)' }}>
+                                    <div className="tab-section visits-tab">
+                                        <div className="chat-header-actions" style={{ padding: '0.75rem 2rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)' }}>
                                             <h3 style={{ margin: 0, fontSize: '1rem' }}>
                                                 {isChatFullScreen ? (selectedCustomer.company || selectedCustomer.firstName) : 'Visits'}
                                             </h3>
@@ -1294,17 +1334,17 @@ const SalesPage = () => {
                                                                     className={expandedResourceId === resource._id ? 'expanded' : ''}
                                                                     onClick={() => setExpandedResourceId(expandedResourceId === resource._id ? null : resource._id)}
                                                                 >
-                                                                    <td>{index + 1}</td>
-                                                                    <td>{formatDate(resource.date, { month: '2-digit', day: '2-digit', year: 'numeric' })}</td>
-                                                                    <td>
+                                                                    <td data-label="#">{index + 1}</td>
+                                                                    <td data-label="Date">{formatDate(resource.date, { month: '2-digit', day: '2-digit', year: 'numeric' })}</td>
+                                                                    <td data-label="Client">
                                                                         {(() => {
                                                                             const customerObj = customers.find(c => c._id === resource.customerId);
                                                                             return customerObj ? (customerObj.company || `${customerObj.firstName} ${customerObj.lastName}`) : (resource.customer || '-');
                                                                         })()}
                                                                     </td>
-                                                                    <td>{resource.location || '-'}</td>
-                                                                    <td>{resource.resourceType || '-'}</td>
-                                                                    <td>
+                                                                    <td data-label="Location">{resource.location || '-'}</td>
+                                                                    <td data-label="Type">{resource.resourceType || '-'}</td>
+                                                                    <td data-label="Actions">
                                                                         <div className="action-buttons" onClick={(e) => e.stopPropagation()}>
                                                                             <button className="icon-btn view" onClick={(e) => { e.stopPropagation(); handleViewResource(resource); }} title="View">
                                                                                 <Eye size={16} />
@@ -1361,7 +1401,7 @@ const SalesPage = () => {
                                                         ))
                                                     ) : (
                                                         <tr>
-                                                            <td colSpan="5" className="empty-row">No resources found</td>
+                                                            <td colSpan="6" className="empty-row">No resources found</td>
                                                         </tr>
                                                     )}
                                                 </tbody>

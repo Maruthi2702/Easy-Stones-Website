@@ -1,14 +1,12 @@
 import { NavLink, Link } from 'react-router-dom';
-import { Menu, LogOut, X, ChevronDown } from 'lucide-react';
+import { Menu, LogOut, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import './Header.css';
 
 const Header = () => {
   const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [salesDropdownOpen, setSalesDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
 
   const handleLogout = async () => {
     await logout();
@@ -20,29 +18,9 @@ const Header = () => {
 
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
-    setSalesDropdownOpen(false);
   };
 
-  const toggleSalesDropdown = () => {
-    setSalesDropdownOpen(!salesDropdownOpen);
-  };
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setSalesDropdownOpen(false);
-      }
-    };
-
-    if (salesDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [salesDropdownOpen]);
 
   return (
     <header className="header glass-panel">
@@ -62,21 +40,7 @@ const Header = () => {
             Live Inventory
           </a>
           {user && (
-            <div className="dropdown" ref={dropdownRef}>
-              <button
-                className="nav-link dropdown-toggle"
-                onClick={toggleSalesDropdown}
-                aria-expanded={salesDropdownOpen}
-              >
-                Sales <ChevronDown size={16} className={`dropdown-icon ${salesDropdownOpen ? 'open' : ''}`} />
-              </button>
-              {salesDropdownOpen && (
-                <div className="dropdown-menu">
-                  <Link to="/sales" className="dropdown-item" onClick={() => setSalesDropdownOpen(false)}>Customers</Link>
-                  <Link to="/sales/map" className="dropdown-item" onClick={() => setSalesDropdownOpen(false)}>Map</Link>
-                </div>
-              )}
-            </div>
+            <NavLink to="/sales" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Sales</NavLink>
           )}
           <NavLink to="/warranty" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Warranty</NavLink>
           <NavLink to="/contact" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Contact Us</NavLink>
@@ -126,20 +90,13 @@ const Header = () => {
             Live Inventory
           </a>
           {user && (
-            <div className="mobile-dropdown">
-              <button
-                className="nav-link mobile-dropdown-toggle"
-                onClick={toggleSalesDropdown}
-              >
-                Sales <ChevronDown size={16} className={`dropdown-icon ${salesDropdownOpen ? 'open' : ''}`} />
-              </button>
-              {salesDropdownOpen && (
-                <div className="mobile-dropdown-menu">
-                  <Link to="/sales" className="dropdown-item" onClick={closeMobileMenu}>Customers</Link>
-                  <Link to="/sales/map" className="dropdown-item" onClick={closeMobileMenu}>Map</Link>
-                </div>
-              )}
-            </div>
+            <NavLink
+              to="/sales"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              onClick={closeMobileMenu}
+            >
+              Sales
+            </NavLink>
           )}
           <NavLink
             to="/warranty"

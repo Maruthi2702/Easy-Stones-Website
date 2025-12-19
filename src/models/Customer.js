@@ -66,10 +66,15 @@ const customerSchema = new mongoose.Schema({
     uploadedBy: String,
     createdAt: { type: Date, default: Date.now }
   }]
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
+  autoIndex: false,
+  bufferCommands: false 
+});
 
 // Indexes for performance optimization
-customerSchema.index({ email: 1 }, { unique: true }); // Unique index for login
 customerSchema.index({ isActive: 1 }); // Index for filtering active customers
 customerSchema.index({ priceLevel: 1 }); // Index for price level queries
 
