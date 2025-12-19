@@ -366,9 +366,127 @@
   font-weight: 500;
 }
 
-/* ... Info Boxes ... */
+/* Info Section Styles */
+.customer-info-section {
+    padding: 1.5rem 2rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    animation: slideDown 0.3s ease-out;
+}
 
-/* ... */
+.info-boxes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+}
+
+.info-box {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1.25rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+}
+
+.info-box:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(229, 192, 74, 0.2);
+    transform: translateY(-2px);
+}
+
+.info-box label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #e5c04a; /* Brand Gold */
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+    opacity: 0.8;
+}
+
+.info-box p {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.status-active { color: #10b981; }
+.status-inactive { color: #ef4444; }
+
+/* Detail Columns */
+.detail-columns {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+}
+
+.detail-column h3 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #e5c04a;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(229, 192, 74, 0.2);
+}
+
+.column-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.address-line {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.contact-item svg {
+    color: #e5c04a;
+    opacity: 0.7;
+}
+
+.text-muted {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-row label {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 500;
+}
+
+.info-row span {
+    font-size: 0.85rem;
+    color: #ffffff;
+    font-weight: 600;
+}
 
 /* Tabs */
 /* Header Layout */
@@ -391,8 +509,8 @@
 }
 
 .info-toggle-btn:hover, .info-toggle-btn.active {
-  background: rgba(255, 255, 255, 0.1);
-  color: #FFFFFF;
+  background: rgba(229, 192, 74, 0.1);
+  color: #e5c04a;
 }
 
 /* Header Tabs */
