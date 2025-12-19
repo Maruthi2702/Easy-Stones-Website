@@ -689,7 +689,8 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       user: {
         id: customer._id,
         contactName: customer.contactName,
-        email: customer.email
+        email: customer.email,
+        company: customer.company
       }
     });
   } catch (error) {
@@ -729,7 +730,8 @@ app.get('/api/customer/me', verifyCustomer, async (req, res) => {
     res.json({
       id: customer._id,
       contactName: customer.contactName,
-      email: customer.email
+      email: customer.email,
+      company: customer.company
     });
   } catch (error) {
     console.error('Get customer error:', error);

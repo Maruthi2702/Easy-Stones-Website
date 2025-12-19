@@ -49,7 +49,7 @@ const Header = () => {
         <div className="header-actions">
           {user ? (
             <div className="user-menu">
-              <span className="user-name">{user.firstName}</span>
+              <span className="logged-in-btn">{user.company || user.contactName}</span>
               <button onClick={handleLogout} className="logout-btn" aria-label="Logout">
                 <LogOut size={18} />
               </button>
