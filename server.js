@@ -856,22 +856,26 @@ app.post('/api/customers/:customerId/contacts', verifyAnyAuth, async (req, res) 
       return res.status(400).json({ message: 'Contact name is required' });
     }
 
-    const customer = await Customer.findById(customerId);
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-
-    customer.contacts.push({
+    const newContact = {
       name,
       phone,
       email,
       role,
       isPrimary: isPrimary || false,
-      notes
-    });
+      notes,
+      createdAt: new Date()
+    };
 
-    await customer.save();
-    res.status(201).json({ success: true, contacts: customer.contacts });
+    const result = await Customer.updateOne(
+      { _id: customerId },
+      { $push: { contacts: newContact } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    res.status(201).json({ success: true, contact: newContact });
   } catch (error) {
     console.error('Add contact error:', error);
     res.status(500).json({ message: 'Failed to add contact' });
@@ -882,27 +886,23 @@ app.post('/api/customers/:customerId/contacts', verifyAnyAuth, async (req, res) 
 app.put('/api/customers/:customerId/contacts/:contactId', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId, contactId } = req.params;
-    const { name, phone, email, role, isPrimary, notes } = req.body;
+    const fields = req.body;
 
-    const customer = await Customer.findById(customerId);
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
+    const updateData = {};
+    Object.keys(fields).forEach(key => {
+      updateData[`contacts.$.${key}`] = fields[key];
+    });
+
+    const result = await Customer.updateOne(
+      { _id: customerId, 'contacts._id': contactId },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'Customer or contact not found' });
     }
 
-    const contact = customer.contacts.id(contactId);
-    if (!contact) {
-      return res.status(404).json({ message: 'Contact not found' });
-    }
-
-    if (name) contact.name = name;
-    if (phone !== undefined) contact.phone = phone;
-    if (email !== undefined) contact.email = email;
-    if (role !== undefined) contact.role = role;
-    if (isPrimary !== undefined) contact.isPrimary = isPrimary;
-    if (notes !== undefined) contact.notes = notes;
-
-    await customer.save();
-    res.json({ success: true, contacts: customer.contacts });
+    res.json({ success: true, message: 'Contact updated successfully' });
   } catch (error) {
     console.error('Update contact error:', error);
     res.status(500).json({ message: 'Failed to update contact' });
@@ -938,17 +938,25 @@ app.post('/api/auth/change-password', verifyToken, async (req, res) => {
 // ============================================
 
 // Add visit
+// Add visit
 app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId } = req.params;
     const { date, purpose, notes, outcome, nextAction, image } = req.body;
 
+    console.log(`[DEBUG] Received visit creation request for Customer: ${customerId}`);
+    console.log(`[DEBUG] Auth type: ${req.authType}, User ID: ${req.userId || req.customerId}`);
+    console.log(`[DEBUG] Payload size (approx): ${JSON.stringify(req.body).length} chars`);
+
     if (!date) {
+      console.log('[DEBUG] Missing date in payload');
       return res.status(400).json({ message: 'Visit date is required' });
     }
 
-    const customer = await Customer.findById(customerId);
-    if (!customer) {
+    // Check if customer exists first (using lean query)
+    const customerExists = await Customer.findById(customerId).select('_id');
+    if (!customerExists) {
+      console.log(`[DEBUG] Customer ${customerId} not found`);
       return res.status(404).json({ message: 'Customer not found' });
     }
 
@@ -957,14 +965,13 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
     let createdByName = '';
 
     if (req.authType === 'admin') {
-      // Admin/User login
       createdBy = req.userId;
-      const user = await User.findById(req.userId);
+      const user = await User.findById(req.userId).select('username');
       createdByName = user ? user.username : 'Unknown User';
     } else if (req.authType === 'customer') {
-      // Customer login
       createdBy = req.customerId;
-      const customerUser = await Customer.findById(req.customerId);
+      // Get contactName with lean query to avoid loading massive arrays
+      const customerUser = await Customer.findById(req.customerId).select('contactName');
       createdByName = customerUser ? customerUser.contactName : 'Unknown Customer';
     }
 
@@ -976,45 +983,61 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       nextAction,
       image,
       createdBy,
-      createdByName
+      createdByName,
+      createdAt: new Date()
     };
+    
+    console.log(`[DEBUG] Prepared visit data for update. Image count: ${image && Array.isArray(image) ? image.length : (image ? 1 : 0)}`);
 
-    customer.visits.push(visitData);
-    await customer.save();
+    // Use atomic $push to add the visit without loading the entire document
+    const startUpdate = Date.now();
+    const result = await Customer.updateOne(
+      { _id: customerId },
+      { $push: { visits: visitData } }
+    );
+    console.log(`[DEBUG] UpdateOne completed in ${Date.now() - startUpdate}ms`);
+    console.log('[DEBUG] Update result:', result);
 
-    console.log('Saved visit with image:', !!image, 'Image length:', image ? image.length : 0);
-    res.status(201).json({ success: true, visits: customer.visits });
+    if (result.matchedCount === 0) {
+        console.error(`[DEBUG] ERROR: Update match count is 0. ID ${customerId} might not exist?`);
+        return res.status(404).json({ message: 'Customer not found or update failed' });
+    }
+
+    console.log('Saved visit atomically with image:', !!image, 'Image length:', image ? image.length : 0);
+    
+    // Return only the new visit data instead of the whole array
+    res.status(201).json({ success: true, visit: visitData });
   } catch (error) {
     console.error('Add visit error:', error);
-    res.status(500).json({ message: 'Failed to add visit' });
+    res.status(500).json({ message: 'Failed to add visit: ' + error.message });
   }
 });
 
+// Update visit
 // Update visit
 app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
     const { date, purpose, notes, outcome, nextAction, image } = req.body;
 
-    const customer = await Customer.findById(customerId);
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
+    const updateData = {};
+    if (date) updateData['visits.$.date'] = date;
+    if (purpose !== undefined) updateData['visits.$.purpose'] = purpose;
+    if (notes !== undefined) updateData['visits.$.notes'] = notes;
+    if (outcome !== undefined) updateData['visits.$.outcome'] = outcome;
+    if (nextAction !== undefined) updateData['visits.$.nextAction'] = nextAction;
+    if (image !== undefined) updateData['visits.$.image'] = image;
+
+    const result = await Customer.updateOne(
+      { _id: customerId, 'visits._id': visitId },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'Customer or visit not found' });
     }
 
-    const visit = customer.visits.id(visitId);
-    if (!visit) {
-      return res.status(404).json({ message: 'Visit not found' });
-    }
-
-    if (date) visit.date = date;
-    if (purpose !== undefined) visit.purpose = purpose;
-    if (notes !== undefined) visit.notes = notes;
-    if (outcome !== undefined) visit.outcome = outcome;
-    if (nextAction !== undefined) visit.nextAction = nextAction;
-    if (image !== undefined) visit.image = image;
-
-    await customer.save();
-    res.json({ success: true, visits: customer.visits });
+    res.json({ success: true, message: 'Visit updated successfully' });
   } catch (error) {
     console.error('Update visit error:', error);
     res.status(500).json({ message: 'Failed to update visit' });
@@ -1026,15 +1049,16 @@ app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (r
   try {
     const { customerId, visitId } = req.params;
 
-    const customer = await Customer.findById(customerId);
-    if (!customer) {
+    const result = await Customer.updateOne(
+      { _id: customerId },
+      { $pull: { visits: { _id: visitId } } }
+    );
+
+    if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
-    customer.visits.pull(visitId);
-    await customer.save();
-
-    res.json({ success: true, visits: customer.visits });
+    res.json({ success: true, message: 'Visit deleted successfully' });
   } catch (error) {
     console.error('Delete visit error:', error);
     res.status(500).json({ message: 'Failed to delete visit' });
@@ -1051,18 +1075,11 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
     const { customerId } = req.params;
     const { title, date, customer, location, resourceType, image, description, notes, status, url, uploadedBy } = req.body;
 
-    console.log('Received resource data:', { title, date, customer, location, resourceType, imageCount: image ? image.length : 0, description, notes, status, url, uploadedBy });
-
     // If title is missing but resourceType is present, use resourceType as title
     const finalTitle = title || resourceType;
 
     if (!finalTitle) {
       return res.status(400).json({ message: 'Resource title or type is required' });
-    }
-
-    const customerDoc = await Customer.findById(customerId);
-    if (!customerDoc) {
-      return res.status(404).json({ message: 'Customer not found' });
     }
 
     const newResource = {
@@ -1076,18 +1093,20 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
       notes: notes || '',
       status: status || 'Active',
       url: url || '',
-      uploadedBy: uploadedBy || ''
+      uploadedBy: uploadedBy || '',
+      createdAt: new Date()
     };
 
-    console.log('Saving resource:', newResource);
+    const result = await Customer.updateOne(
+      { _id: customerId },
+      { $push: { resources: newResource } }
+    );
 
-    customerDoc.resources.push(newResource);
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
 
-    await customerDoc.save();
-
-    console.log('Resource saved successfully');
-
-    res.status(201).json({ success: true, resources: customerDoc.resources });
+    res.status(201).json({ success: true, resource: newResource });
   } catch (error) {
     console.error('Add resource error:', error);
     res.status(500).json({ message: `Failed to add resource: ${error.message}` });
@@ -1098,40 +1117,27 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
 app.put('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
-    const { title, date, customer, location, resourceType, image, description, notes, status, url, uploadedBy } = req.body;
+    const fields = req.body;
 
-    console.log('Received update for resource:', resourceId, { title, date, customer, location, resourceType, hasImage: !!image, description, notes, status, url, uploadedBy });
+    const updateData = {};
+    Object.keys(fields).forEach(key => {
+      // If title is missing but resourceType is present, use resourceType as title
+      if (key === 'resourceType' && !fields.title) {
+          updateData['resources.$.title'] = fields[key];
+      }
+      updateData[`resources.$.${key}`] = fields[key];
+    });
 
-    const customerDoc = await Customer.findById(customerId);
-    if (!customerDoc) {
-      return res.status(404).json({ message: 'Customer not found' });
+    const result = await Customer.updateOne(
+      { _id: customerId, 'resources._id': resourceId },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'Customer or resource not found' });
     }
 
-    const resource = customerDoc.resources.id(resourceId);
-    if (!resource) {
-      return res.status(404).json({ message: 'Resource not found' });
-    }
-
-    if (title) resource.title = title;
-    else if (resourceType) resource.title = resourceType; // Update title if type changes and title wasn't provided
-
-    if (date !== undefined) resource.date = date;
-    if (customer !== undefined) resource.customer = customer;
-    if (location !== undefined) resource.location = location;
-    if (resourceType !== undefined) resource.resourceType = resourceType;
-    if (image !== undefined) resource.image = image;
-    if (description !== undefined) resource.description = description;
-    if (notes !== undefined) resource.notes = notes;
-    if (status !== undefined) resource.status = status;
-    if (url !== undefined) resource.url = url;
-    if (uploadedBy !== undefined) resource.uploadedBy = uploadedBy;
-
-    console.log('Updating resource to:', resource);
-
-    await customerDoc.save();
-    console.log('Resource updated successfully');
-
-    res.json({ success: true, resources: customerDoc.resources });
+    res.json({ success: true, message: 'Resource updated successfully' });
   } catch (error) {
     console.error('Update resource error:', error);
     res.status(500).json({ message: 'Failed to update resource' });
@@ -1143,15 +1149,16 @@ app.delete('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, as
   try {
     const { customerId, resourceId } = req.params;
 
-    const customer = await Customer.findById(customerId);
-    if (!customer) {
+    const result = await Customer.updateOne(
+      { _id: customerId },
+      { $pull: { resources: { _id: resourceId } } }
+    );
+
+    if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
-    customer.resources.pull(resourceId);
-    await customer.save();
-
-    res.json({ success: true, resources: customer.resources });
+    res.json({ success: true, message: 'Resource deleted successfully' });
   } catch (error) {
     console.error('Delete resource error:', error);
     res.status(500).json({ message: 'Failed to delete resource' });

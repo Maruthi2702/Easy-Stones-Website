@@ -518,7 +518,7 @@ const SalesPage = () => {
             if (response.ok) {
                 await fetchSingleCustomer(selectedCustomerId);
                 // Clear notes and image
-                setVisitForm(prev => ({ ...prev, notes: '', image: '' }));
+                setVisitForm(prev => ({ ...prev, notes: '', image: [] }));
             } else {
                 const data = await response.json();
                 alert(data.message || 'Failed to save note');

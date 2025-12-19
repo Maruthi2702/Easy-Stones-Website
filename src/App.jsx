@@ -18,6 +18,8 @@ const SalesMapPage = lazy(() => import('./pages/SalesMapPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 
+import ErrorBoundary from './components/ErrorBoundary';
+
 // Loading component
 const PageLoader = () => (
   <div className="page-loader">
@@ -70,27 +72,29 @@ function App() {
           <div className="bg-gradient"></div>
           <Header />
           <main>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/product" element={<Navigate to="/" replace />} />
-                <Route path="/product/:productId" element={<ProductDetail />} />
-                <Route path="/contact" element={<ContactPage />} />
-                <Route path="/warranty" element={<WarrantyPage />} />
-                <Route path="/login" element={<CustomerLoginPage />} />
-                <Route path="/sales" element={<SalesPage />} />
-                <Route path="/sales/map" element={<SalesMapPage />} />
-                <Route path="/admin/login" element={<LoginPage />} />
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute>
-                      <AdminPage />
-                    </ProtectedRoute>
-                  }
-                />
-              </Routes>
-            </Suspense>
+            <ErrorBoundary>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/product" element={<Navigate to="/" replace />} />
+                  <Route path="/product/:productId" element={<ProductDetail />} />
+                  <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/warranty" element={<WarrantyPage />} />
+                  <Route path="/login" element={<CustomerLoginPage />} />
+                  <Route path="/sales" element={<SalesPage />} />
+                  <Route path="/sales/map" element={<SalesMapPage />} />
+                  <Route path="/admin/login" element={<LoginPage />} />
+                  <Route
+                    path="/admin"
+                    element={
+                      <ProtectedRoute>
+                        <AdminPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
           </main>
           {!isSalesPage && !isAdminPage && <Footer />}
         </div>
