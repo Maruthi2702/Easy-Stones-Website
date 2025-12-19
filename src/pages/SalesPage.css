@@ -387,6 +387,9 @@
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.05);
     transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .info-box:hover {
@@ -395,15 +398,23 @@
     transform: translateY(-2px);
 }
 
+.info-box-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    color: #e5c04a;
+    opacity: 0.8;
+}
+
 .info-box label {
     display: block;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    color: #e5c04a; /* Brand Gold */
+    color: inherit;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: 0.5rem;
-    opacity: 0.8;
+    margin: 0;
 }
 
 .info-box p {

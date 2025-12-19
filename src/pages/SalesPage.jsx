@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, User, Plus, Edit2, Trash2, X, Eye, Send, MoreVertical, Paperclip, Image as ImageIcon, Maximize2, Minimize2, Pin, PinOff, Menu, ChevronLeft, Info } from 'lucide-react';
+import { Search, User, Plus, Edit2, Trash2, X, Eye, Send, MoreVertical, Paperclip, Image as ImageIcon, Maximize2, Minimize2, Pin, PinOff, Menu, ChevronLeft, Info, DollarSign, MapPin, ShieldCheck, Mail, Phone, Calendar, CreditCard, Hash } from 'lucide-react';
 
 import { API_URL } from '../config/api';
 import './SalesPage.css';
@@ -988,25 +988,40 @@ const SalesPage = () => {
                                     {/* Info Boxes Row */}
                                     <div className="info-boxes">
                                         <div className="info-box">
-                                            <label>Price Level</label>
+                                            <div className="info-box-header">
+                                                <DollarSign size={16} />
+                                                <label>Price Level</label>
+                                            </div>
                                             <p>{getPriceLevelLabel(selectedCustomer.priceLevel)}</p>
                                         </div>
                                         <div className="info-box">
-                                            <label>Location</label>
+                                            <div className="info-box-header">
+                                                <MapPin size={16} />
+                                                <label>Location</label>
+                                            </div>
                                             <p>{selectedCustomer.address?.city || 'N/A'}, {selectedCustomer.address?.state || 'N/A'}</p>
                                         </div>
                                         <div className="info-box">
-                                            <label>Type</label>
+                                            <div className="info-box-header">
+                                                <User size={16} />
+                                                <label>Type</label>
+                                            </div>
                                             <p>Customer</p>
                                         </div>
                                         <div className="info-box">
-                                            <label>Status</label>
+                                            <div className="info-box-header">
+                                                <ShieldCheck size={16} />
+                                                <label>Status</label>
+                                            </div>
                                             <p className={selectedCustomer.isActive !== false ? 'status-active' : 'status-inactive'}>
                                                 {selectedCustomer.isActive !== false ? 'Active' : 'Inactive'}
                                             </p>
                                         </div>
                                         <div className="info-box">
-                                            <label>Member Since</label>
+                                            <div className="info-box-header">
+                                                <Calendar size={16} />
+                                                <label>Member Since</label>
+                                            </div>
                                             <p>{formatDate(selectedCustomer.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                                         </div>
                                     </div>
@@ -1014,7 +1029,7 @@ const SalesPage = () => {
                                     {/* Three Column Layout */}
                                     <div className="detail-columns">
                                         <div className="detail-column">
-                                            <h3>Address</h3>
+                                            <h3><MapPin size={14} style={{ marginRight: '8px' }} />Address</h3>
                                             <div className="column-content">
                                                 <p className="address-line">
                                                     {selectedCustomer.address?.street || 'No street address'}
@@ -1029,36 +1044,32 @@ const SalesPage = () => {
                                         </div>
 
                                         <div className="detail-column">
-                                            <h3>Contact</h3>
+                                            <h3><User size={14} style={{ marginRight: '8px' }} />Contact</h3>
                                             <div className="column-content">
                                                 <div className="contact-item">
-                                                    <User size={16} />
-                                                    <span>{selectedCustomer.firstName} {selectedCustomer.lastName}</span>
-                                                </div>
-                                                <div className="contact-item">
-                                                    <span className="text-muted">Email:</span>
+                                                    <Mail size={16} />
                                                     <span>{selectedCustomer.email}</span>
                                                 </div>
                                                 <div className="contact-item">
-                                                    <span className="text-muted">Phone:</span>
+                                                    <Phone size={16} />
                                                     <span>{selectedCustomer.phone || 'N/A'}</span>
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className="detail-column">
-                                            <h3>Account Details</h3>
+                                            <h3><CreditCard size={14} style={{ marginRight: '8px' }} />Account Details</h3>
                                             <div className="column-content">
                                                 <div className="info-row">
-                                                    <label>Customer ID:</label>
+                                                    <label><Hash size={12} style={{ marginRight: '4px' }} /> ID:</label>
                                                     <span>{selectedCustomer._id ? selectedCustomer._id.toString().substring(0, 8) : 'N/A'}...</span>
                                                 </div>
                                                 <div className="info-row">
-                                                    <label>Tax Exempt:</label>
+                                                    <label><ShieldCheck size={12} style={{ marginRight: '4px' }} /> Tax Exempt:</label>
                                                     <span>{selectedCustomer.isTaxExempt ? 'Yes' : 'No'}</span>
                                                 </div>
                                                 <div className="info-row">
-                                                    <label>Credit Limit:</label>
+                                                    <label><DollarSign size={12} style={{ marginRight: '4px' }} /> Credit Limit:</label>
                                                     <span>${selectedCustomer.creditLimit?.toLocaleString() || '0'}</span>
                                                 </div>
                                             </div>
