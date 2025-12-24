@@ -10,6 +10,12 @@ const visitSchema = new mongoose.Schema({
   image: mongoose.Schema.Types.Mixed,  // Use Mixed to support both legacy Strings and new Arrays
   createdBy: String,  // User ID or Customer ID who created this visit
   createdByName: String,  // Display name of the creator
+  reactions: [{
+    type: { type: String, required: true }, // e.g., 'like', 'love'
+    userId: String, // Who reacted
+    userName: String, // Name of reactor for display/tooltip
+    createdAt: { type: Date, default: Date.now }
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -75,7 +81,9 @@ const customerSchema = new mongoose.Schema({
 });
 
 // Indexes for performance optimization
+customerSchema.index({ email: 1 }, { unique: true }); // Index for login/email lookups (CRITICAL)
 customerSchema.index({ isActive: 1 }); // Index for filtering active customers
+customerSchema.index({ isActive: 1, email: 1 }); // Compound index for common queries
 customerSchema.index({ priceLevel: 1 }); // Index for price level queries
 
 // Hash password before saving

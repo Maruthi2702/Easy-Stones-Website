@@ -551,7 +551,7 @@
 
 .header-tab.active {
   color: #FFFFFF;
-  border-bottom: 2px solid #007AFF; /* iOS/Modern Blue */
+  border-bottom: 2px solid #e5c04a; /* User requested Gold border */
 }
 
 .header-tab.active::after {
@@ -1229,72 +1229,6 @@
 }
 
 /* Filters Section */
-.resources-filters {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: flex-end;
-  gap: 1rem;
-}
-
-.filter-row {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 0;
-  flex: 1;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  flex: 1;
-}
-
-.filter-group label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-}
-
-.filter-group select,
-.filter-group input[type="date"],
-.filter-group input[type="text"] {
-  padding: 0.75rem 1rem;
-  background: rgba(0, 0, 0, 0.3); /* Darker input bg */
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px; /* Softer corners */
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  width: 100%;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(5px);
-}
-
-.filter-group select:focus,
-.filter-group input:focus {
-    outline: none;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.1); /* Glow effect */
-    background: rgba(0, 0, 0, 0.5);
-}
-
-.filter-actions {
-  display: flex;
-  gap: 1rem;
-}
-
-.filter-actions .btn-primary,
-.filter-actions .btn-secondary {
-  padding: 0.75rem 2rem;
-  font-size: 0.875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
 
 /* Resources Header */
 .resources-header {

@@ -130,11 +130,7 @@ const SalesPage = () => {
     });
 
     // Resources tab state
-    const [resourceFilters, setResourceFilters] = useState({
-        customer: '',
-        startDate: '',
-        endDate: ''
-    });
+
     const [resourceSearch, setResourceSearch] = useState('');
     const [expandedResourceId, setExpandedResourceId] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
@@ -272,8 +268,11 @@ const SalesPage = () => {
         }
     };
 
-    // Filter resources (Global view across all customers)
-    const allResources = Array.isArray(customers) ? customers.flatMap(c => c.resources || []) : [];
+    // Use selectedCustomerDetail for the main view, fallback to list item (which might be partial)
+    const selectedCustomer = selectedCustomerDetail || customers.find(c => c._id === selectedCustomerId);
+
+    // Filter resources (scoped to selected customer only)
+    const allResources = selectedCustomer ? (selectedCustomer.resources || []) : [];
 
     const filteredResources = allResources.filter(resource => {
         if (!resource) return false;
@@ -284,18 +283,7 @@ const SalesPage = () => {
             (resource.customer && resource.customer.toLowerCase().includes(resourceSearch.toLowerCase())) ||
             (resource.location && resource.location.toLowerCase().includes(resourceSearch.toLowerCase()));
 
-        const matchesCustomer = !resourceFilters.customer || resource.customer === resourceFilters.customer;
-
-        let matchesDate = true;
-        if (resource.date) {
-            const resourceDate = new Date(resource.date);
-            if (!isNaN(resourceDate.getTime())) {
-                matchesDate = (!resourceFilters.startDate || resourceDate >= new Date(resourceFilters.startDate)) &&
-                    (!resourceFilters.endDate || resourceDate <= new Date(resourceFilters.endDate));
-            }
-        }
-
-        return matchesSearch && matchesCustomer && matchesDate;
+        return matchesSearch;
     }) || [];
 
     const filteredCustomers = (Array.isArray(customers) ? customers : [])
@@ -311,9 +299,6 @@ const SalesPage = () => {
             const nameB = b.company || b.contactName || `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.email || '';
             return nameA.localeCompare(nameB);
         });
-
-    // Use selectedCustomerDetail for the main view, fallback to list item (which might be partial)
-    const selectedCustomer = selectedCustomerDetail || customers.find(c => c._id === selectedCustomerId);
 
     useEffect(() => {
         if (selectedCustomerId) {
@@ -694,6 +679,38 @@ const SalesPage = () => {
         }
     };
 
+    // Reaction handler
+    const handleReaction = async (visitId, type) => {
+        console.log('handleReaction called:', { visitId, type, selectedCustomerId });
+        if (!selectedCustomerId || !visitId) {
+            console.error('Missing required IDs for reaction:', { selectedCustomerId, visitId });
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/visits/${visitId}/react`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ type })
+            });
+
+            if (response.ok) {
+                // Refresh data to show new reaction
+                // Using fetchSingleCustomer for now, could be optimized to local state update
+                const data = await response.json();
+
+                // Optimistic update or just simpler refetch
+                await fetchSingleCustomer(selectedCustomerId);
+            } else {
+                console.error('Failed to update reaction');
+            }
+        } catch (error) {
+            console.error('Error updating reaction:', error);
+        }
+    };
+
+
     // Image compression utility
     const compressImage = async (file) => {
         return new Promise((resolve, reject) => {
@@ -964,19 +981,19 @@ const SalesPage = () => {
                                             className={`header-tab ${activeTab === 'visits' ? 'active' : ''}`}
                                             onClick={() => setActiveTab('visits')}
                                         >
-                                            Conversation
+                                            Visits
                                         </button>
                                         <button
                                             className={`header-tab ${activeTab === 'resources' ? 'active' : ''}`}
                                             onClick={() => setActiveTab('resources')}
                                         >
-                                            Files
+                                            Resources
                                         </button>
                                         <button
                                             className={`header-tab ${activeTab === 'contacts' ? 'active' : ''}`}
                                             onClick={() => setActiveTab('contacts')}
                                         >
-                                            More
+                                            Contacts
                                         </button>
                                     </div>
                                 </div>
@@ -1203,6 +1220,44 @@ const SalesPage = () => {
                                                                             <span className="meta-tag next-action">Next: {visit.nextAction}</span>
                                                                         )}
                                                                     </div>
+
+                                                                    {/* Reactions Display */}
+                                                                    {visit.reactions && visit.reactions.length > 0 && (
+                                                                        <div className="message-reactions">
+                                                                            {Object.entries(
+                                                                                visit.reactions.reduce((acc, r) => {
+                                                                                    acc[r.type] = (acc[r.type] || 0) + 1;
+                                                                                    return acc;
+                                                                                }, {})
+                                                                            ).map(([type, count]) => {
+                                                                                const userReacted = visit.reactions.some(r => r.type === type && (r.userId === currentUserId || (!currentUserId && r.userId))); // Best effort check
+                                                                                return (
+                                                                                    <button
+                                                                                        key={type}
+                                                                                        className={`reaction-tag ${userReacted ? 'active' : ''}`}
+                                                                                        onClick={(e) => { e.stopPropagation(); handleReaction(visit._id, type); }}
+                                                                                        title={`${count} reactions`}
+                                                                                    >
+                                                                                        <span>{type}</span>
+                                                                                        <span style={{ fontSize: '0.75em', opacity: 0.8, marginLeft: '2px' }}>{count}</span>
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Reaction Picker (Hover) */}
+                                                                    <div className="reaction-picker">
+                                                                        {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
+                                                                            <button
+                                                                                key={emoji}
+                                                                                className="reaction-btn"
+                                                                                onClick={(e) => { e.stopPropagation(); handleReaction(visit._id, emoji); }}
+                                                                            >
+                                                                                {emoji}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         );
@@ -1263,44 +1318,7 @@ const SalesPage = () => {
                                 {activeTab === 'resources' && (
                                     <div className="tab-section resources-tab">
                                         {/* Filters Section */}
-                                        <div className="resources-filters">
-                                            <div className="filter-row">
-                                                <div className="filter-group">
-                                                    <label>Customer</label>
-                                                    <select
-                                                        value={resourceFilters.customer}
-                                                        onChange={(e) => setResourceFilters({ ...resourceFilters, customer: e.target.value })}
-                                                    >
-                                                        <option value="">Select Customer</option>
-                                                        {customers.map(c => (
-                                                            <option key={c._id} value={c.company || `${c.firstName} ${c.lastName}`}>
-                                                                {c.company || `${c.firstName} ${c.lastName}`}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div className="filter-group">
-                                                    <label>Start Date</label>
-                                                    <input
-                                                        type="date"
-                                                        value={resourceFilters.startDate}
-                                                        onChange={(e) => setResourceFilters({ ...resourceFilters, startDate: e.target.value })}
-                                                    />
-                                                </div>
-                                                <div className="filter-group">
-                                                    <label>End Date</label>
-                                                    <input
-                                                        type="date"
-                                                        value={resourceFilters.endDate}
-                                                        onChange={(e) => setResourceFilters({ ...resourceFilters, endDate: e.target.value })}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="filter-actions">
-                                                <button className="btn-primary">SUBMIT</button>
-                                                <button className="reset-btn" onClick={() => setResourceFilters({ customer: '', startDate: '', endDate: '' })}>RESET</button>
-                                            </div>
-                                        </div>
+
 
                                         {/* Header with Title and Add Button */}
                                         <div className="resources-header">

@@ -65,7 +65,10 @@ const AdminPage = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/products`);
+        const response = await fetch(`${API_URL}/api/admin/products/list`, {
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
         if (response.ok) {
           const data = await response.json();
           if (data && data.length > 0) {
@@ -81,7 +84,7 @@ const AdminPage = () => {
 
     const fetchCustomers = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/admin/customers`, {
+        const response = await fetch(`${API_URL}/api/admin/customers/list`, {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include'
         });
@@ -197,11 +200,26 @@ const AdminPage = () => {
     }
   };
 
-  const handleSelectProduct = (id) => {
+  const handleSelectProduct = async (id) => {
     setSelectedProductId(id);
     setSaveStatus(null);
     setShowMobileDetail(true); // Show detail view on mobile
     window.scrollTo(0, 0);
+
+    // Lazy load: Fetch full product details
+    try {
+      const response = await fetch(`${API_URL}/api/admin/products/${id}`, {
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const fullProduct = await response.json();
+        // Update products array with full details
+        setProducts(prev => prev.map(p => p.id === id ? fullProduct : p));
+      }
+    } catch (error) {
+      console.error('Error fetching product details:', error);
+    }
   };
 
   const handleAddProduct = () => {
@@ -437,8 +455,8 @@ const AdminPage = () => {
 
 
   // Customer Management Functions
-  const handleSelectCustomer = (customer) => {
-    setSelectedCustomerId(customer._id);
+  const handleSelectCustomer = async (customer) => {
+    setSelectedCustomerId(customer._id); // Keep this to set the ID for form data
     setCustomerFormData({
       contactName: customer.contactName || '',
       email: customer.email || '',
@@ -451,12 +469,39 @@ const AdminPage = () => {
         state: customer.address?.state || '',
         zipCode: customer.address?.zipCode || ''
       },
+      isActive: customer.isActive ?? true,
       priceLevel: customer.priceLevel || 1
     });
     setIsNewCustomer(false);
     setCustomerSaveStatus(null);
     setShowMobileDetail(true); // Show detail view on mobile
     window.scrollTo(0, 0);
+
+    // Lazy load: Fetch full customer details
+    try {
+      const response = await fetch(`${API_URL}/api/admin/customers/${customer._id}`, {
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const fullCustomer = await response.json();
+        // Update customers array with full details
+        setCustomers(prev => prev.map(c => c._id === customer._id ? fullCustomer : c));
+        // Update form with complete data
+        setCustomerFormData({
+          contactName: fullCustomer.contactName || '',
+          email: fullCustomer.email || '',
+          password: '', // Don't show password
+          phone: fullCustomer.phone || '',
+          company: fullCustomer.company || '',
+          address: fullCustomer.address || { street: '', city: '', state: '', zipCode: '' },
+          isActive: fullCustomer.isActive ?? true,
+          priceLevel: fullCustomer.priceLevel || 1
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching customer details:', error);
+    }
   };
 
   const handleAddCustomer = () => {

@@ -819,7 +819,8 @@ const verifyAnyAuth = (req, res, next) => {
 app.get('/api/customers', verifyAnyAuth, async (req, res) => {
   try {
     const customers = await Customer.find()
-      .select('-password -visits.image -resources.image')
+      .select('-password -visits -resources -contacts') // Exclude heavy nested arrays
+      .lean() // Convert to plain JS objects (3x faster)
       .sort({ createdAt: -1 });
     res.json(customers);
   } catch (error) {
@@ -1045,6 +1046,7 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
 });
 
 // Delete visit
+// Delete visit
 app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
@@ -1062,6 +1064,81 @@ app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (r
   } catch (error) {
     console.error('Delete visit error:', error);
     res.status(500).json({ message: 'Failed to delete visit' });
+  }
+});
+
+// Toggle reaction on visit
+app.post('/api/customers/:customerId/visits/:visitId/react', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId, visitId } = req.params;
+    const { type } = req.body;
+    
+    // Get user info from auth middleware
+    // verifyAnyAuth sets userId (for admin) or customerId (for customer)
+    // and authType ('admin' or 'customer')
+    const userId = req.userId || req.customerId;
+    const isCustomer = req.authType !== 'admin';
+    
+    let userName = 'Unknown';
+    if (!isCustomer) {
+        const user = await User.findById(userId);
+        userName = user ? user.username : 'Admin';
+    } else {
+        const customer = await Customer.findById(userId);
+        userName = customer ? (customer.contactName || customer.email) : 'Customer';
+    }
+
+    // Find the customer and specific visit
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+        return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    const visit = customer.visits.id(visitId);
+    if (!visit) {
+        return res.status(404).json({ message: 'Visit not found' });
+    }
+
+    // Initialize reactions array if it doesn't exist (legacy support)
+    if (!visit.reactions) {
+        visit.reactions = [];
+    }
+
+    // Check if user already reacted with this type
+    const existingIndex = visit.reactions.findIndex(
+        r => r.userId === userId.toString() && r.type === type
+    );
+
+    if (existingIndex > -1) {
+        // Remove reaction (toggle off)
+        visit.reactions.splice(existingIndex, 1);
+    } else {
+        // Add reaction (toggle on)
+        // Optionally remove other reactions by same user if we want single-reaction logic
+        // But requested feature implies "Like", "Love", etc. which could theoretically co-exist,
+        // though typically mutually exclusive. Let's make them mutually exclusive for simplicity.
+        const otherReactionIndex = visit.reactions.findIndex(r => r.userId === userId.toString());
+        if (otherReactionIndex > -1) {
+             visit.reactions.splice(otherReactionIndex, 1);
+        }
+
+        visit.reactions.push({
+            type,
+            userId: userId.toString(),
+            userName
+        });
+    }
+
+    await customer.save();
+
+    res.json({ 
+        success: true, 
+        message: 'Reaction updated', 
+        reactions: visit.reactions 
+    });
+  } catch (error) {
+    console.error('Reaction error:', error);
+    res.status(500).json({ message: 'Failed to update reaction' });
   }
 });
 
@@ -1308,9 +1385,71 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
   }
 });
 
+// ============================================
+// ADMIN LAZY LOADING ENDPOINTS
+// ============================================
+
+// Admin: Get lightweight product list (names only)
+app.get('/api/admin/products/list', verifyToken, async (req, res) => {
+  try {
+    const products = await Product.find()
+      .select('id name category collection availability image') // Include image for sidebar thumbnails
+      .lean()
+      .sort({ id: -1 });
+    res.json(products);
+  } catch (error) {
+    console.error('Error fetching product list:', error);
+    res.status(500).json({ message: 'Failed to fetch product list' });
+  }
+});
+
+// Admin: Get full product details by ID
+app.get('/api/admin/products/:id', verifyToken, async (req, res) => {
+  try {
+    const product = await Product.findOne({ id: parseInt(req.params.id) });
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    res.json(product);
+  } catch (error) {
+    console.error('Error fetching product details:', error);
+    res.status(500).json({ message: 'Failed to fetch product details' });
+  }
+});
+
+// Admin: Get lightweight customer list (names only)
+app.get('/api/admin/customers/list', verifyToken, async (req, res) => {
+  try {
+    const customers = await Customer.find()
+      .select('_id contactName email company isActive') // Only fields needed for sidebar
+      .lean()
+      .sort({ createdAt: -1 });
+    res.json(customers);
+  } catch (error) {
+    console.error('Error fetching customer list:', error);
+    res.status(500).json({ message: 'Failed to fetch customer list' });
+  }
+});
+
+// Admin: Get full customer details by ID
+app.get('/api/admin/customers/:id', verifyToken, async (req, res) => {
+  try {
+    const customer = await Customer.findById(req.params.id).select('-password');
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+    res.json(customer);
+  } catch (error) {
+    console.error('Error fetching customer details:', error);
+    res.status(500).json({ message: 'Failed to fetch customer details' });
+  }
+});
+
 app.get('/api/admin/customers', verifyToken, async (req, res) => {
   try {
-    const customers = await Customer.find().select('-password').sort({ createdAt: -1 });
+    const customers = await Customer.find()
+      .select('-password -visits -resources -contacts') // Exclude heavy arrays for list view
+      .sort({ createdAt: -1 });
     res.json(customers);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch customers' });

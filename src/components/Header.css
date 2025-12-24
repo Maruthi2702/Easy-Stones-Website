@@ -244,6 +244,10 @@
   color: #d4af37;
 }
 
+.menu-btn {
+  display: block;
+}
+
 @media (min-width: 1024px) {
   .nav-desktop {
     display: flex;
