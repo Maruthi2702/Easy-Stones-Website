@@ -324,7 +324,7 @@ const SalesPage = () => {
             } else {
                 if (response.status === 401) {
                     // Redirect to admin login if unauthorized
-                    window.location.href = '/admin/login';
+                    window.location.href = '/login';
                     return;
                 }
                 const errorData = await response.json();
