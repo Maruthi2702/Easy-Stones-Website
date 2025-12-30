@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, User, Plus, Edit2, Trash2, X, Eye, Send, MoreVertical, Paperclip, Image as ImageIcon, Maximize2, Minimize2, Pin, PinOff, Menu, ChevronLeft, Info, DollarSign, MapPin, ShieldCheck, Mail, Phone, Calendar, CreditCard, Hash } from 'lucide-react';
+import { Search, User, Plus, Edit2, Trash2, X, Eye, Send, MoreVertical, Paperclip, Image as ImageIcon, Maximize2, Minimize2, Pin, PinOff, Menu, ChevronLeft, Info, DollarSign, MapPin, ShieldCheck, Mail, Phone, Calendar, CreditCard, Hash, FileText, Loader } from 'lucide-react';
 
 import { API_URL } from '../config/api';
 import './SalesPage.css';
@@ -135,6 +135,8 @@ const SalesPage = () => {
     const [expandedResourceId, setExpandedResourceId] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [fullScreenImage, setFullScreenImage] = useState(null);
+    const [activeReactionMessageId, setActiveReactionMessageId] = useState(null);
+    const [visitsLoading, setVisitsLoading] = useState(false);
 
     const resourceTypes = [
         "Moda Tower 2024 version 2",
@@ -248,6 +250,7 @@ const SalesPage = () => {
         if (!customerId) return;
 
         try {
+            setVisitsLoading(true);
             const response = await fetch(`${API_URL}/api/customers/${customerId}`, {
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include'
@@ -265,6 +268,8 @@ const SalesPage = () => {
             }
         } catch (error) {
             console.error('Error fetching customer details:', error);
+        } finally {
+            setVisitsLoading(false);
         }
     };
 
@@ -710,7 +715,6 @@ const SalesPage = () => {
         }
     };
 
-
     // Image compression utility
     const compressImage = async (file) => {
         return new Promise((resolve, reject) => {
@@ -753,28 +757,46 @@ const SalesPage = () => {
         });
     };
 
+    // Generic file to Base64 utility for PDFs
+    const fileToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = (error) => reject(error);
+        });
+    };
+
     const handleVisitImageUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
 
-        const newImages = [];
+        const newFiles = [];
         for (const file of files) {
             if (file.size > 25 * 1024 * 1024) {
                 alert(`File ${file.name} is too large. Limit is 25MB.`);
                 continue;
             }
             try {
-                const compressedImage = await compressImage(file);
-                newImages.push(compressedImage);
+                let processedFile;
+                if (file.type.startsWith('image/')) {
+                    processedFile = await compressImage(file);
+                } else if (file.type === 'application/pdf') {
+                    processedFile = await fileToBase64(file);
+                } else {
+                    alert(`Unsupported file type: ${file.name}`);
+                    continue;
+                }
+                newFiles.push(processedFile);
             } catch (error) {
-                console.error(`Error compressing ${file.name}:`, error);
-                alert(`Failed to process image ${file.name}`);
+                console.error(`Error processing ${file.name}:`, error);
+                alert(`Failed to process file ${file.name}`);
             }
         }
 
         setVisitForm(prev => ({
             ...prev,
-            image: prev.image ? (Array.isArray(prev.image) ? [...prev.image, ...newImages] : [prev.image, ...newImages]) : newImages
+            image: prev.image ? (Array.isArray(prev.image) ? [...prev.image, ...newFiles] : [prev.image, ...newFiles]) : newFiles
         }));
     };
 
@@ -785,36 +807,44 @@ const SalesPage = () => {
         }));
     };
 
-    // Resource Image upload handler
+    // Resource Image/File upload handler
     const handleImageUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
 
-        const newImages = [];
+        const newFiles = [];
         for (const file of files) {
             if (file.size > 25 * 1024 * 1024) {
                 alert(`File ${file.name} is too large. Limit is 25MB.`);
                 continue;
             }
             try {
-                const compressedImage = await compressImage(file);
-                newImages.push(compressedImage);
+                let processedFile;
+                if (file.type.startsWith('image/')) {
+                    processedFile = await compressImage(file);
+                } else if (file.type === 'application/pdf') {
+                    processedFile = await fileToBase64(file);
+                } else {
+                    alert(`Unsupported file type: ${file.name}`);
+                    continue;
+                }
+                newFiles.push(processedFile);
             } catch (error) {
-                console.error(`Error compressing ${file.name}:`, error);
-                alert(`Failed to process image ${file.name}`);
+                console.error(`Error processing ${file.name}:`, error);
+                alert(`Failed to process file ${file.name}`);
             }
         }
 
-        if (newImages.length === 0) return;
+        if (newFiles.length === 0) return;
 
         setResourceForm(prev => ({
             ...prev,
-            image: prev.image ? (Array.isArray(prev.image) ? [...prev.image, ...newImages] : [prev.image, ...newImages]) : newImages
+            image: prev.image ? (Array.isArray(prev.image) ? [...prev.image, ...newFiles] : [prev.image, ...newFiles]) : newFiles
         }));
 
-        // Set preview for the first image if not already set (legacy support)
-        if (!imagePreview && newImages.length > 0) {
-            setImagePreview(newImages[0]);
+        // Set preview for the first file if not already set
+        if (!imagePreview && newFiles.length > 0) {
+            setImagePreview(newFiles[0]);
         }
     };
 
@@ -902,6 +932,30 @@ const SalesPage = () => {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                    {searchTerm && (
+                        <button
+                            onClick={() => setSearchTerm('')}
+                            style={{
+                                position: 'absolute',
+                                right: '10px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'rgba(255,255,255,0.1)',
+                                border: 'none',
+                                color: '#9CA3AF',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '4px',
+                                borderRadius: '50%',
+                                width: '20px',
+                                height: '20px'
+                            }}
+                        >
+                            <X size={12} />
+                        </button>
+                    )}
                 </div>
 
                 <div className="customer-list">
@@ -951,50 +1005,45 @@ const SalesPage = () => {
                                                 <h1 className="customer-name">
                                                     {selectedCustomer.company || selectedCustomer.contactName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}
                                                 </h1>
-                                                <div className="customer-meta">
-                                                    {selectedCustomer.address && (selectedCustomer.address.city || selectedCustomer.address.state) && (
-                                                        <span className="customer-location">
-                                                            {selectedCustomer.address.city}{selectedCustomer.address.city && selectedCustomer.address.state ? ', ' : ''}{selectedCustomer.address.state}
-                                                        </span>
-                                                    )}
-                                                    <span className="meta-separator">•</span>
-                                                    <span className={`status-pill ${selectedCustomer.isActive !== false ? 'active' : 'inactive'}`}>
-                                                        {selectedCustomer.isActive !== false ? 'Active' : 'Inactive'}
+                                                {isMobile && selectedCustomer.address?.city && (
+                                                    <span style={{ display: 'block', fontSize: '0.8rem', color: '#9CA3AF', fontWeight: '500' }}>
+                                                        {selectedCustomer.address.city}
                                                     </span>
-                                                    <span className="meta-separator">•</span>
-                                                    <span className="price-level-tag">Level {selectedCustomer.priceLevel}</span>
-                                                </div>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="header-right">
+
+                                        <div className="header-tabs">
+                                            <button
+                                                className={`header-tab ${activeTab === 'visits' ? 'active' : ''}`}
+                                                onClick={() => setActiveTab('visits')}
+                                            >
+                                                Visits
+                                            </button>
+                                            <button
+                                                className={`header-tab ${activeTab === 'resources' ? 'active' : ''}`}
+                                                onClick={() => setActiveTab('resources')}
+                                            >
+                                                Resources
+                                            </button>
+                                            <button
+                                                className={`header-tab ${activeTab === 'contacts' ? 'active' : ''}`}
+                                                onClick={() => setActiveTab('contacts')}
+                                            >
+                                                Contacts
+                                            </button>
+                                        </div>
+
+                                        <div className="header-right" style={{ marginLeft: 'auto' }}>
                                             <button
                                                 className={`info-toggle-btn ${showCustomerInfo ? 'active' : ''}`}
                                                 onClick={() => setShowCustomerInfo(!showCustomerInfo)}
                                                 title={showCustomerInfo ? 'Hide Info' : 'Show Info'}
+                                                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', padding: '6px' }}
                                             >
-                                                <Info size={20} />
+                                                {showCustomerInfo ? <X size={18} /> : <Info size={18} />}
                                             </button>
                                         </div>
-                                    </div>
-                                    <div className="header-tabs">
-                                        <button
-                                            className={`header-tab ${activeTab === 'visits' ? 'active' : ''}`}
-                                            onClick={() => setActiveTab('visits')}
-                                        >
-                                            Visits
-                                        </button>
-                                        <button
-                                            className={`header-tab ${activeTab === 'resources' ? 'active' : ''}`}
-                                            onClick={() => setActiveTab('resources')}
-                                        >
-                                            Resources
-                                        </button>
-                                        <button
-                                            className={`header-tab ${activeTab === 'contacts' ? 'active' : ''}`}
-                                            onClick={() => setActiveTab('contacts')}
-                                        >
-                                            Contacts
-                                        </button>
                                     </div>
                                 </div>
                             )}
@@ -1151,121 +1200,153 @@ const SalesPage = () => {
 
                                 {activeTab === 'visits' && (
                                     <div className="tab-section visits-tab">
-                                        <div className="chat-header-actions" style={{ padding: '0.75rem 2rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)' }}>
-                                            <h3 style={{ margin: 0, fontSize: '1rem' }}>
-                                                {isChatFullScreen ? (selectedCustomer.company || selectedCustomer.firstName) : 'Visits'}
-                                            </h3>
-                                            <button
-                                                className="icon-btn"
-                                                onClick={() => setIsChatFullScreen(!isChatFullScreen)}
-                                                title={isChatFullScreen ? "Exit Full Screen" : "Full Screen"}
-                                            >
-                                                {isChatFullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                                            </button>
-                                        </div>
+
                                         <div className="chat-container">
                                             <div className="chat-messages">
-                                                {selectedCustomer.visits?.length > 0 ? (
-                                                    selectedCustomer.visits.map(visit => {
-                                                        // Determine if this visit was created by the current user
-                                                        const isOwnVisit = visit.createdBy === currentUserId;
-                                                        const messageClass = isOwnVisit ? 'chat-message self' : 'chat-message other';
+                                                {visitsLoading ? (
+                                                    <div className="loading-spinner-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '2rem' }}>
+                                                        <Loader className="spin-animation" size={32} color="#E5C04A" />
+                                                    </div>
+                                                ) : (
+                                                    selectedCustomer.visits?.length > 0 ? (
+                                                        selectedCustomer.visits.map(visit => {
+                                                            // Determine if this visit was created by the current user
+                                                            const isOwnVisit = visit.createdBy === currentUserId;
+                                                            const messageClass = isOwnVisit ? 'chat-message self' : 'chat-message other';
 
-                                                        return (
-                                                            <div key={visit._id} className={messageClass}>
-                                                                <div className="message-avatar">
-                                                                    <User size={20} />
-                                                                </div>
-                                                                <div className="message-content">
-                                                                    <div className="message-header">
-                                                                        <span className="message-sender">{visit.createdByName || visit.purpose || 'Visit'}</span>
-                                                                        <span className="message-time">
-                                                                            {formatDate(visit.date, { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                                            {visit.image && (Array.isArray(visit.image) ? visit.image : [visit.image]).length > 0 && (
-                                                                                <span style={{ marginLeft: '5px', display: 'inline-flex', gap: '4px', verticalAlign: 'middle' }}>
-                                                                                    {(Array.isArray(visit.image) ? visit.image : [visit.image]).map((img, idx) => (
+                                                            return (
+                                                                <div key={visit._id} className={messageClass}>
+                                                                    <div className="message-avatar">
+                                                                        <User size={20} />
+                                                                    </div>
+                                                                    <div
+                                                                        className={`message-content ${activeReactionMessageId === visit._id ? 'active-reactions' : ''}`}
+                                                                        onClick={(e) => {
+                                                                            // Toggle if same, otherwise set new
+                                                                            if (activeReactionMessageId === visit._id) {
+                                                                                setActiveReactionMessageId(null);
+                                                                            } else {
+                                                                                setActiveReactionMessageId(visit._id);
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {/* Message Header */}
+                                                                        <div className="message-header">
+                                                                            <span className="message-sender">
+                                                                                {visit.createdBy === currentUserId ? 'You' : (visit.creatorName || (visit.createdBy ? 'User' : 'Unknown'))}
+                                                                            </span>
+                                                                            <span className="message-time">
+                                                                                {new Date(visit.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                                {visit.image && (Array.isArray(visit.image) ? visit.image : [visit.image]).map((img, idx) => {
+                                                                                    if (!img || typeof img !== 'string') return null;
+                                                                                    return img.startsWith('data:application/pdf') ? (
+                                                                                        <FileText
+                                                                                            key={idx}
+                                                                                            size={20}
+                                                                                            color="#E5C04A"
+                                                                                            style={{ cursor: 'pointer', verticalAlign: 'middle', marginLeft: '5px' }}
+                                                                                            onClick={(e) => { e.stopPropagation(); setFullScreenImage(img); }}
+                                                                                        />
+                                                                                    ) : (
                                                                                         <img
                                                                                             key={idx}
                                                                                             src={img}
                                                                                             alt="Visit"
-                                                                                            style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: '1px solid var(--border-color)' }}
+                                                                                            style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: '1px solid var(--border-color)', marginLeft: '5px' }}
                                                                                             onClick={(e) => { e.stopPropagation(); setFullScreenImage(img); }}
                                                                                         />
-                                                                                    ))}
-                                                                                </span>
-                                                                            )}
-                                                                        </span>
-                                                                        <div className="message-actions">
-                                                                            <button className="icon-btn edit" onClick={() => handleEditVisit(visit)}>
-                                                                                <Edit2 size={14} />
-                                                                            </button>
-                                                                            <button className="icon-btn delete" onClick={() => handleDeleteVisit(visit._id)}>
-                                                                                <Trash2 size={14} />
-                                                                            </button>
+                                                                                    );
+                                                                                })}
+                                                                            </span>
+                                                                            {/* Actions removed from header, visible on hover/active via CSS if needed */}
                                                                         </div>
-                                                                    </div>
-                                                                    <div className="message-body">
-                                                                        {(Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : [])).length > 0 && (
-                                                                            <div className="message-image" onClick={() => setFullScreenImage((Array.isArray(visit.image) ? visit.image : [visit.image])[0])}>
-                                                                                <img src={(Array.isArray(visit.image) ? visit.image : [visit.image])[0]} alt="Visit attachment" />
+                                                                        <div className="message-body">
+                                                                            {(Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : [])).length > 0 && (
+                                                                                <div className="message-image" onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    const firstImg = (Array.isArray(visit.image) ? visit.image : [visit.image])[0];
+                                                                                    if (firstImg && typeof firstImg === 'string') {
+                                                                                        setFullScreenImage(firstImg);
+                                                                                    }
+                                                                                }}>
+                                                                                    {(() => {
+                                                                                        const firstImg = (Array.isArray(visit.image) ? visit.image : [visit.image])[0];
+                                                                                        if (!firstImg || typeof firstImg !== 'string') return null;
+
+                                                                                        if (firstImg.startsWith('data:application/pdf')) {
+                                                                                            return (
+                                                                                                <div className="pdf-attachment">
+                                                                                                    <FileText size={32} color="#E5C04A" />
+                                                                                                    <span style={{ color: '#E5C04A' }}>PDF Attachment</span>
+                                                                                                </div>
+                                                                                            );
+                                                                                        }
+                                                                                        return <img src={firstImg} alt="Visit attachment" />;
+                                                                                    })()}
+                                                                                </div>
+                                                                            )}
+                                                                            {visit.notes || 'No notes provided.'}
+                                                                        </div>
+                                                                        <div className="message-meta">
+                                                                            {visit.outcome && (
+                                                                                <span className="meta-tag outcome">Outcome: {visit.outcome}</span>
+                                                                            )}
+                                                                            {visit.nextAction && (
+                                                                                <span className="meta-tag next-action">Next: {visit.nextAction}</span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {/* Reactions Display */}
+                                                                        {visit.reactions && visit.reactions.length > 0 && (
+                                                                            <div className="message-reactions">
+                                                                                {Object.entries(
+                                                                                    visit.reactions.reduce((acc, r) => {
+                                                                                        if (!r || !r.type) return acc;
+                                                                                        acc[r.type] = (acc[r.type] || 0) + 1;
+                                                                                        return acc;
+                                                                                    }, {})
+                                                                                ).map(([type, count]) => {
+                                                                                    const userReacted = visit.reactions.some(r => r && r.type === type && (r.userId === currentUserId || (!currentUserId && r.userId))); // Best effort check
+                                                                                    return (
+                                                                                        <button
+                                                                                            key={type}
+                                                                                            className={`reaction-tag ${userReacted ? 'active' : ''}`}
+                                                                                            onClick={(e) => { e.stopPropagation(); handleReaction(visit._id, type); }}
+                                                                                            title={`${count} reactions`}
+                                                                                        >
+                                                                                            <span>{type}</span>
+                                                                                            <span style={{ fontSize: '0.75em', opacity: 0.8, marginLeft: '2px' }}>{count}</span>
+                                                                                        </button>
+                                                                                    );
+                                                                                })}
                                                                             </div>
                                                                         )}
-                                                                        {visit.notes || 'No notes provided.'}
-                                                                    </div>
-                                                                    <div className="message-meta">
-                                                                        {visit.outcome && (
-                                                                            <span className="meta-tag outcome">Outcome: {visit.outcome}</span>
-                                                                        )}
-                                                                        {visit.nextAction && (
-                                                                            <span className="meta-tag next-action">Next: {visit.nextAction}</span>
-                                                                        )}
-                                                                    </div>
 
-                                                                    {/* Reactions Display */}
-                                                                    {visit.reactions && visit.reactions.length > 0 && (
-                                                                        <div className="message-reactions">
-                                                                            {Object.entries(
-                                                                                visit.reactions.reduce((acc, r) => {
-                                                                                    acc[r.type] = (acc[r.type] || 0) + 1;
-                                                                                    return acc;
-                                                                                }, {})
-                                                                            ).map(([type, count]) => {
-                                                                                const userReacted = visit.reactions.some(r => r.type === type && (r.userId === currentUserId || (!currentUserId && r.userId))); // Best effort check
-                                                                                return (
-                                                                                    <button
-                                                                                        key={type}
-                                                                                        className={`reaction-tag ${userReacted ? 'active' : ''}`}
-                                                                                        onClick={(e) => { e.stopPropagation(); handleReaction(visit._id, type); }}
-                                                                                        title={`${count} reactions`}
-                                                                                    >
-                                                                                        <span>{type}</span>
-                                                                                        <span style={{ fontSize: '0.75em', opacity: 0.8, marginLeft: '2px' }}>{count}</span>
-                                                                                    </button>
-                                                                                );
-                                                                            })}
+                                                                        {/* Reaction Picker (Active State or Hover) */}
+                                                                        <div className={`reaction-picker ${activeReactionMessageId === visit._id ? 'visible' : ''}`}>
+                                                                            {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
+                                                                                <button
+                                                                                    key={emoji}
+                                                                                    className="reaction-btn"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleReaction(visit._id, emoji);
+                                                                                        setActiveReactionMessageId(null); // Close after picking
+                                                                                    }}
+                                                                                >
+                                                                                    {emoji}
+                                                                                </button>
+                                                                            ))}
                                                                         </div>
-                                                                    )}
-
-                                                                    {/* Reaction Picker (Hover) */}
-                                                                    <div className="reaction-picker">
-                                                                        {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
-                                                                            <button
-                                                                                key={emoji}
-                                                                                className="reaction-btn"
-                                                                                onClick={(e) => { e.stopPropagation(); handleReaction(visit._id, emoji); }}
-                                                                            >
-                                                                                {emoji}
-                                                                            </button>
-                                                                        ))}
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        );
-                                                    })
-                                                ) : (
-                                                    <div className="empty-list-message">
-                                                        No visits recorded yet. Start a conversation!
-                                                    </div>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <div className="empty-list-message">
+                                                            No visits recorded yet. Start a conversation!
+                                                        </div>
+                                                    )
                                                 )}
                                             </div>
 
@@ -1274,7 +1355,7 @@ const SalesPage = () => {
                                                     <label className="chat-action-btn">
                                                         <input
                                                             type="file"
-                                                            accept="image/*"
+                                                            accept="image/*,application/pdf"
                                                             onChange={handleVisitImageUpload}
                                                             style={{ display: 'none' }}
                                                         />
@@ -1284,7 +1365,11 @@ const SalesPage = () => {
                                                 <div className="chat-input-wrapper">
                                                     {(Array.isArray(visitForm.image) ? visitForm.image : (visitForm.image ? [visitForm.image] : [])).length > 0 && (
                                                         <div className="chat-image-preview">
-                                                            <img src={(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image])[0]} alt="Preview" />
+                                                            {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image])[0].startsWith('data:application/pdf') ? (
+                                                                <FileText size={40} color="#E5C04A" />
+                                                            ) : (
+                                                                <img src={(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image])[0]} alt="Preview" />
+                                                            )}
                                                             <button className="remove-image" onClick={() => setVisitForm(prev => ({ ...prev, image: [] }))}>
                                                                 <X size={12} />
                                                             </button>
@@ -1397,12 +1482,30 @@ const SalesPage = () => {
                                                                         <td colSpan="6">
                                                                             <div className="resource-details">
                                                                                 <div className="detail-item">
-                                                                                    <strong>Image</strong>
-                                                                                    <div>
-                                                                                        {resource.image ? (
-                                                                                            <img src={resource.image} alt="Resource" style={{ maxWidth: '100px', maxHeight: '100px' }} />
+                                                                                    <strong>Attachments</strong>
+                                                                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                                                                        {(Array.isArray(resource.image) ? resource.image : (resource.image ? [resource.image] : [])).length > 0 ? (
+                                                                                            (Array.isArray(resource.image) ? resource.image : [resource.image]).map((img, idx) => (
+                                                                                                img.startsWith('data:application/pdf') ? (
+                                                                                                    <div key={idx} style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => {
+                                                                                                        const win = window.open();
+                                                                                                        win.document.write('<iframe src="' + img + '" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>');
+                                                                                                    }}>
+                                                                                                        <FileText size={40} color="#E5C04A" />
+                                                                                                        <div style={{ fontSize: '10px' }}>PDF</div>
+                                                                                                    </div>
+                                                                                                ) : (
+                                                                                                    <img
+                                                                                                        key={idx}
+                                                                                                        src={img}
+                                                                                                        alt="Resource"
+                                                                                                        style={{ maxWidth: '100px', maxHeight: '100px', objectFit: 'cover', cursor: 'pointer', borderRadius: '4px', border: '1px solid #ddd' }}
+                                                                                                        onClick={() => setFullScreenImage(img)}
+                                                                                                    />
+                                                                                                )
+                                                                                            ))
                                                                                         ) : (
-                                                                                            <span className="placeholder-img">📷</span>
+                                                                                            <span className="placeholder-img">No attachments</span>
                                                                                         )}
                                                                                     </div>
                                                                                 </div>
@@ -1598,13 +1701,30 @@ const SalesPage = () => {
                                     />
                                 </div>
                                 <div className="form-group">
-                                    <label>Images</label>
+                                    <label>Attachments</label>
                                     <div className="image-upload-container">
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginBottom: '8px' }}>
                                             {visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
-                                                <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px' }}>
-                                                    <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                    <button type="button" className="remove-image-btn" onClick={() => handleRemoveVisitImage(idx)} style={{ padding: '2px' }}>
+                                                <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px', position: 'relative' }}>
+                                                    {img.startsWith('data:application/pdf') ? (
+                                                        <div className="pdf-preview" style={{
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            background: '#f5f5f5',
+                                                            borderRadius: '4px',
+                                                            border: '1px solid #ddd'
+                                                        }}>
+                                                            <FileText size={32} color="#E5C04A" />
+                                                            <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
+                                                        </div>
+                                                    ) : (
+                                                        <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                    )}
+                                                    <button type="button" className="remove-image-btn" onClick={() => handleRemoveVisitImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
                                                         <X size={12} />
                                                     </button>
                                                 </div>
@@ -1614,13 +1734,13 @@ const SalesPage = () => {
                                             <input
                                                 type="file"
                                                 id="visit-image-upload"
-                                                accept="image/*"
+                                                accept="image/*,application/pdf"
                                                 multiple
                                                 onChange={handleVisitImageUpload}
                                                 className="file-input"
                                             />
                                             <label htmlFor="visit-image-upload" className="file-input-label">
-                                                Add Images
+                                                Add Files
                                             </label>
                                         </div>
                                     </div>
@@ -1790,14 +1910,31 @@ const SalesPage = () => {
                                     </div>
 
                                     <div className="form-group">
-                                        <label>Image</label>
+                                        <label>Attachments</label>
                                         <div className="image-upload-container">
                                             <div className="image-upload-container">
                                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginBottom: '8px' }}>
                                                     {resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
-                                                        <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px' }}>
-                                                            <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                            <button type="button" className="remove-image-btn" onClick={() => handleRemoveResourceImage(idx)} style={{ padding: '2px' }}>
+                                                        <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px', position: 'relative' }}>
+                                                            {img.startsWith('data:application/pdf') ? (
+                                                                <div className="pdf-preview" style={{
+                                                                    width: '100%',
+                                                                    height: '100%',
+                                                                    display: 'flex',
+                                                                    flexDirection: 'column',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    background: '#f5f5f5',
+                                                                    borderRadius: '4px',
+                                                                    border: '1px solid #ddd'
+                                                                }}>
+                                                                    <FileText size={32} color="#E5C04A" />
+                                                                    <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
+                                                                </div>
+                                                            ) : (
+                                                                <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                            )}
+                                                            <button type="button" className="remove-image-btn" onClick={() => handleRemoveResourceImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
                                                                 <X size={12} />
                                                             </button>
                                                         </div>
@@ -1807,13 +1944,13 @@ const SalesPage = () => {
                                                     <input
                                                         type="file"
                                                         id="resource-image-upload"
-                                                        accept="image/*"
+                                                        accept="image/*,application/pdf"
                                                         multiple
                                                         onChange={handleImageUpload}
                                                         className="file-input"
                                                     />
                                                     <label htmlFor="resource-image-upload" className="file-input-label">
-                                                        {resourceForm.image && resourceForm.image.length > 0 ? 'Add More Images' : 'Choose Files'}
+                                                        {resourceForm.image && resourceForm.image.length > 0 ? 'Add More Files' : 'Choose Files'}
                                                     </label>
                                                 </div>
                                             </div>
@@ -1836,15 +1973,19 @@ const SalesPage = () => {
                 )
             }
 
-            {/* Full Screen Image Modal */}
+            {/* Full Screen Image/File Modal */}
             {
                 fullScreenImage && (
                     <div className="fullscreen-image-overlay" onClick={() => setFullScreenImage(null)}>
-                        <div className="fullscreen-image-container" onClick={(e) => e.stopPropagation()}>
+                        <div className="fullscreen-image-container" onClick={(e) => e.stopPropagation()} style={{ width: fullScreenImage.startsWith('data:application/pdf') ? '80%' : 'auto', height: fullScreenImage.startsWith('data:application/pdf') ? '90%' : 'auto', maxWidth: '90%', maxHeight: '90%' }}>
                             <button className="fullscreen-close-btn" onClick={() => setFullScreenImage(null)}>
                                 <X size={32} />
                             </button>
-                            <img src={fullScreenImage} alt="Full Screen" />
+                            {fullScreenImage.startsWith('data:application/pdf') ? (
+                                <iframe src={fullScreenImage} style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} title="PDF Preview"></iframe>
+                            ) : (
+                                <img src={fullScreenImage} alt="Full Screen" />
+                            )}
                         </div>
                     </div>
                 )

@@ -33,9 +33,43 @@
 .chat-message {
     display: flex;
     gap: 1rem;
-    max-width: 80%;
+    max-width: 65%;
     animation: fadeIn 0.3s ease;
     margin-bottom: 0.5rem;
+}
+
+.pdf-attachment {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    margin-top: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: background 0.2s;
+    cursor: pointer;
+}
+
+.pdf-attachment:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.pdf-attachment span {
+    font-weight: 500;
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-message.self .pdf-attachment {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.chat-message.self .pdf-attachment:hover {
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .chat-message.self {
@@ -287,7 +321,8 @@
     left: 0;
 }
 
-.chat-message:hover .reaction-picker {
+/* .chat-message:hover .reaction-picker removed to prevent accidental showing */
+.reaction-picker.visible {
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto;
@@ -352,12 +387,7 @@
     /* Mobile Adjustments */
     .chat-messages {
         padding: 1rem;
-        padding-bottom: 90px; /* Space for fixed input */
-    }
-
-    .chat-messages {
-        padding: 1rem;
-        padding-bottom: 80px; /* Space for fixed input at bottom */
+        padding-bottom: 120px; /* Space for fixed input */
         gap: 0.75rem;
     }
 
@@ -480,4 +510,12 @@
     .reaction-btn {
         font-size: 1.25rem;
     }
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.spin-animation {
+    animation: spin 1s linear infinite;
 }
