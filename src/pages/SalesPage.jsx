@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, User, Plus, Edit2, Trash2, X, Eye, Send, MoreVertical, Paperclip, Image as ImageIcon, Maximize2, Minimize2, Pin, PinOff, Menu, ChevronLeft, Info, DollarSign, MapPin, ShieldCheck, Mail, Phone, Calendar, CreditCard, Hash, FileText, Loader } from 'lucide-react';
+import {
+    Calendar, MapPin, Phone, Mail, Clock, Plus, Search,
+    Filter, MoreVertical, X, Upload, Home, ArrowLeft,
+    CheckCircle, MessageSquare, Heart, ThumbsUp, Send, User, Menu,
+    Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft,
+    Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
+    CreditCard, Edit2, Hash
+} from 'lucide-react';
 
 import { API_URL } from '../config/api';
 import './SalesPage.css';
@@ -176,6 +183,23 @@ const SalesPage = () => {
     const [activeReactionMessageId, setActiveReactionMessageId] = useState(null);
     const [visitsLoading, setVisitsLoading] = useState(false);
 
+    // Sales Dashboard State
+    const [salesResources, setSalesResources] = useState([]);
+    console.log('SalesPage Render: salesResources', salesResources);
+    const [showDashboard, setShowDashboard] = useState(true);
+    const [showDashboardUploadModal, setShowDashboardUploadModal] = useState(false);
+    const [dashboardUploadForm, setDashboardUploadForm] = useState({
+        name: '',
+        type: 'file',
+        content: '',
+        file: null
+    });
+    const [editingDashboardResource, setEditingDashboardResource] = useState(null);
+    const [previewDashboardResource, setPreviewDashboardResource] = useState(null);
+    const [isExistingFileRemoved, setIsExistingFileRemoved] = useState(false);
+    const [currentFolderId, setCurrentFolderId] = useState(null);
+    const [folderPath, setFolderPath] = useState([]); // [{id, name}, ...]
+
     const resourceTypes = [
         "Moda Tower 2024 version 2",
         "Moda Tabletop 2024 version 1",
@@ -198,6 +222,7 @@ const SalesPage = () => {
     useEffect(() => {
         fetchCurrentUser();
         fetchCustomers();
+        // fetchDashboardResources will be called by its own useEffect when tab is active
 
         // Auto-refresh every 5 seconds for real-time updates
         const intervalId = setInterval(() => {
@@ -208,12 +233,12 @@ const SalesPage = () => {
         return () => clearInterval(intervalId);
     }, []);
 
-    // Handle initial selection safely
+    // Auto-select first customer only if dashboard is not active
     useEffect(() => {
-        if (customers.length > 0 && !selectedCustomerId) {
+        if (!showDashboard && customers.length > 0 && !selectedCustomerId) {
             setSelectedCustomerId(customers[0]._id);
         }
-    }, [customers, selectedCustomerId]);
+    }, [customers, selectedCustomerId, showDashboard]);
 
     const fetchCurrentUser = async () => {
         try {
@@ -252,6 +277,37 @@ const SalesPage = () => {
         } catch (e) {
             console.error('Date parsing error:', e);
             return 'Error';
+        }
+    };
+
+    // Fetch Sales Dashboard Resources
+    const fetchDashboardResources = async () => {
+        try {
+            const query = currentFolderId ? `?parentId=${currentFolderId}` : '';
+            const response = await fetch(`${API_URL}/api/sales-dashboard/resources${query}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setSalesResources(data);
+            }
+        } catch (error) {
+            console.error('Error fetching dashboard resources:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (showDashboard) {
+            fetchDashboardResources();
+        }
+    }, [showDashboard, currentFolderId]);
+
+    const handleGoHome = () => {
+        setSelectedCustomerId(null);
+        setSelectedCustomerDetail(null);
+        setShowDashboard(true);
+        if (isMobile) {
+            setIsSidebarOpen(false);
         }
     };
 
@@ -455,6 +511,210 @@ const SalesPage = () => {
         }
     };
 
+    const handleDashboardUpload = async (e) => {
+        e.preventDefault();
+
+        // Validation: For NEW resources of type file, file is required.
+        // For EDITING, file is optional UNLESS the existing one was explicitly removed.
+        if (dashboardUploadForm.type === 'file') {
+            if (!dashboardUploadForm.file) {
+                if (!editingDashboardResource || isExistingFileRemoved) {
+                    alert('Please select a file to upload');
+                    return;
+                }
+            }
+        }
+
+        // Basic validation for name
+        if (!dashboardUploadForm.name.trim()) {
+            alert('Please provide a name for the resource.');
+            return;
+        }
+
+        // Validation for link type
+        if (dashboardUploadForm.type === 'link' && !dashboardUploadForm.content.trim()) {
+            alert('Please provide a URL for the link resource.');
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const formData = new FormData();
+            formData.append('name', dashboardUploadForm.name);
+            formData.append('type', dashboardUploadForm.type);
+            if (currentFolderId) {
+                formData.append('parentId', currentFolderId);
+            }
+
+            if (dashboardUploadForm.type === 'link') {
+                formData.append('content', dashboardUploadForm.content);
+            } else if (dashboardUploadForm.file) { // Only append file if it exists (for new or updated files)
+                formData.append('file', dashboardUploadForm.file);
+
+                // Client-side thumbnail generation for images
+                if (dashboardUploadForm.file.type.startsWith('image/')) {
+                    try {
+                        const createThumbnail = (file) => {
+                            return new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = (e) => {
+                                    const img = new Image();
+                                    img.onload = () => {
+                                        const canvas = document.createElement('canvas');
+                                        const MAX_WIDTH = 200;
+                                        const scaleSize = MAX_WIDTH / img.width;
+                                        canvas.width = MAX_WIDTH;
+                                        canvas.height = img.height * scaleSize;
+                                        const ctx = canvas.getContext('2d');
+                                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                                        resolve(canvas.toDataURL(file.type));
+                                    };
+                                    img.src = e.target.result;
+                                };
+                                reader.readAsDataURL(file);
+                            });
+                        };
+
+                        const thumbDataUrl = await createThumbnail(dashboardUploadForm.file);
+                        formData.append('thumbnail', thumbDataUrl);
+                    } catch (error) {
+                        console.error('Thumbnail generation failed:', error);
+                    }
+                }
+            }
+
+            const url = editingDashboardResource
+                ? `/api/sales-dashboard/resources/${editingDashboardResource._id}`
+                : '/api/sales-dashboard/upload';
+
+            const method = editingDashboardResource ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
+                body: formData // Content-Type is set automatically
+            });
+
+            if (response.ok) {
+                setShowDashboardUploadModal(false);
+                setDashboardUploadForm({ name: '', type: 'file', content: '', file: null });
+                setEditingDashboardResource(null);
+                fetchDashboardResources();
+            } else {
+                const errorData = await response.json();
+                alert(`Failed to ${editingDashboardResource ? 'update' : 'upload'} resource: ${errorData.message}`);
+            }
+        } catch (error) {
+            console.error('Upload/Update error:', error);
+            alert(`Error processing request: ${error.message}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDashboardDelete = async (resourceId) => {
+        if (!window.confirm('Are you sure you want to delete this resource?')) return;
+        try {
+            const response = await fetch(`/api/sales-dashboard/resources/${resourceId}`, { method: 'DELETE' });
+            if (response.ok) {
+                fetchDashboardResources();
+            } else {
+                alert('Failed to delete resource');
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+        }
+    };
+
+    const ensureResourceContent = async (resource) => {
+        if (resource.isFolder || resource.type === 'link') return resource;
+        if (resource.content) return resource;
+
+        try {
+            const response = await fetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`);
+            if (response.ok) {
+                const fullResource = await response.json();
+                // Update local list state so we don't have to fetch again
+                setSalesResources(prev => prev.map(r => r._id === fullResource._id ? fullResource : r));
+                return fullResource;
+            }
+        } catch (error) {
+            console.error('Error fetching full resource:', error);
+        }
+        return resource;
+    };
+
+    const handleDashboardShare = async (resource) => {
+        try {
+            const fullResource = await ensureResourceContent(resource);
+            if (fullResource.type === 'link') {
+                if (navigator.share) {
+                    await navigator.share({
+                        title: fullResource.name,
+                        text: `Check out this resource: ${fullResource.name}`,
+                        url: fullResource.content
+                    });
+                } else {
+                    await navigator.clipboard.writeText(fullResource.content);
+                    alert('Link copied to clipboard!');
+                }
+            } else {
+                // Handle File Sharing
+                if (navigator.share && fullResource.content && fullResource.content.startsWith('data:')) {
+                    // Convert Base64 to Blob/File
+                    const response = await fetch(fullResource.content);
+                    const blob = await response.blob();
+                    const file = new File([blob], fullResource.name, { type: blob.type });
+
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: fullResource.name,
+                            text: `Check out this file: ${fullResource.name}`
+                        });
+                    } else {
+                        throw new Error('Direct file sharing not supported');
+                    }
+                } else {
+                    throw new Error('Web Share API not supported');
+                }
+            }
+        } catch (error) {
+            console.error('Share failed:', error);
+            // Fallback
+            if (resource.type === 'link') {
+                try {
+                    navigator.clipboard.writeText(resource.content);
+                    alert('Link copied to clipboard (Sharing failed or not supported)');
+                } catch (e) { alert('Failed to copy link'); }
+            } else {
+                alert('Direct sharing is not supported on this browser/device. Please download the file instead.');
+            }
+        }
+    };
+
+    const handleDashboardDownload = async (resource) => {
+        const fullResource = await ensureResourceContent(resource);
+        if (fullResource.type === 'link') {
+            window.open(fullResource.content, '_blank');
+        } else {
+            const link = document.createElement('a');
+            link.href = fullResource.content;
+            link.download = fullResource.name || 'download';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
+
+    const handleDashboardPreview = async (resource) => {
+        const fullResource = await ensureResourceContent(resource);
+        if (fullResource.type === 'link') {
+            window.open(fullResource.content, '_blank');
+        } else {
+            setPreviewDashboardResource(fullResource);
+        }
+    };
+
     // Visit CRUD operations
     const handleAddVisit = () => {
         setEditingVisit(null);
@@ -578,6 +838,25 @@ const SalesPage = () => {
     };
 
     // Resource CRUD operations
+    const handleCloseResourceModal = () => {
+        setShowResourceModal(false);
+        setEditingResource(null);
+        setResourceForm({
+            title: '',
+            date: new Date().toISOString().split('T')[0],
+            customerId: selectedCustomer ? selectedCustomer._id : '',
+            customer: selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}` : '',
+            location: '',
+            resourceType: '',
+            image: [],
+            description: '',
+            notes: '',
+            status: 'Active',
+            url: '',
+            uploadedBy: ''
+        });
+    };
+
     const handleAddResource = () => {
         setEditingResource(null);
         setIsViewingResource(false);
@@ -599,23 +878,76 @@ const SalesPage = () => {
         setShowResourceModal(true);
     };
 
-    const handleCloseResourceModal = () => {
-        setShowResourceModal(false);
-        setEditingResource(null);
-        setResourceForm({
-            title: '',
-            date: new Date().toISOString().split('T')[0],
-            customerId: selectedCustomer ? selectedCustomer._id : '',
-            customer: selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}` : '',
-            location: '',
-            resourceType: '',
-            image: [],
-            description: '',
-            notes: '',
-            status: 'Active',
-            url: '',
-            uploadedBy: ''
-        });
+    const handleCreateFolder = async () => {
+        const folderName = prompt('Enter folder name:');
+        if (!folderName || !folderName.trim()) return;
+
+        try {
+            const response = await fetch(`${API_URL}/api/sales-dashboard/upload`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: folderName.trim(),
+                    type: 'folder',
+                    isFolder: true,
+                    parentId: currentFolderId
+                })
+            });
+
+            if (response.ok) {
+                fetchDashboardResources();
+            } else {
+                alert('Failed to create folder');
+            }
+        } catch (error) {
+            console.error('Error creating folder:', error);
+            alert('Error creating folder');
+        }
+    };
+
+    const handleFolderClick = (folder) => {
+        setFolderPath([...folderPath, { id: folder._id, name: folder.name }]);
+        setCurrentFolderId(folder._id);
+    };
+
+    const handleBreadcrumbClick = (index) => {
+        if (index === -1) {
+            // Home
+            setFolderPath([]);
+            setCurrentFolderId(null);
+        } else {
+            // Go to specific folder
+            const newPath = folderPath.slice(0, index + 1);
+            setFolderPath(newPath);
+            setCurrentFolderId(newPath[newPath.length - 1].id);
+        }
+    };
+
+    const handleResourceClick = async (resource) => {
+        if (resource.isFolder) {
+            handleFolderClick(resource);
+        } else {
+            // Lazy load content if missing
+            let fullResource = resource;
+            if (!resource.content && resource.type !== 'link') {
+                try {
+                    const response = await fetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`);
+                    if (response.ok) {
+                        fullResource = await response.json();
+                        // Update local state to avoid re-fetching immediately (optional optimization)
+                        setSalesResources(prev => prev.map(r => r._id === fullResource._id ? fullResource : r));
+                    } else {
+                        alert('Failed to load resource content');
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error fetching full resource:', error);
+                    alert('Error loading resource');
+                    return;
+                }
+            }
+            handleDashboardPreview(fullResource);
+        }
     };
 
     const handleEditResource = (resource) => {
@@ -998,6 +1330,13 @@ const SalesPage = () => {
                         <span className="customer-count">{filteredCustomers.length}</span>
                     </div>
                     <div className="sidebar-controls">
+                        <button
+                            className="icon-btn-ghost"
+                            onClick={handleGoHome}
+                            title="Sales Dashboard"
+                        >
+                            <Home size={18} />
+                        </button>
                         <button
                             className="icon-btn-ghost"
                             onClick={togglePin}
@@ -1650,14 +1989,228 @@ const SalesPage = () => {
                             </div>
                         </>
                     ) : (
-                        <div className="empty-state">
-                            <User size={64} style={{ color: '#4b5563' }} />
-                            <h2>No Customer Selected</h2>
-                            <p>Select a customer from the list to view their details</p>
+                        <div className="sales-dashboard">
+                            <div className="dashboard-header">
+                                {isMobile && (
+                                    <button
+                                        className="mobile-back-btn"
+                                        onClick={handleMobileBack}
+                                        style={{
+                                            position: 'absolute',
+                                            left: '1rem',
+                                            top: '1.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            background: 'rgba(255, 255, 255, 0.05)',
+                                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                                            borderRadius: '50%',
+                                            width: '40px',
+                                            height: '40px',
+                                            color: 'var(--gold-primary)'
+                                        }}
+                                    >
+                                        <ChevronLeft size={24} />
+                                    </button>
+                                )}
+                                <h1>Sales Dashboard</h1>
+                                <p>Shared resources for the sales team</p>
+                            </div>
+
+                            <div className="dashboard-resources">
+                                <div className="dashboard-header">
+                                    <div className="header-left">
+                                        <h2>Team Resources</h2>
+                                        <div className="breadcrumbs" style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', color: '#666', marginTop: '5px' }}>
+                                            <span
+                                                onClick={() => handleBreadcrumbClick(-1)}
+                                                style={{ cursor: 'pointer', fontWeight: folderPath.length === 0 ? 'bold' : 'normal', color: folderPath.length === 0 ? 'var(--gold-primary)' : 'inherit' }}
+                                            >
+                                                Home
+                                            </span>
+                                            {folderPath.map((folder, index) => (
+                                                <React.Fragment key={folder.id}>
+                                                    <span>/</span>
+                                                    <span
+                                                        onClick={() => handleBreadcrumbClick(index)}
+                                                        style={{ cursor: 'pointer', fontWeight: index === folderPath.length - 1 ? 'bold' : 'normal', color: index === folderPath.length - 1 ? 'var(--gold-primary)' : 'inherit' }}
+                                                    >
+                                                        {folder.name}
+                                                    </span>
+                                                </React.Fragment>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="header-actions">
+                                        <button className="btn-secondary" onClick={handleCreateFolder}>
+                                            <Plus size={16} /> New Folder
+                                        </button>
+                                        <button className="btn-primary" onClick={() => {
+                                            setDashboardUploadForm({ name: '', type: 'file', content: '', file: null });
+                                            setEditingDashboardResource(null);
+                                            setIsExistingFileRemoved(false);
+                                            setShowDashboardUploadModal(true);
+                                        }}>
+                                            <Plus size={16} /> Add Resource
+                                        </button>
+                                    </div>
+                                </div>
+                                {salesResources.length > 0 ? (
+                                    <div className="resources-grid">
+                                        {salesResources.map(resource => (
+                                            <div key={resource._id} className="resource-card">
+                                                <div
+                                                    className="resource-icon"
+                                                    onClick={() => resource.isFolder ? handleFolderClick(resource) : handleResourceClick(resource)}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    {resource.isFolder ? (
+                                                        <div className="icon-placeholder">
+                                                            📁
+                                                        </div>
+                                                    ) : (
+                                                        resource.thumbnail ? (
+                                                            <img src={resource.thumbnail} alt={resource.name} className="resource-thumbnail" />
+                                                        ) : (
+                                                            resource.content && resource.content.startsWith('data:image') ? (
+                                                                <img src={resource.content} alt={resource.name} className="resource-thumbnail" />
+                                                            ) : (
+                                                                <div className="icon-placeholder">
+                                                                    {resource.type === 'link' ? '🔗' : '📄'}
+                                                                </div>
+                                                            )
+                                                        )
+                                                    )}
+                                                </div>
+                                                <div className="resource-info">
+                                                    <h3
+                                                        onClick={() => resource.isFolder ? handleFolderClick(resource) : handleResourceClick(resource)}
+                                                        style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                                                    >
+                                                        {resource.name}
+                                                    </h3>
+                                                    <span className="resource-date">
+                                                        {new Date(resource.createdAt).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                                <div className="resource-actions">
+                                                    {resource.type !== 'link' && (
+                                                        <button
+                                                            className="icon-btn-ghost"
+                                                            title="Preview"
+                                                            onClick={() => handleDashboardPreview(resource)}
+                                                        >
+                                                            <Eye size={16} />
+                                                        </button>
+                                                    )}
+                                                    {resource.type !== 'link' && (
+                                                        <button
+                                                            className="icon-btn-ghost"
+                                                            title="Download"
+                                                            onClick={() => handleDashboardDownload(resource)}
+                                                        >
+                                                            <Download size={16} />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        className="icon-btn-ghost"
+                                                        title="Share"
+                                                        onClick={() => handleDashboardShare(resource)}
+                                                    >
+                                                        <Share2 size={16} />
+                                                    </button>
+                                                    <button
+                                                        className="icon-btn-ghost"
+                                                        title="Edit"
+                                                        onClick={async () => {
+                                                            const fullResource = await ensureResourceContent(resource);
+                                                            setEditingDashboardResource(fullResource);
+                                                            setDashboardUploadForm({
+                                                                name: fullResource.name,
+                                                                type: fullResource.type,
+                                                                content: fullResource.type === 'link' ? fullResource.content : '',
+                                                                file: null
+                                                            });
+                                                            setIsExistingFileRemoved(false);
+                                                            setShowDashboardUploadModal(true);
+                                                        }}
+                                                    >
+                                                        <Edit size={16} />
+                                                    </button>
+                                                    <button
+                                                        className="icon-btn-ghost delete-btn"
+                                                        title="Delete"
+                                                        onClick={() => handleDashboardDelete(resource._id)}
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="empty-list-message">
+                                        No resources added yet. Click "Add Resource" to upload documents.
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    )}
+                    )
+                    }
                 </ErrorBoundary>
-            </div>
+
+                {/* Dashboard Resource Preview Modal */}
+                {
+                    previewDashboardResource && (
+                        <div className="modal-overlay" onClick={() => setPreviewDashboardResource(null)}>
+                            <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%' }}>
+                                <div className="modal-header">
+                                    <h2>{previewDashboardResource.name}</h2>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <button
+                                            className="icon-btn"
+                                            title="Download"
+                                            onClick={() => handleDashboardDownload(previewDashboardResource)}
+                                        >
+                                            <Download size={20} />
+                                        </button>
+                                        <button className="close-btn" onClick={() => setPreviewDashboardResource(null)}>
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="modal-body" style={{ padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px', background: '#f9fafb' }}>
+                                    {previewDashboardResource.content.startsWith('data:image') ? (
+                                        <img
+                                            src={previewDashboardResource.content}
+                                            alt={previewDashboardResource.name}
+                                            style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+                                        />
+                                    ) : previewDashboardResource.content.startsWith('data:application/pdf') ? (
+                                        <iframe
+                                            src={previewDashboardResource.content}
+                                            style={{ width: '100%', height: '70vh', border: 'none' }}
+                                            title={previewDashboardResource.name}
+                                        />
+                                    ) : (
+                                        <div style={{ textAlign: 'center', padding: '2rem' }}>
+                                            <p>Preview not available for this file type.</p>
+                                            <button
+                                                className="btn-primary"
+                                                onClick={() => handleDashboardDownload(previewDashboardResource)}
+                                                style={{ marginTop: '1rem' }}
+                                            >
+                                                Download File
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
+
+            </div >
 
             {/* Contact Modal */}
             {
@@ -2082,6 +2635,108 @@ const SalesPage = () => {
                             ) : (
                                 <img src={fullScreenImage} alt="Full Screen" />
                             )}
+                        </div>
+                    </div>
+                )
+            }
+
+
+            {/* Dashboard Upload Modal */}
+            {
+                showDashboardUploadModal && (
+                    <div className="modal-overlay" onClick={() => setShowDashboardUploadModal(false)}>
+                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                            <div className="modal-header">
+                                <h2>Upload Dashboard Resource</h2>
+                                <button className="close-btn" onClick={() => setShowDashboardUploadModal(false)}>
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="modal-body">
+                                <div className="form-group">
+                                    <label>Resource Name</label>
+                                    <input
+                                        type="text"
+                                        value={dashboardUploadForm.name}
+                                        onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, name: e.target.value })}
+                                        placeholder="Enter resource name"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Type</label>
+                                    <select
+                                        value={dashboardUploadForm.type}
+                                        onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, type: e.target.value })}
+                                        className="form-select"
+                                    >
+                                        <option value="file">File / Image</option>
+                                        <option value="link">URL Link</option>
+                                    </select>
+                                </div>
+
+                                {dashboardUploadForm.type === 'file' ? (
+                                    <div className="form-group">
+                                        <label>File</label>
+                                        {editingDashboardResource && editingDashboardResource.content && !isExistingFileRemoved && (
+                                            <div style={{ marginBottom: '10px', padding: '10px', background: 'rgba(0,0,0,0.03)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    {editingDashboardResource.content.startsWith('data:image') ? (
+                                                        <img
+                                                            src={editingDashboardResource.content}
+                                                            alt="Current"
+                                                            style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
+                                                        />
+                                                    ) : (
+                                                        <div style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e0e0e0', borderRadius: '4px' }}>
+                                                            📄
+                                                        </div>
+                                                    )}
+                                                    <div style={{ fontSize: '0.9rem', color: '#666' }}>
+                                                        <strong>Current file attached</strong><br />
+                                                        <span style={{ fontSize: '0.8rem' }}>Upload new file to replace (Optional)</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className="icon-btn-ghost delete-btn"
+                                                    title="Remove current file"
+                                                    onClick={() => setIsExistingFileRemoved(true)}
+                                                    style={{ color: '#dc2626', padding: '5px' }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        )}
+                                        <div className="file-input-wrapper">
+                                            <input
+                                                type="file"
+                                                id="dashboard-upload"
+                                                onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, file: e.target.files[0] })}
+                                                className="file-input"
+                                            />
+                                            <label htmlFor="dashboard-upload" className="file-input-label">
+                                                {dashboardUploadForm.file ? dashboardUploadForm.file.name : (editingDashboardResource && !isExistingFileRemoved ? 'Change File (Optional)' : 'Choose File')}
+                                            </label>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="form-group">
+                                        <label>URL</label>
+                                        <input
+                                            type="text"
+                                            value={dashboardUploadForm.content}
+                                            onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, content: e.target.value })}
+                                            placeholder="https://example.com"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="modal-footer">
+                                <button className="btn-secondary" onClick={() => setShowDashboardUploadModal(false)} disabled={isSaving}>Cancel</button>
+                                <button className="btn-primary" onClick={handleDashboardUpload} disabled={isSaving}>
+                                    {isSaving ? 'Uploading...' : 'Upload'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )

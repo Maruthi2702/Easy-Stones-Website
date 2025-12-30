@@ -1,15 +1,19 @@
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { Menu, LogOut, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 import './Header.css';
 
 const Header = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  /* navigate('/login') is needed. Adding useNavigate hook. */
+
   const handleLogout = async () => {
     await logout();
+    navigate('/login');
   };
 
   const toggleMobileMenu = () => {

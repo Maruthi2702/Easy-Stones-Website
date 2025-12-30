@@ -56,7 +56,7 @@ const ProtectedRoute = ({ children }) => {
     return <PageLoader />;
   }
 
-  return isAuthenticated ? children : <Navigate to="/admin/login" replace />;
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
 function App() {

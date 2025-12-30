@@ -22,6 +22,8 @@ import User from './src/models/User.js';
 import ContactSubmission from './src/models/ContactSubmission.js';
 import Customer from './src/models/Customer.js';
 import SalesCustomer from './src/models/SalesCustomer.js';
+import SalesResource from './src/models/SalesResource.js';
+import SalesDashboardResource from './src/models/SalesDashboardResource.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -318,7 +320,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 30 * 60 * 1000 // 30 minutes
     });
     
     res.json({ 
@@ -576,7 +578,7 @@ app.post('/api/customer/register', async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 30 * 60 * 1000 // 30 minutes
     });
 
     res.status(201).json({ 
@@ -679,7 +681,7 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 30 * 60 * 1000 // 30 minutes
     });
 
     console.log(`✅ Login successful for ${email}`);
@@ -930,9 +932,159 @@ app.post('/api/auth/change-password', verifyToken, async (req, res) => {
 
     res.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Error updating password' });
+    console.error('Password change error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
+// ============================================
+// SALES DASHBOARD RESOURCE ENDPOINTS
+// ============================================
+
+// Get all dashboard resources (Support folder navigation)
+app.get('/api/sales-dashboard/resources', async (req, res) => {
+  try {
+    const { parentId } = req.query;
+    const query = parentId ? { parentId } : { parentId: null };
+    
+    // Also support getting ALL resources if specifically requested (for search maybe?) - avoiding for now to keep simple
+    const resources = await SalesDashboardResource.find(query).select('-content').sort({ isFolder: -1, createdAt: -1 }); // Folders first, exclude content
+    res.json(resources);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch dashboard resources' });
+  }
+});
+
+// Get single resource (with full content)
+app.get('/api/sales-dashboard/resources/:id', async (req, res) => {
+  try {
+    const resource = await SalesDashboardResource.findById(req.params.id);
+    if (!resource) return res.status(404).json({ message: 'Resource not found' });
+    res.json(resource);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch resource' });
+  }
+});
+
+// Upload a new resource (File, Link, or Folder)
+app.post('/api/sales-dashboard/upload', uploadMemory.single('file'), async (req, res) => {
+  try {
+    const { name, type, content: linkContent, isFolder, parentId, thumbnail } = req.body;
+
+    let content = '';
+    let contentType = 'application/octet-stream';
+
+    // Handle Folder Creation
+    if (isFolder === 'true' || isFolder === true) {
+        // Folders have no content
+        content = ''; // Not required due to schema change
+        contentType = 'application/vnd.google-apps.folder'; // Custom MIME for folder
+    }
+    // Handle File Upload
+    else if (req.file) {
+      const b64 = Buffer.from(req.file.buffer).toString('base64');
+      content = `data:${req.file.mimetype};base64,${b64}`;
+      contentType = req.file.mimetype;
+    }
+    // Handle Link
+    else if (type === 'link') {
+      content = linkContent;
+      contentType = 'text/uri-list';
+    } else {
+        // Fallback or error if neither folder, file, nor link content
+        return res.status(400).json({ message: 'Invalid resource data' });
+    }
+
+    const newResource = new SalesDashboardResource({
+      name,
+      type: isFolder === 'true' || isFolder === true ? 'folder' : type,
+      content,
+      contentType,
+      isFolder: isFolder === 'true' || isFolder === true,
+      parentId: parentId || null,
+      thumbnail: thumbnail || ''
+    });
+
+    await newResource.save();
+    console.log('[DEBUG] Resource saved successfully');
+    res.status(201).json(newResource);
+  } catch (error) {
+    console.error('Error uploading dashboard resource:', error);
+    res.status(500).json({ message: `Failed to upload resource: ${error.message}` });
+  }
+});
+
+// Update dashboard resource
+app.put('/api/sales-dashboard/resources/:id', uploadMemory.single('file'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, type, content: linkContent, thumbnail } = req.body;
+
+    const resource = await SalesDashboardResource.findById(id);
+    if (!resource) {
+      return res.status(404).json({ message: 'Resource not found' });
+    }
+
+    if (name) resource.name = name;
+    // Don't change type usually, but if needed
+    // if (type) resource.type = type;
+
+    if (thumbnail) resource.thumbnail = thumbnail;
+
+    // Handle content update
+    if (type === 'file' && req.file) {
+        const b64 = Buffer.from(req.file.buffer).toString('base64');
+        resource.content = `data:${req.file.mimetype};base64,${b64}`;
+        resource.contentType = req.file.mimetype;
+    } else if (type === 'link' && linkContent) {
+        resource.content = linkContent;
+        resource.contentType = 'text/uri-list';
+    }
+
+    await resource.save();
+    res.json(resource);
+  } catch (error) {
+    console.error('Error updating dashboard resource:', error);
+    res.status(500).json({ message: 'Failed to update resource' });
+  }
+});
+
+// Delete dashboard resource (Recursive for folders)
+app.delete('/api/sales-dashboard/resources/:id', async (req, res) => {
+  try {
+    const resourceId = req.params.id;
+    const resource = await SalesDashboardResource.findById(resourceId);
+
+    if (!resource) return res.status(404).json({ message: 'Resource not found' });
+
+    if (resource.isFolder) {
+        // Recursive delete: Find all children and delete them
+        // Note: For deep nesting, this should be recursive function, but 
+        // typically MongoDB $graphLookup or separate logic is used. 
+        // For simplicity, we'll just delete direct children or use a recursive function.
+        // Let's implement a helper function for recursive delete.
+        
+        const deleteFolderContents = async (folderId) => {
+            const children = await SalesDashboardResource.find({ parentId: folderId });
+            for (const child of children) {
+                if (child.isFolder) {
+                    await deleteFolderContents(child._id);
+                }
+                await SalesDashboardResource.findByIdAndDelete(child._id);
+            }
+        };
+        await deleteFolderContents(resourceId);
+    }
+
+    await SalesDashboardResource.findByIdAndDelete(resourceId);
+    res.json({ message: 'Resource deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting resource:', error);
+    res.status(500).json({ message: 'Failed to delete resource' });
+  }
+});
+
+
 
 // ============================================
 // VISITS CRUD ENDPOINTS
@@ -1787,6 +1939,55 @@ app.delete('/api/sales/customers/:id', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Failed to delete customer' });
   }
 });
+
+// ===== SALES RESOURCES (GLOBAL/SHARED) ENDPOINTS =====
+
+// Get all sales resources
+// Get all sales resources
+app.get('/api/sales-resources', verifyToken, authorize('admin'), async (req, res) => {
+  try {
+    const resources = await SalesResource.find().sort({ createdAt: -1 });
+    res.json(resources);
+  } catch (error) {
+    console.error('Error fetching sales resources:', error);
+    res.status(500).json({ message: 'Failed to fetch resources' });
+  }
+});
+
+// Create a new sales resource
+// Create a new sales resource
+app.post('/api/sales-resources', verifyToken, authorize('admin'), async (req, res) => {
+  try {
+    const { name, type, content, contentType } = req.body;
+    
+    const resource = new SalesResource({
+      name,
+      type,
+      content,
+      contentType,
+      uploadedBy: req.userId
+    });
+    
+    await resource.save();
+    res.status(201).json(resource);
+  } catch (error) {
+    console.error('Error creating sales resource:', error);
+    res.status(500).json({ message: 'Failed to create resource' });
+  }
+});
+
+// Delete a sales resource
+app.delete('/api/sales-resources/:id', verifyToken, authorize('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    await SalesResource.findByIdAndDelete(id);
+    res.json({ message: 'Resource deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting sales resource:', error);
+    res.status(500).json({ message: 'Failed to delete resource' });
+  }
+});
+
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
