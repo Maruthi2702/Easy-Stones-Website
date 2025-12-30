@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, User, Plus, Edit2, Trash2, X, Eye, Send, MoreVertical, Paperclip, Image as ImageIcon, Maximize2, Minimize2, Pin, PinOff, Menu, ChevronLeft, Info, DollarSign, MapPin, ShieldCheck, Mail, Phone, Calendar, CreditCard, Hash, FileText, Loader } from 'lucide-react';
 
 import { API_URL } from '../config/api';
@@ -67,6 +67,11 @@ const SalesPage = () => {
         const saved = localStorage.getItem('sidebarPinned');
         return saved !== null ? JSON.parse(saved) : true;
     });
+    const [sidebarWidth, setSidebarWidth] = useState(() => {
+        const saved = localStorage.getItem('sidebarWidth');
+        return saved ? parseInt(saved, 10) : 300;
+    });
+    const [isResizing, setIsResizing] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -81,6 +86,39 @@ const SalesPage = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    const startResizing = useCallback(() => {
+        setIsResizing(true);
+    }, []);
+
+    const stopResizing = useCallback(() => {
+        setIsResizing(false);
+    }, []);
+
+    const resize = useCallback(
+        (mouseMoveEvent) => {
+            if (isResizing) {
+                const newWidth = mouseMoveEvent.clientX;
+                if (newWidth >= 220 && newWidth <= 600) {
+                    setSidebarWidth(newWidth);
+                }
+            }
+        },
+        [isResizing]
+    );
+
+    useEffect(() => {
+        window.addEventListener("mousemove", resize);
+        window.addEventListener("mouseup", stopResizing);
+        return () => {
+            window.removeEventListener("mousemove", resize);
+            window.removeEventListener("mouseup", stopResizing);
+        };
+    }, [resize, stopResizing]);
+
+    useEffect(() => {
+        localStorage.setItem('sidebarWidth', sidebarWidth);
+    }, [sidebarWidth]);
 
     useEffect(() => {
         localStorage.setItem('sidebarPinned', JSON.stringify(isPinned));
@@ -800,6 +838,53 @@ const SalesPage = () => {
         }));
     };
 
+    const handlePaste = async (e) => {
+        const items = e.clipboardData.items;
+        const newFiles = [];
+        let hasFile = false;
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) {
+                    hasFile = true;
+                    // Check file type
+                    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+                        continue;
+                    }
+
+                    if (file.size > 25 * 1024 * 1024) {
+                        alert(`Pasted file is too large. Limit is 25MB.`);
+                        continue;
+                    }
+
+                    try {
+                        let processedFile;
+                        if (file.type.startsWith('image/')) {
+                            processedFile = await compressImage(file);
+                        } else if (file.type === 'application/pdf') {
+                            processedFile = await fileToBase64(file);
+                        }
+                        if (processedFile) {
+                            newFiles.push(processedFile);
+                        }
+                    } catch (error) {
+                        console.error(`Error processing pasted file:`, error);
+                    }
+                }
+            }
+        }
+
+        if (hasFile && newFiles.length > 0) {
+            e.preventDefault(); // Prevent default if we successfully handled a file
+            setVisitForm(prev => ({
+                ...prev,
+                image: prev.image ? (Array.isArray(prev.image) ? [...prev.image, ...newFiles] : [prev.image, ...newFiles]) : newFiles
+            }));
+        }
+    };
+
     const handleRemoveVisitImage = (index) => {
         setVisitForm(prev => ({
             ...prev,
@@ -899,7 +984,14 @@ const SalesPage = () => {
             </button>
 
             {/* Sidebar */}
-            <div className={`sales-sidebar ${isSidebarOpen ? 'open' : 'closed'} ${isPinned ? 'pinned' : 'overlay'}`}>
+            <div
+                className={`sales-sidebar ${isSidebarOpen ? 'open' : 'closed'} ${isPinned ? 'pinned' : 'overlay'}`}
+                style={{ width: isMobile ? '100%' : `${sidebarWidth}px` }}
+            >
+                {/* Resize Handle */}
+                {!isMobile && (
+                    <div className="resize-handle" onMouseDown={startResizing} />
+                )}
                 <div className="sidebar-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <h2>Customers</h2>
@@ -987,7 +1079,10 @@ const SalesPage = () => {
             </div>
 
             {/* Main Content */}
-            <div className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isPinned || !isSidebarOpen ? 'full-width' : ''}`}>
+            <div
+                className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isPinned || !isSidebarOpen ? 'full-width' : ''}`}
+                style={{ marginLeft: isMobile || !isSidebarOpen || !isPinned ? 0 : `${sidebarWidth}px` }}
+            >
                 <ErrorBoundary key={selectedCustomerId || 'no-customer'}>
                     {selectedCustomer ? (
                         <>
@@ -1380,6 +1475,7 @@ const SalesPage = () => {
                                                         placeholder="Add a new visit note..."
                                                         value={visitForm.notes}
                                                         onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
+                                                        onPaste={handlePaste}
                                                         onKeyDown={(e) => {
                                                             if (e.key === 'Enter' && !e.shiftKey) {
                                                                 e.preventDefault();

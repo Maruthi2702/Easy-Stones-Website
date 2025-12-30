@@ -2162,3 +2162,20 @@
         max-height: 300px;
     }
 }
+
+/* Resize Handle */
+.resize-handle {
+    position: absolute;
+    top: 0;
+    right: -4px; /* Extend slightly outside */
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 100;
+    transition: background 0.2s;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+    background: rgba(229, 192, 74, 0.5); /* Gold with opacity */
+}
