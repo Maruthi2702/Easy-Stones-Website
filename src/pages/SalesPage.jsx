@@ -741,6 +741,19 @@ const SalesPage = () => {
         setShowVisitModal(true);
     };
 
+    const handleCloseVisitModal = () => {
+        setVisitForm({
+            date: '',
+            purpose: '',
+            notes: '',
+            outcome: '',
+            nextAction: '',
+            image: []
+        });
+        setEditingVisit(null);
+        setShowVisitModal(false);
+    };
+
     const handleSaveVisit = async () => {
         try {
             setIsSaving(true);
@@ -759,15 +772,7 @@ const SalesPage = () => {
 
             if (response.ok) {
                 await fetchSingleCustomer(selectedCustomerId);
-                setShowVisitModal(false);
-                // Reset form
-                setVisitForm({
-                    date: '',
-                    purpose: '',
-                    notes: '',
-                    outcome: '',
-                    nextAction: ''
-                });
+                handleCloseVisitModal();
             } else {
                 const data = await response.json();
                 alert(data.message || 'Failed to save visit');
@@ -1664,6 +1669,48 @@ const SalesPage = () => {
                                                                             }
                                                                         }}
                                                                     >
+                                                                        {/* Unified Message Toolbar (Reactions + Actions) */}
+                                                                        {activeReactionMessageId === visit._id && (
+                                                                            <div className="message-toolbar">
+                                                                                <div className="reaction-options">
+                                                                                    {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
+                                                                                        <button
+                                                                                            key={emoji}
+                                                                                            className="reaction-btn"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleReaction(visit._id, emoji);
+                                                                                                setActiveReactionMessageId(null);
+                                                                                            }}
+                                                                                        >
+                                                                                            {emoji}
+                                                                                        </button>
+                                                                                    ))}
+                                                                                </div>
+
+                                                                                {isOwnVisit && (
+                                                                                    <>
+                                                                                        <div className="toolbar-separator" />
+                                                                                        <div className="action-options">
+                                                                                            <button
+                                                                                                className="icon-btn-ghost"
+                                                                                                onClick={(e) => { e.stopPropagation(); handleEditVisit(visit); }}
+                                                                                                title="Edit"
+                                                                                            >
+                                                                                                <Edit2 size={14} />
+                                                                                            </button>
+                                                                                            <button
+                                                                                                className="icon-btn-ghost delete-btn"
+                                                                                                onClick={(e) => { e.stopPropagation(); handleDeleteVisit(visit._id); }}
+                                                                                                title="Delete"
+                                                                                            >
+                                                                                                <Trash2 size={14} />
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    </>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
                                                                         {/* Message Header */}
                                                                         <div className="message-header">
                                                                             <span className="message-sender">
@@ -1692,7 +1739,6 @@ const SalesPage = () => {
                                                                                     );
                                                                                 })}
                                                                             </span>
-                                                                            {/* Actions removed from header, visible on hover/active via CSS if needed */}
                                                                         </div>
                                                                         <div className="message-body">
                                                                             {(Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : [])).length > 0 && (
@@ -1755,23 +1801,6 @@ const SalesPage = () => {
                                                                                 })}
                                                                             </div>
                                                                         )}
-
-                                                                        {/* Reaction Picker (Active State or Hover) */}
-                                                                        <div className={`reaction-picker ${activeReactionMessageId === visit._id ? 'visible' : ''}`}>
-                                                                            {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
-                                                                                <button
-                                                                                    key={emoji}
-                                                                                    className="reaction-btn"
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation();
-                                                                                        handleReaction(visit._id, emoji);
-                                                                                        setActiveReactionMessageId(null); // Close after picking
-                                                                                    }}
-                                                                                >
-                                                                                    {emoji}
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             );
@@ -2296,11 +2325,11 @@ const SalesPage = () => {
             {/* Visit Modal */}
             {
                 showVisitModal && (
-                    <div className="modal-overlay" onClick={() => setShowVisitModal(false)}>
+                    <div className="modal-overlay" onClick={handleCloseVisitModal}>
                         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                             <div className="modal-header">
                                 <h2>{editingVisit ? 'Edit Visit' : 'Add Visit'}</h2>
-                                <button className="close-btn" onClick={() => setShowVisitModal(false)}>
+                                <button className="close-btn" onClick={handleCloseVisitModal}>
                                     <X size={20} />
                                 </button>
                             </div>
@@ -2396,7 +2425,7 @@ const SalesPage = () => {
                                 </div>
                             </div>
                             <div className="modal-footer">
-                                <button className="btn-secondary" onClick={() => setShowVisitModal(false)} disabled={isSaving}>Cancel</button>
+                                <button className="btn-secondary" onClick={handleCloseVisitModal} disabled={isSaving}>Cancel</button>
                                 <button className="btn-primary" onClick={handleSaveVisit} disabled={isSaving}>
                                     {isSaving ? 'Saving...' : 'Save'}
                                 </button>
