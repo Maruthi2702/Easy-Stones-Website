@@ -369,7 +369,7 @@ const AdminPage = () => {
 
   // Options
   const collections = ['Luxe', 'Prestige', 'Signature', 'Basic'];
-  const categories = ['Quartz', 'Granite', 'Marble', 'Quartzite', 'MODA PST'];
+  const categories = ['Quartz', 'Granite', 'Marble', 'Sinks', 'Quartzite', 'MODA PST'];
   const thicknessOptions = ['1.5CM', '2CM', '3CM'];
 
   const handleImageUpload = async (e) => {

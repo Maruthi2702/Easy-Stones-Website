@@ -7,7 +7,8 @@ const CategoryNav = ({ activeCategory, onCategoryChange }) => {
         { id: 'MODA PST', label: 'MODA PST' },
         { id: 'Quartzite', label: 'Quartzite' },
         { id: 'Granite', label: 'Granite' },
-        { id: 'Marble', label: 'Marble' }
+        { id: 'Marble', label: 'Marble' },
+        { id: 'Sinks', label: 'Sinks' }
     ];
 
     return (
