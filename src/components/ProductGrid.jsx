@@ -111,9 +111,18 @@ const ProductGrid = ({ searchTerm = '', onSearchChange, activeCategory = 'Moda Q
 
       {/* Product Grid */}
       <div className="product-grid">
-        {filteredProducts.map((product) => (
-          <ProductCard key={product.id} product={product} activeCategory={activeCategory} />
-        ))}
+        {filteredProducts.length > 0 ? (
+          filteredProducts.map((product) => (
+            <ProductCard key={product.id} product={product} activeCategory={activeCategory} />
+          ))
+        ) : (
+          !loading && (
+            <div className="coming-soon-container">
+              <h2 className="coming-soon-text">Coming Soon!!</h2>
+              <p className="coming-soon-subtext">We are currently updating our {activeCategory} inventory. Please check back later!</p>
+            </div>
+          )
+        )}
       </div>
     </section>
   );

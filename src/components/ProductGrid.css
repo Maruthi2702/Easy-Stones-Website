@@ -175,6 +175,41 @@
   animation: fadeIn 0.8s ease 0.6s backwards;
 }
 
+.coming-soon-container {
+  grid-column: 1 / -1;
+  padding: 6rem 2rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1.5px dashed var(--border-color);
+  border-radius: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  animation: fadeUp 1s ease 0.8s backwards;
+}
+
+.coming-soon-text {
+  font-family: var(--font-display);
+  font-size: 3.5rem;
+  font-weight: 900;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.04em;
+  margin: 0;
+}
+
+.coming-soon-subtext {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  max-width: 400px;
+  line-height: 1.6;
+  margin: 0;
+}
+
 .empty-state {
   padding: 2rem;
   border-radius: 24px;
