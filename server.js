@@ -30,9 +30,52 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { read, utils } from 'xlsx';
 import bcrypt from 'bcryptjs';
+import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Mockup Generation Utility
+const generateMockups = async (slabImageName) => {
+  const slabPath = path.join(__dirname, 'public', 'images', 'products', slabImageName);
+  const templatesDir = path.join(__dirname, 'public', 'images', 'templates');
+  const outputDir = path.join(__dirname, 'public', 'images', 'products');
+
+  const templates = [
+    { name: 'kitchen_template.png', output: `installed_1_${slabImageName}` },
+    { name: 'bathroom_template.png', output: `installed_2_${slabImageName}` }
+  ];
+
+  const generatedPaths = [];
+
+  for (const template of templates) {
+    try {
+      const templatePath = path.join(templatesDir, template.name);
+      if (!fs.existsSync(templatePath)) continue;
+
+      // Get template metadata to ensure slab fits
+      const templateMetadata = await sharp(templatePath).metadata();
+      
+      const slabBuffer = await sharp(slabPath)
+        .resize(templateMetadata.width, templateMetadata.height, { fit: 'cover' })
+        .toBuffer();
+
+      await sharp(templatePath)
+        .composite([{
+          input: slabBuffer,
+          blend: 'overlay', // Using overlay blend to keep furniture details
+          gravity: 'center'
+        }])
+        .toFile(path.join(outputDir, template.output));
+
+      generatedPaths.push(`/images/products/${template.output}`);
+    } catch (err) {
+      console.error(`Failed to generate mockup for ${template.name}:`, err);
+    }
+  }
+
+  return generatedPaths;
+};
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1882,7 +1925,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // API endpoint to upload image locally
-app.post('/api/upload', upload.single('image'), (req, res) => {
+app.post('/api/upload', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -1891,10 +1934,16 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     console.log('✅ File uploaded locally:', req.file.filename);
     
     // Return path relative to public directory
-    // The frontend expects /images/products/filename
     const filePath = `/images/products/${req.file.filename}`;
     
-    res.json({ success: true, filePath: filePath });
+    // Auto-generate mockups for installed gallery
+    const installedImages = await generateMockups(req.file.filename);
+    
+    res.json({ 
+      success: true, 
+      filePath: filePath,
+      installedImages: installedImages 
+    });
   } catch (error) {
     console.error('❌ Error uploading file:', error);
     res.status(500).json({ error: 'Failed to upload file', details: error.message });

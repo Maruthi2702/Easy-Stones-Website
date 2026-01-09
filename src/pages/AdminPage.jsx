@@ -391,8 +391,11 @@ const AdminPage = () => {
       const data = await response.json();
 
       if (data.success) {
-        // Update with actual server path
+        // Update both main image and generated installed mockups
         handleChange('image', data.filePath);
+        if (data.installedImages && data.installedImages.length > 0) {
+          handleChange('installedImages', data.installedImages);
+        }
         // Clean up object URL to avoid memory leaks
         URL.revokeObjectURL(objectUrl);
       } else {
