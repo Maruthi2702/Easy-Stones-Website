@@ -5,6 +5,7 @@ import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider } from './context/AuthContext';
 import { ProductProvider } from './context/ProductContext';
+import { API_URL } from './config/api';
 import './App.css';
 
 // Lazy load pages
@@ -35,11 +36,13 @@ const ProtectedRoute = ({ children }) => {
   React.useEffect(() => {
     const verifyAuth = async () => {
       try {
-        const response = await fetch('/api/auth/verify', {
+        const response = await fetch(`${API_URL}/api/auth/verify`, {
           credentials: 'include'
         });
 
-        if (response.ok) {
+        const data = await response.json();
+
+        if (response.ok && data.valid === true) {
           setIsAuthenticated(true);
         } else {
           setIsAuthenticated(false);
@@ -50,7 +53,7 @@ const ProtectedRoute = ({ children }) => {
     };
 
     verifyAuth();
-  }, []);
+  }, [location.pathname]);
 
   if (isAuthenticated === null) {
     return <PageLoader />;
@@ -81,8 +84,22 @@ function App() {
                   <Route path="/contact" element={<ContactPage />} />
                   <Route path="/warranty" element={<WarrantyPage />} />
                   <Route path="/login" element={<CustomerLoginPage />} />
-                  <Route path="/sales" element={<SalesPage />} />
-                  <Route path="/sales/map" element={<SalesMapPage />} />
+                  <Route
+                    path="/sales"
+                    element={
+                      <ProtectedRoute>
+                        <SalesPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/sales/map"
+                    element={
+                      <ProtectedRoute>
+                        <SalesMapPage />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="/admin/login" element={<LoginPage />} />
                   <Route
                     path="/admin"

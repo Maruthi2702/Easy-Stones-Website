@@ -659,9 +659,13 @@ const SalesPage = () => {
                 }
             } else {
                 // Handle File Sharing
-                if (navigator.share && fullResource.content && fullResource.content.startsWith('data:')) {
-                    // Convert Base64 to Blob/File
-                    const response = await fetch(fullResource.content);
+                if (navigator.share && fullResource.content && (fullResource.content.startsWith('data:') || fullResource.content.startsWith('/uploads/'))) {
+                    // Convert Base64 or URL to Blob/File
+                    const resourceUrl = fullResource.content.startsWith('data:')
+                        ? fullResource.content
+                        : (fullResource.content.startsWith('/') ? `${API_URL}${fullResource.content}` : fullResource.content);
+
+                    const response = await fetch(resourceUrl);
                     const blob = await response.blob();
                     const file = new File([blob], fullResource.name, { type: blob.type });
 
@@ -675,7 +679,7 @@ const SalesPage = () => {
                         throw new Error('Direct file sharing not supported');
                     }
                 } else {
-                    throw new Error('Web Share API not supported');
+                    throw new Error('Web Share API not supported or invalid content');
                 }
             }
         } catch (error) {
@@ -683,11 +687,13 @@ const SalesPage = () => {
             // Fallback
             if (resource.type === 'link') {
                 try {
-                    navigator.clipboard.writeText(resource.content);
+                    await navigator.clipboard.writeText(resource.content);
                     alert('Link copied to clipboard (Sharing failed or not supported)');
                 } catch (e) { alert('Failed to copy link'); }
             } else {
-                alert('Direct sharing is not supported on this browser/device. Please download the file instead.');
+                if (window.confirm('Direct sharing is not supported on this browser or device. Would you like to download the file instead?')) {
+                    handleDashboardDownload(resource);
+                }
             }
         }
     };
@@ -698,7 +704,9 @@ const SalesPage = () => {
             window.open(fullResource.content, '_blank');
         } else {
             const link = document.createElement('a');
-            link.href = fullResource.content;
+            link.href = fullResource.content.startsWith('data:')
+                ? fullResource.content
+                : (fullResource.content.startsWith('/') ? `${API_URL}${fullResource.content}` : fullResource.content);
             link.download = fullResource.name || 'download';
             document.body.appendChild(link);
             link.click();
@@ -2209,15 +2217,15 @@ const SalesPage = () => {
                                     </div>
                                 </div>
                                 <div className="modal-body" style={{ padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px', background: '#f9fafb' }}>
-                                    {previewDashboardResource.content.startsWith('data:image') ? (
+                                    {previewDashboardResource.content.startsWith('data:image') || (!previewDashboardResource.content.startsWith('data:') && (previewDashboardResource.contentType?.startsWith('image/') || previewDashboardResource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i))) ? (
                                         <img
-                                            src={previewDashboardResource.content}
+                                            src={previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
                                             alt={previewDashboardResource.name}
                                             style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
                                         />
-                                    ) : previewDashboardResource.content.startsWith('data:application/pdf') ? (
+                                    ) : previewDashboardResource.content.startsWith('data:application/pdf') || (!previewDashboardResource.content.startsWith('data:') && (previewDashboardResource.contentType === 'application/pdf' || previewDashboardResource.name.toLowerCase().endsWith('.pdf'))) ? (
                                         <iframe
-                                            src={previewDashboardResource.content}
+                                            src={previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
                                             style={{ width: '100%', height: '70vh', border: 'none' }}
                                             title={previewDashboardResource.name}
                                         />
@@ -2709,15 +2717,15 @@ const SalesPage = () => {
                                         {editingDashboardResource && editingDashboardResource.content && !isExistingFileRemoved && (
                                             <div style={{ marginBottom: '10px', padding: '10px', background: 'rgba(0,0,0,0.03)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    {editingDashboardResource.content.startsWith('data:image') ? (
+                                                    {editingDashboardResource.content.startsWith('data:image') || (!editingDashboardResource.content.startsWith('data:') && (editingDashboardResource.contentType?.startsWith('image/') || editingDashboardResource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i))) ? (
                                                         <img
-                                                            src={editingDashboardResource.content}
+                                                            src={editingDashboardResource.content.startsWith('data:') ? editingDashboardResource.content : `${API_URL}${editingDashboardResource.content}`}
                                                             alt="Current"
                                                             style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
                                                         />
                                                     ) : (
                                                         <div style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e0e0e0', borderRadius: '4px' }}>
-                                                            📄
+                                                            {editingDashboardResource.contentType === 'application/pdf' || editingDashboardResource.name.toLowerCase().endsWith('.pdf') ? 'PDF' : '📄'}
                                                         </div>
                                                     )}
                                                     <div style={{ fontSize: '0.9rem', color: '#666' }}>

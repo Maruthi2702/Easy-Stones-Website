@@ -107,7 +107,7 @@
 
 .icon-btn-ghost:hover {
     background: rgba(255, 255, 255, 0.1);
-    color: var(--text-primary);
+    color: var(--accent-color);
 }
 
 .sidebar-header h2 {
@@ -399,9 +399,9 @@
 }
 
 .info-toggle-btn:hover {
-    color: white;
-    border-color: white;
-    background: rgba(255, 255, 255, 0.1);
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+    background: rgba(229, 192, 74, 0.1);
 }
 
 /* Customer Info Section */
@@ -924,6 +924,7 @@
 
 .icon-btn:hover {
   background: rgba(255, 255, 255, 0.1);
+  color: var(--accent-color);
 }
 
 .icon-btn.edit {
@@ -931,8 +932,9 @@
 }
 
 .icon-btn.edit:hover {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: #3b82f6;
+  background: rgba(229, 192, 74, 0.1);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 
 .icon-btn.delete {
@@ -2434,11 +2436,11 @@
 }
 
 .resource-actions .icon-btn-ghost:hover {
-  background: var(--accent-color);
-  color: #000;
-  border-color: transparent;
+  background: rgba(229, 192, 74, 0.1);
+  color: var(--accent-color);
+  border-color: var(--accent-color);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(229, 192, 74, 0.3);
+  box-shadow: 0 4px 12px rgba(229, 192, 74, 0.2);
 }
 
 .resource-actions .delete-btn:hover {

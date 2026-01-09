@@ -24,6 +24,7 @@ import Customer from './src/models/Customer.js';
 import SalesCustomer from './src/models/SalesCustomer.js';
 import SalesResource from './src/models/SalesResource.js';
 import SalesDashboardResource from './src/models/SalesDashboardResource.js';
+import ActivityLog from './src/models/ActivityLog.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -140,7 +141,27 @@ app.get('/api/debug/config', async (req, res) => {
 // Cloudinary config removed - using local storage
 // Cloudinary config removed - using local storage
 const memoryStorage = multer.memoryStorage();
-const uploadMemory = multer({ storage: memoryStorage });
+const uploadMemory = multer({ 
+  storage: memoryStorage,
+  limits: { fileSize: 200 * 1024 * 1024 } // 200MB limit for memory uploads (Excel bulk, etc.)
+});
+
+const resourceStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, 'public/uploads/resources');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    const name = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, '_');
+    cb(null, name + '_' + uniqueSuffix + ext);
+  }
+});
+const uploadResources = multer({ storage: resourceStorage, limits: { fileSize: 200 * 1024 * 1024 } });
 
 // Middleware
 const allowedOrigins = [
@@ -242,6 +263,42 @@ const verifyToken = (req, res, next) => {
   } catch (error) {
     res.status(401).json({ error: 'Invalid token.' });
   }
+};
+
+// Dual Authentication Middleware - accepts both admin and customer tokens
+const verifyAnyAuth = (req, res, next) => {
+  const adminToken = req.cookies.adminToken;
+  const customerToken = req.cookies.customerToken;
+
+  // Try admin token first
+  if (adminToken) {
+    try {
+      const decoded = jwt.verify(adminToken, JWT_SECRET);
+      req.userId = decoded.userId;
+      req.userRole = decoded.role;
+      req.authType = 'admin';
+      return next();
+    } catch (error) {
+      // Admin token invalid, try customer token
+    }
+  }
+
+  // Try customer token
+  if (customerToken) {
+    try {
+      const decoded = jwt.verify(customerToken, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+      if (decoded.type === 'customer') {
+        req.customerId = decoded.id;
+        req.authType = 'customer';
+        return next();
+      }
+    } catch (error) {
+      // Customer token invalid
+    }
+  }
+
+  // No valid token found
+  return res.status(401).json({ error: 'Access denied. No valid token provided.' });
 };
 
 // Role Authorization Middleware
@@ -437,13 +494,22 @@ app.post('/api/auth/change-password', verifyToken, async (req, res) => {
 
 // Logout endpoint
 app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('adminToken');
+  res.clearCookie('adminToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+  });
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // Verify token endpoint
-app.get('/api/auth/verify', verifyToken, (req, res) => {
-  res.json({ valid: true });
+app.get('/api/auth/verify', verifyAnyAuth, (req, res) => {
+  res.json({ 
+    valid: true, 
+    id: req.userId || req.customerId, 
+    role: req.userRole || 'customer',
+    authType: req.authType
+  });
 });
 
 // Get current user info (for admin/internal users)
@@ -775,46 +841,13 @@ app.post('/api/customer/logout', (req, res) => {
   res.clearCookie('customerToken', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
   });
   res.json({ message: 'Logged out successfully' });
 });
 
 // Dual Authentication Middleware - accepts both admin and customer tokens
-const verifyAnyAuth = (req, res, next) => {
-  const adminToken = req.cookies.adminToken;
-  const customerToken = req.cookies.customerToken;
-
-  // Try admin token first
-  if (adminToken) {
-    try {
-      const decoded = jwt.verify(adminToken, JWT_SECRET);
-      req.userId = decoded.userId;
-      req.userRole = decoded.role;
-      req.authType = 'admin';
-      return next();
-    } catch (error) {
-      // Admin token invalid, try customer token
-    }
-  }
-
-  // Try customer token
-  if (customerToken) {
-    try {
-      const decoded = jwt.verify(customerToken, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
-      if (decoded.type === 'customer') {
-        req.customerId = decoded.id;
-        req.authType = 'customer';
-        return next();
-      }
-    } catch (error) {
-      // Customer token invalid
-    }
-  }
-
-  // No valid token found
-  return res.status(401).json({ error: 'Access denied. No valid token provided.' });
-};
+// (Moved to top of file)
 
 // Customer-accessible endpoint: Get all customers (for sales page)
 // Customer-accessible endpoint: Get all customers (for sales page) - Optimized (No images)
@@ -967,7 +1000,7 @@ app.get('/api/sales-dashboard/resources/:id', async (req, res) => {
 });
 
 // Upload a new resource (File, Link, or Folder)
-app.post('/api/sales-dashboard/upload', uploadMemory.single('file'), async (req, res) => {
+app.post('/api/sales-dashboard/upload', uploadResources.single('file'), async (req, res) => {
   try {
     const { name, type, content: linkContent, isFolder, parentId, thumbnail } = req.body;
 
@@ -976,14 +1009,13 @@ app.post('/api/sales-dashboard/upload', uploadMemory.single('file'), async (req,
 
     // Handle Folder Creation
     if (isFolder === 'true' || isFolder === true) {
-        // Folders have no content
-        content = ''; // Not required due to schema change
-        contentType = 'application/vnd.google-apps.folder'; // Custom MIME for folder
+        content = ''; 
+        contentType = 'application/vnd.google-apps.folder'; 
     }
     // Handle File Upload
     else if (req.file) {
-      const b64 = Buffer.from(req.file.buffer).toString('base64');
-      content = `data:${req.file.mimetype};base64,${b64}`;
+      // Store relative path instead of base64
+      content = `/uploads/resources/${req.file.filename}`;
       contentType = req.file.mimetype;
     }
     // Handle Link
@@ -991,7 +1023,6 @@ app.post('/api/sales-dashboard/upload', uploadMemory.single('file'), async (req,
       content = linkContent;
       contentType = 'text/uri-list';
     } else {
-        // Fallback or error if neither folder, file, nor link content
         return res.status(400).json({ message: 'Invalid resource data' });
     }
 
@@ -1006,7 +1037,7 @@ app.post('/api/sales-dashboard/upload', uploadMemory.single('file'), async (req,
     });
 
     await newResource.save();
-    console.log('[DEBUG] Resource saved successfully');
+    console.log('[DEBUG] Resource saved successfully as disk file');
     res.status(201).json(newResource);
   } catch (error) {
     console.error('Error uploading dashboard resource:', error);
@@ -1015,7 +1046,7 @@ app.post('/api/sales-dashboard/upload', uploadMemory.single('file'), async (req,
 });
 
 // Update dashboard resource
-app.put('/api/sales-dashboard/resources/:id', uploadMemory.single('file'), async (req, res) => {
+app.put('/api/sales-dashboard/resources/:id', uploadResources.single('file'), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, type, content: linkContent, thumbnail } = req.body;
@@ -1026,20 +1057,24 @@ app.put('/api/sales-dashboard/resources/:id', uploadMemory.single('file'), async
     }
 
     if (name) resource.name = name;
-    // Don't change type usually, but if needed
-    // if (type) resource.type = type;
+    
+    // If a new file is uploaded
+    if (req.file) {
+      // Delete old file if it was a disk file
+      if (resource.content && resource.content.startsWith('/uploads/')) {
+        const oldPath = path.join(__dirname, 'public', resource.content);
+        if (fs.existsSync(oldPath)) {
+          try { fs.unlinkSync(oldPath); } catch (e) { console.error('Failed to delete old file:', e); }
+        }
+      }
+      resource.content = `/uploads/resources/${req.file.filename}`;
+      resource.contentType = req.file.mimetype;
+    } else if (type === 'link' && linkContent) {
+      resource.content = linkContent;
+      resource.contentType = 'text/uri-list';
+    }
 
     if (thumbnail) resource.thumbnail = thumbnail;
-
-    // Handle content update
-    if (type === 'file' && req.file) {
-        const b64 = Buffer.from(req.file.buffer).toString('base64');
-        resource.content = `data:${req.file.mimetype};base64,${b64}`;
-        resource.contentType = req.file.mimetype;
-    } else if (type === 'link' && linkContent) {
-        resource.content = linkContent;
-        resource.contentType = 'text/uri-list';
-    }
 
     await resource.save();
     res.json(resource);
@@ -1069,11 +1104,23 @@ app.delete('/api/sales-dashboard/resources/:id', async (req, res) => {
             for (const child of children) {
                 if (child.isFolder) {
                     await deleteFolderContents(child._id);
+                } else if (child.content && child.content.startsWith('/uploads/')) {
+                    // Delete file from disk
+                    const filePath = path.join(__dirname, 'public', child.content);
+                    if (fs.existsSync(filePath)) {
+                        try { fs.unlinkSync(filePath); } catch (e) { }
+                    }
                 }
                 await SalesDashboardResource.findByIdAndDelete(child._id);
             }
         };
         await deleteFolderContents(resourceId);
+    } else if (resource.content && resource.content.startsWith('/uploads/')) {
+        // Delete file from disk
+        const filePath = path.join(__dirname, 'public', resource.content);
+        if (fs.existsSync(filePath)) {
+            try { fs.unlinkSync(filePath); } catch (e) { }
+        }
     }
 
     await SalesDashboardResource.findByIdAndDelete(resourceId);
@@ -1160,6 +1207,25 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
     
     // Return only the new visit data instead of the whole array
     res.status(201).json({ success: true, visit: visitData });
+
+    // Background: Log the activity
+    try {
+        const newVisit = (await Customer.findById(customerId).select('visits')).visits.slice(-1)[0];
+        if (newVisit) {
+            await ActivityLog.create({
+                entityType: 'Visit',
+                entityId: newVisit._id,
+                customerId: customerId,
+                action: 'CREATE',
+                performedBy: createdBy,
+                performedByName: createdByName,
+                performedByRole: req.authType,
+                details: { purpose: visitData.purpose, date: visitData.date }
+            });
+        }
+    } catch (logError) {
+        console.error('Failed to log visit creation:', logError);
+    }
   } catch (error) {
     console.error('Add visit error:', error);
     res.status(500).json({ message: 'Failed to add visit: ' + error.message });
@@ -1173,6 +1239,20 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
     const { customerId, visitId } = req.params;
     const { date, purpose, notes, outcome, nextAction, image } = req.body;
 
+    // Get updater information
+    let updatedBy = '';
+    let updatedByName = '';
+
+    if (req.authType === 'admin') {
+      updatedBy = req.userId;
+      const user = await User.findById(req.userId).select('username');
+      updatedByName = user ? user.username : 'Unknown User';
+    } else if (req.authType === 'customer') {
+      updatedBy = req.customerId;
+      const customerUser = await Customer.findById(req.customerId).select('contactName');
+      updatedByName = customerUser ? customerUser.contactName : 'Unknown Customer';
+    }
+
     const updateData = {};
     if (date) updateData['visits.$.date'] = date;
     if (purpose !== undefined) updateData['visits.$.purpose'] = purpose;
@@ -1180,6 +1260,11 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
     if (outcome !== undefined) updateData['visits.$.outcome'] = outcome;
     if (nextAction !== undefined) updateData['visits.$.nextAction'] = nextAction;
     if (image !== undefined) updateData['visits.$.image'] = image;
+    
+    // Add tracking fields
+    updateData['visits.$.updatedBy'] = updatedBy;
+    updateData['visits.$.updatedByName'] = updatedByName;
+    updateData['visits.$.updatedAt'] = new Date();
 
     const result = await Customer.updateOne(
       { _id: customerId, 'visits._id': visitId },
@@ -1191,6 +1276,22 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
     }
 
     res.json({ success: true, message: 'Visit updated successfully' });
+
+    // Background: Log the activity
+    try {
+        await ActivityLog.create({
+            entityType: 'Visit',
+            entityId: visitId,
+            customerId: customerId,
+            action: 'UPDATE',
+            performedBy: updatedBy,
+            performedByName: updatedByName,
+            performedByRole: req.authType,
+            details: { fields: Object.keys(req.body) }
+        });
+    } catch (logError) {
+        console.error('Failed to log visit update:', logError);
+    }
   } catch (error) {
     console.error('Update visit error:', error);
     res.status(500).json({ message: 'Failed to update visit' });
@@ -1203,6 +1304,24 @@ app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (r
   try {
     const { customerId, visitId } = req.params;
 
+    // Get performer information
+    let performedBy = '';
+    let performedByName = '';
+
+    if (req.authType === 'admin') {
+      performedBy = req.userId;
+      const user = await User.findById(req.userId).select('username');
+      performedByName = user ? user.username : 'Unknown User';
+    } else if (req.authType === 'customer') {
+      performedBy = req.customerId;
+      const customerUser = await Customer.findById(req.customerId).select('contactName');
+      performedByName = customerUser ? customerUser.contactName : 'Unknown Customer';
+    }
+
+    // Find the visit before deleting to get its details if needed (optional)
+    const customer = await Customer.findById(customerId).select('visits');
+    const visit = customer ? customer.visits.id(visitId) : null;
+
     const result = await Customer.updateOne(
       { _id: customerId },
       { $pull: { visits: { _id: visitId } } }
@@ -1213,6 +1332,22 @@ app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (r
     }
 
     res.json({ success: true, message: 'Visit deleted successfully' });
+
+    // Background: Log the activity
+    try {
+        await ActivityLog.create({
+            entityType: 'Visit',
+            entityId: visitId,
+            customerId: customerId,
+            action: 'DELETE',
+            performedBy: performedBy,
+            performedByName: performedByName,
+            performedByRole: req.authType,
+            details: { visitDate: visit ? visit.date : null, purpose: visit ? visit.purpose : null }
+        });
+    } catch (logError) {
+        console.error('Failed to log visit deletion:', logError);
+    }
   } catch (error) {
     console.error('Delete visit error:', error);
     res.status(500).json({ message: 'Failed to delete visit' });

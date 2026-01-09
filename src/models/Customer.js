@@ -16,7 +16,10 @@ const visitSchema = new mongoose.Schema({
     userName: String, // Name of reactor for display/tooltip
     createdAt: { type: Date, default: Date.now }
   }],
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  updatedBy: String,  // User ID or Customer ID who last updated this visit
+  updatedByName: String,  // Display name of the person who last updated this visit
+  updatedAt: Date
 });
 
 const customerSchema = new mongoose.Schema({
