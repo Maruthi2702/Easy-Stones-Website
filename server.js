@@ -1972,7 +1972,13 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
     // 2. Generate and Upload Mockups
     // We pass the buffer directly to generateMockups
     console.log('🎨 Generating and uploading mockups...');
-    const installedImages = await generateMockups(req.file.buffer, filename);
+    let installedImages = [];
+    try {
+      installedImages = await generateMockups(req.file.buffer, filename);
+    } catch (mockupError) {
+      console.error('⚠️ Mockup generation failed (non-fatal):', mockupError);
+      // Continue without mockups
+    }
     
     res.json({ 
       success: true, 
@@ -1984,6 +1990,13 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
     res.status(500).json({ error: 'Failed to upload file', details: error.message });
   }
 });
+
+// Checl Cloudinary Config on Startup
+if (process.env.CLOUDINARY_CLOUD_NAME) {
+  console.log('☁️ Cloudinary configured with Cloud Name:', process.env.CLOUDINARY_CLOUD_NAME);
+} else {
+  console.warn('⚠️ Cloudinary environment variables missing!');
+}
 
 // API endpoint to save products (Sync entire list or update/create individual)
 // For simplicity and backward compatibility with the frontend logic, we'll accept the full list 
