@@ -36,45 +36,55 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Mockup Generation Utility
-const generateMockups = async (slabImageName) => {
-  const slabPath = path.join(__dirname, 'public', 'images', 'products', slabImageName);
+const generateMockups = async (slabImageBuffer, baseFilename) => {
   const templatesDir = path.join(__dirname, 'public', 'images', 'templates');
-  const outputDir = path.join(__dirname, 'public', 'images', 'products');
-
+  
   const templates = [
-    { name: 'kitchen_template.png', output: `installed_1_${slabImageName}` },
-    { name: 'bathroom_template.png', output: `installed_2_${slabImageName}` }
+    { name: 'kitchen_template.png', suffix: 'installed_1' },
+    { name: 'bathroom_template.png', suffix: 'installed_2' }
   ];
 
-  const generatedPaths = [];
+  const generatedUrls = [];
 
   for (const template of templates) {
     try {
       const templatePath = path.join(templatesDir, template.name);
-      if (!fs.existsSync(templatePath)) continue;
+      if (!fs.existsSync(templatePath)) {
+        console.warn(`Template not found: ${templatePath}`);
+        continue;
+      }
 
-      // Get template metadata to ensure slab fits
+      // Get template metadata
       const templateMetadata = await sharp(templatePath).metadata();
       
-      const slabBuffer = await sharp(slabPath)
+      // Resize slab to cover the template dimensions
+      const slabBuffer = await sharp(slabImageBuffer)
         .resize(templateMetadata.width, templateMetadata.height, { fit: 'cover' })
         .toBuffer();
 
-      await sharp(templatePath)
+      // Composite
+      const compositeBuffer = await sharp(templatePath)
         .composite([{
           input: slabBuffer,
-          blend: 'overlay', // Using overlay blend to keep furniture details
+          blend: 'overlay', // Using overlay to keep shadows/details
           gravity: 'center'
         }])
-        .toFile(path.join(outputDir, template.output));
+        .png()
+        .toBuffer();
 
-      generatedPaths.push(`/images/products/${template.output}`);
+      // Upload to Cloudinary
+      const outputFilename = `${template.suffix}_${baseFilename}`;
+      const result = await uploadToCloudinary(compositeBuffer, 'products', outputFilename);
+      
+      console.log(`✅ Mockup generated: ${result.secure_url}`);
+      generatedUrls.push(result.secure_url);
+
     } catch (err) {
-      console.error(`Failed to generate mockup for ${template.name}:`, err);
+      console.error(`Failed to generate/upload mockup for ${template.name}:`, err);
     }
   }
 
-  return generatedPaths;
+  return generatedUrls;
 };
 
 const app = express();
@@ -1903,45 +1913,70 @@ app.patch('/api/admin/customers/:id/status', verifyToken, async (req, res) => {
   }
 });
 
-// Configure Multer for local storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, 'public/images/products');
-    // Ensure directory exists
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    // Sanitize filename and add timestamp
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, '_');
-    cb(null, name + '_' + uniqueSuffix + ext);
-  }
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Configure Multer for memory storage (direct upload to Cloudinary)
+// Use memory storage to process file with Sharp before uploading
+const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// API endpoint to upload image locally
+// Helper to upload buffer to Cloudinary
+const uploadToCloudinary = (buffer, folder, filename) => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: folder,
+        public_id: filename,
+        resource_type: 'image'
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+    // Write buffer to stream
+    // streamifier would be cleaner but we can just end the stream with the buffer
+    uploadStream.end(buffer);
+  });
+};
+
+// API endpoint to upload image
 app.post('/api/upload', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    console.log('✅ File uploaded locally:', req.file.filename);
+    console.log('✅ File received in memory:', req.file.originalname, `(${req.file.size} bytes)`);
     
-    // Return path relative to public directory
-    const filePath = `/images/products/${req.file.filename}`;
-    
-    // Auto-generate mockups for installed gallery
-    const installedImages = await generateMockups(req.file.filename);
+    // Generate unique ID
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(req.file.originalname);
+    const basename = path.basename(req.file.originalname, ext).replace(/[^a-zA-Z0-9]/g, '_');
+    const filename = `${basename}_${uniqueSuffix}`;
+
+    // 1. Upload Main Image
+    console.log('☁️ Uploading main image to Cloudinary...');
+    const mainImageResult = await uploadToCloudinary(
+      req.file.buffer, 
+      'products', 
+      filename
+    );
+    console.log('✅ Main image uploaded:', mainImageResult.secure_url);
+
+    // 2. Generate and Upload Mockups
+    // We pass the buffer directly to generateMockups
+    console.log('🎨 Generating and uploading mockups...');
+    const installedImages = await generateMockups(req.file.buffer, filename);
     
     res.json({ 
       success: true, 
-      filePath: filePath,
+      filePath: mainImageResult.secure_url,
       installedImages: installedImages 
     });
   } catch (error) {
