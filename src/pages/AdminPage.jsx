@@ -400,7 +400,7 @@ const AdminPage = () => {
         URL.revokeObjectURL(objectUrl);
       } else {
         console.error('Upload failed:', data);
-        alert(`Failed to upload image: ${data.error || 'Unknown error'}`);
+        alert(`Failed to upload image: ${data.error || 'Unknown error'}\nDetails: ${data.details || 'No details provided'}`);
       }
     } catch (error) {
       console.error('Error uploading image:', error);
