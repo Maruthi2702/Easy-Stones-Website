@@ -1228,6 +1228,10 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       createdByName = customerUser ? customerUser.contactName : 'Unknown Customer';
     }
 
+    // Get the customer's contact name (the customer being visited)
+    const visitedCustomer = await Customer.findById(customerId).select('contactName company');
+    const customerContactName = visitedCustomer ? (visitedCustomer.company || visitedCustomer.contactName) : '';
+
     const visitData = {
       date,
       purpose,
@@ -1237,6 +1241,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       image,
       createdBy,
       createdByName,
+      customerContactName,
       createdAt: new Date()
     };
     

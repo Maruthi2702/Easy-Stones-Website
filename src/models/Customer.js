@@ -10,6 +10,7 @@ const visitSchema = new mongoose.Schema({
   image: mongoose.Schema.Types.Mixed,  // Use Mixed to support both legacy Strings and new Arrays
   createdBy: String,  // User ID or Customer ID who created this visit
   createdByName: String,  // Display name of the creator
+  customerContactName: String,  // Contact name of the customer being visited
   reactions: [{
     type: { type: String, required: true }, // e.g., 'like', 'love'
     userId: String, // Who reacted
