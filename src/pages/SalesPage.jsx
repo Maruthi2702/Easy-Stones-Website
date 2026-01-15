@@ -1925,7 +1925,7 @@ const SalesPage = () => {
                                                                     <td data-label="Client">
                                                                         {(() => {
                                                                             const customerObj = customers.find(c => c._id === resource.customerId);
-                                                                            return customerObj ? (customerObj.company || `${customerObj.firstName} ${customerObj.lastName}`) : (resource.customer || '-');
+                                                                            return customerObj ? (customerObj.company || customerObj.contactName) : (resource.customer || '-');
                                                                         })()}
                                                                     </td>
                                                                     <td data-label="Location">{resource.location || '-'}</td>
