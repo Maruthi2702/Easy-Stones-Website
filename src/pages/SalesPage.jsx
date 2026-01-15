@@ -858,7 +858,7 @@ const SalesPage = () => {
             title: '',
             date: new Date().toISOString().split('T')[0],
             customerId: selectedCustomer ? selectedCustomer._id : '',
-            customer: selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}` : '',
+            customer: selectedCustomer ? (selectedCustomer.company || selectedCustomer.contactName) : '',
             location: '',
             resourceType: '',
             image: [],
@@ -878,7 +878,7 @@ const SalesPage = () => {
             title: '',
             date: new Date().toISOString().split('T')[0],
             customerId: selectedCustomer ? selectedCustomer._id : '',
-            customer: selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}` : '',
+            customer: selectedCustomer ? (selectedCustomer.company || selectedCustomer.contactName) : '',
             location: '',
             resourceType: '',
             image: [],
@@ -2522,7 +2522,7 @@ const SalesPage = () => {
                                                     setResourceForm({
                                                         ...resourceForm,
                                                         customerId: e.target.value,
-                                                        customer: selectedC ? (selectedC.company || `${selectedC.firstName} ${selectedC.lastName}`) : ''
+                                                        customer: selectedC ? (selectedC.company || selectedC.contactName) : ''
                                                     });
                                                 }}
                                                 className="form-select"
@@ -2530,7 +2530,7 @@ const SalesPage = () => {
                                                 <option value="">Please Select Client</option>
                                                 {customers.map(c => (
                                                     <option key={c._id} value={c._id}>
-                                                        {c.company || `${c.firstName} ${c.lastName}`}
+                                                        {c.company || c.contactName}
                                                     </option>
                                                 ))}
                                             </select>
