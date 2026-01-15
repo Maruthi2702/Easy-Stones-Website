@@ -16,6 +16,7 @@ const AdminPage = () => {
   const [filterCollection, setFilterCollection] = useState('All');
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('products');
   const [passwordData, setPasswordData] = useState({
@@ -119,7 +120,92 @@ const AdminPage = () => {
     if (activeTab === 'users') {
       fetchUsers();
     }
-  }, [activeTab]);
+  }, [activeTab, refreshProducts]);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Show immediate preview
+    const objectUrl = URL.createObjectURL(file);
+    handleChange('image', objectUrl);
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    setIsUploading(true); // Start upload status
+
+    try {
+      const response = await fetch(API_ENDPOINTS.UPLOAD, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        // Update both main image and generated installed mockups
+        handleChange('image', data.filePath);
+        if (data.installedImages && data.installedImages.length > 0) {
+          handleChange('installedImages', data.installedImages);
+        }
+        // Clean up object URL to avoid memory leaks
+        URL.revokeObjectURL(objectUrl);
+      } else {
+        console.error('Upload failed:', data);
+        alert(`Failed to upload image: ${data.error || 'Unknown error'}\nDetails: ${data.details || 'No details provided'}`);
+        // Revert to placeholder or keep preview? Keeping preview might be misleading if save fails.
+        // For now, alert is enough.
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert(`Error uploading image: ${error.message}`);
+    } finally {
+      setIsUploading(false); // End upload status
+    }
+  };
+
+  const handleInstalledImageUpload = async (e, index) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Create a copy of current installed images or initialize empty array
+    const currentImages = [...(selectedProduct.installedImages || [])];
+
+    // Show immediate preview
+    const objectUrl = URL.createObjectURL(file);
+    currentImages[index] = objectUrl;
+    handleChange('installedImages', currentImages);
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    setIsUploading(true);
+
+    try {
+      const response = await fetch(API_ENDPOINTS.UPLOAD, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        // Update with actual server path
+        const updatedImages = [...(selectedProduct.installedImages || [])];
+        updatedImages[index] = data.filePath;
+        handleChange('installedImages', updatedImages);
+        // Clean up object URL
+        URL.revokeObjectURL(objectUrl);
+      } else {
+        alert('Failed to upload installed image');
+      }
+    } catch (error) {
+      console.error('Error uploading installed image:', error);
+      alert('Error uploading installed image');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
 
   // Initialize selected product when products change or on first load
   const selectedProduct = products.find(p => p.id === selectedProductId);
@@ -372,79 +458,7 @@ const AdminPage = () => {
   const categories = ['Quartz', 'Granite', 'Marble', 'Sinks', 'Quartzite', 'MODA PST'];
   const thicknessOptions = ['1.5CM', '2CM', '3CM'];
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
 
-    // Show immediate preview
-    const objectUrl = URL.createObjectURL(file);
-    handleChange('image', objectUrl);
-
-    const formData = new FormData();
-    formData.append('image', file);
-
-    try {
-      const response = await fetch(API_ENDPOINTS.UPLOAD, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-
-      if (data.success) {
-        // Update both main image and generated installed mockups
-        handleChange('image', data.filePath);
-        if (data.installedImages && data.installedImages.length > 0) {
-          handleChange('installedImages', data.installedImages);
-        }
-        // Clean up object URL to avoid memory leaks
-        URL.revokeObjectURL(objectUrl);
-      } else {
-        console.error('Upload failed:', data);
-        alert(`Failed to upload image: ${data.error || 'Unknown error'}\nDetails: ${data.details || 'No details provided'}`);
-      }
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      alert(`Error uploading image: ${error.message}`);
-    }
-  };
-
-  const handleInstalledImageUpload = async (e, index) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Create a copy of current installed images or initialize empty array
-    const currentImages = [...(selectedProduct.installedImages || [])];
-
-    // Show immediate preview
-    const objectUrl = URL.createObjectURL(file);
-    currentImages[index] = objectUrl;
-    handleChange('installedImages', currentImages);
-
-    const formData = new FormData();
-    formData.append('image', file);
-
-    try {
-      const response = await fetch(API_ENDPOINTS.UPLOAD, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-
-      if (data.success) {
-        // Update with actual server path
-        const updatedImages = [...(selectedProduct.installedImages || [])];
-        updatedImages[index] = data.filePath;
-        handleChange('installedImages', updatedImages);
-        // Clean up object URL
-        URL.revokeObjectURL(objectUrl);
-      } else {
-        alert('Failed to upload installed image');
-      }
-    } catch (error) {
-      console.error('Error uploading installed image:', error);
-      alert('Error uploading installed image');
-    }
-  };
 
   const removeInstalledImage = (index) => {
     const currentImages = [...(selectedProduct.installedImages || [])];
@@ -1685,12 +1699,51 @@ const AdminPage = () => {
             </section>
 
             <div className="form-actions-bottom">
+              {isUploading && (
+                <div style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  zIndex: 2000,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backdropFilter: 'blur(4px)'
+                }}>
+                  <div style={{
+                    backgroundColor: 'white',
+                    padding: '2rem',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    minWidth: '300px'
+                  }}>
+                    <div className="loader-spinner" style={{
+                      width: '40px',
+                      height: '40px',
+                      border: '4px solid #3b82f6',
+                      borderTopColor: 'transparent',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
+                    }}></div>
+                    <h3 style={{ margin: 0, color: '#1f2937', fontSize: '1.25rem' }}>Uploading Image</h3>
+                    <p style={{ margin: 0, color: '#6b7280' }}>Sending to Cloudinary. Please wait...</p>
+                  </div>
+                </div>
+              )}
               <button
-                className={`save-btn ${isSaving ? 'saving' : ''}`}
+                className={`save-btn ${isSaving || isUploading ? 'saving' : ''}`}
                 onClick={() => saveData()}
-                disabled={isSaving}
+                disabled={isSaving || isUploading}
+                style={{ opacity: isUploading ? 0.7 : 1, cursor: isUploading ? 'not-allowed' : 'pointer' }}
               >
-                <Save size={18} /> {isSaving ? 'Saving...' : 'Save Changes'}
+                <Save size={18} /> {isUploading ? 'Uploading...' : isSaving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
 
