@@ -74,7 +74,7 @@ const generateMockups = async (slabImageBuffer, baseFilename) => {
 
       // Upload to Cloudinary
       const outputFilename = `${template.suffix}_${baseFilename}`;
-      const result = await uploadToCloudinary(compositeBuffer, 'products', outputFilename);
+      const result = await uploadToCloudinary(compositeBuffer, 'products/installed', outputFilename);
       
       console.log(`✅ Mockup generated: ${result.secure_url}`);
       generatedUrls.push(result.secure_url);
@@ -1964,7 +1964,7 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
     console.log('☁️ Uploading main image to Cloudinary...');
     const mainImageResult = await uploadToCloudinary(
       req.file.buffer, 
-      'products', 
+      'products/main', 
       filename
     );
     console.log('✅ Main image uploaded:', mainImageResult.secure_url);
@@ -1990,6 +1990,53 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
     res.status(500).json({ error: 'Failed to upload file', details: error.message });
   }
 });
+
+// API endpoint to delete image from Cloudinary
+app.post('/api/upload/delete', async (req, res) => {
+  try {
+    const { imageUrl } = req.body;
+
+    if (!imageUrl) {
+      return res.status(400).json({ error: 'No image URL provided' });
+    }
+
+    // Only delete if it's a Cloudinary URL
+    if (!imageUrl.includes('cloudinary.com')) {
+      return res.status(400).json({ error: 'Not a Cloudinary URL' });
+    }
+
+    // Extract public_id from URL
+    // Example URL: https://res.cloudinary.com/dqf4k0dn2/image/upload/v1768437320/products/filename.jpg
+    // We need: products/filename (without extension)
+    const urlParts = imageUrl.split('/');
+    const uploadIndex = urlParts.indexOf('upload');
+    
+    if (uploadIndex === -1) {
+      return res.status(400).json({ error: 'Invalid Cloudinary URL format' });
+    }
+
+    // Get everything after 'upload/vXXXXXXXXXX/'
+    const pathAfterVersion = urlParts.slice(uploadIndex + 2).join('/');
+    // Remove file extension
+    const publicId = pathAfterVersion.replace(/\.[^/.]+$/, '');
+
+    console.log('🗑️ Deleting from Cloudinary:', publicId);
+
+    const result = await cloudinary.uploader.destroy(publicId);
+
+    if (result.result === 'ok' || result.result === 'not found') {
+      console.log('✅ Image deleted successfully:', publicId);
+      res.json({ success: true, message: 'Image deleted from Cloudinary' });
+    } else {
+      console.warn('⚠️ Cloudinary delete returned:', result);
+      res.status(500).json({ error: 'Failed to delete image', details: result });
+    }
+  } catch (error) {
+    console.error('Delete image error:', error);
+    res.status(500).json({ error: 'Failed to delete image', details: error.message });
+  }
+});
+
 
 // Checl Cloudinary Config on Startup
 if (process.env.CLOUDINARY_CLOUD_NAME) {

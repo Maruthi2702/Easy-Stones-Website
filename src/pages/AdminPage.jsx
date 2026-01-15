@@ -206,6 +206,44 @@ const AdminPage = () => {
     }
   };
 
+  const handleDeleteImage = async (imageUrl, type = 'main', index = null) => {
+    if (!imageUrl || !imageUrl.includes('cloudinary.com')) {
+      // If it's not a Cloudinary URL, just clear it locally
+      if (type === 'main') {
+        handleChange('image', '');
+      } else {
+        removeInstalledImage(index);
+      }
+      return;
+    }
+
+    const confirmed = window.confirm('Delete this image from Cloudinary? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/upload/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Clear the image from local state
+        if (type === 'main') {
+          handleChange('image', '');
+        } else {
+          removeInstalledImage(index);
+        }
+      } else {
+        alert(`Failed to delete image: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting image:', error);
+      alert(`Error deleting image: ${error.message}`);
+    }
+  };
 
   // Initialize selected product when products change or on first load
   const selectedProduct = products.find(p => p.id === selectedProductId);
@@ -1444,8 +1482,25 @@ const AdminPage = () => {
                         />
                       </div>
                     </div>
-                    <div className="image-preview">
+                    <div className="image-preview" style={{ position: 'relative' }}>
                       <img src={selectedProduct.image} alt="Preview" onError={(e) => e.target.src = '/images/products/placeholder.jpg'} />
+                      {selectedProduct.image && (
+                        <button
+                          className="secondary-btn delete-btn-small"
+                          type="button"
+                          onClick={() => handleDeleteImage(selectedProduct.image, 'main')}
+                          style={{
+                            position: 'absolute',
+                            top: '0.5rem',
+                            right: '0.5rem',
+                            borderColor: '#ef4444',
+                            color: '#ef4444',
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)'
+                          }}
+                        >
+                          <Trash2 size={14} /> Remove
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1616,7 +1671,7 @@ const AdminPage = () => {
                           <button
                             className="secondary-btn delete-btn-small"
                             type="button"
-                            onClick={() => removeInstalledImage(index)}
+                            onClick={() => handleDeleteImage(selectedProduct.installedImages[index], 'installed', index)}
                             style={{ marginTop: '0.5rem', borderColor: '#ef4444', color: '#ef4444' }}
                           >
                             <Trash2 size={14} /> Remove
