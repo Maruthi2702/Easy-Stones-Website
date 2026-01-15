@@ -775,6 +775,8 @@
   .data-table td:last-child,
   .resources-table td:last-child {
       border-bottom: none;
+      padding-left: 0.75rem; /* Reset padding for Actions row */
+      padding-top: 1rem;
   }
 
   .data-table td::before,
@@ -787,6 +789,51 @@
     font-size: 0.75rem;
     margin-right: auto; /* Push content to right */
     text-align: left;
+  }
+
+  /* Special handling for Actions cell */
+  .data-table td:last-child::before,
+  .resources-table td:last-child::before {
+    content: ""; /* Remove label for actions */
+  }
+
+  /* Make action buttons more visible on mobile */
+  .data-table td:last-child .action-buttons,
+  .resources-table td:last-child .action-buttons {
+    width: 100%;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  .data-table .icon-btn,
+  .resources-table .icon-btn,
+  .data-table .icon-btn.view,
+  .resources-table .icon-btn.view,
+  .data-table .icon-btn.edit,
+  .resources-table .icon-btn.edit,
+  .data-table .icon-btn.delete,
+  .resources-table .icon-btn.delete,
+  .data-table .icon-btn.link,
+  .resources-table .icon-btn.link {
+    padding: 0.625rem;
+    min-width: 40px;
+    min-height: 40px;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* Improve scrolling for tab sections on mobile */
+  .tab-section {
+    padding: 1rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-section.resources-tab {
+    padding: 1rem;
   }
 
   /* Resource Filters Stacking */
