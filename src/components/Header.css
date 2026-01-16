@@ -3,7 +3,7 @@
   top: 0;
   left: 0;
   width: 100%;
-  z-index: 100;
+  z-index: 1100;
   padding: 1rem 0;
   background: rgba(0, 0, 0, 0.95);
   backdrop-filter: blur(12px);
@@ -245,15 +245,22 @@
 }
 
 .menu-btn {
-  display: block;
+  display: none !important; /* Force hide on desktop */
+}
+
+@media (max-width: 1024px) {
+  .menu-btn {
+    display: block !important; /* Force show on mobile */
+  }
+  .menu-btn svg {
+    width: 20px;
+    height: 20px;
+  }
 }
 
 @media (min-width: 1024px) {
   .nav-desktop {
     display: flex;
-  }
-  .menu-btn {
-    display: none;
   }
 }
 
@@ -345,6 +352,8 @@
 
 /* Mobile Menu */
 .nav-mobile {
+  position: relative;
+  z-index: 1101;
   display: flex;
   flex-direction: column;
   background: rgba(0, 0, 0, 0.98);

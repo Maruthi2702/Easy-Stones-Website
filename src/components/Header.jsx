@@ -126,7 +126,7 @@ const Header = () => {
               }}
               className="nav-link mobile-logout"
             >
-              Logout ({user.firstName})
+              Logout ({user.contactName})
             </button>
           ) : (
             <Link

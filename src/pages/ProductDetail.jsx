@@ -22,26 +22,41 @@ const ProductDetail = () => {
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '');
 
-  // Always start with loading state to ensure fresh price data
-  // This prevents showing stale cached prices when customer price level changes
-  const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Initialize with passed product state if available for instant render
+  const initialProduct = location.state?.product;
+
+  const [product, setProduct] = useState(initialProduct || null);
+  const [loading, setLoading] = useState(!initialProduct);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    // If we have an initial product, we can still fetch to ensure we have the latest data
+    // but we don't need to show a loader
     const fetchProduct = async () => {
       try {
+        if (!initialProduct) setLoading(true);
+
         const response = await fetch(`${API_URL}/api/products`, {
           credentials: 'include' // Send cookies with request
         });
+
         if (response.ok) {
           const data = await response.json();
           // Find by slug first, fallback to ID for backwards compatibility
           const found = data.find((item) =>
             createSlug(item.name) === productId || item.id.toString() === productId
           );
+
           if (found) {
             setProduct(found);
+            setError(null);
+          } else if (!product) {
+            // Only set error if we don't have a product already (and couldn't find one)
+            console.error(`Product not found for ID/Slug: ${productId}`);
+            setError(`Product not found: ${productId}`);
           }
+        } else {
+          console.error('Failed to fetch products API');
         }
       } catch (error) {
         console.error('Error fetching product:', error);
@@ -51,7 +66,7 @@ const ProductDetail = () => {
     };
 
     fetchProduct();
-  }, [productId]);
+  }, [productId, initialProduct]);
 
   // Get category from location state or fallback to product category or default
   const backCategory = location.state?.fromCategory;
@@ -80,6 +95,7 @@ const ProductDetail = () => {
         </button>
         <div className="detail-error glass-panel">
           <p>This color is not available right now.</p>
+          {error && <p className="debug-error" style={{ fontSize: '0.8em', marginTop: '10px', opacity: 0.7 }}>{error}</p>}
         </div>
       </section>
     );

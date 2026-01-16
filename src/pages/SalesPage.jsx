@@ -5,12 +5,12 @@ import {
     CheckCircle, MessageSquare, Heart, ThumbsUp, Send, User, Menu,
     Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft,
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
-    CreditCard, Edit2, Hash
+    CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus
 } from 'lucide-react';
 
 import { API_URL } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 import './SalesPage.css';
-import './SalesPageChat.css';
 import './SalesPageChat.css';
 import './SalesPageChatImage.css';
 
@@ -48,6 +48,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const SalesPage = () => {
+    const { user: currentUser } = useAuth();
     const [customers, setCustomers] = useState([]);
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
     const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null); // Full customer details with images
@@ -67,7 +68,16 @@ const SalesPage = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [showCustomerInfo, setShowCustomerInfo] = useState(false);
     const [isChatFullScreen, setIsChatFullScreen] = useState(false);
-    const [currentUserId, setCurrentUserId] = useState(null); // Track logged-in user
+
+    // Track logged-in user, defaulting to auth user if available
+    const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
+
+    // Sync currentUserId when currentUser changes
+    useEffect(() => {
+        if (currentUser) {
+            setCurrentUserId(currentUser.id || currentUser._id);
+        }
+    }, [currentUser]);
 
     // Sidebar State
     const [isPinned, setIsPinned] = useState(() => {
@@ -176,7 +186,7 @@ const SalesPage = () => {
 
     // Resources tab state
 
-    const [resourceSearch, setResourceSearch] = useState('');
+
     const [expandedResourceId, setExpandedResourceId] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [fullScreenImage, setFullScreenImage] = useState(null);
@@ -373,17 +383,8 @@ const SalesPage = () => {
     // Filter resources (scoped to selected customer only)
     const allResources = selectedCustomer ? (selectedCustomer.resources || []) : [];
 
-    const filteredResources = allResources.filter(resource => {
-        if (!resource) return false;
-
-        const matchesSearch = !resourceSearch ||
-            (resource.title && resource.title.toLowerCase().includes(resourceSearch.toLowerCase())) ||
-            (resource.resourceType && resource.resourceType.toLowerCase().includes(resourceSearch.toLowerCase())) ||
-            (resource.customer && resource.customer.toLowerCase().includes(resourceSearch.toLowerCase())) ||
-            (resource.location && resource.location.toLowerCase().includes(resourceSearch.toLowerCase()));
-
-        return matchesSearch;
-    }) || [];
+    // Simplified resources (no search filtering)
+    const filteredResources = allResources;
 
     const filteredCustomers = (Array.isArray(customers) ? customers : [])
         .filter(c => {
@@ -406,7 +407,10 @@ const SalesPage = () => {
     }, [selectedCustomerId]);
 
     const handleSelectCustomer = (customer) => {
-        setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
+        // Only clear previous details if selecting a DIFFERENT customer
+        if (selectedCustomerId !== customer._id) {
+            setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
+        }
         setSelectedCustomerId(customer._id);
         // On mobile, close sidebar (list view) to show details
         if (isMobile) {
@@ -1317,17 +1321,6 @@ const SalesPage = () => {
 
     return (
         <div className="sales-container">
-            {/* Mobile/Collapsed Menu Toggle */}
-            <button
-                className={`menu-toggle-btn ${isSidebarOpen ? 'hidden' : ''}`}
-                onClick={() => {
-                    setIsSidebarOpen(true);
-                    setIsPinned(true);
-                }}
-            >
-                <Menu size={24} />
-            </button>
-
             {/* Sidebar */}
             <div
                 className={`sales-sidebar ${isSidebarOpen ? 'open' : 'closed'} ${isPinned ? 'pinned' : 'overlay'}`}
@@ -1444,8 +1437,12 @@ const SalesPage = () => {
                                     <div className="header-main">
                                         <div className="header-left">
                                             {isMobile && (
-                                                <button className="icon-btn mobile-back-btn" onClick={handleMobileBack} style={{ background: 'transparent', border: 'none', padding: '0', marginRight: '0.5rem' }}>
-                                                    <ChevronLeft size={28} color="#007AFF" />
+                                                <button
+                                                    className="fancy-mobile-menu-btn"
+                                                    onClick={handleMobileBack}
+                                                    title="Back to customer list"
+                                                >
+                                                    <Menu size={20} />
                                                 </button>
                                             )}
                                             <div className="name-block">
@@ -1592,7 +1589,7 @@ const SalesPage = () => {
                             )}
                             <div className="tab-content">
                                 {activeTab === 'contacts' && (
-                                    <div className="tab-section">
+                                    <div className="tab-section contacts-tab">
                                         <div className="tab-header">
                                             <h3>Contacts</h3>
                                             <button className="add-btn" onClick={handleAddContact}>
@@ -1647,44 +1644,147 @@ const SalesPage = () => {
 
                                 {activeTab === 'visits' && (
                                     <div className="tab-section visits-tab">
+                                        {/* Top "New Post" Input Area */}
+                                        {/* Add Visit Button Area */}
+                                        <div className="add-visit-container">
+                                            <button className="icon-action-btn secondary" onClick={handleAddContact} title="Add Contact">
+                                                <UserPlus size={18} />
+                                                <span className="btn-label">Add Contact</span>
+                                            </button>
+                                            <button className="icon-action-btn secondary" onClick={handleAddResource} title="Add Resource">
+                                                <FolderPlus size={18} />
+                                                <span className="btn-label">Add Resource</span>
+                                            </button>
+                                            <button className="add-visit-btn" onClick={handleAddVisit}>
+                                                <Plus size={18} />
+                                                Add Visit
+                                            </button>
+                                        </div>
 
-                                        <div className="chat-container">
-                                            <div className="chat-messages">
+                                        <div className="chat-container channel-feed">
+                                            <div className="chat-messages feed-list">
                                                 {visitsLoading ? (
                                                     <div className="loading-spinner-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '2rem' }}>
                                                         <Loader className="spin-animation" size={32} color="#E5C04A" />
                                                     </div>
                                                 ) : (
                                                     selectedCustomer.visits?.length > 0 ? (
-                                                        selectedCustomer.visits.map(visit => {
-                                                            // Determine if this visit was created by the current user
-                                                            const isOwnVisit = visit.createdBy === currentUserId;
-                                                            const messageClass = isOwnVisit ? 'chat-message self' : 'chat-message other';
-
+                                                        [...selectedCustomer.visits].reverse().map(visit => {
                                                             return (
-                                                                <div key={visit._id} className={messageClass}>
-                                                                    <div className="message-avatar">
-                                                                        <User size={20} />
-                                                                    </div>
-                                                                    <div
-                                                                        className={`message-content ${activeReactionMessageId === visit._id ? 'active-reactions' : ''}`}
-                                                                        onClick={(e) => {
-                                                                            // Toggle if same, otherwise set new
-                                                                            if (activeReactionMessageId === visit._id) {
-                                                                                setActiveReactionMessageId(null);
-                                                                            } else {
-                                                                                setActiveReactionMessageId(visit._id);
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        {/* Unified Message Toolbar (Reactions + Actions) */}
-                                                                        {activeReactionMessageId === visit._id && (
-                                                                            <div className="message-toolbar">
-                                                                                <div className="reaction-options">
+                                                                <div key={visit._id} className="visit-post-card">
+
+                                                                    <div className="post-content-area">
+                                                                        <div className="post-header">
+                                                                            <span className="post-author">{visit.createdByName || visit.creatorName || 'Unknown User'}</span>
+                                                                            <span className="post-time">{formatDate(visit.date, { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+
+                                                                            {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUserId === visit.createdBy) && (
+                                                                                <div className="post-header-actions">
+                                                                                    <button
+                                                                                        className="icon-action-small edit"
+                                                                                        onClick={(e) => { e.stopPropagation(); handleEditVisit(visit); }}
+                                                                                        title="Edit"
+                                                                                    >
+                                                                                        <Edit2 size={14} />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        className="icon-action-small delete"
+                                                                                        onClick={(e) => { e.stopPropagation(); handleDeleteVisit(visit._id); }}
+                                                                                        title="Delete"
+                                                                                    >
+                                                                                        <Trash2 size={14} />
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="post-body">
+                                                                            {visit.purpose && <h4 className="post-purpose">{visit.purpose}</h4>}
+
+                                                                            {/* Images */}
+                                                                            {visit.image && (Array.isArray(visit.image) ? visit.image : [visit.image]).length > 0 && (
+                                                                                <div className="post-images">
+                                                                                    {(Array.isArray(visit.image) ? visit.image : [visit.image]).map((img, idx) => (
+                                                                                        <div key={idx} className="post-image-wrapper" onClick={() => setFullScreenImage(img)}>
+                                                                                            {img.startsWith('data:application/pdf') ? (
+                                                                                                <div className="pdf-attachment-card">
+                                                                                                    <FileText size={24} color="#E5C04A" />
+                                                                                                    <span>PDF</span>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <img
+                                                                                                    src={img}
+                                                                                                    alt="Attachment"
+                                                                                                    className="post-attachment-img"
+                                                                                                />
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
+
+                                                                            {/* Text Note */}
+                                                                            {visit.notes && <p className="post-text">{visit.notes}</p>}
+
+                                                                            {/* Visit Details */}
+                                                                            {(visit.outcome || visit.nextAction) && (
+                                                                                <div className="post-details-ext">
+                                                                                    {visit.outcome && (
+                                                                                        <div className="post-detail-row outcome">
+                                                                                            <span className="detail-label">Outcome:</span>
+                                                                                            <span className="detail-value">{visit.outcome}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {visit.nextAction && (
+                                                                                        <div className="post-detail-row next-action">
+                                                                                            <span className="detail-label">Next Steps:</span>
+                                                                                            <span className="detail-value">{visit.nextAction}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {/* Reactions Bar */}
+                                                                        <div className="post-reactions">
+                                                                            <button
+                                                                                className="reaction-add-btn"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    if (activeReactionMessageId === visit._id) {
+                                                                                        setActiveReactionMessageId(null);
+                                                                                    } else {
+                                                                                        setActiveReactionMessageId(visit._id);
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                <Smile size={16} />
+                                                                            </button>
+
+                                                                            {/* Existing Reactions */}
+                                                                            {visit.reactions && visit.reactions.length > 0 && (
+                                                                                <div className="existing-reactions">
+                                                                                    {Object.entries(
+                                                                                        visit.reactions.reduce((acc, r) => {
+                                                                                            if (!r || !r.type) return acc;
+                                                                                            acc[r.type] = (acc[r.type] || 0) + 1;
+                                                                                            return acc;
+                                                                                        }, {})
+                                                                                    ).map(([type, count]) => (
+                                                                                        <span key={type} className="reaction-pill" title={`${count} reactions`}>
+                                                                                            {type} <span className="count">{count}</span>
+                                                                                        </span>
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
+
+                                                                            {/* Reaction Picker (Floating) */}
+                                                                            {activeReactionMessageId === visit._id && (
+                                                                                <div className="reaction-picker-floating">
                                                                                     {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
                                                                                         <button
                                                                                             key={emoji}
-                                                                                            className="reaction-btn"
+                                                                                            className="reaction-option"
                                                                                             onClick={(e) => {
                                                                                                 e.stopPropagation();
                                                                                                 handleReaction(visit._id, emoji);
@@ -1695,178 +1795,37 @@ const SalesPage = () => {
                                                                                         </button>
                                                                                     ))}
                                                                                 </div>
-
-                                                                                {isOwnVisit && (
-                                                                                    <>
-                                                                                        <div className="toolbar-separator" />
-                                                                                        <div className="action-options">
-                                                                                            <button
-                                                                                                className="icon-btn-ghost"
-                                                                                                onClick={(e) => { e.stopPropagation(); handleEditVisit(visit); }}
-                                                                                                title="Edit"
-                                                                                            >
-                                                                                                <Edit2 size={14} />
-                                                                                            </button>
-                                                                                            <button
-                                                                                                className="icon-btn-ghost delete-btn"
-                                                                                                onClick={(e) => { e.stopPropagation(); handleDeleteVisit(visit._id); }}
-                                                                                                title="Delete"
-                                                                                            >
-                                                                                                <Trash2 size={14} />
-                                                                                            </button>
-                                                                                        </div>
-                                                                                    </>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
-                                                                        {/* Message Header */}
-                                                                        <div className="message-header">
-                                                                            <span className="message-sender">
-                                                                                {visit.createdBy === currentUserId ? 'You' : (visit.creatorName || (visit.createdBy ? 'User' : 'Unknown'))}
-                                                                            </span>
-                                                                            <span className="message-time">
-                                                                                {new Date(visit.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                                {visit.image && (Array.isArray(visit.image) ? visit.image : [visit.image]).map((img, idx) => {
-                                                                                    if (!img || typeof img !== 'string') return null;
-                                                                                    return img.startsWith('data:application/pdf') ? (
-                                                                                        <FileText
-                                                                                            key={idx}
-                                                                                            size={20}
-                                                                                            color="#E5C04A"
-                                                                                            style={{ cursor: 'pointer', verticalAlign: 'middle', marginLeft: '5px' }}
-                                                                                            onClick={(e) => { e.stopPropagation(); setFullScreenImage(img); }}
-                                                                                        />
-                                                                                    ) : (
-                                                                                        <img
-                                                                                            key={idx}
-                                                                                            src={img}
-                                                                                            alt="Visit"
-                                                                                            style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: '1px solid var(--border-color)', marginLeft: '5px' }}
-                                                                                            onClick={(e) => { e.stopPropagation(); setFullScreenImage(img); }}
-                                                                                        />
-                                                                                    );
-                                                                                })}
-                                                                            </span>
+                                                                            )}
                                                                         </div>
-                                                                        <div className="message-body">
-                                                                            {(Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : [])).length > 0 && (
-                                                                                <div className="message-image" onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    const firstImg = (Array.isArray(visit.image) ? visit.image : [visit.image])[0];
-                                                                                    if (firstImg && typeof firstImg === 'string') {
-                                                                                        setFullScreenImage(firstImg);
+
+                                                                        {/* Reply Input */}
+                                                                        <div className="post-reply-input">
+                                                                            <div className="reply-avatar-small">
+                                                                                {currentUser?.firstName?.charAt(0) || <User size={12} />}
+                                                                            </div>
+                                                                            <input
+                                                                                type="text"
+                                                                                placeholder="Reply in thread..."
+                                                                                className="reply-field"
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter') {
+                                                                                        setVisitForm({ notes: `Replying to ${visit.createdByName || visit.creatorName}: ${e.target.value}` });
+                                                                                        handleQuickAddVisit();
+                                                                                        e.target.value = '';
                                                                                     }
-                                                                                }}>
-                                                                                    {(() => {
-                                                                                        const firstImg = (Array.isArray(visit.image) ? visit.image : [visit.image])[0];
-                                                                                        if (!firstImg || typeof firstImg !== 'string') return null;
-
-                                                                                        if (firstImg.startsWith('data:application/pdf')) {
-                                                                                            return (
-                                                                                                <div className="pdf-attachment">
-                                                                                                    <FileText size={32} color="#E5C04A" />
-                                                                                                    <span style={{ color: '#E5C04A' }}>PDF Attachment</span>
-                                                                                                </div>
-                                                                                            );
-                                                                                        }
-                                                                                        return <img src={firstImg} alt="Visit attachment" />;
-                                                                                    })()}
-                                                                                </div>
-                                                                            )}
-                                                                            {visit.notes || 'No notes provided.'}
+                                                                                }}
+                                                                            />
                                                                         </div>
-                                                                        <div className="message-meta">
-                                                                            {visit.outcome && (
-                                                                                <span className="meta-tag outcome">Outcome: {visit.outcome}</span>
-                                                                            )}
-                                                                            {visit.nextAction && (
-                                                                                <span className="meta-tag next-action">Next: {visit.nextAction}</span>
-                                                                            )}
-                                                                        </div>
-
-                                                                        {/* Reactions Display */}
-                                                                        {visit.reactions && visit.reactions.length > 0 && (
-                                                                            <div className="message-reactions">
-                                                                                {Object.entries(
-                                                                                    visit.reactions.reduce((acc, r) => {
-                                                                                        if (!r || !r.type) return acc;
-                                                                                        acc[r.type] = (acc[r.type] || 0) + 1;
-                                                                                        return acc;
-                                                                                    }, {})
-                                                                                ).map(([type, count]) => {
-                                                                                    const userReacted = visit.reactions.some(r => r && r.type === type && (r.userId === currentUserId || (!currentUserId && r.userId))); // Best effort check
-                                                                                    return (
-                                                                                        <button
-                                                                                            key={type}
-                                                                                            className={`reaction-tag ${userReacted ? 'active' : ''}`}
-                                                                                            onClick={(e) => { e.stopPropagation(); handleReaction(visit._id, type); }}
-                                                                                            title={`${count} reactions`}
-                                                                                        >
-                                                                                            <span>{type}</span>
-                                                                                            <span style={{ fontSize: '0.75em', opacity: 0.8, marginLeft: '2px' }}>{count}</span>
-                                                                                        </button>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
-                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             );
                                                         })
                                                     ) : (
                                                         <div className="empty-list-message">
-                                                            No visits recorded yet. Start a conversation!
+                                                            No posts yet. Be the first to post!
                                                         </div>
                                                     )
                                                 )}
-                                            </div>
-
-                                            <div className="chat-input-area">
-                                                <div className="chat-input-actions">
-                                                    <label className="chat-action-btn">
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*,application/pdf"
-                                                            onChange={handleVisitImageUpload}
-                                                            style={{ display: 'none' }}
-                                                        />
-                                                        <Paperclip size={18} />
-                                                    </label>
-                                                </div>
-                                                <div className="chat-input-wrapper">
-                                                    {(Array.isArray(visitForm.image) ? visitForm.image : (visitForm.image ? [visitForm.image] : [])).length > 0 && (
-                                                        <div className="chat-image-preview">
-                                                            {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image])[0].startsWith('data:application/pdf') ? (
-                                                                <FileText size={40} color="#E5C04A" />
-                                                            ) : (
-                                                                <img src={(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image])[0]} alt="Preview" />
-                                                            )}
-                                                            <button className="remove-image" onClick={() => setVisitForm(prev => ({ ...prev, image: [] }))}>
-                                                                <X size={12} />
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                    <textarea
-                                                        className="chat-input"
-                                                        placeholder="Add a new visit note..."
-                                                        value={visitForm.notes}
-                                                        onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
-                                                        onPaste={handlePaste}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter' && !e.shiftKey) {
-                                                                e.preventDefault();
-                                                                handleQuickAddVisit();
-                                                            }
-                                                        }}
-                                                    />
-                                                </div>
-                                                <button
-                                                    className="chat-send-btn"
-                                                    onClick={handleQuickAddVisit}
-                                                    disabled={!visitForm.notes.trim() && !visitForm.image}
-                                                >
-                                                    <Send size={18} />
-                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -1885,19 +1844,7 @@ const SalesPage = () => {
                                             </button>
                                         </div>
 
-                                        {/* Excel Export and Search */}
-                                        <div className="resources-toolbar">
-                                            <button className="excel-btn">
-                                                📥 Excel
-                                            </button>
-                                            <input
-                                                type="text"
-                                                className="resource-search"
-                                                placeholder="Search..."
-                                                value={resourceSearch}
-                                                onChange={(e) => setResourceSearch(e.target.value)}
-                                            />
-                                        </div>
+
 
                                         {/* Resources Table */}
                                         <div className="resources-table-wrapper">
@@ -2012,15 +1959,7 @@ const SalesPage = () => {
                                             </table>
                                         </div>
 
-                                        {/* Pagination */}
-                                        <div className="resources-pagination">
-                                            <span>Showing 1 to {filteredResources.length} of {filteredResources.length} entries</span>
-                                            <div className="pagination-buttons">
-                                                <button className="btn-secondary">Previous</button>
-                                                <button className="btn-primary active">1</button>
-                                                <button className="btn-secondary">Next</button>
-                                            </div>
-                                        </div>
+
                                     </div>
                                 )}
                             </div>
@@ -2030,24 +1969,15 @@ const SalesPage = () => {
                             <div className="dashboard-header">
                                 {isMobile && (
                                     <button
-                                        className="mobile-back-btn"
+                                        className="fancy-mobile-menu-btn fallback"
                                         onClick={handleMobileBack}
                                         style={{
                                             position: 'absolute',
-                                            left: '1rem',
-                                            top: '1.5rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            background: 'rgba(255, 255, 255, 0.05)',
-                                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                                            borderRadius: '50%',
-                                            width: '40px',
-                                            height: '40px',
-                                            color: 'var(--gold-primary)'
+                                            left: '1.5rem',
+                                            top: '1.5rem'
                                         }}
                                     >
-                                        <ChevronLeft size={24} />
+                                        <Menu size={20} />
                                     </button>
                                 )}
                                 <h1>Sales Dashboard</h1>
@@ -2078,7 +2008,7 @@ const SalesPage = () => {
                                             ))}
                                         </div>
                                     </div>
-                                    <div className="header-actions">
+                                    <div className="resources-header-actions">
                                         <button className="btn-secondary" onClick={handleCreateFolder}>
                                             <Plus size={16} /> New Folder
                                         </button>
@@ -2320,9 +2250,11 @@ const SalesPage = () => {
                                 </div>
                             </div>
                             <div className="modal-footer">
-                                <button className="btn-secondary" onClick={() => setShowContactModal(false)} disabled={isSaving}>Cancel</button>
+                                <button className="btn-secondary" onClick={() => setShowContactModal(false)} disabled={isSaving}>
+                                    Cancel
+                                </button>
                                 <button className="btn-primary" onClick={handleSaveContact} disabled={isSaving}>
-                                    {isSaving ? 'Saving...' : 'Save'}
+                                    {isSaving ? 'Saving...' : 'Save Contact'}
                                 </button>
                             </div>
                         </div>
@@ -2416,7 +2348,7 @@ const SalesPage = () => {
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="file-input-wrapper">
+                                        <div className="file-input-wrapper-simple">
                                             <input
                                                 type="file"
                                                 id="visit-image-upload"
@@ -2433,9 +2365,11 @@ const SalesPage = () => {
                                 </div>
                             </div>
                             <div className="modal-footer">
-                                <button className="btn-secondary" onClick={handleCloseVisitModal} disabled={isSaving}>Cancel</button>
+                                <button className="btn-secondary" onClick={handleCloseVisitModal} disabled={isSaving}>
+                                    Cancel
+                                </button>
                                 <button className="btn-primary" onClick={handleSaveVisit} disabled={isSaving}>
-                                    {isSaving ? 'Saving...' : 'Save'}
+                                    {isSaving ? 'Saving...' : (editingVisit ? 'Save Changes' : 'Add Visit')}
                                 </button>
                             </div>
                         </div>
@@ -2512,133 +2446,125 @@ const SalesPage = () => {
                             ) : (
                                 /* Edit/Add Mode Layout */
                                 <div className="modal-body">
-                                    <div className="form-row">
-                                        <div className="form-group">
-                                            <label>Client</label>
-                                            <select
-                                                value={resourceForm.customerId}
-                                                onChange={(e) => {
-                                                    const selectedC = customers.find(c => c._id === e.target.value);
-                                                    setResourceForm({
-                                                        ...resourceForm,
-                                                        customerId: e.target.value,
-                                                        customer: selectedC ? (selectedC.company || selectedC.contactName) : ''
-                                                    });
-                                                }}
-                                                className="form-select"
-                                            >
-                                                <option value="">Please Select Client</option>
-                                                {customers.map(c => (
-                                                    <option key={c._id} value={c._id}>
-                                                        {c.company || c.contactName}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Resource Type</label>
-                                            <select
-                                                value={resourceForm.resourceType}
-                                                onChange={(e) => setResourceForm({ ...resourceForm, resourceType: e.target.value, title: e.target.value })}
-                                                className="form-select"
-                                            >
-                                                <option value="">Please Select Resource Type</option>
-                                                {resourceTypes.map((type, index) => (
-                                                    <option key={index} value={type}>{type}</option>
-                                                ))}
-                                            </select>
-                                        </div>
+                                    <div className="form-group">
+                                        <label>Client</label>
+                                        <select
+                                            value={resourceForm.customerId}
+                                            onChange={(e) => {
+                                                const selectedC = customers.find(c => c._id === e.target.value);
+                                                setResourceForm({
+                                                    ...resourceForm,
+                                                    customerId: e.target.value,
+                                                    customer: selectedC ? (selectedC.company || selectedC.contactName) : ''
+                                                });
+                                            }}
+                                            className="form-select"
+                                        >
+                                            <option value="">Please Select Client</option>
+                                            {customers.map(c => (
+                                                <option key={c._id} value={c._id}>
+                                                    {c.company || c.contactName}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Resource Type *</label>
+                                        <select
+                                            value={resourceForm.resourceType}
+                                            onChange={(e) => setResourceForm({ ...resourceForm, resourceType: e.target.value, title: e.target.value })}
+                                            className="form-select"
+                                        >
+                                            <option value="">Please Select Resource Type</option>
+                                            {resourceTypes.map((type, index) => (
+                                                <option key={index} value={type}>{type}</option>
+                                            ))}
+                                        </select>
                                     </div>
 
-                                    <div className="form-row">
-                                        <div className="form-group">
-                                            <label>Date</label>
-                                            <input
-                                                type="date"
-                                                value={resourceForm.date}
-                                                onChange={(e) => setResourceForm({ ...resourceForm, date: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Description</label>
-                                            <input
-                                                type="text"
-                                                value={resourceForm.description}
-                                                onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
-                                                placeholder="Description"
-                                            />
-                                        </div>
+                                    <div className="form-group">
+                                        <label>Date *</label>
+                                        <input
+                                            type="date"
+                                            value={resourceForm.date}
+                                            onChange={(e) => setResourceForm({ ...resourceForm, date: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Status</label>
+                                        <select
+                                            value={resourceForm.status}
+                                            onChange={(e) => setResourceForm({ ...resourceForm, status: e.target.value })}
+                                            className="form-select"
+                                        >
+                                            <option value="Active">Active</option>
+                                            <option value="Inactive">Inactive</option>
+                                            <option value="Archived">Archived</option>
+                                        </select>
                                     </div>
 
-                                    <div className="form-row">
-                                        <div className="form-group">
-                                            <label>Status</label>
-                                            <select
-                                                value={resourceForm.status}
-                                                onChange={(e) => setResourceForm({ ...resourceForm, status: e.target.value })}
-                                                className="form-select"
-                                            >
-                                                <option value="Active">Active</option>
-                                                <option value="Inactive">Inactive</option>
-                                                <option value="Archived">Archived</option>
-                                            </select>
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Notes</label>
-                                            <textarea
-                                                value={resourceForm.notes}
-                                                onChange={(e) => setResourceForm({ ...resourceForm, notes: e.target.value })}
-                                                placeholder="Additional notes"
-                                                rows="1"
-                                                style={{ resize: 'none' }}
-                                            />
-                                        </div>
+                                    <div className="form-group">
+                                        <label>Description</label>
+                                        <input
+                                            type="text"
+                                            value={resourceForm.description}
+                                            onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
+                                            placeholder="Description"
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Notes</label>
+                                        <textarea
+                                            value={resourceForm.notes}
+                                            onChange={(e) => setResourceForm({ ...resourceForm, notes: e.target.value })}
+                                            placeholder="Additional notes"
+                                            rows="3"
+                                        />
                                     </div>
 
                                     <div className="form-group">
                                         <label>Attachments</label>
                                         <div className="image-upload-container">
-                                            <div className="image-upload-container">
-                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginBottom: '8px' }}>
-                                                    {resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
-                                                        <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px', position: 'relative' }}>
-                                                            {img.startsWith('data:application/pdf') ? (
-                                                                <div className="pdf-preview" style={{
-                                                                    width: '100%',
-                                                                    height: '100%',
-                                                                    display: 'flex',
-                                                                    flexDirection: 'column',
-                                                                    alignItems: 'center',
-                                                                    justifyContent: 'center',
-                                                                    background: '#f5f5f5',
-                                                                    borderRadius: '4px',
-                                                                    border: '1px solid #ddd'
-                                                                }}>
-                                                                    <FileText size={32} color="#E5C04A" />
-                                                                    <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
-                                                                </div>
-                                                            ) : (
-                                                                <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                            )}
-                                                            <button type="button" className="remove-image-btn" onClick={() => handleRemoveResourceImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
-                                                                <X size={12} />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="file-input-wrapper">
-                                                    <input
-                                                        type="file"
-                                                        id="resource-image-upload"
-                                                        accept="image/*,application/pdf"
-                                                        multiple
-                                                        onChange={handleImageUpload}
-                                                        className="file-input"
-                                                    />
-                                                    <label htmlFor="resource-image-upload" className="file-input-label">
-                                                        {resourceForm.image && resourceForm.image.length > 0 ? 'Add More Files' : 'Choose Files'}
-                                                    </label>
-                                                </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginBottom: '8px' }}>
+                                                {resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
+                                                    <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px', position: 'relative' }}>
+                                                        {img.startsWith('data:application/pdf') ? (
+                                                            <div className="pdf-preview" style={{
+                                                                width: '100%',
+                                                                height: '100%',
+                                                                display: 'flex',
+                                                                flexDirection: 'column',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                background: '#f5f5f5',
+                                                                borderRadius: '4px',
+                                                                border: '1px solid #ddd'
+                                                            }}>
+                                                                <FileText size={32} color="#E5C04A" />
+                                                                <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
+                                                            </div>
+                                                        ) : (
+                                                            <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                        )}
+                                                        <button type="button" className="remove-image-btn" onClick={() => handleRemoveResourceImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="file-input-wrapper-simple">
+                                                <input
+                                                    type="file"
+                                                    id="resource-image-upload"
+                                                    accept="image/*,application/pdf"
+                                                    multiple
+                                                    onChange={handleImageUpload}
+                                                    className="file-input"
+                                                />
+                                                <label htmlFor="resource-image-upload" className="file-input-label">
+                                                    {resourceForm.image && resourceForm.image.length > 0 ? 'Add More Files' : 'Choose Files'}
+                                                </label>
                                             </div>
                                         </div>
                                     </div>
@@ -2649,9 +2575,14 @@ const SalesPage = () => {
                                 {isViewingResource ? (
                                     <button className="btn-secondary" onClick={handleCloseResourceModal}>Close</button>
                                 ) : (
-                                    <button className="btn-primary submit-btn" onClick={handleSaveResource} disabled={isSaving}>
-                                        {isSaving ? 'Saving...' : 'Submit'}
-                                    </button>
+                                    <>
+                                        <button className="btn-secondary" onClick={handleCloseResourceModal} disabled={isSaving}>
+                                            Cancel
+                                        </button>
+                                        <button className="btn-primary" onClick={handleSaveResource} disabled={isSaving}>
+                                            {isSaving ? 'Saving...' : (editingResource ? 'Save Changes' : 'Add Resource')}
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         </div>
@@ -2744,7 +2675,7 @@ const SalesPage = () => {
                                                 </button>
                                             </div>
                                         )}
-                                        <div className="file-input-wrapper">
+                                        <div className="file-input-wrapper-simple">
                                             <input
                                                 type="file"
                                                 id="dashboard-upload"
@@ -2769,9 +2700,11 @@ const SalesPage = () => {
                                 )}
                             </div>
                             <div className="modal-footer">
-                                <button className="btn-secondary" onClick={() => setShowDashboardUploadModal(false)} disabled={isSaving}>Cancel</button>
+                                <button className="btn-secondary" onClick={() => setShowDashboardUploadModal(false)} disabled={isSaving}>
+                                    Cancel
+                                </button>
                                 <button className="btn-primary" onClick={handleDashboardUpload} disabled={isSaving}>
-                                    {isSaving ? 'Uploading...' : 'Upload'}
+                                    {isSaving ? (dashboardUploadForm.type === 'folder' ? 'Creating...' : 'Uploading...') : (dashboardUploadForm.type === 'folder' ? 'Create Folder' : 'Upload File')}
                                 </button>
                             </div>
                         </div>
