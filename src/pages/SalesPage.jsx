@@ -198,6 +198,14 @@ const SalesPage = () => {
     console.log('SalesPage Render: salesResources', salesResources);
     const [showDashboard, setShowDashboard] = useState(true);
     const [showDashboardUploadModal, setShowDashboardUploadModal] = useState(false);
+
+    // Custom Delete Confirmation Modal
+    const [deleteConfirmation, setDeleteConfirmation] = useState({
+        isOpen: false,
+        type: '', // 'contact', 'visit', 'resource'
+        id: null,
+        message: ''
+    });
     const [dashboardUploadForm, setDashboardUploadForm] = useState({
         name: '',
         type: 'file',
@@ -496,23 +504,51 @@ const SalesPage = () => {
     };
 
     const handleDeleteContact = async (contactId) => {
-        if (!confirm('Are you sure you want to delete this contact?')) return;
+        setDeleteConfirmation({
+            isOpen: true,
+            type: 'contact',
+            id: contactId,
+            message: 'Are you sure you want to delete this contact?'
+        });
+    };
+
+    const confirmDelete = async () => {
+        const { type, id } = deleteConfirmation;
+        setDeleteConfirmation({ isOpen: false, type: '', id: null, message: '' });
 
         try {
-            const response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/contacts/${contactId}`, {
-                method: 'DELETE',
-                credentials: 'include'
-            });
+            let response;
 
-            if (response.ok) {
+            if (type === 'contact') {
+                response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/contacts/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+            } else if (type === 'visit') {
+                response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/visits/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+            } else if (type === 'resource') {
+                response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/resources/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+            }
+
+            if (response && response.ok) {
                 await fetchSingleCustomer(selectedCustomerId);
             } else {
-                alert('Failed to delete contact');
+                alert(`Failed to delete ${type}`);
             }
         } catch (error) {
-            console.error('Error deleting contact:', error);
-            alert('Failed to delete contact');
+            console.error(`Error deleting ${type}:`, error);
+            alert(`Failed to delete ${type}`);
         }
+    };
+
+    const cancelDelete = () => {
+        setDeleteConfirmation({ isOpen: false, type: '', id: null, message: '' });
     };
 
     const handleDashboardUpload = async (e) => {
@@ -835,23 +871,12 @@ const SalesPage = () => {
     };
 
     const handleDeleteVisit = async (visitId) => {
-        if (!confirm('Are you sure you want to delete this visit?')) return;
-
-        try {
-            const response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/visits/${visitId}`, {
-                method: 'DELETE',
-                credentials: 'include'
-            });
-
-            if (response.ok) {
-                await fetchSingleCustomer(selectedCustomerId);
-            } else {
-                alert('Failed to delete visit');
-            }
-        } catch (error) {
-            console.error('Error deleting visit:', error);
-            alert('Failed to delete visit');
-        }
+        setDeleteConfirmation({
+            isOpen: true,
+            type: 'visit',
+            id: visitId,
+            message: 'Are you sure you want to delete this visit?'
+        });
     };
 
     // Resource CRUD operations
@@ -1052,23 +1077,12 @@ const SalesPage = () => {
     };
 
     const handleDeleteResource = async (resourceId) => {
-        if (!confirm('Are you sure you want to delete this resource?')) return;
-
-        try {
-            const response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/resources/${resourceId}`, {
-                method: 'DELETE',
-                credentials: 'include'
-            });
-
-            if (response.ok) {
-                await fetchSingleCustomer(selectedCustomerId);
-            } else {
-                alert('Failed to delete resource');
-            }
-        } catch (error) {
-            console.error('Error deleting resource:', error);
-            alert('Failed to delete resource');
-        }
+        setDeleteConfirmation({
+            isOpen: true,
+            type: 'resource',
+            id: resourceId,
+            message: 'Are you sure you want to delete this resource?'
+        });
     };
 
     // Reaction handler
@@ -2711,6 +2725,27 @@ const SalesPage = () => {
                     </div>
                 )
             }
+
+            {/* Custom Delete Confirmation Modal */}
+            {deleteConfirmation.isOpen && (
+                <div className="delete-confirmation-overlay" onClick={cancelDelete}>
+                    <div className="delete-confirmation-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="delete-modal-icon">
+                            <Trash2 size={48} color="#ef4444" />
+                        </div>
+                        <h3>Confirm Deletion</h3>
+                        <p>{deleteConfirmation.message}</p>
+                        <div className="delete-modal-actions">
+                            <button className="btn-cancel" onClick={cancelDelete}>
+                                Cancel
+                            </button>
+                            <button className="btn-delete" onClick={confirmDelete}>
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

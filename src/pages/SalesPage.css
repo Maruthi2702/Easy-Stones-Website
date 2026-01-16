@@ -3192,3 +3192,144 @@
 
 }
 
+
+/* Custom Delete Confirmation Modal */
+.delete-confirmation-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.2s ease-out;
+    backdrop-filter: blur(4px);
+}
+
+.delete-confirmation-modal {
+    background: linear-gradient(135deg, #2C2C2E 0%, #1C1C1E 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: center;
+}
+
+.delete-modal-icon {
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+    border: 2px solid rgba(239, 68, 68, 0.3);
+}
+
+.delete-confirmation-modal h3 {
+    color: #fff;
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.delete-confirmation-modal p {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1rem;
+    margin-bottom: 2rem;
+    line-height: 1.5;
+}
+
+.delete-modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.delete-modal-actions .btn-cancel,
+.delete-modal-actions .btn-delete {
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 120px;
+}
+
+.delete-modal-actions .btn-cancel {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.delete-modal-actions .btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+.delete-modal-actions .btn-delete {
+    background: #ef4444;
+    color: #fff;
+}
+
+.delete-modal-actions .btn-delete:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.delete-modal-actions .btn-cancel:active,
+.delete-modal-actions .btn-delete:active {
+    transform: scale(0.95);
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 768px) {
+    .delete-confirmation-modal {
+        padding: 1.5rem;
+        max-width: 340px;
+    }
+    
+    .delete-modal-icon {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 1rem;
+    }
+    
+    .delete-modal-icon svg {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .delete-confirmation-modal h3 {
+        font-size: 1.25rem;
+    }
+    
+    .delete-modal-actions {
+        flex-direction: column;
+    }
+    
+    .delete-modal-actions .btn-cancel,
+    .delete-modal-actions .btn-delete {
+        width: 100%;
+    }
+}
