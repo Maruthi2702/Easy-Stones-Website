@@ -784,34 +784,33 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     }
 
     // Find customer or internal user
-    console.log(`[${new Date().toISOString()}] 🔍 DB QUERY START: Finding account for ${email}`);
+    const loginIdentifier = email ? email.trim().toLowerCase() : '';
+    console.log(`[${new Date().toISOString()}] 🔍 DB QUERY START: Finding account for "${loginIdentifier}" (Original: "${email}")`);
     const startQuery = Date.now();
     let account;
     let accountType = 'customer';
     
     try {
-      account = await Customer.findOne({ email }).select('-visits -resources');
+      // 1. Try finding as a Customer first
+      account = await Customer.findOne({ email: loginIdentifier }).select('-visits -resources');
       
-      // If not found in Customers, check internal Users
+      // 2. If not found in Customers, check internal Users
       if (!account) {
-        console.log(`[${new Date().toISOString()}] 🔍 Account not found in Customers, checking internal Users...`);
         account = await User.findOne({
           $or: [
-            { email: email.toLowerCase() },
-            { username: email.toLowerCase() }
+            { email: loginIdentifier },
+            { username: loginIdentifier }
           ]
         });
         
         if (account) {
           accountType = 'internal';
-          console.log(`[${new Date().toISOString()}] ✅ Found internal user: ${account.username}`);
         }
       }
 
       console.log(`[${new Date().toISOString()}] ⏱️ DB QUERY END: Took ${Date.now() - startQuery}ms`);
 
       if (!account) {
-        console.log(`[${new Date().toISOString()}] ❌ Account not found: ${email}`);
         return res.status(401).json({ message: 'Invalid email or password' });
       }
 
@@ -821,13 +820,9 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       }
 
       // Verify password
-      console.log(`[${new Date().toISOString()}] 🔐 CRYPTO START: Verifying password for ${email}`);
-      const startCrypto = Date.now();
       const isMatch = await account.comparePassword(password);
-      console.log(`[${new Date().toISOString()}] ⏱️ CRYPTO END: Verification took ${Date.now() - startCrypto}ms`);
       
       if (!isMatch) {
-        console.log(`[${new Date().toISOString()}] ❌ Password mismatch for ${email}`);
         if (typeof account.incLoginAttempts === 'function') {
           await account.incLoginAttempts();
         }

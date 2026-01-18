@@ -31,9 +31,9 @@ const CustomerLoginPage = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Client-side validation
-        if (!validateEmail(formData.email)) {
-            setError('Please enter a valid email address');
+        // Client-side validation - relaxed to allow usernames
+        if (!formData.email) {
+            setError('Email or Username is required');
             return;
         }
 
@@ -85,15 +85,15 @@ const CustomerLoginPage = () => {
                         <div className="form-group">
                             <label>
                                 <Mail size={18} />
-                                Email
+                                Email or Username
                             </label>
                             <input
-                                type="email"
+                                type="text"
                                 name="email"
                                 value={formData.email}
                                 onChange={handleChange}
                                 required
-                                placeholder="Enter your email"
+                                placeholder="Enter your email or username"
                             />
                         </div>
 
