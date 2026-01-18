@@ -422,7 +422,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
         role: user.role 
       },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '6h' }
     );
     
     // Set HTTP-only cookie
@@ -430,7 +430,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 30 * 60 * 1000 // 30 minutes
+      maxAge: 6 * 60 * 60 * 1000 // 6 hours
     });
     
     res.json({ 
@@ -689,7 +689,7 @@ app.post('/api/customer/register', async (req, res) => {
     const token = jwt.sign(
       { id: customer._id, type: 'customer' },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '6h' }
     );
 
     // Set cookie
@@ -697,7 +697,7 @@ app.post('/api/customer/register', async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 30 * 60 * 1000 // 30 minutes
+      maxAge: 6 * 60 * 60 * 1000 // 6 hours
     });
 
     res.status(201).json({ 
@@ -792,7 +792,7 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     const token = jwt.sign(
       { id: customer._id, type: 'customer' },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '6h' }
     );
 
     // Set cookie
@@ -800,7 +800,7 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 30 * 60 * 1000 // 30 minutes
+      maxAge: 6 * 60 * 60 * 1000 // 6 hours
     });
 
     console.log(`✅ Login successful for ${email}`);

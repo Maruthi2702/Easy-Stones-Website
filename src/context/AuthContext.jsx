@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         if (!user) return; // Only run if user is logged in
 
-        const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
+        const INACTIVITY_TIMEOUT = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
         let inactivityTimer;
 
         const resetTimer = () => {
