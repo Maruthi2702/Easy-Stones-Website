@@ -825,7 +825,7 @@ const AdminPage = () => {
             </button>
           </div>
 
-          <div className={`admin-header-nav-container ${isMobileMenuOpen ? 'open' : ''}`}>
+          <div className={`admin-header-center ${isMobileMenuOpen ? 'open' : ''}`}>
             <div className="header-tabs">
               <button
                 className={`tab-btn ${activeTab === 'products' ? 'active' : ''}`}
@@ -855,15 +855,17 @@ const AdminPage = () => {
                 <Settings size={18} />
                 <span>Settings</span>
               </button>
+
+              <div className="nav-divider"></div>
+
+              <button className="logout-btn nav-item-logout" onClick={handleLogout}>
+                <LogOut size={16} />
+                <span>Logout</span>
+              </button>
             </div>
           </div>
 
-          <div className="admin-header-right">
-            <button className="logout-btn" onClick={handleLogout}>
-              <LogOut size={16} />
-              <span>Logout</span>
-            </button>
-          </div>
+          <div className="admin-header-right-empty"></div>
         </div>
       </div>
 
@@ -1212,21 +1214,20 @@ const AdminPage = () => {
           <div className="admin-main full-width">
             <div className="settings-container">
               <div className="settings-section">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                  <div>
+                <div className="users-tab-header">
+                  <div className="users-tab-title">
                     <h2>User Management</h2>
                     <p className="section-description">Manage internal users and assign roles.</p>
                   </div>
                   <button
-                    className="primary-btn"
+                    className="primary-btn add-user-btn"
                     onClick={() => {
                       setIsNewUser(true);
                       setEditingUserId(null);
                       setUserFormData({ username: '', email: '', password: '', role: 'sales_rep', location: '' });
                     }}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                   >
-                    <Plus size={18} /> Add User
+                    <Plus size={18} /> <span>Add User</span>
                   </button>
                 </div>
 
@@ -1265,15 +1266,9 @@ const AdminPage = () => {
                         <div className="form-group">
                           <label>Role</label>
                           <select
+                            className="role-select"
                             value={userFormData.role}
                             onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
-                            style={{
-                              padding: '0.75rem',
-                              background: 'var(--bg-primary)',
-                              border: '1px solid var(--border-color)',
-                              borderRadius: '8px',
-                              color: 'var(--text-primary)'
-                            }}
                           >
                             <option value="sales_rep">Sales Rep</option>
                             <option value="manager">Manager</option>
@@ -1324,8 +1319,8 @@ const AdminPage = () => {
                   </div>
                 )}
 
-                <div className="product-list" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                  <div className="search-box" style={{ marginBottom: '1rem' }}>
+                <div className="users-list-section">
+                  <div className="search-box">
                     <Search className="search-icon" size={18} />
                     <input
                       type="text"
@@ -1335,60 +1330,62 @@ const AdminPage = () => {
                     />
                   </div>
 
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
-                        <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Username</th>
-                        <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Email</th>
-                        <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Location</th>
-                        <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Role</th>
-                        <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredUsers.map(user => (
-                        <tr key={user._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.username}</td>
-                          <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.email || '-'}</td>
-                          <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.location || '-'}</td>
-                          <td style={{ padding: '1rem' }}>
-                            <span style={{
-                              padding: '0.25rem 0.75rem',
-                              borderRadius: '100px',
-                              fontSize: '0.85rem',
-                              background: user.role === 'admin' ? 'rgba(239, 68, 68, 0.1)' :
-                                user.role === 'director' ? 'rgba(168, 85, 247, 0.1)' :
-                                  user.role === 'manager' ? 'rgba(59, 130, 246, 0.1)' :
-                                    'rgba(16, 185, 129, 0.1)',
-                              color: user.role === 'admin' ? '#ef4444' :
-                                user.role === 'director' ? '#a855f7' :
-                                  user.role === 'manager' ? '#3b82f6' :
-                                    '#10b981'
-                            }}>
-                              {user.role === 'sales_rep' ? 'Sales Rep' :
-                                user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                            </span>
-                          </td>
-                          <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>
-                            <button
-                              className="secondary-btn"
-                              onClick={() => handleEditUser(user)}
-                              style={{ padding: '0.5rem', borderColor: 'var(--accent-primary)', color: 'var(--accent-primary)' }}
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              className="secondary-btn delete-btn-small"
-                              onClick={() => handleDeleteUser(user._id)}
-                              style={{ padding: '0.5rem', borderColor: '#ef4444', color: '#ef4444' }}
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
+                  <div className="table-responsive">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Username</th>
+                          <th>Email</th>
+                          <th>Location</th>
+                          <th>Role</th>
+                          <th>Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {filteredUsers.map(user => (
+                          <tr key={user._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.username}</td>
+                            <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.email || '-'}</td>
+                            <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.location || '-'}</td>
+                            <td style={{ padding: '1rem' }}>
+                              <span style={{
+                                padding: '0.25rem 0.75rem',
+                                borderRadius: '100px',
+                                fontSize: '0.85rem',
+                                background: user.role === 'admin' ? 'rgba(239, 68, 68, 0.1)' :
+                                  user.role === 'director' ? 'rgba(168, 85, 247, 0.1)' :
+                                    user.role === 'manager' ? 'rgba(59, 130, 246, 0.1)' :
+                                      'rgba(16, 185, 129, 0.1)',
+                                color: user.role === 'admin' ? '#ef4444' :
+                                  user.role === 'director' ? '#a855f7' :
+                                    user.role === 'manager' ? '#3b82f6' :
+                                      '#10b981'
+                              }}>
+                                {user.role === 'sales_rep' ? 'Sales Rep' :
+                                  user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                              </span>
+                            </td>
+                            <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>
+                              <button
+                                className="secondary-btn"
+                                onClick={() => handleEditUser(user)}
+                                style={{ padding: '0.5rem', borderColor: 'var(--accent-primary)', color: 'var(--accent-primary)' }}
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                className="secondary-btn delete-btn-small"
+                                onClick={() => handleDeleteUser(user._id)}
+                                style={{ padding: '0.5rem', borderColor: '#ef4444', color: '#ef4444' }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>

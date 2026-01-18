@@ -17,7 +17,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  position: relative;
 }
 
 .admin-header-top {
@@ -26,24 +25,15 @@
   flex: 1;
 }
 
-.admin-header-nav-container {
-  display: flex;
-  flex: 3; /* Combined center and right sections */
-  justify-content: space-between;
-  align-items: center;
-}
-
 .admin-header-center {
   display: flex;
   justify-content: center;
   align-items: center;
-  flex: 1;
+  flex: 2; /* Increased flex to hold more items comfortably */
 }
 
-.admin-header-right {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
+/* Right section removed or kept empty to balance the layout */
+.admin-header-right-empty {
   flex: 1;
 }
 
@@ -94,6 +84,13 @@
 }
 
 /* Removed admin-header-nav since it was split */
+
+.nav-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 0.5rem;
+}
 
 .logout-btn {
   display: flex;
@@ -321,6 +318,7 @@
   background: var(--bg-secondary);
   position: relative;
   z-index: 1;
+  min-width: 0; /* Important for flex children to allow overflow in their own children */
 }
 
 .main-header {
@@ -696,6 +694,96 @@
   transform: scale(1.15);
 }
 
+/* Users Management Section */
+.users-tab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  gap: 1rem;
+}
+
+.add-user-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.role-select {
+  padding: 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.users-list-section {
+  max-height: 800px;
+  overflow: visible;
+}
+
+.users-list-section .search-box {
+  margin-bottom: 1.5rem;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  display: block; /* Ensure it behaves as a block for overflow */
+  margin-top: 1rem;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px; /* Increased to ensure scroll triggers earlier on mobile */
+}
+
+.admin-table th {
+  padding: 1.25rem 1rem;
+  color: var(--text-secondary);
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.admin-table td {
+  padding: 1.25rem 1rem;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.admin-table tr:hover {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+@media (max-width: 768px) {
+  .users-tab-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .users-tab-header .users-tab-title {
+    width: 100%;
+  }
+  
+  .add-user-btn {
+    width: 100%;
+    justify-content: center;
+    margin-top: 0.5rem;
+  }
+}
+
 /* Settings Container */
 .admin-main.full-width {
   width: 100%;
@@ -705,8 +793,16 @@
   flex: 1;
   overflow-y: auto;
   padding: 2rem;
-  max-width: 800px;
+  max-width: 900px; /* Slightly wider for management sections */
   margin: 0 auto;
+  width: 100%;
+  min-width: 0; /* Prevent flex parent from squeezing */
+}
+
+@media (max-width: 768px) {
+  .settings-container {
+    padding: 1rem;
+  }
 }
 
 .settings-section {
@@ -714,6 +810,13 @@
   padding: 2rem;
   border-radius: 12px;
   border: 1px solid var(--border-color);
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 768px) {
+  .settings-section {
+    padding: 1.25rem;
+  }
 }
 
 .settings-section h2 {
@@ -937,7 +1040,7 @@
     display: flex;
   }
 
-  .admin-header-nav-container {
+  .admin-header-center {
     display: none;
     flex-direction: column;
     background: #050505;
@@ -945,11 +1048,19 @@
     animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .admin-header-nav-container.open {
+  .admin-header-center.open {
     display: flex;
   }
 
-  .admin-header-center, .admin-header-right {
+  .nav-divider {
+    display: none;
+  }
+
+  .admin-header-right-empty {
+    display: none;
+  }
+
+  .admin-header-center, .admin-header-right-empty {
     width: 100%;
     flex: none;
   }
