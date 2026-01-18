@@ -463,10 +463,10 @@ app.get('/api/admin/users', verifyToken, authorize('admin', 'director'), async (
   }
 });
 
-// Create new user (Admin only)
-app.post('/api/admin/users', verifyToken, authorize('admin'), async (req, res) => {
+// Create new user (Admin/Director only)
+app.post('/api/admin/users', verifyToken, authorize('admin', 'director'), async (req, res) => {
   try {
-    const { username, password, email, role } = req.body;
+    const { username, password, email, role, location } = req.body;
     
     // Check if user exists
     const existingUser = await User.findOne({ username });
@@ -478,7 +478,8 @@ app.post('/api/admin/users', verifyToken, authorize('admin'), async (req, res) =
       username,
       password,
       email,
-      role: role || 'sales_rep'
+      role: role || 'sales_rep',
+      location
     });
 
     await newUser.save();
@@ -489,7 +490,8 @@ app.post('/api/admin/users', verifyToken, authorize('admin'), async (req, res) =
         id: newUser._id, 
         username: newUser.username, 
         email: newUser.email, 
-        role: newUser.role 
+        role: newUser.role,
+        location: newUser.location
       } 
     });
   } catch (error) {
@@ -497,8 +499,50 @@ app.post('/api/admin/users', verifyToken, authorize('admin'), async (req, res) =
   }
 });
 
-// Delete user (Admin only)
-app.delete('/api/admin/users/:id', verifyToken, authorize('admin'), async (req, res) => {
+// Update user (Admin/Director only)
+app.put('/api/admin/users/:id', verifyToken, authorize('admin', 'director'), async (req, res) => {
+  try {
+    const { username, email, role, password, location } = req.body;
+    const userId = req.params.id;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if new username is already taken by another user
+    if (username && username !== user.username) {
+      const existingUser = await User.findOne({ username });
+      if (existingUser) {
+        return res.status(400).json({ message: 'Username already exists' });
+      }
+      user.username = username;
+    }
+
+    if (email !== undefined) user.email = email;
+    if (role !== undefined) user.role = role;
+    if (location !== undefined) user.location = location;
+    if (password) user.password = password; // Will be hashed by pre-save hook
+
+    await user.save();
+
+    res.json({
+      message: 'User updated successfully',
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        location: user.location
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update user', error: error.message });
+  }
+});
+
+// Delete user (Admin/Director only)
+app.delete('/api/admin/users/:id', verifyToken, authorize('admin', 'director'), async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'User deleted successfully' });

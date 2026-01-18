@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, Users, User, Menu, X } from 'lucide-react';
+import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, Users, User, Menu, X, Pencil } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../config/api';
 import { useProducts } from '../context/ProductContext';
 import './AdminPage.css';
@@ -53,9 +53,11 @@ const AdminPage = () => {
     username: '',
     email: '',
     password: '',
-    role: 'sales_rep'
+    role: 'sales_rep',
+    location: ''
   });
   const [isNewUser, setIsNewUser] = useState(false);
+  const [editingUserId, setEditingUserId] = useState(null);
   const [userSaveStatus, setUserSaveStatus] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -268,13 +270,31 @@ const AdminPage = () => {
     (u.role?.toLowerCase() || '').includes(userSearchTerm.toLowerCase())
   );
 
+  const handleEditUser = (user) => {
+    setEditingUserId(user._id);
+    setUserFormData({
+      username: user.username,
+      email: user.email || '',
+      password: '', // Keep blank unless changing
+      role: user.role,
+      location: user.location || ''
+    });
+    setIsNewUser(true);
+  };
+
   const handleUserSubmit = async (e) => {
     e.preventDefault();
     setUserSaveStatus('saving');
 
+    const url = editingUserId
+      ? `${API_URL}/api/admin/users/${editingUserId}`
+      : `${API_URL}/api/admin/users`;
+
+    const method = editingUserId ? 'PUT' : 'POST';
+
     try {
-      const response = await fetch(`${API_URL}/api/admin/users`, {
-        method: 'POST',
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(userFormData)
@@ -283,7 +303,8 @@ const AdminPage = () => {
       if (response.ok) {
         setUserSaveStatus('success');
         setIsNewUser(false);
-        setUserFormData({ username: '', email: '', password: '', role: 'sales_rep' });
+        setEditingUserId(null);
+        setUserFormData({ username: '', email: '', password: '', role: 'sales_rep', location: '' });
         // Refresh users
         const usersRes = await fetch(`${API_URL}/api/admin/users`, {
           headers: { 'Content-Type': 'application/json' },
@@ -295,12 +316,12 @@ const AdminPage = () => {
         }
       } else {
         const errorData = await response.json();
-        setErrorMessage(errorData.message || 'Failed to create user');
+        setErrorMessage(errorData.message || `Failed to ${editingUserId ? 'update' : 'create'} user`);
         setUserSaveStatus('error');
       }
     } catch (error) {
-      console.error('Error saving user:', error);
-      setErrorMessage(error.message || 'Network error');
+      console.error(`Error ${editingUserId ? 'updating' : 'creating'} user:`, error);
+      setErrorMessage(`Error ${editingUserId ? 'updating' : 'creating'} user`);
       setUserSaveStatus('error');
     }
 
@@ -1189,7 +1210,11 @@ const AdminPage = () => {
                   </div>
                   <button
                     className="primary-btn"
-                    onClick={() => setIsNewUser(true)}
+                    onClick={() => {
+                      setIsNewUser(true);
+                      setEditingUserId(null);
+                      setUserFormData({ username: '', email: '', password: '', role: 'sales_rep', location: '' });
+                    }}
                     style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                   >
                     <Plus size={18} /> Add User
@@ -1198,7 +1223,7 @@ const AdminPage = () => {
 
                 {isNewUser && (
                   <div className="form-section" style={{ marginBottom: '2rem' }}>
-                    <h3>Add New User</h3>
+                    <h3>{editingUserId ? 'Edit User' : 'Add New User'}</h3>
                     <form onSubmit={handleUserSubmit}>
                       <div className="form-grid">
                         <div className="form-group">
@@ -1219,12 +1244,13 @@ const AdminPage = () => {
                           />
                         </div>
                         <div className="form-group">
-                          <label>Password</label>
+                          <label>Password {editingUserId && '(Leave blank to keep current)'}</label>
                           <input
                             type="password"
                             value={userFormData.password}
                             onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-                            required
+                            required={!editingUserId}
+                            placeholder={editingUserId ? "New password" : "Enter password"}
                           />
                         </div>
                         <div className="form-group">
@@ -1246,12 +1272,25 @@ const AdminPage = () => {
                             <option value="admin">Admin</option>
                           </select>
                         </div>
+                        <div className="form-group">
+                          <label>Location</label>
+                          <input
+                            type="text"
+                            value={userFormData.location}
+                            onChange={(e) => setUserFormData({ ...userFormData, location: e.target.value })}
+                            placeholder="e.g. New York, Austin, etc."
+                          />
+                        </div>
                       </div>
                       <div className="form-actions-bottom">
                         <button
                           type="button"
                           className="secondary-btn"
-                          onClick={() => setIsNewUser(false)}
+                          onClick={() => {
+                            setIsNewUser(false);
+                            setEditingUserId(null);
+                            setUserFormData({ username: '', email: '', password: '', role: 'sales_rep', location: '' });
+                          }}
                           style={{ marginRight: '1rem' }}
                         >
                           Cancel
@@ -1261,11 +1300,11 @@ const AdminPage = () => {
                           className="save-btn"
                           disabled={userSaveStatus === 'saving'}
                         >
-                          {userSaveStatus === 'saving' ? 'Creating...' : 'Create User'}
+                          {userSaveStatus === 'saving' ? (editingUserId ? 'Updating...' : 'Creating...') : (editingUserId ? 'Update User' : 'Create User')}
                         </button>
                       </div>
                       {userSaveStatus === 'success' && (
-                        <div className="status-message success">User created successfully!</div>
+                        <div className="status-message success">User {editingUserId ? 'updated' : 'created'} successfully!</div>
                       )}
                       {userSaveStatus === 'error' && (
                         <div className="status-message error">
@@ -1292,6 +1331,7 @@ const AdminPage = () => {
                       <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
                         <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Username</th>
                         <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Email</th>
+                        <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Location</th>
                         <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Role</th>
                         <th style={{ padding: '1rem', color: 'var(--text-secondary)' }}>Actions</th>
                       </tr>
@@ -1301,6 +1341,7 @@ const AdminPage = () => {
                         <tr key={user._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                           <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.username}</td>
                           <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.email || '-'}</td>
+                          <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.location || '-'}</td>
                           <td style={{ padding: '1rem' }}>
                             <span style={{
                               padding: '0.25rem 0.75rem',
@@ -1319,7 +1360,14 @@ const AdminPage = () => {
                                 user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                             </span>
                           </td>
-                          <td style={{ padding: '1rem' }}>
+                          <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              className="secondary-btn"
+                              onClick={() => handleEditUser(user)}
+                              style={{ padding: '0.5rem', borderColor: 'var(--accent-primary)', color: 'var(--accent-primary)' }}
+                            >
+                              <Pencil size={16} />
+                            </button>
                             <button
                               className="secondary-btn delete-btn-small"
                               onClick={() => handleDeleteUser(user._id)}

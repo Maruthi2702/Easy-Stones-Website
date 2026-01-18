@@ -30,6 +30,10 @@ const userSchema = new mongoose.Schema({
   },
   lockUntil: {
     type: Date
+  },
+  location: {
+    type: String,
+    trim: true
   }
 }, {
   timestamps: true
