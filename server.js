@@ -340,9 +340,10 @@ const verifyAnyAuth = (req, res, next) => {
   if (customerToken) {
     try {
       const decoded = jwt.verify(customerToken, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
-      if (decoded.type === 'customer') {
+      if (decoded.type === 'customer' || decoded.type === 'internal') {
         req.customerId = decoded.id;
-        req.authType = 'customer';
+        req.accountType = decoded.type;
+        req.authType = decoded.type === 'customer' ? 'customer' : 'admin'; 
         return next();
       }
     } catch (error) {
@@ -782,59 +783,99 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       console.error(`[${new Date().toISOString()}] ❌ CONNECTION CHECK FAILED:`, checkErr.message);
     }
 
-    // Find customer - Exclude heavy arrays to prevent timeouts on high-latency networks
-    console.log(`[${new Date().toISOString()}] 🔍 DB QUERY START: Finding customer ${email}`);
+    // Find customer or internal user
+    console.log(`[${new Date().toISOString()}] 🔍 DB QUERY START: Finding account for ${email}`);
     const startQuery = Date.now();
-    let customer;
+    let account;
+    let accountType = 'customer';
+    
     try {
-      customer = await Customer.findOne({ email }).select('-visits -resources');
+      account = await Customer.findOne({ email }).select('-visits -resources');
+      
+      // If not found in Customers, check internal Users
+      if (!account) {
+        console.log(`[${new Date().toISOString()}] 🔍 Account not found in Customers, checking internal Users...`);
+        account = await User.findOne({
+          $or: [
+            { email: email.toLowerCase() },
+            { username: email.toLowerCase() }
+          ]
+        });
+        
+        if (account) {
+          accountType = 'internal';
+          console.log(`[${new Date().toISOString()}] ✅ Found internal user: ${account.username}`);
+        }
+      }
+
       console.log(`[${new Date().toISOString()}] ⏱️ DB QUERY END: Took ${Date.now() - startQuery}ms`);
 
-      if (!customer) {
-        console.log(`[${new Date().toISOString()}] ❌ Customer not found: ${email}`);
+      if (!account) {
+        console.log(`[${new Date().toISOString()}] ❌ Account not found: ${email}`);
         return res.status(401).json({ message: 'Invalid email or password' });
+      }
+
+      // Check if account is locked
+      if (typeof account.isLocked === 'function' && account.isLocked()) {
+        return res.status(423).json({ message: 'Account locked. Please try again later.' });
       }
 
       // Verify password
       console.log(`[${new Date().toISOString()}] 🔐 CRYPTO START: Verifying password for ${email}`);
       const startCrypto = Date.now();
-      const isMatch = await customer.comparePassword(password);
+      const isMatch = await account.comparePassword(password);
       console.log(`[${new Date().toISOString()}] ⏱️ CRYPTO END: Verification took ${Date.now() - startCrypto}ms`);
       
       if (!isMatch) {
         console.log(`[${new Date().toISOString()}] ❌ Password mismatch for ${email}`);
-        await customer.incLoginAttempts();
+        if (typeof account.incLoginAttempts === 'function') {
+          await account.incLoginAttempts();
+        }
         return res.status(401).json({ message: 'Invalid email or password' });
       }
+
+      // Reset login attempts if needed
+      if (account.loginAttempts > 0 && typeof account.resetLoginAttempts === 'function') {
+        await account.resetLoginAttempts();
+      }
     } catch (dbError) {
-      console.error(`[${new Date().toISOString()}] ❌ DB ERROR during findOne:`, dbError);
+      console.error(`[${new Date().toISOString()}] ❌ DB ERROR during account lookup:`, dbError);
       throw dbError; 
     }
 
-    // Reset login attempts and save IP address atomically
-    // Reset login attempts and save IP address atomically using updateOne
-    // We use updateOne instead of findByIdAndUpdate/save to avoid fetching the full 1MB document back
+    // Reset login attempts and save IP address
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    console.log(`💾 Updating customer login info (IP: ${ip}) for ${email}`);
+    console.log(`💾 Updating ${accountType} login info (IP: ${ip}) for ${email}`);
     
-    await Customer.updateOne({ _id: customer._id }, {
-      $set: { 
-        loginAttempts: 0,
-        lastLoginIp: ip
-      },
-      $unset: { lockUntil: 1 },
-      $push: { 
-        loginIps: { 
-          $each: [ip], 
-          $slice: -3 
-        } 
-      }
-    });
+    if (accountType === 'customer') {
+      await Customer.updateOne({ _id: account._id }, {
+        $set: { 
+          loginAttempts: 0,
+          lastLoginIp: ip
+        },
+        $unset: { lockUntil: 1 },
+        $push: { 
+          loginIps: { 
+            $each: [ip], 
+            $slice: -3 
+          } 
+        }
+      });
+    } else {
+      await User.updateOne({ _id: account._id }, {
+        $set: { loginAttempts: 0 },
+        $unset: { lockUntil: 1 }
+      });
+    }
 
     // Generate JWT token
-    console.log(`🔑 Generating JWT for ${email}`);
+    console.log(`🔑 Generating JWT for ${email} (Type: ${accountType})`);
     const token = jwt.sign(
-      { id: customer._id, type: 'customer' },
+      { 
+        id: account._id, 
+        type: accountType,
+        role: account.role || 'customer'
+      },
       process.env.JWT_SECRET,
       { expiresIn: '6h' }
     );
@@ -847,15 +888,17 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       maxAge: 6 * 60 * 60 * 1000 // 6 hours
     });
 
-    console.log(`✅ Login successful for ${email}`);
+    console.log(`✅ Login successful for ${email} as ${accountType}`);
     res.json({
       success: true,
       message: 'Login successful',
       user: {
-        id: customer._id,
-        contactName: customer.contactName,
-        email: customer.email,
-        company: customer.company
+        id: account._id,
+        contactName: accountType === 'customer' ? account.contactName : (account.username || account.email),
+        email: account.email,
+        company: account.company || 'Easy Stones Internal',
+        role: account.role || 'customer',
+        type: accountType
       }
     });
   } catch (error) {
@@ -875,10 +918,11 @@ const verifyCustomer = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
-    if (decoded.type !== 'customer') {
+    if (decoded.type !== 'customer' && decoded.type !== 'internal') {
       return res.status(401).json({ message: 'Invalid token type.' });
     }
     req.customerId = decoded.id;
+    req.accountType = decoded.type;
     next();
   } catch (error) {
     res.status(401).json({ message: 'Invalid token.' });
@@ -888,19 +932,28 @@ const verifyCustomer = (req, res, next) => {
 // Get current customer
 app.get('/api/customer/me', verifyCustomer, async (req, res) => {
   try {
-    const customer = await Customer.findById(req.customerId).select('-password -visits -resources');
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
+    let account;
+    if (req.accountType === 'internal') {
+      account = await User.findById(req.customerId).select('-password');
+    } else {
+      account = await Customer.findById(req.customerId).select('-password -visits -resources');
     }
+
+    if (!account) {
+      return res.status(404).json({ message: 'Account not found' });
+    }
+
     res.json({
-      id: customer._id,
-      contactName: customer.contactName,
-      email: customer.email,
-      company: customer.company
+      id: account._id,
+      contactName: req.accountType === 'customer' ? account.contactName : (account.username || account.email),
+      email: account.email,
+      company: account.company || (req.accountType === 'internal' ? 'Easy Stones Internal' : ''),
+      role: account.role || 'customer',
+      type: req.accountType
     });
   } catch (error) {
-    console.error('Get customer error:', error);
-    res.status(500).json({ message: 'Failed to fetch customer data' });
+    console.error('Get account error:', error);
+    res.status(500).json({ message: 'Failed to fetch account data' });
   }
 });
 
@@ -914,19 +967,23 @@ const customerAuthMiddleware = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
-
-    if (decoded.type !== 'customer') {
-      return res.status(403).json({ message: 'Access denied' });
+    
+    if (decoded.type === 'internal') {
+      const user = await User.findById(decoded.id).select('-password');
+      if (!user) {
+        return res.status(401).json({ message: 'User no longer exists' });
+      }
+      req.user = user;
+      req.accountType = 'internal';
+    } else {
+      const customer = await Customer.findById(decoded.id).select('-password');
+      if (!customer) {
+        return res.status(401).json({ message: 'Customer no longer exists' });
+      }
+      req.user = customer;
+      req.accountType = 'customer';
     }
-
-    const customer = await Customer.findById(decoded.id);
-
-    if (!customer || !customer.isActive) {
-      return res.status(403).json({ message: 'Account inactive or not found' });
-    }
-
-    req.customerId = decoded.id;
-    req.customer = customer;
+    
     next();
   } catch (error) {
     return res.status(401).json({ message: 'Invalid or expired token' });
