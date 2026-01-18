@@ -809,11 +809,14 @@ const AdminPage = () => {
 
   return (
     <div className="admin-container">
-      {/* Admin Header */}
       <div className="admin-header">
         <div className="admin-header-content">
           <div className="admin-header-top">
-            <h1>Admin Panel</h1>
+            <div className="admin-brand">
+              <h1>Admin Panel</h1>
+              <span className="admin-breadcrumb-edge">/</span>
+              <span className="admin-current-path">{activeTab.toUpperCase()}</span>
+            </div>
             <button
               className="mobile-menu-toggle"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -822,37 +825,43 @@ const AdminPage = () => {
             </button>
           </div>
 
-          <div className={`admin-header-nav ${isMobileMenuOpen ? 'open' : ''}`}>
+          <div className={`admin-header-nav-container ${isMobileMenuOpen ? 'open' : ''}`}>
             <div className="header-tabs">
               <button
                 className={`tab-btn ${activeTab === 'products' ? 'active' : ''}`}
                 onClick={() => handleTabChange('products')}
               >
                 <Package size={18} />
-                Products
+                <span>Products</span>
               </button>
               <button
                 className={`tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
                 onClick={() => handleTabChange('customers')}
               >
-                <Users size={18} /> Customers
+                <Users size={18} />
+                <span>Customers</span>
               </button>
               <button
                 className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
                 onClick={() => handleTabChange('users')}
               >
-                <User size={18} /> Users
+                <User size={18} />
+                <span>Users</span>
               </button>
               <button
                 className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
                 onClick={() => handleTabChange('settings')}
               >
-                <Settings size={18} /> Settings
+                <Settings size={18} />
+                <span>Settings</span>
               </button>
             </div>
+          </div>
+
+          <div className="admin-header-right">
             <button className="logout-btn" onClick={handleLogout}>
-              <LogOut size={18} />
-              Logout
+              <LogOut size={16} />
+              <span>Logout</span>
             </button>
           </div>
         </div>
