@@ -43,7 +43,7 @@ const Header = () => {
           >
             Live Inventory
           </a>
-          {user && (
+          {user && user.type === 'internal' && (
             <NavLink to="/sales" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Sales</NavLink>
           )}
           <NavLink to="/warranty" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Warranty</NavLink>
@@ -93,7 +93,7 @@ const Header = () => {
           >
             Live Inventory
           </a>
-          {user && (
+          {user && user.type === 'internal' && (
             <NavLink
               to="/sales"
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
