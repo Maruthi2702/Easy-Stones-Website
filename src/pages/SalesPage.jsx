@@ -826,6 +826,8 @@ const SalesPage = () => {
             notes: visit.notes || '',
             outcome: visit.outcome || '',
             followUp: visit.followUp || visit.nextAction || '',
+            managerComment: visit.managerComment || '',
+            headquartersComment: visit.headquartersComment || '',
             image: Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : []),
             customerId: visit.customerId || selectedCustomerId || ''
         });
@@ -938,6 +940,8 @@ const SalesPage = () => {
             notes: '',
             outcome: '',
             followUp: '',
+            managerComment: '',
+            headquartersComment: '',
             image: [],
             customerId: selectedCustomerId || '' // Default to selected customer if available
         });
@@ -2085,24 +2089,7 @@ const SalesPage = () => {
                                                                             )}
                                                                         </div>
 
-                                                                        {/* Reply Input */}
-                                                                        <div className="post-reply-input">
-                                                                            <div className="reply-avatar-small">
-                                                                                {currentUser?.firstName?.charAt(0) || <User size={12} />}
-                                                                            </div>
-                                                                            <input
-                                                                                type="text"
-                                                                                placeholder="Reply in thread..."
-                                                                                className="reply-field"
-                                                                                onKeyDown={(e) => {
-                                                                                    if (e.key === 'Enter') {
-                                                                                        setVisitForm(prev => ({ ...prev, notes: `Replying to ${visit.createdByName || visit.creatorName}: ${e.target.value}`, customerId: selectedCustomerId || prev.customerId }));
-                                                                                        handleQuickAddVisit();
-                                                                                        e.target.value = '';
-                                                                                    }
-                                                                                }}
-                                                                            />
-                                                                        </div>
+
                                                                     </div>
                                                                 </div>
                                                             );
@@ -2899,7 +2886,7 @@ const SalesPage = () => {
                                         onChange={(e) => setVisitForm({ ...visitForm, date: e.target.value })}
                                     />
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
                                     <div className="form-group">
                                         <label>Customer <span style={{ color: 'red' }}>*</span></label>
                                         <select
@@ -2949,7 +2936,7 @@ const SalesPage = () => {
                                         rows="4"
                                     />
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
                                     <div className="form-group">
                                         <label>Outcome</label>
                                         <input
@@ -3014,6 +3001,26 @@ const SalesPage = () => {
                                         </div>
                                     </div>
                                 </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
+                                    <div className="form-group">
+                                        <label>Manager Comment</label>
+                                        <input
+                                            type="text"
+                                            value={visitForm.managerComment}
+                                            onChange={(e) => setVisitForm({ ...visitForm, managerComment: e.target.value })}
+                                            placeholder="Comment from Manager"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Headquarters Comment</label>
+                                        <input
+                                            type="text"
+                                            value={visitForm.headquartersComment}
+                                            onChange={(e) => setVisitForm({ ...visitForm, headquartersComment: e.target.value })}
+                                            placeholder="Comment from HQ"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                             <div className="modal-footer">
                                 <button className="btn-secondary" onClick={handleCloseVisitModal} disabled={isSaving}>
@@ -3065,8 +3072,16 @@ const SalesPage = () => {
                                         <div className="visit-detail-value">{visitForm.outcome || '-'}</div>
                                     </div>
                                     <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Next Action</div>
-                                        <div className="visit-detail-value">{visitForm.nextAction || '-'}</div>
+                                        <div className="visit-detail-label">Follow Up</div>
+                                        <div className="visit-detail-value">{visitForm.followUp || visitForm.nextAction || '-'}</div>
+                                    </div>
+                                    <div className="visit-detail-item">
+                                        <div className="visit-detail-label">Manager Comment</div>
+                                        <div className="visit-detail-value">{visitForm.managerComment || '-'}</div>
+                                    </div>
+                                    <div className="visit-detail-item">
+                                        <div className="visit-detail-label">Headquarters Comment</div>
+                                        <div className="visit-detail-value">{visitForm.headquartersComment || '-'}</div>
                                     </div>
                                 </div>
 

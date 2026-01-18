@@ -627,7 +627,7 @@
   }
 
   .modal-overlay {
-    padding-top: 100px;
+    padding-top: 0; /* Reset for better scrolling */
   }
 
   /* Mobile Header Adjustments */
@@ -1146,11 +1146,15 @@
   border-radius: 12px;
   width: 90%;
   max-width: 900px;
-  margin: auto; /* Center when content is short */
+  max-height: 90vh;
+  margin: auto;
   position: relative;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.1);
   animation: modalSlideIn 0.3s ease-out;
+  overflow: hidden;
 }
 
 .modal-header {
@@ -1196,6 +1200,8 @@
 
 .modal-body {
   padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .modal-footer {
@@ -1339,9 +1345,11 @@
   
   .modal-content {
     max-width: 100%;
+    width: 100%;
     margin: 0;
     border-radius: 0;
     max-height: 100vh;
+    height: 100vh;
   }
 }
 

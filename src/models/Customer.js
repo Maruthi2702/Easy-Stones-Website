@@ -7,6 +7,8 @@ const visitSchema = new mongoose.Schema({
   notes: String,
   outcome: String,
   followUp: String,
+  managerComment: String,
+  headquartersComment: String,
   image: mongoose.Schema.Types.Mixed,  // Use Mixed to support both legacy Strings and new Arrays
   createdBy: String,  // User ID or Customer ID who created this visit
   createdByName: String,  // Display name of the creator

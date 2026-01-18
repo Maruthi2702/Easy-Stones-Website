@@ -799,3 +799,14 @@
         font-size: 0.75rem;
     }
 }
+
+@media (max-width: 768px) {
+    .visit-details-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    
+    .visit-detail-item {
+        gap: 0.25rem;
+    }
+}
