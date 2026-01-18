@@ -1248,7 +1248,7 @@ app.get('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async
 app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId } = req.params;
-    const { date, purpose, notes, outcome, nextAction, image } = req.body;
+    const { date, purpose, notes, outcome, followUp, image } = req.body;
 
     console.log(`[DEBUG] Received visit creation request for Customer: ${customerId}`);
     console.log(`[DEBUG] Auth type: ${req.authType}, User ID: ${req.userId || req.customerId}`);
@@ -1290,7 +1290,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       purpose,
       notes,
       outcome,
-      nextAction,
+      followUp,
       image,
       createdBy,
       createdByName,
@@ -1348,7 +1348,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
 app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
-    const { date, purpose, notes, outcome, nextAction, image } = req.body;
+    const { date, purpose, notes, outcome, followUp, image } = req.body;
 
     // Get updater information
     let updatedBy = '';
@@ -1369,7 +1369,7 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
     if (purpose !== undefined) updateData['visits.$.purpose'] = purpose;
     if (notes !== undefined) updateData['visits.$.notes'] = notes;
     if (outcome !== undefined) updateData['visits.$.outcome'] = outcome;
-    if (nextAction !== undefined) updateData['visits.$.nextAction'] = nextAction;
+    if (followUp !== undefined) updateData['visits.$.followUp'] = followUp;
     if (image !== undefined) updateData['visits.$.image'] = image;
     
     // Add tracking fields

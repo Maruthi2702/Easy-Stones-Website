@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Calendar, MapPin, Phone, Mail, Clock, Plus, Search,
-    Filter, MoreVertical, X, Upload, Home, ArrowLeft,
+    Filter, X, Upload, Home, ArrowLeft,
     CheckCircle, MessageSquare, Heart, ThumbsUp, Send, User, Menu,
     Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft,
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
@@ -66,6 +66,9 @@ const SalesPage = () => {
     const [editingContact, setEditingContact] = useState(null);
     const [editingVisit, setEditingVisit] = useState(null);
     const [editingResource, setEditingResource] = useState(null);
+
+    const [showAddFolderModal, setShowAddFolderModal] = useState(false);
+    const [folderName, setFolderName] = useState('');
     const [isViewingResource, setIsViewingResource] = useState(false);
     const [isViewingVisit, setIsViewingVisit] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -229,6 +232,10 @@ const SalesPage = () => {
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
     const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
 
+    // Pagination State
+    const [currentVisitsPage, setCurrentVisitsPage] = useState(1);
+    const visitsPerPage = 10;
+
     const resourceTypes = [
         "Moda Tower 2024 version 2",
         "Moda Tabletop 2024 version 1",
@@ -334,6 +341,11 @@ const SalesPage = () => {
     const handleGoHome = () => {
         setSelectedCustomerId(null);
         setSelectedCustomerDetail(null);
+
+        // Clear URL
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.delete('customer');
+        window.history.pushState({}, '', newUrl);
         setShowDashboard(true);
         if (isMobile) {
             setIsSidebarOpen(false);
@@ -423,6 +435,14 @@ const SalesPage = () => {
         });
 
     useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const customerId = params.get('customer');
+        if (customerId) {
+            setSelectedCustomerId(customerId);
+        }
+    }, []);
+
+    useEffect(() => {
         if (selectedCustomerId) {
             fetchSingleCustomer(selectedCustomerId);
         }
@@ -434,6 +454,12 @@ const SalesPage = () => {
             setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
         }
         setSelectedCustomerId(customer._id);
+
+        // Update URL
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('customer', customer._id);
+        window.history.pushState({}, '', newUrl);
+
         // On mobile, close sidebar (list view) to show details
         if (isMobile) {
             setIsSidebarOpen(false);
@@ -799,8 +825,9 @@ const SalesPage = () => {
             purpose: visit.purpose || '',
             notes: visit.notes || '',
             outcome: visit.outcome || '',
-            nextAction: visit.nextAction || '',
-            image: Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : [])
+            followUp: visit.followUp || visit.nextAction || '',
+            image: Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : []),
+            customerId: visit.customerId || selectedCustomerId || ''
         });
         setShowVisitModal(true);
     };
@@ -846,7 +873,7 @@ const SalesPage = () => {
             purpose: '',
             notes: '',
             outcome: '',
-            nextAction: '',
+            followUp: '',
             image: []
         });
         setEditingVisit(null);
@@ -855,9 +882,14 @@ const SalesPage = () => {
     };
 
     const handleSaveVisit = async () => {
+        const targetCustomerId = visitForm.customerId || selectedCustomerId;
+        if (!targetCustomerId || !visitForm.date || !visitForm.purpose) {
+            alert('Please fill in all mandatory fields (Customer, Date, Visit Type)');
+            return;
+        }
+
         try {
             setIsSaving(true);
-            const targetCustomerId = visitForm.customerId || selectedCustomerId;
 
             if (!targetCustomerId) {
                 alert('No customer selected');
@@ -905,9 +937,9 @@ const SalesPage = () => {
             purpose: '',
             notes: '',
             outcome: '',
-            nextAction: '',
+            followUp: '',
             image: [],
-            customerId: '' // Ensure this is reset
+            customerId: selectedCustomerId || '' // Default to selected customer if available
         });
         setShowVisitModal(true);
     };
@@ -1014,6 +1046,10 @@ const SalesPage = () => {
     const handleFolderClick = (folder) => {
         setFolderPath([...folderPath, { id: folder._id, name: folder.name }]);
         setCurrentFolderId(folder._id);
+    };
+
+    const handleFileClick = (resource) => {
+        handleDashboardPreview(resource);
     };
 
     const handleBreadcrumbClick = (index) => {
@@ -1906,7 +1942,7 @@ const SalesPage = () => {
                                                 <FolderPlus size={18} />
                                                 <span className="btn-label">Add Resource</span>
                                             </button>
-                                            <button className="add-visit-btn" onClick={handleAddVisit}>
+                                            <button className="add-visit-btn" onClick={handleQuickAddVisit}>
                                                 <Plus size={18} />
                                                 Add Visit
                                             </button>
@@ -2060,7 +2096,7 @@ const SalesPage = () => {
                                                                                 className="reply-field"
                                                                                 onKeyDown={(e) => {
                                                                                     if (e.key === 'Enter') {
-                                                                                        setVisitForm({ notes: `Replying to ${visit.createdByName || visit.creatorName}: ${e.target.value}` });
+                                                                                        setVisitForm(prev => ({ ...prev, notes: `Replying to ${visit.createdByName || visit.creatorName}: ${e.target.value}`, customerId: selectedCustomerId || prev.customerId }));
                                                                                         handleQuickAddVisit();
                                                                                         e.target.value = '';
                                                                                     }
@@ -2290,7 +2326,7 @@ const SalesPage = () => {
                                 return (
                                     <div className="stats-grid">
                                         <div
-                                            className={`stat-card primary ${activeDashboardTab === 'visits' ? 'active-tab' : ''}`}
+                                            className={`stat-card ${activeDashboardTab === 'visits' ? 'active-tab' : ''}`}
                                             onClick={() => setActiveDashboardTab('visits')}
                                             style={{ cursor: 'pointer' }}
                                         >
@@ -2301,14 +2337,14 @@ const SalesPage = () => {
                                             <div className="stat-value">{stats.visits}</div>
                                             <div className="stat-footer">{timeLabel}</div>
                                         </div>
-                                        <div className="stat-card">
+                                        {/* <div className="stat-card">
                                             <div className="stat-icon-wrapper">
                                                 <User size={20} />
                                             </div>
                                             <div className="stat-title">KEY SALES VISITS</div>
                                             <div className="stat-value">{stats.keyVisits}</div>
                                             <div className="stat-footer">{timeLabel}</div>
-                                        </div>
+                                        </div> */}
                                         <div
                                             className={`stat-card ${activeDashboardTab === 'resources' ? 'active-tab' : ''}`}
                                             onClick={() => setActiveDashboardTab('resources')}
@@ -2322,7 +2358,7 @@ const SalesPage = () => {
                                             <div className="stat-value">{stats.resources}</div>
                                             <div className="stat-footer">{timeLabel}</div>
                                         </div>
-                                        <div className="stat-card">
+                                        {/* <div className="stat-card">
                                             <div className="stat-icon-wrapper">
                                                 <DollarSign size={20} />
                                             </div>
@@ -2337,7 +2373,7 @@ const SalesPage = () => {
                                             <div className="stat-title">FOLLOW-UP</div>
                                             <div className="stat-value">{stats.followUp}</div>
                                             <div className="stat-footer">{timeLabel}</div>
-                                        </div>
+                                        </div> */}
                                     </div>
                                 );
                             })()}
@@ -2367,12 +2403,12 @@ const SalesPage = () => {
                                         <table className="dashboard-table">
                                             <thead>
                                                 <tr>
-                                                    <th className="mobile-hide">Date <MoreVertical size={14} style={{ float: 'right' }} /></th>
-                                                    <th>Customer <MoreVertical size={14} style={{ float: 'right' }} /></th>
-                                                    <th className="mobile-hide">Visit Type <MoreVertical size={14} style={{ float: 'right' }} /></th>
-                                                    <th className="mobile-hide">Notes <MoreVertical size={14} style={{ float: 'right' }} /></th>
-                                                    <th className="mobile-hide">Order Notes <MoreVertical size={14} style={{ float: 'right' }} /></th>
-                                                    <th>Action <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                    <th className="mobile-hide">Date</th>
+                                                    <th>Customer</th>
+                                                    <th className="mobile-hide">Visit Type</th>
+                                                    <th className="mobile-hide">Notes</th>
+
+                                                    <th>Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -2387,7 +2423,13 @@ const SalesPage = () => {
                                                             </tr>
                                                         );
                                                     }
-                                                    return visits.map((visit, index) => (
+
+                                                    // Pagination logic
+                                                    const indexOfLastVisit = currentVisitsPage * visitsPerPage;
+                                                    const indexOfFirstVisit = indexOfLastVisit - visitsPerPage;
+                                                    const currentVisits = visits.slice(indexOfFirstVisit, indexOfLastVisit);
+
+                                                    return currentVisits.map((visit, index) => (
                                                         <tr key={visit._id || index}>
                                                             <td className="mobile-hide">{formatDate(visit.date, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
                                                             <td>
@@ -2404,7 +2446,7 @@ const SalesPage = () => {
                                                             </td>
                                                             <td className="mobile-hide">{visit.purpose || '-'}</td>
                                                             <td className="mobile-hide">{visit.notes ? (visit.notes.length > 50 ? visit.notes.substring(0, 50) + '...' : visit.notes) : '-'}</td>
-                                                            <td className="mobile-hide">{visit.outcome || visit.nextAction || '-'}</td>
+
                                                             <td>
                                                                 <button
                                                                     className="icon-btn-ghost"
@@ -2421,6 +2463,55 @@ const SalesPage = () => {
                                             </tbody>
                                         </table>
                                     </div>
+
+                                    {/* Pagination Controls */}
+                                    {(() => {
+                                        const visits = getFilteredVisits();
+                                        const totalPages = Math.ceil(visits.length / visitsPerPage);
+
+                                        if (totalPages <= 1) return null;
+
+                                        const handlePageChange = (pageNumber) => {
+                                            setCurrentVisitsPage(pageNumber);
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        };
+
+                                        return (
+                                            <div className="pagination-controls">
+                                                <button
+                                                    className="pagination-btn"
+                                                    onClick={() => handlePageChange(currentVisitsPage - 1)}
+                                                    disabled={currentVisitsPage === 1}
+                                                >
+                                                    ← Previous
+                                                </button>
+
+                                                <div className="pagination-pages">
+                                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                                                        <button
+                                                            key={pageNum}
+                                                            className={`pagination-page ${currentVisitsPage === pageNum ? 'active' : ''}`}
+                                                            onClick={() => handlePageChange(pageNum)}
+                                                        >
+                                                            {pageNum}
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                <button
+                                                    className="pagination-btn"
+                                                    onClick={() => handlePageChange(currentVisitsPage + 1)}
+                                                    disabled={currentVisitsPage === totalPages}
+                                                >
+                                                    Next →
+                                                </button>
+
+                                                <div className="pagination-info">
+                                                    Showing {((currentVisitsPage - 1) * visitsPerPage) + 1}-{Math.min(currentVisitsPage * visitsPerPage, visits.length)} of {visits.length} visits
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
 
@@ -2429,6 +2520,59 @@ const SalesPage = () => {
                                 <div className="visits-table-section">
                                     <div className="section-header">
                                         <h2>Resources</h2>
+                                        {activeResourceSubTab === 'client' && (
+                                            <div className="table-controls">
+                                                <button className="export-btn" onClick={handleExportResources}>
+                                                    <Download size={18} /> Excel
+                                                </button>
+                                                <div className="table-search">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search resources..."
+                                                        value={dashboardSearchTerm}
+                                                        onChange={(e) => setDashboardSearchTerm(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                        {activeResourceSubTab === 'team' && (
+                                            <div className="team-resources-controls">
+                                                <div className="resource-breadcrumbs">
+                                                    <span
+                                                        className="breadcrumb-item"
+                                                        onClick={() => {
+                                                            if (folderPath.length > 0) {
+                                                                // Navigate to root
+                                                                setCurrentFolderId(null);
+                                                                setFolderPath([]);
+                                                                setDashboardSearchTerm('');
+                                                            }
+                                                        }}
+                                                    >
+                                                        Home
+                                                    </span>
+                                                    {folderPath.map((folder, index) => (
+                                                        <React.Fragment key={folder.id}>
+                                                            <span className="breadcrumb-separator">/</span>
+                                                            <span
+                                                                className={`breadcrumb-item ${index === folderPath.length - 1 ? 'current' : ''}`}
+                                                                onClick={() => handleBreadcrumbClick(index)}
+                                                            >
+                                                                {folder.name}
+                                                            </span>
+                                                        </React.Fragment>
+                                                    ))}
+                                                </div>
+                                                <div className="team-resources-actions">
+                                                    <button className="icon-action-btn secondary" onClick={() => setShowAddFolderModal(true)}>
+                                                        <FolderPlus size={16} /> <span className="mobile-hide-text">Add Folder</span>
+                                                    </button>
+                                                    <button className="icon-action-btn primary" onClick={() => setShowDashboardUploadModal(true)}>
+                                                        <Upload size={16} /> <span className="mobile-hide-text">Upload</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="dashboard-sub-tabs">
@@ -2448,29 +2592,17 @@ const SalesPage = () => {
 
                                     {activeResourceSubTab === 'client' && (
                                         <>
-                                            <div className="table-controls" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between' }}>
-                                                <button className="export-btn" onClick={handleExportResources}>
-                                                    <Download size={18} /> Excel
-                                                </button>
-                                                <div className="table-search">
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Search resources..."
-                                                        value={dashboardSearchTerm}
-                                                        onChange={(e) => setDashboardSearchTerm(e.target.value)}
-                                                    />
-                                                </div>
-                                            </div>
+
 
                                             <div className="dashboard-table-wrapper">
                                                 <table className="dashboard-table">
                                                     <thead>
                                                         <tr>
-                                                            <th>Date <MoreVertical size={14} style={{ float: 'right' }} /></th>
-                                                            <th>Customer <MoreVertical size={14} style={{ float: 'right' }} /></th>
-                                                            <th>Type <MoreVertical size={14} style={{ float: 'right' }} /></th>
-                                                            <th>Description <MoreVertical size={14} style={{ float: 'right' }} /></th>
-                                                            <th>Action <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                            <th className="mobile-hide">Date</th>
+                                                            <th>Customer</th>
+                                                            <th>Type</th>
+                                                            <th className="mobile-hide">Description</th>
+                                                            <th>Action</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -2487,23 +2619,46 @@ const SalesPage = () => {
                                                             }
                                                             return resources.map((resource, index) => (
                                                                 <tr key={resource._id || index}>
-                                                                    <td>{formatDate(resource.date || resource.createdAt, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
+                                                                    <td className="mobile-hide">{formatDate(resource.date || resource.createdAt, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
                                                                     <td>{resource.customerName}</td>
                                                                     <td>{resource.resourceType || '-'}</td>
-                                                                    <td>{resource.description || resource.notes || '-'}</td>
+                                                                    <td className="mobile-hide">{resource.description || resource.notes || '-'}</td>
                                                                     <td>
                                                                         <div style={{ display: 'flex', gap: '8px' }}>
-                                                                            {(Array.isArray(resource.image) ? resource.image : (resource.image ? [resource.image] : [])).length > 0 && (
+                                                                            <button
+                                                                                className="icon-btn-ghost"
+                                                                                title="View Details"
+                                                                                onClick={() => {
+                                                                                    setResourceForm({
+                                                                                        ...resourceForm,
+                                                                                        _id: resource._id,
+                                                                                        customerId: resource.customerId,
+                                                                                        customer: resource.customerName,
+                                                                                        date: resource.date ? resource.date.split('T')[0] : '', // Format date for input
+                                                                                        resourceType: resource.resourceType,
+                                                                                        status: resource.status,
+                                                                                        description: resource.description,
+                                                                                        notes: resource.notes,
+                                                                                        image: resource.image || resource.content
+                                                                                    });
+                                                                                    setEditingResource(resource);
+                                                                                    setIsViewingResource(true);
+                                                                                    setShowResourceModal(true);
+                                                                                }}
+                                                                            >
+                                                                                <Eye size={16} />
+                                                                            </button>
+                                                                            {(Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : ((resource.image || resource.content) ? [resource.image || resource.content] : [])).length > 0 && ( /* Check if attachments exist */
                                                                                 <button
                                                                                     className="icon-btn-ghost"
                                                                                     title="View Attachments"
                                                                                     onClick={() => {
-                                                                                        const img = (Array.isArray(resource.image) ? resource.image : [resource.image])[0];
+                                                                                        const img = (Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : [resource.image || resource.content])[0];
                                                                                         if (img) setFullScreenImage(img);
                                                                                     }}
                                                                                     disabled={loadingResourceId === resource._id}
                                                                                 >
-                                                                                    {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
+                                                                                    {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Paperclip size={16} />}
                                                                                 </button>
                                                                             )}
                                                                             {resource.url ? (
@@ -2535,42 +2690,7 @@ const SalesPage = () => {
 
                                     {activeResourceSubTab === 'team' && (
                                         <div className="team-resources-content">
-                                            <div className="team-resources-controls">
-                                                <div className="resource-breadcrumbs">
-                                                    <span
-                                                        className="breadcrumb-item"
-                                                        onClick={() => {
-                                                            if (folderPath.length > 0) {
-                                                                // Navigate to root
-                                                                setCurrentFolderId(null);
-                                                                setFolderPath([]);
-                                                                setDashboardSearchTerm('');
-                                                            }
-                                                        }}
-                                                    >
-                                                        Home
-                                                    </span>
-                                                    {folderPath.map((folder, index) => (
-                                                        <React.Fragment key={folder.id}>
-                                                            <span className="breadcrumb-separator">/</span>
-                                                            <span
-                                                                className={`breadcrumb-item ${index === folderPath.length - 1 ? 'current' : ''}`}
-                                                                onClick={() => handleBreadcrumbClick(index)}
-                                                            >
-                                                                {folder.name}
-                                                            </span>
-                                                        </React.Fragment>
-                                                    ))}
-                                                </div>
-                                                <div style={{ display: 'flex', gap: '10px' }}>
-                                                    <button className="icon-action-btn secondary" onClick={() => setShowAddFolderModal(true)}>
-                                                        <FolderPlus size={16} /> Add Folder
-                                                    </button>
-                                                    <button className="icon-action-btn primary" onClick={() => setShowUploadModal(true)}>
-                                                        <Upload size={16} /> Upload
-                                                    </button>
-                                                </div>
-                                            </div>
+
 
                                             <div className="dashboard-resources-grid">
                                                 {/* Back Folder */}
@@ -2771,15 +2891,23 @@ const SalesPage = () => {
                                 </button>
                             </div>
                             <div className="modal-body">
-                                {!selectedCustomer && (
+                                <div className="form-group">
+                                    <label>Date <span style={{ color: 'red' }}>*</span></label>
+                                    <input
+                                        type="date"
+                                        value={visitForm.date}
+                                        onChange={(e) => setVisitForm({ ...visitForm, date: e.target.value })}
+                                    />
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <div className="form-group">
-                                        <label>Client *</label>
+                                        <label>Customer <span style={{ color: 'red' }}>*</span></label>
                                         <select
                                             value={visitForm.customerId}
                                             onChange={(e) => setVisitForm({ ...visitForm, customerId: e.target.value })}
                                             style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #D1D5DB' }}
                                         >
-                                            <option value="">Select a Client...</option>
+                                            <option value="">Select a Customer...</option>
                                             {customers
                                                 .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
                                                 .map(c => (
@@ -2789,41 +2917,28 @@ const SalesPage = () => {
                                                 ))}
                                         </select>
                                     </div>
-                                )}
-                                <div className="form-group">
-                                    <label>Date *</label>
-                                    <input
-                                        type="date"
-                                        value={visitForm.date}
-                                        onChange={(e) => setVisitForm({ ...visitForm, date: e.target.value })}
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Purpose</label>
-                                    <input
-                                        type="text"
-                                        value={visitForm.purpose}
-                                        onChange={(e) => setVisitForm({ ...visitForm, purpose: e.target.value })}
-                                        placeholder="Purpose of visit"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Outcome</label>
-                                    <input
-                                        type="text"
-                                        value={visitForm.outcome}
-                                        onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
-                                        placeholder="Visit outcome"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Next Action</label>
-                                    <input
-                                        type="text"
-                                        value={visitForm.nextAction}
-                                        onChange={(e) => setVisitForm({ ...visitForm, nextAction: e.target.value })}
-                                        placeholder="Next steps"
-                                    />
+                                    <div className="form-group">
+                                        <label>Visit Type <span style={{ color: 'red' }}>*</span></label>
+                                        <select
+                                            value={visitForm.purpose}
+                                            onChange={(e) => setVisitForm({ ...visitForm, purpose: e.target.value })}
+                                            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #D1D5DB' }}
+                                        >
+                                            <option value="">Please Select Visit Type</option>
+                                            {[
+                                                'Scheduled in Person Sales Meeting',
+                                                'Resource Placement',
+                                                'Resource Update',
+                                                'Formal Presentation',
+                                                'Unscheduled in Person Sales Call',
+                                                'Important Remote Meeting/Call',
+                                                'In Office Administration Day',
+                                                'Personal Time Off'
+                                            ].map(type => (
+                                                <option key={type} value={type}>{type}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                                 <div className="form-group">
                                     <label>Notes</label>
@@ -2833,6 +2948,26 @@ const SalesPage = () => {
                                         placeholder="Additional notes"
                                         rows="4"
                                     />
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div className="form-group">
+                                        <label>Outcome</label>
+                                        <input
+                                            type="text"
+                                            value={visitForm.outcome}
+                                            onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
+                                            placeholder="Visit outcome"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Follow Up</label>
+                                        <input
+                                            type="text"
+                                            value={visitForm.followUp}
+                                            onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
+                                            placeholder="Followup Notes"
+                                        />
+                                    </div>
                                 </div>
                                 <div className="form-group">
                                     <label>Attachments</label>
@@ -2998,7 +3133,14 @@ const SalesPage = () => {
                                             {(Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
                                                 <div key={idx} style={{ position: 'relative', aspectRatio: '1' }}>
                                                     <img
-                                                        src={img}
+                                                        src={(() => {
+                                                            if (!img) return '';
+                                                            if (img.startsWith('data:') || img.startsWith('http')) return img;
+                                                            if (img.includes('uploads/')) {
+                                                                return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
+                                                            }
+                                                            return `${API_URL}/uploads/resources/${img}`;
+                                                        })()}
                                                         alt={`Resource ${idx + 1}`}
                                                         onClick={() => setFullScreenImage(img)}
                                                         className="view-resource-image"
@@ -3171,7 +3313,21 @@ const SalesPage = () => {
                                                                 <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
                                                             </div>
                                                         ) : (
-                                                            <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                            <img
+                                                                src={(() => {
+                                                                    if (!img) return '';
+                                                                    if (img.startsWith('data:') || img.startsWith('http')) return img;
+                                                                    // If path already contains uploads (e.g. /uploads/resources/foo.jpg or uploads/resources/foo.jpg)
+                                                                    if (img.includes('uploads/')) {
+                                                                        return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
+                                                                    }
+                                                                    // Otherwise assume it's a filename in the resources folder
+                                                                    return `${API_URL}/uploads/resources/${img}`;
+                                                                })()}
+                                                                alt="Preview"
+                                                                className="image-preview"
+                                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                            />
                                                         )}
                                                         <button type="button" className="remove-image-btn" onClick={() => handleRemoveResourceImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
                                                             <X size={12} />
@@ -3263,75 +3419,65 @@ const SalesPage = () => {
                                         onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, type: e.target.value })}
                                         className="form-select"
                                     >
-                                        <option value="file">File / Image</option>
-                                        <option value="link">URL Link</option>
+                                        <option value="file">File</option>
+                                        <option value="link">Link</option>
                                     </select>
                                 </div>
-
-                                {dashboardUploadForm.type === 'file' ? (
-                                    <div className="form-group">
-                                        <label>File</label>
-                                        {editingDashboardResource && editingDashboardResource.content && !isExistingFileRemoved && (
-                                            <div style={{ marginBottom: '10px', padding: '10px', background: 'rgba(0,0,0,0.03)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    {editingDashboardResource.content.startsWith('data:image') || (!editingDashboardResource.content.startsWith('data:') && (editingDashboardResource.contentType?.startsWith('image/') || editingDashboardResource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i))) ? (
-                                                        <img
-                                                            src={editingDashboardResource.content.startsWith('data:') ? editingDashboardResource.content : `${API_URL}${editingDashboardResource.content}`}
-                                                            alt="Current"
-                                                            style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
-                                                        />
-                                                    ) : (
-                                                        <div style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e0e0e0', borderRadius: '4px' }}>
-                                                            {editingDashboardResource.contentType === 'application/pdf' || editingDashboardResource.name.toLowerCase().endsWith('.pdf') ? 'PDF' : '📄'}
-                                                        </div>
-                                                    )}
-                                                    <div style={{ fontSize: '0.9rem', color: '#666' }}>
-                                                        <strong>Current file attached</strong><br />
-                                                        <span style={{ fontSize: '0.8rem' }}>Upload new file to replace (Optional)</span>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    className="icon-btn-ghost delete-btn"
-                                                    title="Remove current file"
-                                                    onClick={() => setIsExistingFileRemoved(true)}
-                                                    style={{ color: '#dc2626', padding: '5px' }}
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        )}
-                                        <div className="file-input-wrapper-simple">
-                                            <input
-                                                type="file"
-                                                id="dashboard-upload"
-                                                onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, file: e.target.files[0] })}
-                                                className="file-input"
-                                            />
-                                            <label htmlFor="dashboard-upload" className="file-input-label">
-                                                {dashboardUploadForm.file ? dashboardUploadForm.file.name : (editingDashboardResource && !isExistingFileRemoved ? 'Change File (Optional)' : 'Choose File')}
-                                            </label>
-                                        </div>
-                                    </div>
-                                ) : (
+                                {dashboardUploadForm.type === 'link' ? (
                                     <div className="form-group">
                                         <label>URL</label>
                                         <input
-                                            type="text"
-                                            value={dashboardUploadForm.content}
-                                            onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, content: e.target.value })}
+                                            type="url"
+                                            value={dashboardUploadForm.url || ''}
+                                            onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, url: e.target.value })}
                                             placeholder="https://example.com"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="form-group">
+                                        <label>File</label>
+                                        <input
+                                            type="file"
+                                            onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, file: e.target.files[0] })}
                                         />
                                     </div>
                                 )}
                             </div>
                             <div className="modal-footer">
-                                <button className="btn-secondary" onClick={() => setShowDashboardUploadModal(false)} disabled={isSaving}>
-                                    Cancel
+                                <button className="btn-secondary" onClick={() => setShowDashboardUploadModal(false)}>Cancel</button>
+                                <button className="btn-primary" onClick={handleDashboardUpload}>Upload</button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Add Folder Modal */}
+            {
+                showAddFolderModal && (
+                    <div className="modal-overlay" onClick={() => setShowAddFolderModal(false)}>
+                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                            <div className="modal-header">
+                                <h2>Create New Folder</h2>
+                                <button className="close-btn" onClick={() => setShowAddFolderModal(false)}>
+                                    <X size={20} />
                                 </button>
-                                <button className="btn-primary" onClick={handleDashboardUpload} disabled={isSaving}>
-                                    {isSaving ? (dashboardUploadForm.type === 'folder' ? 'Creating...' : 'Uploading...') : (dashboardUploadForm.type === 'folder' ? 'Create Folder' : 'Upload File')}
-                                </button>
+                            </div>
+                            <div className="modal-body">
+                                <div className="form-group">
+                                    <label>Folder Name</label>
+                                    <input
+                                        type="text"
+                                        value={folderName}
+                                        onChange={(e) => setFolderName(e.target.value)}
+                                        placeholder="Enter folder name"
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button className="btn-secondary" onClick={() => setShowAddFolderModal(false)}>Cancel</button>
+                                <button className="btn-primary" onClick={() => { handleCreateFolder(); setShowAddFolderModal(false); }}>Create</button>
                             </div>
                         </div>
                     </div>
@@ -3339,25 +3485,27 @@ const SalesPage = () => {
             }
 
             {/* Custom Delete Confirmation Modal */}
-            {deleteConfirmation.isOpen && (
-                <div className="delete-confirmation-overlay" onClick={cancelDelete}>
-                    <div className="delete-confirmation-modal" onClick={(e) => e.stopPropagation()}>
-                        <div className="delete-modal-icon">
-                            <Trash2 size={48} color="#ef4444" />
-                        </div>
-                        <h3>Confirm Deletion</h3>
-                        <p>{deleteConfirmation.message}</p>
-                        <div className="delete-modal-actions">
-                            <button className="btn-cancel" onClick={cancelDelete}>
-                                Cancel
-                            </button>
-                            <button className="btn-delete" onClick={confirmDelete}>
-                                Delete
-                            </button>
+            {
+                deleteConfirmation.isOpen && (
+                    <div className="delete-confirmation-overlay" onClick={cancelDelete}>
+                        <div className="delete-confirmation-modal" onClick={(e) => e.stopPropagation()}>
+                            <div className="delete-modal-icon">
+                                <Trash2 size={48} color="#ef4444" />
+                            </div>
+                            <h3>Confirm Deletion</h3>
+                            <p>{deleteConfirmation.message}</p>
+                            <div className="delete-modal-actions">
+                                <button className="btn-cancel" onClick={cancelDelete}>
+                                    Cancel
+                                </button>
+                                <button className="btn-delete" onClick={confirmDelete}>
+                                    Delete
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
         </div >
     );
 };
