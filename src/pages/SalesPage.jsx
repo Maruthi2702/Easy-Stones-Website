@@ -5,14 +5,16 @@ import {
     CheckCircle, MessageSquare, Heart, ThumbsUp, Send, User, Menu,
     Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft,
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
-    CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus
+    CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus, Folder, Link
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import './SalesPage.css';
 import './SalesPageChat.css';
 import './SalesPageChatImage.css';
+import './SalesPageDashboard.css';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -65,6 +67,7 @@ const SalesPage = () => {
     const [editingVisit, setEditingVisit] = useState(null);
     const [editingResource, setEditingResource] = useState(null);
     const [isViewingResource, setIsViewingResource] = useState(false);
+    const [isViewingVisit, setIsViewingVisit] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [showCustomerInfo, setShowCustomerInfo] = useState(false);
     const [isChatFullScreen, setIsChatFullScreen] = useState(false);
@@ -89,7 +92,7 @@ const SalesPage = () => {
         return saved ? parseInt(saved, 10) : 300;
     });
     const [isResizing, setIsResizing] = useState(false);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
     useEffect(() => {
@@ -139,7 +142,7 @@ const SalesPage = () => {
 
     useEffect(() => {
         localStorage.setItem('sidebarPinned', JSON.stringify(isPinned));
-        if (isPinned) {
+        if (isPinned && !isMobile) {
             setIsSidebarOpen(true);
         } else {
             // Collapse immediately when unpinning
@@ -198,6 +201,8 @@ const SalesPage = () => {
     console.log('SalesPage Render: salesResources', salesResources);
     const [showDashboard, setShowDashboard] = useState(true);
     const [showDashboardUploadModal, setShowDashboardUploadModal] = useState(false);
+    const [loadingVisitId, setLoadingVisitId] = useState(null);
+    const [loadingResourceId, setLoadingResourceId] = useState(null);
 
     // Custom Delete Confirmation Modal
     const [deleteConfirmation, setDeleteConfirmation] = useState({
@@ -217,6 +222,12 @@ const SalesPage = () => {
     const [isExistingFileRemoved, setIsExistingFileRemoved] = useState(false);
     const [currentFolderId, setCurrentFolderId] = useState(null);
     const [folderPath, setFolderPath] = useState([]); // [{id, name}, ...]
+
+    // New Dashboard State
+    const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
+    const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
+    const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
+    const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
 
     const resourceTypes = [
         "Moda Tower 2024 version 2",
@@ -372,10 +383,13 @@ const SalesPage = () => {
                 const data = await response.json();
                 setSelectedCustomerDetail(data);
 
+                // Return data for callers
+                return data;
+
                 // Also update the lightweight list entry if needed (e.g. name/company changed)
                 // distinct from the full detail view
                 setCustomers(prevCustomers =>
-                    prevCustomers.map(c => c._id === customerId ? { ...c, ...data, visits: undefined, resources: undefined } : c)
+                    prevCustomers.map(c => c._id === customerId ? { ...c, ...data } : c)
                 );
             }
         } catch (error) {
@@ -766,6 +780,7 @@ const SalesPage = () => {
     // Visit CRUD operations
     const handleAddVisit = () => {
         setEditingVisit(null);
+        setIsViewingVisit(false);
         setVisitForm({
             date: new Date().toISOString().split('T')[0],
             purpose: '',
@@ -778,6 +793,7 @@ const SalesPage = () => {
 
     const handleEditVisit = (visit) => {
         setEditingVisit(visit);
+        setIsViewingVisit(false);
         setVisitForm({
             date: visit.date ? new Date(visit.date).toISOString().split('T')[0] : '',
             purpose: visit.purpose || '',
@@ -787,6 +803,41 @@ const SalesPage = () => {
             image: Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : [])
         });
         setShowVisitModal(true);
+    };
+
+    const handleViewVisit = async (visit) => {
+        if (!visit?.customerId || !visit?._id) {
+            setVisitForm(visit || {});
+            setShowVisitModal(true);
+            setIsViewingVisit(true);
+            return;
+        }
+
+        setLoadingVisitId(visit._id);
+        try {
+            const response = await fetch(`${API_URL}/api/customers/${visit.customerId}/visits/${visit._id}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            const data = await response.json();
+            console.log("[DEBUG] Fetched full visit data:", data);
+
+            if (data && data.visit) {
+                setVisitForm(data.visit);
+            } else {
+                setVisitForm(visit);
+            }
+            setShowVisitModal(true);
+            setIsViewingVisit(true);
+        } catch (error) {
+            console.error('Error fetching visit details:', error);
+            setVisitForm(visit);
+            setShowVisitModal(true);
+            setIsViewingVisit(true);
+        } finally {
+            setLoadingVisitId(null);
+        }
     };
 
     const handleCloseVisitModal = () => {
@@ -799,15 +850,24 @@ const SalesPage = () => {
             image: []
         });
         setEditingVisit(null);
+        setIsViewingVisit(false);
         setShowVisitModal(false);
     };
 
     const handleSaveVisit = async () => {
         try {
             setIsSaving(true);
+            const targetCustomerId = visitForm.customerId || selectedCustomerId;
+
+            if (!targetCustomerId) {
+                alert('No customer selected');
+                setIsSaving(false);
+                return;
+            }
+
             const url = editingVisit
-                ? `${API_URL}/api/customers/${selectedCustomerId}/visits/${editingVisit._id}`
-                : `${API_URL}/api/customers/${selectedCustomerId}/visits`;
+                ? `${API_URL}/api/customers/${targetCustomerId}/visits/${editingVisit._id}`
+                : `${API_URL}/api/customers/${targetCustomerId}/visits`;
 
             const method = editingVisit ? 'PUT' : 'POST';
 
@@ -819,7 +879,11 @@ const SalesPage = () => {
             });
 
             if (response.ok) {
-                await fetchSingleCustomer(selectedCustomerId);
+                if (selectedCustomerId && targetCustomerId === selectedCustomerId) {
+                    await fetchSingleCustomer(selectedCustomerId);
+                } else {
+                    await fetchCustomers();
+                }
                 handleCloseVisitModal();
             } else {
                 const data = await response.json();
@@ -833,42 +897,41 @@ const SalesPage = () => {
         }
     };
 
-    const handleQuickAddVisit = async () => {
-        if (!visitForm.notes.trim() && !visitForm.image) return;
-
-        try {
-            // Create a temporary form object for the quick add
-            const quickVisit = {
-                date: new Date().toISOString(), // Send full timestamp
-                purpose: 'Quick Note',
-                notes: visitForm.notes,
-                outcome: '',
-                nextAction: '',
-                image: visitForm.image || []
-            };
-
-            const url = `${API_URL}/api/customers/${selectedCustomerId}/visits`;
-
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify(quickVisit)
-            });
-
-            if (response.ok) {
-                await fetchSingleCustomer(selectedCustomerId);
-                // Clear notes and image
-                setVisitForm(prev => ({ ...prev, notes: '', image: [] }));
-            } else {
-                const data = await response.json();
-                alert(data.message || 'Failed to save note');
-            }
-        } catch (error) {
-            console.error('Error saving note:', error);
-            alert('Failed to save note');
-        }
+    const handleQuickAddVisit = () => {
+        setEditingVisit(null);
+        setIsViewingVisit(false);
+        setVisitForm({
+            date: new Date().toISOString().split('T')[0],
+            purpose: '',
+            notes: '',
+            outcome: '',
+            nextAction: '',
+            image: [],
+            customerId: '' // Ensure this is reset
+        });
+        setShowVisitModal(true);
     };
+
+    const handleQuickAddResource = () => {
+        setEditingResource(null);
+        setIsViewingResource(false);
+        setResourceForm({
+            title: '',
+            date: new Date().toISOString().split('T')[0],
+            customerId: '',
+            customer: '',
+            location: '',
+            resourceType: '',
+            image: [],
+            description: '',
+            notes: '',
+            status: 'Active',
+            url: '',
+            uploadedBy: ''
+        });
+        setShowResourceModal(true);
+    };
+
 
     const handleDeleteVisit = async (visitId) => {
         setDeleteConfirmation({
@@ -883,6 +946,7 @@ const SalesPage = () => {
     const handleCloseResourceModal = () => {
         setShowResourceModal(false);
         setEditingResource(null);
+        setIsViewingResource(false);
         setResourceForm({
             title: '',
             date: new Date().toISOString().split('T')[0],
@@ -1013,25 +1077,38 @@ const SalesPage = () => {
         setShowResourceModal(true);
     };
 
-    const handleViewResource = (resource) => {
-        setEditingResource(resource);
-        setIsViewingResource(true);
-        setImagePreview(Array.isArray(resource.image) && resource.image.length > 0 ? resource.image[0] : (resource.image || null));
-        setResourceForm({
-            title: resource.title || '',
-            date: resource.date ? new Date(resource.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            customerId: resource.customerId || selectedCustomerId,
-            customer: resource.customer || '',
-            location: resource.location || '',
-            resourceType: resource.resourceType || '',
-            image: resource.image || '',
-            description: resource.description || '',
-            notes: resource.notes || '',
-            status: resource.status || 'Active',
-            url: resource.url || '',
-            uploadedBy: resource.uploadedBy || ''
-        });
-        setShowResourceModal(true);
+    const handleViewResource = async (resource) => {
+        if (!resource?.customerId || !resource?._id) {
+            setResourceForm(resource || {});
+            setShowResourceModal(true);
+            setIsViewingResource(true);
+            return;
+        }
+
+        setLoadingResourceId(resource._id);
+        try {
+            const response = await fetch(`${API_URL}/api/customers/${resource.customerId}/resources/${resource._id}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            const data = await response.json();
+
+            if (data && data.resource) {
+                setResourceForm(data.resource);
+            } else {
+                setResourceForm(resource);
+            }
+            setShowResourceModal(true);
+            setIsViewingResource(true);
+        } catch (error) {
+            console.error('Error fetching resource details:', error);
+            setResourceForm(resource);
+            setShowResourceModal(true);
+            setIsViewingResource(true);
+        } finally {
+            setLoadingResourceId(null);
+        }
     };
 
     const handleSaveResource = async () => {
@@ -1320,6 +1397,162 @@ const SalesPage = () => {
         );
     }
 
+    // Dashboard Helpers
+    const getDashboardDateRange = () => {
+        const now = new Date();
+        const start = new Date();
+
+        switch (dashboardTimeRange) {
+            case '1day':
+                start.setHours(0, 0, 0, 0); // Start of today
+                break;
+            case '7days':
+                start.setDate(now.getDate() - 7);
+                break;
+            case '30days':
+                start.setDate(now.getDate() - 30);
+                break;
+            case 'year':
+                start.setFullYear(now.getFullYear(), 0, 1); // Start of current year
+                break;
+            case 'all':
+                return null;
+            default:
+                start.setHours(0, 0, 0, 0);
+        }
+        return start;
+    };
+
+    const getAllVisits = () => {
+        if (!customers || customers.length === 0) return [];
+        return customers.flatMap(c => {
+            const customerName = c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim();
+            return (c.visits || []).map(v => ({
+                ...v,
+                customerName,
+                customerId: c._id
+            }));
+        });
+    };
+
+    const getFilteredVisits = () => {
+        const allVisits = getAllVisits();
+        const startDate = getDashboardDateRange();
+        const searchLower = dashboardSearchTerm.toLowerCase();
+
+        return allVisits.filter(v => {
+            const visitDate = new Date(v.date);
+            const dateMatch = !startDate || visitDate >= startDate;
+            const searchMatch = !dashboardSearchTerm ||
+                (v.customerName?.toLowerCase().includes(searchLower)) ||
+                (v.notes?.toLowerCase().includes(searchLower)) ||
+                (v.purpose?.toLowerCase().includes(searchLower));
+
+            return dateMatch && searchMatch;
+        }).sort((a, b) => new Date(b.date) - new Date(a.date));
+    };
+
+    const getFilteredResources = () => {
+        if (!customers) return [];
+        const allResources = customers.flatMap(c => {
+            const customerName = c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim();
+            return (c.resources || []).map(r => ({
+                ...r,
+                customerName,
+                customerId: c._id
+            }));
+        });
+
+        const startDate = getDashboardDateRange();
+        const searchLower = dashboardSearchTerm.toLowerCase();
+
+        return allResources.filter(r => {
+            const resourceDate = new Date(r.date || r.createdAt);
+            const dateMatch = !startDate || resourceDate >= startDate;
+            const searchMatch = !dashboardSearchTerm ||
+                (r.customerName?.toLowerCase().includes(searchLower)) ||
+                (r.description?.toLowerCase().includes(searchLower)) ||
+                (r.resourceType?.toLowerCase().includes(searchLower)) ||
+                (r.notes?.toLowerCase().includes(searchLower));
+
+            return dateMatch && searchMatch;
+        }).sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+    };
+
+    const getStats = () => {
+        const startDate = getDashboardDateRange();
+        const allVisits = getAllVisits();
+        const allResources = customers.flatMap(c => c.resources || []);
+
+        const filterByDate = (items) => {
+            if (!startDate) return items;
+            return items.filter(item => new Date(item.date || item.createdAt) >= startDate);
+        };
+
+        const visitsInRange = filterByDate(allVisits);
+        const resourcesInRange = filterByDate(allResources);
+
+        // Key Visits: Outcome implies a sale or order
+        const keyVisits = visitsInRange.filter(v => {
+            const outcome = (v.outcome || '').toLowerCase();
+            const notes = (v.notes || '').toLowerCase();
+            return outcome.includes('order') || outcome.includes('sale') || outcome.includes('sold') || outcome.includes('deposit') ||
+                notes.includes('order') || notes.includes('sale') || notes.includes('sold');
+        });
+
+        // Bids: Placeholder for now as there is no specific field
+        // We could look for "Bid" or "Quote" in notes if desired, but user agreed to placeholder 0 or generic logic.
+        // Let's check notes/outcome for "bid" or "quote" to make it slightly dynamic
+        const bids = visitsInRange.filter(v => {
+            const outcome = (v.outcome || '').toLowerCase();
+            const notes = (v.notes || '').toLowerCase();
+            return outcome.includes('bid') || outcome.includes('quote') || notes.includes('bid') || notes.includes('quote');
+        });
+
+        const followUpsInRange = visitsInRange.filter(v => v.nextAction);
+
+        return {
+            visits: visitsInRange.length,
+            keyVisits: keyVisits.length,
+            resources: resourcesInRange.length,
+            bids: bids.length,
+            followUp: followUpsInRange.length
+        };
+    };
+
+    const handleExportVisits = () => {
+        const visits = getFilteredVisits();
+        const data = visits.map(v => ({
+            Date: formatDate(v.date),
+            Customer: v.customerName,
+            'Visit Type': v.purpose || '-',
+            Notes: v.notes || '-',
+            Outcome: v.outcome || '-',
+            'Next Action': v.nextAction || '-'
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, "Sales Visits");
+        XLSX.writeFile(wb, "Sales_Visits.xlsx");
+    };
+
+    const handleExportResources = () => {
+        const resources = getFilteredResources();
+        const data = resources.map(r => ({
+            Date: formatDate(r.date || r.createdAt),
+            Customer: r.customerName,
+            Type: r.resourceType || '-',
+            Description: r.description || r.notes || '-',
+            Status: r.status || 'Active'
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, "Client Resources");
+        XLSX.writeFile(wb, "Client_Resources.xlsx");
+    };
+
     if (error) {
         return (
             <div className="sales-page">
@@ -1440,8 +1673,12 @@ const SalesPage = () => {
             {/* Main Content */}
             <div
                 className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isPinned || !isSidebarOpen ? 'full-width' : ''}`}
-                style={{ marginLeft: isMobile || !isSidebarOpen || !isPinned ? 0 : `${sidebarWidth}px` }}
+                style={{
+                    marginLeft: isMobile || !isSidebarOpen || !isPinned ? 0 : `${sidebarWidth}px`,
+                    position: 'relative'
+                }}
             >
+                {/* Header removed from here to be placed inside specific views */}
                 <ErrorBoundary key={selectedCustomerId || 'no-customer'}>
                     {selectedCustomer ? (
                         <>
@@ -1893,8 +2130,8 @@ const SalesPage = () => {
                                                                     <td data-label="Type">{resource.resourceType || '-'}</td>
                                                                     <td data-label="Actions">
                                                                         <div className="action-buttons" onClick={(e) => e.stopPropagation()}>
-                                                                            <button className="icon-btn view" onClick={(e) => { e.stopPropagation(); handleViewResource(resource); }} title="View">
-                                                                                <Eye size={16} />
+                                                                            <button className="icon-btn view" onClick={(e) => { e.stopPropagation(); handleViewResource(resource); }} title="View" disabled={loadingResourceId === resource._id}>
+                                                                                {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
                                                                             </button>
                                                                             <button className="icon-btn edit" onClick={(e) => { e.stopPropagation(); handleEditResource(resource); }} title="Edit">
                                                                                 <Edit2 size={16} />
@@ -1979,162 +2216,406 @@ const SalesPage = () => {
                             </div>
                         </>
                     ) : (
-                        <div className="sales-dashboard">
-                            <div className="dashboard-header">
-                                {isMobile && (
-                                    <button
-                                        className="fancy-mobile-menu-btn fallback"
-                                        onClick={handleMobileBack}
-                                        style={{
-                                            position: 'absolute',
-                                            left: '1.5rem',
-                                            top: '1.5rem'
-                                        }}
-                                    >
-                                        <Menu size={20} />
-                                    </button>
-                                )}
-                                <h1>Sales Dashboard</h1>
-                                <p>Shared resources for the sales team</p>
-                            </div>
-
-                            <div className="dashboard-resources">
-                                <div className="dashboard-header">
-                                    <div className="header-left">
-                                        <h2>Team Resources</h2>
-                                        <div className="breadcrumbs" style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem', color: '#666', marginTop: '5px' }}>
-                                            <span
-                                                onClick={() => handleBreadcrumbClick(-1)}
-                                                style={{ cursor: 'pointer', fontWeight: folderPath.length === 0 ? 'bold' : 'normal', color: folderPath.length === 0 ? 'var(--gold-primary)' : 'inherit' }}
+                        <div className="sales-dashboard-v2">
+                            {/* Header */}
+                            <div className="dashboard-header-v2">
+                                <div className="dashboard-header-content">
+                                    <div className="dashboard-left-section">
+                                        {(!isSidebarOpen || isMobile) && (
+                                            <button
+                                                onClick={() => setIsSidebarOpen(true)}
+                                                className="dashboard-sidebar-toggle"
+                                                title="Open Sidebar"
                                             >
-                                                Home
-                                            </span>
-                                            {folderPath.map((folder, index) => (
-                                                <React.Fragment key={folder.id}>
-                                                    <span>/</span>
-                                                    <span
-                                                        onClick={() => handleBreadcrumbClick(index)}
-                                                        style={{ cursor: 'pointer', fontWeight: index === folderPath.length - 1 ? 'bold' : 'normal', color: index === folderPath.length - 1 ? 'var(--gold-primary)' : 'inherit' }}
-                                                    >
-                                                        {folder.name}
-                                                    </span>
-                                                </React.Fragment>
-                                            ))}
+                                                <Menu size={20} />
+                                            </button>
+                                        )}
+                                        <div className="dashboard-title-group">
+                                            <h1>Dashboard</h1>
+                                            <div className="dashboard-breadcrumbs">
+                                                <span className="link" onClick={() => {
+                                                    if (folderPath.length > 0) {
+                                                        handleBreadcrumbClick(-1);
+                                                    }
+                                                }}>Home</span>
+                                                <span>/</span>
+                                                <span className="current">Dashboard</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="resources-header-actions">
-                                        <button className="btn-secondary" onClick={handleCreateFolder}>
-                                            <Plus size={16} /> New Folder
+                                    <div className="dashboard-actions">
+                                        <button className="btn-secondary" onClick={handleQuickAddVisit} title="Add Visit for any Client">
+                                            + Add Visit
                                         </button>
-                                        <button className="btn-primary" onClick={() => {
-                                            setDashboardUploadForm({ name: '', type: 'file', content: '', file: null });
-                                            setEditingDashboardResource(null);
-                                            setIsExistingFileRemoved(false);
-                                            setShowDashboardUploadModal(true);
-                                        }}>
-                                            <Plus size={16} /> Add Resource
+                                        <button className="btn-primary" onClick={handleQuickAddResource} title="Add Resource for any Client">
+                                            + Add Resource
                                         </button>
                                     </div>
                                 </div>
-                                {salesResources.length > 0 ? (
-                                    <div className="resources-grid">
-                                        {salesResources.map(resource => (
-                                            <div key={resource._id} className="resource-card">
-                                                <div
-                                                    className="resource-icon"
-                                                    onClick={() => resource.isFolder ? handleFolderClick(resource) : handleResourceClick(resource)}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    {resource.isFolder ? (
-                                                        <div className="icon-placeholder">
-                                                            📁
-                                                        </div>
-                                                    ) : (
-                                                        resource.thumbnail ? (
-                                                            <img src={resource.thumbnail} alt={resource.name} className="resource-thumbnail" />
-                                                        ) : (
-                                                            resource.content && resource.content.startsWith('data:image') ? (
-                                                                <img src={resource.content} alt={resource.name} className="resource-thumbnail" />
-                                                            ) : (
-                                                                <div className="icon-placeholder">
-                                                                    {resource.type === 'link' ? '🔗' : '📄'}
-                                                                </div>
-                                                            )
-                                                        )
-                                                    )}
+                            </div>
+
+                            {/* Time Filters */}
+                            <div className="time-range-filters">
+                                {['1day', '7days', '30days', 'year', 'all'].map(range => {
+                                    const labels = {
+                                        '1day': '1day',
+                                        '7days': 'Last 7 Days',
+                                        '30days': 'Last 30 Days',
+                                        'year': 'Year-to-date',
+                                        'all': 'All'
+                                    };
+                                    return (
+                                        <button
+                                            key={range}
+                                            className={`time-filter-btn ${dashboardTimeRange === range ? 'active' : ''}`}
+                                            onClick={() => setDashboardTimeRange(range)}
+                                        >
+                                            {labels[range]}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Stats Grid */}
+                            {(() => {
+                                const stats = getStats();
+                                const timeLabel = {
+                                    '1day': 'Today',
+                                    '7days': 'Last 7 Days',
+                                    '30days': 'Last 30 Days',
+                                    'year': 'Year-to-date',
+                                    'all': 'All Time'
+                                }[dashboardTimeRange];
+
+                                return (
+                                    <div className="stats-grid">
+                                        <div
+                                            className={`stat-card primary ${activeDashboardTab === 'visits' ? 'active-tab' : ''}`}
+                                            onClick={() => setActiveDashboardTab('visits')}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className="stat-icon-wrapper">
+                                                <UserPlus size={20} />
+                                            </div>
+                                            <div className="stat-title">SALES VISITS</div>
+                                            <div className="stat-value">{stats.visits}</div>
+                                            <div className="stat-footer">{timeLabel}</div>
+                                        </div>
+                                        <div className="stat-card">
+                                            <div className="stat-icon-wrapper">
+                                                <User size={20} />
+                                            </div>
+                                            <div className="stat-title">KEY SALES VISITS</div>
+                                            <div className="stat-value">{stats.keyVisits}</div>
+                                            <div className="stat-footer">{timeLabel}</div>
+                                        </div>
+                                        <div
+                                            className={`stat-card ${activeDashboardTab === 'resources' ? 'active-tab' : ''}`}
+                                            onClick={() => setActiveDashboardTab('resources')}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className="stat-icon-wrapper">
+                                                <FolderPlus size={20} />
+                                            </div>
+                                            <div className="stat-title">RESOURCES</div>
+                                            <div className="stat-desc">(Assignment & Updates)</div>
+                                            <div className="stat-value">{stats.resources}</div>
+                                            <div className="stat-footer">{timeLabel}</div>
+                                        </div>
+                                        <div className="stat-card">
+                                            <div className="stat-icon-wrapper">
+                                                <DollarSign size={20} />
+                                            </div>
+                                            <div className="stat-title">BIDS</div>
+                                            <div className="stat-value">{stats.bids}</div>
+                                            <div className="stat-footer">{timeLabel}</div>
+                                        </div>
+                                        <div className="stat-card">
+                                            <div className="stat-icon-wrapper">
+                                                <Clock size={20} />
+                                            </div>
+                                            <div className="stat-title">FOLLOW-UP</div>
+                                            <div className="stat-value">{stats.followUp}</div>
+                                            <div className="stat-footer">{timeLabel}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Visits Table */}
+                            {/* Sales Visits Table */}
+                            {activeDashboardTab === 'visits' && (
+                                <div className="visits-table-section">
+                                    <div className="section-header">
+                                        <h2>Sales Visits</h2>
+                                        <div className="table-controls">
+                                            <button className="export-btn" onClick={handleExportVisits}>
+                                                <Download size={18} /> Excel
+                                            </button>
+                                            <div className="table-search">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search visits..."
+                                                    value={dashboardSearchTerm}
+                                                    onChange={(e) => setDashboardSearchTerm(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="dashboard-table-wrapper">
+                                        <table className="dashboard-table">
+                                            <thead>
+                                                <tr>
+                                                    <th className="mobile-hide">Date <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                    <th>Customer <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                    <th className="mobile-hide">Visit Type <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                    <th className="mobile-hide">Notes <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                    <th className="mobile-hide">Order Notes <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                    <th>Action <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {(() => {
+                                                    const visits = getFilteredVisits();
+                                                    if (visits.length === 0) {
+                                                        return (
+                                                            <tr>
+                                                                <td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
+                                                                    No data available in table
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    }
+                                                    return visits.map((visit, index) => (
+                                                        <tr key={visit._id || index}>
+                                                            <td className="mobile-hide">{formatDate(visit.date, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
+                                                            <td>
+                                                                <span
+                                                                    className="link"
+                                                                    onClick={() => {
+                                                                        const customer = customers.find(c => c._id === visit.customerId);
+                                                                        if (customer) handleSelectCustomer(customer);
+                                                                    }}
+                                                                    title="Go to Customer Chat"
+                                                                >
+                                                                    {visit.customerName}
+                                                                </span>
+                                                            </td>
+                                                            <td className="mobile-hide">{visit.purpose || '-'}</td>
+                                                            <td className="mobile-hide">{visit.notes ? (visit.notes.length > 50 ? visit.notes.substring(0, 50) + '...' : visit.notes) : '-'}</td>
+                                                            <td className="mobile-hide">{visit.outcome || visit.nextAction || '-'}</td>
+                                                            <td>
+                                                                <button
+                                                                    className="icon-btn-ghost"
+                                                                    onClick={() => handleViewVisit(visit)}
+                                                                    title="View Details"
+                                                                    disabled={loadingVisitId === visit._id}
+                                                                >
+                                                                    {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ));
+                                                })()}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Resources Table */}
+                            {activeDashboardTab === 'resources' && (
+                                <div className="visits-table-section">
+                                    <div className="section-header">
+                                        <h2>Resources</h2>
+                                    </div>
+
+                                    <div className="dashboard-sub-tabs">
+                                        <button
+                                            className={`sub-tab-btn ${activeResourceSubTab === 'client' ? 'active' : ''}`}
+                                            onClick={() => setActiveResourceSubTab('client')}
+                                        >
+                                            Client Updates
+                                        </button>
+                                        <button
+                                            className={`sub-tab-btn ${activeResourceSubTab === 'team' ? 'active' : ''}`}
+                                            onClick={() => setActiveResourceSubTab('team')}
+                                        >
+                                            Team Files
+                                        </button>
+                                    </div>
+
+                                    {activeResourceSubTab === 'client' && (
+                                        <>
+                                            <div className="table-controls" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                                                <button className="export-btn" onClick={handleExportResources}>
+                                                    <Download size={18} /> Excel
+                                                </button>
+                                                <div className="table-search">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search resources..."
+                                                        value={dashboardSearchTerm}
+                                                        onChange={(e) => setDashboardSearchTerm(e.target.value)}
+                                                    />
                                                 </div>
-                                                <div className="resource-info">
-                                                    <h3
-                                                        onClick={() => resource.isFolder ? handleFolderClick(resource) : handleResourceClick(resource)}
-                                                        style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                                                    >
-                                                        {resource.name}
-                                                    </h3>
-                                                    <span className="resource-date">
-                                                        {new Date(resource.createdAt).toLocaleDateString()}
-                                                    </span>
-                                                </div>
-                                                <div className="resource-actions">
-                                                    {resource.type !== 'link' && (
-                                                        <button
-                                                            className="icon-btn-ghost"
-                                                            title="Preview"
-                                                            onClick={() => handleDashboardPreview(resource)}
-                                                        >
-                                                            <Eye size={16} />
-                                                        </button>
-                                                    )}
-                                                    {resource.type !== 'link' && (
-                                                        <button
-                                                            className="icon-btn-ghost"
-                                                            title="Download"
-                                                            onClick={() => handleDashboardDownload(resource)}
-                                                        >
-                                                            <Download size={16} />
-                                                        </button>
-                                                    )}
-                                                    <button
-                                                        className="icon-btn-ghost"
-                                                        title="Share"
-                                                        onClick={() => handleDashboardShare(resource)}
-                                                    >
-                                                        <Share2 size={16} />
-                                                    </button>
-                                                    <button
-                                                        className="icon-btn-ghost"
-                                                        title="Edit"
-                                                        onClick={async () => {
-                                                            const fullResource = await ensureResourceContent(resource);
-                                                            setEditingDashboardResource(fullResource);
-                                                            setDashboardUploadForm({
-                                                                name: fullResource.name,
-                                                                type: fullResource.type,
-                                                                content: fullResource.type === 'link' ? fullResource.content : '',
-                                                                file: null
-                                                            });
-                                                            setIsExistingFileRemoved(false);
-                                                            setShowDashboardUploadModal(true);
+                                            </div>
+
+                                            <div className="dashboard-table-wrapper">
+                                                <table className="dashboard-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Date <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                            <th>Customer <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                            <th>Type <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                            <th>Description <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                            <th>Action <MoreVertical size={14} style={{ float: 'right' }} /></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {(() => {
+                                                            const resources = getFilteredResources();
+                                                            if (resources.length === 0) {
+                                                                return (
+                                                                    <tr>
+                                                                        <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>
+                                                                            No resources found
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            }
+                                                            return resources.map((resource, index) => (
+                                                                <tr key={resource._id || index}>
+                                                                    <td>{formatDate(resource.date || resource.createdAt, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
+                                                                    <td>{resource.customerName}</td>
+                                                                    <td>{resource.resourceType || '-'}</td>
+                                                                    <td>{resource.description || resource.notes || '-'}</td>
+                                                                    <td>
+                                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                                            {(Array.isArray(resource.image) ? resource.image : (resource.image ? [resource.image] : [])).length > 0 && (
+                                                                                <button
+                                                                                    className="icon-btn-ghost"
+                                                                                    title="View Attachments"
+                                                                                    onClick={() => {
+                                                                                        const img = (Array.isArray(resource.image) ? resource.image : [resource.image])[0];
+                                                                                        if (img) setFullScreenImage(img);
+                                                                                    }}
+                                                                                    disabled={loadingResourceId === resource._id}
+                                                                                >
+                                                                                    {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
+                                                                                </button>
+                                                                            )}
+                                                                            {resource.url ? (
+                                                                                <a href={resource.url} target="_blank" rel="noopener noreferrer" className="icon-btn-ghost" title="Open Link">
+                                                                                    <Link size={16} />
+                                                                                </a>
+                                                                            ) : (resource.image) ? (
+                                                                                <button
+                                                                                    className="icon-btn-ghost"
+                                                                                    title="Download"
+                                                                                    onClick={() => {
+                                                                                        const img = (Array.isArray(resource.image) ? resource.image : [resource.image])[0];
+                                                                                        if (img) handleDashboardDownload({ content: img, name: `Resource-${resource.date}.jpg`, type: 'file' });
+                                                                                    }}
+                                                                                >
+                                                                                    <Download size={16} />
+                                                                                </button>
+                                                                            ) : null}
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ));
+                                                        })()}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {activeResourceSubTab === 'team' && (
+                                        <div className="team-resources-content">
+                                            <div className="team-resources-controls">
+                                                <div className="resource-breadcrumbs">
+                                                    <span
+                                                        className="breadcrumb-item"
+                                                        onClick={() => {
+                                                            if (folderPath.length > 0) {
+                                                                // Navigate to root
+                                                                setCurrentFolderId(null);
+                                                                setFolderPath([]);
+                                                                setDashboardSearchTerm('');
+                                                            }
                                                         }}
                                                     >
-                                                        <Edit size={16} />
+                                                        Home
+                                                    </span>
+                                                    {folderPath.map((folder, index) => (
+                                                        <React.Fragment key={folder.id}>
+                                                            <span className="breadcrumb-separator">/</span>
+                                                            <span
+                                                                className={`breadcrumb-item ${index === folderPath.length - 1 ? 'current' : ''}`}
+                                                                onClick={() => handleBreadcrumbClick(index)}
+                                                            >
+                                                                {folder.name}
+                                                            </span>
+                                                        </React.Fragment>
+                                                    ))}
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                                    <button className="icon-action-btn secondary" onClick={() => setShowAddFolderModal(true)}>
+                                                        <FolderPlus size={16} /> Add Folder
                                                     </button>
-                                                    <button
-                                                        className="icon-btn-ghost delete-btn"
-                                                        title="Delete"
-                                                        onClick={() => handleDashboardDelete(resource._id)}
-                                                    >
-                                                        <Trash2 size={16} />
+                                                    <button className="icon-action-btn primary" onClick={() => setShowUploadModal(true)}>
+                                                        <Upload size={16} /> Upload
                                                     </button>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="empty-list-message">
-                                        No resources added yet. Click "Add Resource" to upload documents.
-                                    </div>
-                                )}
-                            </div>
+
+                                            <div className="dashboard-resources-grid">
+                                                {/* Back Folder */}
+                                                {folderPath.length > 0 && (
+                                                    <div
+                                                        className="dashboard-resource-card folder"
+                                                        onClick={() => handleBreadcrumbClick(folderPath.length - 2)}
+                                                    >
+                                                        <div className="resource-icon">
+                                                            <Folder size={40} />
+                                                        </div>
+                                                        <div className="resource-name">..</div>
+                                                    </div>
+                                                )}
+
+                                                {/* Resources */}
+                                                {salesResources.filter(r => !dashboardSearchTerm || r.name.toLowerCase().includes(dashboardSearchTerm.toLowerCase())).map(resource => (
+                                                    <div
+                                                        key={resource._id}
+                                                        className={`dashboard-resource-card ${resource.type}`}
+                                                        onClick={() => resource.type === 'folder' ? handleFolderClick(resource) : handleFileClick(resource)}
+                                                    >
+                                                        <div className="resource-icon">
+                                                            {resource.type === 'folder' ? (
+                                                                <Folder size={40} />
+                                                            ) : (
+                                                                <FileText size={40} />
+                                                            )}
+                                                        </div>
+                                                        <div className="resource-name" title={resource.name}>
+                                                            {resource.name}
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                {salesResources.length === 0 && (
+                                                    <div style={{ padding: '2rem', gridColumn: '1 / -1', textAlign: 'center', color: '#6B7280' }}>
+                                                        No files or folders found
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )
                     }
@@ -2186,6 +2667,7 @@ const SalesPage = () => {
                                         </div>
                                     )}
                                 </div>
+
                             </div>
                         </div>
                     )
@@ -2277,8 +2759,9 @@ const SalesPage = () => {
             }
 
             {/* Visit Modal */}
+            {/* Visit Modal (Edit/Add) */}
             {
-                showVisitModal && (
+                showVisitModal && !isViewingVisit && (
                     <div className="modal-overlay" onClick={handleCloseVisitModal}>
                         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                             <div className="modal-header">
@@ -2288,6 +2771,25 @@ const SalesPage = () => {
                                 </button>
                             </div>
                             <div className="modal-body">
+                                {!selectedCustomer && (
+                                    <div className="form-group">
+                                        <label>Client *</label>
+                                        <select
+                                            value={visitForm.customerId}
+                                            onChange={(e) => setVisitForm({ ...visitForm, customerId: e.target.value })}
+                                            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #D1D5DB' }}
+                                        >
+                                            <option value="">Select a Client...</option>
+                                            {customers
+                                                .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
+                                                .map(c => (
+                                                    <option key={c._id} value={c._id}>
+                                                        {c.company || c.contactName || 'Unknown'}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <div className="form-group">
                                     <label>Date *</label>
                                     <input
@@ -2391,6 +2893,91 @@ const SalesPage = () => {
                 )
             }
 
+            {/* Visit Modal (View Only) */}
+            {
+                showVisitModal && isViewingVisit && (
+                    <div className="modal-overlay" onClick={handleCloseVisitModal}>
+                        {console.log("Rendering View Visit Modal - V2")}
+                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                            <div className="modal-header">
+                                <h2>Visit Details</h2>
+                                <button className="close-btn" onClick={handleCloseVisitModal}>
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="modal-body">
+                                <div className="visit-details-grid">
+                                    <div className="visit-detail-item">
+                                        <div className="visit-detail-label">Client *</div>
+                                        <div className="visit-detail-value">
+                                            {(() => {
+                                                if (selectedCustomer) return selectedCustomer.company || selectedCustomer.contactName;
+                                                const c = customers.find(c => c._id === (visitForm.customerId || editingVisit?.customerId));
+                                                return c ? (c.company || c.contactName) : (editingVisit?.customerName || '-');
+                                            })()}
+                                        </div>
+                                    </div>
+                                    <div className="visit-detail-item">
+                                        <div className="visit-detail-label">Date *</div>
+                                        <div className="visit-detail-value">{formatDate(visitForm.date)}</div>
+                                    </div>
+                                    <div className="visit-detail-item">
+                                        <div className="visit-detail-label">Purpose</div>
+                                        <div className="visit-detail-value">{visitForm.purpose || '-'}</div>
+                                    </div>
+                                    <div className="visit-detail-item">
+                                        <div className="visit-detail-label">Outcome</div>
+                                        <div className="visit-detail-value">{visitForm.outcome || '-'}</div>
+                                    </div>
+                                    <div className="visit-detail-item">
+                                        <div className="visit-detail-label">Next Action</div>
+                                        <div className="visit-detail-value">{visitForm.nextAction || '-'}</div>
+                                    </div>
+                                </div>
+
+                                <div className="visit-notes-section">
+                                    <div className="visit-detail-label">Notes</div>
+                                    <div className="visit-notes-box">
+                                        {visitForm.notes || 'No notes available.'}
+                                    </div>
+                                </div>
+
+                                <div className="visit-attachments-section">
+                                    <div className="visit-detail-label">Attachments</div>
+                                    {console.log('[DEBUG MODAL] visitForm.image:', visitForm.image, 'Type:', typeof visitForm.image, 'IsArray:', Array.isArray(visitForm.image))}
+                                    {(visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).length > 0) ? (
+                                        <div className="visit-attachments-grid">
+                                            {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
+                                                <div key={idx} className="attachment-preview-card">
+                                                    {img.startsWith('data:application/pdf') ? (
+                                                        <div
+                                                            className="attachment-pdf"
+                                                            onClick={() => handleDashboardDownload({ content: img, name: `Visit-Doc-${idx}.pdf`, type: 'file' })}
+                                                        >
+                                                            <FileText size={32} />
+                                                            <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: 600 }}>PDF</span>
+                                                        </div>
+                                                    ) : (
+                                                        <img
+                                                            src={img}
+                                                            alt="Preview"
+                                                            className="attachment-img"
+                                                            onClick={() => setFullScreenImage(img)}
+                                                        />
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="visit-detail-value">-</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
             {/* Resource Modal */}
             {
                 showResourceModal && (
@@ -2460,8 +3047,33 @@ const SalesPage = () => {
                             ) : (
                                 /* Edit/Add Mode Layout */
                                 <div className="modal-body">
+                                    {!selectedCustomer && (
+                                        <div className="form-group">
+                                            <label>Client *</label>
+                                            <select
+                                                value={resourceForm.customerId}
+                                                onChange={(e) => {
+                                                    const selectedC = customers.find(c => c._id === e.target.value);
+                                                    setResourceForm({
+                                                        ...resourceForm,
+                                                        customerId: e.target.value,
+                                                        customer: selectedC ? (selectedC.company || selectedC.contactName) : ''
+                                                    });
+                                                }}
+                                                style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #D1D5DB' }}
+                                            >
+                                                <option value="">Select a Client...</option>
+                                                {customers
+                                                    .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
+                                                    .map(c => (
+                                                        <option key={c._id} value={c._id}>
+                                                            {c.company || c.contactName || 'Unknown'}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </div>
+                                    )}
                                     <div className="form-group">
-                                        <label>Client</label>
                                         <select
                                             value={resourceForm.customerId}
                                             onChange={(e) => {

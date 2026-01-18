@@ -907,7 +907,7 @@ app.post('/api/customer/logout', (req, res) => {
 app.get('/api/customers', verifyAnyAuth, async (req, res) => {
   try {
     const customers = await Customer.find()
-      .select('-password -visits -resources -contacts') // Exclude heavy nested arrays
+      .select('-password -contacts -visits.image -resources.image') // Exclude heavy images/nested arrays
       .lean() // Convert to plain JS objects (3x faster)
       .sort({ createdAt: -1 });
     res.json(customers);
@@ -1190,7 +1190,60 @@ app.delete('/api/sales-dashboard/resources/:id', async (req, res) => {
 // VISITS CRUD ENDPOINTS
 // ============================================
 
-// Add visit
+// Get single visit detail
+app.get('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId, visitId } = req.params;
+    console.log(`[DEBUG] Fetching single visit: ${visitId} for customer: ${customerId}`);
+    
+    // Use projection to get ONLY the specific visit
+    const customer = await Customer.findOne(
+      { _id: customerId, 'visits._id': visitId },
+      { 'visits.$': 1 }
+    ).lean();
+
+    if (!customer || !customer.visits || customer.visits.length === 0) {
+      console.log(`[DEBUG] Visit ${visitId} not found`);
+      return res.status(404).json({ message: 'Visit not found' });
+    }
+    
+    const visit = customer.visits[0];
+    console.log(`[DEBUG] Found visit. Image count: ${visit.image ? (Array.isArray(visit.image) ? visit.image.length : 1) : 0}`);
+    
+    res.json({ visit });
+  } catch (error) {
+    console.error('[ERROR] Failed to fetch visit detail:', error);
+    res.status(500).json({ message: 'Failed to fetch visit detail', error: error.message });
+  }
+});
+
+// Get single resource detail
+app.get('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId, resourceId } = req.params;
+    console.log(`[DEBUG] Fetching single resource: ${resourceId} for customer: ${customerId}`);
+
+    // Use projection to get ONLY the specific resource
+    const customer = await Customer.findOne(
+      { _id: customerId, 'resources._id': resourceId },
+      { 'resources.$': 1 }
+    ).lean();
+
+    if (!customer || !customer.resources || customer.resources.length === 0) {
+      console.log(`[DEBUG] Resource ${resourceId} not found`);
+      return res.status(404).json({ message: 'Resource not found' });
+    }
+    
+    const resource = customer.resources[0];
+    console.log(`[DEBUG] Found resource. Image count: ${resource.image ? (Array.isArray(resource.image) ? resource.image.length : 1) : 0}`);
+    
+    res.json({ resource });
+  } catch (error) {
+    console.error('[ERROR] Failed to fetch resource detail:', error);
+    res.status(500).json({ message: 'Failed to fetch resource detail', error: error.message });
+  }
+});
+
 // Add visit
 app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) => {
   try {

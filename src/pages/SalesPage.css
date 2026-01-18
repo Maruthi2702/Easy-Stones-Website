@@ -622,7 +622,7 @@
   .sales-container {
     flex-direction: column;
     padding-top: 80px; 
-    height: calc(100vh - 80px); /* Lock to viewport */
+    height: 100vh; /* Fill viewport */
     overflow: hidden; /* Desktop-like internal scroll */
   }
 
