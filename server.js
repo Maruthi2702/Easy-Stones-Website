@@ -2050,6 +2050,33 @@ app.delete('/api/admin/customers/:id', verifyToken, async (req, res) => {
   }
 });
 
+// Update customer quick note
+app.patch('/api/customers/:id/quick-note', verifyAnyAuth, async (req, res) => {
+  try {
+    const { quickNote } = req.body;
+    
+    // Authorization check: Only staff (admin/internal) can modify notes
+    if (req.authType !== 'admin' && req.accountType !== 'internal') {
+      return res.status(403).json({ message: 'Only staff can update quick notes' });
+    }
+
+    const customer = await Customer.findByIdAndUpdate(
+      req.params.id,
+      { quickNote },
+      { new: true }
+    );
+    
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+    
+    res.json({ success: true, message: 'Quick note updated successfully', quickNote: customer.quickNote });
+  } catch (error) {
+    console.error('Update quick note error:', error);
+    res.status(500).json({ message: 'Failed to update quick note' });
+  }
+});
+
 // Admin: Update customer status
 app.patch('/api/admin/customers/:id/status', verifyToken, async (req, res) => {
   try {

@@ -74,6 +74,8 @@ const SalesPage = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [showCustomerInfo, setShowCustomerInfo] = useState(false);
     const [isChatFullScreen, setIsChatFullScreen] = useState(false);
+    const [quickNote, setQuickNote] = useState('');
+    const [isSavingNote, setIsSavingNote] = useState(false);
 
     // Track logged-in user, defaulting to auth user if available
     const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
@@ -394,6 +396,7 @@ const SalesPage = () => {
             if (response.ok) {
                 const data = await response.json();
                 setSelectedCustomerDetail(data);
+                setQuickNote(data.quickNote || '');
 
                 // Return data for callers
                 return data;
@@ -589,6 +592,31 @@ const SalesPage = () => {
 
     const cancelDelete = () => {
         setDeleteConfirmation({ isOpen: false, type: '', id: null, message: '' });
+    };
+
+    const handleSaveQuickNote = async () => {
+        if (!selectedCustomerId) return;
+
+        setIsSavingNote(true);
+        try {
+            const response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/quick-note`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ quickNote })
+            });
+
+            if (response.ok) {
+                // Optionally show success or toast
+                console.log('Quick note saved successfully');
+            } else {
+                console.error('Failed to save quick note');
+            }
+        } catch (error) {
+            console.error('Error saving quick note:', error);
+        } finally {
+            setIsSavingNote(false);
+        }
     };
 
     const handleDashboardUpload = async (e) => {
@@ -1797,13 +1825,6 @@ const SalesPage = () => {
                                         </div>
                                         <div className="info-box">
                                             <div className="info-box-header">
-                                                <MapPin size={16} />
-                                                <label>Location</label>
-                                            </div>
-                                            <p>{selectedCustomer.address?.city || 'N/A'}, {selectedCustomer.address?.state || 'N/A'}</p>
-                                        </div>
-                                        <div className="info-box">
-                                            <div className="info-box-header">
                                                 <User size={16} />
                                                 <label>Type</label>
                                             </div>
@@ -1827,8 +1848,8 @@ const SalesPage = () => {
                                         </div>
                                     </div>
 
-                                    {/* Three Column Layout */}
-                                    <div className="detail-columns">
+                                    {/* Two Column Layout for Address/Contact */}
+                                    <div className="detail-columns simplified">
                                         <div className="detail-column">
                                             <h3><MapPin size={14} style={{ marginRight: '8px' }} />Address</h3>
                                             <div className="column-content">
@@ -1857,24 +1878,29 @@ const SalesPage = () => {
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
 
-                                        <div className="detail-column">
-                                            <h3><CreditCard size={14} style={{ marginRight: '8px' }} />Account Details</h3>
-                                            <div className="column-content">
-                                                <div className="info-row">
-                                                    <label><Hash size={12} style={{ marginRight: '4px' }} /> ID:</label>
-                                                    <span>{selectedCustomer._id ? selectedCustomer._id.toString().substring(0, 8) : 'N/A'}...</span>
-                                                </div>
-                                                <div className="info-row">
-                                                    <label><ShieldCheck size={12} style={{ marginRight: '4px' }} /> Tax Exempt:</label>
-                                                    <span>{selectedCustomer.isTaxExempt ? 'Yes' : 'No'}</span>
-                                                </div>
-                                                <div className="info-row">
-                                                    <label><DollarSign size={12} style={{ marginRight: '4px' }} /> Credit Limit:</label>
-                                                    <span>${selectedCustomer.creditLimit?.toLocaleString() || '0'}</span>
-                                                </div>
+                                    {/* Quick Notes Row */}
+                                    <div className="quick-notes-row">
+                                        <div className="quick-notes-header">
+                                            <div className="header-label">
+                                                <MessageSquare size={14} style={{ marginRight: '8px' }} />
+                                                <h3>Quick Notes</h3>
                                             </div>
+                                            <button
+                                                className={`save-note-btn ${isSavingNote ? 'saving' : ''}`}
+                                                onClick={handleSaveQuickNote}
+                                                disabled={isSavingNote}
+                                            >
+                                                {isSavingNote ? 'Saving...' : 'Save Quick Note'}
+                                            </button>
                                         </div>
+                                        <textarea
+                                            className="quick-notes-textarea"
+                                            placeholder="Write a quick note or follow-up note for this customer..."
+                                            value={quickNote}
+                                            onChange={(e) => setQuickNote(e.target.value)}
+                                        />
                                     </div>
                                 </div>
                             )}

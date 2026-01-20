@@ -77,7 +77,8 @@ const customerSchema = new mongoose.Schema({
     url: String,
     uploadedBy: String,
     createdAt: { type: Date, default: Date.now }
-  }]
+  }],
+  quickNote: { type: String, default: '' }
 }, { 
   timestamps: true,
   toJSON: { virtuals: true },
