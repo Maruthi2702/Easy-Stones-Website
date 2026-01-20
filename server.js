@@ -342,6 +342,12 @@ const verifyAnyAuth = (req, res, next) => {
       const decoded = jwt.verify(customerToken, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
       if (decoded.type === 'customer' || decoded.type === 'internal') {
         req.customerId = decoded.id;
+        
+        // If internal user, also set userId so admin routes work
+        if (decoded.type === 'internal') {
+            req.userId = decoded.id;
+        }
+
         req.accountType = decoded.type;
         req.authType = decoded.type === 'customer' ? 'customer' : 'admin'; 
         return next();
@@ -998,6 +1004,25 @@ app.post('/api/customer/logout', (req, res) => {
 // Dual Authentication Middleware - accepts both admin and customer tokens
 // (Moved to top of file)
 
+// Helper: Standardized User Attribution
+const getPerformerInfo = async (req) => {
+    let id = '';
+    let name = '';
+    let role = req.authType;
+
+    if (req.authType === 'admin') {
+        id = req.userId;
+        const user = await User.findById(req.userId).select('username');
+        name = user ? user.username : `Unknown User (${req.userId})`;
+    } else if (req.authType === 'customer') {
+        id = req.customerId;
+        const customer = await Customer.findById(req.customerId).select('contactName email');
+        name = customer ? (customer.contactName || customer.email) : `Unknown Customer (${req.customerId})`;
+    }
+
+    return { id, name, role };
+};
+
 // Customer-accessible endpoint: Get all customers (for sales page)
 // Customer-accessible endpoint: Get all customers (for sales page) - Optimized (No images)
 app.get('/api/customers', verifyAnyAuth, async (req, res) => {
@@ -1048,7 +1073,8 @@ app.post('/api/customers/:customerId/contacts', verifyAnyAuth, async (req, res) 
       role,
       isPrimary: isPrimary || false,
       notes,
-      createdAt: new Date()
+      createdAt: new Date(),
+      createdBy: (await getPerformerInfo(req)).id
     };
 
     const result = await Customer.updateOne(
@@ -1074,6 +1100,9 @@ app.put('/api/customers/:customerId/contacts/:contactId', verifyAnyAuth, async (
     const fields = req.body;
 
     const updateData = {};
+    const { id: updatedBy } = await getPerformerInfo(req);
+    updateData[`contacts.$.updatedBy`] = updatedBy;
+
     Object.keys(fields).forEach(key => {
       updateData[`contacts.$.${key}`] = fields[key];
     });
@@ -1363,19 +1392,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
     }
 
     // Get creator information based on auth type
-    let createdBy = '';
-    let createdByName = '';
-
-    if (req.authType === 'admin') {
-      createdBy = req.userId;
-      const user = await User.findById(req.userId).select('username');
-      createdByName = user ? user.username : 'Unknown User';
-    } else if (req.authType === 'customer') {
-      createdBy = req.customerId;
-      // Get contactName with lean query to avoid loading massive arrays
-      const customerUser = await Customer.findById(req.customerId).select('contactName');
-      createdByName = customerUser ? customerUser.contactName : 'Unknown Customer';
-    }
+    const { id: createdBy, name: createdByName } = await getPerformerInfo(req);
 
     // Get the customer's contact name (the customer being visited)
     const visitedCustomer = await Customer.findById(customerId).select('contactName company');
@@ -1449,18 +1466,8 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
     const { date, purpose, notes, outcome, followUp, managerComment, headquartersComment, image } = req.body;
 
     // Get updater information
-    let updatedBy = '';
-    let updatedByName = '';
-
-    if (req.authType === 'admin') {
-      updatedBy = req.userId;
-      const user = await User.findById(req.userId).select('username');
-      updatedByName = user ? user.username : 'Unknown User';
-    } else if (req.authType === 'customer') {
-      updatedBy = req.customerId;
-      const customerUser = await Customer.findById(req.customerId).select('contactName');
-      updatedByName = customerUser ? customerUser.contactName : 'Unknown Customer';
-    }
+    // Get updater information
+    const { id: updatedBy, name: updatedByName } = await getPerformerInfo(req);
 
     const updateData = {};
     if (date) updateData['visits.$.date'] = date;
@@ -1516,18 +1523,8 @@ app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (r
     const { customerId, visitId } = req.params;
 
     // Get performer information
-    let performedBy = '';
-    let performedByName = '';
-
-    if (req.authType === 'admin') {
-      performedBy = req.userId;
-      const user = await User.findById(req.userId).select('username');
-      performedByName = user ? user.username : 'Unknown User';
-    } else if (req.authType === 'customer') {
-      performedBy = req.customerId;
-      const customerUser = await Customer.findById(req.customerId).select('contactName');
-      performedByName = customerUser ? customerUser.contactName : 'Unknown Customer';
-    }
+    // Get performer information
+    const { id: performedBy, name: performedByName } = await getPerformerInfo(req);
 
     // Find the visit before deleting to get its details if needed (optional)
     const customer = await Customer.findById(customerId).select('visits');
@@ -1668,7 +1665,7 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
       notes: notes || '',
       status: status || 'Active',
       url: url || '',
-      uploadedBy: uploadedBy || '',
+      uploadedBy: uploadedBy || (await getPerformerInfo(req)).id,
       createdAt: new Date()
     };
 

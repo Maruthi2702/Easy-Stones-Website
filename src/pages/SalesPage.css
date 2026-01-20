@@ -206,6 +206,18 @@
   border-left: 3px solid var(--accent-color); /* Left accent border */
 }
 
+.customer-list-item.has-quick-note {
+  border-left: 3px solid rgba(74, 144, 226, 0.6); /* Blue indicator for quick notes */
+}
+
+.customer-list-item.has-quick-note:hover {
+  background: rgba(74, 144, 226, 0.08);
+}
+
+.customer-list-item.active.has-quick-note {
+  border-left: 3px solid var(--accent-color); /* Active state takes precedence */
+}
+
 .customer-list-item.active::before {
   display: none; /* Remove old pseudo-element */
 }
@@ -2275,7 +2287,7 @@
 /* Add Visit Button Container */
 .add-visit-container {
     padding: 1rem 1.5rem;
-    background: #1a1a1a;
+    background: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     justify-content: flex-end;
@@ -2632,12 +2644,46 @@
     align-items: center;
     gap: 4px;
     cursor: default;
+    transition: all 0.2s ease;
+}
+
+.reaction-pill.user-reacted {
+    background: rgba(30, 144, 255, 0.3); /* Darker blue background */
+    border-color: rgba(30, 144, 255, 0.6);
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(30, 144, 255, 0.2); /* Subtle glow */
+}
+
+.reaction-pill.user-reacted:hover {
+    background: rgba(30, 144, 255, 0.4);
+    border-color: rgba(30, 144, 255, 0.8);
+}
+
+.reaction-remove-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.2);
+    font-size: 10px;
+    margin-left: 2px;
+    opacity: 0.7;
+    transition: all 0.2s;
+}
+
+.reaction-pill.user-reacted:hover .reaction-remove-icon {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.4);
+    color: #fff;
 }
 
 .reaction-picker-floating {
     position: absolute;
-    top: -40px;
-    left: 0;
+    top: 25px; /* Below the header actions */
+    right: 0;
+    left: auto;
     background: #2b2b2b;
     border: 1px solid rgba(255,255,255,0.2);
     border-radius: 20px;
@@ -2669,6 +2715,7 @@
     margin-left: auto; /* Push to right */
     opacity: 0.6;
     transition: opacity 0.2s;
+    position: relative; /* Anchor for picker */
 }
 
 .visit-post-card:hover .post-header-actions {
@@ -3416,5 +3463,45 @@
     .delete-modal-actions .btn-cancel,
     .delete-modal-actions .btn-delete {
         width: 100%;
+    }
+}
+@media (max-width: 768px) {
+    .customer-info-section {
+        padding: 1rem 1.25rem;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .info-boxes {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .info-box p {
+        font-size: 0.95rem;
+    }
+
+    .detail-columns.simplified {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        padding-top: 1.25rem;
+    }
+
+    .quick-notes-row {
+        margin-top: 1.5rem;
+        padding-top: 1.25rem;
+    }
+
+    .quick-notes-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .save-note-btn {
+        width: 100%;
+        text-align: center;
+        padding: 0.75rem;
     }
 }

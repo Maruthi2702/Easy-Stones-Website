@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Calendar, MapPin, Phone, Mail, Clock, Plus, Search,
     Filter, X, Upload, Home, ArrowLeft,
     CheckCircle, MessageSquare, Heart, ThumbsUp, Send, User, Menu,
     Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft,
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
-    CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus, Folder, Link
+    CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus, Folder, Link,
+    LayoutDashboard
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -51,6 +53,7 @@ class ErrorBoundary extends React.Component {
 
 const SalesPage = () => {
     const { user: currentUser } = useAuth();
+    const navigate = useNavigate();
     const [customers, setCustomers] = useState([]);
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
     const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null); // Full customer details with images
@@ -1660,7 +1663,7 @@ const SalesPage = () => {
                             onClick={handleGoHome}
                             title="Sales Dashboard"
                         >
-                            <Home size={18} />
+                            <LayoutDashboard size={18} />
                         </button>
                         <button
                             className="icon-btn-ghost"
@@ -1723,7 +1726,7 @@ const SalesPage = () => {
                         filteredCustomers.map(customer => (
                             <div
                                 key={customer._id}
-                                className={`customer-list-item ${selectedCustomerId === customer._id ? 'active' : ''}`}
+                                className={`customer-list-item ${selectedCustomerId === customer._id ? 'active' : ''} ${customer.quickNote ? 'has-quick-note' : ''}`}
                                 onClick={() => handleSelectCustomer(customer)}
                             >
                                 <div className="list-thumb-placeholder">
@@ -1801,7 +1804,19 @@ const SalesPage = () => {
                                             </button>
                                         </div>
 
-                                        <div className="header-right" style={{ marginLeft: 'auto' }}>
+                                        <div className="header-right" style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+                                            <button
+                                                className="info-toggle-btn"
+                                                onClick={() => {
+                                                    setSelectedCustomerId(null);
+                                                    setSelectedCustomerDetail(null);
+                                                    navigate('/sales');
+                                                }}
+                                                title="Sales Dashboard"
+                                                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', padding: '6px' }}
+                                            >
+                                                <LayoutDashboard size={18} />
+                                            </button>
                                             <button
                                                 className={`info-toggle-btn ${showCustomerInfo ? 'active' : ''}`}
                                                 onClick={() => setShowCustomerInfo(!showCustomerInfo)}
@@ -2002,6 +2017,37 @@ const SalesPage = () => {
                                                                             {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUserId === visit.createdBy) && (
                                                                                 <div className="post-header-actions">
                                                                                     <button
+                                                                                        className="icon-action-small reaction-trigger"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            if (activeReactionMessageId === visit._id) {
+                                                                                                setActiveReactionMessageId(null);
+                                                                                            } else {
+                                                                                                setActiveReactionMessageId(visit._id);
+                                                                                            }
+                                                                                        }}
+                                                                                        title="Add Reaction"
+                                                                                    >
+                                                                                        <Smile size={14} />
+                                                                                    </button>
+                                                                                    {activeReactionMessageId === visit._id && (
+                                                                                        <div className="reaction-picker-floating">
+                                                                                            {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
+                                                                                                <button
+                                                                                                    key={emoji}
+                                                                                                    className="reaction-option"
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        handleReaction(visit._id, emoji);
+                                                                                                        setActiveReactionMessageId(null);
+                                                                                                    }}
+                                                                                                >
+                                                                                                    {emoji}
+                                                                                                </button>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    )}
+                                                                                    <button
                                                                                         className="icon-action-small edit"
                                                                                         onClick={(e) => { e.stopPropagation(); handleEditVisit(visit); }}
                                                                                         title="Edit"
@@ -2068,53 +2114,36 @@ const SalesPage = () => {
 
                                                                         {/* Reactions Bar */}
                                                                         <div className="post-reactions">
-                                                                            <button
-                                                                                className="reaction-add-btn"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    if (activeReactionMessageId === visit._id) {
-                                                                                        setActiveReactionMessageId(null);
-                                                                                    } else {
-                                                                                        setActiveReactionMessageId(visit._id);
-                                                                                    }
-                                                                                }}
-                                                                            >
-                                                                                <Smile size={16} />
-                                                                            </button>
-
                                                                             {/* Existing Reactions */}
                                                                             {visit.reactions && visit.reactions.length > 0 && (
                                                                                 <div className="existing-reactions">
                                                                                     {Object.entries(
                                                                                         visit.reactions.reduce((acc, r) => {
                                                                                             if (!r || !r.type) return acc;
-                                                                                            acc[r.type] = (acc[r.type] || 0) + 1;
+                                                                                            if (!acc[r.type]) acc[r.type] = { count: 0, userIds: [] };
+                                                                                            acc[r.type].count++;
+                                                                                            acc[r.type].userIds.push(r.userId);
                                                                                             return acc;
                                                                                         }, {})
-                                                                                    ).map(([type, count]) => (
-                                                                                        <span key={type} className="reaction-pill" title={`${count} reactions`}>
-                                                                                            {type} <span className="count">{count}</span>
-                                                                                        </span>
-                                                                                    ))}
-                                                                                </div>
-                                                                            )}
-
-                                                                            {/* Reaction Picker (Floating) */}
-                                                                            {activeReactionMessageId === visit._id && (
-                                                                                <div className="reaction-picker-floating">
-                                                                                    {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
-                                                                                        <button
-                                                                                            key={emoji}
-                                                                                            className="reaction-option"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation();
-                                                                                                handleReaction(visit._id, emoji);
-                                                                                                setActiveReactionMessageId(null);
-                                                                                            }}
-                                                                                        >
-                                                                                            {emoji}
-                                                                                        </button>
-                                                                                    ))}
+                                                                                    ).map(([type, data]) => {
+                                                                                        const currentUserId = currentUser?._id || currentUser?.id;
+                                                                                        const userReacted = currentUserId && data.userIds.includes(currentUserId.toString());
+                                                                                        return (
+                                                                                            <span
+                                                                                                key={type}
+                                                                                                className={`reaction-pill ${userReacted ? 'user-reacted' : ''}`}
+                                                                                                title={userReacted ? 'Click to remove your reaction' : `${data.count} reactions`}
+                                                                                                onClick={() => userReacted && handleReaction(visit._id, type)}
+                                                                                            >
+                                                                                                {type} <span className="count">{data.count}</span>
+                                                                                                {userReacted && (
+                                                                                                    <span className="reaction-remove-icon">
+                                                                                                        <X size={10} strokeWidth={3} />
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </span>
+                                                                                        );
+                                                                                    })}
                                                                                 </div>
                                                                             )}
                                                                         </div>
@@ -2311,7 +2340,7 @@ const SalesPage = () => {
                             <div className="time-range-filters">
                                 {['1day', '7days', '30days', 'year', 'all'].map(range => {
                                     const labels = {
-                                        '1day': '1day',
+                                        '1day': 'Today',
                                         '7days': 'Last 7 Days',
                                         '30days': 'Last 30 Days',
                                         'year': 'Year-to-date',
