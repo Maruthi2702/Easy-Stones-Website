@@ -607,7 +607,11 @@ const SalesPage = () => {
             });
 
             if (response.ok) {
-                // Optionally show success or toast
+                const data = await response.json();
+                // Update local state so UI reflects the saved note immediately
+                if (selectedCustomerDetail) {
+                    setSelectedCustomerDetail({ ...selectedCustomerDetail, quickNote: data.quickNote });
+                }
                 console.log('Quick note saved successfully');
             } else {
                 console.error('Failed to save quick note');
@@ -1892,7 +1896,7 @@ const SalesPage = () => {
                                                 onClick={handleSaveQuickNote}
                                                 disabled={isSavingNote}
                                             >
-                                                {isSavingNote ? 'Saving...' : 'Save Quick Note'}
+                                                {isSavingNote ? 'Saving...' : (selectedCustomerDetail?.quickNote ? 'Edit Quick Note' : 'Save Quick Note')}
                                             </button>
                                         </div>
                                         <textarea
