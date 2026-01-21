@@ -2094,12 +2094,18 @@ const SalesPage = () => {
                                                                             {visit.notes && <p className="post-text">{visit.notes}</p>}
 
                                                                             {/* Visit Details */}
-                                                                            {(visit.outcome || visit.nextAction) && (
+                                                                            {(visit.outcome || visit.followUp || visit.nextAction) && (
                                                                                 <div className="post-details-ext">
                                                                                     {visit.outcome && (
                                                                                         <div className="post-detail-row outcome">
                                                                                             <span className="detail-label">Outcome:</span>
                                                                                             <span className="detail-value">{visit.outcome}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {visit.followUp && (
+                                                                                        <div className="post-detail-row follow-up">
+                                                                                            <span className="detail-label">Follow Up:</span>
+                                                                                            <span className="detail-value">{visit.followUp}</span>
                                                                                         </div>
                                                                                     )}
                                                                                     {visit.nextAction && (

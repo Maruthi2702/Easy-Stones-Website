@@ -2551,6 +2551,16 @@
     font-weight: 600;
 }
 
+.post-detail-row.follow-up {
+    background: rgba(168, 85, 247, 0.1);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.post-detail-row.follow-up .detail-label {
+    color: #a855f7;
+    font-weight: 600;
+}
+
 .post-detail-row .detail-value {
     color: #e0e0e0;
 }
