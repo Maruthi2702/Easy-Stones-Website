@@ -58,8 +58,12 @@ const CustomerLoginPage = () => {
             if (response.ok) {
                 // Update auth context with user data
                 login(data.user);
-                // Redirect to home page
-                navigate('/');
+                // Redirect based on user type
+                if (data.user.type === 'internal') {
+                    navigate('/sales');
+                } else {
+                    navigate('/');
+                }
             } else {
                 setError(data.message || 'Authentication failed');
             }

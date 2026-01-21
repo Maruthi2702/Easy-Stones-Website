@@ -3357,16 +3357,12 @@ const SalesPage = () => {
                                     </div>
                                     <div className="form-group">
                                         <label>Resource Type *</label>
-                                        <select
+                                        <SearchableSelect
+                                            options={resourceTypes.map(type => ({ value: type, label: type }))}
                                             value={resourceForm.resourceType}
-                                            onChange={(e) => setResourceForm({ ...resourceForm, resourceType: e.target.value, title: e.target.value })}
-                                            className="form-select"
-                                        >
-                                            <option value="">Please Select Resource Type</option>
-                                            {resourceTypes.map((type, index) => (
-                                                <option key={index} value={type}>{type}</option>
-                                            ))}
-                                        </select>
+                                            onChange={(value) => setResourceForm({ ...resourceForm, resourceType: value, title: value })}
+                                            placeholder="Please Select Resource Type"
+                                        />
                                     </div>
 
                                     <div className="form-group">
@@ -3379,15 +3375,16 @@ const SalesPage = () => {
                                     </div>
                                     <div className="form-group">
                                         <label>Status</label>
-                                        <select
+                                        <SearchableSelect
+                                            options={[
+                                                { value: 'Active', label: 'Active' },
+                                                { value: 'Inactive', label: 'Inactive' },
+                                                { value: 'Archived', label: 'Archived' }
+                                            ]}
                                             value={resourceForm.status}
-                                            onChange={(e) => setResourceForm({ ...resourceForm, status: e.target.value })}
-                                            className="form-select"
-                                        >
-                                            <option value="Active">Active</option>
-                                            <option value="Inactive">Inactive</option>
-                                            <option value="Archived">Archived</option>
-                                        </select>
+                                            onChange={(value) => setResourceForm({ ...resourceForm, status: value })}
+                                            placeholder="Select Status"
+                                        />
                                     </div>
 
                                     <div className="form-group">
