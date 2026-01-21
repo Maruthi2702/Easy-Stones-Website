@@ -17,6 +17,7 @@ import './SalesPage.css';
 import './SalesPageChat.css';
 import './SalesPageChatImage.css';
 import './SalesPageDashboard.css';
+import SearchableSelect from '../components/SearchableSelect';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -72,6 +73,15 @@ const SalesPage = () => {
 
     const [showAddFolderModal, setShowAddFolderModal] = useState(false);
     const [folderName, setFolderName] = useState('');
+
+    const customerOptions = React.useMemo(() => {
+        return customers
+            .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
+            .map(c => ({
+                value: c._id,
+                label: c.company || c.contactName || 'Unknown'
+            }));
+    }, [customers]);
     const [isViewingResource, setIsViewingResource] = useState(false);
     const [isViewingVisit, setIsViewingVisit] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -1038,6 +1048,7 @@ const SalesPage = () => {
 
     const handleAddResource = () => {
         setEditingResource(null);
+        setIsViewingResource(false);
         setIsViewingResource(false);
         setImagePreview(null);
         setResourceForm({
@@ -3025,30 +3036,17 @@ const SalesPage = () => {
                                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
                                     <div className="form-group">
                                         <label>Customer <span style={{ color: 'red' }}>*</span></label>
-                                        <select
+                                        <SearchableSelect
+                                            options={customerOptions}
                                             value={visitForm.customerId}
-                                            onChange={(e) => setVisitForm({ ...visitForm, customerId: e.target.value })}
-                                            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #D1D5DB' }}
-                                        >
-                                            <option value="">Select a Customer...</option>
-                                            {customers
-                                                .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
-                                                .map(c => (
-                                                    <option key={c._id} value={c._id}>
-                                                        {c.company || c.contactName || 'Unknown'}
-                                                    </option>
-                                                ))}
-                                        </select>
+                                            onChange={(value) => setVisitForm({ ...visitForm, customerId: value })}
+                                            placeholder="Select a Customer..."
+                                        />
                                     </div>
                                     <div className="form-group">
                                         <label>Visit Type <span style={{ color: 'red' }}>*</span></label>
-                                        <select
-                                            value={visitForm.purpose}
-                                            onChange={(e) => setVisitForm({ ...visitForm, purpose: e.target.value })}
-                                            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #D1D5DB' }}
-                                        >
-                                            <option value="">Please Select Visit Type</option>
-                                            {[
+                                        <SearchableSelect
+                                            options={[
                                                 'Scheduled in Person Sales Meeting',
                                                 'Resource Placement',
                                                 'Resource Update',
@@ -3057,10 +3055,11 @@ const SalesPage = () => {
                                                 'Important Remote Meeting/Call',
                                                 'In Office Administration Day',
                                                 'Personal Time Off'
-                                            ].map(type => (
-                                                <option key={type} value={type}>{type}</option>
-                                            ))}
-                                        </select>
+                                            ].map(type => ({ value: type, label: type }))}
+                                            value={visitForm.purpose}
+                                            onChange={(value) => setVisitForm({ ...visitForm, purpose: value })}
+                                            placeholder="Please Select Visit Type"
+                                        />
                                     </div>
                                 </div>
                                 <div className="form-group">
@@ -3339,52 +3338,22 @@ const SalesPage = () => {
                             ) : (
                                 /* Edit/Add Mode Layout */
                                 <div className="modal-body">
-                                    {!selectedCustomer && (
-                                        <div className="form-group">
-                                            <label>Client *</label>
-                                            <select
-                                                value={resourceForm.customerId}
-                                                onChange={(e) => {
-                                                    const selectedC = customers.find(c => c._id === e.target.value);
-                                                    setResourceForm({
-                                                        ...resourceForm,
-                                                        customerId: e.target.value,
-                                                        customer: selectedC ? (selectedC.company || selectedC.contactName) : ''
-                                                    });
-                                                }}
-                                                style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #D1D5DB' }}
-                                            >
-                                                <option value="">Select a Client...</option>
-                                                {customers
-                                                    .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
-                                                    .map(c => (
-                                                        <option key={c._id} value={c._id}>
-                                                            {c.company || c.contactName || 'Unknown'}
-                                                        </option>
-                                                    ))}
-                                            </select>
-                                        </div>
-                                    )}
+
                                     <div className="form-group">
-                                        <select
+                                        <label>Client *</label>
+                                        <SearchableSelect
+                                            options={customerOptions}
                                             value={resourceForm.customerId}
-                                            onChange={(e) => {
-                                                const selectedC = customers.find(c => c._id === e.target.value);
+                                            onChange={(value) => {
+                                                const selectedC = customers.find(c => c._id === value);
                                                 setResourceForm({
                                                     ...resourceForm,
-                                                    customerId: e.target.value,
+                                                    customerId: value,
                                                     customer: selectedC ? (selectedC.company || selectedC.contactName) : ''
                                                 });
                                             }}
-                                            className="form-select"
-                                        >
-                                            <option value="">Please Select Client</option>
-                                            {customers.map(c => (
-                                                <option key={c._id} value={c._id}>
-                                                    {c.company || c.contactName}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            placeholder="Select a Client..."
+                                        />
                                     </div>
                                     <div className="form-group">
                                         <label>Resource Type *</label>
