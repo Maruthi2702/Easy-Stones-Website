@@ -3194,7 +3194,7 @@ const SalesPage = () => {
                                             {(() => {
                                                 if (selectedCustomer) return selectedCustomer.company || selectedCustomer.contactName;
                                                 const c = customers.find(c => c._id === (visitForm.customerId || editingVisit?.customerId));
-                                                return c ? (c.company || c.contactName) : (editingVisit?.customerName || '-');
+                                                return c ? (c.company || c.contactName) : (visitForm?.customerContactName || visitForm?.customerName || editingVisit?.customerName || '-');
                                             })()}
                                         </div>
                                     </div>
