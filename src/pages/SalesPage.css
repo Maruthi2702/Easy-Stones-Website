@@ -2565,47 +2565,71 @@
     color: #e0e0e0;
 }
 
-.post-images {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 8px;
+.post-images.gallery-layout {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+    max-width: 450px;
+}
+
+.post-images.gallery-layout.count-1 { grid-template-columns: 1fr; max-width: 200px; }
+.post-images.gallery-layout.count-2 { grid-template-columns: repeat(2, 1fr); max-width: 300px; }
+.post-images.gallery-layout.count-3 { grid-template-columns: repeat(3, 1fr); max-width: 400px; }
+
+.post-image-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    transition: transform 0.2s ease;
+}
+
+.post-image-wrapper:hover {
+    transform: scale(1.02);
+    border-color: var(--accent-primary);
 }
 
 .post-attachment-img {
-    max-width: 250px;
-    max-height: 250px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
-.post-attachment-img:hover {
-    transform: scale(1.03);
-    border-color: var(--accent-color);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+.more-images-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.25rem;
+    font-weight: 700;
 }
 
 .pdf-attachment-card {
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    width: 100px;
-    height: 100px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.2s;
+    background: rgba(212, 175, 55, 0.1);
+    gap: 0.25rem;
 }
 
-.pdf-attachment-card:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--accent-color);
+.pdf-attachment-card span {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--accent-primary);
 }
 
 /* Reactions Bar */

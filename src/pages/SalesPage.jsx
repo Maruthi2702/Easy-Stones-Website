@@ -2070,23 +2070,40 @@ const SalesPage = () => {
 
                                                                             {/* Images */}
                                                                             {visit.image && (Array.isArray(visit.image) ? visit.image : [visit.image]).length > 0 && (
-                                                                                <div className="post-images">
-                                                                                    {(Array.isArray(visit.image) ? visit.image : [visit.image]).map((img, idx) => (
-                                                                                        <div key={idx} className="post-image-wrapper" onClick={() => setFullScreenImage(img)}>
-                                                                                            {img.startsWith('data:application/pdf') ? (
-                                                                                                <div className="pdf-attachment-card">
-                                                                                                    <FileText size={24} color="#E5C04A" />
-                                                                                                    <span>PDF</span>
-                                                                                                </div>
-                                                                                            ) : (
-                                                                                                <img
-                                                                                                    src={img}
-                                                                                                    alt="Attachment"
-                                                                                                    className="post-attachment-img"
-                                                                                                />
-                                                                                            )}
-                                                                                        </div>
-                                                                                    ))}
+                                                                                <div className={`post-images gallery-layout count-${Math.min((Array.isArray(visit.image) ? visit.image : [visit.image]).length, 4)}`}>
+                                                                                    {(Array.isArray(visit.image) ? visit.image : [visit.image]).slice(0, 4).map((img, idx, array) => {
+                                                                                        const totalImages = (Array.isArray(visit.image) ? visit.image : [visit.image]).length;
+                                                                                        const isLastShown = idx === 3;
+                                                                                        const remainingCount = totalImages - 4;
+
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={idx}
+                                                                                                className="post-image-wrapper"
+                                                                                                onClick={() => setFullScreenImage(img)}
+                                                                                            >
+                                                                                                {img.startsWith('data:application/pdf') ? (
+                                                                                                    <div className="pdf-attachment-card">
+                                                                                                        <FileText size={20} color="#E5C04A" />
+                                                                                                        <span>PDF</span>
+                                                                                                    </div>
+                                                                                                ) : (
+                                                                                                    <>
+                                                                                                        <img
+                                                                                                            src={img}
+                                                                                                            alt="Attachment"
+                                                                                                            className="post-attachment-img"
+                                                                                                        />
+                                                                                                        {isLastShown && remainingCount > 0 && (
+                                                                                                            <div className="more-images-overlay">
+                                                                                                                <span>+{remainingCount}</span>
+                                                                                                            </div>
+                                                                                                        )}
+                                                                                                    </>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        );
+                                                                                    })}
                                                                                 </div>
                                                                             )}
 
