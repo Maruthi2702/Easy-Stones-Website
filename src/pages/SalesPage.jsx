@@ -1768,7 +1768,7 @@ const SalesPage = () => {
                                                     onClick={handleMobileBack}
                                                     title="Back to customer list"
                                                 >
-                                                    <Menu size={20} />
+                                                    <Menu size={24} />
                                                 </button>
                                             )}
                                             <div className="name-block">
@@ -2326,11 +2326,11 @@ const SalesPage = () => {
                                         </div>
                                     </div>
                                     <div className="dashboard-actions">
-                                        <button className="btn-secondary" onClick={handleQuickAddVisit} title="Add Visit for any Client">
-                                            + Add Visit
-                                        </button>
-                                        <button className="btn-primary" onClick={handleQuickAddResource} title="Add Resource for any Client">
+                                        <button className="btn-secondary" onClick={handleQuickAddResource} title="Add Resource for any Client">
                                             + Add Resource
+                                        </button>
+                                        <button className="btn-primary" onClick={handleQuickAddVisit} title="Add Visit for any Client">
+                                            + Add Visit
                                         </button>
                                     </div>
                                 </div>

@@ -232,8 +232,8 @@
 
 
 .icon-btn {
-  background: transparent;
-  border: none;
+  background: transparent !important;
+  border: none !important;
   color: #ffffff;
   cursor: pointer;
   padding: 0.5rem;
@@ -253,8 +253,8 @@
     display: block !important; /* Force show on mobile */
   }
   .menu-btn svg {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
   }
 }
 
