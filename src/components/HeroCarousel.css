@@ -174,7 +174,16 @@
 }
 
 @media (max-width: 768px) {
+  .hero-carousel {
+    height: 50vh; /* Reduced height for mobile */
+    min-height: 400px;
+  }
+
   .carousel-controls {
     display: none; /* Hide arrows on mobile */
+  }
+  
+  .slide-title-main {
+    font-size: 2.5rem;
   }
 }

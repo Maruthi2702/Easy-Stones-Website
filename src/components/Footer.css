@@ -127,8 +127,19 @@
   }
   
   .footer-content {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr); /* 2 columns */
     gap: 2rem;
+  }
+  
+  .footer-brand {
+    grid-column: 1 / -1; /* Full width */
+  }
+  
+  /* Products (2nd child) and Warranty (3rd child) will naturally fall into row 2 col 1 and row 2 col 2 */
+  
+  /* Make contact (4th child) full width if needed, or let it share */
+  .footer-content > :nth-child(4) {
+    grid-column: 1 / -1;
   }
   
   .footer-brand {

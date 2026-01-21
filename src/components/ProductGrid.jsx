@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Filter, X } from 'lucide-react';
 import ProductCard from './ProductCard';
 import './ProductGrid.css';
 
 const ProductGrid = ({ searchTerm = '', onSearchChange, activeCategory = 'Moda Quartz', products = [], loading = false }) => {
   const [activeCollection, setActiveCollection] = useState('All');
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   const collections = ['All', 'Luxe', 'Prestige', 'Signature', 'Basic'];
 
@@ -55,9 +56,11 @@ const ProductGrid = ({ searchTerm = '', onSearchChange, activeCategory = 'Moda Q
       )}
 
       {/* Collection Tabs with Search - Only show for Moda Quartz */}
+      {/* Collection Tabs with Search - Only show for Moda Quartz */}
       {activeCategory === 'Moda Quartz' && (
         <div className="tabs-search-wrapper">
-          <div className="collection-tabs">
+          {/* Desktop Collection Tabs */}
+          <div className="collection-tabs desktop-only">
             {collections.map((collection) => (
               <button
                 key={collection}
@@ -68,6 +71,16 @@ const ProductGrid = ({ searchTerm = '', onSearchChange, activeCategory = 'Moda Q
               </button>
             ))}
           </div>
+
+          {/* Mobile Filter Button */}
+          <button
+            className="filter-btn-mobile mobile-only"
+            onClick={() => setShowFilterModal(true)}
+          >
+            <Filter size={20} />
+            <span>Filters</span>
+            {activeCollection !== 'All' && <span className="filter-badge">1</span>}
+          </button>
 
           {/* Search Bar */}
           <div className="search-container-grid">
@@ -88,6 +101,37 @@ const ProductGrid = ({ searchTerm = '', onSearchChange, activeCategory = 'Moda Q
                 ×
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Filter Modal */}
+      {showFilterModal && (
+        <div className="mobile-filter-overlay">
+          <div className="mobile-filter-modal">
+            <div className="filter-header">
+              <h3>Filter Products</h3>
+              <button className="close-filter-btn" onClick={() => setShowFilterModal(false)}>
+                <X size={24} />
+              </button>
+            </div>
+            <div className="filter-content">
+              <h4>Collections</h4>
+              <div className="filter-options">
+                {collections.map((collection) => (
+                  <button
+                    key={collection}
+                    className={`filter-option ${activeCollection === collection ? 'active' : ''}`}
+                    onClick={() => {
+                      setActiveCollection(collection);
+                      setShowFilterModal(false);
+                    }}
+                  >
+                    {collection}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
