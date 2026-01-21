@@ -568,11 +568,11 @@ app.post('/api/auth/change-password', verifyToken, async (req, res) => {
     }
 
     // Get adminId from JWT token (set by verifyToken middleware)
-    const adminId = req.adminId;
+    const adminId = req.userId;
     
     console.log('Password change attempt for adminId:', adminId);
 
-    const admin = await Admin.findById(adminId);
+    const admin = await User.findById(adminId);
     if (!admin) {
       return res.status(404).json({ success: false, message: 'Admin not found' });
     }
@@ -584,7 +584,7 @@ app.post('/api/auth/change-password', verifyToken, async (req, res) => {
       return res.status(401).json({ success: false, message: 'Current password is incorrect' });
     }
 
-    // Update password (pre-save hook in Admin model will hash it)
+    // Update password (pre-save hook in User model will hash it)
     admin.password = newPassword;
     await admin.save();
 

@@ -1493,18 +1493,6 @@ const SalesPage = () => {
         setImagePreview(null);
     };
 
-    if (loading) {
-        return (
-            <div className="sales-page">
-                <div className="sales-header">
-                    <h1>Customers</h1>
-                </div>
-                <div className="container" style={{ padding: '2rem', textAlign: 'center' }}>
-                    <p>Loading customers...</p>
-                </div>
-            </div>
-        );
-    }
 
     // Dashboard Helpers
     const getDashboardDateRange = () => {
@@ -1662,18 +1650,6 @@ const SalesPage = () => {
         XLSX.writeFile(wb, "Client_Resources.xlsx");
     };
 
-    if (error) {
-        return (
-            <div className="sales-page">
-                <div className="sales-header">
-                    <h1>Customers</h1>
-                </div>
-                <div className="container" style={{ padding: '2rem', textAlign: 'center' }}>
-                    <p style={{ color: '#ef4444' }}>Error: {error}</p>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="sales-container">
@@ -1752,7 +1728,38 @@ const SalesPage = () => {
                 </div>
 
                 <div className="customer-list">
-                    {filteredCustomers.length === 0 ? (
+                    {loading ? (
+                        <div className="skeleton-list">
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                                <div key={i} className="skeleton-item">
+                                    <div className="skeleton-thumb skeleton" />
+                                    <div className="skeleton-info">
+                                        <div className="skeleton-name skeleton" />
+                                        <div className="skeleton-meta skeleton" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : error ? (
+                        <div className="error-message" style={{ padding: '1.5rem', color: '#ef4444', textAlign: 'center' }}>
+                            <p>Failed to load customers</p>
+                            <button
+                                onClick={() => window.location.reload()}
+                                style={{
+                                    marginTop: '0.5rem',
+                                    background: 'rgba(239, 68, 68, 0.1)',
+                                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                                    color: '#ef4444',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '0.8rem'
+                                }}
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    ) : filteredCustomers.length === 0 ? (
                         <div className="empty-list-message">
                             No customers found
                         </div>
@@ -2356,91 +2363,102 @@ const SalesPage = () => {
                         </>
                     ) : (
                         <div className="sales-dashboard-v2">
-                            {/* Header */}
-                            <div className="dashboard-header-v2">
-                                <div className="dashboard-header-content">
-                                    <div className="dashboard-left-section">
-                                        {(!isSidebarOpen || isMobile) && (
-                                            <button
-                                                onClick={() => setIsSidebarOpen(true)}
-                                                className="dashboard-sidebar-toggle"
-                                                title="Open Sidebar"
-                                            >
-                                                <Menu size={20} />
-                                            </button>
-                                        )}
-                                        <div className="dashboard-title-group">
-                                            <h1>Dashboard</h1>
-                                            <div className="dashboard-breadcrumbs">
-                                                <span className="link" onClick={() => {
-                                                    if (folderPath.length > 0) {
-                                                        handleBreadcrumbClick(-1);
-                                                    }
-                                                }}>Home</span>
-                                                <span>/</span>
-                                                <span className="current">Dashboard</span>
-                                            </div>
-                                        </div>
+                            {loading ? (
+                                <div className="skeleton-dashboard">
+                                    <div className="skeleton-stats">
+                                        {[1, 2, 3].map(i => (
+                                            <div key={i} className="skeleton-stat-card skeleton" />
+                                        ))}
                                     </div>
-                                    <div className="dashboard-actions">
-                                        <button className="btn-secondary" onClick={handleQuickAddResource} title="Add Resource for any Client">
-                                            + Add Resource
-                                        </button>
-                                        <button className="btn-primary" onClick={handleQuickAddVisit} title="Add Visit for any Client">
-                                            + Add Visit
-                                        </button>
-                                    </div>
+                                    <div className="skeleton-table skeleton" />
                                 </div>
-                            </div>
-
-                            {/* Time Filters */}
-                            <div className="time-range-filters">
-                                {['1day', '7days', '30days', 'year', 'all'].map(range => {
-                                    const labels = {
-                                        '1day': 'Today',
-                                        '7days': 'Last 7 Days',
-                                        '30days': 'Last 30 Days',
-                                        'year': 'Year-to-date',
-                                        'all': 'All'
-                                    };
-                                    return (
-                                        <button
-                                            key={range}
-                                            className={`time-filter-btn ${dashboardTimeRange === range ? 'active' : ''}`}
-                                            onClick={() => setDashboardTimeRange(range)}
-                                        >
-                                            {labels[range]}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Stats Grid */}
-                            {(() => {
-                                const stats = getStats();
-                                const timeLabel = {
-                                    '1day': 'Today',
-                                    '7days': 'Last 7 Days',
-                                    '30days': 'Last 30 Days',
-                                    'year': 'Year-to-date',
-                                    'all': 'All Time'
-                                }[dashboardTimeRange];
-
-                                return (
-                                    <div className="stats-grid">
-                                        <div
-                                            className={`stat-card ${activeDashboardTab === 'visits' ? 'active-tab' : ''}`}
-                                            onClick={() => setActiveDashboardTab('visits')}
-                                            style={{ cursor: 'pointer' }}
-                                        >
-                                            <div className="stat-icon-wrapper">
-                                                <UserPlus size={20} />
+                            ) : (
+                                <>
+                                    {/* Header */}
+                                    <div className="dashboard-header-v2">
+                                        <div className="dashboard-header-content">
+                                            <div className="dashboard-left-section">
+                                                {(!isSidebarOpen || isMobile) && (
+                                                    <button
+                                                        onClick={() => setIsSidebarOpen(true)}
+                                                        className="dashboard-sidebar-toggle"
+                                                        title="Open Sidebar"
+                                                    >
+                                                        <Menu size={20} />
+                                                    </button>
+                                                )}
+                                                <div className="dashboard-title-group">
+                                                    <h1>Dashboard</h1>
+                                                    <div className="dashboard-breadcrumbs">
+                                                        <span className="link" onClick={() => {
+                                                            if (folderPath.length > 0) {
+                                                                handleBreadcrumbClick(-1);
+                                                            }
+                                                        }}>Home</span>
+                                                        <span>/</span>
+                                                        <span className="current">Dashboard</span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="stat-title">SALES VISITS</div>
-                                            <div className="stat-value">{stats.visits}</div>
-                                            <div className="stat-footer">{timeLabel}</div>
+                                            <div className="dashboard-actions">
+                                                <button className="btn-secondary" onClick={handleQuickAddResource} title="Add Resource for any Client">
+                                                    + Add Resource
+                                                </button>
+                                                <button className="btn-primary" onClick={handleQuickAddVisit} title="Add Visit for any Client">
+                                                    + Add Visit
+                                                </button>
+                                            </div>
                                         </div>
-                                        {/* <div className="stat-card">
+                                    </div>
+
+                                    {/* Time Filters */}
+                                    <div className="time-range-filters">
+                                        {['1day', '7days', '30days', 'year', 'all'].map(range => {
+                                            const labels = {
+                                                '1day': 'Today',
+                                                '7days': 'Last 7 Days',
+                                                '30days': 'Last 30 Days',
+                                                'year': 'Year-to-date',
+                                                'all': 'All'
+                                            };
+                                            return (
+                                                <button
+                                                    key={range}
+                                                    className={`time-filter-btn ${dashboardTimeRange === range ? 'active' : ''}`}
+                                                    onClick={() => setDashboardTimeRange(range)}
+                                                >
+                                                    {labels[range]}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Stats Grid */}
+                                    {(() => {
+                                        const stats = getStats();
+                                        const timeLabel = {
+                                            '1day': 'Today',
+                                            '7days': 'Last 7 Days',
+                                            '30days': 'Last 30 Days',
+                                            'year': 'Year-to-date',
+                                            'all': 'All Time'
+                                        }[dashboardTimeRange];
+
+                                        return (
+                                            <div className="stats-grid">
+                                                <div
+                                                    className={`stat-card ${activeDashboardTab === 'visits' ? 'active-tab' : ''}`}
+                                                    onClick={() => setActiveDashboardTab('visits')}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <div className="stat-icon-wrapper">
+                                                        <UserPlus size={20} />
+                                                    </div>
+                                                    <div className="stat-title">SALES VISITS</div>
+                                                    <div className="stat-value">{stats.visits}</div>
+                                                    <div className="stat-footer">{timeLabel}</div>
+                                                </div>
+                                                {/* <div className="stat-card">
                                             <div className="stat-icon-wrapper">
                                                 <User size={20} />
                                             </div>
@@ -2448,20 +2466,20 @@ const SalesPage = () => {
                                             <div className="stat-value">{stats.keyVisits}</div>
                                             <div className="stat-footer">{timeLabel}</div>
                                         </div> */}
-                                        <div
-                                            className={`stat-card ${activeDashboardTab === 'resources' ? 'active-tab' : ''}`}
-                                            onClick={() => setActiveDashboardTab('resources')}
-                                            style={{ cursor: 'pointer' }}
-                                        >
-                                            <div className="stat-icon-wrapper">
-                                                <FolderPlus size={20} />
-                                            </div>
-                                            <div className="stat-title">RESOURCES</div>
-                                            <div className="stat-desc">(Assignment & Updates)</div>
-                                            <div className="stat-value">{stats.resources}</div>
-                                            <div className="stat-footer">{timeLabel}</div>
-                                        </div>
-                                        {/* <div className="stat-card">
+                                                <div
+                                                    className={`stat-card ${activeDashboardTab === 'resources' ? 'active-tab' : ''}`}
+                                                    onClick={() => setActiveDashboardTab('resources')}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <div className="stat-icon-wrapper">
+                                                        <FolderPlus size={20} />
+                                                    </div>
+                                                    <div className="stat-title">RESOURCES</div>
+                                                    <div className="stat-desc">(Assignment & Updates)</div>
+                                                    <div className="stat-value">{stats.resources}</div>
+                                                    <div className="stat-footer">{timeLabel}</div>
+                                                </div>
+                                                {/* <div className="stat-card">
                                             <div className="stat-icon-wrapper">
                                                 <DollarSign size={20} />
                                             </div>
@@ -2477,225 +2495,30 @@ const SalesPage = () => {
                                             <div className="stat-value">{stats.followUp}</div>
                                             <div className="stat-footer">{timeLabel}</div>
                                         </div> */}
-                                    </div>
-                                );
-                            })()}
-
-                            {/* Visits Table */}
-                            {/* Sales Visits Table */}
-                            {activeDashboardTab === 'visits' && (
-                                <div className="visits-table-section">
-                                    <div className="section-header">
-                                        <h2>Sales Visits</h2>
-                                        <div className="table-controls">
-                                            <button className="export-btn" onClick={handleExportVisits}>
-                                                <Download size={18} /> Excel
-                                            </button>
-                                            <div className="table-search">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search visits..."
-                                                    value={dashboardSearchTerm}
-                                                    onChange={(e) => setDashboardSearchTerm(e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="dashboard-table-wrapper">
-                                        <table className="dashboard-table">
-                                            <thead>
-                                                <tr>
-                                                    <th className="mobile-hide">Date</th>
-                                                    <th>Customer</th>
-                                                    <th className="mobile-hide">Visit Type</th>
-                                                    <th className="mobile-hide">Notes</th>
-
-                                                    <th>Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {(() => {
-                                                    const visits = getFilteredVisits();
-                                                    if (visits.length === 0) {
-                                                        return (
-                                                            <tr>
-                                                                <td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
-                                                                    No data available in table
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    }
-
-                                                    // Pagination logic
-                                                    const indexOfLastVisit = currentVisitsPage * visitsPerPage;
-                                                    const indexOfFirstVisit = indexOfLastVisit - visitsPerPage;
-                                                    const currentVisits = visits.slice(indexOfFirstVisit, indexOfLastVisit);
-
-                                                    return currentVisits.map((visit, index) => (
-                                                        <tr key={visit._id || index}>
-                                                            <td className="mobile-hide">{formatDate(visit.date, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
-                                                            <td>
-                                                                <span
-                                                                    className="link"
-                                                                    onClick={() => {
-                                                                        const customer = customers.find(c => c._id === visit.customerId);
-                                                                        if (customer) handleSelectCustomer(customer);
-                                                                    }}
-                                                                    title="Go to Customer Chat"
-                                                                >
-                                                                    {visit.customerName}
-                                                                </span>
-                                                            </td>
-                                                            <td className="mobile-hide">{visit.purpose || '-'}</td>
-                                                            <td className="mobile-hide">{visit.notes ? (visit.notes.length > 50 ? visit.notes.substring(0, 50) + '...' : visit.notes) : '-'}</td>
-
-                                                            <td>
-                                                                <button
-                                                                    className="icon-btn-ghost"
-                                                                    onClick={() => handleViewVisit(visit)}
-                                                                    title="View Details"
-                                                                    disabled={loadingVisitId === visit._id}
-                                                                >
-                                                                    {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ));
-                                                })()}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    {/* Pagination Controls */}
-                                    {(() => {
-                                        const visits = getFilteredVisits();
-                                        const totalPages = Math.ceil(visits.length / visitsPerPage);
-
-                                        if (totalPages <= 1) return null;
-
-                                        const handlePageChange = (pageNumber) => {
-                                            setCurrentVisitsPage(pageNumber);
-                                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                                        };
-
-                                        return (
-                                            <div className="pagination-controls">
-                                                <button
-                                                    className="pagination-btn"
-                                                    onClick={() => handlePageChange(currentVisitsPage - 1)}
-                                                    disabled={currentVisitsPage === 1}
-                                                >
-                                                    ← Previous
-                                                </button>
-
-                                                <div className="pagination-pages">
-                                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                                                        <button
-                                                            key={pageNum}
-                                                            className={`pagination-page ${currentVisitsPage === pageNum ? 'active' : ''}`}
-                                                            onClick={() => handlePageChange(pageNum)}
-                                                        >
-                                                            {pageNum}
-                                                        </button>
-                                                    ))}
-                                                </div>
-
-                                                <button
-                                                    className="pagination-btn"
-                                                    onClick={() => handlePageChange(currentVisitsPage + 1)}
-                                                    disabled={currentVisitsPage === totalPages}
-                                                >
-                                                    Next →
-                                                </button>
-
-                                                <div className="pagination-info">
-                                                    Showing {((currentVisitsPage - 1) * visitsPerPage) + 1}-{Math.min(currentVisitsPage * visitsPerPage, visits.length)} of {visits.length} visits
-                                                </div>
                                             </div>
                                         );
                                     })()}
-                                </div>
-                            )}
 
-                            {/* Resources Table */}
-                            {activeDashboardTab === 'resources' && (
-                                <div className="visits-table-section">
-                                    <div className="section-header">
-                                        <h2>Resources</h2>
-                                        {activeResourceSubTab === 'client' && (
-                                            <div className="table-controls">
-                                                <button className="export-btn" onClick={handleExportResources}>
-                                                    <Download size={18} /> Excel
-                                                </button>
-                                                <div className="table-search">
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Search resources..."
-                                                        value={dashboardSearchTerm}
-                                                        onChange={(e) => setDashboardSearchTerm(e.target.value)}
-                                                    />
+                                    {/* Visits Table */}
+                                    {/* Sales Visits Table */}
+                                    {activeDashboardTab === 'visits' && (
+                                        <div className="visits-table-section">
+                                            <div className="section-header">
+                                                <h2>Sales Visits</h2>
+                                                <div className="table-controls">
+                                                    <button className="export-btn" onClick={handleExportVisits}>
+                                                        <Download size={18} /> Excel
+                                                    </button>
+                                                    <div className="table-search">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Search visits..."
+                                                            value={dashboardSearchTerm}
+                                                            onChange={(e) => setDashboardSearchTerm(e.target.value)}
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
-                                        )}
-                                        {activeResourceSubTab === 'team' && (
-                                            <div className="team-resources-controls">
-                                                <div className="resource-breadcrumbs">
-                                                    <span
-                                                        className="breadcrumb-item"
-                                                        onClick={() => {
-                                                            if (folderPath.length > 0) {
-                                                                // Navigate to root
-                                                                setCurrentFolderId(null);
-                                                                setFolderPath([]);
-                                                                setDashboardSearchTerm('');
-                                                            }
-                                                        }}
-                                                    >
-                                                        Home
-                                                    </span>
-                                                    {folderPath.map((folder, index) => (
-                                                        <React.Fragment key={folder.id}>
-                                                            <span className="breadcrumb-separator">/</span>
-                                                            <span
-                                                                className={`breadcrumb-item ${index === folderPath.length - 1 ? 'current' : ''}`}
-                                                                onClick={() => handleBreadcrumbClick(index)}
-                                                            >
-                                                                {folder.name}
-                                                            </span>
-                                                        </React.Fragment>
-                                                    ))}
-                                                </div>
-                                                <div className="team-resources-actions">
-                                                    <button className="icon-action-btn secondary" onClick={() => setShowAddFolderModal(true)}>
-                                                        <FolderPlus size={16} /> <span className="mobile-hide-text">Add Folder</span>
-                                                    </button>
-                                                    <button className="icon-action-btn primary" onClick={() => setShowDashboardUploadModal(true)}>
-                                                        <Upload size={16} /> <span className="mobile-hide-text">Upload</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="dashboard-sub-tabs">
-                                        <button
-                                            className={`sub-tab-btn ${activeResourceSubTab === 'client' ? 'active' : ''}`}
-                                            onClick={() => setActiveResourceSubTab('client')}
-                                        >
-                                            Client Updates
-                                        </button>
-                                        <button
-                                            className={`sub-tab-btn ${activeResourceSubTab === 'team' ? 'active' : ''}`}
-                                            onClick={() => setActiveResourceSubTab('team')}
-                                        >
-                                            Team Files
-                                        </button>
-                                    </div>
-
-                                    {activeResourceSubTab === 'client' && (
-                                        <>
-
 
                                             <div className="dashboard-table-wrapper">
                                                 <table className="dashboard-table">
@@ -2703,84 +2526,57 @@ const SalesPage = () => {
                                                         <tr>
                                                             <th className="mobile-hide">Date</th>
                                                             <th>Customer</th>
-                                                            <th>Type</th>
-                                                            <th className="mobile-hide">Description</th>
+                                                            <th className="mobile-hide">Visit Type</th>
+                                                            <th className="mobile-hide">Notes</th>
+
                                                             <th>Action</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
                                                         {(() => {
-                                                            const resources = getFilteredResources();
-                                                            if (resources.length === 0) {
+                                                            const visits = getFilteredVisits();
+                                                            if (visits.length === 0) {
                                                                 return (
                                                                     <tr>
-                                                                        <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>
-                                                                            No resources found
+                                                                        <td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
+                                                                            No data available in table
                                                                         </td>
                                                                     </tr>
                                                                 );
                                                             }
-                                                            return resources.map((resource, index) => (
-                                                                <tr key={resource._id || index}>
-                                                                    <td className="mobile-hide">{formatDate(resource.date || resource.createdAt, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
-                                                                    <td>{resource.customerName}</td>
-                                                                    <td>{resource.resourceType || '-'}</td>
-                                                                    <td className="mobile-hide">{resource.description || resource.notes || '-'}</td>
+
+                                                            // Pagination logic
+                                                            const indexOfLastVisit = currentVisitsPage * visitsPerPage;
+                                                            const indexOfFirstVisit = indexOfLastVisit - visitsPerPage;
+                                                            const currentVisits = visits.slice(indexOfFirstVisit, indexOfLastVisit);
+
+                                                            return currentVisits.map((visit, index) => (
+                                                                <tr key={visit._id || index}>
+                                                                    <td className="mobile-hide">{formatDate(visit.date, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
                                                                     <td>
-                                                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                                                            <button
-                                                                                className="icon-btn-ghost"
-                                                                                title="View Details"
-                                                                                onClick={() => {
-                                                                                    setResourceForm({
-                                                                                        ...resourceForm,
-                                                                                        _id: resource._id,
-                                                                                        customerId: resource.customerId,
-                                                                                        customer: resource.customerName,
-                                                                                        date: resource.date ? resource.date.split('T')[0] : '', // Format date for input
-                                                                                        resourceType: resource.resourceType,
-                                                                                        status: resource.status,
-                                                                                        description: resource.description,
-                                                                                        notes: resource.notes,
-                                                                                        image: resource.image || resource.content
-                                                                                    });
-                                                                                    setEditingResource(resource);
-                                                                                    setIsViewingResource(true);
-                                                                                    setShowResourceModal(true);
-                                                                                }}
-                                                                            >
-                                                                                <Eye size={16} />
-                                                                            </button>
-                                                                            {(Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : ((resource.image || resource.content) ? [resource.image || resource.content] : [])).length > 0 && ( /* Check if attachments exist */
-                                                                                <button
-                                                                                    className="icon-btn-ghost"
-                                                                                    title="View Attachments"
-                                                                                    onClick={() => {
-                                                                                        const img = (Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : [resource.image || resource.content])[0];
-                                                                                        if (img) setFullScreenImage(img);
-                                                                                    }}
-                                                                                    disabled={loadingResourceId === resource._id}
-                                                                                >
-                                                                                    {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Paperclip size={16} />}
-                                                                                </button>
-                                                                            )}
-                                                                            {resource.url ? (
-                                                                                <a href={resource.url} target="_blank" rel="noopener noreferrer" className="icon-btn-ghost" title="Open Link">
-                                                                                    <Link size={16} />
-                                                                                </a>
-                                                                            ) : (resource.image) ? (
-                                                                                <button
-                                                                                    className="icon-btn-ghost"
-                                                                                    title="Download"
-                                                                                    onClick={() => {
-                                                                                        const img = (Array.isArray(resource.image) ? resource.image : [resource.image])[0];
-                                                                                        if (img) handleDashboardDownload({ content: img, name: `Resource-${resource.date}.jpg`, type: 'file' });
-                                                                                    }}
-                                                                                >
-                                                                                    <Download size={16} />
-                                                                                </button>
-                                                                            ) : null}
-                                                                        </div>
+                                                                        <span
+                                                                            className="link"
+                                                                            onClick={() => {
+                                                                                const customer = customers.find(c => c._id === visit.customerId);
+                                                                                if (customer) handleSelectCustomer(customer);
+                                                                            }}
+                                                                            title="Go to Customer Chat"
+                                                                        >
+                                                                            {visit.customerName}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="mobile-hide">{visit.purpose || '-'}</td>
+                                                                    <td className="mobile-hide">{visit.notes ? (visit.notes.length > 50 ? visit.notes.substring(0, 50) + '...' : visit.notes) : '-'}</td>
+
+                                                                    <td>
+                                                                        <button
+                                                                            className="icon-btn-ghost"
+                                                                            onClick={() => handleViewVisit(visit)}
+                                                                            title="View Details"
+                                                                            disabled={loadingVisitId === visit._id}
+                                                                        >
+                                                                            {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
+                                                                        </button>
                                                                     </td>
                                                                 </tr>
                                                             ));
@@ -2788,56 +2584,280 @@ const SalesPage = () => {
                                                     </tbody>
                                                 </table>
                                             </div>
-                                        </>
+
+                                            {/* Pagination Controls */}
+                                            {(() => {
+                                                const visits = getFilteredVisits();
+                                                const totalPages = Math.ceil(visits.length / visitsPerPage);
+
+                                                if (totalPages <= 1) return null;
+
+                                                const handlePageChange = (pageNumber) => {
+                                                    setCurrentVisitsPage(pageNumber);
+                                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                };
+
+                                                return (
+                                                    <div className="pagination-controls">
+                                                        <button
+                                                            className="pagination-btn"
+                                                            onClick={() => handlePageChange(currentVisitsPage - 1)}
+                                                            disabled={currentVisitsPage === 1}
+                                                        >
+                                                            ← Previous
+                                                        </button>
+
+                                                        <div className="pagination-pages">
+                                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                                                                <button
+                                                                    key={pageNum}
+                                                                    className={`pagination-page ${currentVisitsPage === pageNum ? 'active' : ''}`}
+                                                                    onClick={() => handlePageChange(pageNum)}
+                                                                >
+                                                                    {pageNum}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+
+                                                        <button
+                                                            className="pagination-btn"
+                                                            onClick={() => handlePageChange(currentVisitsPage + 1)}
+                                                            disabled={currentVisitsPage === totalPages}
+                                                        >
+                                                            Next →
+                                                        </button>
+
+                                                        <div className="pagination-info">
+                                                            Showing {((currentVisitsPage - 1) * visitsPerPage) + 1}-{Math.min(currentVisitsPage * visitsPerPage, visits.length)} of {visits.length} visits
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
                                     )}
 
-                                    {activeResourceSubTab === 'team' && (
-                                        <div className="team-resources-content">
-
-
-                                            <div className="dashboard-resources-grid">
-                                                {/* Back Folder */}
-                                                {folderPath.length > 0 && (
-                                                    <div
-                                                        className="dashboard-resource-card folder"
-                                                        onClick={() => handleBreadcrumbClick(folderPath.length - 2)}
-                                                    >
-                                                        <div className="resource-icon">
-                                                            <Folder size={40} />
+                                    {/* Resources Table */}
+                                    {activeDashboardTab === 'resources' && (
+                                        <div className="visits-table-section">
+                                            <div className="section-header">
+                                                <h2>Resources</h2>
+                                                {activeResourceSubTab === 'client' && (
+                                                    <div className="table-controls">
+                                                        <button className="export-btn" onClick={handleExportResources}>
+                                                            <Download size={18} /> Excel
+                                                        </button>
+                                                        <div className="table-search">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Search resources..."
+                                                                value={dashboardSearchTerm}
+                                                                onChange={(e) => setDashboardSearchTerm(e.target.value)}
+                                                            />
                                                         </div>
-                                                        <div className="resource-name">..</div>
                                                     </div>
                                                 )}
-
-                                                {/* Resources */}
-                                                {salesResources.filter(r => !dashboardSearchTerm || r.name.toLowerCase().includes(dashboardSearchTerm.toLowerCase())).map(resource => (
-                                                    <div
-                                                        key={resource._id}
-                                                        className={`dashboard-resource-card ${resource.type}`}
-                                                        onClick={() => resource.type === 'folder' ? handleFolderClick(resource) : handleFileClick(resource)}
-                                                    >
-                                                        <div className="resource-icon">
-                                                            {resource.type === 'folder' ? (
-                                                                <Folder size={40} />
-                                                            ) : (
-                                                                <FileText size={40} />
-                                                            )}
+                                                {activeResourceSubTab === 'team' && (
+                                                    <div className="team-resources-controls">
+                                                        <div className="resource-breadcrumbs">
+                                                            <span
+                                                                className="breadcrumb-item"
+                                                                onClick={() => {
+                                                                    if (folderPath.length > 0) {
+                                                                        // Navigate to root
+                                                                        setCurrentFolderId(null);
+                                                                        setFolderPath([]);
+                                                                        setDashboardSearchTerm('');
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Home
+                                                            </span>
+                                                            {folderPath.map((folder, index) => (
+                                                                <React.Fragment key={folder.id}>
+                                                                    <span className="breadcrumb-separator">/</span>
+                                                                    <span
+                                                                        className={`breadcrumb-item ${index === folderPath.length - 1 ? 'current' : ''}`}
+                                                                        onClick={() => handleBreadcrumbClick(index)}
+                                                                    >
+                                                                        {folder.name}
+                                                                    </span>
+                                                                </React.Fragment>
+                                                            ))}
                                                         </div>
-                                                        <div className="resource-name" title={resource.name}>
-                                                            {resource.name}
+                                                        <div className="team-resources-actions">
+                                                            <button className="icon-action-btn secondary" onClick={() => setShowAddFolderModal(true)}>
+                                                                <FolderPlus size={16} /> <span className="mobile-hide-text">Add Folder</span>
+                                                            </button>
+                                                            <button className="icon-action-btn primary" onClick={() => setShowDashboardUploadModal(true)}>
+                                                                <Upload size={16} /> <span className="mobile-hide-text">Upload</span>
+                                                            </button>
                                                         </div>
-                                                    </div>
-                                                ))}
-
-                                                {salesResources.length === 0 && (
-                                                    <div style={{ padding: '2rem', gridColumn: '1 / -1', textAlign: 'center', color: '#6B7280' }}>
-                                                        No files or folders found
                                                     </div>
                                                 )}
                                             </div>
+
+                                            <div className="dashboard-sub-tabs">
+                                                <button
+                                                    className={`sub-tab-btn ${activeResourceSubTab === 'client' ? 'active' : ''}`}
+                                                    onClick={() => setActiveResourceSubTab('client')}
+                                                >
+                                                    Client Updates
+                                                </button>
+                                                <button
+                                                    className={`sub-tab-btn ${activeResourceSubTab === 'team' ? 'active' : ''}`}
+                                                    onClick={() => setActiveResourceSubTab('team')}
+                                                >
+                                                    Team Files
+                                                </button>
+                                            </div>
+
+                                            {activeResourceSubTab === 'client' && (
+                                                <>
+
+
+                                                    <div className="dashboard-table-wrapper">
+                                                        <table className="dashboard-table">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th className="mobile-hide">Date</th>
+                                                                    <th>Customer</th>
+                                                                    <th>Type</th>
+                                                                    <th className="mobile-hide">Description</th>
+                                                                    <th>Action</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {(() => {
+                                                                    const resources = getFilteredResources();
+                                                                    if (resources.length === 0) {
+                                                                        return (
+                                                                            <tr>
+                                                                                <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>
+                                                                                    No resources found
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    }
+                                                                    return resources.map((resource, index) => (
+                                                                        <tr key={resource._id || index}>
+                                                                            <td className="mobile-hide">{formatDate(resource.date || resource.createdAt, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
+                                                                            <td>{resource.customerName}</td>
+                                                                            <td>{resource.resourceType || '-'}</td>
+                                                                            <td className="mobile-hide">{resource.description || resource.notes || '-'}</td>
+                                                                            <td>
+                                                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                                                    <button
+                                                                                        className="icon-btn-ghost"
+                                                                                        title="View Details"
+                                                                                        onClick={() => {
+                                                                                            setResourceForm({
+                                                                                                ...resourceForm,
+                                                                                                _id: resource._id,
+                                                                                                customerId: resource.customerId,
+                                                                                                customer: resource.customerName,
+                                                                                                date: resource.date ? resource.date.split('T')[0] : '', // Format date for input
+                                                                                                resourceType: resource.resourceType,
+                                                                                                status: resource.status,
+                                                                                                description: resource.description,
+                                                                                                notes: resource.notes,
+                                                                                                image: resource.image || resource.content
+                                                                                            });
+                                                                                            setEditingResource(resource);
+                                                                                            setIsViewingResource(true);
+                                                                                            setShowResourceModal(true);
+                                                                                        }}
+                                                                                    >
+                                                                                        <Eye size={16} />
+                                                                                    </button>
+                                                                                    {(Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : ((resource.image || resource.content) ? [resource.image || resource.content] : [])).length > 0 && ( /* Check if attachments exist */
+                                                                                        <button
+                                                                                            className="icon-btn-ghost"
+                                                                                            title="View Attachments"
+                                                                                            onClick={() => {
+                                                                                                const img = (Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : [resource.image || resource.content])[0];
+                                                                                                if (img) setFullScreenImage(img);
+                                                                                            }}
+                                                                                            disabled={loadingResourceId === resource._id}
+                                                                                        >
+                                                                                            {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                                                                                        </button>
+                                                                                    )}
+                                                                                    {resource.url ? (
+                                                                                        <a href={resource.url} target="_blank" rel="noopener noreferrer" className="icon-btn-ghost" title="Open Link">
+                                                                                            <Link size={16} />
+                                                                                        </a>
+                                                                                    ) : (resource.image) ? (
+                                                                                        <button
+                                                                                            className="icon-btn-ghost"
+                                                                                            title="Download"
+                                                                                            onClick={() => {
+                                                                                                const img = (Array.isArray(resource.image) ? resource.image : [resource.image])[0];
+                                                                                                if (img) handleDashboardDownload({ content: img, name: `Resource-${resource.date}.jpg`, type: 'file' });
+                                                                                            }}
+                                                                                        >
+                                                                                            <Download size={16} />
+                                                                                        </button>
+                                                                                    ) : null}
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ));
+                                                                })()}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            {activeResourceSubTab === 'team' && (
+                                                <div className="team-resources-content">
+
+
+                                                    <div className="dashboard-resources-grid">
+                                                        {/* Back Folder */}
+                                                        {folderPath.length > 0 && (
+                                                            <div
+                                                                className="dashboard-resource-card folder"
+                                                                onClick={() => handleBreadcrumbClick(folderPath.length - 2)}
+                                                            >
+                                                                <div className="resource-icon">
+                                                                    <Folder size={40} />
+                                                                </div>
+                                                                <div className="resource-name">..</div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Resources */}
+                                                        {salesResources.filter(r => !dashboardSearchTerm || r.name.toLowerCase().includes(dashboardSearchTerm.toLowerCase())).map(resource => (
+                                                            <div
+                                                                key={resource._id}
+                                                                className={`dashboard-resource-card ${resource.type}`}
+                                                                onClick={() => resource.type === 'folder' ? handleFolderClick(resource) : handleFileClick(resource)}
+                                                            >
+                                                                <div className="resource-icon">
+                                                                    {resource.type === 'folder' ? (
+                                                                        <Folder size={40} />
+                                                                    ) : (
+                                                                        <FileText size={40} />
+                                                                    )}
+                                                                </div>
+                                                                <div className="resource-name" title={resource.name}>
+                                                                    {resource.name}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+
+                                                        {salesResources.length === 0 && (
+                                                            <div style={{ padding: '2rem', gridColumn: '1 / -1', textAlign: 'center', color: '#6B7280' }}>
+                                                                No files or folders found
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
-                                </div>
+                                </>
                             )}
                         </div>
                     )
