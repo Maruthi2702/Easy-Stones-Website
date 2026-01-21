@@ -2552,12 +2552,12 @@
 }
 
 .post-detail-row.follow-up {
-    background: rgba(168, 85, 247, 0.1);
-    border: 1px solid rgba(168, 85, 247, 0.2);
+    background: rgba(59, 130, 246, 0.1); /* Blue background */
+    border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .post-detail-row.follow-up .detail-label {
-    color: #a855f7;
+    color: #3b82f6; /* Blue label */
     font-weight: 600;
 }
 
