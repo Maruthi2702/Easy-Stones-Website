@@ -622,13 +622,14 @@
     }
 
     .time-range-filters {
-        overflow-x: auto;
-        padding-bottom: 0.5rem;
-        gap: 1.5rem;
+        flex-wrap: wrap;
+        overflow-x: visible;
+        padding: 0.5rem;
+        gap: 1rem;
         border-bottom: 1px solid var(--border-color);
-        width: calc(100% + 2rem);
-        margin-left: -1rem;
-        padding-left: 1rem;
+        width: 100%;
+        margin-left: 0;
+        box-sizing: border-box; /* Ensure padding doesn't overflow width */
     }
     
     .stats-grid {
