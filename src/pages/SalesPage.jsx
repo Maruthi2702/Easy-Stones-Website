@@ -4,7 +4,7 @@ import {
     Calendar, MapPin, Phone, Mail, Clock, Plus, Search,
     Filter, X, Upload, Home, ArrowLeft,
     CheckCircle, MessageSquare, Heart, ThumbsUp, Send, User, Menu,
-    Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft,
+    Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft, ChevronRight,
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
     CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus, Folder, Link,
     LayoutDashboard
