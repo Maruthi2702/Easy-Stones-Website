@@ -3109,7 +3109,11 @@ const SalesPage = () => {
                             <div className="modal-body">
                                 <div className="visit-details-grid">
                                     <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Client *</div>
+                                        <div className="visit-detail-label">Date</div>
+                                        <div className="visit-detail-value">{formatDate(visitForm.date)}</div>
+                                    </div>
+                                    <div className="visit-detail-item">
+                                        <div className="visit-detail-label">Customer</div>
                                         <div className="visit-detail-value">
                                             {(() => {
                                                 if (selectedCustomer) return selectedCustomer.company || selectedCustomer.contactName;
@@ -3119,12 +3123,14 @@ const SalesPage = () => {
                                         </div>
                                     </div>
                                     <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Date *</div>
-                                        <div className="visit-detail-value">{formatDate(visitForm.date)}</div>
-                                    </div>
-                                    <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Purpose</div>
+                                        <div className="visit-detail-label">Visit Type</div>
                                         <div className="visit-detail-value">{visitForm.purpose || '-'}</div>
+                                    </div>
+                                    <div className="visit-detail-item full-width">
+                                        <div className="visit-detail-label">Notes</div>
+                                        <div className="visit-detail-value" style={{ border: 'none', background: 'none', padding: 0, color: 'var(--text-primary)' }}>
+                                            {visitForm.notes || 'No notes available.'}
+                                        </div>
                                     </div>
                                     <div className="visit-detail-item">
                                         <div className="visit-detail-label">Outcome</div>
@@ -3134,6 +3140,37 @@ const SalesPage = () => {
                                         <div className="visit-detail-label">Follow Up</div>
                                         <div className="visit-detail-value">{visitForm.followUp || visitForm.nextAction || '-'}</div>
                                     </div>
+                                    <div className="visit-detail-item full-width">
+                                        <div className="visit-detail-label">Attachments</div>
+                                        {console.log('[DEBUG MODAL] visitForm.image:', visitForm.image)}
+                                        {(visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).length > 0) ? (
+                                            <div className="visit-attachments-grid" style={{ marginTop: '0.5rem' }}>
+                                                {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
+                                                    <div key={idx} className="attachment-preview-card">
+                                                        {img.startsWith('data:application/pdf') ? (
+                                                            <div
+                                                                className="attachment-pdf"
+                                                                onClick={() => handleDashboardDownload({ content: img, name: `Visit-Doc-${idx}.pdf`, type: 'file' })}
+                                                            >
+                                                                <FileText size={32} />
+                                                                <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: 600 }}>PDF</span>
+                                                            </div>
+                                                        ) : (
+                                                            <img
+                                                                src={img}
+                                                                alt="Preview"
+                                                                className="attachment-img"
+                                                                onClick={() => setFullScreenImage(img)}
+                                                                style={{ borderRadius: '8px', cursor: 'pointer' }}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="visit-detail-value">-</div>
+                                        )}
+                                    </div>
                                     <div className="visit-detail-item">
                                         <div className="visit-detail-label">Manager Comment</div>
                                         <div className="visit-detail-value">{visitForm.managerComment || '-'}</div>
@@ -3142,44 +3179,6 @@ const SalesPage = () => {
                                         <div className="visit-detail-label">Headquarters Comment</div>
                                         <div className="visit-detail-value">{visitForm.headquartersComment || '-'}</div>
                                     </div>
-                                </div>
-
-                                <div className="visit-notes-section">
-                                    <div className="visit-detail-label">Notes</div>
-                                    <div className="visit-notes-box">
-                                        {visitForm.notes || 'No notes available.'}
-                                    </div>
-                                </div>
-
-                                <div className="visit-attachments-section">
-                                    <div className="visit-detail-label">Attachments</div>
-                                    {console.log('[DEBUG MODAL] visitForm.image:', visitForm.image, 'Type:', typeof visitForm.image, 'IsArray:', Array.isArray(visitForm.image))}
-                                    {(visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).length > 0) ? (
-                                        <div className="visit-attachments-grid">
-                                            {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
-                                                <div key={idx} className="attachment-preview-card">
-                                                    {img.startsWith('data:application/pdf') ? (
-                                                        <div
-                                                            className="attachment-pdf"
-                                                            onClick={() => handleDashboardDownload({ content: img, name: `Visit-Doc-${idx}.pdf`, type: 'file' })}
-                                                        >
-                                                            <FileText size={32} />
-                                                            <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: 600 }}>PDF</span>
-                                                        </div>
-                                                    ) : (
-                                                        <img
-                                                            src={img}
-                                                            alt="Preview"
-                                                            className="attachment-img"
-                                                            onClick={() => setFullScreenImage(img)}
-                                                        />
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="visit-detail-value">-</div>
-                                    )}
                                 </div>
                             </div>
                         </div>

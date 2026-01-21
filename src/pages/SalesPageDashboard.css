@@ -506,6 +506,10 @@
     gap: 0.5rem;
 }
 
+.visit-detail-item.full-width {
+    grid-column: 1 / -1;
+}
+
 .visit-detail-label {
     font-size: 0.7rem;
     font-weight: 700;
