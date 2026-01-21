@@ -201,6 +201,8 @@ const SalesPage = () => {
     const [expandedResourceId, setExpandedResourceId] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [fullScreenImage, setFullScreenImage] = useState(null);
+    const [fullScreenGallery, setFullScreenGallery] = useState([]);
+    const [fullScreenIndex, setFullScreenIndex] = useState(0);
     const [activeReactionMessageId, setActiveReactionMessageId] = useState(null);
     const [visitsLoading, setVisitsLoading] = useState(false);
 
@@ -1407,6 +1409,38 @@ const SalesPage = () => {
         }));
     };
 
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (!fullScreenImage) return;
+            if (e.key === 'ArrowRight') handleNextImage();
+            if (e.key === 'ArrowLeft') handlePrevImage();
+            if (e.key === 'Escape') setFullScreenImage(null);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [fullScreenImage, fullScreenIndex, fullScreenGallery]);
+
+    const handleOpenGallery = (images, index) => {
+        const imageList = Array.isArray(images) ? images : [images];
+        setFullScreenGallery(imageList);
+        setFullScreenIndex(index);
+        setFullScreenImage(imageList[index]);
+    };
+
+    const handleNextImage = () => {
+        if (fullScreenGallery.length <= 1) return;
+        const nextIndex = (fullScreenIndex + 1) % fullScreenGallery.length;
+        setFullScreenIndex(nextIndex);
+        setFullScreenImage(fullScreenGallery[nextIndex]);
+    };
+
+    const handlePrevImage = () => {
+        if (fullScreenGallery.length <= 1) return;
+        const prevIndex = (fullScreenIndex - 1 + fullScreenGallery.length) % fullScreenGallery.length;
+        setFullScreenIndex(prevIndex);
+        setFullScreenImage(fullScreenGallery[prevIndex]);
+    };
+
     // Resource Image/File upload handler
     const handleImageUpload = async (e) => {
         const files = Array.from(e.target.files);
@@ -2080,7 +2114,7 @@ const SalesPage = () => {
                                                                                             <div
                                                                                                 key={idx}
                                                                                                 className="post-image-wrapper"
-                                                                                                onClick={() => setFullScreenImage(img)}
+                                                                                                onClick={() => handleOpenGallery(visit.image, idx)}
                                                                                             >
                                                                                                 {img.startsWith('data:application/pdf') ? (
                                                                                                     <div className="pdf-attachment-card">
@@ -3468,14 +3502,28 @@ const SalesPage = () => {
                 )
             }
 
-            {/* Full Screen Image/File Modal */}
             {
                 fullScreenImage && (
-                    <div className="fullscreen-image-overlay" onClick={() => setFullScreenImage(null)}>
+                    <div className="fullscreen-image-overlay" onClick={() => { setFullScreenImage(null); setFullScreenGallery([]); }}>
                         <div className="fullscreen-image-container" onClick={(e) => e.stopPropagation()} style={{ width: fullScreenImage.startsWith('data:application/pdf') ? '80%' : 'auto', height: fullScreenImage.startsWith('data:application/pdf') ? '90%' : 'auto', maxWidth: '90%', maxHeight: '90%' }}>
-                            <button className="fullscreen-close-btn" onClick={() => setFullScreenImage(null)}>
+                            <button className="fullscreen-close-btn" onClick={() => { setFullScreenImage(null); setFullScreenGallery([]); }}>
                                 <X size={32} />
                             </button>
+
+                            {fullScreenGallery.length > 1 && (
+                                <>
+                                    <button className="gallery-nav-btn prev" onClick={(e) => { e.stopPropagation(); handlePrevImage(); }}>
+                                        <ChevronLeft size={48} />
+                                    </button>
+                                    <button className="gallery-nav-btn next" onClick={(e) => { e.stopPropagation(); handleNextImage(); }}>
+                                        <ChevronRight size={48} />
+                                    </button>
+                                    <div className="gallery-index-indicator">
+                                        {fullScreenIndex + 1} / {fullScreenGallery.length}
+                                    </div>
+                                </>
+                            )}
+
                             {fullScreenImage.startsWith('data:application/pdf') ? (
                                 <iframe src={fullScreenImage} style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} title="PDF Preview"></iframe>
                             ) : (
