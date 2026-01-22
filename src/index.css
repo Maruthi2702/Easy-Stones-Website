@@ -116,3 +116,13 @@ button {
     transform: translateY(0);
   }
 }
+
+/* Fix for iOS mobile auto-zoom on input focus */
+@media screen and (max-width: 768px) {
+  input, 
+  select, 
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
