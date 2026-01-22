@@ -2561,6 +2561,16 @@
     font-weight: 600;
 }
 
+.post-detail-row.manager-comment, .post-detail-row.hq-comment {
+    background: rgba(239, 68, 68, 0.15); /* Red background */
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.post-detail-row.manager-comment .detail-label, .post-detail-row.hq-comment .detail-label {
+    color: #ef4444; /* Bright red label */
+    font-weight: 600;
+}
+
 .post-detail-row .detail-value {
     color: #e0e0e0;
 }

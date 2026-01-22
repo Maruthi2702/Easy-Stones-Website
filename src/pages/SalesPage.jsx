@@ -7,7 +7,7 @@ import {
     Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft, ChevronRight,
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
     CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus, Folder, Link,
-    LayoutDashboard
+    LayoutDashboard, Pencil
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -229,6 +229,7 @@ const SalesPage = () => {
         isOpen: false,
         type: '', // 'contact', 'visit', 'resource'
         id: null,
+        customerId: null,
         message: ''
     });
     const [dashboardUploadForm, setDashboardUploadForm] = useState({
@@ -326,6 +327,18 @@ const SalesPage = () => {
         try {
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return 'Invalid Date';
+
+            // Check if it's a date-only string (YYYY-MM-DD or midnight UTC)
+            // If it's a pure date (midnight UTC), use UTC timezone for formatting to avoid shift
+            const isMidnightUTC = date.getUTCHours() === 0 &&
+                date.getUTCMinutes() === 0 &&
+                date.getUTCSeconds() === 0 &&
+                date.getUTCMilliseconds() === 0;
+
+            if (isMidnightUTC) {
+                return date.toLocaleString('en-US', { ...options, timeZone: 'UTC' });
+            }
+
             return date.toLocaleString('en-US', options);
         } catch (e) {
             console.error('Date parsing error:', e);
@@ -571,31 +584,40 @@ const SalesPage = () => {
     };
 
     const confirmDelete = async () => {
-        const { type, id } = deleteConfirmation;
-        setDeleteConfirmation({ isOpen: false, type: '', id: null, message: '' });
+        const { type, id, customerId } = deleteConfirmation;
+        // Use the customerId from state, or fallback to selectedCustomerId for legacy calls
+        const targetCustomerId = customerId || selectedCustomerId;
+
+        setDeleteConfirmation({ isOpen: false, type: '', id: null, customerId: null, message: '' });
+
+        if (!targetCustomerId) {
+            console.error('No customer ID provided for deletion');
+            alert(`Failed to delete ${type}: Missing customer information`);
+            return;
+        }
 
         try {
             let response;
 
             if (type === 'contact') {
-                response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/contacts/${id}`, {
+                response = await fetch(`${API_URL}/api/customers/${targetCustomerId}/contacts/${id}`, {
                     method: 'DELETE',
                     credentials: 'include'
                 });
             } else if (type === 'visit') {
-                response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/visits/${id}`, {
+                response = await fetch(`${API_URL}/api/customers/${targetCustomerId}/visits/${id}`, {
                     method: 'DELETE',
                     credentials: 'include'
                 });
             } else if (type === 'resource') {
-                response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/resources/${id}`, {
+                response = await fetch(`${API_URL}/api/customers/${targetCustomerId}/resources/${id}`, {
                     method: 'DELETE',
                     credentials: 'include'
                 });
             }
 
             if (response && response.ok) {
-                await fetchSingleCustomer(selectedCustomerId);
+                await fetchSingleCustomer(targetCustomerId);
             } else {
                 alert(`Failed to delete ${type}`);
             }
@@ -606,7 +628,7 @@ const SalesPage = () => {
     };
 
     const cancelDelete = () => {
-        setDeleteConfirmation({ isOpen: false, type: '', id: null, message: '' });
+        setDeleteConfirmation({ isOpen: false, type: '', id: null, customerId: null, message: '' });
     };
 
     const handleSaveQuickNote = async () => {
@@ -981,8 +1003,13 @@ const SalesPage = () => {
     const handleQuickAddVisit = () => {
         setEditingVisit(null);
         setIsViewingVisit(false);
+
+        // Get local YYYY-MM-DD
+        const now = new Date();
+        const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+
         setVisitForm({
-            date: new Date().toISOString().split('T')[0],
+            date: localDate,
             purpose: '',
             notes: '',
             outcome: '',
@@ -994,13 +1021,17 @@ const SalesPage = () => {
         });
         setShowVisitModal(true);
     };
-
     const handleQuickAddResource = () => {
         setEditingResource(null);
         setIsViewingResource(false);
+
+        // Get local YYYY-MM-DD
+        const now = new Date();
+        const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+
         setResourceForm({
             title: '',
-            date: new Date().toISOString().split('T')[0],
+            date: localDate,
             customerId: '',
             customer: '',
             location: '',
@@ -1016,11 +1047,12 @@ const SalesPage = () => {
     };
 
 
-    const handleDeleteVisit = async (visitId) => {
+    const handleDeleteVisit = async (visitId, customerId = null) => {
         setDeleteConfirmation({
             isOpen: true,
             type: 'visit',
             id: visitId,
+            customerId: customerId || selectedCustomerId,
             message: 'Are you sure you want to delete this visit?'
         });
     };
@@ -1241,11 +1273,12 @@ const SalesPage = () => {
         }
     };
 
-    const handleDeleteResource = async (resourceId) => {
+    const handleDeleteResource = async (resourceId, customerId = null) => {
         setDeleteConfirmation({
             isOpen: true,
             type: 'resource',
             id: resourceId,
+            customerId: customerId || selectedCustomerId,
             message: 'Are you sure you want to delete this resource?'
         });
     };
@@ -1508,25 +1541,38 @@ const SalesPage = () => {
     // Dashboard Helpers
     const getDashboardDateRange = () => {
         const now = new Date();
-        const start = new Date();
+        // Create a local date string YYYY-MM-DD
+        const localDateStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+
+        let start;
 
         switch (dashboardTimeRange) {
             case '1day':
-                start.setHours(0, 0, 0, 0); // Start of today
+                // Use UTC midnight of the local today (matches visit storage format)
+                start = new Date(`${localDateStr}T00:00:00.000Z`);
                 break;
             case '7days':
+                start = new Date();
                 start.setDate(now.getDate() - 7);
+                // Adjust to UTC midnight of that day
+                const sevenDaysAgoStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                start = new Date(`${sevenDaysAgoStr}T00:00:00.000Z`);
                 break;
             case '30days':
+                start = new Date();
                 start.setDate(now.getDate() - 30);
+                const thirtyDaysAgoStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                start = new Date(`${thirtyDaysAgoStr}T00:00:00.000Z`);
                 break;
             case 'year':
-                start.setFullYear(now.getFullYear(), 0, 1); // Start of current year
+                start = new Date(now.getFullYear(), 0, 1);
+                const yearStartStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                start = new Date(`${yearStartStr}T00:00:00.000Z`);
                 break;
             case 'all':
                 return null;
             default:
-                start.setHours(0, 0, 0, 0);
+                start = new Date(`${localDateStr}T00:00:00.000Z`);
         }
         return start;
     };
@@ -1551,12 +1597,13 @@ const SalesPage = () => {
         return allVisits.filter(v => {
             const visitDate = new Date(v.date);
             const dateMatch = !startDate || visitDate >= startDate;
+            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || v.createdBy === currentUserId;
             const searchMatch = !dashboardSearchTerm ||
                 (v.customerName?.toLowerCase().includes(searchLower)) ||
                 (v.notes?.toLowerCase().includes(searchLower)) ||
                 (v.purpose?.toLowerCase().includes(searchLower));
 
-            return dateMatch && searchMatch;
+            return dateMatch && userMatch && searchMatch;
         }).sort((a, b) => new Date(b.date) - new Date(a.date));
     };
 
@@ -1577,31 +1624,35 @@ const SalesPage = () => {
         return allResources.filter(r => {
             const resourceDate = new Date(r.date || r.createdAt);
             const dateMatch = !startDate || resourceDate >= startDate;
+            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || (r.uploadedBy || r.createdBy) === currentUserId;
             const searchMatch = !dashboardSearchTerm ||
                 (r.customerName?.toLowerCase().includes(searchLower)) ||
                 (r.description?.toLowerCase().includes(searchLower)) ||
                 (r.resourceType?.toLowerCase().includes(searchLower)) ||
                 (r.notes?.toLowerCase().includes(searchLower));
 
-            return dateMatch && searchMatch;
+            return dateMatch && userMatch && searchMatch;
         }).sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
     };
 
     const getStats = () => {
         const startDate = getDashboardDateRange();
         const allVisits = getAllVisits();
-        const allResources = customers.flatMap(c => c.resources || []);
+        const allResources = customers.flatMap(c => (c.resources || []).map(r => ({ ...r, customerId: c._id })));
 
-        const filterByDate = (items) => {
-            if (!startDate) return items;
-            return items.filter(item => new Date(item.date || item.createdAt) >= startDate);
+        const filterByDateAndUser = (items) => {
+            return items.filter(item => {
+                const dateMatch = !startDate || new Date(item.date || item.createdAt) >= startDate;
+                const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || (item.uploadedBy || item.createdBy) === currentUserId;
+                return dateMatch && userMatch;
+            });
         };
 
-        const visitsInRange = filterByDate(allVisits);
-        const resourcesInRange = filterByDate(allResources);
+        const filteredVisits = filterByDateAndUser(allVisits);
+        const filteredResources = filterByDateAndUser(allResources);
 
         // Key Visits: Outcome implies a sale or order
-        const keyVisits = visitsInRange.filter(v => {
+        const keyVisits = filteredVisits.filter(v => {
             const outcome = (v.outcome || '').toLowerCase();
             const notes = (v.notes || '').toLowerCase();
             return outcome.includes('order') || outcome.includes('sale') || outcome.includes('sold') || outcome.includes('deposit') ||
@@ -1611,20 +1662,20 @@ const SalesPage = () => {
         // Bids: Placeholder for now as there is no specific field
         // We could look for "Bid" or "Quote" in notes if desired, but user agreed to placeholder 0 or generic logic.
         // Let's check notes/outcome for "bid" or "quote" to make it slightly dynamic
-        const bids = visitsInRange.filter(v => {
+        const bids = filteredVisits.filter(v => {
             const outcome = (v.outcome || '').toLowerCase();
             const notes = (v.notes || '').toLowerCase();
             return outcome.includes('bid') || outcome.includes('quote') || notes.includes('bid') || notes.includes('quote');
         });
 
-        const followUpsInRange = visitsInRange.filter(v => v.nextAction);
+        const followUpsInRange = filteredVisits.filter(v => v.nextAction);
 
         return {
-            visits: visitsInRange.length,
+            visits: filteredVisits.length,
             keyVisits: keyVisits.length,
-            resources: resourcesInRange.length,
             bids: bids.length,
-            followUp: followUpsInRange.length
+            followUp: followUpsInRange.length,
+            resources: filteredResources.length
         };
     };
 
@@ -2064,9 +2115,9 @@ const SalesPage = () => {
                                                                     <div className="post-content-area">
                                                                         <div className="post-header">
                                                                             <span className="post-author">{visit.createdByName || visit.creatorName || 'Unknown User'}</span>
-                                                                            <span className="post-time">{formatDate(visit.date, { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                                                            <span className="post-time">{formatDate(visit.createdAt || visit.date, { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
 
-                                                                            {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUserId === visit.createdBy) && (
+                                                                            {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager' || currentUserId === visit.createdBy) && (
                                                                                 <div className="post-header-actions">
                                                                                     <button
                                                                                         className="icon-action-small reaction-trigger"
@@ -2162,8 +2213,7 @@ const SalesPage = () => {
                                                                             {/* Text Note */}
                                                                             {visit.notes && <p className="post-text">{visit.notes}</p>}
 
-                                                                            {/* Visit Details */}
-                                                                            {(visit.outcome || visit.followUp || visit.nextAction) && (
+                                                                            {(visit.outcome || visit.followUp || visit.nextAction || visit.managerComment || visit.headquartersComment) && (
                                                                                 <div className="post-details-ext">
                                                                                     {visit.outcome && (
                                                                                         <div className="post-detail-row outcome">
@@ -2175,6 +2225,18 @@ const SalesPage = () => {
                                                                                         <div className="post-detail-row follow-up">
                                                                                             <span className="detail-label">Follow Up:</span>
                                                                                             <span className="detail-value">{visit.followUp}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {visit.managerComment && (
+                                                                                        <div className="post-detail-row manager-comment">
+                                                                                            <span className="detail-label">Manager Comment:</span>
+                                                                                            <span className="detail-value">{visit.managerComment}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {visit.headquartersComment && (
+                                                                                        <div className="post-detail-row hq-comment">
+                                                                                            <span className="detail-label">HQ Comment:</span>
+                                                                                            <span className="detail-value">{visit.headquartersComment}</span>
                                                                                         </div>
                                                                                     )}
                                                                                     {visit.nextAction && (
@@ -2290,12 +2352,16 @@ const SalesPage = () => {
                                                                             <button className="icon-btn view" onClick={(e) => { e.stopPropagation(); handleViewResource(resource); }} title="View" disabled={loadingResourceId === resource._id}>
                                                                                 {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
                                                                             </button>
-                                                                            <button className="icon-btn edit" onClick={(e) => { e.stopPropagation(); handleEditResource(resource); }} title="Edit">
-                                                                                <Edit2 size={16} />
-                                                                            </button>
-                                                                            <button className="icon-btn delete" onClick={(e) => { e.stopPropagation(); handleDeleteResource(resource._id); }} title="Delete">
-                                                                                <Trash2 size={16} />
-                                                                            </button>
+                                                                            {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager' || currentUserId === (resource.uploadedBy || resource.createdBy)) && (
+                                                                                <>
+                                                                                    <button className="icon-btn edit" onClick={(e) => { e.stopPropagation(); handleEditResource(resource); }} title="Edit">
+                                                                                        <Edit2 size={16} />
+                                                                                    </button>
+                                                                                    <button className="icon-btn delete" onClick={(e) => { e.stopPropagation(); handleDeleteResource(resource._id, resource.customerId); }} title="Delete">
+                                                                                        <Trash2 size={16} />
+                                                                                    </button>
+                                                                                </>
+                                                                            )}
                                                                             {resource.url && (
                                                                                 <a href={resource.url} target="_blank" rel="noopener noreferrer" className="icon-btn link" onClick={(e) => e.stopPropagation()} title="Open Link">
                                                                                     🔗
@@ -2580,14 +2646,31 @@ const SalesPage = () => {
                                                                     <td className="mobile-hide">{visit.notes ? (visit.notes.length > 50 ? visit.notes.substring(0, 50) + '...' : visit.notes) : '-'}</td>
 
                                                                     <td>
-                                                                        <button
-                                                                            className="icon-btn-ghost"
-                                                                            onClick={() => handleViewVisit(visit)}
-                                                                            title="View Details"
-                                                                            disabled={loadingVisitId === visit._id}
-                                                                        >
-                                                                            {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
-                                                                        </button>
+                                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                                            <button
+                                                                                className="icon-btn-ghost"
+                                                                                onClick={() => handleViewVisit(visit)}
+                                                                                title="View Details"
+                                                                                disabled={loadingVisitId === visit._id}
+                                                                            >
+                                                                                {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
+                                                                            </button>
+                                                                            <button
+                                                                                className="icon-btn-ghost"
+                                                                                onClick={() => handleEditVisit(visit)}
+                                                                                title="Edit Visit"
+                                                                            >
+                                                                                <Pencil size={16} />
+                                                                            </button>
+                                                                            <button
+                                                                                className="icon-btn-ghost delete-btn"
+                                                                                onClick={() => handleDeleteVisit(visit._id, visit.customerId)}
+                                                                                title="Delete Visit"
+                                                                                style={{ color: '#ff4d4f' }}
+                                                                            >
+                                                                                <Trash2 size={16} />
+                                                                            </button>
+                                                                        </div>
                                                                     </td>
                                                                 </tr>
                                                             ));
@@ -2779,6 +2862,21 @@ const SalesPage = () => {
                                                                                         }}
                                                                                     >
                                                                                         <Eye size={16} />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        className="icon-btn-ghost"
+                                                                                        title="Edit Resource"
+                                                                                        onClick={() => handleEditResource(resource)}
+                                                                                    >
+                                                                                        <Pencil size={16} />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        className="icon-btn-ghost delete-btn"
+                                                                                        title="Delete Resource"
+                                                                                        onClick={() => handleDeleteResource(resource._id, resource.customerId)}
+                                                                                        style={{ color: '#ff4d4f' }}
+                                                                                    >
+                                                                                        <Trash2 size={16} />
                                                                                     </button>
                                                                                     {(Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : ((resource.image || resource.content) ? [resource.image || resource.content] : [])).length > 0 && ( /* Check if attachments exist */
                                                                                         <button
@@ -3047,6 +3145,7 @@ const SalesPage = () => {
                                         <label>Visit Type <span style={{ color: 'red' }}>*</span></label>
                                         <SearchableSelect
                                             options={[
+                                                'Quick Note',
                                                 'Scheduled in Person Sales Meeting',
                                                 'Resource Placement',
                                                 'Resource Update',
@@ -3071,26 +3170,28 @@ const SalesPage = () => {
                                         rows="4"
                                     />
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                    <div className="form-group">
-                                        <label>Outcome</label>
-                                        <input
-                                            type="text"
-                                            value={visitForm.outcome}
-                                            onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
-                                            placeholder="Visit outcome"
-                                        />
+                                {visitForm.purpose !== 'Quick Note' && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
+                                        <div className="form-group">
+                                            <label>Outcome</label>
+                                            <input
+                                                type="text"
+                                                value={visitForm.outcome}
+                                                onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
+                                                placeholder="Visit outcome"
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Follow Up</label>
+                                            <input
+                                                type="text"
+                                                value={visitForm.followUp}
+                                                onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
+                                                placeholder="Followup Notes"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="form-group">
-                                        <label>Follow Up</label>
-                                        <input
-                                            type="text"
-                                            value={visitForm.followUp}
-                                            onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
-                                            placeholder="Followup Notes"
-                                        />
-                                    </div>
-                                </div>
+                                )}
                                 <div className="form-group">
                                     <label>Attachments</label>
                                     <div className="image-upload-container">
