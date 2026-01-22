@@ -63,6 +63,20 @@ const SalesPage = () => {
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('visits');
 
+    // Dashboard State (Required for memoized values)
+    const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
+    const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
+    const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
+    const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
+    const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
+
+    // Sync currentUserId when currentUser changes
+    useEffect(() => {
+        if (currentUser) {
+            setCurrentUserId(currentUser.id || currentUser._id);
+        }
+    }, [currentUser]);
+
     // Modal states
     const [showContactModal, setShowContactModal] = useState(false);
     const [showVisitModal, setShowVisitModal] = useState(false);
@@ -82,6 +96,158 @@ const SalesPage = () => {
                 label: c.company || c.contactName || 'Unknown'
             }));
     }, [customers]);
+
+    const allVisits = React.useMemo(() => {
+        if (!customers || !Array.isArray(customers)) return [];
+        return customers.flatMap(c => {
+            if (!c) return [];
+            const customerName = c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim();
+            return (c.visits || []).filter(v => v !== null).map(v => ({
+                ...v,
+                customerName,
+                customerId: c._id
+            }));
+        });
+    }, [customers]);
+
+    const allResources = React.useMemo(() => {
+        if (!customers || !Array.isArray(customers)) return [];
+        return customers.flatMap(c => {
+            if (!c) return [];
+            const customerName = c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim();
+            return (c.resources || []).filter(r => r !== null).map(r => ({
+                ...r,
+                customerName,
+                customerId: c._id
+            }));
+        });
+    }, [customers]);
+
+    const dashboardDateRangeStart = React.useMemo(() => {
+        const now = new Date();
+        const localDateStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        let start;
+        switch (dashboardTimeRange) {
+            case '1day':
+                start = new Date(`${localDateStr}T00:00:00.000Z`);
+                break;
+            case '7days':
+                start = new Date();
+                start.setDate(now.getDate() - 7);
+                const sevenDaysAgoStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                start = new Date(`${sevenDaysAgoStr}T00:00:00.000Z`);
+                break;
+            case '30days':
+                start = new Date();
+                start.setDate(now.getDate() - 30);
+                const thirtyDaysAgoStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                start = new Date(`${thirtyDaysAgoStr}T00:00:00.000Z`);
+                break;
+            case 'year':
+                start = new Date(now.getFullYear(), 0, 1);
+                const yearStartStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                start = new Date(`${yearStartStr}T00:00:00.000Z`);
+                break;
+            case 'all':
+                return null;
+            default:
+                start = new Date(`${localDateStr}T00:00:00.000Z`);
+        }
+        return start;
+    }, [dashboardTimeRange]);
+
+    const dashboardStats = React.useMemo(() => {
+        const stats = { visits: 0, keyVisits: 0, bids: 0, followUp: 0, resources: 0, quickNotes: 0 };
+        const startDate = dashboardDateRangeStart;
+        const currentUserIdStr = currentUserId?.toString();
+
+        // Single pass for visits
+        allVisits.forEach(v => {
+            if (!v) return;
+            const visitDate = new Date(v.date || v.createdAt);
+            const dateMatch = !startDate || visitDate >= startDate;
+            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || v.createdBy === currentUserIdStr;
+
+            if (dateMatch && userMatch) {
+                const isQuickNote = v.purpose?.toLowerCase().includes('quick note');
+                if (isQuickNote) {
+                    stats.quickNotes++;
+                } else {
+                    stats.visits++;
+                    const outcome = (v.outcome || '').toLowerCase();
+                    const notes = (v.notes || '').toLowerCase();
+
+                    if (outcome.includes('order') || outcome.includes('sale') || outcome.includes('sold') || outcome.includes('deposit') ||
+                        notes.includes('order') || notes.includes('sale') || notes.includes('sold')) {
+                        stats.keyVisits++;
+                    }
+
+                    if (outcome.includes('bid') || outcome.includes('quote') || notes.includes('bid') || notes.includes('quote')) {
+                        stats.bids++;
+                    }
+
+                    if (v.nextAction) {
+                        stats.followUp++;
+                    }
+                }
+            }
+        });
+
+        // Single pass for resources
+        allResources.forEach(r => {
+            if (!r) return;
+            const resourceDate = new Date(r.date || r.createdAt);
+            const dateMatch = !startDate || resourceDate >= startDate;
+            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || (r.uploadedBy || r.createdBy) === currentUserIdStr;
+            if (dateMatch && userMatch) {
+                stats.resources++;
+            }
+        });
+
+        return stats;
+    }, [allVisits, allResources, dashboardDateRangeStart, currentUser, currentUserId]);
+
+    const memoizedFilteredVisits = React.useMemo(() => {
+        const startDate = dashboardDateRangeStart;
+        const searchLower = dashboardSearchTerm.toLowerCase();
+        const currentUserIdStr = currentUserId?.toString();
+
+        return allVisits.filter(v => {
+            if (!v) return false;
+            const visitDate = new Date(v.date || v.createdAt);
+            const dateMatch = !startDate || visitDate >= startDate;
+            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || v.createdBy === currentUserIdStr;
+            const searchMatch = !dashboardSearchTerm ||
+                (v.customerName?.toLowerCase().includes(searchLower)) ||
+                (v.notes?.toLowerCase().includes(searchLower)) ||
+                (v.purpose?.toLowerCase().includes(searchLower));
+
+            const isQuickNote = v.purpose?.toLowerCase().includes('quick note');
+            const quickNoteExclude = activeDashboardTab === 'visits' ? !isQuickNote : true;
+
+            return dateMatch && userMatch && searchMatch && quickNoteExclude;
+        }).sort((a, b) => new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0));
+    }, [allVisits, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, activeDashboardTab]);
+
+    const memoizedFilteredResources = React.useMemo(() => {
+        const startDate = dashboardDateRangeStart;
+        const searchLower = dashboardSearchTerm.toLowerCase();
+        const currentUserIdStr = currentUserId?.toString();
+
+        return allResources.filter(r => {
+            if (!r) return false;
+            const resourceDate = new Date(r.date || r.createdAt);
+            const dateMatch = !startDate || resourceDate >= startDate;
+            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || (r.uploadedBy || r.createdBy) === currentUserIdStr;
+            const searchMatch = !dashboardSearchTerm ||
+                (r.customerName?.toLowerCase().includes(searchLower)) ||
+                (r.description?.toLowerCase().includes(searchLower)) ||
+                (r.resourceType?.toLowerCase().includes(searchLower)) ||
+                (r.notes?.toLowerCase().includes(searchLower));
+
+            return dateMatch && userMatch && searchMatch;
+        }).sort((a, b) => new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0));
+    }, [allResources, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm]);
     const [isViewingResource, setIsViewingResource] = useState(false);
     const [isViewingVisit, setIsViewingVisit] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -90,15 +256,6 @@ const SalesPage = () => {
     const [quickNote, setQuickNote] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
 
-    // Track logged-in user, defaulting to auth user if available
-    const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
-
-    // Sync currentUserId when currentUser changes
-    useEffect(() => {
-        if (currentUser) {
-            setCurrentUserId(currentUser.id || currentUser._id);
-        }
-    }, [currentUser]);
 
     // Sidebar State
     const [isPinned, setIsPinned] = useState(() => {
@@ -245,10 +402,7 @@ const SalesPage = () => {
     const [folderPath, setFolderPath] = useState([]); // [{id, name}, ...]
 
     // New Dashboard State
-    const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
-    const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
-    const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
-    const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
+
 
     // Pagination State
     const [currentVisitsPage, setCurrentVisitsPage] = useState(1);
@@ -446,10 +600,10 @@ const SalesPage = () => {
     const selectedCustomer = selectedCustomerDetail || customers.find(c => c._id === selectedCustomerId);
 
     // Filter resources (scoped to selected customer only)
-    const allResources = selectedCustomer ? (selectedCustomer.resources || []) : [];
+    const customerResources = selectedCustomer ? (selectedCustomer.resources || []) : [];
 
     // Simplified resources (no search filtering)
-    const filteredResources = allResources;
+    const customerFilteredResources = customerResources;
 
     const filteredCustomers = (Array.isArray(customers) ? customers : [])
         .filter(c => {
@@ -1539,149 +1693,10 @@ const SalesPage = () => {
 
 
     // Dashboard Helpers
-    const getDashboardDateRange = () => {
-        const now = new Date();
-        // Create a local date string YYYY-MM-DD
-        const localDateStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
 
-        let start;
 
-        switch (dashboardTimeRange) {
-            case '1day':
-                // Use UTC midnight of the local today (matches visit storage format)
-                start = new Date(`${localDateStr}T00:00:00.000Z`);
-                break;
-            case '7days':
-                start = new Date();
-                start.setDate(now.getDate() - 7);
-                // Adjust to UTC midnight of that day
-                const sevenDaysAgoStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-                start = new Date(`${sevenDaysAgoStr}T00:00:00.000Z`);
-                break;
-            case '30days':
-                start = new Date();
-                start.setDate(now.getDate() - 30);
-                const thirtyDaysAgoStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-                start = new Date(`${thirtyDaysAgoStr}T00:00:00.000Z`);
-                break;
-            case 'year':
-                start = new Date(now.getFullYear(), 0, 1);
-                const yearStartStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-                start = new Date(`${yearStartStr}T00:00:00.000Z`);
-                break;
-            case 'all':
-                return null;
-            default:
-                start = new Date(`${localDateStr}T00:00:00.000Z`);
-        }
-        return start;
-    };
-
-    const getAllVisits = () => {
-        if (!customers || customers.length === 0) return [];
-        return customers.flatMap(c => {
-            const customerName = c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim();
-            return (c.visits || []).map(v => ({
-                ...v,
-                customerName,
-                customerId: c._id
-            }));
-        });
-    };
-
-    const getFilteredVisits = () => {
-        const allVisits = getAllVisits();
-        const startDate = getDashboardDateRange();
-        const searchLower = dashboardSearchTerm.toLowerCase();
-
-        return allVisits.filter(v => {
-            const visitDate = new Date(v.date);
-            const dateMatch = !startDate || visitDate >= startDate;
-            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || v.createdBy === currentUserId;
-            const searchMatch = !dashboardSearchTerm ||
-                (v.customerName?.toLowerCase().includes(searchLower)) ||
-                (v.notes?.toLowerCase().includes(searchLower)) ||
-                (v.purpose?.toLowerCase().includes(searchLower));
-
-            return dateMatch && userMatch && searchMatch;
-        }).sort((a, b) => new Date(b.date) - new Date(a.date));
-    };
-
-    const getFilteredResources = () => {
-        if (!customers) return [];
-        const allResources = customers.flatMap(c => {
-            const customerName = c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim();
-            return (c.resources || []).map(r => ({
-                ...r,
-                customerName,
-                customerId: c._id
-            }));
-        });
-
-        const startDate = getDashboardDateRange();
-        const searchLower = dashboardSearchTerm.toLowerCase();
-
-        return allResources.filter(r => {
-            const resourceDate = new Date(r.date || r.createdAt);
-            const dateMatch = !startDate || resourceDate >= startDate;
-            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || (r.uploadedBy || r.createdBy) === currentUserId;
-            const searchMatch = !dashboardSearchTerm ||
-                (r.customerName?.toLowerCase().includes(searchLower)) ||
-                (r.description?.toLowerCase().includes(searchLower)) ||
-                (r.resourceType?.toLowerCase().includes(searchLower)) ||
-                (r.notes?.toLowerCase().includes(searchLower));
-
-            return dateMatch && userMatch && searchMatch;
-        }).sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
-    };
-
-    const getStats = () => {
-        const startDate = getDashboardDateRange();
-        const allVisits = getAllVisits();
-        const allResources = customers.flatMap(c => (c.resources || []).map(r => ({ ...r, customerId: c._id })));
-
-        const filterByDateAndUser = (items) => {
-            return items.filter(item => {
-                const dateMatch = !startDate || new Date(item.date || item.createdAt) >= startDate;
-                const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || (item.uploadedBy || item.createdBy) === currentUserId;
-                return dateMatch && userMatch;
-            });
-        };
-
-        const filteredVisits = filterByDateAndUser(allVisits);
-        const filteredResources = filterByDateAndUser(allResources);
-
-        // Key Visits: Outcome implies a sale or order
-        const keyVisits = filteredVisits.filter(v => {
-            const outcome = (v.outcome || '').toLowerCase();
-            const notes = (v.notes || '').toLowerCase();
-            return outcome.includes('order') || outcome.includes('sale') || outcome.includes('sold') || outcome.includes('deposit') ||
-                notes.includes('order') || notes.includes('sale') || notes.includes('sold');
-        });
-
-        // Bids: Placeholder for now as there is no specific field
-        // We could look for "Bid" or "Quote" in notes if desired, but user agreed to placeholder 0 or generic logic.
-        // Let's check notes/outcome for "bid" or "quote" to make it slightly dynamic
-        const bids = filteredVisits.filter(v => {
-            const outcome = (v.outcome || '').toLowerCase();
-            const notes = (v.notes || '').toLowerCase();
-            return outcome.includes('bid') || outcome.includes('quote') || notes.includes('bid') || notes.includes('quote');
-        });
-
-        const followUpsInRange = filteredVisits.filter(v => v.nextAction);
-
-        return {
-            visits: filteredVisits.length,
-            keyVisits: keyVisits.length,
-            bids: bids.length,
-            followUp: followUpsInRange.length,
-            resources: filteredResources.length,
-            quickNotes: filteredVisits.filter(v => v.purpose === 'Quick Note').length
-        };
-    };
-
-    const handleExportVisits = () => {
-        const visits = getFilteredVisits();
+    const handleExportVisits = (customVisits) => {
+        const visits = customVisits || memoizedFilteredVisits;
         const data = visits.map(v => ({
             Date: formatDate(v.date),
             Customer: v.customerName,
@@ -1698,7 +1713,7 @@ const SalesPage = () => {
     };
 
     const handleExportResources = () => {
-        const resources = getFilteredResources();
+        const resources = memoizedFilteredResources;
         const data = resources.map(r => ({
             Date: formatDate(r.date || r.createdAt),
             Customer: r.customerName,
@@ -2216,13 +2231,13 @@ const SalesPage = () => {
 
                                                                             {(visit.outcome || visit.followUp || visit.nextAction || visit.managerComment || visit.headquartersComment) && (
                                                                                 <div className="post-details-ext">
-                                                                                    {visit.outcome && visit.purpose !== 'Quick Note' && (
+                                                                                    {visit.outcome && !visit.purpose?.toLowerCase().includes('quick note') && (
                                                                                         <div className="post-detail-row outcome">
                                                                                             <span className="detail-label">Outcome:</span>
                                                                                             <span className="detail-value">{visit.outcome}</span>
                                                                                         </div>
                                                                                     )}
-                                                                                    {visit.followUp && visit.purpose !== 'Quick Note' && (
+                                                                                    {visit.followUp && !visit.purpose?.toLowerCase().includes('quick note') && (
                                                                                         <div className="post-detail-row follow-up">
                                                                                             <span className="detail-label">Follow Up:</span>
                                                                                             <span className="detail-value">{visit.followUp}</span>
@@ -2331,8 +2346,8 @@ const SalesPage = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {filteredResources && filteredResources.length > 0 ? (
-                                                        filteredResources.map((resource, index) => (
+                                                    {customerFilteredResources && customerFilteredResources.length > 0 ? (
+                                                        customerFilteredResources.map((resource, index) => (
                                                             <React.Fragment key={resource._id || index}>
                                                                 <tr
                                                                     className={expandedResourceId === resource._id ? 'expanded' : ''}
@@ -2513,7 +2528,7 @@ const SalesPage = () => {
 
                                     {/* Stats Grid */}
                                     {(() => {
-                                        const stats = getStats();
+                                        const stats = dashboardStats;
                                         const timeLabel = {
                                             '1day': 'Today',
                                             '7days': 'Last 7 Days',
@@ -2624,7 +2639,7 @@ const SalesPage = () => {
                                                     </thead>
                                                     <tbody>
                                                         {(() => {
-                                                            const visits = getFilteredVisits();
+                                                            const visits = memoizedFilteredVisits;
                                                             if (visits.length === 0) {
                                                                 return (
                                                                     <tr>
@@ -2694,7 +2709,7 @@ const SalesPage = () => {
 
                                             {/* Pagination Controls */}
                                             {(() => {
-                                                const visits = getFilteredVisits();
+                                                const visits = memoizedFilteredVisits;
                                                 const totalPages = Math.ceil(visits.length / visitsPerPage);
 
                                                 if (totalPages <= 1) return null;
@@ -2750,7 +2765,7 @@ const SalesPage = () => {
                                                 <h2>Quick Notes</h2>
                                                 <div className="table-controls">
                                                     <button className="export-btn" onClick={() => {
-                                                        const qNotes = getFilteredVisits().filter(v => v.purpose === 'Quick Note');
+                                                        const qNotes = memoizedFilteredVisits.filter(v => v && v.purpose?.toLowerCase().includes('quick note'));
                                                         handleExportVisits(qNotes);
                                                     }}>
                                                         <Download size={18} /> Excel
@@ -2779,7 +2794,7 @@ const SalesPage = () => {
                                                     </thead>
                                                     <tbody>
                                                         {(() => {
-                                                            const visits = getFilteredVisits().filter(v => v.purpose === 'Quick Note');
+                                                            const visits = memoizedFilteredVisits.filter(v => v && v.purpose?.toLowerCase().includes('quick note'));
                                                             if (visits.length === 0) {
                                                                 return (
                                                                     <tr>
@@ -2845,6 +2860,55 @@ const SalesPage = () => {
                                                     </tbody>
                                                 </table>
                                             </div>
+
+                                            {/* Pagination Controls */}
+                                            {(() => {
+                                                const visits = memoizedFilteredVisits.filter(v => v && v.purpose?.toLowerCase().includes('quick note'));
+                                                const totalPages = Math.ceil(visits.length / visitsPerPage);
+
+                                                if (totalPages <= 1) return null;
+
+                                                const handlePageChange = (pageNumber) => {
+                                                    setCurrentVisitsPage(pageNumber);
+                                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                };
+
+                                                return (
+                                                    <div className="pagination-controls">
+                                                        <button
+                                                            className="pagination-btn"
+                                                            onClick={() => handlePageChange(currentVisitsPage - 1)}
+                                                            disabled={currentVisitsPage === 1}
+                                                        >
+                                                            ← Previous
+                                                        </button>
+
+                                                        <div className="pagination-pages">
+                                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                                                                <button
+                                                                    key={pageNum}
+                                                                    className={`pagination-page ${currentVisitsPage === pageNum ? 'active' : ''}`}
+                                                                    onClick={() => handlePageChange(pageNum)}
+                                                                >
+                                                                    {pageNum}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+
+                                                        <button
+                                                            className="pagination-btn"
+                                                            onClick={() => handlePageChange(currentVisitsPage + 1)}
+                                                            disabled={currentVisitsPage === totalPages}
+                                                        >
+                                                            Next →
+                                                        </button>
+
+                                                        <div className="pagination-info">
+                                                            Showing {((currentVisitsPage - 1) * visitsPerPage) + 1}-{Math.min(currentVisitsPage * visitsPerPage, visits.length)} of {visits.length} notes
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     )}
 
@@ -2940,7 +3004,7 @@ const SalesPage = () => {
                                                             </thead>
                                                             <tbody>
                                                                 {(() => {
-                                                                    const resources = getFilteredResources();
+                                                                    const resources = memoizedFilteredResources;
                                                                     if (resources.length === 0) {
                                                                         return (
                                                                             <tr>
@@ -3288,7 +3352,7 @@ const SalesPage = () => {
                                         rows="4"
                                     />
                                 </div>
-                                {visitForm.purpose !== 'Quick Note' && (
+                                {!visitForm.purpose?.toLowerCase().includes('quick note') && (
                                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
                                         <div className="form-group">
                                             <label>Outcome</label>
@@ -3427,7 +3491,7 @@ const SalesPage = () => {
                                             {visitForm.notes || 'No notes available.'}
                                         </div>
                                     </div>
-                                    {visitForm.purpose !== 'Quick Note' && (
+                                    {!visitForm.purpose?.toLowerCase().includes('quick note') && (
                                         <>
                                             <div className="visit-detail-item">
                                                 <div className="visit-detail-label">Outcome</div>
