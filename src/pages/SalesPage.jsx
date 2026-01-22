@@ -1675,7 +1675,8 @@ const SalesPage = () => {
             keyVisits: keyVisits.length,
             bids: bids.length,
             followUp: followUpsInRange.length,
-            resources: filteredResources.length
+            resources: filteredResources.length,
+            quickNotes: filteredVisits.filter(v => v.purpose === 'Quick Note').length
         };
     };
 
@@ -2215,13 +2216,13 @@ const SalesPage = () => {
 
                                                                             {(visit.outcome || visit.followUp || visit.nextAction || visit.managerComment || visit.headquartersComment) && (
                                                                                 <div className="post-details-ext">
-                                                                                    {visit.outcome && (
+                                                                                    {visit.outcome && visit.purpose !== 'Quick Note' && (
                                                                                         <div className="post-detail-row outcome">
                                                                                             <span className="detail-label">Outcome:</span>
                                                                                             <span className="detail-value">{visit.outcome}</span>
                                                                                         </div>
                                                                                     )}
-                                                                                    {visit.followUp && (
+                                                                                    {visit.followUp && visit.purpose !== 'Quick Note' && (
                                                                                         <div className="post-detail-row follow-up">
                                                                                             <span className="detail-label">Follow Up:</span>
                                                                                             <span className="detail-value">{visit.followUp}</span>
@@ -2556,6 +2557,18 @@ const SalesPage = () => {
                                                     <div className="stat-value">{stats.resources}</div>
                                                     <div className="stat-footer">{timeLabel}</div>
                                                 </div>
+                                                <div
+                                                    className={`stat-card ${activeDashboardTab === 'quickNotes' ? 'active-tab' : ''}`}
+                                                    onClick={() => setActiveDashboardTab('quickNotes')}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <div className="stat-icon-wrapper">
+                                                        <MessageSquare size={20} />
+                                                    </div>
+                                                    <div className="stat-title">QUICK NOTES</div>
+                                                    <div className="stat-value">{stats.quickNotes}</div>
+                                                    <div className="stat-footer">{timeLabel}</div>
+                                                </div>
                                                 {/* <div className="stat-card">
                                             <div className="stat-icon-wrapper">
                                                 <DollarSign size={20} />
@@ -2727,6 +2740,111 @@ const SalesPage = () => {
                                                     </div>
                                                 );
                                             })()}
+                                        </div>
+                                    )}
+
+                                    {/* Quick Notes Table */}
+                                    {activeDashboardTab === 'quickNotes' && (
+                                        <div className="visits-table-section">
+                                            <div className="section-header">
+                                                <h2>Quick Notes</h2>
+                                                <div className="table-controls">
+                                                    <button className="export-btn" onClick={() => {
+                                                        const qNotes = getFilteredVisits().filter(v => v.purpose === 'Quick Note');
+                                                        handleExportVisits(qNotes);
+                                                    }}>
+                                                        <Download size={18} /> Excel
+                                                    </button>
+                                                    <div className="table-search">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Search quick notes..."
+                                                            value={dashboardSearchTerm}
+                                                            onChange={(e) => setDashboardSearchTerm(e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="dashboard-table-wrapper">
+                                                <table className="dashboard-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th className="mobile-hide">Date</th>
+                                                            <th>Customer</th>
+                                                            <th className="mobile-hide">Visit Type</th>
+                                                            <th className="mobile-hide">Notes</th>
+                                                            <th>Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {(() => {
+                                                            const visits = getFilteredVisits().filter(v => v.purpose === 'Quick Note');
+                                                            if (visits.length === 0) {
+                                                                return (
+                                                                    <tr>
+                                                                        <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>
+                                                                            No quick notes available
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            }
+
+                                                            // Pagination logic
+                                                            const indexOfLastVisit = currentVisitsPage * visitsPerPage;
+                                                            const indexOfFirstVisit = indexOfLastVisit - visitsPerPage;
+                                                            const currentVisits = visits.slice(indexOfFirstVisit, indexOfLastVisit);
+
+                                                            return currentVisits.map((visit, index) => (
+                                                                <tr key={visit._id || index}>
+                                                                    <td className="mobile-hide">{formatDate(visit.date, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
+                                                                    <td>
+                                                                        <span
+                                                                            className="link"
+                                                                            onClick={() => {
+                                                                                const customer = customers.find(c => c._id === visit.customerId);
+                                                                                if (customer) handleSelectCustomer(customer);
+                                                                            }}
+                                                                            title="Go to Customer Chat"
+                                                                        >
+                                                                            {visit.customerName}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="mobile-hide">{visit.purpose || 'Quick Note'}</td>
+                                                                    <td className="mobile-hide">{visit.notes ? (visit.notes.length > 50 ? visit.notes.substring(0, 50) + '...' : visit.notes) : '-'}</td>
+                                                                    <td>
+                                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                                            <button
+                                                                                className="icon-btn-ghost"
+                                                                                onClick={() => handleViewVisit(visit)}
+                                                                                title="View Details"
+                                                                                disabled={loadingVisitId === visit._id}
+                                                                            >
+                                                                                {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
+                                                                            </button>
+                                                                            <button
+                                                                                className="icon-btn-ghost"
+                                                                                onClick={() => handleEditVisit(visit)}
+                                                                                title="Edit Visit"
+                                                                            >
+                                                                                <Pencil size={16} />
+                                                                            </button>
+                                                                            <button
+                                                                                className="icon-btn-ghost delete-btn"
+                                                                                onClick={() => handleDeleteVisit(visit._id, visit.customerId)}
+                                                                                title="Delete Visit"
+                                                                                style={{ color: '#ff4d4f' }}
+                                                                            >
+                                                                                <Trash2 size={16} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ));
+                                                        })()}
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
                                     )}
 
@@ -3309,14 +3427,18 @@ const SalesPage = () => {
                                             {visitForm.notes || 'No notes available.'}
                                         </div>
                                     </div>
-                                    <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Outcome</div>
-                                        <div className="visit-detail-value">{visitForm.outcome || '-'}</div>
-                                    </div>
-                                    <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Follow Up</div>
-                                        <div className="visit-detail-value">{visitForm.followUp || visitForm.nextAction || '-'}</div>
-                                    </div>
+                                    {visitForm.purpose !== 'Quick Note' && (
+                                        <>
+                                            <div className="visit-detail-item">
+                                                <div className="visit-detail-label">Outcome</div>
+                                                <div className="visit-detail-value">{visitForm.outcome || '-'}</div>
+                                            </div>
+                                            <div className="visit-detail-item">
+                                                <div className="visit-detail-label">Follow Up</div>
+                                                <div className="visit-detail-value">{visitForm.followUp || visitForm.nextAction || '-'}</div>
+                                            </div>
+                                        </>
+                                    )}
                                     <div className="visit-detail-item full-width">
                                         <div className="visit-detail-label">Attachments</div>
                                         {console.log('[DEBUG MODAL] visitForm.image:', visitForm.image)}
