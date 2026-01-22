@@ -622,14 +622,26 @@
     }
 
     .time-range-filters {
-        flex-wrap: wrap;
-        overflow-x: visible;
+        flex-wrap: nowrap;
+        overflow-x: auto;
         padding: 0.5rem;
-        gap: 1rem;
+        gap: 1.5rem;
         border-bottom: 1px solid var(--border-color);
         width: 100%;
         margin-left: 0;
-        box-sizing: border-box; /* Ensure padding doesn't overflow width */
+        box-sizing: border-box;
+        scrollbar-width: none; /* Hide scrollbar Firefox */
+        -ms-overflow-style: none;  /* Hide scrollbar IE/Edge */
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .time-range-filters::-webkit-scrollbar {
+        display: none; /* Hide scrollbar Webkit */
+    }
+
+    .time-filter-btn {
+        white-space: nowrap;
+        flex-shrink: 0;
     }
     
     .stats-grid {
