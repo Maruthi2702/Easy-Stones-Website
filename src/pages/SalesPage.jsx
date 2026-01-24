@@ -1095,7 +1095,7 @@ const SalesPage = () => {
     const handleCloseVisitModal = () => {
         setVisitForm({
             date: '',
-            purpose: '',
+            purpose: 'Scheduled in Person Sales Meeting',
             notes: '',
             outcome: '',
             followUp: '',
