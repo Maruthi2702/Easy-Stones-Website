@@ -16,7 +16,7 @@ const ProductCard = ({ product, activeCategory }) => {
   return (
     <Link
       to={`/product/${productSlug}`}
-      className="product-card minimalist"
+      className="product-card glass-panel"
       state={{ fromCategory: activeCategory, productId: product.id, product: product }}
     >
       <div className="card-image-container">
@@ -27,10 +27,22 @@ const ProductCard = ({ product, activeCategory }) => {
           loading="lazy"
           decoding="async"
         />
-        {product.isNewArrival && <span className="minimal-badge">NEW</span>}
+        {product.isNewArrival && <span className="badge new">NEW</span>}
+        <div className="card-overlay">
+          <span className="view-btn">
+            View Details <ArrowUpRight size={16} />
+          </span>
+        </div>
       </div>
 
-      <div className="card-footer">
+      <div className="card-content">
+        <div className="card-header">
+          <span className="category">{product.category}</span>
+          <span className={`availability ${product.availability.toLowerCase().replace(/\s+/g, '-')}`}>
+            {product.availability}
+          </span>
+        </div>
+
         <h3 className="product-name">{product.name}</h3>
       </div>
     </Link>
