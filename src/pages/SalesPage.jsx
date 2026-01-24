@@ -3419,26 +3419,28 @@ const SalesPage = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                    <div className="form-group">
-                                        <label>Manager Comment</label>
-                                        <input
-                                            type="text"
-                                            value={visitForm.managerComment}
-                                            onChange={(e) => setVisitForm({ ...visitForm, managerComment: e.target.value })}
-                                            placeholder="Comment from Manager"
-                                        />
+                                {editingVisit && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
+                                        <div className="form-group">
+                                            <label>Manager Comment</label>
+                                            <input
+                                                type="text"
+                                                value={visitForm.managerComment}
+                                                onChange={(e) => setVisitForm({ ...visitForm, managerComment: e.target.value })}
+                                                placeholder="Comment from Manager"
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Headquarters Comment</label>
+                                            <input
+                                                type="text"
+                                                value={visitForm.headquartersComment}
+                                                onChange={(e) => setVisitForm({ ...visitForm, headquartersComment: e.target.value })}
+                                                placeholder="Comment from HQ"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="form-group">
-                                        <label>Headquarters Comment</label>
-                                        <input
-                                            type="text"
-                                            value={visitForm.headquartersComment}
-                                            onChange={(e) => setVisitForm({ ...visitForm, headquartersComment: e.target.value })}
-                                            placeholder="Comment from HQ"
-                                        />
-                                    </div>
-                                </div>
+                                )}
                             </div>
                             <div className="modal-footer">
                                 <button className="btn-secondary" onClick={handleCloseVisitModal} disabled={isSaving}>
