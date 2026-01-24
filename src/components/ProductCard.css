@@ -55,7 +55,7 @@
 .card-footer {
   display: flex;
   align-items: center;
-  padding: 1.5rem 0.75rem;
+  padding: 0;
 }
 
 .product-name {
