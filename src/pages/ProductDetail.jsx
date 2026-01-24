@@ -168,51 +168,49 @@ const ProductDetail = () => {
             {/* Specs and Installed Images Grid */}
             <div className="specs-installed-grid">
               {/* Left Column: Specifications */}
-              <div className="specs-column">
-                {user && product.price && (
-                  <div className="specs-list">
-                    <h3>Price</h3>
-                    <div className="pill-list">
-                      <span className="pill price-pill">{product.price}</span>
+              <div className="specs-container">
+                <div className="specs-header-box">
+                  <h3>Specs</h3>
+                </div>
+                <div className="specs-table">
+                  {user && product.price && (
+                    <div className="spec-row">
+                      <span className="spec-label">Price</span>
+                      <span className="spec-value highlight">{product.price}</span>
                     </div>
+                  )}
+                  <div className="spec-row">
+                    <span className="spec-label">Thickness</span>
+                    <span className="spec-value">{detail.thickness.join(', ')}</span>
                   </div>
-                )}
-
-                <div className="specs-list">
-                  <h3>Thickness Options</h3>
-                  <div className="pill-list">
-                    {detail.thickness.map(t => <span key={t} className="pill">{t}</span>)}
+                  <div className="spec-row">
+                    <span className="spec-label">Sizes</span>
+                    <span className="spec-value">
+                      {(product.sizes && product.sizes.length > 0)
+                        ? product.sizes.join(' | ')
+                        : 'Contact for sizes'
+                      }
+                    </span>
                   </div>
-                </div>
-
-                <div className="specs-list">
-                  <h3>Size Options</h3>
-                  <div className="pill-list">
-                    {(product.sizes && product.sizes.length > 0)
-                      ? product.sizes.map(s => <span key={s} className="pill">{s}</span>)
-                      : <span className="pill">Contact for sizes</span>
-                    }
+                  <div className="spec-row">
+                    <span className="spec-label">Book Match</span>
+                    <span className="spec-value">{product.bookMatch || 'N/A'}</span>
                   </div>
-                </div>
-
-                <div className="specs-list">
-                  <h3>Book Match</h3>
-                  <div className="pill-list">
-                    <span className="pill">{product.bookMatch || 'N/A'}</span>
+                  <div className="spec-row">
+                    <span className="spec-label">Finishes</span>
+                    <span className="spec-value">{detail.finishes.join(', ')}</span>
                   </div>
-                </div>
-
-                <div className="specs-list">
-                  <h3>Available Finishes</h3>
-                  <div className="pill-list">
-                    {detail.finishes.map(f => <span key={f} className="pill">{f}</span>)}
+                  <div className="spec-row">
+                    <span className="spec-label">Applications</span>
+                    <span className="spec-value">{detail.applications.join(', ')}</span>
                   </div>
-                </div>
-
-                <div className="specs-list">
-                  <h3>Applications</h3>
-                  <div className="pill-list">
-                    {detail.applications.map(a => <span key={a} className="pill">{a}</span>)}
+                  <div className="spec-row">
+                    <span className="spec-label">Variations</span>
+                    <span className="spec-value">{detail.variations}</span>
+                  </div>
+                  <div className="spec-row">
+                    <span className="spec-label">Style</span>
+                    <span className="spec-value">{detail.style}</span>
                   </div>
                 </div>
               </div>
