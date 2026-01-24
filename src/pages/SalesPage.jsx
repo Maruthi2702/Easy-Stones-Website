@@ -340,7 +340,7 @@ const SalesPage = () => {
 
     const [visitForm, setVisitForm] = useState({
         date: '',
-        purpose: '',
+        purpose: 'Scheduled in Person Sales Meeting',
         notes: '',
         outcome: '',
         nextAction: '',
@@ -3329,10 +3329,10 @@ const SalesPage = () => {
                                             options={[
                                                 'Quick Note',
                                                 'Scheduled in Person Sales Meeting',
+                                                'Unscheduled in Person Sales Call',
                                                 'Resource Placement',
                                                 'Resource Update',
                                                 'Formal Presentation',
-                                                'Unscheduled in Person Sales Call',
                                                 'Important Remote Meeting/Call',
                                                 'In Office Administration Day',
                                                 'Personal Time Off'
