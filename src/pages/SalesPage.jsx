@@ -1032,7 +1032,7 @@ const SalesPage = () => {
         setIsViewingVisit(false);
         setVisitForm({
             date: new Date().toISOString().split('T')[0],
-            purpose: '',
+            purpose: 'Scheduled in Person Sales Meeting',
             notes: '',
             outcome: '',
             nextAction: ''
@@ -1164,7 +1164,7 @@ const SalesPage = () => {
 
         setVisitForm({
             date: localDate,
-            purpose: '',
+            purpose: 'Scheduled in Person Sales Meeting',
             notes: '',
             outcome: '',
             followUp: '',
@@ -3356,20 +3356,20 @@ const SalesPage = () => {
                                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
                                         <div className="form-group">
                                             <label>Outcome</label>
-                                            <input
-                                                type="text"
+                                            <textarea
                                                 value={visitForm.outcome}
                                                 onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
                                                 placeholder="Visit outcome"
+                                                rows="3"
                                             />
                                         </div>
                                         <div className="form-group">
                                             <label>Follow Up</label>
-                                            <input
-                                                type="text"
+                                            <textarea
                                                 value={visitForm.followUp}
                                                 onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
                                                 placeholder="Followup Notes"
+                                                rows="3"
                                             />
                                         </div>
                                     </div>
