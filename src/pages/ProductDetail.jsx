@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Download, ZoomIn, Maximize2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Download, ZoomIn, Maximize2, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { getLocalImagePath } from '../utils/imagePath';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,11 @@ const ProductDetail = () => {
   const location = useLocation();
   const { user } = useAuth();
   const [viewMode, setViewMode] = useState('slab'); // 'slab' | 'closeup'
+
+  // Lightbox State
+  const [showLightbox, setShowLightbox] = useState(false);
+  const [currentBundle, setCurrentBundle] = useState(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Function to convert product name to slug
   const createSlug = (name) => name
@@ -76,6 +81,33 @@ const ProductDetail = () => {
       navigate('/', { state: { activeCategory: backCategory } });
     } else {
       navigate(-1);
+    }
+  };
+
+  const openLightbox = (bundle, index = 0) => {
+    setCurrentBundle(bundle);
+    setCurrentImageIndex(index);
+    setShowLightbox(true);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeLightbox = () => {
+    setShowLightbox(false);
+    setCurrentBundle(null);
+    document.body.style.overflow = 'auto';
+  };
+
+  const nextImage = (e) => {
+    e.stopPropagation();
+    if (currentBundle && currentBundle.images) {
+      setCurrentImageIndex((prev) => (prev + 1) % currentBundle.images.length);
+    }
+  };
+
+  const prevImage = (e) => {
+    e.stopPropagation();
+    if (currentBundle && currentBundle.images) {
+      setCurrentImageIndex((prev) => (prev - 1 + currentBundle.images.length) % currentBundle.images.length);
     }
   };
 
@@ -149,7 +181,7 @@ const ProductDetail = () => {
         </div>
 
         {/* Info Section */}
-        <div className="product-info">
+        <div className={`product-info ${['Quartzite', 'Granite', 'Marble'].includes(product.category) ? 'full-width-info' : ''}`}>
           <div className="info-header">
             <p className="detail-label">Quartz Color</p>
             <h1>{product.name}</h1>
@@ -165,82 +197,165 @@ const ProductDetail = () => {
           <div className="info-body">
             <p className="detail-description">{detail.description}</p>
 
-            {/* Specs and Installed Images Grid */}
-            <div className="specs-installed-grid">
-              {/* Left Column: Specifications */}
-              <div className="specs-container">
-                <div className="specs-header-box">
-                  <h3>Specs</h3>
-                </div>
-                <div className="specs-table">
-                  {user && product.price && (
+            <div className="specs-installed-grid" style={product.bundles && product.bundles.length > 0 ? { display: 'flex', flexDirection: 'column', gap: '2rem' } : {}}>
+              {/* Conditional Layout: Hide Specs if Bundle Product */}
+              {!(product.bundles && product.bundles.length > 0) && (
+                <div className="specs-container">
+                  <div className="specs-header-box">
+                    <h3>Specs</h3>
+                  </div>
+                  <div className="specs-table">
+                    {user && product.price && (
+                      <div className="spec-row">
+                        <span className="spec-label">Price</span>
+                        <span className="spec-value highlight">{product.price}</span>
+                      </div>
+                    )}
                     <div className="spec-row">
-                      <span className="spec-label">Price</span>
-                      <span className="spec-value highlight">{product.price}</span>
+                      <span className="spec-label">Thickness</span>
+                      <span className="spec-value">{detail.thickness.join(', ')}</span>
                     </div>
-                  )}
-                  <div className="spec-row">
-                    <span className="spec-label">Thickness</span>
-                    <span className="spec-value">{detail.thickness.join(', ')}</span>
-                  </div>
-                  <div className="spec-row">
-                    <span className="spec-label">Sizes</span>
-                    <span className="spec-value">
-                      {(product.sizes && product.sizes.length > 0)
-                        ? product.sizes.join(' | ')
-                        : 'Contact for sizes'
-                      }
-                    </span>
-                  </div>
-                  <div className="spec-row">
-                    <span className="spec-label">Book Match</span>
-                    <span className="spec-value">{product.bookMatch || 'N/A'}</span>
-                  </div>
-                  <div className="spec-row">
-                    <span className="spec-label">Finishes</span>
-                    <span className="spec-value">{detail.finishes.join(', ')}</span>
-                  </div>
-                  <div className="spec-row">
-                    <span className="spec-label">Applications</span>
-                    <span className="spec-value">{detail.applications.join(', ')}</span>
-                  </div>
-                  <div className="spec-row">
-                    <span className="spec-label">Variations</span>
-                    <span className="spec-value">{detail.variations}</span>
-                  </div>
-                  <div className="spec-row">
-                    <span className="spec-label">Style</span>
-                    <span className="spec-value">{detail.style}</span>
+                    <div className="spec-row">
+                      <span className="spec-label">Sizes</span>
+                      <span className="spec-value">
+                        {product.sizes && product.sizes.length > 0
+                          ? product.sizes.join(' | ')
+                          : 'Contact for sizes'}
+                      </span>
+                    </div>
+                    <div className="spec-row">
+                      <span className="spec-label">Book Match</span>
+                      <span className="spec-value">{product.bookMatch || 'N/A'}</span>
+                    </div>
+                    <div className="spec-row">
+                      <span className="spec-label">Finishes</span>
+                      <span className="spec-value">{detail.finishes.join(', ')}</span>
+                    </div>
+                    <div className="spec-row">
+                      <span className="spec-label">Applications</span>
+                      <span className="spec-value">{detail.applications.join(', ')}</span>
+                    </div>
+                    <div className="spec-row">
+                      <span className="spec-label">Variations</span>
+                      <span className="spec-value">{detail.variations}</span>
+                    </div>
+                    <div className="spec-row">
+                      <span className="spec-label">Style</span>
+                      <span className="spec-value">{detail.style}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Right Column: Installed Images */}
-              <div className="installed-images-column">
-                <h3>Installed Gallery</h3>
-                <div className="installed-images-grid">
-                  {[0, 1].map((index) => {
-                    const img = product.installedImages && product.installedImages[index];
-                    return img ? (
-                      <div key={index} className="installed-image-card">
-                        <img
-                          src={getLocalImagePath(img)}
-                          alt={`${product.name} installed view ${index + 1}`}
-                          onClick={() => window.open(getLocalImagePath(img), '_blank')}
-                        />
-                      </div>
-                    ) : (
-                      <div key={index} className="installed-placeholder">
-                        <p>Installed image coming soon</p>
-                      </div>
-                    );
-                  })}
-                </div>
+              {/* Right Column / Full Width: Installed Images / Bundles */}
+              <div className="installed-images-column" style={product.bundles && product.bundles.length > 0 ? { width: '100%' } : {}}>
+                {product.bundles && product.bundles.length > 0 ? (
+                  <>
+                    <h3 style={{
+                      borderBottom: '1px solid rgba(255,255,255,0.1)',
+                      paddingBottom: '1rem',
+                      fontSize: '1.2rem',
+                      letterSpacing: '0.1em',
+                      marginBottom: '1rem'
+                    }}>
+                      AVAILABLE INVENTORY
+                    </h3>
+                    <div className="bundle-grid" style={{
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                      gap: '2.5rem'
+                    }}>
+                      {product.bundles.map((bundle, bIndex) => (
+                        <div key={bIndex} className="bundle-card">
+                          <img
+                            src={getLocalImagePath(bundle.images?.[0])}
+                            alt={`Bundle ${bundle.bundleNumber}`}
+                            className="bundle-thumbnail"
+                            onClick={() => openLightbox(bundle, 0)}
+                          />
+                          <div className="bundle-info">
+                            <div className="bundle-meta-row">
+                              <span>Bundle Num:</span>
+                              <strong>{bundle.bundleNumber}</strong>
+                            </div>
+                            <div className="bundle-meta-row">
+                              <span>Avg Size:</span>
+                              <strong>{bundle.avgSize || 'N/A'}</strong>
+                            </div>
+                            <div className="bundle-meta-row">
+                              <span>Location:</span>
+                              <strong>{bundle.location || 'N/A'}</strong>
+                            </div>
+
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h3>{['Quartzite', 'Granite', 'Marble'].includes(product.category) ? 'Bundle Gallery' : 'Installed Gallery'}</h3>
+                    <div className="installed-images-grid">
+                      {[0, 1].map((index) => {
+                        const img = product.installedImages && product.installedImages[index];
+                        return img ? (
+                          <div key={index} className="installed-image-card">
+                            <img
+                              src={getLocalImagePath(img)}
+                              alt={`${product.name} installed view ${index + 1}`}
+                              onClick={() => window.open(getLocalImagePath(img), '_blank')}
+                            />
+                          </div>
+                        ) : (
+                          <div key={index} className="installed-placeholder">
+                            <p>Installed image coming soon</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Lightbox Overlay */}
+      {showLightbox && currentBundle && (
+        <div className="lightbox-overlay" onClick={closeLightbox}>
+          <button className="lightbox-close" onClick={closeLightbox}>
+            <X size={32} />
+          </button>
+
+          <button className="lightbox-nav-btn prev" onClick={prevImage}>
+            <ChevronLeft size={32} />
+          </button>
+
+          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={getLocalImagePath(currentBundle.images[currentImageIndex])}
+              alt={`Bundle ${currentBundle.bundleNumber} View`}
+              className="lightbox-image"
+            />
+          </div>
+
+          <button className="lightbox-nav-btn next" onClick={nextImage}>
+            <ChevronRight size={32} />
+          </button>
+
+          <div className="lightbox-footer" onClick={(e) => e.stopPropagation()}>
+            <div className="lightbox-meta-item">
+              <strong>Bundle Num:</strong> {currentBundle.bundleNumber}
+            </div>
+            <div className="lightbox-meta-item">
+              <strong>Avg Size:</strong> {currentBundle.avgSize || 'N/A'}
+            </div>
+            <div className="lightbox-meta-item">
+              <strong>Location:</strong> {currentBundle.location || 'N/A'}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

@@ -12,6 +12,14 @@ const productSchema = new mongoose.Schema({
     image: { type: String }
   }],
   installedImages: [{ type: String }], // Array to store up to 2 installed images
+  bundles: [{
+    bundleNumber: { type: String }, // Optional to allow saving drafts
+    serial: { type: String },
+    avgSize: { type: String },
+    qty: { type: String },
+    location: { type: String },
+    images: [{ type: String }]
+  }],
   isNewArrival: { type: Boolean, default: false },
   showInSlider: { type: Boolean, default: false },
   thickness: [{ type: String }],

@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
+// Trigger restart for schema update (v2)
 
 import express from 'express';
 import cors from 'cors';
@@ -2238,6 +2239,16 @@ app.post('/api/products/save', async (req, res) => {
 
     if (!products || !Array.isArray(products)) {
       return res.status(400).json({ error: 'Invalid products data' });
+    }
+
+    // DEBUG: Check for bundles
+    const sampleWithBundles = products.find(p => p.bundles && p.bundles.length > 0);
+    if (sampleWithBundles) {
+      console.log('📦 [DEBUG] Received product with bundles:', sampleWithBundles.name);
+      console.log('📦 [DEBUG] Bundle Count:', sampleWithBundles.bundles.length);
+      console.log('📦 [DEBUG] Full Bundles Payload:', JSON.stringify(sampleWithBundles.bundles, null, 2));
+    } else {
+      console.log('⚠️ [DEBUG] No products with bundles found in payload.');
     }
 
     // Bulk write operations

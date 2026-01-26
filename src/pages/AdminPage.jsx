@@ -247,6 +247,78 @@ const AdminPage = () => {
     }
   };
 
+  // Bundle Management Handlers
+  const handleAddBundle = () => {
+    if (!selectedProduct) return;
+    const currentBundles = selectedProduct.bundles || [];
+    const newBundle = {
+      bundleNumber: '',
+      location: 'SEATTLE, WA',
+      images: []
+    };
+    handleChange('bundles', [...currentBundles, newBundle]);
+  };
+
+  const handleRemoveBundle = (index) => {
+    if (!selectedProduct) return;
+    const currentBundles = [...(selectedProduct.bundles || [])];
+    currentBundles.splice(index, 1);
+    handleChange('bundles', currentBundles);
+  };
+
+  const handleBundleFieldChange = (index, field, value) => {
+    if (!selectedProduct) return;
+    const currentBundles = [...(selectedProduct.bundles || [])];
+    currentBundles[index] = { ...currentBundles[index], [field]: value };
+    handleChange('bundles', currentBundles);
+  };
+
+  const handleBundleImageUpload = async (e, bundleIndex) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const response = await fetch(API_ENDPOINTS.UPLOAD, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        const currentBundles = [...(selectedProduct.bundles || [])];
+        const bundle = { ...currentBundles[bundleIndex] };
+        bundle.images = [...(bundle.images || []), data.filePath];
+        currentBundles[bundleIndex] = bundle;
+        handleChange('bundles', currentBundles);
+      } else {
+        alert('Failed to upload bundle image');
+      }
+    } catch (error) {
+      console.error('Error uploading bundle image:', error);
+      alert('Error uploading bundle image');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemoveBundleImage = (bundleIndex, imageIndex) => {
+    if (!selectedProduct) return;
+
+    if (!window.confirm('Delete this image?')) return;
+
+    const currentBundles = [...(selectedProduct.bundles || [])];
+    const bundle = { ...currentBundles[bundleIndex] };
+    const newImages = [...bundle.images];
+    newImages.splice(imageIndex, 1);
+    bundle.images = newImages;
+    currentBundles[bundleIndex] = bundle;
+    handleChange('bundles', currentBundles);
+  };
+
   // Initialize selected product when products change or on first load
   const selectedProduct = products.find(p => p.id === selectedProductId);
 
@@ -516,6 +588,20 @@ const AdminPage = () => {
   const collections = ['Luxe', 'Prestige', 'Signature', 'Basic'];
   const categories = ['Quartz', 'Granite', 'Marble', 'Sinks', 'Quartzite', 'MODA PST'];
   const thicknessOptions = ['1.5CM', '2CM', '3CM'];
+  const bundleLocations = [
+    'ATLANTA, GA',
+    'CHARLESTON, SC',
+    'CHARLOTTE, NC',
+    'DALLAS, TX',
+    'FORT WALTON BEACH, FL',
+    'GREENSBORO, NC',
+    'HOUSTON, TX',
+    'RICHMOND, VA',
+    'SEATTLE, WA',
+    'SPOKANE, WA',
+    'SALT LAKE CITY, UT',
+    'RALEIGH, NC'
+  ];
 
 
 
@@ -1688,55 +1774,175 @@ const AdminPage = () => {
               )}
             </section>
 
-            {/* Installed Images Section */}
-            <div className="form-section">
-              <h3>Installed Images (Max 2)</h3>
-              <div className="form-grid">
-                {[0, 1].map((index) => (
-                  <div key={index} className="form-group">
-                    <label>Installed Image {index + 1}</label>
-                    <div className="image-input-wrapper">
-                      <div className="image-preview">
-                        {selectedProduct.installedImages && selectedProduct.installedImages[index] ? (
-                          <img
-                            src={selectedProduct.installedImages[index]}
-                            alt={`Installed ${index + 1}`}
-                            onError={(e) => { e.target.src = '/images/products/placeholder.jpg'; }}
-                          />
-                        ) : (
-                          <div className="placeholder-icon">
-                            <ImageIcon size={24} color="#666" />
-                          </div>
-                        )}
+            {['Quartzite', 'Granite', 'Marble'].includes(selectedProduct.category) ? (
+              /* Bundle Management Section */
+              <div className="form-section">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h3>Bundle Management</h3>
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={handleAddBundle}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    <Plus size={16} /> Add Bundle
+                  </button>
+                </div>
+
+                {(selectedProduct.bundles || []).map((bundle, bundleIndex) => (
+                  <div key={bundleIndex} className="bundle-card" style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', mb: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <h4 style={{ margin: 0, color: '#aaa' }}>Bundle {bundleIndex + 1}</h4>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBundle(bundleIndex)}
+                          style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem' }}
+                          title="Remove Bundle"
+                        >
+                          <Trash2 size={20} />
+                        </button>
                       </div>
-                      <div className="image-controls">
-                        <div className="file-upload-btn-wrapper">
-                          <button className="secondary-btn upload-btn" type="button">
-                            Upload
-                          </button>
+
+                      <div className="form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label>Bundle #</label>
                           <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleInstalledImageUpload(e, index)}
-                            className="file-input-hidden"
+                            type="text"
+                            value={bundle.bundleNumber || ''}
+                            onChange={(e) => handleBundleFieldChange(bundleIndex, 'bundleNumber', e.target.value)}
+                            placeholder="e.g. Lot A"
                           />
                         </div>
-                        {selectedProduct.installedImages && selectedProduct.installedImages[index] && (
-                          <button
-                            className="secondary-btn delete-btn-small"
-                            type="button"
-                            onClick={() => handleDeleteImage(selectedProduct.installedImages[index], 'installed', index)}
-                            style={{ marginTop: '0.5rem', borderColor: '#ef4444', color: '#ef4444' }}
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label>Avg Size</label>
+                          <input
+                            type="text"
+                            value={bundle.avgSize || ''}
+                            onChange={(e) => handleBundleFieldChange(bundleIndex, 'avgSize', e.target.value)}
+                            placeholder='e.g. 121" X 76"'
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label>Location</label>
+                          <select
+                            value={bundle.location || 'SEATTLE, WA'}
+                            onChange={(e) => handleBundleFieldChange(bundleIndex, 'location', e.target.value)}
+                            style={{ width: '100%', padding: '0.625rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
                           >
-                            <Trash2 size={14} /> Remove
+                            {bundleLocations.map(loc => (
+                              <option key={loc} value={loc} style={{ background: '#1a1a1a' }}>{loc}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#ccc' }}>Bundle Images</label>
+                    <div className="image-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '8px' }}>
+                      {(bundle.images || []).map((img, imgIndex) => (
+                        <div key={imgIndex} style={{ position: 'relative', aspectRatio: '1' }}>
+                          <img
+                            src={img}
+                            alt={`Bundle ${bundleIndex + 1} Image ${imgIndex + 1}`}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveBundleImage(bundleIndex, imgIndex)}
+                            style={{
+                              position: 'absolute', top: -5, right: -5,
+                              background: '#ef4444', color: 'white',
+                              borderRadius: '50%', width: '20px', height: '20px',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              border: 'none', cursor: 'pointer', padding: 0
+                            }}
+                          >
+                            <X size={12} />
                           </button>
-                        )}
+                        </div>
+                      ))}
+
+                      <div className="add-image-box" style={{
+                        border: '2px dashed rgba(255,255,255,0.2)',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        aspectRatio: '1',
+                        cursor: 'pointer'
+                      }}>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => handleBundleImageUpload(e, bundleIndex)}
+                          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+                        />
+                        <Plus size={24} color="rgba(255,255,255,0.5)" />
                       </div>
                     </div>
                   </div>
                 ))}
+
+                {(selectedProduct.bundles || []).length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: '#666', fontStyle: 'italic' }}>
+                    No bundles added yet. Click "Add Bundle" to start.
+                  </div>
+                )}
               </div>
-            </div>
+            ) : (
+              /* Installed Images Section (Existing) */
+              <div className="form-section">
+                <h3>Installed Images (Max 2)</h3>
+                <div className="form-grid">
+                  {[0, 1].map((index) => (
+                    <div key={index} className="form-group">
+                      <label>Installed Image {index + 1}</label>
+                      <div className="image-input-wrapper">
+                        <div className="image-preview">
+                          {selectedProduct.installedImages && selectedProduct.installedImages[index] ? (
+                            <img
+                              src={selectedProduct.installedImages[index]}
+                              alt={`Installed ${index + 1}`}
+                              onError={(e) => { e.target.src = '/images/products/placeholder.jpg'; }}
+                            />
+                          ) : (
+                            <div className="placeholder-icon">
+                              <ImageIcon size={24} color="#666" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="image-controls">
+                          <div className="file-upload-btn-wrapper">
+                            <button className="secondary-btn upload-btn" type="button">
+                              Upload
+                            </button>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleInstalledImageUpload(e, index)}
+                              className="file-input-hidden"
+                            />
+                          </div>
+                          {selectedProduct.installedImages && selectedProduct.installedImages[index] && (
+                            <button
+                              className="secondary-btn delete-btn-small"
+                              type="button"
+                              onClick={() => handleDeleteImage(selectedProduct.installedImages[index], 'installed', index)}
+                              style={{ marginTop: '0.5rem', borderColor: '#ef4444', color: '#ef4444' }}
+                            >
+                              <Trash2 size={14} /> Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Specifications */}
             <section className="form-section">
