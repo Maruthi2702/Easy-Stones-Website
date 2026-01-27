@@ -1215,7 +1215,9 @@ app.post('/api/sales-dashboard/upload', uploadResources.single('file'), async (r
       thumbnail: thumbnail || ''
     });
 
+    const startSave = Date.now();
     await newResource.save();
+    console.log(`[DEBUG] Resource saved successfully as disk file in ${Date.now() - startSave}ms`);
     console.log('[DEBUG] Resource saved successfully as disk file');
     res.status(201).json(newResource);
   } catch (error) {
@@ -1399,7 +1401,10 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
     const visitedCustomer = await Customer.findById(customerId).select('contactName company');
     const customerContactName = visitedCustomer ? (visitedCustomer.company || visitedCustomer.contactName) : '';
 
+    // Pre-generate visit ID for atomic update and logging
+    const visitId = new mongoose.Types.ObjectId();
     const visitData = {
+      _id: visitId,
       date,
       purpose,
       notes,
@@ -1414,7 +1419,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       createdAt: new Date()
     };
     
-    console.log(`[DEBUG] Prepared visit data for update. Image count: ${image && Array.isArray(image) ? image.length : (image ? 1 : 0)}`);
+    console.log(`[DEBUG] Prepared visit data with ID: ${visitId}. Image count: ${image && Array.isArray(image) ? image.length : (image ? 1 : 0)}`);
 
     // Use atomic $push to add the visit without loading the entire document
     const startUpdate = Date.now();
@@ -1423,7 +1428,6 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       { $push: { visits: visitData } }
     );
     console.log(`[DEBUG] UpdateOne completed in ${Date.now() - startUpdate}ms`);
-    console.log('[DEBUG] Update result:', result);
 
     if (result.matchedCount === 0) {
         console.error(`[DEBUG] ERROR: Update match count is 0. ID ${customerId} might not exist?`);
@@ -1437,19 +1441,16 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
 
     // Background: Log the activity
     try {
-        const newVisit = (await Customer.findById(customerId).select('visits')).visits.slice(-1)[0];
-        if (newVisit) {
-            await ActivityLog.create({
-                entityType: 'Visit',
-                entityId: newVisit._id,
-                customerId: customerId,
-                action: 'CREATE',
-                performedBy: createdBy,
-                performedByName: createdByName,
-                performedByRole: req.authType,
-                details: { purpose: visitData.purpose, date: visitData.date }
-            });
-        }
+        await ActivityLog.create({
+            entityType: 'Visit',
+            entityId: visitId,
+            customerId: customerId,
+            action: 'CREATE',
+            performedBy: createdBy,
+            performedByName: createdByName,
+            performedByRole: req.authType,
+            details: { purpose: visitData.purpose, date: visitData.date }
+        });
     } catch (logError) {
         console.error('Failed to log visit creation:', logError);
     }
