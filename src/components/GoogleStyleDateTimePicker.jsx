@@ -1,21 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, ChevronDown } from 'lucide-react';
+import { Clock, ChevronDown } from 'lucide-react';
+import CustomDatePicker from './CustomDatePicker';
 
 const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
-    const dateInputRef = useRef(null);
 
     // Parse the incoming ISO string
     const dateObj = value ? new Date(value) : new Date();
-
-    // Format Display Date: "Wednesday, February 25, 2026"
-    const displayDate = dateObj.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-    });
 
     // Format Display Time: "10:30 AM"
     const displayTime = dateObj.toLocaleTimeString('en-US', {
@@ -23,6 +15,14 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
         minute: '2-digit',
         hour12: true
     });
+
+    // Helper to get YYYY-MM-DD
+    const getFormattedDateStr = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
 
     // Generate 15-minute intervals for the dropdown
     const timeSlots = React.useMemo(() => {
@@ -52,15 +52,21 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleDateChange = (e) => {
-        const selectedDate = new Date(e.target.value);
-        // Preserve current time
-        selectedDate.setHours(dateObj.getHours());
-        selectedDate.setMinutes(dateObj.getMinutes());
+    const handleDateChange = (newDateStr) => {
+        // newDateStr is "YYYY-MM-DD"
+        if (!newDateStr) return;
+
+        const [year, month, day] = newDateStr.split('-').map(Number);
+
+        // Create new date preserving current time
+        const newDate = new Date(dateObj);
+        newDate.setFullYear(year);
+        newDate.setMonth(month - 1);
+        newDate.setDate(day);
 
         // Format to local ISO (YYYY-MM-DDTHH:mm)
-        const offset = selectedDate.getTimezoneOffset() * 60000;
-        const localISO = new Date(selectedDate - offset).toISOString().slice(0, 16);
+        const offset = newDate.getTimezoneOffset() * 60000;
+        const localISO = new Date(newDate - offset).toISOString().slice(0, 16);
         onChange(localISO);
     };
 
@@ -78,15 +84,10 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
     return (
         <div className="google-style-picker">
             <div className="picker-row">
-                {/* Date Selector */}
-                <div className="picker-button date-button" onClick={() => dateInputRef.current?.showPicker()}>
-                    <Calendar size={16} />
-                    <span className="button-text">{displayDate}</span>
-                    <input
-                        type="date"
-                        ref={dateInputRef}
-                        className="hidden-date-input"
-                        value={new Date(dateObj.getTime() - (dateObj.getTimezoneOffset() * 60000)).toISOString().split('T')[0]}
+                {/* Custom Date Picker */}
+                <div className="picker-input-wrapper">
+                    <CustomDatePicker
+                        value={getFormattedDateStr(dateObj)}
                         onChange={handleDateChange}
                         required={required}
                     />
@@ -95,7 +96,7 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
                 <span className="picker-separator">at</span>
 
                 {/* Time Selector */}
-                <div className="time-picker-wrapper" ref={dropdownRef}>
+                <div className="picker-input-wrapper time-picker-wrapper" ref={dropdownRef}>
                     <div className={`picker-button time-button ${isOpen ? 'active' : ''}`} onClick={() => setIsOpen(!isOpen)}>
                         <Clock size={16} />
                         <span className="button-text">{displayTime}</span>

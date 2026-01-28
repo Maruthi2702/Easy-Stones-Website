@@ -338,7 +338,14 @@
     align-items: center;
 }
 
-.customer-name {
+.name-block {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-header .customer-name {
   font-size: 1.1rem;
   font-weight: 700;
   color: #FFFFFF;
@@ -346,6 +353,9 @@
   letter-spacing: 0.02em;
   margin-right: 2.5rem;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
 }
 
 /* Header Tabs */
@@ -4016,7 +4026,7 @@
     flex: 1;
 }
 
-.customer-name {
+.schedule-item .customer-name {
     color: #FFFFFF;
     font-size: 0.95rem;
     font-weight: 700;
@@ -4030,7 +4040,7 @@
     margin-bottom: 0.35rem;
 }
 
-.customer-name:hover {
+.schedule-item .customer-name:hover {
     color: var(--accent-color);
     text-decoration: underline;
 }

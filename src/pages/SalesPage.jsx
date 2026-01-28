@@ -19,6 +19,7 @@ import './SalesPageChatImage.css';
 import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
 import SalesPlannerTab from '../components/SalesPlannerTab';
+import CustomDatePicker from '../components/CustomDatePicker';
 import { formatForDateInput } from '../utils/dateUtils';
 
 class ErrorBoundary extends React.Component {
@@ -3349,10 +3350,10 @@ const SalesPage = () => {
                             <div className="modal-body">
                                 <div className="form-group">
                                     <label>Date <span style={{ color: 'red' }}>*</span></label>
-                                    <input
-                                        type="date"
+                                    <CustomDatePicker
                                         value={visitForm.date}
-                                        onChange={(e) => setVisitForm({ ...visitForm, date: e.target.value })}
+                                        onChange={(value) => setVisitForm({ ...visitForm, date: value })}
+                                        required
                                     />
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
@@ -3698,10 +3699,10 @@ const SalesPage = () => {
 
                                     <div className="form-group">
                                         <label>Date *</label>
-                                        <input
-                                            type="date"
+                                        <CustomDatePicker
                                             value={resourceForm.date}
-                                            onChange={(e) => setResourceForm({ ...resourceForm, date: e.target.value })}
+                                            onChange={(value) => setResourceForm({ ...resourceForm, date: value })}
+                                            required
                                         />
                                     </div>
                                     <div className="form-group">
