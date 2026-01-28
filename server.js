@@ -26,6 +26,7 @@ import SalesCustomer from './src/models/SalesCustomer.js';
 import SalesResource from './src/models/SalesResource.js';
 import SalesDashboardResource from './src/models/SalesDashboardResource.js';
 import ActivityLog from './src/models/ActivityLog.js';
+import Schedule from './src/models/Schedule.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -1561,6 +1562,108 @@ app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (r
   } catch (error) {
     console.error('Delete visit error:', error);
     res.status(500).json({ message: 'Failed to delete visit' });
+  }
+});
+
+// ============================================
+// SCHEDULE / PLANNER ENDPOINTS
+// ============================================
+
+// Get user's schedule
+app.get('/api/schedule', verifyAnyAuth, async (req, res) => {
+  console.log('[DEBUG] GET /api/schedule hit');
+  try {
+    const userId = req.userId || req.customerId;
+    const { start, end } = req.query;
+    
+    let query = { userId };
+    
+    if (start && end) {
+      query.startTime = { $gte: new Date(start), $lte: new Date(end) };
+    }
+    
+    const schedule = await Schedule.find(query)
+      .populate('customerId', 'contactName company')
+      .sort({ startTime: 1 });
+      
+    res.json(schedule);
+  } catch (error) {
+    console.error('Fetch schedule error:', error);
+    res.status(500).json({ message: 'Failed to fetch schedule' });
+  }
+});
+
+// Create schedule item
+app.post('/api/schedule', verifyAnyAuth, async (req, res) => {
+  try {
+    const userId = req.userId || req.customerId;
+    const { customerId, startTime, endTime, activityType, notes } = req.body;
+    
+    if (!customerId || !startTime) {
+      return res.status(400).json({ message: 'Missing required schedule fields' });
+    }
+    
+    const newItem = new Schedule({
+      userId,
+      customerId,
+      startTime,
+      endTime,
+      activityType,
+      notes
+    });
+    
+    await newItem.save();
+    
+    // Populate customer info for the response
+    const populatedItem = await Schedule.findById(newItem._id).populate('customerId', 'contactName company');
+    
+    res.status(201).json(populatedItem);
+  } catch (error) {
+    console.error('Create schedule error:', error);
+    res.status(500).json({ message: 'Failed to create schedule entry' });
+  }
+});
+
+// Update schedule item
+app.put('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const userId = req.userId || req.customerId;
+    const { id } = req.params;
+    const updates = req.body;
+    
+    const item = await Schedule.findOneAndUpdate(
+      { _id: id, userId },
+      updates,
+      { new: true }
+    ).populate('customerId', 'contactName company');
+    
+    if (!item) {
+      return res.status(404).json({ message: 'Schedule item not found' });
+    }
+    
+    res.json(item);
+  } catch (error) {
+    console.error('Update schedule error:', error);
+    res.status(500).json({ message: 'Failed to update schedule entry' });
+  }
+});
+
+// Delete schedule item
+app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const userId = req.userId || req.customerId;
+    const { id } = req.params;
+    
+    const result = await Schedule.deleteOne({ _id: id, userId });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'Schedule item not found' });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete schedule error:', error);
+    res.status(500).json({ message: 'Failed to delete schedule entry' });
   }
 });
 

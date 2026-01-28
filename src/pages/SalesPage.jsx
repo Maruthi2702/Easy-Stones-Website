@@ -18,6 +18,8 @@ import './SalesPageChat.css';
 import './SalesPageChatImage.css';
 import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
+import SalesPlannerTab from '../components/SalesPlannerTab';
+import { formatForDateInput } from '../utils/dateUtils';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -67,6 +69,7 @@ const SalesPage = () => {
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
+    const [todayScheduleCount, setTodayScheduleCount] = useState(0);
     const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
     const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
 
@@ -76,6 +79,27 @@ const SalesPage = () => {
             setCurrentUserId(currentUser.id || currentUser._id);
         }
     }, [currentUser]);
+
+    // Fetch today's schedule count
+    useEffect(() => {
+        const fetchTodaySchedule = async () => {
+            try {
+                const today = new Date();
+                const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
+                const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+                const response = await fetch(`${API_URL}/api/schedule?start=${startOfDay}&end=${endOfDay}`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setTodayScheduleCount(data.length);
+                }
+            } catch (error) {
+                console.error('Error fetching today schedule:', error);
+            }
+        };
+        fetchTodaySchedule();
+    }, []);
 
     // Modal states
     const [showContactModal, setShowContactModal] = useState(false);
@@ -125,7 +149,7 @@ const SalesPage = () => {
 
     const dashboardDateRangeStart = React.useMemo(() => {
         const now = new Date();
-        const localDateStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        const localDateStr = formatForDateInput(new Date());
         let start;
         switch (dashboardTimeRange) {
             case '1day':
@@ -134,18 +158,18 @@ const SalesPage = () => {
             case '7days':
                 start = new Date();
                 start.setDate(now.getDate() - 7);
-                const sevenDaysAgoStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                const sevenDaysAgoStr = formatForDateInput(start);
                 start = new Date(`${sevenDaysAgoStr}T00:00:00.000Z`);
                 break;
             case '30days':
                 start = new Date();
                 start.setDate(now.getDate() - 30);
-                const thirtyDaysAgoStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                const thirtyDaysAgoStr = formatForDateInput(start);
                 start = new Date(`${thirtyDaysAgoStr}T00:00:00.000Z`);
                 break;
             case 'year':
                 start = new Date(now.getFullYear(), 0, 1);
-                const yearStartStr = new Date(start.getTime() - (start.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                const yearStartStr = formatForDateInput(start);
                 start = new Date(`${yearStartStr}T00:00:00.000Z`);
                 break;
             case 'all':
@@ -349,7 +373,7 @@ const SalesPage = () => {
 
     const [resourceForm, setResourceForm] = useState({
         title: '',
-        date: new Date().toISOString().split('T')[0],
+        date: formatForDateInput(new Date()),
         customerId: '', // Added to track actual customer ID
         customer: '',
         location: '',
@@ -1031,7 +1055,7 @@ const SalesPage = () => {
         setEditingVisit(null);
         setIsViewingVisit(false);
         setVisitForm({
-            date: new Date().toISOString().split('T')[0],
+            date: formatForDateInput(new Date()),
             purpose: 'Scheduled in Person Sales Meeting',
             notes: '',
             outcome: '',
@@ -1044,7 +1068,7 @@ const SalesPage = () => {
         setEditingVisit(visit);
         setIsViewingVisit(false);
         setVisitForm({
-            date: visit.date ? new Date(visit.date).toISOString().split('T')[0] : '',
+            date: visit.date ? formatForDateInput(visit.date) : '',
             purpose: visit.purpose || '',
             notes: visit.notes || '',
             outcome: visit.outcome || '',
@@ -1158,9 +1182,7 @@ const SalesPage = () => {
         setEditingVisit(null);
         setIsViewingVisit(false);
 
-        // Get local YYYY-MM-DD
-        const now = new Date();
-        const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        const localDate = formatForDateInput(new Date());
 
         setVisitForm({
             date: localDate,
@@ -1179,9 +1201,7 @@ const SalesPage = () => {
         setEditingResource(null);
         setIsViewingResource(false);
 
-        // Get local YYYY-MM-DD
-        const now = new Date();
-        const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+        const localDate = formatForDateInput(new Date());
 
         setResourceForm({
             title: '',
@@ -1218,7 +1238,7 @@ const SalesPage = () => {
         setIsViewingResource(false);
         setResourceForm({
             title: '',
-            date: new Date().toISOString().split('T')[0],
+            date: formatForDateInput(new Date()),
             customerId: selectedCustomer ? selectedCustomer._id : '',
             customer: selectedCustomer ? (selectedCustomer.company || selectedCustomer.contactName) : '',
             location: '',
@@ -1235,11 +1255,10 @@ const SalesPage = () => {
     const handleAddResource = () => {
         setEditingResource(null);
         setIsViewingResource(false);
-        setIsViewingResource(false);
         setImagePreview(null);
         setResourceForm({
             title: '',
-            date: new Date().toISOString().split('T')[0],
+            date: formatForDateInput(new Date()),
             customerId: selectedCustomer ? selectedCustomer._id : '',
             customer: selectedCustomer ? (selectedCustomer.company || selectedCustomer.contactName) : '',
             location: '',
@@ -1336,7 +1355,7 @@ const SalesPage = () => {
         setImagePreview(Array.isArray(resource.image) && resource.image.length > 0 ? resource.image[0] : (resource.image || null));
         setResourceForm({
             title: resource.title || '',
-            date: resource.date ? new Date(resource.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            date: resource.date ? formatForDateInput(resource.date) : formatForDateInput(new Date()),
             customerId: resource.customerId || selectedCustomerId, // Fallback to current if missing
             customer: resource.customer || '',
             location: resource.location || '',
@@ -2097,6 +2116,7 @@ const SalesPage = () => {
                                     </div>
                                 )}
 
+
                                 {activeTab === 'visits' && (
                                     <div className="tab-section visits-tab">
                                         {/* Top "New Post" Input Area */}
@@ -2584,6 +2604,18 @@ const SalesPage = () => {
                                                     <div className="stat-value">{stats.quickNotes}</div>
                                                     <div className="stat-footer">{timeLabel}</div>
                                                 </div>
+                                                <div
+                                                    className={`stat-card ${activeDashboardTab === 'planner' ? 'active-tab' : ''}`}
+                                                    onClick={() => setActiveDashboardTab('planner')}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <div className="stat-icon-wrapper">
+                                                        <Calendar size={20} />
+                                                    </div>
+                                                    <div className="stat-title">CALENDAR</div>
+                                                    <div className="stat-value">{todayScheduleCount}</div>
+                                                    <div className="stat-footer">Schedule</div>
+                                                </div>
                                                 {/* <div className="stat-card">
                                             <div className="stat-icon-wrapper">
                                                 <DollarSign size={20} />
@@ -2606,6 +2638,16 @@ const SalesPage = () => {
 
                                     {/* Visits Table */}
                                     {/* Sales Visits Table */}
+                                    {activeDashboardTab === 'planner' && (
+                                        <div className="planner-dashboard-container">
+                                            <SalesPlannerTab
+                                                customers={customers}
+                                                currentUserId={currentUserId}
+                                                onSelectCustomer={handleSelectCustomer}
+                                            />
+                                        </div>
+                                    )}
+
                                     {activeDashboardTab === 'visits' && (
                                         <div className="visits-table-section">
                                             <div className="section-header">
