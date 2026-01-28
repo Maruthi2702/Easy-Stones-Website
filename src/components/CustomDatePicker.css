@@ -24,15 +24,21 @@
 .datepicker-input .placeholder {
     color: rgba(255, 255, 255, 0.5);
     flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .datepicker-input .has-value {
     color: #fff;
     flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .datepicker-input .rotate {
-    transform: rotate(90deg);
+    transform: rotate(180deg);
 }
 
 .datepicker-dropdown {

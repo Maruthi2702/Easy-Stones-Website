@@ -253,55 +253,57 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer }) =>
 
             {/* Simple Modal */}
             {showAddModal && (
-                <div className="planner-modal-overlay">
-                    <div className="planner-modal">
+                <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h3>{editingItem ? 'Edit Activity' : 'Schedule New Activity'}</h3>
-                            <button onClick={() => setShowAddModal(false)}><X size={20} /></button>
+                            <h2>{editingItem ? 'Edit Activity' : 'Schedule New Activity'}</h2>
+                            <button className="close-btn" onClick={() => setShowAddModal(false)}><X size={20} /></button>
                         </div>
-                        <form onSubmit={handleSave}>
-                            <div className="form-group">
-                                <label>Customer</label>
-                                <SearchableSelect
-                                    options={customerOptions}
-                                    value={form.customerId}
-                                    onChange={value => setForm({ ...form, customerId: value })}
-                                    placeholder="Select a Customer..."
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Start Time</label>
-                                <GoogleStyleDateTimePicker
-                                    value={form.startTime}
-                                    onChange={value => setForm({ ...form, startTime: value })}
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Activity Type</label>
-                                <SearchableSelect
-                                    options={activityTypeOptions}
-                                    value={form.activityType}
-                                    onChange={value => setForm({ ...form, activityType: value })}
-                                    placeholder="Select Type..."
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Notes</label>
-                                <textarea
-                                    value={form.notes}
-                                    onChange={e => setForm({ ...form, notes: e.target.value })}
-                                    placeholder="Agenda or special instructions..."
-                                />
-                            </div>
-                            <div className="modal-footer">
-                                <button type="button" onClick={() => setShowAddModal(false)} className="cancel-btn">Cancel</button>
-                                <button type="submit" className="planner-save-btn" disabled={loading}>
-                                    {loading ? 'Saving...' : 'Save Plan'}
-                                </button>
-                            </div>
-                        </form>
+                        <div className="modal-body">
+                            <form onSubmit={handleSave} className="planner-form">
+                                <div className="form-group">
+                                    <label>Customer <span style={{ color: 'red' }}>*</span></label>
+                                    <SearchableSelect
+                                        options={customerOptions}
+                                        value={form.customerId}
+                                        onChange={value => setForm({ ...form, customerId: value })}
+                                        placeholder="Select a Customer..."
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Start Time <span style={{ color: 'red' }}>*</span></label>
+                                    <GoogleStyleDateTimePicker
+                                        value={form.startTime}
+                                        onChange={value => setForm({ ...form, startTime: value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Activity Type</label>
+                                    <SearchableSelect
+                                        options={activityTypeOptions}
+                                        value={form.activityType}
+                                        onChange={value => setForm({ ...form, activityType: value })}
+                                        placeholder="Select Type..."
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Notes</label>
+                                    <textarea
+                                        value={form.notes}
+                                        onChange={e => setForm({ ...form, notes: e.target.value })}
+                                        placeholder="Agenda or special instructions..."
+                                    />
+                                </div>
+                            </form>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary">Cancel</button>
+                            <button type="button" onClick={handleSave} className="btn-primary" disabled={loading}>
+                                {loading ? 'Saving...' : 'Save Plan'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import './CustomDatePicker.css';
 
 const CustomDatePicker = ({ value, onChange, placeholder = 'Select date', required }) => {
@@ -117,7 +117,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Select date', requir
                 <span className={selectedDate ? 'has-value' : 'placeholder'}>
                     {selectedDate ? formatDisplay(selectedDate) : placeholder}
                 </span>
-                <ChevronRight size={14} className={isOpen ? 'rotate' : ''} />
+                <ChevronDown size={14} className={isOpen ? 'rotate' : ''} />
             </div>
 
             {isOpen && (
