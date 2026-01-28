@@ -353,14 +353,13 @@
 .dashboard-table .link {
     color: var(--accent-primary);
     cursor: pointer;
-    text-decoration: underline;
+    text-decoration: none;
     font-weight: 500;
     transition: all 0.2s ease;
 }
 
 .dashboard-table .link:hover {
     color: var(--text-primary);
-    text-decoration: none;
 }
 
 /* Sub-tabs for Dashboard Resources */

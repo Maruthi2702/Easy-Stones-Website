@@ -3060,7 +3060,21 @@ const SalesPage = () => {
                                                                     return resources.map((resource, index) => (
                                                                         <tr key={resource._id || index}>
                                                                             <td className="mobile-hide">{formatDate(resource.date || resource.createdAt, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
-                                                                            <td>{resource.customerName}</td>
+                                                                            <td
+                                                                                style={{ cursor: 'pointer', color: '#E5C04A', fontWeight: '500' }}
+                                                                                onClick={() => {
+                                                                                    if (resource.customerId) {
+                                                                                        const customer = customers.find(c => c._id === resource.customerId);
+                                                                                        if (customer) {
+                                                                                            handleSelectCustomer(customer);
+                                                                                            setActiveTab('resources');
+                                                                                            setShowDashboard(false);
+                                                                                        }
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                {resource.customerName}
+                                                                            </td>
                                                                             <td>{resource.resourceType || '-'}</td>
                                                                             <td className="mobile-hide">{resource.description || resource.notes || '-'}</td>
                                                                             <td>
