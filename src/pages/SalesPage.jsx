@@ -1096,6 +1096,7 @@ const SalesPage = () => {
             if (data && data.visit) {
                 const formattedVisit = {
                     ...data.visit,
+                    customerId: visit.customerId, // Preserve customerId
                     date: formatForDateInput(data.visit.date)
                 };
                 setVisitForm(formattedVisit);
@@ -1143,6 +1144,7 @@ const SalesPage = () => {
             if (data && data.visit) {
                 const formattedVisit = {
                     ...data.visit,
+                    customerId: visit.customerId, // Preserve customerId
                     date: formatForDateInput(data.visit.date)
                 };
                 setVisitForm(formattedVisit);
@@ -1436,6 +1438,7 @@ const SalesPage = () => {
             if (data && data.resource) {
                 const formattedResource = {
                     ...data.resource,
+                    customerId: resource.customerId, // Preserve customerId
                     date: formatForDateInput(data.resource.date)
                 };
                 setResourceForm(formattedResource);
@@ -1485,6 +1488,7 @@ const SalesPage = () => {
             if (data && data.resource) {
                 const formattedResource = {
                     ...data.resource,
+                    customerId: resource.customerId, // Preserve customerId
                     date: formatForDateInput(data.resource.date)
                 };
                 setResourceForm(formattedResource);
