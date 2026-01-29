@@ -1065,26 +1065,58 @@ const SalesPage = () => {
         setShowVisitModal(true);
     };
 
-    const handleEditVisit = (visit) => {
-        setEditingVisit(visit);
-        setIsViewingVisit(false);
-        setVisitForm({
-            date: visit.date ? formatForDateInput(visit.date) : '',
-            purpose: visit.purpose || '',
-            notes: visit.notes || '',
-            outcome: visit.outcome || '',
-            followUp: visit.followUp || visit.nextAction || '',
-            managerComment: visit.managerComment || '',
-            headquartersComment: visit.headquartersComment || '',
-            image: Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : []),
-            customerId: visit.customerId || selectedCustomerId || ''
-        });
-        setShowVisitModal(true);
+    const handleEditVisit = async (visit) => {
+        if (!visit?.customerId || !visit?._id) {
+            setEditingVisit(visit);
+            setIsViewingVisit(false);
+            setVisitForm({
+                date: visit.date ? formatForDateInput(visit.date) : '',
+                purpose: visit.purpose || '',
+                notes: visit.notes || '',
+                outcome: visit.outcome || '',
+                followUp: visit.followUp || visit.nextAction || '',
+                managerComment: visit.managerComment || '',
+                headquartersComment: visit.headquartersComment || '',
+                image: Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : []),
+                customerId: visit.customerId || selectedCustomerId || ''
+            });
+            setShowVisitModal(true);
+            return;
+        }
+
+        setLoadingVisitId(visit._id);
+        try {
+            const response = await fetch(`${API_URL}/api/customers/${visit.customerId}/visits/${visit._id}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            const data = await response.json();
+
+            if (data && data.visit) {
+                setVisitForm(data.visit);
+                setEditingVisit(data.visit);
+            } else {
+                setVisitForm(visit);
+                setEditingVisit(visit);
+            }
+            setIsViewingVisit(false);
+            setShowVisitModal(true);
+        } catch (error) {
+            console.error('Error fetching visit details for edit:', error);
+            setVisitForm(visit);
+            setEditingVisit(visit);
+            setIsViewingVisit(false);
+            setShowVisitModal(true);
+        } finally {
+            setLoadingVisitId(null);
+        }
     };
 
     const handleViewVisit = async (visit) => {
         if (!visit?.customerId || !visit?._id) {
             setVisitForm(visit || {});
+            setEditingVisit(visit);
             setShowVisitModal(true);
             setIsViewingVisit(true);
             return;
@@ -1102,14 +1134,17 @@ const SalesPage = () => {
 
             if (data && data.visit) {
                 setVisitForm(data.visit);
+                setEditingVisit(data.visit);
             } else {
                 setVisitForm(visit);
+                setEditingVisit(visit);
             }
             setShowVisitModal(true);
             setIsViewingVisit(true);
         } catch (error) {
             console.error('Error fetching visit details:', error);
             setVisitForm(visit);
+            setEditingVisit(visit);
             setShowVisitModal(true);
             setIsViewingVisit(true);
         } finally {
@@ -1350,30 +1385,65 @@ const SalesPage = () => {
         }
     };
 
-    const handleEditResource = (resource) => {
-        setEditingResource(resource);
-        setIsViewingResource(false);
-        setImagePreview(Array.isArray(resource.image) && resource.image.length > 0 ? resource.image[0] : (resource.image || null));
-        setResourceForm({
-            title: resource.title || '',
-            date: resource.date ? formatForDateInput(resource.date) : formatForDateInput(new Date()),
-            customerId: resource.customerId || selectedCustomerId, // Fallback to current if missing
-            customer: resource.customer || '',
-            location: resource.location || '',
-            resourceType: resource.resourceType || '',
-            image: Array.isArray(resource.image) ? resource.image : (resource.image ? [resource.image] : []),
-            description: resource.description || '',
-            notes: resource.notes || '',
-            status: resource.status || 'Active',
-            url: resource.url || '',
-            uploadedBy: resource.uploadedBy || ''
-        });
-        setShowResourceModal(true);
+    const handleEditResource = async (resource) => {
+        if (!resource?.customerId || !resource?._id) {
+            setEditingResource(resource);
+            setIsViewingResource(false);
+            setImagePreview(Array.isArray(resource.image) && resource.image.length > 0 ? resource.image[0] : (resource.image || null));
+            setResourceForm({
+                title: resource.title || '',
+                date: resource.date ? formatForDateInput(resource.date) : formatForDateInput(new Date()),
+                customerId: resource.customerId || selectedCustomerId, // Fallback to current if missing
+                customer: resource.customer || '',
+                location: resource.location || '',
+                resourceType: resource.resourceType || '',
+                image: Array.isArray(resource.image) ? resource.image : (resource.image ? [resource.image] : []),
+                description: resource.description || '',
+                notes: resource.notes || '',
+                status: resource.status || 'Active',
+                url: resource.url || '',
+                uploadedBy: resource.uploadedBy || ''
+            });
+            setShowResourceModal(true);
+            return;
+        }
+
+        setLoadingResourceId(resource._id);
+        try {
+            const response = await fetch(`${API_URL}/api/customers/${resource.customerId}/resources/${resource._id}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            const data = await response.json();
+
+            if (data && data.resource) {
+                setResourceForm(data.resource);
+                setEditingResource(data.resource);
+                setImagePreview(Array.isArray(data.resource.image) && data.resource.image.length > 0 ? data.resource.image[0] : (data.resource.image || null));
+            } else {
+                setResourceForm(resource);
+                setEditingResource(resource);
+                setImagePreview(Array.isArray(resource.image) && resource.image.length > 0 ? resource.image[0] : (resource.image || null));
+            }
+            setIsViewingResource(false);
+            setShowResourceModal(true);
+        } catch (error) {
+            console.error('Error fetching resource details for edit:', error);
+            setResourceForm(resource);
+            setEditingResource(resource);
+            setIsViewingResource(false);
+            setShowResourceModal(true);
+        } finally {
+            setLoadingResourceId(null);
+        }
     };
 
     const handleViewResource = async (resource) => {
         if (!resource?.customerId || !resource?._id) {
             setResourceForm(resource || {});
+            setEditingResource(resource);
+            setImagePreview(Array.isArray(resource.image) && resource.image.length > 0 ? resource.image[0] : (resource.image || null));
             setShowResourceModal(true);
             setIsViewingResource(true);
             return;
@@ -1390,14 +1460,19 @@ const SalesPage = () => {
 
             if (data && data.resource) {
                 setResourceForm(data.resource);
+                setEditingResource(data.resource);
+                setImagePreview(Array.isArray(data.resource.image) && data.resource.image.length > 0 ? data.resource.image[0] : (data.resource.image || null));
             } else {
                 setResourceForm(resource);
+                setEditingResource(resource);
+                setImagePreview(Array.isArray(resource.image) && resource.image.length > 0 ? resource.image[0] : (resource.image || null));
             }
             setShowResourceModal(true);
             setIsViewingResource(true);
         } catch (error) {
             console.error('Error fetching resource details:', error);
             setResourceForm(resource);
+            setEditingResource(resource);
             setShowResourceModal(true);
             setIsViewingResource(true);
         } finally {
@@ -2730,8 +2805,9 @@ const SalesPage = () => {
                                                                                 className="icon-btn-ghost"
                                                                                 onClick={() => handleEditVisit(visit)}
                                                                                 title="Edit Visit"
+                                                                                disabled={loadingVisitId === visit._id}
                                                                             >
-                                                                                <Pencil size={16} />
+                                                                                {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Pencil size={16} />}
                                                                             </button>
                                                                             <button
                                                                                 className="icon-btn-ghost delete-btn"
@@ -2884,8 +2960,9 @@ const SalesPage = () => {
                                                                                 className="icon-btn-ghost"
                                                                                 onClick={() => handleEditVisit(visit)}
                                                                                 title="Edit Visit"
+                                                                                disabled={loadingVisitId === visit._id}
                                                                             >
-                                                                                <Pencil size={16} />
+                                                                                {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Pencil size={16} />}
                                                                             </button>
                                                                             <button
                                                                                 className="icon-btn-ghost delete-btn"
@@ -3082,32 +3159,18 @@ const SalesPage = () => {
                                                                                     <button
                                                                                         className="icon-btn-ghost"
                                                                                         title="View Details"
-                                                                                        onClick={() => {
-                                                                                            setResourceForm({
-                                                                                                ...resourceForm,
-                                                                                                _id: resource._id,
-                                                                                                customerId: resource.customerId,
-                                                                                                customer: resource.customerName,
-                                                                                                date: resource.date ? resource.date.split('T')[0] : '', // Format date for input
-                                                                                                resourceType: resource.resourceType,
-                                                                                                status: resource.status,
-                                                                                                description: resource.description,
-                                                                                                notes: resource.notes,
-                                                                                                image: resource.image || resource.content
-                                                                                            });
-                                                                                            setEditingResource(resource);
-                                                                                            setIsViewingResource(true);
-                                                                                            setShowResourceModal(true);
-                                                                                        }}
+                                                                                        onClick={() => handleViewResource(resource)}
+                                                                                        disabled={loadingResourceId === resource._id}
                                                                                     >
-                                                                                        <Eye size={16} />
+                                                                                        {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
                                                                                     </button>
                                                                                     <button
                                                                                         className="icon-btn-ghost"
                                                                                         title="Edit Resource"
                                                                                         onClick={() => handleEditResource(resource)}
+                                                                                        disabled={loadingResourceId === resource._id}
                                                                                     >
-                                                                                        <Pencil size={16} />
+                                                                                        {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Pencil size={16} />}
                                                                                     </button>
                                                                                     <button
                                                                                         className="icon-btn-ghost delete-btn"
