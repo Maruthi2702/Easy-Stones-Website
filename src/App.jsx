@@ -8,16 +8,37 @@ import { ProductProvider } from './context/ProductContext';
 import { API_URL } from './config/api';
 import './App.css';
 
+// Helper for lazy loading with retry logic
+const lazyRetry = (componentImport) => {
+  return lazy(async () => {
+    const pageHasAlreadyBeenForceRefreshed = JSON.parse(
+      window.localStorage.getItem('page-has-been-force-refreshed') || 'false'
+    );
+
+    try {
+      const component = await componentImport();
+      window.localStorage.setItem('page-has-been-force-refreshed', 'false');
+      return component;
+    } catch (error) {
+      if (!pageHasAlreadyBeenForceRefreshed) {
+        window.localStorage.setItem('page-has-been-force-refreshed', 'true');
+        return window.location.reload();
+      }
+      throw error;
+    }
+  });
+};
+
 // Lazy load pages
-const HomePage = lazy(() => import('./pages/HomePage'));
-const ProductDetail = lazy(() => import('./pages/ProductDetail'));
-const ContactPage = lazy(() => import('./pages/ContactPage'));
-const WarrantyPage = lazy(() => import('./pages/WarrantyPage'));
-const CustomerLoginPage = lazy(() => import('./pages/CustomerLoginPage'));
-const SalesPage = lazy(() => import('./pages/SalesPage'));
-const SalesMapPage = lazy(() => import('./pages/SalesMapPage'));
-const AdminPage = lazy(() => import('./pages/AdminPage'));
-const LoginPage = lazy(() => import('./pages/LoginPage'));
+const HomePage = lazyRetry(() => import('./pages/HomePage'));
+const ProductDetail = lazyRetry(() => import('./pages/ProductDetail'));
+const ContactPage = lazyRetry(() => import('./pages/ContactPage'));
+const WarrantyPage = lazyRetry(() => import('./pages/WarrantyPage'));
+const CustomerLoginPage = lazyRetry(() => import('./pages/CustomerLoginPage'));
+const SalesPage = lazyRetry(() => import('./pages/SalesPage'));
+const SalesMapPage = lazyRetry(() => import('./pages/SalesMapPage'));
+const AdminPage = lazyRetry(() => import('./pages/AdminPage'));
+const LoginPage = lazyRetry(() => import('./pages/LoginPage'));
 
 import ErrorBoundary from './components/ErrorBoundary';
 
