@@ -1094,11 +1094,19 @@ const SalesPage = () => {
             const data = await response.json();
 
             if (data && data.visit) {
-                setVisitForm(data.visit);
-                setEditingVisit(data.visit);
+                const formattedVisit = {
+                    ...data.visit,
+                    date: formatForDateInput(data.visit.date)
+                };
+                setVisitForm(formattedVisit);
+                setEditingVisit(formattedVisit);
             } else {
-                setVisitForm(visit);
-                setEditingVisit(visit);
+                const formattedVisit = {
+                    ...visit,
+                    date: formatForDateInput(visit.date)
+                };
+                setVisitForm(formattedVisit);
+                setEditingVisit(formattedVisit);
             }
             setIsViewingVisit(false);
             setShowVisitModal(true);
@@ -1133,11 +1141,19 @@ const SalesPage = () => {
             console.log("[DEBUG] Fetched full visit data:", data);
 
             if (data && data.visit) {
-                setVisitForm(data.visit);
-                setEditingVisit(data.visit);
+                const formattedVisit = {
+                    ...data.visit,
+                    date: formatForDateInput(data.visit.date)
+                };
+                setVisitForm(formattedVisit);
+                setEditingVisit(formattedVisit);
             } else {
-                setVisitForm(visit);
-                setEditingVisit(visit);
+                const formattedVisit = {
+                    ...visit,
+                    date: formatForDateInput(visit.date)
+                };
+                setVisitForm(formattedVisit);
+                setEditingVisit(formattedVisit);
             }
             setShowVisitModal(true);
             setIsViewingVisit(true);
@@ -1418,12 +1434,20 @@ const SalesPage = () => {
             const data = await response.json();
 
             if (data && data.resource) {
-                setResourceForm(data.resource);
-                setEditingResource(data.resource);
+                const formattedResource = {
+                    ...data.resource,
+                    date: formatForDateInput(data.resource.date)
+                };
+                setResourceForm(formattedResource);
+                setEditingResource(formattedResource);
                 setImagePreview(Array.isArray(data.resource.image) && data.resource.image.length > 0 ? data.resource.image[0] : (data.resource.image || null));
             } else {
-                setResourceForm(resource);
-                setEditingResource(resource);
+                const formattedResource = {
+                    ...resource,
+                    date: formatForDateInput(resource.date)
+                };
+                setResourceForm(formattedResource);
+                setEditingResource(formattedResource);
                 setImagePreview(Array.isArray(resource.image) && resource.image.length > 0 ? resource.image[0] : (resource.image || null));
             }
             setIsViewingResource(false);
@@ -1459,12 +1483,20 @@ const SalesPage = () => {
             const data = await response.json();
 
             if (data && data.resource) {
-                setResourceForm(data.resource);
-                setEditingResource(data.resource);
+                const formattedResource = {
+                    ...data.resource,
+                    date: formatForDateInput(data.resource.date)
+                };
+                setResourceForm(formattedResource);
+                setEditingResource(formattedResource);
                 setImagePreview(Array.isArray(data.resource.image) && data.resource.image.length > 0 ? data.resource.image[0] : (data.resource.image || null));
             } else {
-                setResourceForm(resource);
-                setEditingResource(resource);
+                const formattedResource = {
+                    ...resource,
+                    date: formatForDateInput(resource.date)
+                };
+                setResourceForm(formattedResource);
+                setEditingResource(formattedResource);
                 setImagePreview(Array.isArray(resource.image) && resource.image.length > 0 ? resource.image[0] : (resource.image || null));
             }
             setShowResourceModal(true);
