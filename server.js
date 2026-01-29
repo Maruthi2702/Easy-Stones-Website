@@ -89,6 +89,47 @@ const generateMockups = async (slabImageBuffer, baseFilename) => {
   return generatedUrls;
 };
 
+// Image Optimization Utility
+const optimizeImage = async (buffer) => {
+  try {
+    return await sharp(buffer)
+      .resize(1200, 1200, {
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+      .webp({ quality: 80 })
+      .toBuffer();
+  } catch (err) {
+    console.error('Sharp optimization failed, using original buffer:', err);
+    return buffer;
+  }
+};
+
+// Base64 to Disk Optimization Utility
+const processBase64Image = async (base64String, subDir = 'visits') => {
+  if (!base64String || !base64String.startsWith('data:image/')) return base64String;
+
+  try {
+    const base64Data = base64String.split(';base64,').pop();
+    const buffer = Buffer.from(base64Data, 'base64');
+    const optimizedBuffer = await optimizeImage(buffer);
+    
+    const uploadDir = path.join(__dirname, 'public/uploads', subDir);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const filename = `img_${Date.now()}_${Math.round(Math.random() * 1E9)}.webp`;
+    const filePath = path.join(uploadDir, filename);
+    fs.writeFileSync(filePath, optimizedBuffer);
+    
+    return `/uploads/${subDir}/${filename}`;
+  } catch (err) {
+    console.error('Failed to process base64 image:', err);
+    return base64String; // Fallback to original
+  }
+};
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -201,22 +242,7 @@ const uploadMemory = multer({
   limits: { fileSize: 200 * 1024 * 1024 } // 200MB limit for memory uploads (Excel bulk, etc.)
 });
 
-const resourceStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, 'public/uploads/resources');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, '_');
-    cb(null, name + '_' + uniqueSuffix + ext);
-  }
-});
-const uploadResources = multer({ storage: resourceStorage, limits: { fileSize: 200 * 1024 * 1024 } });
+const uploadResources = multer({ storage: memoryStorage, limits: { fileSize: 200 * 1024 * 1024 } });
 
 // Middleware
 const allowedOrigins = [
@@ -1194,9 +1220,30 @@ app.post('/api/sales-dashboard/upload', uploadResources.single('file'), async (r
     }
     // Handle File Upload
     else if (req.file) {
-      // Store relative path instead of base64
-      content = `/uploads/resources/${req.file.filename}`;
-      contentType = req.file.mimetype;
+      const uploadDir = path.join(__dirname, 'public/uploads/resources');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const isImage = req.file.mimetype.startsWith('image/');
+      let filename = '';
+      let buffer = req.file.buffer;
+
+      if (isImage) {
+        console.log(`[DEBUG] Optimizing image: ${req.file.originalname}`);
+        buffer = await optimizeImage(req.file.buffer);
+        filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}.webp`;
+        contentType = 'image/webp';
+      } else {
+        filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}${path.extname(req.file.originalname)}`;
+        contentType = req.file.mimetype;
+      }
+
+      const filePath = path.join(uploadDir, filename);
+      fs.writeFileSync(filePath, buffer);
+      
+      content = `/uploads/resources/${filename}`;
     }
     // Handle Link
     else if (type === 'link') {
@@ -1249,8 +1296,30 @@ app.put('/api/sales-dashboard/resources/:id', uploadResources.single('file'), as
           try { fs.unlinkSync(oldPath); } catch (e) { console.error('Failed to delete old file:', e); }
         }
       }
-      resource.content = `/uploads/resources/${req.file.filename}`;
-      resource.contentType = req.file.mimetype;
+
+      const uploadDir = path.join(__dirname, 'public/uploads/resources');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const isImage = req.file.mimetype.startsWith('image/');
+      let filename = '';
+      let buffer = req.file.buffer;
+
+      if (isImage) {
+        buffer = await optimizeImage(req.file.buffer);
+        filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}.webp`;
+        resource.contentType = 'image/webp';
+      } else {
+        filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}${path.extname(req.file.originalname)}`;
+        resource.contentType = req.file.mimetype;
+      }
+
+      const filePath = path.join(uploadDir, filename);
+      fs.writeFileSync(filePath, buffer);
+      
+      resource.content = `/uploads/resources/${filename}`;
     } else if (type === 'link' && linkContent) {
       resource.content = linkContent;
       resource.contentType = 'text/uri-list';
@@ -1402,6 +1471,14 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
     const visitedCustomer = await Customer.findById(customerId).select('contactName company');
     const customerContactName = visitedCustomer ? (visitedCustomer.company || visitedCustomer.contactName) : '';
 
+    // Process images: Convert base64 to optimized disk files
+    let processedImage = image;
+    if (Array.isArray(image)) {
+      processedImage = await Promise.all(image.map(img => processBase64Image(img, 'visits')));
+    } else if (typeof image === 'string') {
+      processedImage = await processBase64Image(image, 'visits');
+    }
+
     // Pre-generate visit ID for atomic update and logging
     const visitId = new mongoose.Types.ObjectId();
     const visitData = {
@@ -1413,7 +1490,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       followUp,
       managerComment,
       headquartersComment,
-      image,
+      image: processedImage,
       createdBy,
       createdByName,
       customerContactName,
@@ -1480,7 +1557,15 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
     if (followUp !== undefined) updateData['visits.$.followUp'] = followUp;
     if (managerComment !== undefined) updateData['visits.$.managerComment'] = managerComment;
     if (headquartersComment !== undefined) updateData['visits.$.headquartersComment'] = headquartersComment;
-    if (image !== undefined) updateData['visits.$.image'] = image;
+    if (image !== undefined) {
+      let processedImage = image;
+      if (Array.isArray(image)) {
+        processedImage = await Promise.all(image.map(img => processBase64Image(img, 'visits')));
+      } else if (typeof image === 'string') {
+        processedImage = await processBase64Image(image, 'visits');
+      }
+      updateData['visits.$.image'] = processedImage;
+    }
     
     // Add tracking fields
     updateData['visits.$.updatedBy'] = updatedBy;
@@ -2213,7 +2298,10 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // Helper to upload buffer to Cloudinary
-const uploadToCloudinary = (buffer, folder, filename) => {
+const uploadToCloudinary = async (buffer, folder, filename) => {
+  // Optimize before uploading to save credits
+  const optimizedBuffer = await optimizeImage(buffer);
+  
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
@@ -2226,9 +2314,7 @@ const uploadToCloudinary = (buffer, folder, filename) => {
         resolve(result);
       }
     );
-    // Write buffer to stream
-    // streamifier would be cleaner but we can just end the stream with the buffer
-    uploadStream.end(buffer);
+    uploadStream.end(optimizedBuffer);
   });
 };
 
