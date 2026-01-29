@@ -2643,7 +2643,9 @@ const SalesPage = () => {
                                                     <div className="stat-icon-wrapper">
                                                         <UserPlus size={20} />
                                                     </div>
-                                                    <div className="stat-title">SALES VISITS</div>
+                                                    <div className="stat-info">
+                                                        <div className="stat-title">SALES VISITS</div>
+                                                    </div>
                                                     <div className="stat-value">{stats.visits}</div>
                                                     <div className="stat-footer">{timeLabel}</div>
                                                 </div>
@@ -2663,8 +2665,10 @@ const SalesPage = () => {
                                                     <div className="stat-icon-wrapper">
                                                         <FolderPlus size={20} />
                                                     </div>
-                                                    <div className="stat-title">RESOURCES</div>
-                                                    <div className="stat-desc">(Assignment & Updates)</div>
+                                                    <div className="stat-info">
+                                                        <div className="stat-title">RESOURCES</div>
+                                                        <div className="stat-desc">(Assignment & Updates)</div>
+                                                    </div>
                                                     <div className="stat-value">{stats.resources}</div>
                                                     <div className="stat-footer">{timeLabel}</div>
                                                 </div>
@@ -2676,7 +2680,9 @@ const SalesPage = () => {
                                                     <div className="stat-icon-wrapper">
                                                         <MessageSquare size={20} />
                                                     </div>
-                                                    <div className="stat-title">QUICK NOTES</div>
+                                                    <div className="stat-info">
+                                                        <div className="stat-title">QUICK NOTES</div>
+                                                    </div>
                                                     <div className="stat-value">{stats.quickNotes}</div>
                                                     <div className="stat-footer">{timeLabel}</div>
                                                 </div>
@@ -2688,7 +2694,9 @@ const SalesPage = () => {
                                                     <div className="stat-icon-wrapper">
                                                         <Calendar size={20} />
                                                     </div>
-                                                    <div className="stat-title">CALENDAR</div>
+                                                    <div className="stat-info">
+                                                        <div className="stat-title">CALENDAR</div>
+                                                    </div>
                                                     <div className="stat-value">{todayScheduleCount}</div>
                                                     <div className="stat-footer">Schedule</div>
                                                 </div>
