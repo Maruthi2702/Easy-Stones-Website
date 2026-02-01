@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, Users, User, Menu, X, Pencil } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../config/api';
@@ -18,6 +18,8 @@ const AdminPage = () => {
   const [saveStatus, setSaveStatus] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -65,64 +67,85 @@ const AdminPage = () => {
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/admin/products/list`, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.length > 0) {
-            setProducts(data);
-          }
+  const fetchProducts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_URL}/api/admin/products/list`, {
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.length > 0) {
+          setProducts(data);
         }
-      } catch (error) {
-        console.error('Error fetching products:', error);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    const fetchCustomers = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/admin/customers/list`, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setCustomers(data);
-        }
-      } catch (error) {
-        console.error('Error fetching customers:', error);
-      }
-    };
-
-    const fetchUsers = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/admin/users`, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setUsers(data);
-        }
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
-
-    fetchProducts();
-    if (activeTab === 'customers') {
-      fetchCustomers();
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoading(false);
     }
-    if (activeTab === 'users') {
+  }, []);
+
+  const fetchCustomers = useCallback(async () => {
+    try {
+      setCustomersLoading(true);
+      const response = await fetch(`${API_URL}/api/admin/customers/list`, {
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log('AdminPage: Fetched customers count:', data?.length);
+        if (data && data.length > 0) {
+          console.log('AdminPage: First customer sample:', JSON.stringify(data[0], null, 2));
+        }
+        setCustomers(data);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to fetch customers:', errorData.message || response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+    } finally {
+      setCustomersLoading(false);
+    }
+  }, []);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      setUsersLoading(true);
+      const response = await fetch(`${API_URL}/api/admin/users`, {
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to fetch users:', errorData.message || response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
+  // Fetch all basic data on mount to ensure sidebars are populated
+  useEffect(() => {
+    fetchProducts();
+    fetchCustomers();
+    fetchUsers();
+  }, [fetchProducts, fetchCustomers, fetchUsers, refreshProducts]);
+
+  // Handle tab specific refreshes if needed, but basic data is now prefetched
+  useEffect(() => {
+    if (activeTab === 'users' && users.length === 0) {
       fetchUsers();
     }
-  }, [activeTab, refreshProducts]);
+  }, [activeTab, fetchUsers, users.length]);
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -1012,21 +1035,37 @@ const AdminPage = () => {
 
           <div className="product-list">
             {activeTab === 'products' ? (
-              filteredProducts.map(product => (
-                <div
-                  key={product.id}
-                  className={`product-list-item ${selectedProductId === product.id ? 'active' : ''}`}
-                  onClick={() => handleSelectProduct(product.id)}
-                >
-                  <img src={product.image} alt={product.name} className="list-thumb" />
-                  <div className="list-info">
-                    <span className="list-name">{product.name}</span>
-                    <span className="list-meta">{product.collection} • {product.category}</span>
-                  </div>
+              loading ? (
+                <div className="loading-list-message">
+                  <div className="loader-spinner-small"></div>
+                  <span>Loading products...</span>
                 </div>
-              ))
+              ) : filteredProducts.length === 0 ? (
+                <div className="empty-list-message">
+                  No products found
+                </div>
+              ) : (
+                filteredProducts.map(product => (
+                  <div
+                    key={product.id}
+                    className={`product-list-item ${selectedProductId === product.id ? 'active' : ''}`}
+                    onClick={() => handleSelectProduct(product.id)}
+                  >
+                    <img src={product.image} alt={product.name} className="list-thumb" />
+                    <div className="list-info">
+                      <span className="list-name">{product.name}</span>
+                      <span className="list-meta">{product.collection} • {product.category}</span>
+                    </div>
+                  </div>
+                ))
+              )
             ) : (
-              filteredCustomers.length === 0 ? (
+              customersLoading ? (
+                <div className="loading-list-message">
+                  <div className="loader-spinner-small"></div>
+                  <span>Loading customers...</span>
+                </div>
+              ) : filteredCustomers.length === 0 ? (
                 <div className="empty-list-message">
                   No customers found
                 </div>

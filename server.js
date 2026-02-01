@@ -2137,7 +2137,7 @@ app.get('/api/admin/customers/list', verifyToken, async (req, res) => {
     res.json(customers);
   } catch (error) {
     console.error('Error fetching customer list:', error);
-    res.status(500).json({ message: 'Failed to fetch customer list' });
+    res.status(500).json({ message: 'Failed to fetch customer list', error: error.message });
   }
 });
 

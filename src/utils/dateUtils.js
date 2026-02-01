@@ -17,6 +17,9 @@ export const formatForDateTimeInput = (date) => {
 };
 
 export const formatForDateInput = (date) => {
-  const localISO = toLocalISOString(date);
-  return localISO ? localISO.slice(0, 10) : '';
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  // Use UTC date directly to avoid timezone shift for pure dates (YYYY-MM-DD)
+  return d.toISOString().split('T')[0];
 };

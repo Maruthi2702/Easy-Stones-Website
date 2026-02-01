@@ -88,10 +88,12 @@ const customerSchema = new mongoose.Schema({
 });
 
 // Indexes for performance optimization
-customerSchema.index({ email: 1 }, { unique: true }); // Index for login/email lookups (CRITICAL)
+// Indices correctly defined in field definitions above:
+// - email (unique: true)
 customerSchema.index({ isActive: 1 }); // Index for filtering active customers
 customerSchema.index({ isActive: 1, email: 1 }); // Compound index for common queries
 customerSchema.index({ priceLevel: 1 }); // Index for price level queries
+customerSchema.index({ createdAt: -1 }); // Index for sorting by creation date
 
 // Hash password before saving
 // Hash password before saving
