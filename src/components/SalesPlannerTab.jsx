@@ -37,12 +37,16 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer }) =>
         }
 
         if (viewMode === 'week') {
-            const day = start.getDay(); // 0 is Sunday
-            const diff = start.getDate() - day; // Start from Sunday
-            start.setDate(diff);
+            const day = start.getDay(); // 0 is Sunday, 1 is Monday
+            // Calculate distance to Monday
+            // If Sunday (0), go back 6 days to last Monday
+            // If Monday (1), go back 0 days
+            // If Tuesday (2), go back 1 day
+            const diffToMonday = day === 0 ? 6 : day - 1;
+            start.setDate(start.getDate() - diffToMonday);
 
             const days = [];
-            for (let i = 0; i < 7; i++) { // Sun-Sat
+            for (let i = 0; i < 5; i++) { // Mon-Fri
                 const d = new Date(start);
                 d.setDate(start.getDate() + i);
                 days.push(d);
@@ -280,7 +284,7 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer }) =>
                 </button>
             </div>
 
-            <div className={`weekly-grid ${viewMode === 'day' ? 'day-view-mode' : ''} ${viewMode === 'month' ? 'month-view-mode' : ''}`}>
+            <div className={`weekly-grid ${viewMode === 'day' ? 'day-view-mode' : ''} ${viewMode === 'week' ? 'week-view-mode' : ''} ${viewMode === 'month' ? 'month-view-mode' : ''}`}>
                 {visibleDays.map((day, idx) => (
                     <div key={idx} className={`day-column ${day.getMonth() !== currentDate.getMonth() && viewMode === 'month' ? 'other-month' : ''}`}>
                         <div className="day-header">

@@ -3871,12 +3871,21 @@
 
 .weekly-grid {
     display: grid;
-    grid-template-columns: repeat(7, 1fr); /* 7 days for full week */
+    grid-template-columns: repeat(7, 1fr); /* Default 7 days */
     gap: 0.75rem;
     min-height: 400px;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
+}
+
+.weekly-grid.day-view-mode {
+    grid-template-columns: 1fr;
+    max-width: 500px; /* Limit width of single column on desktop for a cleaner look */
+}
+
+.weekly-grid.week-view-mode {
+    grid-template-columns: repeat(5, 1fr); /* 5 days for Mon-Fri */
 }
 
 .weekly-grid.month-view-mode {
