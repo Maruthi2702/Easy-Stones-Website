@@ -4179,3 +4179,166 @@
         padding: 0.85rem;
     }
 }
+
+/* PDF Preview Styles */
+.pdf-preview-container {
+    width: 100%;
+    height: 100%;
+    min-height: 600px;
+    display: flex;
+    flex-direction: column;
+    background: #1e1e1e;
+    overflow: hidden;
+}
+
+.preview-iframe {
+    width: 100%;
+    height: 100%;
+    flex: 1;
+    border: none;
+    display: block;
+}
+
+.no-preview-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-secondary);
+    background: #1e1e1e;
+    padding: 2rem;
+    text-align: center;
+}
+
+/* Premium PDF Preview Modal */
+.preview-overlay {
+    background: rgba(0, 0, 0, 0.85); /* Darker, more immersive backdrop */
+    backdrop-filter: blur(8px);
+}
+
+.preview-modal-content.dark-theme {
+    background: #1c1c1e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    border-radius: 16px;
+    width: 90%;
+    height: 90%;
+    max-width: 1400px;
+    max-height: 90vh; /* Ensure modal fits in viewport */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0; /* Remove default padding */
+}
+
+.premium-header {
+    background: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08); /* Subtle separator */
+    padding: 1rem 1.5rem;
+    height: auto;
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.preview-file-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+    min-width: 0; /* Enable truncation for flex children */
+}
+
+.preview-icon-badge {
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.preview-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0; /* Enable truncation */
+}
+
+.preview-title {
+    margin: 0;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.preview-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.preview-type-tag {
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.preview-separator {
+    opacity: 0.3;
+}
+
+.preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.preview-action-btn,
+.premium-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid transparent; /* Prevent layout shift */
+    color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.preview-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.premium-close:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.preview-body {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    padding: 0; /* Remove default padding */
+    width: 100%;
+    margin: 0;
+}
+
+/* Specific text colors for icons */
+.text-gold { color: #e5c04a; }
+.text-blue { color: #3b82f6; }
+.text-purple { color: #a855f7; }
+.text-red { color: #ef4444; }
+.text-gray { color: #9ca3af; }

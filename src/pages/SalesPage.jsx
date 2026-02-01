@@ -7,7 +7,7 @@ import {
     Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft, ChevronRight,
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
     CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus, Folder, Link,
-    LayoutDashboard, Pencil
+    LayoutDashboard, Pencil, FileImage, File, MoreVertical, RefreshCw, FileSearch, ExternalLink
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -529,23 +529,29 @@ const SalesPage = () => {
     const fetchDashboardResources = async () => {
         try {
             const query = currentFolderId ? `?parentId=${currentFolderId}` : '';
-            const response = await fetch(`${API_URL}/api/sales-dashboard/resources${query}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            const url = `${API_URL}/api/sales-dashboard/resources${query}`;
+            console.log('📁 [FETCH] Fetching resources from:', url);
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include'
             });
             if (response.ok) {
                 const data = await response.json();
+                console.log(`📁 [FETCH] Received ${data.length} resources:`, data);
                 setSalesResources(data);
+            } else {
+                console.error('❌ [FETCH] Failed to fetch resources:', response.status, response.statusText);
             }
         } catch (error) {
-            console.error('Error fetching dashboard resources:', error);
+            console.error('❌ [FETCH] Error fetching dashboard resources:', error);
         }
     };
 
     useEffect(() => {
-        if (showDashboard) {
+        if (showDashboard && activeResourceSubTab === 'team') {
             fetchDashboardResources();
         }
-    }, [showDashboard, currentFolderId]);
+    }, [showDashboard, currentFolderId, activeResourceSubTab]);
 
     const handleGoHome = () => {
         setSelectedCustomerId(null);
@@ -919,13 +925,17 @@ const SalesPage = () => {
 
             const response = await fetch(url, {
                 method: method,
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include',
                 body: formData // Content-Type is set automatically
             });
-
             if (response.ok) {
+                const result = await response.json();
+                console.log('✅ Upload successful:', result);
                 setShowDashboardUploadModal(false);
                 setDashboardUploadForm({ name: '', type: 'file', content: '', file: null });
                 setEditingDashboardResource(null);
+                console.log('📁 Fetching dashboard resources after upload...');
                 fetchDashboardResources();
             } else {
                 const errorData = await response.json();
@@ -942,7 +952,10 @@ const SalesPage = () => {
     const handleDashboardDelete = async (resourceId) => {
         if (!window.confirm('Are you sure you want to delete this resource?')) return;
         try {
-            const response = await fetch(`/api/sales-dashboard/resources/${resourceId}`, { method: 'DELETE' });
+            const response = await fetch(`/api/sales-dashboard/resources/${resourceId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
             if (response.ok) {
                 fetchDashboardResources();
             } else {
@@ -958,7 +971,10 @@ const SalesPage = () => {
         if (resource.content) return resource;
 
         try {
-            const response = await fetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`);
+            const response = await fetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include'
+            });
             if (response.ok) {
                 const fullResource = await response.json();
                 // Update local list state so we don't have to fetch again
@@ -1328,13 +1344,19 @@ const SalesPage = () => {
     };
 
     const handleCreateFolder = async () => {
-        const folderName = prompt('Enter folder name:');
-        if (!folderName || !folderName.trim()) return;
+        if (!folderName || !folderName.trim()) {
+            alert('Please enter a folder name');
+            return;
+        }
 
         try {
             const response = await fetch(`${API_URL}/api/sales-dashboard/upload`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                credentials: 'include',
                 body: JSON.stringify({
                     name: folderName.trim(),
                     type: 'folder',
@@ -1363,6 +1385,39 @@ const SalesPage = () => {
         handleDashboardPreview(resource);
     };
 
+    const handleEditDashboardResource = (resource) => {
+        setEditingDashboardResource(resource);
+        setDashboardUploadForm({
+            name: resource.name,
+            type: resource.type,
+            content: resource.type === 'link' ? resource.content : '',
+            file: null
+        });
+        setIsExistingFileRemoved(false);
+        setShowDashboardUploadModal(true);
+    };
+
+    const handleDeleteDashboardResource = async (resourceId) => {
+        if (!window.confirm('Are you sure you want to delete this resource? If it is a folder, all its contents will be deleted.')) return;
+
+        try {
+            const response = await fetch(`${API_URL}/api/sales-dashboard/resources/${resourceId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                fetchDashboardResources();
+            } else {
+                alert('Failed to delete resource');
+            }
+        } catch (error) {
+            console.error('Error deleting resource:', error);
+            alert('Error deleting resource');
+        }
+    };
+
     const handleBreadcrumbClick = (index) => {
         if (index === -1) {
             // Home
@@ -1384,7 +1439,10 @@ const SalesPage = () => {
             let fullResource = resource;
             if (!resource.content && resource.type !== 'link') {
                 try {
-                    const response = await fetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`);
+                    const response = await fetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                        credentials: 'include'
+                    });
                     if (response.ok) {
                         fullResource = await response.json();
                         // Update local state to avoid re-fetching immediately (optional optimization)
@@ -3125,10 +3183,17 @@ const SalesPage = () => {
                                                             ))}
                                                         </div>
                                                         <div className="team-resources-actions">
-                                                            <button className="icon-action-btn secondary" onClick={() => setShowAddFolderModal(true)}>
+                                                            <button
+                                                                className="icon-action-btn secondary"
+                                                                title="Refresh Files"
+                                                                onClick={fetchDashboardResources}
+                                                            >
+                                                                <RefreshCw size={16} />
+                                                            </button>
+                                                            <button className="icon-action-btn secondary" onClick={() => { setFolderName(''); setShowAddFolderModal(true); }}>
                                                                 <FolderPlus size={16} /> <span className="mobile-hide-text">Add Folder</span>
                                                             </button>
-                                                            <button className="icon-action-btn primary" onClick={() => setShowDashboardUploadModal(true)}>
+                                                            <button className="icon-action-btn primary" onClick={() => { setDashboardUploadForm({ name: '', type: 'file', content: '', file: null }); setEditingDashboardResource(null); setShowDashboardUploadModal(true); }}>
                                                                 <Upload size={16} /> <span className="mobile-hide-text">Upload</span>
                                                             </button>
                                                         </div>
@@ -3266,46 +3331,92 @@ const SalesPage = () => {
 
                                             {activeResourceSubTab === 'team' && (
                                                 <div className="team-resources-content">
-
-
-                                                    <div className="dashboard-resources-grid">
-                                                        {/* Back Folder */}
+                                                    <div className="resources-list-container">
                                                         {folderPath.length > 0 && (
-                                                            <div
-                                                                className="dashboard-resource-card folder"
-                                                                onClick={() => handleBreadcrumbClick(folderPath.length - 2)}
-                                                            >
-                                                                <div className="resource-icon">
-                                                                    <Folder size={40} />
-                                                                </div>
-                                                                <div className="resource-name">..</div>
+                                                            <div className="list-back-button" onClick={() => handleBreadcrumbClick(folderPath.length - 2)}>
+                                                                <ArrowLeft size={16} />
+                                                                <span>Back</span>
                                                             </div>
                                                         )}
 
-                                                        {/* Resources */}
-                                                        {salesResources.filter(r => !dashboardSearchTerm || r.name.toLowerCase().includes(dashboardSearchTerm.toLowerCase())).map(resource => (
-                                                            <div
-                                                                key={resource._id}
-                                                                className={`dashboard-resource-card ${resource.type}`}
-                                                                onClick={() => resource.type === 'folder' ? handleFolderClick(resource) : handleFileClick(resource)}
-                                                            >
-                                                                <div className="resource-icon">
-                                                                    {resource.type === 'folder' ? (
-                                                                        <Folder size={40} />
-                                                                    ) : (
-                                                                        <FileText size={40} />
-                                                                    )}
+                                                        {salesResources.length === 0 ? (
+                                                            <div className="empty-resources-state">
+                                                                <div className="empty-icon">
+                                                                    <FileSearch size={48} />
                                                                 </div>
-                                                                <div className="resource-name" title={resource.name}>
-                                                                    {resource.name}
-                                                                </div>
+                                                                <p>No files or folders found in this location</p>
+                                                                <button className="btn-secondary small" onClick={() => setShowDashboardUploadModal(true)}>
+                                                                    Upload your first file
+                                                                </button>
                                                             </div>
-                                                        ))}
+                                                        ) : (
+                                                            <table className="resources-table">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th style={{ width: '40%' }}>Name</th>
+                                                                        <th>Modified</th>
+                                                                        <th>Modified By</th>
+                                                                        <th style={{ width: '100px' }}></th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {salesResources.filter(r => !dashboardSearchTerm || r.name.toLowerCase().includes(dashboardSearchTerm.toLowerCase())).map(resource => {
+                                                                        const isFolder = resource.type === 'folder';
+                                                                        const isLink = resource.type === 'link';
+                                                                        const isImage = resource.contentType?.startsWith('image/') || resource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                                                                        const isPdf = resource.contentType === 'application/pdf' || resource.name.toLowerCase().endsWith('.pdf');
 
-                                                        {salesResources.length === 0 && (
-                                                            <div style={{ padding: '2rem', gridColumn: '1 / -1', textAlign: 'center', color: '#6B7280' }}>
-                                                                No files or folders found
-                                                            </div>
+                                                                        return (
+                                                                            <tr
+                                                                                key={resource._id}
+                                                                                className="resource-row"
+                                                                                onClick={() => handleResourceClick(resource)}
+                                                                            >
+                                                                                <td className="col-name">
+                                                                                    <div className="resource-name-wrapper">
+                                                                                        <span className={`resource-icon-small ${resource.type}`}>
+                                                                                            {isFolder ? <Folder size={18} fill="currentColor" /> :
+                                                                                                isLink ? <Link size={18} /> :
+                                                                                                    isImage ? <FileImage size={18} /> :
+                                                                                                        isPdf ? <FileText size={18} /> :
+                                                                                                            <File size={18} />}
+                                                                                        </span>
+                                                                                        <span className="name-text">{resource.name}</span>
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="col-date">
+                                                                                    {formatDate(resource.createdAt, { month: 'long', day: 'numeric', year: 'numeric' })}
+                                                                                </td>
+                                                                                <td className="col-user">
+                                                                                    <span className="user-pill">
+                                                                                        {resource.uploadedBy?.username ?
+                                                                                            resource.uploadedBy.username.charAt(0).toUpperCase() + resource.uploadedBy.username.slice(1)
+                                                                                            : 'Admin'}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="col-actions">
+                                                                                    <div className="row-actions">
+                                                                                        <button
+                                                                                            className="action-icon-btn edit"
+                                                                                            onClick={(e) => { e.stopPropagation(); handleEditDashboardResource(resource); }}
+                                                                                            title="Edit"
+                                                                                        >
+                                                                                            <Pencil size={14} />
+                                                                                        </button>
+                                                                                        <button
+                                                                                            className="action-icon-btn delete"
+                                                                                            onClick={(e) => { e.stopPropagation(); handleDeleteDashboardResource(resource._id); }}
+                                                                                            title="Delete"
+                                                                                        >
+                                                                                            <Trash2 size={14} />
+                                                                                        </button>
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
                                                         )}
                                                     </div>
                                                 </div>
@@ -3320,551 +3431,275 @@ const SalesPage = () => {
                 </ErrorBoundary>
 
                 {/* Dashboard Resource Preview Modal */}
-                {
-                    previewDashboardResource && (
-                        <div className="modal-overlay" onClick={() => setPreviewDashboardResource(null)}>
-                            <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%' }}>
-                                <div className="modal-header">
-                                    <h2>{previewDashboardResource.name}</h2>
-                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                        <button
-                                            className="icon-btn"
-                                            title="Download"
-                                            onClick={() => handleDashboardDownload(previewDashboardResource)}
-                                        >
-                                            <Download size={20} />
-                                        </button>
-                                        <button className="close-btn" onClick={() => setPreviewDashboardResource(null)}>
-                                            <X size={20} />
-                                        </button>
+                {previewDashboardResource && (
+                    <div className="modal-overlay preview-overlay" onClick={() => setPreviewDashboardResource(null)}>
+                        <div className="modal-content preview-modal-content dark-theme" onClick={(e) => e.stopPropagation()}>
+                            <div className="modal-header preview-header premium-header">
+                                <div className="preview-file-info">
+                                    <div className="preview-icon-badge">
+                                        {previewDashboardResource.type === 'folder' ? <Folder size={20} className="text-gold" /> :
+                                            previewDashboardResource.type === 'link' ? <Link size={20} className="text-blue" /> :
+                                                (previewDashboardResource.contentType?.startsWith('image/') || previewDashboardResource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)) ? <FileImage size={20} className="text-purple" /> :
+                                                    (previewDashboardResource.contentType === 'application/pdf' || previewDashboardResource.name.toLowerCase().endsWith('.pdf')) ? <FileText size={20} className="text-red" /> :
+                                                        <File size={20} className="text-gray" />}
+                                    </div>
+                                    <div className="preview-details">
+                                        <h2 className="preview-title" title={previewDashboardResource.name}>{previewDashboardResource.name}</h2>
+                                        <div className="preview-meta-row">
+                                            <span className="preview-type-tag">{previewDashboardResource.type.toUpperCase()}</span>
+                                            <span className="preview-separator">•</span>
+                                            <span className="preview-date">{formatDate(previewDashboardResource.createdAt)}</span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="modal-body" style={{ padding: '0', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px', background: '#f9fafb' }}>
-                                    {previewDashboardResource.content.startsWith('data:image') || (!previewDashboardResource.content.startsWith('data:') && (previewDashboardResource.contentType?.startsWith('image/') || previewDashboardResource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i))) ? (
-                                        <img
-                                            src={previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
-                                            alt={previewDashboardResource.name}
-                                            style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
-                                        />
-                                    ) : previewDashboardResource.content.startsWith('data:application/pdf') || (!previewDashboardResource.content.startsWith('data:') && (previewDashboardResource.contentType === 'application/pdf' || previewDashboardResource.name.toLowerCase().endsWith('.pdf'))) ? (
-                                        <iframe
-                                            src={previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
-                                            style={{ width: '100%', height: '70vh', border: 'none' }}
-                                            title={previewDashboardResource.name}
-                                        />
-                                    ) : (
-                                        <div style={{ textAlign: 'center', padding: '2rem' }}>
-                                            <p>Preview not available for this file type.</p>
-                                            <button
-                                                className="btn-primary"
-                                                onClick={() => handleDashboardDownload(previewDashboardResource)}
-                                                style={{ marginTop: '1rem' }}
+                                <div className="preview-actions">
+                                    <a
+                                        href={previewDashboardResource.content.startsWith('data:') ? '#' : `${API_URL}${previewDashboardResource.content}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="icon-btn-ghost preview-action-btn"
+                                        title="Open in New Tab"
+                                    >
+                                        <ExternalLink size={20} />
+                                    </a>
+                                    <button
+                                        className="icon-btn-ghost preview-action-btn"
+                                        title="Download"
+                                        onClick={() => handleDashboardDownload(previewDashboardResource)}
+                                    >
+                                        <Download size={20} />
+                                    </button>
+                                    <button className="close-preview-btn premium-close" onClick={() => setPreviewDashboardResource(null)}>
+                                        <X size={24} />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="modal-body preview-body">
+                                {previewDashboardResource.type === 'file' ? (
+                                    (previewDashboardResource.content?.startsWith('data:image') ||
+                                        (!previewDashboardResource.content?.startsWith('data:') &&
+                                            (previewDashboardResource.contentType?.startsWith('image/') ||
+                                                previewDashboardResource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)))) ? (
+                                        <div className="image-preview-container">
+                                            <img
+                                                src={previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
+                                                alt={previewDashboardResource.name}
+                                                className="preview-image"
+                                            />
+                                        </div>
+                                    ) : (previewDashboardResource.content?.startsWith('data:application/pdf') ||
+                                        (!previewDashboardResource.content?.startsWith('data:') &&
+                                            (previewDashboardResource.contentType === 'application/pdf' ||
+                                                previewDashboardResource.name.toLowerCase().endsWith('.pdf')))) ? (
+                                        <div className="pdf-preview-container">
+                                            <object
+                                                data={`${previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}#toolbar=0`}
+                                                type="application/pdf"
+                                                className="preview-iframe"
+                                                width="100%"
+                                                height="100%"
                                             >
-                                                Download File
+                                                <div className="no-preview-container" style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <p>Unable to display PDF preview.</p>
+                                                    <button className="btn-primary small" onClick={() => handleDashboardDownload(previewDashboardResource)}>
+                                                        Download PDF
+                                                    </button>
+                                                </div>
+                                            </object>
+                                        </div>
+                                    ) : (
+                                        <div className="no-preview-container">
+                                            <File size={64} className="no-preview-icon" />
+                                            <p>No preview available for this file type</p>
+                                            <button className="btn-primary small" onClick={() => handleDashboardDownload(previewDashboardResource)}>
+                                                Download to View
                                             </button>
                                         </div>
-                                    )}
-                                </div>
+                                    )
+                                ) : (
+                                    <div className="link-preview-container">
+                                        <Link size={48} />
+                                        <p>This is a web link</p>
+                                        <a href={previewDashboardResource.content} target="_blank" rel="noopener noreferrer" className="btn-primary">
+                                            Open in New Tab
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
+                {/* Contact Modal */}
+                {
+                    showContactModal && (
+                        <div className="modal-overlay" onClick={() => setShowContactModal(false)}>
+                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                                <div className="modal-header">
+                                    <h2>{editingContact ? 'Edit Contact' : 'Add Contact'}</h2>
+                                    <button className="close-btn" onClick={() => setShowContactModal(false)}>
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="modal-body">
+                                    <div className="form-group">
+                                        <label>Name *</label>
+                                        <input
+                                            type="text"
+                                            value={contactForm.name}
+                                            onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
+                                            placeholder="Contact name"
+                                        />
+                                    </div>
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label>Phone</label>
+                                            <input
+                                                type="tel"
+                                                value={contactForm.phone}
+                                                onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
+                                                placeholder="Phone number"
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Email</label>
+                                            <input
+                                                type="email"
+                                                value={contactForm.email}
+                                                onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                                                placeholder="Email address"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Role</label>
+                                        <input
+                                            type="text"
+                                            value={contactForm.role}
+                                            onChange={(e) => setContactForm({ ...contactForm, role: e.target.value })}
+                                            placeholder="Job title or role"
+                                        />
+                                    </div>
+                                    <div className="form-group checkbox-group">
+                                        <label>
+                                            <input
+                                                type="checkbox"
+                                                checked={contactForm.isPrimary}
+                                                onChange={(e) => setContactForm({ ...contactForm, isPrimary: e.target.checked })}
+                                            />
+                                            <span>Primary Contact</span>
+                                        </label>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Notes</label>
+                                        <textarea
+                                            value={contactForm.notes}
+                                            onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })}
+                                            placeholder="Additional notes"
+                                            rows="3"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="modal-footer">
+                                    <button className="btn-secondary" onClick={() => setShowContactModal(false)} disabled={isSaving}>
+                                        Cancel
+                                    </button>
+                                    <button className="btn-primary" onClick={handleSaveContact} disabled={isSaving}>
+                                        {isSaving ? 'Saving...' : 'Save Contact'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )
                 }
 
-            </div >
-
-            {/* Contact Modal */}
-            {
-                showContactModal && (
-                    <div className="modal-overlay" onClick={() => setShowContactModal(false)}>
-                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                            <div className="modal-header">
-                                <h2>{editingContact ? 'Edit Contact' : 'Add Contact'}</h2>
-                                <button className="close-btn" onClick={() => setShowContactModal(false)}>
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <div className="modal-body">
-                                <div className="form-group">
-                                    <label>Name *</label>
-                                    <input
-                                        type="text"
-                                        value={contactForm.name}
-                                        onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
-                                        placeholder="Contact name"
-                                    />
+                {/* Visit Modal */}
+                {/* Visit Modal (Edit/Add) */}
+                {
+                    showVisitModal && !isViewingVisit && (
+                        <div className="modal-overlay" onClick={handleCloseVisitModal}>
+                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                                <div className="modal-header">
+                                    <h2>{editingVisit ? 'Edit Visit' : 'Add Visit'}</h2>
+                                    <button className="close-btn" onClick={handleCloseVisitModal}>
+                                        <X size={20} />
+                                    </button>
                                 </div>
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label>Phone</label>
-                                        <input
-                                            type="tel"
-                                            value={contactForm.phone}
-                                            onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
-                                            placeholder="Phone number"
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Email</label>
-                                        <input
-                                            type="email"
-                                            value={contactForm.email}
-                                            onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
-                                            placeholder="Email address"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="form-group">
-                                    <label>Role</label>
-                                    <input
-                                        type="text"
-                                        value={contactForm.role}
-                                        onChange={(e) => setContactForm({ ...contactForm, role: e.target.value })}
-                                        placeholder="Job title or role"
-                                    />
-                                </div>
-                                <div className="form-group checkbox-group">
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            checked={contactForm.isPrimary}
-                                            onChange={(e) => setContactForm({ ...contactForm, isPrimary: e.target.checked })}
-                                        />
-                                        <span>Primary Contact</span>
-                                    </label>
-                                </div>
-                                <div className="form-group">
-                                    <label>Notes</label>
-                                    <textarea
-                                        value={contactForm.notes}
-                                        onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })}
-                                        placeholder="Additional notes"
-                                        rows="3"
-                                    />
-                                </div>
-                            </div>
-                            <div className="modal-footer">
-                                <button className="btn-secondary" onClick={() => setShowContactModal(false)} disabled={isSaving}>
-                                    Cancel
-                                </button>
-                                <button className="btn-primary" onClick={handleSaveContact} disabled={isSaving}>
-                                    {isSaving ? 'Saving...' : 'Save Contact'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Visit Modal */}
-            {/* Visit Modal (Edit/Add) */}
-            {
-                showVisitModal && !isViewingVisit && (
-                    <div className="modal-overlay" onClick={handleCloseVisitModal}>
-                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                            <div className="modal-header">
-                                <h2>{editingVisit ? 'Edit Visit' : 'Add Visit'}</h2>
-                                <button className="close-btn" onClick={handleCloseVisitModal}>
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <div className="modal-body">
-                                <div className="form-group">
-                                    <label>Date <span style={{ color: 'red' }}>*</span></label>
-                                    <CustomDatePicker
-                                        value={visitForm.date}
-                                        onChange={(value) => setVisitForm({ ...visitForm, date: value })}
-                                        required
-                                    />
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                    <div className="form-group">
-                                        <label>Customer <span style={{ color: 'red' }}>*</span></label>
-                                        <SearchableSelect
-                                            options={customerOptions}
-                                            value={visitForm.customerId}
-                                            onChange={(value) => setVisitForm({ ...visitForm, customerId: value })}
-                                            placeholder="Select a Customer..."
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Visit Type <span style={{ color: 'red' }}>*</span></label>
-                                        <SearchableSelect
-                                            options={[
-                                                'Quick Note',
-                                                'Scheduled in Person Sales Meeting',
-                                                'Unscheduled in Person Sales Call',
-                                                'Resource Placement',
-                                                'Resource Update',
-                                                'Formal Presentation',
-                                                'Important Remote Meeting/Call',
-                                                'In Office Administration Day',
-                                                'Personal Time Off'
-                                            ].map(type => ({ value: type, label: type }))}
-                                            value={visitForm.purpose}
-                                            onChange={(value) => setVisitForm({ ...visitForm, purpose: value })}
-                                            placeholder="Please Select Visit Type"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="form-group">
-                                    <label>Notes</label>
-                                    <textarea
-                                        value={visitForm.notes}
-                                        onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
-                                        placeholder="Additional notes"
-                                        rows="4"
-                                    />
-                                </div>
-                                {!visitForm.purpose?.toLowerCase().includes('quick note') && (
-                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                        <div className="form-group">
-                                            <label>Outcome</label>
-                                            <textarea
-                                                value={visitForm.outcome}
-                                                onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
-                                                placeholder="Visit outcome"
-                                                rows="3"
-                                            />
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Follow Up</label>
-                                            <textarea
-                                                value={visitForm.followUp}
-                                                onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
-                                                placeholder="Followup Notes"
-                                                rows="3"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="form-group">
-                                    <label>Attachments</label>
-                                    <div className="image-upload-container">
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginBottom: '8px' }}>
-                                            {visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
-                                                <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px', position: 'relative' }}>
-                                                    {img.startsWith('data:application/pdf') ? (
-                                                        <div className="pdf-preview" style={{
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            display: 'flex',
-                                                            flexDirection: 'column',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            background: '#f5f5f5',
-                                                            borderRadius: '4px',
-                                                            border: '1px solid #ddd'
-                                                        }}>
-                                                            <FileText size={32} color="#E5C04A" />
-                                                            <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
-                                                        </div>
-                                                    ) : (
-                                                        <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                    )}
-                                                    <button type="button" className="remove-image-btn" onClick={() => handleRemoveVisitImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
-                                                        <X size={12} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="file-input-wrapper-simple">
-                                            <input
-                                                type="file"
-                                                id="visit-image-upload"
-                                                accept="image/*,application/pdf"
-                                                multiple
-                                                onChange={handleVisitImageUpload}
-                                                className="file-input"
-                                            />
-                                            <label htmlFor="visit-image-upload" className="file-input-label">
-                                                Add Files
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                                {editingVisit && (
-                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                        <div className="form-group">
-                                            <label>Manager Comment</label>
-                                            <input
-                                                type="text"
-                                                value={visitForm.managerComment}
-                                                onChange={(e) => setVisitForm({ ...visitForm, managerComment: e.target.value })}
-                                                placeholder="Comment from Manager"
-                                            />
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Headquarters Comment</label>
-                                            <input
-                                                type="text"
-                                                value={visitForm.headquartersComment}
-                                                onChange={(e) => setVisitForm({ ...visitForm, headquartersComment: e.target.value })}
-                                                placeholder="Comment from HQ"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="modal-footer">
-                                <button className="btn-secondary" onClick={handleCloseVisitModal} disabled={isSaving}>
-                                    Cancel
-                                </button>
-                                <button className="btn-primary" onClick={handleSaveVisit} disabled={isSaving}>
-                                    {isSaving ? 'Saving...' : (editingVisit ? 'Save Changes' : 'Add Visit')}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Visit Modal (View Only) */}
-            {
-                showVisitModal && isViewingVisit && (
-                    <div className="modal-overlay" onClick={handleCloseVisitModal}>
-                        {console.log("Rendering View Visit Modal - V2")}
-                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                            <div className="modal-header">
-                                <h2>Visit Details</h2>
-                                <button className="close-btn" onClick={handleCloseVisitModal}>
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <div className="modal-body">
-                                <div className="visit-details-grid">
-                                    <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Date</div>
-                                        <div className="visit-detail-value">{formatDate(visitForm.date)}</div>
-                                    </div>
-                                    <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Customer</div>
-                                        <div className="visit-detail-value">
-                                            {(() => {
-                                                if (selectedCustomer) return selectedCustomer.company || selectedCustomer.contactName;
-                                                const c = customers.find(c => c._id === (visitForm.customerId || editingVisit?.customerId));
-                                                return c ? (c.company || c.contactName) : (visitForm?.customerContactName || visitForm?.customerName || editingVisit?.customerName || '-');
-                                            })()}
-                                        </div>
-                                    </div>
-                                    <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Visit Type</div>
-                                        <div className="visit-detail-value">{visitForm.purpose || '-'}</div>
-                                    </div>
-                                    <div className="visit-detail-item full-width">
-                                        <div className="visit-detail-label">Notes</div>
-                                        <div className="visit-detail-value" style={{ border: 'none', background: 'none', padding: 0, color: 'var(--text-primary)' }}>
-                                            {visitForm.notes || 'No notes available.'}
-                                        </div>
-                                    </div>
-                                    {!visitForm.purpose?.toLowerCase().includes('quick note') && (
-                                        <>
-                                            <div className="visit-detail-item">
-                                                <div className="visit-detail-label">Outcome</div>
-                                                <div className="visit-detail-value">{visitForm.outcome || '-'}</div>
-                                            </div>
-                                            <div className="visit-detail-item">
-                                                <div className="visit-detail-label">Follow Up</div>
-                                                <div className="visit-detail-value">{visitForm.followUp || visitForm.nextAction || '-'}</div>
-                                            </div>
-                                        </>
-                                    )}
-                                    <div className="visit-detail-item full-width">
-                                        <div className="visit-detail-label">Attachments</div>
-                                        {console.log('[DEBUG MODAL] visitForm.image:', visitForm.image)}
-                                        {(visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).length > 0) ? (
-                                            <div className="visit-attachments-grid" style={{ marginTop: '0.5rem' }}>
-                                                {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
-                                                    <div key={idx} className="attachment-preview-card">
-                                                        {img.startsWith('data:application/pdf') ? (
-                                                            <div
-                                                                className="attachment-pdf"
-                                                                onClick={() => handleDashboardDownload({ content: img, name: `Visit-Doc-${idx}.pdf`, type: 'file' })}
-                                                            >
-                                                                <FileText size={32} />
-                                                                <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: 600 }}>PDF</span>
-                                                            </div>
-                                                        ) : (
-                                                            <img
-                                                                src={img}
-                                                                alt="Preview"
-                                                                className="attachment-img"
-                                                                onClick={() => setFullScreenImage(img)}
-                                                                style={{ borderRadius: '8px', cursor: 'pointer' }}
-                                                            />
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="visit-detail-value">-</div>
-                                        )}
-                                    </div>
-                                    <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Manager Comment</div>
-                                        <div className="visit-detail-value">{visitForm.managerComment || '-'}</div>
-                                    </div>
-                                    <div className="visit-detail-item">
-                                        <div className="visit-detail-label">Headquarters Comment</div>
-                                        <div className="visit-detail-value">{visitForm.headquartersComment || '-'}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Resource Modal */}
-            {
-                showResourceModal && (
-                    <div className="modal-overlay" onClick={() => setShowResourceModal(false)}>
-                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                            <div className="modal-header">
-                                <h2>{editingResource ? (isViewingResource ? 'Resource Details' : 'Edit Resource') : 'Add Resource'}</h2>
-                                <button className="close-btn" onClick={() => setShowResourceModal(false)}>
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            {isViewingResource ? (
-                                /* View Mode Layout */
-                                <div className={`modal-body view-mode ${resourceForm.image ? 'has-image' : ''}`}>
-                                    {resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).length > 0 && (
-                                        <div className="view-image-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
-                                            {(Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
-                                                <div key={idx} style={{ position: 'relative', aspectRatio: '1' }}>
-                                                    <img
-                                                        src={(() => {
-                                                            if (!img) return '';
-                                                            if (img.startsWith('data:') || img.startsWith('http')) return img;
-                                                            if (img.includes('uploads/')) {
-                                                                return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
-                                                            }
-                                                            return `${API_URL}/uploads/resources/${img}`;
-                                                        })()}
-                                                        alt={`Resource ${idx + 1}`}
-                                                        onClick={() => setFullScreenImage(img)}
-                                                        className="view-resource-image"
-                                                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }}
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    <div className="view-content-wrapper">
-                                        <div className="view-details-grid">
-                                            <div className="view-detail-item">
-                                                <label>Client</label>
-                                                <p>{resourceForm.customer || '-'}</p>
-                                            </div>
-                                            <div className="view-detail-item">
-                                                <label>Type</label>
-                                                <p>{resourceForm.resourceType || '-'}</p>
-                                            </div>
-                                            <div className="view-detail-item">
-                                                <label>Date</label>
-                                                <p>{formatDate(resourceForm.date)}</p>
-                                            </div>
-                                            <div className="view-detail-item">
-                                                <label>Status</label>
-                                                <span className={`status-badge ${resourceForm.status?.toLowerCase()}`}>
-                                                    {resourceForm.status || 'Active'}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="view-section">
-                                            <label>Description</label>
-                                            <p className="view-text">{resourceForm.description || 'No description provided.'}</p>
-                                        </div>
-
-                                        {resourceForm.notes && (
-                                            <div className="view-section">
-                                                <label>Notes</label>
-                                                <p className="view-text">{resourceForm.notes}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                /* Edit/Add Mode Layout */
                                 <div className="modal-body">
-
                                     <div className="form-group">
-                                        <label>Client *</label>
-                                        <SearchableSelect
-                                            options={customerOptions}
-                                            value={resourceForm.customerId}
-                                            onChange={(value) => {
-                                                const selectedC = customers.find(c => c._id === value);
-                                                setResourceForm({
-                                                    ...resourceForm,
-                                                    customerId: value,
-                                                    customer: selectedC ? (selectedC.company || selectedC.contactName) : ''
-                                                });
-                                            }}
-                                            placeholder="Select a Client..."
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Resource Type *</label>
-                                        <SearchableSelect
-                                            options={resourceTypes.map(type => ({ value: type, label: type }))}
-                                            value={resourceForm.resourceType}
-                                            onChange={(value) => setResourceForm({ ...resourceForm, resourceType: value, title: value })}
-                                            placeholder="Please Select Resource Type"
-                                        />
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label>Date *</label>
+                                        <label>Date <span style={{ color: 'red' }}>*</span></label>
                                         <CustomDatePicker
-                                            value={resourceForm.date}
-                                            onChange={(value) => setResourceForm({ ...resourceForm, date: value })}
+                                            value={visitForm.date}
+                                            onChange={(value) => setVisitForm({ ...visitForm, date: value })}
                                             required
                                         />
                                     </div>
-                                    <div className="form-group">
-                                        <label>Status</label>
-                                        <SearchableSelect
-                                            options={[
-                                                { value: 'Active', label: 'Active' },
-                                                { value: 'Inactive', label: 'Inactive' },
-                                                { value: 'Archived', label: 'Archived' }
-                                            ]}
-                                            value={resourceForm.status}
-                                            onChange={(value) => setResourceForm({ ...resourceForm, status: value })}
-                                            placeholder="Select Status"
-                                        />
+                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
+                                        <div className="form-group">
+                                            <label>Customer <span style={{ color: 'red' }}>*</span></label>
+                                            <SearchableSelect
+                                                options={customerOptions}
+                                                value={visitForm.customerId}
+                                                onChange={(value) => setVisitForm({ ...visitForm, customerId: value })}
+                                                placeholder="Select a Customer..."
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Visit Type <span style={{ color: 'red' }}>*</span></label>
+                                            <SearchableSelect
+                                                options={[
+                                                    'Quick Note',
+                                                    'Scheduled in Person Sales Meeting',
+                                                    'Unscheduled in Person Sales Call',
+                                                    'Resource Placement',
+                                                    'Resource Update',
+                                                    'Formal Presentation',
+                                                    'Important Remote Meeting/Call',
+                                                    'In Office Administration Day',
+                                                    'Personal Time Off'
+                                                ].map(type => ({ value: type, label: type }))}
+                                                value={visitForm.purpose}
+                                                onChange={(value) => setVisitForm({ ...visitForm, purpose: value })}
+                                                placeholder="Please Select Visit Type"
+                                            />
+                                        </div>
                                     </div>
-
-                                    <div className="form-group">
-                                        <label>Description</label>
-                                        <input
-                                            type="text"
-                                            value={resourceForm.description}
-                                            onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
-                                            placeholder="Description"
-                                        />
-                                    </div>
-
                                     <div className="form-group">
                                         <label>Notes</label>
                                         <textarea
-                                            value={resourceForm.notes}
-                                            onChange={(e) => setResourceForm({ ...resourceForm, notes: e.target.value })}
+                                            value={visitForm.notes}
+                                            onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
                                             placeholder="Additional notes"
-                                            rows="3"
+                                            rows="4"
                                         />
                                     </div>
-
+                                    {!visitForm.purpose?.toLowerCase().includes('quick note') && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
+                                            <div className="form-group">
+                                                <label>Outcome</label>
+                                                <textarea
+                                                    value={visitForm.outcome}
+                                                    onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
+                                                    placeholder="Visit outcome"
+                                                    rows="3"
+                                                />
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Follow Up</label>
+                                                <textarea
+                                                    value={visitForm.followUp}
+                                                    onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
+                                                    placeholder="Followup Notes"
+                                                    rows="3"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="form-group">
                                         <label>Attachments</label>
                                         <div className="image-upload-container">
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginBottom: '8px' }}>
-                                                {resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
+                                                {visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
                                                     <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px', position: 'relative' }}>
                                                         {img.startsWith('data:application/pdf') ? (
                                                             <div className="pdf-preview" style={{
@@ -3882,23 +3717,9 @@ const SalesPage = () => {
                                                                 <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
                                                             </div>
                                                         ) : (
-                                                            <img
-                                                                src={(() => {
-                                                                    if (!img) return '';
-                                                                    if (img.startsWith('data:') || img.startsWith('http')) return img;
-                                                                    // If path already contains uploads (e.g. /uploads/resources/foo.jpg or uploads/resources/foo.jpg)
-                                                                    if (img.includes('uploads/')) {
-                                                                        return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
-                                                                    }
-                                                                    // Otherwise assume it's a filename in the resources folder
-                                                                    return `${API_URL}/uploads/resources/${img}`;
-                                                                })()}
-                                                                alt="Preview"
-                                                                className="image-preview"
-                                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                            />
+                                                            <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                         )}
-                                                        <button type="button" className="remove-image-btn" onClick={() => handleRemoveResourceImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
+                                                        <button type="button" className="remove-image-btn" onClick={() => handleRemoveVisitImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
                                                             <X size={12} />
                                                         </button>
                                                     </div>
@@ -3907,189 +3728,526 @@ const SalesPage = () => {
                                             <div className="file-input-wrapper-simple">
                                                 <input
                                                     type="file"
-                                                    id="resource-image-upload"
+                                                    id="visit-image-upload"
                                                     accept="image/*,application/pdf"
                                                     multiple
-                                                    onChange={handleImageUpload}
+                                                    onChange={handleVisitImageUpload}
                                                     className="file-input"
                                                 />
-                                                <label htmlFor="resource-image-upload" className="file-input-label">
-                                                    {resourceForm.image && resourceForm.image.length > 0 ? 'Add More Files' : 'Choose Files'}
+                                                <label htmlFor="visit-image-upload" className="file-input-label">
+                                                    Add Files
                                                 </label>
                                             </div>
                                         </div>
                                     </div>
+                                    {editingVisit && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
+                                            <div className="form-group">
+                                                <label>Manager Comment</label>
+                                                <input
+                                                    type="text"
+                                                    value={visitForm.managerComment}
+                                                    onChange={(e) => setVisitForm({ ...visitForm, managerComment: e.target.value })}
+                                                    placeholder="Comment from Manager"
+                                                />
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Headquarters Comment</label>
+                                                <input
+                                                    type="text"
+                                                    value={visitForm.headquartersComment}
+                                                    onChange={(e) => setVisitForm({ ...visitForm, headquartersComment: e.target.value })}
+                                                    placeholder="Comment from HQ"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                                <div className="modal-footer">
+                                    <button className="btn-secondary" onClick={handleCloseVisitModal} disabled={isSaving}>
+                                        Cancel
+                                    </button>
+                                    <button className="btn-primary" onClick={handleSaveVisit} disabled={isSaving}>
+                                        {isSaving ? 'Saving...' : (editingVisit ? 'Save Changes' : 'Add Visit')}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
 
-                            <div className="modal-footer">
+                {/* Visit Modal (View Only) */}
+                {
+                    showVisitModal && isViewingVisit && (
+                        <div className="modal-overlay" onClick={handleCloseVisitModal}>
+                            {console.log("Rendering View Visit Modal - V2")}
+                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                                <div className="modal-header">
+                                    <h2>Visit Details</h2>
+                                    <button className="close-btn" onClick={handleCloseVisitModal}>
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="modal-body">
+                                    <div className="visit-details-grid">
+                                        <div className="visit-detail-item">
+                                            <div className="visit-detail-label">Date</div>
+                                            <div className="visit-detail-value">{formatDate(visitForm.date)}</div>
+                                        </div>
+                                        <div className="visit-detail-item">
+                                            <div className="visit-detail-label">Customer</div>
+                                            <div className="visit-detail-value">
+                                                {(() => {
+                                                    if (selectedCustomer) return selectedCustomer.company || selectedCustomer.contactName;
+                                                    const c = customers.find(c => c._id === (visitForm.customerId || editingVisit?.customerId));
+                                                    return c ? (c.company || c.contactName) : (visitForm?.customerContactName || visitForm?.customerName || editingVisit?.customerName || '-');
+                                                })()}
+                                            </div>
+                                        </div>
+                                        <div className="visit-detail-item">
+                                            <div className="visit-detail-label">Visit Type</div>
+                                            <div className="visit-detail-value">{visitForm.purpose || '-'}</div>
+                                        </div>
+                                        <div className="visit-detail-item full-width">
+                                            <div className="visit-detail-label">Notes</div>
+                                            <div className="visit-detail-value" style={{ border: 'none', background: 'none', padding: 0, color: 'var(--text-primary)' }}>
+                                                {visitForm.notes || 'No notes available.'}
+                                            </div>
+                                        </div>
+                                        {!visitForm.purpose?.toLowerCase().includes('quick note') && (
+                                            <>
+                                                <div className="visit-detail-item">
+                                                    <div className="visit-detail-label">Outcome</div>
+                                                    <div className="visit-detail-value">{visitForm.outcome || '-'}</div>
+                                                </div>
+                                                <div className="visit-detail-item">
+                                                    <div className="visit-detail-label">Follow Up</div>
+                                                    <div className="visit-detail-value">{visitForm.followUp || visitForm.nextAction || '-'}</div>
+                                                </div>
+                                            </>
+                                        )}
+                                        <div className="visit-detail-item full-width">
+                                            <div className="visit-detail-label">Attachments</div>
+                                            {console.log('[DEBUG MODAL] visitForm.image:', visitForm.image)}
+                                            {(visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).length > 0) ? (
+                                                <div className="visit-attachments-grid" style={{ marginTop: '0.5rem' }}>
+                                                    {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
+                                                        <div key={idx} className="attachment-preview-card">
+                                                            {img.startsWith('data:application/pdf') ? (
+                                                                <div
+                                                                    className="attachment-pdf"
+                                                                    onClick={() => handleDashboardDownload({ content: img, name: `Visit-Doc-${idx}.pdf`, type: 'file' })}
+                                                                >
+                                                                    <FileText size={32} />
+                                                                    <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: 600 }}>PDF</span>
+                                                                </div>
+                                                            ) : (
+                                                                <img
+                                                                    src={img}
+                                                                    alt="Preview"
+                                                                    className="attachment-img"
+                                                                    onClick={() => setFullScreenImage(img)}
+                                                                    style={{ borderRadius: '8px', cursor: 'pointer' }}
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="visit-detail-value">-</div>
+                                            )}
+                                        </div>
+                                        <div className="visit-detail-item">
+                                            <div className="visit-detail-label">Manager Comment</div>
+                                            <div className="visit-detail-value">{visitForm.managerComment || '-'}</div>
+                                        </div>
+                                        <div className="visit-detail-item">
+                                            <div className="visit-detail-label">Headquarters Comment</div>
+                                            <div className="visit-detail-value">{visitForm.headquartersComment || '-'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
+
+                {/* Resource Modal */}
+                {
+                    showResourceModal && (
+                        <div className="modal-overlay" onClick={() => setShowResourceModal(false)}>
+                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                                <div className="modal-header">
+                                    <h2>{editingResource ? (isViewingResource ? 'Resource Details' : 'Edit Resource') : 'Add Resource'}</h2>
+                                    <button className="close-btn" onClick={() => setShowResourceModal(false)}>
+                                        <X size={20} />
+                                    </button>
+                                </div>
+
                                 {isViewingResource ? (
-                                    <button className="btn-secondary" onClick={handleCloseResourceModal}>Close</button>
+                                    /* View Mode Layout */
+                                    <div className={`modal-body view-mode ${resourceForm.image ? 'has-image' : ''}`}>
+                                        {resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).length > 0 && (
+                                            <div className="view-image-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
+                                                {(Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
+                                                    <div key={idx} style={{ position: 'relative', aspectRatio: '1' }}>
+                                                        <img
+                                                            src={(() => {
+                                                                if (!img) return '';
+                                                                if (img.startsWith('data:') || img.startsWith('http')) return img;
+                                                                if (img.includes('uploads/')) {
+                                                                    return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
+                                                                }
+                                                                return `${API_URL}/uploads/resources/${img}`;
+                                                            })()}
+                                                            alt={`Resource ${idx + 1}`}
+                                                            onClick={() => setFullScreenImage(img)}
+                                                            className="view-resource-image"
+                                                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        <div className="view-content-wrapper">
+                                            <div className="view-details-grid">
+                                                <div className="view-detail-item">
+                                                    <label>Client</label>
+                                                    <p>{resourceForm.customer || '-'}</p>
+                                                </div>
+                                                <div className="view-detail-item">
+                                                    <label>Type</label>
+                                                    <p>{resourceForm.resourceType || '-'}</p>
+                                                </div>
+                                                <div className="view-detail-item">
+                                                    <label>Date</label>
+                                                    <p>{formatDate(resourceForm.date)}</p>
+                                                </div>
+                                                <div className="view-detail-item">
+                                                    <label>Status</label>
+                                                    <span className={`status-badge ${resourceForm.status?.toLowerCase()}`}>
+                                                        {resourceForm.status || 'Active'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="view-section">
+                                                <label>Description</label>
+                                                <p className="view-text">{resourceForm.description || 'No description provided.'}</p>
+                                            </div>
+
+                                            {resourceForm.notes && (
+                                                <div className="view-section">
+                                                    <label>Notes</label>
+                                                    <p className="view-text">{resourceForm.notes}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 ) : (
+                                    /* Edit/Add Mode Layout */
+                                    <div className="modal-body">
+
+                                        <div className="form-group">
+                                            <label>Client *</label>
+                                            <SearchableSelect
+                                                options={customerOptions}
+                                                value={resourceForm.customerId}
+                                                onChange={(value) => {
+                                                    const selectedC = customers.find(c => c._id === value);
+                                                    setResourceForm({
+                                                        ...resourceForm,
+                                                        customerId: value,
+                                                        customer: selectedC ? (selectedC.company || selectedC.contactName) : ''
+                                                    });
+                                                }}
+                                                placeholder="Select a Client..."
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Resource Type *</label>
+                                            <SearchableSelect
+                                                options={resourceTypes.map(type => ({ value: type, label: type }))}
+                                                value={resourceForm.resourceType}
+                                                onChange={(value) => setResourceForm({ ...resourceForm, resourceType: value, title: value })}
+                                                placeholder="Please Select Resource Type"
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label>Date *</label>
+                                            <CustomDatePicker
+                                                value={resourceForm.date}
+                                                onChange={(value) => setResourceForm({ ...resourceForm, date: value })}
+                                                required
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Status</label>
+                                            <SearchableSelect
+                                                options={[
+                                                    { value: 'Active', label: 'Active' },
+                                                    { value: 'Inactive', label: 'Inactive' },
+                                                    { value: 'Archived', label: 'Archived' }
+                                                ]}
+                                                value={resourceForm.status}
+                                                onChange={(value) => setResourceForm({ ...resourceForm, status: value })}
+                                                placeholder="Select Status"
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label>Description</label>
+                                            <input
+                                                type="text"
+                                                value={resourceForm.description}
+                                                onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
+                                                placeholder="Description"
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label>Notes</label>
+                                            <textarea
+                                                value={resourceForm.notes}
+                                                onChange={(e) => setResourceForm({ ...resourceForm, notes: e.target.value })}
+                                                placeholder="Additional notes"
+                                                rows="3"
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label>Attachments</label>
+                                            <div className="image-upload-container">
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginBottom: '8px' }}>
+                                                    {resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
+                                                        <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px', position: 'relative' }}>
+                                                            {img.startsWith('data:application/pdf') ? (
+                                                                <div className="pdf-preview" style={{
+                                                                    width: '100%',
+                                                                    height: '100%',
+                                                                    display: 'flex',
+                                                                    flexDirection: 'column',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    background: '#f5f5f5',
+                                                                    borderRadius: '4px',
+                                                                    border: '1px solid #ddd'
+                                                                }}>
+                                                                    <FileText size={32} color="#E5C04A" />
+                                                                    <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
+                                                                </div>
+                                                            ) : (
+                                                                <img
+                                                                    src={(() => {
+                                                                        if (!img) return '';
+                                                                        if (img.startsWith('data:') || img.startsWith('http')) return img;
+                                                                        // If path already contains uploads (e.g. /uploads/resources/foo.jpg or uploads/resources/foo.jpg)
+                                                                        if (img.includes('uploads/')) {
+                                                                            return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
+                                                                        }
+                                                                        // Otherwise assume it's a filename in the resources folder
+                                                                        return `${API_URL}/uploads/resources/${img}`;
+                                                                    })()}
+                                                                    alt="Preview"
+                                                                    className="image-preview"
+                                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                                />
+                                                            )}
+                                                            <button type="button" className="remove-image-btn" onClick={() => handleRemoveResourceImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
+                                                                <X size={12} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="file-input-wrapper-simple">
+                                                    <input
+                                                        type="file"
+                                                        id="resource-image-upload"
+                                                        accept="image/*,application/pdf"
+                                                        multiple
+                                                        onChange={handleImageUpload}
+                                                        className="file-input"
+                                                    />
+                                                    <label htmlFor="resource-image-upload" className="file-input-label">
+                                                        {resourceForm.image && resourceForm.image.length > 0 ? 'Add More Files' : 'Choose Files'}
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="modal-footer">
+                                    {isViewingResource ? (
+                                        <button className="btn-secondary" onClick={handleCloseResourceModal}>Close</button>
+                                    ) : (
+                                        <>
+                                            <button className="btn-secondary" onClick={handleCloseResourceModal} disabled={isSaving}>
+                                                Cancel
+                                            </button>
+                                            <button className="btn-primary" onClick={handleSaveResource} disabled={isSaving}>
+                                                {isSaving ? 'Saving...' : (editingResource ? 'Save Changes' : 'Add Resource')}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
+
+                {
+                    fullScreenImage && (
+                        <div className="fullscreen-image-overlay" onClick={() => { setFullScreenImage(null); setFullScreenGallery([]); }}>
+                            <div className="fullscreen-image-container" onClick={(e) => e.stopPropagation()} style={{ width: fullScreenImage.startsWith('data:application/pdf') ? '80%' : 'auto', height: fullScreenImage.startsWith('data:application/pdf') ? '90%' : 'auto', maxWidth: '90%', maxHeight: '90%' }}>
+                                <button className="fullscreen-close-btn" onClick={() => { setFullScreenImage(null); setFullScreenGallery([]); }}>
+                                    <X size={32} />
+                                </button>
+
+                                {fullScreenGallery.length > 1 && (
                                     <>
-                                        <button className="btn-secondary" onClick={handleCloseResourceModal} disabled={isSaving}>
-                                            Cancel
+                                        <button className="gallery-nav-btn prev" onClick={(e) => { e.stopPropagation(); handlePrevImage(); }}>
+                                            <ChevronLeft size={48} />
                                         </button>
-                                        <button className="btn-primary" onClick={handleSaveResource} disabled={isSaving}>
-                                            {isSaving ? 'Saving...' : (editingResource ? 'Save Changes' : 'Add Resource')}
+                                        <button className="gallery-nav-btn next" onClick={(e) => { e.stopPropagation(); handleNextImage(); }}>
+                                            <ChevronRight size={48} />
                                         </button>
+                                        <div className="gallery-index-indicator">
+                                            {fullScreenIndex + 1} / {fullScreenGallery.length}
+                                        </div>
                                     </>
                                 )}
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
 
-            {
-                fullScreenImage && (
-                    <div className="fullscreen-image-overlay" onClick={() => { setFullScreenImage(null); setFullScreenGallery([]); }}>
-                        <div className="fullscreen-image-container" onClick={(e) => e.stopPropagation()} style={{ width: fullScreenImage.startsWith('data:application/pdf') ? '80%' : 'auto', height: fullScreenImage.startsWith('data:application/pdf') ? '90%' : 'auto', maxWidth: '90%', maxHeight: '90%' }}>
-                            <button className="fullscreen-close-btn" onClick={() => { setFullScreenImage(null); setFullScreenGallery([]); }}>
-                                <X size={32} />
-                            </button>
-
-                            {fullScreenGallery.length > 1 && (
-                                <>
-                                    <button className="gallery-nav-btn prev" onClick={(e) => { e.stopPropagation(); handlePrevImage(); }}>
-                                        <ChevronLeft size={48} />
-                                    </button>
-                                    <button className="gallery-nav-btn next" onClick={(e) => { e.stopPropagation(); handleNextImage(); }}>
-                                        <ChevronRight size={48} />
-                                    </button>
-                                    <div className="gallery-index-indicator">
-                                        {fullScreenIndex + 1} / {fullScreenGallery.length}
-                                    </div>
-                                </>
-                            )}
-
-                            {fullScreenImage.startsWith('data:application/pdf') ? (
-                                <iframe src={fullScreenImage} style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} title="PDF Preview"></iframe>
-                            ) : (
-                                <img src={fullScreenImage} alt="Full Screen" />
-                            )}
-                        </div>
-                    </div>
-                )
-            }
-
-
-            {/* Dashboard Upload Modal */}
-            {
-                showDashboardUploadModal && (
-                    <div className="modal-overlay" onClick={() => setShowDashboardUploadModal(false)}>
-                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                            <div className="modal-header">
-                                <h2>Upload Dashboard Resource</h2>
-                                <button className="close-btn" onClick={() => setShowDashboardUploadModal(false)}>
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <div className="modal-body">
-                                <div className="form-group">
-                                    <label>Resource Name</label>
-                                    <input
-                                        type="text"
-                                        value={dashboardUploadForm.name}
-                                        onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, name: e.target.value })}
-                                        placeholder="Enter resource name"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Type</label>
-                                    <select
-                                        value={dashboardUploadForm.type}
-                                        onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, type: e.target.value })}
-                                        className="form-select"
-                                    >
-                                        <option value="file">File</option>
-                                        <option value="link">Link</option>
-                                    </select>
-                                </div>
-                                {dashboardUploadForm.type === 'link' ? (
-                                    <div className="form-group">
-                                        <label>URL</label>
-                                        <input
-                                            type="url"
-                                            value={dashboardUploadForm.url || ''}
-                                            onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, url: e.target.value })}
-                                            placeholder="https://example.com"
-                                        />
-                                    </div>
+                                {fullScreenImage.startsWith('data:application/pdf') ? (
+                                    <iframe src={fullScreenImage} style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} title="PDF Preview"></iframe>
                                 ) : (
-                                    <div className="form-group">
-                                        <label>File</label>
-                                        <input
-                                            type="file"
-                                            onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, file: e.target.files[0] })}
-                                        />
-                                    </div>
+                                    <img src={fullScreenImage} alt="Full Screen" />
                                 )}
                             </div>
-                            <div className="modal-footer">
-                                <button className="btn-secondary" onClick={() => setShowDashboardUploadModal(false)}>Cancel</button>
-                                <button className="btn-primary" onClick={handleDashboardUpload}>Upload</button>
-                            </div>
                         </div>
-                    </div>
-                )
-            }
+                    )
+                }
 
-            {/* Add Folder Modal */}
-            {
-                showAddFolderModal && (
-                    <div className="modal-overlay" onClick={() => setShowAddFolderModal(false)}>
-                        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                            <div className="modal-header">
-                                <h2>Create New Folder</h2>
-                                <button className="close-btn" onClick={() => setShowAddFolderModal(false)}>
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <div className="modal-body">
-                                <div className="form-group">
-                                    <label>Folder Name</label>
-                                    <input
-                                        type="text"
-                                        value={folderName}
-                                        onChange={(e) => setFolderName(e.target.value)}
-                                        placeholder="Enter folder name"
-                                        autoFocus
-                                    />
+
+                {/* Dashboard Upload Modal */}
+                {
+                    showDashboardUploadModal && (
+                        <div className="modal-overlay" onClick={() => setShowDashboardUploadModal(false)}>
+                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                                <div className="modal-header">
+                                    <h2>Upload Dashboard Resource</h2>
+                                    <button className="close-btn" onClick={() => setShowDashboardUploadModal(false)}>
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="modal-body">
+                                    <div className="form-group">
+                                        <label>Resource Name</label>
+                                        <input
+                                            type="text"
+                                            value={dashboardUploadForm.name}
+                                            onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, name: e.target.value })}
+                                            placeholder="Enter resource name"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Type</label>
+                                        <select
+                                            value={dashboardUploadForm.type}
+                                            onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, type: e.target.value })}
+                                            className="form-select"
+                                        >
+                                            <option value="file">File</option>
+                                            <option value="link">Link</option>
+                                        </select>
+                                    </div>
+                                    {dashboardUploadForm.type === 'link' ? (
+                                        <div className="form-group">
+                                            <label>URL</label>
+                                            <input
+                                                type="url"
+                                                value={dashboardUploadForm.content || ''}
+                                                onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, content: e.target.value })}
+                                                placeholder="https://example.com"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="form-group">
+                                            <label>File</label>
+                                            <input
+                                                type="file"
+                                                onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, file: e.target.files[0] })}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="modal-footer">
+                                    <button className="btn-secondary" onClick={() => setShowDashboardUploadModal(false)}>Cancel</button>
+                                    <button className="btn-primary" onClick={handleDashboardUpload}>Upload</button>
                                 </div>
                             </div>
-                            <div className="modal-footer">
-                                <button className="btn-secondary" onClick={() => setShowAddFolderModal(false)}>Cancel</button>
-                                <button className="btn-primary" onClick={() => { handleCreateFolder(); setShowAddFolderModal(false); }}>Create</button>
-                            </div>
                         </div>
-                    </div>
-                )
-            }
+                    )
+                }
 
-            {/* Custom Delete Confirmation Modal */}
-            {
-                deleteConfirmation.isOpen && (
-                    <div className="delete-confirmation-overlay" onClick={cancelDelete}>
-                        <div className="delete-confirmation-modal" onClick={(e) => e.stopPropagation()}>
-                            <div className="delete-modal-icon">
-                                <Trash2 size={48} color="#ef4444" />
-                            </div>
-                            <h3>Confirm Deletion</h3>
-                            <p>{deleteConfirmation.message}</p>
-                            <div className="delete-modal-actions">
-                                <button className="btn-cancel" onClick={cancelDelete}>
-                                    Cancel
-                                </button>
-                                <button className="btn-delete" onClick={confirmDelete}>
-                                    Delete
-                                </button>
+                {/* Add Folder Modal */}
+                {
+                    showAddFolderModal && (
+                        <div className="modal-overlay" onClick={() => setShowAddFolderModal(false)}>
+                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                                <div className="modal-header">
+                                    <h2>Create New Folder</h2>
+                                    <button className="close-btn" onClick={() => setShowAddFolderModal(false)}>
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="modal-body">
+                                    <div className="form-group">
+                                        <label>Folder Name</label>
+                                        <input
+                                            type="text"
+                                            value={folderName}
+                                            onChange={(e) => setFolderName(e.target.value)}
+                                            placeholder="Enter folder name"
+                                            autoFocus
+                                        />
+                                    </div>
+                                </div>
+                                <div className="modal-footer">
+                                    <button className="btn-secondary" onClick={() => setShowAddFolderModal(false)}>Cancel</button>
+                                    <button className="btn-primary" onClick={() => { handleCreateFolder(); setShowAddFolderModal(false); }}>Create</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )
-            }
-        </div >
+                    )
+                }
+
+                {/* Custom Delete Confirmation Modal */}
+                {
+                    deleteConfirmation.isOpen && (
+                        <div className="delete-confirmation-overlay" onClick={cancelDelete}>
+                            <div className="delete-confirmation-modal" onClick={(e) => e.stopPropagation()}>
+                                <div className="delete-modal-icon">
+                                    <Trash2 size={48} color="#ef4444" />
+                                </div>
+                                <h3>Confirm Deletion</h3>
+                                <p>{deleteConfirmation.message}</p>
+                                <div className="delete-modal-actions">
+                                    <button className="btn-cancel" onClick={cancelDelete}>
+                                        Cancel
+                                    </button>
+                                    <button className="btn-delete" onClick={confirmDelete}>
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
+            </div>
+        </div>
     );
 };
 

@@ -1181,24 +1181,32 @@ app.post('/api/auth/change-password', verifyToken, async (req, res) => {
 // ============================================
 
 // Get all dashboard resources (Support folder navigation)
-app.get('/api/sales-dashboard/resources', async (req, res) => {
+app.get('/api/sales-dashboard/resources', verifyAnyAuth, async (req, res) => {
   try {
     const { parentId } = req.query;
     const query = parentId ? { parentId } : { parentId: null };
+    console.log('📁 Fetching dashboard resources with query:', query);
     
     // Also support getting ALL resources if specifically requested (for search maybe?) - avoiding for now to keep simple
-    const resources = await SalesDashboardResource.find(query).select('-content').sort({ isFolder: -1, createdAt: -1 }); // Folders first, exclude content
+    const resources = await SalesDashboardResource.find(query)
+      .select('-content')
+      .populate('uploadedBy', 'username') // Populate username
+      .sort({ isFolder: -1, createdAt: -1 }); // Folders first, exclude content
+    console.log(`📁 Found ${resources.length} resources`);
     res.json(resources);
   } catch (error) {
+    console.error('❌ Error fetching dashboard resources:', error);
     res.status(500).json({ message: 'Failed to fetch dashboard resources' });
   }
 });
 
 // Get single resource (with full content)
-app.get('/api/sales-dashboard/resources/:id', async (req, res) => {
+app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res) => {
   try {
-    const resource = await SalesDashboardResource.findById(req.params.id);
-    if (!resource) return res.status(404).json({ message: 'Resource not found' });
+    const resource = await SalesDashboardResource.findById(req.params.id).populate('uploadedBy', 'username');
+    if (!resource) {
+      return res.status(404).json({ message: 'Resource not found' });
+    }
     res.json(resource);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch resource' });
@@ -1206,7 +1214,7 @@ app.get('/api/sales-dashboard/resources/:id', async (req, res) => {
 });
 
 // Upload a new resource (File, Link, or Folder)
-app.post('/api/sales-dashboard/upload', uploadResources.single('file'), async (req, res) => {
+app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('file'), async (req, res) => {
   try {
     const { name, type, content: linkContent, isFolder, parentId, thumbnail } = req.body;
 
@@ -1260,25 +1268,36 @@ app.post('/api/sales-dashboard/upload', uploadResources.single('file'), async (r
       contentType,
       isFolder: isFolder === 'true' || isFolder === true,
       parentId: parentId || null,
-      thumbnail: thumbnail || ''
+      thumbnail: thumbnail || '',
+      uploadedBy: req.userId // Save the user who uploaded/created
     });
 
     const startSave = Date.now();
     await newResource.save();
-    console.log(`[DEBUG] Resource saved successfully as disk file in ${Date.now() - startSave}ms`);
-    console.log('[DEBUG] Resource saved successfully as disk file');
+    
+    // Populate before returning
+    await newResource.populate('uploadedBy', 'username');
+
+    console.log(`✅ [UPLOAD] Resource saved successfully in ${Date.now() - startSave}ms:`, {
+      name: newResource.name,
+      type: newResource.type,
+      isFolder: newResource.isFolder,
+      parentId: newResource.parentId,
+      id: newResource._id,
+      uploadedBy: newResource.uploadedBy?.username
+    });
     res.status(201).json(newResource);
   } catch (error) {
     console.error('Error uploading dashboard resource:', error);
-    res.status(500).json({ message: `Failed to upload resource: ${error.message}` });
+    res.status(500).json({ message: 'Failed to upload resource' });
   }
 });
 
 // Update dashboard resource
-app.put('/api/sales-dashboard/resources/:id', uploadResources.single('file'), async (req, res) => {
+app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, uploadResources.single('file'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, type, content: linkContent, thumbnail } = req.body;
+    const { name, type, content: linkContent, parentId, thumbnail } = req.body;
 
     const resource = await SalesDashboardResource.findById(id);
     if (!resource) {
@@ -1286,7 +1305,13 @@ app.put('/api/sales-dashboard/resources/:id', uploadResources.single('file'), as
     }
 
     if (name) resource.name = name;
+    if (parentId !== undefined) resource.parentId = parentId || null;
     
+    // Update modified by
+    if (req.userId) {
+        resource.uploadedBy = req.userId;
+    }
+
     // If a new file is uploaded
     if (req.file) {
       // Delete old file if it was a disk file
@@ -1336,7 +1361,7 @@ app.put('/api/sales-dashboard/resources/:id', uploadResources.single('file'), as
 });
 
 // Delete dashboard resource (Recursive for folders)
-app.delete('/api/sales-dashboard/resources/:id', async (req, res) => {
+app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res) => {
   try {
     const resourceId = req.params.id;
     const resource = await SalesDashboardResource.findById(resourceId);
@@ -2662,7 +2687,10 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve uploaded files from public directory
+// Serve uploaded files explicitly to prevent SPA catch-all from intercepting them
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+
+// Serve other static assets from public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve static files from the React app
