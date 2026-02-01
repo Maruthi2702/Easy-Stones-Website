@@ -1084,14 +1084,18 @@
 .resource-row {
     cursor: pointer;
     transition: background 0.2s ease;
+    user-select: none; /* Prevent text selection on tap */
+    -webkit-tap-highlight-color: transparent; /* Remove default tap highlight */
 }
 
-.resource-row:hover {
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.resource-row:hover .row-actions {
-    opacity: 1;
+@media (hover: hover) {
+    .resource-row:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+    
+    .resource-row:hover .row-actions {
+        opacity: 1;
+    }
 }
 
 .resource-name-wrapper {
@@ -1173,14 +1177,72 @@
 }
 
 @media (max-width: 768px) {
+    /* Convert table to flex list for mobile */
+    .resources-table, .resources-table tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .resources-table thead {
+        display: none; 
+    }
+
+    .resources-table tr {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 0.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .resources-table td {
+        display: block;
+        padding: 0;
+        border: none;
+    }
+
+    /* Hide Date and User columns */
     .resources-table th:nth-child(2),
     .resources-table td:nth-child(2),
     .resources-table th:nth-child(3),
     .resources-table td:nth-child(3) {
-        display: none; /* Hide Date and User columns on mobile */
+        display: none; 
+    }
+
+    .col-name {
+        flex: 1;
+        min-width: 0; /* Critical for text truncation in flex item */
+        margin-right: 0.5rem;
+    }
+
+    .resource-name-wrapper {
+        gap: 0.75rem;
+    }
+
+    .name-text {
+        font-size: 0.95rem; 
+    }
+
+    .col-actions {
+        width: auto;
+        flex-shrink: 0;
     }
     
     .row-actions {
-        opacity: 1; /* Always show actions on mobile */
+        opacity: 1; 
+        gap: 0.25rem;
+    }
+
+    .action-icon-btn {
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.05); 
+    }
+
+    .list-back-button {
+        width: 100%;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.05);
+        margin-bottom: 1rem;
     }
 }
