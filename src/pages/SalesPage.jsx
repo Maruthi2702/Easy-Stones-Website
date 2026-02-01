@@ -70,7 +70,9 @@ const SalesPage = () => {
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
+    const [followupFilter, setFollowupFilter] = useState('all'); // 'all' or 'nextWeek'
     const [todayScheduleCount, setTodayScheduleCount] = useState(0);
+    const [allSchedules, setAllSchedules] = useState([]);
     const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
     const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
 
@@ -81,25 +83,41 @@ const SalesPage = () => {
         }
     }, [currentUser]);
 
-    // Fetch today's schedule count
+    // Fetch schedules for the dashboard
     useEffect(() => {
-        const fetchTodaySchedule = async () => {
+        const fetchSchedules = async () => {
             try {
-                const today = new Date();
-                const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-                const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
-                const response = await fetch(`${API_URL}/api/schedule?start=${startOfDay}&end=${endOfDay}`, {
+                // Fetch a broad range of schedules for the dashboard (e.g., +/- 1 month)
+                const now = new Date();
+                const start = new Date(now);
+                start.setMonth(now.getMonth() - 1);
+                const end = new Date(now);
+                end.setMonth(now.getMonth() + 1);
+
+                const response = await fetch(`${API_URL}/api/schedule?start=${start.toISOString()}&end=${end.toISOString()}`, {
                     credentials: 'include'
                 });
                 if (response.ok) {
                     const data = await response.json();
-                    setTodayScheduleCount(data.length);
+                    setAllSchedules(data);
+
+                    // Update today's count from the fetched data
+                    const todayStart = new Date();
+                    todayStart.setHours(0, 0, 0, 0);
+                    const todayEnd = new Date();
+                    todayEnd.setHours(23, 59, 59, 999);
+
+                    const todayCount = data.filter(s => {
+                        const d = new Date(s.startTime);
+                        return d >= todayStart && d <= todayEnd;
+                    }).length;
+                    setTodayScheduleCount(todayCount);
                 }
             } catch (error) {
-                console.error('Error fetching today schedule:', error);
+                console.error('Error fetching schedules:', error);
             }
         };
-        fetchTodaySchedule();
+        fetchSchedules();
     }, []);
 
     // Modal states
@@ -182,7 +200,7 @@ const SalesPage = () => {
     }, [dashboardTimeRange]);
 
     const dashboardStats = React.useMemo(() => {
-        const stats = { visits: 0, keyVisits: 0, bids: 0, followUp: 0, resources: 0, quickNotes: 0 };
+        const stats = { visits: 0, keyVisits: 0, bids: 0, followUp: 0, resources: 0 };
         const startDate = dashboardDateRangeStart;
         const currentUserIdStr = currentUserId?.toString();
 
@@ -194,26 +212,21 @@ const SalesPage = () => {
             const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || v.createdBy === currentUserIdStr;
 
             if (dateMatch && userMatch) {
-                const isQuickNote = v.purpose?.toLowerCase().includes('quick note');
-                if (isQuickNote) {
-                    stats.quickNotes++;
-                } else {
-                    stats.visits++;
-                    const outcome = (v.outcome || '').toLowerCase();
-                    const notes = (v.notes || '').toLowerCase();
+                stats.visits++;
+                const outcome = (v.outcome || '').toLowerCase();
+                const notes = (v.notes || '').toLowerCase();
 
-                    if (outcome.includes('order') || outcome.includes('sale') || outcome.includes('sold') || outcome.includes('deposit') ||
-                        notes.includes('order') || notes.includes('sale') || notes.includes('sold')) {
-                        stats.keyVisits++;
-                    }
+                if (outcome.includes('order') || outcome.includes('sale') || outcome.includes('sold') || outcome.includes('deposit') ||
+                    notes.includes('order') || notes.includes('sale') || notes.includes('sold')) {
+                    stats.keyVisits++;
+                }
 
-                    if (outcome.includes('bid') || outcome.includes('quote') || notes.includes('bid') || notes.includes('quote')) {
-                        stats.bids++;
-                    }
+                if (outcome.includes('bid') || outcome.includes('quote') || notes.includes('bid') || notes.includes('quote')) {
+                    stats.bids++;
+                }
 
-                    if (v.nextAction) {
-                        stats.followUp++;
-                    }
+                if (v.nextAction || v.followUp) {
+                    stats.followUp++;
                 }
             }
         });
@@ -368,6 +381,8 @@ const SalesPage = () => {
         purpose: 'Scheduled in Person Sales Meeting',
         notes: '',
         outcome: '',
+        followUp: '',
+        followUpDate: '',
         nextAction: '',
         image: [] // Array of strings
     });
@@ -1076,6 +1091,8 @@ const SalesPage = () => {
             purpose: 'Scheduled in Person Sales Meeting',
             notes: '',
             outcome: '',
+            followUp: '',
+            followUpDate: '',
             nextAction: ''
         });
         setShowVisitModal(true);
@@ -1091,6 +1108,7 @@ const SalesPage = () => {
                 notes: visit.notes || '',
                 outcome: visit.outcome || '',
                 followUp: visit.followUp || visit.nextAction || '',
+                followUpDate: visit.followUpDate ? formatForDateInput(visit.followUpDate) : '',
                 managerComment: visit.managerComment || '',
                 headquartersComment: visit.headquartersComment || '',
                 image: Array.isArray(visit.image) ? visit.image : (visit.image ? [visit.image] : []),
@@ -1113,7 +1131,8 @@ const SalesPage = () => {
                 const formattedVisit = {
                     ...data.visit,
                     customerId: visit.customerId, // Preserve customerId
-                    date: formatForDateInput(data.visit.date)
+                    date: formatForDateInput(data.visit.date),
+                    followUpDate: data.visit.followUpDate ? formatForDateInput(data.visit.followUpDate) : ''
                 };
                 setVisitForm(formattedVisit);
                 setEditingVisit(formattedVisit);
@@ -1193,6 +1212,7 @@ const SalesPage = () => {
             notes: '',
             outcome: '',
             followUp: '',
+            followUpDate: '',
             image: []
         });
         setEditingVisit(null);
@@ -1259,7 +1279,9 @@ const SalesPage = () => {
             purpose: 'Scheduled in Person Sales Meeting',
             notes: '',
             outcome: '',
+            outcome: '',
             followUp: '',
+            followUpDate: '',
             managerComment: '',
             headquartersComment: '',
             image: [],
@@ -2767,17 +2789,17 @@ const SalesPage = () => {
                                                     <div className="stat-footer">{timeLabel}</div>
                                                 </div>
                                                 <div
-                                                    className={`stat-card ${activeDashboardTab === 'quickNotes' ? 'active-tab' : ''}`}
-                                                    onClick={() => setActiveDashboardTab('quickNotes')}
+                                                    className={`stat-card ${activeDashboardTab === 'followups' ? 'active-tab' : ''}`}
+                                                    onClick={() => setActiveDashboardTab('followups')}
                                                     style={{ cursor: 'pointer' }}
                                                 >
                                                     <div className="stat-icon-wrapper">
-                                                        <MessageSquare size={20} />
+                                                        <Clock size={20} />
                                                     </div>
                                                     <div className="stat-info">
-                                                        <div className="stat-title">QUICK NOTES</div>
+                                                        <div className="stat-title">FOLLOW-UP</div>
                                                     </div>
-                                                    <div className="stat-value">{stats.quickNotes}</div>
+                                                    <div className="stat-value">{stats.followUp}</div>
                                                     <div className="stat-footer">{timeLabel}</div>
                                                 </div>
                                                 <div
@@ -2794,22 +2816,6 @@ const SalesPage = () => {
                                                     <div className="stat-value">{todayScheduleCount}</div>
                                                     <div className="stat-footer">Schedule</div>
                                                 </div>
-                                                {/* <div className="stat-card">
-                                            <div className="stat-icon-wrapper">
-                                                <DollarSign size={20} />
-                                            </div>
-                                            <div className="stat-title">BIDS</div>
-                                            <div className="stat-value">{stats.bids}</div>
-                                            <div className="stat-footer">{timeLabel}</div>
-                                        </div>
-                                        <div className="stat-card">
-                                            <div className="stat-icon-wrapper">
-                                                <Clock size={20} />
-                                            </div>
-                                            <div className="stat-title">FOLLOW-UP</div>
-                                            <div className="stat-value">{stats.followUp}</div>
-                                            <div className="stat-footer">{timeLabel}</div>
-                                        </div> */}
                                             </div>
                                         );
                                     })()}
@@ -2979,22 +2985,38 @@ const SalesPage = () => {
                                         </div>
                                     )}
 
-                                    {/* Quick Notes Table */}
-                                    {activeDashboardTab === 'quickNotes' && (
+                                    {/* Follow-up Actions Table */}
+                                    {activeDashboardTab === 'followups' && (
                                         <div className="visits-table-section">
                                             <div className="section-header">
-                                                <h2>Quick Notes</h2>
+                                                <h2>Follow-up Actions</h2>
                                                 <div className="table-controls">
+                                                    <div className="dashboard-sub-tabs" style={{ marginBottom: 0, border: 'none' }}>
+                                                        <button
+                                                            className={`sub-tab-btn ${followupFilter === 'all' ? 'active' : ''}`}
+                                                            onClick={() => setFollowupFilter('all')}
+                                                            style={{ padding: '0.5rem 1rem' }}
+                                                        >
+                                                            All Notes
+                                                        </button>
+                                                        <button
+                                                            className={`sub-tab-btn ${followupFilter === 'nextWeek' ? 'active' : ''}`}
+                                                            onClick={() => setFollowupFilter('nextWeek')}
+                                                            style={{ padding: '0.5rem 1rem' }}
+                                                        >
+                                                            Next Week
+                                                        </button>
+                                                    </div>
                                                     <button className="export-btn" onClick={() => {
-                                                        const qNotes = memoizedFilteredVisits.filter(v => v && v.purpose?.toLowerCase().includes('quick note'));
-                                                        handleExportVisits(qNotes);
+                                                        const followups = memoizedFilteredVisits.filter(v => v && (v.nextAction || v.followUp));
+                                                        handleExportVisits(followups);
                                                     }}>
                                                         <Download size={18} /> Excel
                                                     </button>
                                                     <div className="table-search">
                                                         <input
                                                             type="text"
-                                                            placeholder="Search quick notes..."
+                                                            placeholder="Search follow-ups..."
                                                             value={dashboardSearchTerm}
                                                             onChange={(e) => setDashboardSearchTerm(e.target.value)}
                                                         />
@@ -3008,72 +3030,139 @@ const SalesPage = () => {
                                                         <tr>
                                                             <th className="mobile-hide">Date</th>
                                                             <th>Customer</th>
-                                                            <th className="mobile-hide">Visit Type</th>
-                                                            <th className="mobile-hide">Notes</th>
+                                                            <th>Action Item / Note</th>
+                                                            <th className="mobile-hide">Source</th>
                                                             <th>Action</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
                                                         {(() => {
-                                                            const visits = memoizedFilteredVisits.filter(v => v && v.purpose?.toLowerCase().includes('quick note'));
-                                                            if (visits.length === 0) {
+                                                            let followups = [];
+                                                            if (followupFilter === 'all') {
+                                                                followups = memoizedFilteredVisits
+                                                                    .filter(v => v && (v.nextAction || v.followUp))
+                                                                    .map(v => ({
+                                                                        ...v,
+                                                                        displayDate: v.followUpDate || v.date,
+                                                                        displayNote: v.nextAction || v.followUp,
+                                                                        source: 'Visit'
+                                                                    }));
+                                                            } else if (followupFilter === 'nextWeek') {
+                                                                const now = new Date();
+                                                                const startOfNextWeek = new Date(now);
+                                                                startOfNextWeek.setDate(now.getDate() + (8 - now.getDay()) % 7 || 7);
+                                                                startOfNextWeek.setHours(0, 0, 0, 0);
+                                                                const endOfNextWeek = new Date(startOfNextWeek);
+                                                                endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
+                                                                endOfNextWeek.setHours(23, 59, 59, 999);
+
+                                                                const nextWeekSchedules = allSchedules.filter(s => {
+                                                                    const d = new Date(s.startTime);
+                                                                    return d >= startOfNextWeek && d <= endOfNextWeek;
+                                                                }).map(s => {
+                                                                    const targetId = s.customerId?._id || s.customerId;
+                                                                    const customer = customers.find(c => String(c._id) === String(targetId));
+                                                                    const customerName = customer
+                                                                        ? (customer.company || customer.contactName || `${customer.firstName || ''} ${customer.lastName || ''}`.trim())
+                                                                        : (s.customerId?.company || s.customerId?.contactName || 'Unknown Customer');
+
+                                                                    return {
+                                                                        _id: s._id,
+                                                                        customerId: targetId,
+                                                                        customerName,
+                                                                        displayDate: s.startTime,
+                                                                        displayNote: s.notes || 'Scheduled Follow-up',
+                                                                        source: 'Planner',
+                                                                        isSchedule: true
+                                                                    };
+                                                                });
+                                                                const nextWeekVisits = memoizedFilteredVisits.filter(v => {
+                                                                    if (!v.followUpDate) return false;
+                                                                    const d = new Date(v.followUpDate);
+                                                                    return d >= startOfNextWeek && d <= endOfNextWeek;
+                                                                }).map(v => ({
+                                                                    ...v,
+                                                                    displayDate: v.followUpDate,
+                                                                    displayNote: v.followUp || v.nextAction || 'Follow-up Visit',
+                                                                    source: 'Visit'
+                                                                }));
+
+                                                                followups = [...nextWeekSchedules, ...nextWeekVisits];
+                                                            }
+
+                                                            if (dashboardSearchTerm) {
+                                                                const term = dashboardSearchTerm.toLowerCase();
+                                                                followups = followups.filter(f =>
+                                                                    f.customerName?.toLowerCase().includes(term) ||
+                                                                    f.displayNote?.toLowerCase().includes(term)
+                                                                );
+                                                            }
+
+                                                            if (followups.length === 0) {
                                                                 return (
                                                                     <tr>
                                                                         <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>
-                                                                            No quick notes available
+                                                                            {followupFilter === 'nextWeek' ? 'No follow-ups scheduled for next week' : 'No follow-up notes found'}
                                                                         </td>
                                                                     </tr>
                                                                 );
                                                             }
+                                                            const indexOfLastItem = currentVisitsPage * visitsPerPage;
+                                                            const indexOfFirstItem = indexOfLastItem - visitsPerPage;
+                                                            const currentItems = followups.slice(indexOfFirstItem, indexOfLastItem);
 
-                                                            // Pagination logic
-                                                            const indexOfLastVisit = currentVisitsPage * visitsPerPage;
-                                                            const indexOfFirstVisit = indexOfLastVisit - visitsPerPage;
-                                                            const currentVisits = visits.slice(indexOfFirstVisit, indexOfLastVisit);
-
-                                                            return currentVisits.map((visit, index) => (
-                                                                <tr key={visit._id || index}>
-                                                                    <td className="mobile-hide">{formatDate(visit.date, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
+                                                            return currentItems.map((item, index) => (
+                                                                <tr key={item._id || index}>
+                                                                    <td className="mobile-hide">{formatDate(item.displayDate, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
                                                                     <td>
                                                                         <span
                                                                             className="link"
                                                                             onClick={() => {
-                                                                                const customer = customers.find(c => c._id === visit.customerId);
+                                                                                const customer = customers.find(c => String(c._id) === String(item.customerId));
                                                                                 if (customer) handleSelectCustomer(customer);
                                                                             }}
-                                                                            title="Go to Customer Chat"
                                                                         >
-                                                                            {visit.customerName}
+                                                                            {item.customerName}
                                                                         </span>
                                                                     </td>
-                                                                    <td className="mobile-hide">{visit.purpose || 'Quick Note'}</td>
-                                                                    <td className="mobile-hide">{visit.notes ? (visit.notes.length > 50 ? visit.notes.substring(0, 50) + '...' : visit.notes) : '-'}</td>
+                                                                    <td>
+                                                                        <div title={item.displayNote} style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                            {item.displayNote}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="mobile-hide">
+                                                                        <span className={`status-badge ${item.source === 'Planner' ? 'completed' : 'pending'}`}>
+                                                                            {item.source}
+                                                                        </span>
+                                                                    </td>
                                                                     <td>
                                                                         <div style={{ display: 'flex', gap: '8px' }}>
-                                                                            <button
-                                                                                className="icon-btn-ghost"
-                                                                                onClick={() => handleViewVisit(visit)}
-                                                                                title="View Details"
-                                                                                disabled={loadingVisitId === visit._id}
-                                                                            >
-                                                                                {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
-                                                                            </button>
-                                                                            <button
-                                                                                className="icon-btn-ghost"
-                                                                                onClick={() => handleEditVisit(visit)}
-                                                                                title="Edit Visit"
-                                                                                disabled={loadingVisitId === visit._id}
-                                                                            >
-                                                                                {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Pencil size={16} />}
-                                                                            </button>
-                                                                            <button
-                                                                                className="icon-btn-ghost delete-btn"
-                                                                                onClick={() => handleDeleteVisit(visit._id, visit.customerId)}
-                                                                                title="Delete Visit"
-                                                                                style={{ color: '#ff4d4f' }}
-                                                                            >
-                                                                                <Trash2 size={16} />
-                                                                            </button>
+                                                                            {item.isSchedule ? (
+                                                                                <button
+                                                                                    className="icon-btn-ghost"
+                                                                                    onClick={() => setActiveDashboardTab('planner')}
+                                                                                    title="View in Planner"
+                                                                                >
+                                                                                    <Calendar size={16} />
+                                                                                </button>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <button
+                                                                                        className="icon-btn-ghost"
+                                                                                        onClick={() => handleViewVisit(item)}
+                                                                                        title="View Details"
+                                                                                    >
+                                                                                        <Eye size={16} />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        className="icon-btn-ghost"
+                                                                                        onClick={() => handleEditVisit(item)}
+                                                                                        title="Edit Visit"
+                                                                                    >
+                                                                                        <Pencil size={16} />
+                                                                                    </button>
+                                                                                </>
+                                                                            )}
                                                                         </div>
                                                                     </td>
                                                                 </tr>
@@ -3082,55 +3171,6 @@ const SalesPage = () => {
                                                     </tbody>
                                                 </table>
                                             </div>
-
-                                            {/* Pagination Controls */}
-                                            {(() => {
-                                                const visits = memoizedFilteredVisits.filter(v => v && v.purpose?.toLowerCase().includes('quick note'));
-                                                const totalPages = Math.ceil(visits.length / visitsPerPage);
-
-                                                if (totalPages <= 1) return null;
-
-                                                const handlePageChange = (pageNumber) => {
-                                                    setCurrentVisitsPage(pageNumber);
-                                                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                };
-
-                                                return (
-                                                    <div className="pagination-controls">
-                                                        <button
-                                                            className="pagination-btn"
-                                                            onClick={() => handlePageChange(currentVisitsPage - 1)}
-                                                            disabled={currentVisitsPage === 1}
-                                                        >
-                                                            ← Previous
-                                                        </button>
-
-                                                        <div className="pagination-pages">
-                                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                                                                <button
-                                                                    key={pageNum}
-                                                                    className={`pagination-page ${currentVisitsPage === pageNum ? 'active' : ''}`}
-                                                                    onClick={() => handlePageChange(pageNum)}
-                                                                >
-                                                                    {pageNum}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-
-                                                        <button
-                                                            className="pagination-btn"
-                                                            onClick={() => handlePageChange(currentVisitsPage + 1)}
-                                                            disabled={currentVisitsPage === totalPages}
-                                                        >
-                                                            Next →
-                                                        </button>
-
-                                                        <div className="pagination-info">
-                                                            Showing {((currentVisitsPage - 1) * visitsPerPage) + 1}-{Math.min(currentVisitsPage * visitsPerPage, visits.length)} of {visits.length} notes
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
                                         </div>
                                     )}
 
@@ -3423,6 +3463,8 @@ const SalesPage = () => {
                                             )}
                                         </div>
                                     )}
+
+                                    {/* Follow-ups Table */}
                                 </>
                             )}
                         </div>
@@ -3675,7 +3717,7 @@ const SalesPage = () => {
                                     </div>
                                     {!visitForm.purpose?.toLowerCase().includes('quick note') && (
                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                            <div className="form-group">
+                                            <div className="form-group" style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
                                                 <label>Outcome</label>
                                                 <textarea
                                                     value={visitForm.outcome}
@@ -3685,7 +3727,14 @@ const SalesPage = () => {
                                                 />
                                             </div>
                                             <div className="form-group">
-                                                <label>Follow Up</label>
+                                                <label>Follow Up Date</label>
+                                                <CustomDatePicker
+                                                    value={visitForm.followUpDate}
+                                                    onChange={(value) => setVisitForm({ ...visitForm, followUpDate: value })}
+                                                />
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Follow Up Notes</label>
                                                 <textarea
                                                     value={visitForm.followUp}
                                                     onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
@@ -3824,6 +3873,12 @@ const SalesPage = () => {
                                                     <div className="visit-detail-label">Follow Up</div>
                                                     <div className="visit-detail-value">{visitForm.followUp || visitForm.nextAction || '-'}</div>
                                                 </div>
+                                                {visitForm.followUpDate && (
+                                                    <div className="visit-detail-item">
+                                                        <div className="visit-detail-label">Follow Up Date</div>
+                                                        <div className="visit-detail-value">{formatDate(visitForm.followUpDate)}</div>
+                                                    </div>
+                                                )}
                                             </>
                                         )}
                                         <div className="visit-detail-item full-width">

@@ -7,6 +7,7 @@ const visitSchema = new mongoose.Schema({
   notes: String,
   outcome: String,
   followUp: String,
+  followUpDate: Date,
   managerComment: String,
   headquartersComment: String,
   image: mongoose.Schema.Types.Mixed,  // Use Mixed to support both legacy Strings and new Arrays
