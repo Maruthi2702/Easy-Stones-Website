@@ -52,96 +52,94 @@ const ResourceModal = ({
                 </div>
 
                 {isViewingResource ? (
-                    <div className={`modal-body view-mode ${resourceForm.image ? 'has-image' : ''}`}>
-                        {(() => {
-                            const allAttachments = parseAttachments(resourceForm.image);
-                            const displayImages = allAttachments.filter(img => !img.toLowerCase().endsWith('.pdf') && !img.startsWith('data:application/pdf'));
-                            const displayPDFs = allAttachments.filter(img => img.toLowerCase().endsWith('.pdf') || img.startsWith('data:application/pdf'));
+                    <div className="modal-body">
+                        <div className="view-mode-harmonized">
+                            <div className="form-group">
+                                <label>Client</label>
+                                <div className="view-only-field">{resourceForm.customer || '-'}</div>
+                            </div>
 
-                            return allAttachments.length > 0 && (
-                                <div className="view-image-container">
-                                    {displayImages.length > 0 && (
-                                        <div className="view-main-image-wrapper">
-                                            <img
-                                                src={(() => {
-                                                    const img = displayImages[0];
-                                                    if (img.startsWith('data:') || img.startsWith('http')) return img;
-                                                    return img.includes('uploads/') ? `${API_URL}${img.startsWith('/') ? '' : '/'}${img}` : `${API_URL}/uploads/resources/${img}`;
-                                                })()}
-                                                alt="Resource Main"
-                                                onClick={() => handleOpenGallery(displayImages, 0)}
-                                                className="view-resource-image main"
-                                            />
-                                        </div>
-                                    )}
+                            <div className="form-group">
+                                <label>Resource Type</label>
+                                <div className="view-only-field">{resourceForm.resourceType || '-'}</div>
+                            </div>
 
-                                    {(displayImages.length > 1 || displayPDFs.length > 0) && (
-                                        <div className="view-thumbnails-grid">
-                                            {/* Other Images */}
-                                            {displayImages.slice(1, 5).map((img, idx) => (
-                                                <div key={`img-${idx}`} className="view-thumbnail-item" onClick={() => handleOpenGallery(displayImages, idx + 1)}>
-                                                    <img
-                                                        src={(() => {
-                                                            if (img.startsWith('data:') || img.startsWith('http')) return img;
-                                                            return img.includes('uploads/') ? `${API_URL}${img.startsWith('/') ? '' : '/'}${img}` : `${API_URL}/uploads/resources/${img}`;
-                                                        })()}
-                                                        alt={`Thumbnail ${idx + 2}`}
-                                                    />
-                                                    {idx === 3 && displayImages.length > 5 && (
-                                                        <div className="more-thumbs-overlay">
-                                                            <span>+{displayImages.length - 5}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                            {/* PDFs - show separately if doesn't fit or just append */}
-                                            {displayPDFs.map((pdf, idx) => (
-                                                <div key={`pdf-${idx}`} className="view-thumbnail-item pdf" onClick={() => handleDashboardDownload({ content: pdf, name: `Attachment-${idx + 1}.pdf`, type: 'file' })}>
-                                                    <div className="pdf-preview-thumbnail">
-                                                        <FileText size={20} />
-                                                        <span>PDF</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })()}
+                            <div className="form-group">
+                                <label>Date</label>
+                                <div className="view-only-field">{formatDate(resourceForm.date)}</div>
+                            </div>
 
-                        <div className="view-content-wrapper">
-                            <div className="view-details-grid">
-                                <div className="view-detail-item">
-                                    <label>Client</label>
-                                    <p>{resourceForm.customer || '-'}</p>
-                                </div>
-                                <div className="view-detail-item">
-                                    <label>Type</label>
-                                    <p>{resourceForm.resourceType || '-'}</p>
-                                </div>
-                                <div className="view-detail-item">
-                                    <label>Date</label>
-                                    <p>{formatDate(resourceForm.date)}</p>
-                                </div>
-                                <div className="view-detail-item">
-                                    <label>Status</label>
+                            <div className="form-group">
+                                <label>Status</label>
+                                <div className="view-only-field">
                                     <span className={`status-badge ${resourceForm.status?.toLowerCase()}`}>
                                         {resourceForm.status || 'Active'}
                                     </span>
                                 </div>
                             </div>
 
-                            <div className="view-section">
-                                <label>Description</label>
-                                <p className="view-text">{resourceForm.description || 'No description provided.'}</p>
-                            </div>
-
-                            {resourceForm.notes && (
-                                <div className="view-section">
-                                    <label>Notes</label>
-                                    <p className="view-text">{resourceForm.notes}</p>
+                            {resourceForm.description && (
+                                <div className="form-group">
+                                    <label>Description</label>
+                                    <div className="view-only-field multiline">{resourceForm.description}</div>
                                 </div>
                             )}
+
+                            {resourceForm.notes && (
+                                <div className="form-group">
+                                    <label>Notes</label>
+                                    <div className="view-only-field multiline">{resourceForm.notes}</div>
+                                </div>
+                            )}
+
+                            <div className="form-group">
+                                <label>Resource Attachments</label>
+                                <div className="image-upload-container view-only">
+                                    <div className="image-upload-grid">
+                                        {parseAttachments(resourceForm.image).map((img, idx) => {
+                                            const isPDF = img && (img.toLowerCase().endsWith('.pdf') || img.startsWith('data:application/pdf'));
+                                            const allImgPDFs = parseAttachments(resourceForm.image);
+                                            const displayImages = allImgPDFs.filter(i => !i.toLowerCase().endsWith('.pdf') && !i.startsWith('data:application/pdf'));
+                                            const imgIdxInGallery = displayImages.indexOf(img);
+
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className={`image-preview-wrapper ${isPDF ? 'pdf' : ''}`}
+                                                    onClick={() => {
+                                                        if (!isPDF && imgIdxInGallery !== -1) {
+                                                            handleOpenGallery(displayImages, imgIdxInGallery);
+                                                        } else if (isPDF) {
+                                                            handleDashboardDownload({ content: img, name: `Attachment-${idx + 1}.pdf`, type: 'file' });
+                                                        }
+                                                    }}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    {isPDF ? (
+                                                        <div className="pdf-preview-thumbnail">
+                                                            <FileText size={24} />
+                                                            <span>PDF Document</span>
+                                                        </div>
+                                                    ) : (
+                                                        <img
+                                                            src={(() => {
+                                                                if (!img) return '';
+                                                                if (img.startsWith('data:') || img.startsWith('http')) return img;
+                                                                if (img.includes('uploads/')) {
+                                                                    return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
+                                                                }
+                                                                return `${API_URL}/uploads/resources/${img}`;
+                                                            })()}
+                                                            alt="Resource Thumbnail"
+                                                            loading="lazy"
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 ) : (
