@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Link, Download, Plus } from 'lucide-react';
+import { X, Link, Download, Plus, FileText } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
 import CustomDatePicker from '../CustomDatePicker';
 
@@ -20,9 +20,12 @@ const ResourceModal = ({
     handleResourceImageUpload,
     handleRemoveResourceImage,
     handleDashboardDownload,
-    setFullScreenImage
+    setFullScreenImage,
+    handleOpenGallery
 }) => {
     if (!showResourceModal) return null;
+
+    const resourceImages = resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).filter(img => img && !img.toLowerCase().endsWith('.pdf') && !img.startsWith('data:application/pdf'));
 
     return (
         <div className="modal-overlay" onClick={() => setShowResourceModal(false)}>
@@ -35,27 +38,49 @@ const ResourceModal = ({
                 </div>
 
                 {isViewingResource ? (
-                    <div className={`modal-body view-mode ${resourceForm.image ? 'has-image' : ''}`}>
-                        {resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).length > 0 && (
-                            <div className="view-image-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
-                                {(Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
-                                    <div key={idx} style={{ position: 'relative', aspectRatio: '1' }}>
-                                        <img
-                                            src={(() => {
-                                                if (!img) return '';
-                                                if (img.startsWith('data:') || img.startsWith('http')) return img;
-                                                if (img.includes('uploads/')) {
-                                                    return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
-                                                }
-                                                return `${API_URL}/uploads/resources/${img}`;
-                                            })()}
-                                            alt={`Resource ${idx + 1}`}
-                                            onClick={() => setFullScreenImage(img)}
-                                            className="view-resource-image"
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }}
-                                        />
+                    <div className={`modal-body view-mode ${resourceImages && resourceImages.length > 0 ? 'has-image' : ''}`}>
+                        {resourceImages && resourceImages.length > 0 && (
+                            <div className="view-image-container">
+                                <div className="view-main-image-wrapper">
+                                    <img
+                                        src={(() => {
+                                            const img = resourceImages[0];
+                                            if (!img) return '';
+                                            if (img.startsWith('data:') || img.startsWith('http')) return img;
+                                            if (img.includes('uploads/')) {
+                                                return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
+                                            }
+                                            return `${API_URL}/uploads/resources/${img}`;
+                                        })()}
+                                        alt="Resource Main"
+                                        onClick={() => handleOpenGallery(resourceImages, 0)}
+                                        className="view-resource-image main"
+                                    />
+                                </div>
+                                {resourceImages.length > 1 && (
+                                    <div className="view-thumbnails-grid">
+                                        {resourceImages.slice(1, 4).map((img, idx) => (
+                                            <div key={idx + 1} className="view-thumbnail-item" onClick={() => handleOpenGallery(resourceImages, idx + 1)}>
+                                                <img
+                                                    src={(() => {
+                                                        if (!img) return '';
+                                                        if (img.startsWith('data:') || img.startsWith('http')) return img;
+                                                        if (img.includes('uploads/')) {
+                                                            return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
+                                                        }
+                                                        return `${API_URL}/uploads/resources/${img}`;
+                                                    })()}
+                                                    alt={`Thumbnail ${idx + 1}`}
+                                                />
+                                                {idx === 2 && resourceImages.length > 4 && (
+                                                    <div className="more-thumbs-overlay">
+                                                        <span>+{resourceImages.length - 4}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                )}
                             </div>
                         )}
 

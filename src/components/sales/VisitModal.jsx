@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, FileText, Loader } from 'lucide-react';
+import { X, FileText, Loader, Plus } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
 import CustomDatePicker from '../CustomDatePicker';
 import { formatDate } from '../../utils/dateUtils';
