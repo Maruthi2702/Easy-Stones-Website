@@ -3527,6 +3527,7 @@ const SalesPage = () => {
                     handleRemoveResourceImage={handleRemoveResourceImage}
                     handleDashboardDownload={handleDashboardDownload}
                     setFullScreenImage={setFullScreenImage}
+                    handleOpenGallery={handleOpenGallery}
                 />
 
                 {
