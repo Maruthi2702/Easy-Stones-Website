@@ -272,6 +272,14 @@ app.use(compression());
 app.use(express.json({ limit: '200mb' })); // Increase limit for large payloads (multiple images)
 app.use(cookieParser());
 
+// Prevent caching for all API routes to ensure fresh data after logout/login
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+
 // Rate limiter for login attempts
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
