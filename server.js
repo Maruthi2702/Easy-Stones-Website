@@ -1471,7 +1471,7 @@ app.get('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async
 app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId } = req.params;
-    const { date, purpose, notes, outcome, followUp, managerComment, headquartersComment, image } = req.body;
+    const { date, purpose, notes, outcome, followUp, followUpDate, managerComment, headquartersComment, image } = req.body;
 
     console.log(`[DEBUG] Received visit creation request for Customer: ${customerId}`);
     console.log(`[DEBUG] Auth type: ${req.authType}, User ID: ${req.userId || req.customerId}`);
@@ -1513,6 +1513,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       notes,
       outcome,
       followUp,
+      followUpDate,
       managerComment,
       headquartersComment,
       image: processedImage,
@@ -1568,7 +1569,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
 app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
-    const { date, purpose, notes, outcome, followUp, managerComment, headquartersComment, image } = req.body;
+    const { date, purpose, notes, outcome, followUp, followUpDate, managerComment, headquartersComment, image } = req.body;
 
     // Get updater information
     // Get updater information
@@ -1580,6 +1581,7 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
     if (notes !== undefined) updateData['visits.$.notes'] = notes;
     if (outcome !== undefined) updateData['visits.$.outcome'] = outcome;
     if (followUp !== undefined) updateData['visits.$.followUp'] = followUp;
+    if (followUpDate !== undefined) updateData['visits.$.followUpDate'] = followUpDate;
     if (managerComment !== undefined) updateData['visits.$.managerComment'] = managerComment;
     if (headquartersComment !== undefined) updateData['visits.$.headquartersComment'] = headquartersComment;
     if (image !== undefined) {

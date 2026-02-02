@@ -1139,7 +1139,8 @@ const SalesPage = () => {
             } else {
                 const formattedVisit = {
                     ...visit,
-                    date: formatForDateInput(visit.date)
+                    date: formatForDateInput(visit.date),
+                    followUpDate: visit.followUpDate ? formatForDateInput(visit.followUpDate) : ''
                 };
                 setVisitForm(formattedVisit);
                 setEditingVisit(formattedVisit);
@@ -1180,14 +1181,16 @@ const SalesPage = () => {
                 const formattedVisit = {
                     ...data.visit,
                     customerId: visit.customerId, // Preserve customerId
-                    date: formatForDateInput(data.visit.date)
+                    date: formatForDateInput(data.visit.date),
+                    followUpDate: data.visit.followUpDate ? formatForDateInput(data.visit.followUpDate) : ''
                 };
                 setVisitForm(formattedVisit);
                 setEditingVisit(formattedVisit);
             } else {
                 const formattedVisit = {
                     ...visit,
-                    date: formatForDateInput(visit.date)
+                    date: formatForDateInput(visit.date),
+                    followUpDate: visit.followUpDate ? formatForDateInput(visit.followUpDate) : ''
                 };
                 setVisitForm(formattedVisit);
                 setEditingVisit(formattedVisit);
