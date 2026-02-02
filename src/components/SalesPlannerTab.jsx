@@ -211,17 +211,17 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer }) =>
     };
 
     const getItemsForDay = (day) => {
-        return scheduleItems.filter(item => {
+        return [...(scheduleItems || [])].filter(item => {
             const itemDate = new Date(item.startTime);
             return itemDate.toDateString() === day.toDateString();
         }).sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
     };
 
     const customerOptions = useMemo(() => {
-        return customers.map(c => ({
+        return [...(customers || [])].map(c => ({
             value: c._id,
             label: c.company || c.contactName
-        })).sort((a, b) => a.label.localeCompare(b.label));
+        })).sort((a, b) => (a.label || '').localeCompare(b.label || ''));
     }, [customers]);
 
     const activityTypeOptions = [

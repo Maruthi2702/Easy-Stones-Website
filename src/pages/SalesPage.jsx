@@ -205,7 +205,7 @@ const SalesPage = () => {
     const [folderName, setFolderName] = useState('');
 
     const customerOptions = React.useMemo(() => {
-        return customers
+        return [...(customers || [])]
             .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
             .map(c => ({
                 value: c._id,
@@ -314,7 +314,9 @@ const SalesPage = () => {
             const systemEntryExclude = true;
 
             return dateMatch && userMatch && searchMatch && systemEntryExclude;
-        }).sort((a, b) => new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0));
+        });
+
+        return [...filtered].sort((a, b) => new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0));
     }, [allVisits, dashboardVisits, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, activeDashboardTab, dashboardTimeRange, dashboardDataLoading]);
 
     const memoizedFilteredResources = React.useMemo(() => {
@@ -344,7 +346,9 @@ const SalesPage = () => {
                 (r.notes?.toLowerCase().includes(searchLower));
 
             return dateMatch && userMatch && searchMatch;
-        }).sort((a, b) => new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0));
+        });
+
+        return [...filtered].sort((a, b) => new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0));
     }, [allResources, dashboardResources, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, dashboardTimeRange, dashboardDataLoading]);
     const [isViewingResource, setIsViewingResource] = useState(false);
     const [isViewingVisit, setIsViewingVisit] = useState(false);
@@ -701,7 +705,7 @@ const SalesPage = () => {
     // Simplified resources (no search filtering)
     const customerFilteredResources = customerResources;
 
-    const filteredCustomers = (Array.isArray(customers) ? customers : [])
+    const filteredCustomers = [...(Array.isArray(customers) ? customers : [])]
         .sort((a, b) => {
             const nameA = a.company || a.contactName || `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.email || '';
             const nameB = b.company || b.contactName || `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.email || '';
