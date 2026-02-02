@@ -22,13 +22,37 @@ export const AuthProvider = ({ children }) => {
 
     const checkAuth = async () => {
         try {
-            const response = await fetch(`${API_URL}/api/customer/me`, {
+            // First verify token and get basic info (works for both admin/customer)
+            const verifyRes = await fetch(`${API_URL}/api/auth/verify`, {
                 credentials: 'include'
             });
 
-            if (response.ok) {
-                const userData = await response.json();
-                setUser(userData);
+            if (!verifyRes.ok) {
+                setUser(null);
+                setLoading(false);
+                return;
+            }
+
+            const authData = await verifyRes.json();
+
+            // Then fetch full profile based on authType
+            let profileUrl = authData.authType === 'admin'
+                ? `${API_URL}/api/user/me`
+                : `${API_URL}/api/customer/me`;
+
+            const profileRes = await fetch(profileUrl, {
+                credentials: 'include'
+            });
+
+            if (profileRes.ok) {
+                const userData = await profileRes.json();
+                // Normalize user object for UI consistency
+                setUser({
+                    ...userData,
+                    role: userData.role || authData.role,
+                    type: authData.authType === 'admin' ? 'internal' : 'customer',
+                    contactName: userData.contactName || userData.username || userData.email
+                });
             } else {
                 setUser(null);
             }

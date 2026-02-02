@@ -34,7 +34,7 @@ const Header = () => {
         </Link>
 
         <nav className="nav-desktop">
-          <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>Products</NavLink>
+          <NavLink to="/products" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>Products</NavLink>
           <a
             href="https://easystones.stoneprofitsweb.com/"
             target="_blank"
@@ -77,7 +77,7 @@ const Header = () => {
       {isMobileMenuOpen && (
         <nav className="nav-mobile">
           <NavLink
-            to="/"
+            to="/products"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             end
             onClick={closeMobileMenu}

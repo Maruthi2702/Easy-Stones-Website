@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProductProvider } from './context/ProductContext';
 import { API_URL } from './config/api';
 import './App.css';
@@ -48,6 +48,25 @@ const PageLoader = () => (
     <div className="loader-spinner"></div>
   </div>
 );
+
+// Dynamic Home Page Redirect component
+const HomeRedirect = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <PageLoader />;
+  }
+
+  // If user is from admin database (admin, director, manager, sales_rep), 
+  // redirect to sales page as home
+  const isAdminUser = user && ['admin', 'director', 'manager', 'sales_rep'].includes(user.role);
+
+  if (isAdminUser) {
+    return <Navigate to="/sales" replace />;
+  }
+
+  return <HomePage />;
+};
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -99,7 +118,8 @@ function App() {
             <ErrorBoundary>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
-                  <Route path="/" element={<HomePage />} />
+                  <Route path="/" element={<HomeRedirect />} />
+                  <Route path="/products" element={<HomePage />} />
                   <Route path="/product" element={<Navigate to="/" replace />} />
                   <Route path="/product/:productId" element={<ProductDetail />} />
                   <Route path="/contact" element={<ContactPage />} />
