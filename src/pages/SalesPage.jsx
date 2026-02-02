@@ -3701,7 +3701,8 @@ const SalesPage = () => {
                                                     'Formal Presentation',
                                                     'Important Remote Meeting/Call',
                                                     'In Office Administration Day',
-                                                    'Personal Time Off'
+                                                    'Personal Time Off',
+                                                    'Follow up Notes'
                                                 ].map(type => ({ value: type, label: type }))}
                                                 value={visitForm.purpose}
                                                 onChange={(value) => setVisitForm({ ...visitForm, purpose: value })}
@@ -3709,26 +3710,30 @@ const SalesPage = () => {
                                             />
                                         </div>
                                     </div>
-                                    <div className="form-group">
-                                        <label>Notes</label>
-                                        <textarea
-                                            value={visitForm.notes}
-                                            onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
-                                            placeholder="Additional notes"
-                                            rows="4"
-                                        />
-                                    </div>
+                                    {visitForm.purpose !== 'Follow up Notes' && (
+                                        <div className="form-group">
+                                            <label>Notes</label>
+                                            <textarea
+                                                value={visitForm.notes}
+                                                onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
+                                                placeholder="Additional notes"
+                                                rows="4"
+                                            />
+                                        </div>
+                                    )}
                                     {!visitForm.purpose?.toLowerCase().includes('quick note') && (
                                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                            <div className="form-group" style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
-                                                <label>Outcome</label>
-                                                <textarea
-                                                    value={visitForm.outcome}
-                                                    onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
-                                                    placeholder="Visit outcome"
-                                                    rows="3"
-                                                />
-                                            </div>
+                                            {visitForm.purpose !== 'Follow up Notes' && (
+                                                <div className="form-group" style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
+                                                    <label>Outcome</label>
+                                                    <textarea
+                                                        value={visitForm.outcome}
+                                                        onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
+                                                        placeholder="Visit outcome"
+                                                        rows="3"
+                                                    />
+                                                </div>
+                                            )}
                                             <div className="form-group">
                                                 <label>Follow Up Date</label>
                                                 <CustomDatePicker
