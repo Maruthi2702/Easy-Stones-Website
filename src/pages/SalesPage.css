@@ -3214,11 +3214,34 @@
 
 @media (max-width: 768px) {
     .view-mode.has-image {
-        grid-template-columns: 1fr;
+        display: flex !important;
+        flex-direction: column !important;
+        grid-template-columns: 1fr !important;
+        gap: 1.5rem !important;
     }
     
     .view-mode.has-image .view-image-container {
         max-height: none !important;
+        width: 100% !important;
+    }
+
+    .view-main-image-wrapper {
+        aspect-ratio: 16 / 10 !important; /* Wider aspect ratio for mobile screens */
+        max-height: 40vh;
+    }
+
+    .view-thumbnails-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 8px !important;
+    }
+
+    .view-content-wrapper {
+        gap: 1.25rem !important;
+    }
+
+    .modal-content {
+        width: 95% !important;
+        max-height: 95vh !important;
     }
 }
 
