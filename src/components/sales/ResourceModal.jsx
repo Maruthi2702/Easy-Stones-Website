@@ -38,49 +38,59 @@ const ResourceModal = ({
                 </div>
 
                 {isViewingResource ? (
-                    <div className={`modal-body view-mode ${resourceImages && resourceImages.length > 0 ? 'has-image' : ''}`}>
-                        {resourceImages && resourceImages.length > 0 && (
+                    <div className={`modal-body view-mode ${resourceForm.image ? 'has-image' : ''}`}>
+                        {resourceForm.image && (
                             <div className="view-image-container">
-                                <div className="view-main-image-wrapper">
-                                    <img
-                                        src={(() => {
-                                            const img = resourceImages[0];
-                                            if (!img) return '';
-                                            if (img.startsWith('data:') || img.startsWith('http')) return img;
-                                            if (img.includes('uploads/')) {
-                                                return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
-                                            }
-                                            return `${API_URL}/uploads/resources/${img}`;
-                                        })()}
-                                        alt="Resource Main"
-                                        onClick={() => handleOpenGallery(resourceImages, 0)}
-                                        className="view-resource-image main"
-                                    />
-                                </div>
-                                {resourceImages.length > 1 && (
-                                    <div className="view-thumbnails-grid">
-                                        {resourceImages.slice(1, 4).map((img, idx) => (
-                                            <div key={idx + 1} className="view-thumbnail-item" onClick={() => handleOpenGallery(resourceImages, idx + 1)}>
-                                                <img
-                                                    src={(() => {
-                                                        if (!img) return '';
-                                                        if (img.startsWith('data:') || img.startsWith('http')) return img;
-                                                        if (img.includes('uploads/')) {
-                                                            return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
-                                                        }
-                                                        return `${API_URL}/uploads/resources/${img}`;
-                                                    })()}
-                                                    alt={`Thumbnail ${idx + 1}`}
-                                                />
-                                                {idx === 2 && resourceImages.length > 4 && (
-                                                    <div className="more-thumbs-overlay">
-                                                        <span>+{resourceImages.length - 4}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                {(() => {
+                                    const allAttachments = (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).filter(Boolean);
+                                    const displayImages = allAttachments.filter(img => !img.toLowerCase().endsWith('.pdf') && !img.startsWith('data:application/pdf'));
+                                    const displayPDFs = allAttachments.filter(img => img.toLowerCase().endsWith('.pdf') || img.startsWith('data:application/pdf'));
+
+                                    return (
+                                        <>
+                                            {displayImages.length > 0 && (
+                                                <div className="view-main-image-wrapper">
+                                                    <img
+                                                        src={(() => {
+                                                            const img = displayImages[0];
+                                                            if (img.startsWith('data:') || img.startsWith('http')) return img;
+                                                            return img.includes('uploads/') ? `${API_URL}${img.startsWith('/') ? '' : '/'}${img}` : `${API_URL}/uploads/resources/${img}`;
+                                                        })()}
+                                                        alt="Resource Main"
+                                                        onClick={() => handleOpenGallery(displayImages, 0)}
+                                                        className="view-resource-image main"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {(displayImages.length > 1 || displayPDFs.length > 0) && (
+                                                <div className="view-thumbnails-grid">
+                                                    {/* Other Images */}
+                                                    {displayImages.slice(1).map((img, idx) => (
+                                                        <div key={`img-${idx}`} className="view-thumbnail-item" onClick={() => handleOpenGallery(displayImages, idx + 1)}>
+                                                            <img
+                                                                src={(() => {
+                                                                    if (img.startsWith('data:') || img.startsWith('http')) return img;
+                                                                    return img.includes('uploads/') ? `${API_URL}${img.startsWith('/') ? '' : '/'}${img}` : `${API_URL}/uploads/resources/${img}`;
+                                                                })()}
+                                                                alt={`Thumbnail ${idx + 2}`}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                    {/* PDFs */}
+                                                    {displayPDFs.map((pdf, idx) => (
+                                                        <div key={`pdf-${idx}`} className="view-thumbnail-item pdf" onClick={() => handleDashboardDownload({ content: pdf, name: `Attachment-${idx + 1}.pdf`, type: 'file' })}>
+                                                            <div className="pdf-preview-thumbnail">
+                                                                <FileText size={20} />
+                                                                <span>PDF</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         )}
 
