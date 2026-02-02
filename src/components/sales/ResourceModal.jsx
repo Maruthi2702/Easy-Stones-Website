@@ -78,7 +78,7 @@ const ResourceModal = ({
                                     {(displayImages.length > 1 || displayPDFs.length > 0) && (
                                         <div className="view-thumbnails-grid">
                                             {/* Other Images */}
-                                            {displayImages.slice(1).map((img, idx) => (
+                                            {displayImages.slice(1, 5).map((img, idx) => (
                                                 <div key={`img-${idx}`} className="view-thumbnail-item" onClick={() => handleOpenGallery(displayImages, idx + 1)}>
                                                     <img
                                                         src={(() => {
@@ -87,9 +87,14 @@ const ResourceModal = ({
                                                         })()}
                                                         alt={`Thumbnail ${idx + 2}`}
                                                     />
+                                                    {idx === 3 && displayImages.length > 5 && (
+                                                        <div className="more-thumbs-overlay">
+                                                            <span>+{displayImages.length - 5}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
-                                            {/* PDFs */}
+                                            {/* PDFs - show separately if doesn't fit or just append */}
                                             {displayPDFs.map((pdf, idx) => (
                                                 <div key={`pdf-${idx}`} className="view-thumbnail-item pdf" onClick={() => handleDashboardDownload({ content: pdf, name: `Attachment-${idx + 1}.pdf`, type: 'file' })}>
                                                     <div className="pdf-preview-thumbnail">

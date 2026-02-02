@@ -3218,7 +3218,7 @@
     }
     
     .view-mode.has-image .view-image-container {
-        max-height: 300px;
+        max-height: none !important;
     }
 }
 
