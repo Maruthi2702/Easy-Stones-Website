@@ -1830,73 +1830,116 @@
 /* Image Upload Styles */
 .image-upload-container {
   width: 100%;
+  margin-top: 0.5rem;
+}
+
+.image-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .image-preview-wrapper {
   position: relative;
-  display: inline-block;
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  aspect-ratio: 1 / 1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s, border-color 0.2s;
 }
 
-.image-preview {
-  max-width: 300px;
-  max-height: 200px;
+.image-preview-wrapper:hover {
+  border-color: var(--accent-color);
+  transform: scale(1.02);
+}
+
+.image-preview-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
-  object-fit: contain;
 }
 
-.remove-image-btn {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(239, 68, 68, 0.9);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.remove-image-btn:hover {
-  background: rgba(239, 68, 68, 1);
-  transform: scale(1.05);
-}
-
-.upload-placeholder {
+.pdf-preview-thumbnail {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
-  border: 2px dashed rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--accent-color);
+  gap: 4px;
+}
+
+.pdf-preview-thumbnail span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  transition: all 0.2s;
+}
+
+.remove-image-btn:hover {
+  transform: scale(1.15);
+  background: #dc2626;
+}
+
+.upload-placeholder {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(255, 255, 255, 0.15);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
   transition: all 0.2s;
+  color: var(--text-secondary);
+  gap: 8px;
 }
 
 .upload-placeholder:hover {
   border-color: var(--accent-color);
   background: rgba(212, 175, 55, 0.05);
+  color: var(--accent-color);
+}
+
+.upload-placeholder span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
 }
 
 .upload-label {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
+  padding: 0.6rem 1.2rem;
   background: var(--accent-color);
   color: #000;
   border-radius: 6px;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -1908,8 +1951,8 @@
 }
 
 .upload-hint {
-  margin: 0.5rem 0 0 0;
-  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
   color: var(--text-secondary);
 }
 

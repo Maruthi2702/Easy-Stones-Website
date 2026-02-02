@@ -118,44 +118,32 @@ const VisitModal = ({
                     <div className="form-group">
                         <label>Attachments</label>
                         <div className="image-upload-container">
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginBottom: '8px' }}>
+                            <div className="image-upload-grid">
                                 {visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
-                                    <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px', position: 'relative' }}>
+                                    <div key={idx} className="image-preview-wrapper">
                                         {img.startsWith('data:application/pdf') ? (
-                                            <div className="pdf-preview" style={{
-                                                width: '100%',
-                                                height: '100%',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                background: '#f5f5f5',
-                                                borderRadius: '4px',
-                                                border: '1px solid #ddd'
-                                            }}>
-                                                <FileText size={32} color="#E5C04A" />
-                                                <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
+                                            <div className="pdf-preview-thumbnail">
+                                                <FileText size={24} />
+                                                <span>PDF Document</span>
                                             </div>
                                         ) : (
-                                            <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+                                            <img src={img} alt="Preview" loading="lazy" />
                                         )}
-                                        <button type="button" className="remove-image-btn" onClick={() => handleRemoveVisitImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
+                                        <button type="button" className="remove-image-btn" onClick={() => handleRemoveVisitImage(idx)}>
                                             <X size={12} />
                                         </button>
                                     </div>
                                 ))}
-                            </div>
-                            <div className="file-input-wrapper-simple">
-                                <input
-                                    type="file"
-                                    id="visit-image-upload"
-                                    accept="image/*,application/pdf"
-                                    multiple
-                                    onChange={handleVisitImageUpload}
-                                    className="file-input"
-                                />
-                                <label htmlFor="visit-image-upload" className="file-input-label">
-                                    Add Files
+                                <label className="upload-placeholder">
+                                    <input
+                                        type="file"
+                                        accept="image/*,application/pdf"
+                                        multiple
+                                        onChange={handleVisitImageUpload}
+                                        hidden
+                                    />
+                                    <Plus size={20} />
+                                    <span>Add Files</span>
                                 </label>
                             </div>
                         </div>

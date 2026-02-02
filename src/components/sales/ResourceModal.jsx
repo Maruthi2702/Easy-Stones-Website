@@ -166,37 +166,40 @@ const ResourceModal = ({
 
                         <div className="form-group">
                             <label>Resource Attachment (Images/PDFs)</label>
-                            <div className="image-upload-grid">
-                                {(Array.isArray(resourceForm.image) ? resourceForm.image : (resourceForm.image ? [resourceForm.image] : [])).map((img, idx) => (
-                                    <div key={idx} className="image-preview">
-                                        {img && (img.toLowerCase().endsWith('.pdf') || img.startsWith('data:application/pdf')) ? (
-                                            <div className="pdf-preview-thumbnail">
-                                                <Download size={24} />
-                                                <span>PDF Document</span>
-                                            </div>
-                                        ) : (
-                                            <img
-                                                src={(() => {
-                                                    if (!img) return '';
-                                                    if (img.startsWith('data:') || img.startsWith('http')) return img;
-                                                    if (img.includes('uploads/')) {
-                                                        return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
-                                                    }
-                                                    return `${API_URL}/uploads/resources/${img}`;
-                                                })()}
-                                                alt="Resource Thumbnail"
-                                            />
-                                        )}
-                                        <button type="button" className="remove-image" onClick={() => handleRemoveResourceImage(idx)}>
-                                            <X size={14} />
-                                        </button>
-                                    </div>
-                                ))}
-                                <label className="upload-placeholder">
-                                    <input type="file" multiple accept="image/*,.pdf" onChange={handleResourceImageUpload} hidden />
-                                    <Plus size={24} />
-                                    <span>Add Attachment</span>
-                                </label>
+                            <div className="image-upload-container">
+                                <div className="image-upload-grid">
+                                    {(Array.isArray(resourceForm.image) ? resourceForm.image : (resourceForm.image ? [resourceForm.image] : [])).map((img, idx) => (
+                                        <div key={idx} className="image-preview-wrapper">
+                                            {img && (img.toLowerCase().endsWith('.pdf') || img.startsWith('data:application/pdf')) ? (
+                                                <div className="pdf-preview-thumbnail">
+                                                    <FileText size={24} />
+                                                    <span>PDF Document</span>
+                                                </div>
+                                            ) : (
+                                                <img
+                                                    src={(() => {
+                                                        if (!img) return '';
+                                                        if (img.startsWith('data:') || img.startsWith('http')) return img;
+                                                        if (img.includes('uploads/')) {
+                                                            return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
+                                                        }
+                                                        return `${API_URL}/uploads/resources/${img}`;
+                                                    })()}
+                                                    alt="Resource Thumbnail"
+                                                    loading="lazy"
+                                                />
+                                            )}
+                                            <button type="button" className="remove-image-btn" onClick={() => handleRemoveResourceImage(idx)}>
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <label className="upload-placeholder">
+                                        <input type="file" multiple accept="image/*,.pdf" onChange={handleResourceImageUpload} hidden />
+                                        <Plus size={24} />
+                                        <span>Add Attachment</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
