@@ -1063,15 +1063,355 @@ const getPerformerInfo = async (req) => {
 // Customer-accessible endpoint: Get all customers (for sales page) - Optimized (No images)
 app.get('/api/customers', verifyAnyAuth, async (req, res) => {
   try {
-    const customers = await Customer.find()
-      .select('-password -contacts -visits.image -resources.image') // Exclude heavy images/nested arrays
-      .lean() // Convert to plain JS objects (3x faster)
-      .sort({ createdAt: -1 });
-    res.json(customers);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+    
+    let query = {};
+    if (search) {
+      query = {
+        $or: [
+          { contactName: { $regex: search, $options: 'i' } },
+          { company: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } }
+        ]
+      };
+    }
+
+    const total = await Customer.countDocuments(query);
+    console.log('🔍 [DEBUG] /api/customers query:', query);
+    console.log('🔍 [DEBUG] /api/customers total found:', total);
+    const customers = await Customer.find(query)
+      .select('-password -contacts -visits.image -resources.image')
+      .lean()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({
+      customers,
+      total,
+      page,
+      pages: Math.ceil(total / limit)
+    });
   } catch (error) {
     console.error('Error fetching customers:', error);
     res.status(500).json({ message: 'Failed to fetch customers', error: error.message });
   }
+});
+
+// Get dashboard statistics (optimized aggregation)
+app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
+  try {
+    const { timeRange = 'all' } = req.query;
+    const now = new Date();
+    let startDate = null;
+    let endDate = null;
+
+    if (timeRange === '1day') {
+      startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (timeRange === '7days') {
+      startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+    } else if (timeRange === '30days') {
+      startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+    } else if (timeRange === 'year') {
+      startDate = new Date(now.getFullYear(), 0, 1);
+    }
+
+    const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
+    const isAdmin = ['admin', 'director', 'manager'].includes(role);
+
+    // Strictly filter by current user for the dashboard view
+    const userMatch = { "visits.createdBy": userId.toString() };
+    const dateMatch = startDate ? (endDate ? {
+        $expr: { 
+            $and: [
+                { $gte: [{ $ifNull: ["$visits.date", "$visits.createdAt"] }, startDate] },
+                { $lte: [{ $ifNull: ["$visits.date", "$visits.createdAt"] }, endDate] }
+            ]
+        } 
+    } : {
+        $expr: { 
+            $gte: [
+                { $ifNull: ["$visits.date", "$visits.createdAt"] }, 
+                startDate 
+            ] 
+        } 
+    }) : {};
+
+    // Aggregation for Visits Stats
+    const visitStats = await Customer.aggregate([
+      { $unwind: "$visits" },
+      { $match: { ...userMatch, ...dateMatch } },
+      {
+        $group: {
+          _id: null,
+          visits: {
+            $sum: 1
+          },
+          keyVisits: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $regexMatch: { input: { $ifNull: ["$visits.outcome", ""] }, regex: /order|sale|sold|deposit/i } },
+                    { $regexMatch: { input: { $ifNull: ["$visits.notes", ""] }, regex: /order|sale|sold/i } }
+                  ]
+                },
+                1, 0
+              ]
+            }
+          },
+          bids: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                        { $regexMatch: { input: { $ifNull: ["$visits.outcome", ""] }, regex: /bid|quote/i } },
+                        { $regexMatch: { input: { $ifNull: ["$visits.notes", ""] }, regex: /bid|quote/i } }
+                      ]
+                },
+                1, 0
+              ]
+            }
+          },
+          followUp: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                        { $and: ["$visits.nextAction", { $ne: ["$visits.nextAction", ""] }] },
+                        { $and: ["$visits.followUp", { $ne: ["$visits.followUp", ""] }] }
+                      ]
+                },
+                1, 0
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    // Today's Schedule count
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+
+    const scheduleCount = await Customer.aggregate([
+      { $unwind: "$visits" },
+      {
+        $match: {
+          ...userMatch,
+          "visits.followUpDate": { $gte: todayStart, $lt: todayEnd }
+        }
+      },
+      { $count: "count" }
+    ]);
+
+    // Strictly filter by current user for dashboard resources
+    const resourceMatch = { 
+        $or: [
+            { "resources.uploadedBy": userId.toString() },
+            { "resources.createdBy": userId.toString() }
+        ]
+    };
+    const resourceDateMatch = startDate ? (endDate ? {
+        $expr: { 
+            $and: [
+                { $gte: [{ $ifNull: ["$resources.date", "$resources.createdAt"] }, startDate] },
+                { $lte: [{ $ifNull: ["$resources.date", "$resources.createdAt"] }, endDate] }
+            ]
+        } 
+    } : {
+        $expr: { 
+            $gte: [
+                { $ifNull: ["$resources.date", "$resources.createdAt"] }, 
+                startDate 
+            ] 
+        } 
+    }) : {};
+    
+    const resourceStats = await Customer.aggregate([
+      { $unwind: "$resources" },
+      { $match: { ...resourceMatch, ...resourceDateMatch } },
+      { $count: "count" }
+    ]);
+
+    const result = {
+      visits: visitStats[0]?.visits || 0,
+      keyVisits: visitStats[0]?.keyVisits || 0,
+      bids: visitStats[0]?.bids || 0,
+      followUp: visitStats[0]?.followUp || 0,
+      resources: resourceStats[0]?.count || 0,
+      todayScheduleCount: scheduleCount[0]?.count || 0
+    };
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error calculating dashboard stats:', error);
+    res.status(500).json({ message: 'Failed to calculate dashboard stats', error: error.message });
+  }
+});
+
+// Get dashboard visits (returns a flat list for all customers in range)
+app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
+    try {
+        const { timeRange = 'all' } = req.query;
+        const now = new Date();
+        let startDate = null;
+        let endDate = null;
+
+        if (timeRange === '1day') {
+            startDate = new Date(now);
+            startDate.setHours(0, 0, 0, 0);
+            endDate = new Date(now);
+            endDate.setHours(23, 59, 59, 999);
+        } else if (timeRange === '7days') {
+            startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+        } else if (timeRange === '30days') {
+            startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+        } else if (timeRange === 'year') {
+            startDate = new Date(now.getFullYear(), 0, 1);
+        }
+
+        const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
+        const isAdmin = ['admin', 'director', 'manager'].includes(role);
+
+        // Strictly filter by current user for the dashboard list
+        const userMatch = { "visits.createdBy": userId.toString() };
+        const dateMatch = startDate ? (endDate ? {
+            $expr: { 
+                $and: [
+                    { $gte: [{ $ifNull: ["$visits.date", "$visits.createdAt"] }, startDate] },
+                    { $lte: [{ $ifNull: ["$visits.date", "$visits.createdAt"] }, endDate] }
+                ]
+            } 
+        } : {
+            $expr: { 
+                $gte: [
+                    { $ifNull: ["$visits.date", "$visits.createdAt"] }, 
+                    startDate 
+                ] 
+            } 
+        }) : {};
+
+        const visits = await Customer.aggregate([
+            { $unwind: "$visits" },
+            { $match: { ...userMatch, ...dateMatch } },
+            { $project: {
+                _id: "$visits._id",
+                date: { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: { $ifNull: ["$visits.date", "$visits.createdAt"] } } },
+                purpose: "$visits.purpose",
+                notes: "$visits.notes",
+                outcome: "$visits.outcome",
+                nextAction: "$visits.nextAction",
+                followUp: "$visits.followUp",
+                followUpDate: { 
+                    $cond: {
+                        if: "$visits.followUpDate",
+                        then: { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$visits.followUpDate" } },
+                        else: null
+                    }
+                },
+                createdBy: "$visits.createdBy",
+                createdAt: { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$visits.createdAt" } },
+                customerId: "$_id",
+                customerName: { $concat: [ 
+                    { $ifNull: ["$company", ""] }, 
+                    { $cond: [{ $and: ["$company", "$contactName"] }, " - ", ""] }, 
+                    { $ifNull: ["$contactName", ""] } 
+                ]}
+            }},
+            { $sort: { date: -1, createdAt: -1 } }
+        ]);
+
+        res.json(visits);
+    } catch (error) {
+        console.error('Error fetching dashboard visits:', error);
+        res.status(500).json({ message: 'Failed to fetch dashboard visits' });
+    }
+});
+
+// Get dashboard resources (returns a flat list for all customers in range)
+app.get('/api/dashboard/resources', verifyAnyAuth, async (req, res) => {
+    try {
+        const { timeRange = 'all' } = req.query;
+        const now = new Date();
+        let startDate = null;
+        let endDate = null;
+
+        if (timeRange === '1day') {
+            startDate = new Date(now);
+            startDate.setHours(0, 0, 0, 0);
+            endDate = new Date(now);
+            endDate.setHours(23, 59, 59, 999);
+        } else if (timeRange === '7days') {
+            startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+        } else if (timeRange === '30days') {
+            startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+        } else if (timeRange === 'year') {
+            startDate = new Date(now.getFullYear(), 0, 1);
+        }
+
+        const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
+        const isAdmin = ['admin', 'director', 'manager'].includes(role);
+
+        // Strictly filter by current user for dashboard resources list
+        const resourceMatch = { 
+            $or: [
+                { "resources.uploadedBy": userId.toString() },
+                { "resources.createdBy": userId.toString() }
+            ]
+        };
+        const resourceDateMatch = startDate ? (endDate ? {
+            $expr: { 
+                $and: [
+                    { $gte: [{ $ifNull: ["$resources.date", "$resources.createdAt"] }, startDate] },
+                    { $lte: [{ $ifNull: ["$resources.date", "$resources.createdAt"] }, endDate] }
+                ]
+            } 
+        } : {
+            $expr: { 
+                $gte: [
+                    { $ifNull: ["$resources.date", "$resources.createdAt"] }, 
+                    startDate 
+                ] 
+            } 
+        }) : {};
+
+        const resources = await Customer.aggregate([
+            { $unwind: "$resources" },
+            { $match: { ...resourceMatch, ...resourceDateMatch } },
+            { $project: {
+                _id: "$resources._id",
+                name: "$resources.name",
+                description: "$resources.description",
+                type: "$resources.type",
+                resourceType: "$resources.resourceType",
+                date: { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: { $ifNull: ["$resources.date", "$resources.createdAt"] } } },
+                content: "$resources.content",
+                uploadedBy: "$resources.uploadedBy",
+                createdAt: { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$resources.createdAt" } },
+                customerId: "$_id",
+                customerName: { $concat: [ 
+                    { $ifNull: ["$company", ""] }, 
+                    { $cond: [{ $and: ["$company", "$contactName"] }, " - ", ""] }, 
+                    { $ifNull: ["$contactName", ""] } 
+                ]}
+            }},
+            { $sort: { date: -1, createdAt: -1 } }
+        ]);
+
+        res.json(resources);
+    } catch (error) {
+        console.error('Error fetching dashboard resources:', error);
+        res.status(500).json({ message: 'Failed to fetch dashboard resources' });
+    }
 });
 
 // Get single customer with full details (including images)
@@ -2697,20 +3037,29 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve uploaded files explicitly to prevent SPA catch-all from intercepting them
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+// Serve uploaded files with long-term caching
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'), {
+  maxAge: '1y',
+  immutable: true
+}));
 
-// Serve other static assets from public directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve other static assets with medium caching
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1d'
+}));
 
-// Serve static files from the React app
+// Serve React production build
 const distPath = path.join(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, {
+    maxAge: '1y',
+    immutable: true,
+    index: false // Don't serve index.html with long cache
+  }));
   
-  // The "catchall" handler: for any request that doesn't
-  // match one above, send back React's index.html file.
   app.get(/(.*)/, (req, res) => {
+    // Send index.html with NO CACHE so users always get the latest version of the app
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }

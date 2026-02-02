@@ -199,6 +199,46 @@
   background: rgba(255, 255, 255, 0.05); /* Subtle hover */
 }
 
+/* Sidebar Pagination */
+.sidebar-pagination {
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08); /* Changed to bottom since it's above the list */
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.pagi-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    padding: 0.4rem;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.pagi-btn:hover:not(:disabled) {
+    background: rgba(229, 192, 74, 0.15);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.pagi-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.pagi-info {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+}
+
 .customer-list-item.active {
   background: linear-gradient(90deg, rgba(212, 175, 55, 0.15), transparent);
   border-left: 3px solid var(--accent-color); /* Left accent border */

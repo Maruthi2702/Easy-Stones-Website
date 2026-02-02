@@ -21,6 +21,12 @@ import SearchableSelect from '../components/SearchableSelect';
 import SalesPlannerTab from '../components/SalesPlannerTab';
 import CustomDatePicker from '../components/CustomDatePicker';
 import { formatForDateInput } from '../utils/dateUtils';
+import DashboardStats from '../components/sales/DashboardStats';
+import CustomerSidebar from '../components/sales/CustomerSidebar';
+import VisitPostCard from '../components/sales/VisitPostCard';
+import VisitModal from '../components/sales/VisitModal';
+import ResourceModal from '../components/sales/ResourceModal';
+import { formatDate } from '../utils/dateUtils';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -59,12 +65,20 @@ const SalesPage = () => {
     const { user: currentUser } = useAuth();
     const navigate = useNavigate();
     const [customers, setCustomers] = useState([]);
-    const [selectedCustomerId, setSelectedCustomerId] = useState(null);
-    const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null); // Full customer details with images
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+    const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('visits');
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCustomers, setTotalCustomers] = useState(0);
+    const customersPerPage = 50;
 
     // Dashboard State (Required for memoized values)
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
@@ -72,6 +86,11 @@ const SalesPage = () => {
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
     const [followupFilter, setFollowupFilter] = useState('all'); // 'all' or 'nextWeek'
     const [todayScheduleCount, setTodayScheduleCount] = useState(0);
+    const [stats, setStats] = useState({ visits: 0, keyVisits: 0, bids: 0, followUp: 0, resources: 0 });
+    const [statsLoading, setStatsLoading] = useState(true);
+    const [dashboardVisits, setDashboardVisits] = useState([]);
+    const [dashboardResources, setDashboardResources] = useState([]);
+    const [dashboardDataLoading, setDashboardDataLoading] = useState(false);
     const [allSchedules, setAllSchedules] = useState([]);
     const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
     const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
@@ -82,6 +101,60 @@ const SalesPage = () => {
             setCurrentUserId(currentUser.id || currentUser._id);
         }
     }, [currentUser]);
+
+    // Fetch Dashboard Stats from Backend
+    const fetchDashboardStats = useCallback(async () => {
+        setStatsLoading(true);
+        try {
+            const response = await fetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}`, {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setStats(data);
+                // Also update todayScheduleCount if provided by backend stats
+                if (data.todayScheduleCount !== undefined) {
+                    setTodayScheduleCount(data.todayScheduleCount);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching dashboard stats:', error);
+        } finally {
+            setStatsLoading(false);
+        }
+    }, [dashboardTimeRange]);
+
+    useEffect(() => {
+        fetchDashboardStats();
+    }, [fetchDashboardStats]);
+
+    // Fetch Independent Dashboard Data
+    const fetchDashboardData = useCallback(async () => {
+        setDashboardDataLoading(true);
+        try {
+            const [visitsRes, resourcesRes] = await Promise.all([
+                fetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}`, { credentials: 'include' }),
+                fetch(`${API_URL}/api/dashboard/resources?timeRange=${dashboardTimeRange}`, { credentials: 'include' })
+            ]);
+
+            if (visitsRes.ok) {
+                const data = await visitsRes.json();
+                setDashboardVisits(data);
+            }
+            if (resourcesRes.ok) {
+                const data = await resourcesRes.json();
+                setDashboardResources(data);
+            }
+        } catch (error) {
+            console.error('Error fetching dashboard data:', error);
+        } finally {
+            setDashboardDataLoading(false);
+        }
+    }, [dashboardTimeRange]);
+
+    useEffect(() => {
+        fetchDashboardData();
+    }, [fetchDashboardData]);
 
     // Fetch schedules for the dashboard
     useEffect(() => {
@@ -136,7 +209,7 @@ const SalesPage = () => {
             .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
             .map(c => ({
                 value: c._id,
-                label: c.company || c.contactName || 'Unknown'
+                label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown'
             }));
     }, [customers]);
 
@@ -167,6 +240,11 @@ const SalesPage = () => {
     }, [customers]);
 
     const dashboardDateRangeStart = React.useMemo(() => {
+        // If we are using the dedicated dashboardVisits/dashboardResources from the backend,
+        // we should trust the backend's date filtering. 
+        // We only use this local start date if we fallback to the allVisits/allResources lists.
+        if (dashboardVisits.length > 0 || dashboardResources.length > 0) return null;
+
         const now = new Date();
         const localDateStr = formatForDateInput(new Date());
         let start;
@@ -199,84 +277,66 @@ const SalesPage = () => {
         return start;
     }, [dashboardTimeRange]);
 
-    const dashboardStats = React.useMemo(() => {
-        const stats = { visits: 0, keyVisits: 0, bids: 0, followUp: 0, resources: 0 };
-        const startDate = dashboardDateRangeStart;
-        const currentUserIdStr = currentUserId?.toString();
-
-        // Single pass for visits
-        allVisits.forEach(v => {
-            if (!v) return;
-            const visitDate = new Date(v.date || v.createdAt);
-            const dateMatch = !startDate || visitDate >= startDate;
-            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || v.createdBy === currentUserIdStr;
-
-            if (dateMatch && userMatch) {
-                stats.visits++;
-                const outcome = (v.outcome || '').toLowerCase();
-                const notes = (v.notes || '').toLowerCase();
-
-                if (outcome.includes('order') || outcome.includes('sale') || outcome.includes('sold') || outcome.includes('deposit') ||
-                    notes.includes('order') || notes.includes('sale') || notes.includes('sold')) {
-                    stats.keyVisits++;
-                }
-
-                if (outcome.includes('bid') || outcome.includes('quote') || notes.includes('bid') || notes.includes('quote')) {
-                    stats.bids++;
-                }
-
-                if (v.nextAction || v.followUp) {
-                    stats.followUp++;
-                }
-            }
-        });
-
-        // Single pass for resources
-        allResources.forEach(r => {
-            if (!r) return;
-            const resourceDate = new Date(r.date || r.createdAt);
-            const dateMatch = !startDate || resourceDate >= startDate;
-            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || (r.uploadedBy || r.createdBy) === currentUserIdStr;
-            if (dateMatch && userMatch) {
-                stats.resources++;
-            }
-        });
-
-        return stats;
-    }, [allVisits, allResources, dashboardDateRangeStart, currentUser, currentUserId]);
 
     const memoizedFilteredVisits = React.useMemo(() => {
         const startDate = dashboardDateRangeStart;
         const searchLower = dashboardSearchTerm.toLowerCase();
         const currentUserIdStr = currentUserId?.toString();
 
-        return allVisits.filter(v => {
+        // Use dashboardVisits if we have them, otherwise fallback to sidebar-derived allVisits
+        const sourceVisits = dashboardVisits.length > 0 || (dashboardTimeRange !== 'all' && dashboardVisits.length === 0 && !dashboardDataLoading)
+            ? dashboardVisits
+            : allVisits;
+
+        return sourceVisits.filter(v => {
             if (!v) return false;
+
+            // If using dashboardVisits, backend already filtered by date.
+            // Only apply dateMatch if we fell back to allVisits.
+            const isFromBackend = sourceVisits === dashboardVisits;
             const visitDate = new Date(v.date || v.createdAt);
-            const dateMatch = !startDate || visitDate >= startDate;
-            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || v.createdBy === currentUserIdStr;
+            const dateMatch = isFromBackend || !startDate || visitDate >= startDate;
+
+            // Strictly filter by current user for dashboard view
+            const userMatch = v.createdBy === currentUserIdStr;
             const searchMatch = !dashboardSearchTerm ||
                 (v.customerName?.toLowerCase().includes(searchLower)) ||
                 (v.notes?.toLowerCase().includes(searchLower)) ||
                 (v.purpose?.toLowerCase().includes(searchLower));
 
-            const isQuickNote = v.purpose?.toLowerCase().includes('quick note');
-            const quickNoteExclude = activeDashboardTab === 'visits' ? !isQuickNote : true;
+            const isSystemEntry = v.purpose?.toLowerCase().match(/quick note|resource placement|resource update|new tower/i);
 
-            return dateMatch && userMatch && searchMatch && quickNoteExclude;
+            // Exclude system entries from visits tab, but allow searching for them if needed? 
+            // The request is to align with stats which exclude them.
+            // If active tab is followups, we currently allow them in the source list, but filter later?
+            // Actually, let's filter them out from the main filtered list unless specifically searching?
+
+            const systemEntryExclude = true;
+
+            return dateMatch && userMatch && searchMatch && systemEntryExclude;
         }).sort((a, b) => new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0));
-    }, [allVisits, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, activeDashboardTab]);
+    }, [allVisits, dashboardVisits, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, activeDashboardTab, dashboardTimeRange, dashboardDataLoading]);
 
     const memoizedFilteredResources = React.useMemo(() => {
         const startDate = dashboardDateRangeStart;
         const searchLower = dashboardSearchTerm.toLowerCase();
         const currentUserIdStr = currentUserId?.toString();
 
-        return allResources.filter(r => {
+        // Use dashboardResources if we have them
+        const sourceResources = dashboardResources.length > 0 || (dashboardTimeRange !== 'all' && dashboardResources.length === 0 && !dashboardDataLoading)
+            ? dashboardResources
+            : allResources;
+
+        return sourceResources.filter(r => {
             if (!r) return false;
+
+            // If using dashboardResources, backend already filtered by date.
+            const isFromBackend = sourceResources === dashboardResources;
             const resourceDate = new Date(r.date || r.createdAt);
-            const dateMatch = !startDate || resourceDate >= startDate;
-            const userMatch = (currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager') || (r.uploadedBy || r.createdBy) === currentUserIdStr;
+            const dateMatch = isFromBackend || !startDate || resourceDate >= startDate;
+
+            // Strictly filter by current user for dashboard view
+            const userMatch = (r.uploadedBy === currentUserIdStr || r.createdBy === currentUserIdStr);
             const searchMatch = !dashboardSearchTerm ||
                 (r.customerName?.toLowerCase().includes(searchLower)) ||
                 (r.description?.toLowerCase().includes(searchLower)) ||
@@ -285,7 +345,7 @@ const SalesPage = () => {
 
             return dateMatch && userMatch && searchMatch;
         }).sort((a, b) => new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0));
-    }, [allResources, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm]);
+    }, [allResources, dashboardResources, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, dashboardTimeRange, dashboardDataLoading]);
     const [isViewingResource, setIsViewingResource] = useState(false);
     const [isViewingVisit, setIsViewingVisit] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -424,6 +484,7 @@ const SalesPage = () => {
     // Custom Delete Confirmation Modal
     const [deleteConfirmation, setDeleteConfirmation] = useState({
         isOpen: false,
+        isDeleting: false,
         type: '', // 'contact', 'visit', 'resource'
         id: null,
         customerId: null,
@@ -446,6 +507,8 @@ const SalesPage = () => {
 
     // Pagination State
     const [currentVisitsPage, setCurrentVisitsPage] = useState(1);
+    const [currentFollowUpPage, setCurrentFollowUpPage] = useState(1);
+    const [currentResourcesPage, setCurrentResourcesPage] = useState(1);
     const visitsPerPage = 10;
 
     const resourceTypes = [
@@ -471,14 +534,6 @@ const SalesPage = () => {
         fetchCurrentUser();
         fetchCustomers();
         // fetchDashboardResources will be called by its own useEffect when tab is active
-
-        // Auto-refresh every 5 seconds for real-time updates
-        const intervalId = setInterval(() => {
-            fetchCustomers();
-        }, 5000); // 5 seconds
-
-        // Cleanup interval on unmount
-        return () => clearInterval(intervalId);
     }, []);
 
     // Auto-select first customer only if dashboard is not active
@@ -515,30 +570,6 @@ const SalesPage = () => {
         }
     };
 
-    // Safe date formatter to prevent crashes
-    const formatDate = (dateString, options = {}) => {
-        if (!dateString) return '-';
-        try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return 'Invalid Date';
-
-            // Check if it's a date-only string (YYYY-MM-DD or midnight UTC)
-            // If it's a pure date (midnight UTC), use UTC timezone for formatting to avoid shift
-            const isMidnightUTC = date.getUTCHours() === 0 &&
-                date.getUTCMinutes() === 0 &&
-                date.getUTCSeconds() === 0 &&
-                date.getUTCMilliseconds() === 0;
-
-            if (isMidnightUTC) {
-                return date.toLocaleString('en-US', { ...options, timeZone: 'UTC' });
-            }
-
-            return date.toLocaleString('en-US', options);
-        } catch (e) {
-            console.error('Date parsing error:', e);
-            return 'Error';
-        }
-    };
 
     // Fetch Sales Dashboard Resources
     const fetchDashboardResources = async () => {
@@ -582,19 +613,35 @@ const SalesPage = () => {
         }
     };
 
-    const fetchCustomers = async () => {
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            // Only update and reset if the search term actually changed
+            if (searchTerm !== debouncedSearch) {
+                setDebouncedSearch(searchTerm);
+                setDebouncedSearch(searchTerm);
+                setCurrentPage(1); // Reset to page 1 on search
+                setCurrentVisitsPage(1);
+                setCurrentFollowUpPage(1);
+                setCurrentResourcesPage(1);
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchTerm, debouncedSearch]);
+
+    const fetchCustomers = useCallback(async () => {
         try {
-            const response = await fetch(`${API_URL}/api/customers`, {
+            const response = await fetch(`${API_URL}/api/customers?page=${currentPage}&limit=${customersPerPage}&search=${encodeURIComponent(debouncedSearch)}`, {
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include'
             });
 
             if (response.ok) {
                 const data = await response.json();
-                setCustomers(data);
+                setCustomers(data.customers || []);
+                setTotalPages(data.pages || 1);
+                setTotalCustomers(data.total || 0);
             } else {
                 if (response.status === 401) {
-                    // Redirect to admin login if unauthorized
                     window.location.href = '/login';
                     return;
                 }
@@ -607,10 +654,13 @@ const SalesPage = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentPage, debouncedSearch]);
+
+    useEffect(() => {
+        fetchCustomers();
+    }, [fetchCustomers]);
 
     // Optimized function to fetch only the selected customer
-    // Optimized function to fetch only the selected customer details
     const fetchSingleCustomer = async (customerId) => {
         if (!customerId) return;
 
@@ -652,13 +702,6 @@ const SalesPage = () => {
     const customerFilteredResources = customerResources;
 
     const filteredCustomers = (Array.isArray(customers) ? customers : [])
-        .filter(c => {
-            const searchLower = searchTerm.toLowerCase();
-            const contactName = c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim();
-            return (contactName && contactName.toLowerCase().includes(searchLower)) ||
-                (c.email?.toLowerCase() || '').includes(searchLower) ||
-                (c.company && c.company.toLowerCase().includes(searchLower));
-        })
         .sort((a, b) => {
             const nameA = a.company || a.contactName || `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.email || '';
             const nameB = b.company || b.contactName || `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.email || '';
@@ -788,9 +831,9 @@ const SalesPage = () => {
         // Use the customerId from state, or fallback to selectedCustomerId for legacy calls
         const targetCustomerId = customerId || selectedCustomerId;
 
-        setDeleteConfirmation({ isOpen: false, type: '', id: null, customerId: null, message: '' });
+        setDeleteConfirmation(prev => ({ ...prev, isDeleting: true }));
 
-        if (!targetCustomerId) {
+        if (!targetCustomerId && type !== 'dashboardResource') {
             console.error('No customer ID provided for deletion');
             alert(`Failed to delete ${type}: Missing customer information`);
             return;
@@ -814,15 +857,37 @@ const SalesPage = () => {
                     method: 'DELETE',
                     credentials: 'include'
                 });
+            } else if (type === 'dashboardResource') {
+                response = await fetch(`${API_URL}/api/sales-dashboard/resources/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                    credentials: 'include'
+                });
             }
 
             if (response && response.ok) {
-                await fetchSingleCustomer(targetCustomerId);
+                // If we're on the Dashboard view (dashboard tabs), refresh dashboard data
+                const isDashboardView = activeDashboardTab === 'visits' || activeDashboardTab === 'resources' || activeDashboardTab === 'followups';
+
+                if (type === 'dashboardResource') {
+                    fetchDashboardResources();
+                } else {
+                    if (!selectedCustomerId && isDashboardView) {
+                        await fetchDashboardData();
+                        await fetchDashboardStats();
+                    } else {
+                        // Otherwise, refresh the selected customer's data
+                        await fetchSingleCustomer(targetCustomerId);
+                    }
+                }
+                setDeleteConfirmation({ isOpen: false, isDeleting: false, type: '', id: null, customerId: null, message: '' });
             } else {
+                setDeleteConfirmation(prev => ({ ...prev, isDeleting: false }));
                 alert(`Failed to delete ${type}`);
             }
         } catch (error) {
             console.error(`Error deleting ${type}:`, error);
+            setDeleteConfirmation(prev => ({ ...prev, isDeleting: false }));
             alert(`Failed to delete ${type}`);
         }
     };
@@ -965,20 +1030,13 @@ const SalesPage = () => {
     };
 
     const handleDashboardDelete = async (resourceId) => {
-        if (!window.confirm('Are you sure you want to delete this resource?')) return;
-        try {
-            const response = await fetch(`/api/sales-dashboard/resources/${resourceId}`, {
-                method: 'DELETE',
-                credentials: 'include'
-            });
-            if (response.ok) {
-                fetchDashboardResources();
-            } else {
-                alert('Failed to delete resource');
-            }
-        } catch (error) {
-            console.error('Delete error:', error);
-        }
+        setDeleteConfirmation({
+            isOpen: true,
+            isDeleting: false,
+            type: 'dashboardResource',
+            id: resourceId,
+            message: 'Are you sure you want to delete this resource?'
+        });
     };
 
     const ensureResourceContent = async (resource) => {
@@ -1423,25 +1481,16 @@ const SalesPage = () => {
     };
 
     const handleDeleteDashboardResource = async (resourceId) => {
-        if (!window.confirm('Are you sure you want to delete this resource? If it is a folder, all its contents will be deleted.')) return;
-
-        try {
-            const response = await fetch(`${API_URL}/api/sales-dashboard/resources/${resourceId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
-            });
-
-            if (response.ok) {
-                fetchDashboardResources();
-            } else {
-                alert('Failed to delete resource');
-            }
-        } catch (error) {
-            console.error('Error deleting resource:', error);
-            alert('Error deleting resource');
-        }
+        setDeleteConfirmation({
+            isOpen: true,
+            isDeleting: false,
+            type: 'dashboardResource',
+            id: resourceId,
+            message: 'Are you sure you want to delete this resource? If it is a folder, all its contents will be deleted.'
+        });
     };
+
+
 
     const handleBreadcrumbClick = (index) => {
         if (index === -1) {
@@ -1854,7 +1903,7 @@ const SalesPage = () => {
     };
 
     // Resource Image/File upload handler
-    const handleImageUpload = async (e) => {
+    const handleResourceImageUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
 
@@ -1943,140 +1992,39 @@ const SalesPage = () => {
     };
 
 
+
     return (
         <div className="sales-container">
+            {/* Sidebar Overlay */}
+            {!isPinned && isSidebarOpen && (
+                <div
+                    className="sidebar-overlay-backdrop"
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
             {/* Sidebar */}
-            <div
-                className={`sales-sidebar ${isSidebarOpen ? 'open' : 'closed'} ${isPinned ? 'pinned' : 'overlay'}`}
-                style={{ width: isMobile ? '100%' : `${sidebarWidth}px` }}
-            >
-                {/* Resize Handle */}
-                {!isMobile && (
-                    <div className="resize-handle" onMouseDown={startResizing} />
-                )}
-                <div className="sidebar-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <h2>Customers</h2>
-                        <span className="customer-count">{filteredCustomers.length}</span>
-                    </div>
-                    <div className="sidebar-controls">
-                        <button
-                            className="icon-btn-ghost"
-                            onClick={handleGoHome}
-                            title="Sales Dashboard"
-                        >
-                            <LayoutDashboard size={18} />
-                        </button>
-                        <button
-                            className="icon-btn-ghost"
-                            onClick={togglePin}
-                            title={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}
-                        >
-                            {isPinned ? <Pin size={18} fill="currentColor" /> : <PinOff size={18} />}
-                        </button>
-                        {!isPinned && (
-                            <button
-                                className="icon-btn-ghost close-sidebar"
-                                onClick={() => setIsSidebarOpen(false)}
-                            >
-                                <ChevronLeft size={20} />
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                <div className="search-box">
-                    <Search size={16} className="search-icon" />
-                    <input
-                        type="text"
-                        placeholder="Search customers..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    {searchTerm && (
-                        <button
-                            onClick={() => setSearchTerm('')}
-                            style={{
-                                position: 'absolute',
-                                right: '10px',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                background: 'rgba(255,255,255,0.1)',
-                                border: 'none',
-                                color: '#9CA3AF',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '4px',
-                                borderRadius: '50%',
-                                width: '20px',
-                                height: '20px'
-                            }}
-                        >
-                            <X size={12} />
-                        </button>
-                    )}
-                </div>
-
-                <div className="customer-list">
-                    {loading ? (
-                        <div className="skeleton-list">
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-                                <div key={i} className="skeleton-item">
-                                    <div className="skeleton-thumb skeleton" />
-                                    <div className="skeleton-info">
-                                        <div className="skeleton-name skeleton" />
-                                        <div className="skeleton-meta skeleton" />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : error ? (
-                        <div className="error-message" style={{ padding: '1.5rem', color: '#ef4444', textAlign: 'center' }}>
-                            <p>Failed to load customers</p>
-                            <button
-                                onClick={() => window.location.reload()}
-                                style={{
-                                    marginTop: '0.5rem',
-                                    background: 'rgba(239, 68, 68, 0.1)',
-                                    border: '1px solid rgba(239, 68, 68, 0.2)',
-                                    color: '#ef4444',
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    fontSize: '0.8rem'
-                                }}
-                            >
-                                Retry
-                            </button>
-                        </div>
-                    ) : filteredCustomers.length === 0 ? (
-                        <div className="empty-list-message">
-                            No customers found
-                        </div>
-                    ) : (
-                        filteredCustomers.map(customer => (
-                            <div
-                                key={customer._id}
-                                className={`customer-list-item ${selectedCustomerId === customer._id ? 'active' : ''} ${customer.quickNote ? 'has-quick-note' : ''}`}
-                                onClick={() => handleSelectCustomer(customer)}
-                            >
-                                <div className="list-thumb-placeholder">
-                                    <User size={20} />
-                                </div>
-                                <div className="list-info">
-                                    <span className="list-name">
-                                        {customer.company || customer.contactName || `${customer.firstName} ${customer.lastName}`}
-                                        {customer.isActive === false && <span className="inactive-badge">(Inactive)</span>}
-                                    </span>
-                                    <span className="list-meta">{customer.company || customer.email}</span>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            </div>
+            <CustomerSidebar
+                isSidebarOpen={isSidebarOpen}
+                isMobile={isMobile}
+                isPinned={isPinned}
+                sidebarWidth={sidebarWidth}
+                startResizing={startResizing}
+                filteredCustomers={filteredCustomers}
+                selectedCustomerId={selectedCustomerId}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                loading={loading}
+                error={error}
+                togglePin={togglePin}
+                setIsSidebarOpen={setIsSidebarOpen}
+                handleGoHome={handleGoHome}
+                handleSelectCustomer={handleSelectCustomer}
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+                totalPages={totalPages}
+                totalCustomers={totalCustomers}
+            />
 
             {/* Main Content */}
             <div
@@ -2339,188 +2287,21 @@ const SalesPage = () => {
                                                     </div>
                                                 ) : (
                                                     selectedCustomer.visits?.length > 0 ? (
-                                                        [...selectedCustomer.visits].reverse().map(visit => {
-                                                            return (
-                                                                <div key={visit._id} className="visit-post-card">
-
-                                                                    <div className="post-content-area">
-                                                                        <div className="post-header">
-                                                                            <span className="post-author">{visit.createdByName || visit.creatorName || 'Unknown User'}</span>
-                                                                            <span className="post-time">{formatDate(visit.createdAt || visit.date, { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-
-                                                                            {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager' || currentUserId === visit.createdBy) && (
-                                                                                <div className="post-header-actions">
-                                                                                    <button
-                                                                                        className="icon-action-small reaction-trigger"
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            if (activeReactionMessageId === visit._id) {
-                                                                                                setActiveReactionMessageId(null);
-                                                                                            } else {
-                                                                                                setActiveReactionMessageId(visit._id);
-                                                                                            }
-                                                                                        }}
-                                                                                        title="Add Reaction"
-                                                                                    >
-                                                                                        <Smile size={14} />
-                                                                                    </button>
-                                                                                    {activeReactionMessageId === visit._id && (
-                                                                                        <div className="reaction-picker-floating">
-                                                                                            {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
-                                                                                                <button
-                                                                                                    key={emoji}
-                                                                                                    className="reaction-option"
-                                                                                                    onClick={(e) => {
-                                                                                                        e.stopPropagation();
-                                                                                                        handleReaction(visit._id, emoji);
-                                                                                                        setActiveReactionMessageId(null);
-                                                                                                    }}
-                                                                                                >
-                                                                                                    {emoji}
-                                                                                                </button>
-                                                                                            ))}
-                                                                                        </div>
-                                                                                    )}
-                                                                                    <button
-                                                                                        className="icon-action-small edit"
-                                                                                        onClick={(e) => { e.stopPropagation(); handleEditVisit(visit); }}
-                                                                                        title="Edit"
-                                                                                    >
-                                                                                        <Edit2 size={14} />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        className="icon-action-small delete"
-                                                                                        onClick={(e) => { e.stopPropagation(); handleDeleteVisit(visit._id); }}
-                                                                                        title="Delete"
-                                                                                    >
-                                                                                        <Trash2 size={14} />
-                                                                                    </button>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-
-                                                                        <div className="post-body">
-                                                                            {visit.purpose && <h4 className="post-purpose">{visit.purpose}</h4>}
-
-                                                                            {/* Images */}
-                                                                            {visit.image && (Array.isArray(visit.image) ? visit.image : [visit.image]).length > 0 && (
-                                                                                <div className={`post-images gallery-layout count-${Math.min((Array.isArray(visit.image) ? visit.image : [visit.image]).length, 4)}`}>
-                                                                                    {(Array.isArray(visit.image) ? visit.image : [visit.image]).slice(0, 4).map((img, idx, array) => {
-                                                                                        const totalImages = (Array.isArray(visit.image) ? visit.image : [visit.image]).length;
-                                                                                        const isLastShown = idx === 3;
-                                                                                        const remainingCount = totalImages - 4;
-
-                                                                                        return (
-                                                                                            <div
-                                                                                                key={idx}
-                                                                                                className="post-image-wrapper"
-                                                                                                onClick={() => handleOpenGallery(visit.image, idx)}
-                                                                                            >
-                                                                                                {img.startsWith('data:application/pdf') ? (
-                                                                                                    <div className="pdf-attachment-card">
-                                                                                                        <FileText size={20} color="#E5C04A" />
-                                                                                                        <span>PDF</span>
-                                                                                                    </div>
-                                                                                                ) : (
-                                                                                                    <>
-                                                                                                        <img
-                                                                                                            src={img}
-                                                                                                            alt="Attachment"
-                                                                                                            className="post-attachment-img"
-                                                                                                        />
-                                                                                                        {isLastShown && remainingCount > 0 && (
-                                                                                                            <div className="more-images-overlay">
-                                                                                                                <span>+{remainingCount}</span>
-                                                                                                            </div>
-                                                                                                        )}
-                                                                                                    </>
-                                                                                                )}
-                                                                                            </div>
-                                                                                        );
-                                                                                    })}
-                                                                                </div>
-                                                                            )}
-
-                                                                            {/* Text Note */}
-                                                                            {visit.notes && <p className="post-text">{visit.notes}</p>}
-
-                                                                            {(visit.outcome || visit.followUp || visit.nextAction || visit.managerComment || visit.headquartersComment) && (
-                                                                                <div className="post-details-ext">
-                                                                                    {visit.outcome && !visit.purpose?.toLowerCase().includes('quick note') && (
-                                                                                        <div className="post-detail-row outcome">
-                                                                                            <span className="detail-label">Outcome:</span>
-                                                                                            <span className="detail-value">{visit.outcome}</span>
-                                                                                        </div>
-                                                                                    )}
-                                                                                    {visit.followUp && !visit.purpose?.toLowerCase().includes('quick note') && (
-                                                                                        <div className="post-detail-row follow-up">
-                                                                                            <span className="detail-label">Follow Up:</span>
-                                                                                            <span className="detail-value">{visit.followUp}</span>
-                                                                                        </div>
-                                                                                    )}
-                                                                                    {visit.managerComment && (
-                                                                                        <div className="post-detail-row manager-comment">
-                                                                                            <span className="detail-label">Manager Comment:</span>
-                                                                                            <span className="detail-value">{visit.managerComment}</span>
-                                                                                        </div>
-                                                                                    )}
-                                                                                    {visit.headquartersComment && (
-                                                                                        <div className="post-detail-row hq-comment">
-                                                                                            <span className="detail-label">HQ Comment:</span>
-                                                                                            <span className="detail-value">{visit.headquartersComment}</span>
-                                                                                        </div>
-                                                                                    )}
-                                                                                    {visit.nextAction && (
-                                                                                        <div className="post-detail-row next-action">
-                                                                                            <span className="detail-label">Next Steps:</span>
-                                                                                            <span className="detail-value">{visit.nextAction}</span>
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-
-                                                                        {/* Reactions Bar */}
-                                                                        <div className="post-reactions">
-                                                                            {/* Existing Reactions */}
-                                                                            {visit.reactions && visit.reactions.length > 0 && (
-                                                                                <div className="existing-reactions">
-                                                                                    {Object.entries(
-                                                                                        visit.reactions.reduce((acc, r) => {
-                                                                                            if (!r || !r.type) return acc;
-                                                                                            if (!acc[r.type]) acc[r.type] = { count: 0, userIds: [] };
-                                                                                            acc[r.type].count++;
-                                                                                            acc[r.type].userIds.push(r.userId);
-                                                                                            return acc;
-                                                                                        }, {})
-                                                                                    ).map(([type, data]) => {
-                                                                                        const currentUserId = currentUser?._id || currentUser?.id;
-                                                                                        const userReacted = currentUserId && data.userIds.includes(currentUserId.toString());
-                                                                                        return (
-                                                                                            <span
-                                                                                                key={type}
-                                                                                                className={`reaction-pill ${userReacted ? 'user-reacted' : ''}`}
-                                                                                                title={userReacted ? 'Click to remove your reaction' : `${data.count} reactions`}
-                                                                                                onClick={() => userReacted && handleReaction(visit._id, type)}
-                                                                                            >
-                                                                                                {type} <span className="count">{data.count}</span>
-                                                                                                {userReacted && (
-                                                                                                    <span className="reaction-remove-icon">
-                                                                                                        <X size={10} strokeWidth={3} />
-                                                                                                    </span>
-                                                                                                )}
-                                                                                            </span>
-                                                                                        );
-                                                                                    })}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-
-
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })
+                                                        [...selectedCustomer.visits].reverse().map(visit => (
+                                                            <VisitPostCard
+                                                                key={visit._id}
+                                                                visit={visit}
+                                                                currentUser={currentUser}
+                                                                currentUserId={currentUserId}
+                                                                formatDate={formatDate}
+                                                                handleReaction={handleReaction}
+                                                                activeReactionMessageId={activeReactionMessageId}
+                                                                setActiveReactionMessageId={setActiveReactionMessageId}
+                                                                handleEditVisit={handleEditVisit}
+                                                                handleDeleteVisit={handleDeleteVisit}
+                                                                handleOpenGallery={handleOpenGallery}
+                                                            />
+                                                        ))
                                                     ) : (
                                                         <div className="empty-list-message">
                                                             No posts yet. Be the first to post!
@@ -2625,6 +2406,7 @@ const SalesPage = () => {
                                                                                                         alt="Resource"
                                                                                                         style={{ maxWidth: '100px', maxHeight: '100px', objectFit: 'cover', cursor: 'pointer', borderRadius: '4px', border: '1px solid #ddd' }}
                                                                                                         onClick={() => setFullScreenImage(img)}
+                                                                                                        loading="lazy"
                                                                                                     />
                                                                                                 )
                                                                                             ))
@@ -2719,109 +2501,17 @@ const SalesPage = () => {
                                         </div>
                                     </div>
 
-                                    {/* Time Filters */}
-                                    <div className="time-range-filters">
-                                        {['1day', '7days', '30days', 'year', 'all'].map(range => {
-                                            const labels = {
-                                                '1day': 'Today',
-                                                '7days': 'Last 7 Days',
-                                                '30days': 'Last 30 Days',
-                                                'year': 'Year-to-date',
-                                                'all': 'All'
-                                            };
-                                            return (
-                                                <button
-                                                    key={range}
-                                                    className={`time-filter-btn ${dashboardTimeRange === range ? 'active' : ''}`}
-                                                    onClick={() => setDashboardTimeRange(range)}
-                                                >
-                                                    {labels[range]}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
+                                    <DashboardStats
+                                        stats={stats}
+                                        statsLoading={statsLoading}
+                                        dashboardTimeRange={dashboardTimeRange}
+                                        setDashboardTimeRange={setDashboardTimeRange}
+                                        activeDashboardTab={activeDashboardTab}
+                                        setActiveDashboardTab={setActiveDashboardTab}
+                                        todayScheduleCount={todayScheduleCount}
 
-                                    {/* Stats Grid */}
-                                    {(() => {
-                                        const stats = dashboardStats;
-                                        const timeLabel = {
-                                            '1day': 'Today',
-                                            '7days': 'Last 7 Days',
-                                            '30days': 'Last 30 Days',
-                                            'year': 'Year-to-date',
-                                            'all': 'All Time'
-                                        }[dashboardTimeRange];
+                                    />
 
-                                        return (
-                                            <div className="stats-grid">
-                                                <div
-                                                    className={`stat-card ${activeDashboardTab === 'visits' ? 'active-tab' : ''}`}
-                                                    onClick={() => setActiveDashboardTab('visits')}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <div className="stat-icon-wrapper">
-                                                        <UserPlus size={20} />
-                                                    </div>
-                                                    <div className="stat-info">
-                                                        <div className="stat-title">SALES VISITS</div>
-                                                    </div>
-                                                    <div className="stat-value">{stats.visits}</div>
-                                                    <div className="stat-footer">{timeLabel}</div>
-                                                </div>
-                                                {/* <div className="stat-card">
-                                            <div className="stat-icon-wrapper">
-                                                <User size={20} />
-                                            </div>
-                                            <div className="stat-title">KEY SALES VISITS</div>
-                                            <div className="stat-value">{stats.keyVisits}</div>
-                                            <div className="stat-footer">{timeLabel}</div>
-                                        </div> */}
-                                                <div
-                                                    className={`stat-card ${activeDashboardTab === 'resources' ? 'active-tab' : ''}`}
-                                                    onClick={() => setActiveDashboardTab('resources')}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <div className="stat-icon-wrapper">
-                                                        <FolderPlus size={20} />
-                                                    </div>
-                                                    <div className="stat-info">
-                                                        <div className="stat-title">RESOURCES</div>
-                                                        <div className="stat-desc">(Assignment & Updates)</div>
-                                                    </div>
-                                                    <div className="stat-value">{stats.resources}</div>
-                                                    <div className="stat-footer">{timeLabel}</div>
-                                                </div>
-                                                <div
-                                                    className={`stat-card ${activeDashboardTab === 'followups' ? 'active-tab' : ''}`}
-                                                    onClick={() => setActiveDashboardTab('followups')}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <div className="stat-icon-wrapper">
-                                                        <Clock size={20} />
-                                                    </div>
-                                                    <div className="stat-info">
-                                                        <div className="stat-title">FOLLOW-UP</div>
-                                                    </div>
-                                                    <div className="stat-value">{stats.followUp}</div>
-                                                    <div className="stat-footer">{timeLabel}</div>
-                                                </div>
-                                                <div
-                                                    className={`stat-card ${activeDashboardTab === 'planner' ? 'active-tab' : ''}`}
-                                                    onClick={() => setActiveDashboardTab('planner')}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <div className="stat-icon-wrapper">
-                                                        <Calendar size={20} />
-                                                    </div>
-                                                    <div className="stat-info">
-                                                        <div className="stat-title">CALENDAR</div>
-                                                    </div>
-                                                    <div className="stat-value">{todayScheduleCount}</div>
-                                                    <div className="stat-footer">Schedule</div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
 
                                     {/* Visits Table */}
                                     {/* Sales Visits Table */}
@@ -3110,7 +2800,7 @@ const SalesPage = () => {
                                                                     </tr>
                                                                 );
                                                             }
-                                                            const indexOfLastItem = currentVisitsPage * visitsPerPage;
+                                                            const indexOfLastItem = currentFollowUpPage * visitsPerPage;
                                                             const indexOfFirstItem = indexOfLastItem - visitsPerPage;
                                                             const currentItems = followups.slice(indexOfFirstItem, indexOfLastItem);
 
@@ -3174,6 +2864,90 @@ const SalesPage = () => {
                                                     </tbody>
                                                 </table>
                                             </div>
+
+                                            {/* Follow-up Pagination Controls */}
+                                            {(() => {
+                                                let followups = [];
+                                                if (followupFilter === 'all') {
+                                                    followups = memoizedFilteredVisits
+                                                        .filter(v => v && (v.nextAction || v.followUp));
+                                                } else if (followupFilter === 'nextWeek') {
+                                                    const now = new Date();
+                                                    const startOfNextWeek = new Date(now);
+                                                    startOfNextWeek.setDate(now.getDate() + (8 - now.getDay()) % 7 || 7);
+                                                    startOfNextWeek.setHours(0, 0, 0, 0);
+                                                    const endOfNextWeek = new Date(startOfNextWeek);
+                                                    endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
+                                                    endOfNextWeek.setHours(23, 59, 59, 999);
+
+                                                    const nextWeekSchedules = allSchedules.filter(s => {
+                                                        const d = new Date(s.startTime);
+                                                        return d >= startOfNextWeek && d <= endOfNextWeek;
+                                                    });
+
+                                                    const nextWeekVisits = memoizedFilteredVisits.filter(v => {
+                                                        if (!v.followUpDate) return false;
+                                                        const d = new Date(v.followUpDate);
+                                                        return d >= startOfNextWeek && d <= endOfNextWeek;
+                                                    });
+
+                                                    followups = [...nextWeekSchedules, ...nextWeekVisits];
+                                                }
+
+                                                if (dashboardSearchTerm) {
+                                                    const term = dashboardSearchTerm.toLowerCase();
+                                                    followups = followups.filter(f => {
+                                                        const customerName = f.customerName || (f.customerId?.company);
+                                                        const note = f.displayNote || f.notes || f.nextAction || f.followUp;
+                                                        return (customerName?.toLowerCase().includes(term) || note?.toLowerCase().includes(term));
+                                                    });
+                                                }
+
+                                                const totalPages = Math.ceil(followups.length / visitsPerPage);
+
+                                                if (totalPages <= 1) return null;
+
+                                                const handlePageChange = (pageNumber) => {
+                                                    setCurrentFollowUpPage(pageNumber);
+                                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                };
+
+                                                return (
+                                                    <div className="pagination-controls">
+                                                        <button
+                                                            className="pagination-btn"
+                                                            onClick={() => handlePageChange(currentFollowUpPage - 1)}
+                                                            disabled={currentFollowUpPage === 1}
+                                                        >
+                                                            ← Previous
+                                                        </button>
+
+                                                        <div className="pagination-pages">
+                                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                                                                <button
+                                                                    key={pageNum}
+                                                                    className={`pagination-page ${currentFollowUpPage === pageNum ? 'active' : ''}`}
+                                                                    onClick={() => handlePageChange(pageNum)}
+                                                                >
+                                                                    {pageNum}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+
+                                                        <button
+                                                            className="pagination-btn"
+                                                            onClick={() => handlePageChange(currentFollowUpPage + 1)}
+                                                            disabled={currentFollowUpPage === totalPages}
+                                                        >
+                                                            Next →
+                                                        </button>
+
+                                                        <div className="pagination-info">
+                                                            Showing {((currentFollowUpPage - 1) * visitsPerPage) + 1}-{Math.min(currentFollowUpPage * visitsPerPage, followups.length)} of {followups.length} follow-ups
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     )}
 
@@ -3286,7 +3060,11 @@ const SalesPage = () => {
                                                                             </tr>
                                                                         );
                                                                     }
-                                                                    return resources.map((resource, index) => (
+                                                                    const indexOfLastResource = currentResourcesPage * visitsPerPage;
+                                                                    const indexOfFirstResource = indexOfLastResource - visitsPerPage;
+                                                                    const currentResources = resources.slice(indexOfFirstResource, indexOfLastResource);
+
+                                                                    return currentResources.map((resource, index) => (
                                                                         <tr key={resource._id || index}>
                                                                             <td className="mobile-hide">{formatDate(resource.date || resource.createdAt, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
                                                                             <td
@@ -3369,6 +3147,55 @@ const SalesPage = () => {
                                                             </tbody>
                                                         </table>
                                                     </div>
+
+                                                    {/* Resources Pagination Controls */}
+                                                    {(() => {
+                                                        const resources = memoizedFilteredResources;
+                                                        const totalPages = Math.ceil(resources.length / visitsPerPage);
+
+                                                        if (totalPages <= 1) return null;
+
+                                                        const handlePageChange = (pageNumber) => {
+                                                            setCurrentResourcesPage(pageNumber);
+                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                        };
+
+                                                        return (
+                                                            <div className="pagination-controls">
+                                                                <button
+                                                                    className="pagination-btn"
+                                                                    onClick={() => handlePageChange(currentResourcesPage - 1)}
+                                                                    disabled={currentResourcesPage === 1}
+                                                                >
+                                                                    ← Previous
+                                                                </button>
+
+                                                                <div className="pagination-pages">
+                                                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                                                                        <button
+                                                                            key={pageNum}
+                                                                            className={`pagination-page ${currentResourcesPage === pageNum ? 'active' : ''}`}
+                                                                            onClick={() => handlePageChange(pageNum)}
+                                                                        >
+                                                                            {pageNum}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+
+                                                                <button
+                                                                    className="pagination-btn"
+                                                                    onClick={() => handlePageChange(currentResourcesPage + 1)}
+                                                                    disabled={currentResourcesPage === totalPages}
+                                                                >
+                                                                    Next →
+                                                                </button>
+
+                                                                <div className="pagination-info">
+                                                                    Showing {((currentResourcesPage - 1) * visitsPerPage) + 1}-{Math.min(currentResourcesPage * visitsPerPage, resources.length)} of {resources.length} resources
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </>
                                             )}
 
@@ -3471,8 +3298,7 @@ const SalesPage = () => {
                                 </>
                             )}
                         </div>
-                    )
-                    }
+                    )}
                 </ErrorBoundary>
 
                 {/* Dashboard Resource Preview Modal */}
@@ -3530,6 +3356,7 @@ const SalesPage = () => {
                                                 src={previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
                                                 alt={previewDashboardResource.name}
                                                 className="preview-image"
+                                                loading="lazy"
                                             />
                                         </div>
                                     ) : (previewDashboardResource.content?.startsWith('data:application/pdf') ||
@@ -3659,507 +3486,44 @@ const SalesPage = () => {
                 }
 
                 {/* Visit Modal */}
-                {/* Visit Modal (Edit/Add) */}
-                {
-                    showVisitModal && !isViewingVisit && (
-                        <div className="modal-overlay" onClick={handleCloseVisitModal}>
-                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                                <div className="modal-header">
-                                    <h2>{editingVisit ? 'Edit Visit' : 'Add Visit'}</h2>
-                                    <button className="close-btn" onClick={handleCloseVisitModal}>
-                                        <X size={20} />
-                                    </button>
-                                </div>
-                                <div className="modal-body">
-                                    <div className="form-group">
-                                        <label>Date <span style={{ color: 'red' }}>*</span></label>
-                                        <CustomDatePicker
-                                            value={visitForm.date}
-                                            onChange={(value) => setVisitForm({ ...visitForm, date: value })}
-                                            required
-                                        />
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                        <div className="form-group">
-                                            <label>Customer <span style={{ color: 'red' }}>*</span></label>
-                                            <SearchableSelect
-                                                options={customerOptions}
-                                                value={visitForm.customerId}
-                                                onChange={(value) => setVisitForm({ ...visitForm, customerId: value })}
-                                                placeholder="Select a Customer..."
-                                            />
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Visit Type <span style={{ color: 'red' }}>*</span></label>
-                                            <SearchableSelect
-                                                options={[
-                                                    'Quick Note',
-                                                    'Scheduled in Person Sales Meeting',
-                                                    'Unscheduled in Person Sales Call',
-                                                    'Resource Placement',
-                                                    'Resource Update',
-                                                    'Formal Presentation',
-                                                    'Important Remote Meeting/Call',
-                                                    'In Office Administration Day',
-                                                    'Personal Time Off',
-                                                    'Follow up Notes'
-                                                ].map(type => ({ value: type, label: type }))}
-                                                value={visitForm.purpose}
-                                                onChange={(value) => setVisitForm({ ...visitForm, purpose: value })}
-                                                placeholder="Please Select Visit Type"
-                                            />
-                                        </div>
-                                    </div>
-                                    {visitForm.purpose !== 'Follow up Notes' && (
-                                        <div className="form-group">
-                                            <label>Notes</label>
-                                            <textarea
-                                                value={visitForm.notes}
-                                                onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
-                                                placeholder="Additional notes"
-                                                rows="4"
-                                            />
-                                        </div>
-                                    )}
-                                    {!visitForm.purpose?.toLowerCase().includes('quick note') && (
-                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                            {visitForm.purpose !== 'Follow up Notes' && (
-                                                <div className="form-group" style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
-                                                    <label>Outcome</label>
-                                                    <textarea
-                                                        value={visitForm.outcome}
-                                                        onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
-                                                        placeholder="Visit outcome"
-                                                        rows="3"
-                                                    />
-                                                </div>
-                                            )}
-                                            <div className="form-group">
-                                                <label>Follow Up Date</label>
-                                                <CustomDatePicker
-                                                    value={visitForm.followUpDate}
-                                                    onChange={(value) => setVisitForm({ ...visitForm, followUpDate: value })}
-                                                />
-                                            </div>
-                                            <div className="form-group">
-                                                <label>Follow Up Notes</label>
-                                                <textarea
-                                                    value={visitForm.followUp}
-                                                    onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
-                                                    placeholder="Followup Notes"
-                                                    rows="3"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                    <div className="form-group">
-                                        <label>Attachments</label>
-                                        <div className="image-upload-container">
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginBottom: '8px' }}>
-                                                {visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
-                                                    <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px', position: 'relative' }}>
-                                                        {img.startsWith('data:application/pdf') ? (
-                                                            <div className="pdf-preview" style={{
-                                                                width: '100%',
-                                                                height: '100%',
-                                                                display: 'flex',
-                                                                flexDirection: 'column',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                background: '#f5f5f5',
-                                                                borderRadius: '4px',
-                                                                border: '1px solid #ddd'
-                                                            }}>
-                                                                <FileText size={32} color="#E5C04A" />
-                                                                <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
-                                                            </div>
-                                                        ) : (
-                                                            <img src={img} alt="Preview" className="image-preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                        )}
-                                                        <button type="button" className="remove-image-btn" onClick={() => handleRemoveVisitImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
-                                                            <X size={12} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <div className="file-input-wrapper-simple">
-                                                <input
-                                                    type="file"
-                                                    id="visit-image-upload"
-                                                    accept="image/*,application/pdf"
-                                                    multiple
-                                                    onChange={handleVisitImageUpload}
-                                                    className="file-input"
-                                                />
-                                                <label htmlFor="visit-image-upload" className="file-input-label">
-                                                    Add Files
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {editingVisit && (
-                                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                            <div className="form-group">
-                                                <label>Manager Comment</label>
-                                                <input
-                                                    type="text"
-                                                    value={visitForm.managerComment}
-                                                    onChange={(e) => setVisitForm({ ...visitForm, managerComment: e.target.value })}
-                                                    placeholder="Comment from Manager"
-                                                />
-                                            </div>
-                                            <div className="form-group">
-                                                <label>Headquarters Comment</label>
-                                                <input
-                                                    type="text"
-                                                    value={visitForm.headquartersComment}
-                                                    onChange={(e) => setVisitForm({ ...visitForm, headquartersComment: e.target.value })}
-                                                    placeholder="Comment from HQ"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="modal-footer">
-                                    <button className="btn-secondary" onClick={handleCloseVisitModal} disabled={isSaving}>
-                                        Cancel
-                                    </button>
-                                    <button className="btn-primary" onClick={handleSaveVisit} disabled={isSaving}>
-                                        {isSaving ? 'Saving...' : (editingVisit ? 'Save Changes' : 'Add Visit')}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
+                <VisitModal
+                    showVisitModal={showVisitModal}
+                    isViewingVisit={isViewingVisit}
+                    handleCloseVisitModal={handleCloseVisitModal}
+                    editingVisit={editingVisit}
+                    visitForm={visitForm}
+                    setVisitForm={setVisitForm}
+                    isMobile={isMobile}
+                    customerOptions={customerOptions}
+                    isSaving={isSaving}
+                    handleSaveVisit={handleSaveVisit}
+                    handleVisitImageUpload={handleVisitImageUpload}
+                    handleRemoveVisitImage={handleRemoveVisitImage}
+                    selectedCustomer={selectedCustomer}
+                    customers={customers}
+                    handleDashboardDownload={handleDashboardDownload}
+                    setFullScreenImage={setFullScreenImage}
+                />
 
-                {/* Visit Modal (View Only) */}
-                {
-                    showVisitModal && isViewingVisit && (
-                        <div className="modal-overlay" onClick={handleCloseVisitModal}>
-                            {console.log("Rendering View Visit Modal - V2")}
-                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                                <div className="modal-header">
-                                    <h2>Visit Details</h2>
-                                    <button className="close-btn" onClick={handleCloseVisitModal}>
-                                        <X size={20} />
-                                    </button>
-                                </div>
-                                <div className="modal-body">
-                                    <div className="visit-details-grid">
-                                        <div className="visit-detail-item">
-                                            <div className="visit-detail-label">Date</div>
-                                            <div className="visit-detail-value">{formatDate(visitForm.date)}</div>
-                                        </div>
-                                        <div className="visit-detail-item">
-                                            <div className="visit-detail-label">Customer</div>
-                                            <div className="visit-detail-value">
-                                                {(() => {
-                                                    if (selectedCustomer) return selectedCustomer.company || selectedCustomer.contactName;
-                                                    const c = customers.find(c => c._id === (visitForm.customerId || editingVisit?.customerId));
-                                                    return c ? (c.company || c.contactName) : (visitForm?.customerContactName || visitForm?.customerName || editingVisit?.customerName || '-');
-                                                })()}
-                                            </div>
-                                        </div>
-                                        <div className="visit-detail-item">
-                                            <div className="visit-detail-label">Visit Type</div>
-                                            <div className="visit-detail-value">{visitForm.purpose || '-'}</div>
-                                        </div>
-                                        <div className="visit-detail-item full-width">
-                                            <div className="visit-detail-label">Notes</div>
-                                            <div className="visit-detail-value" style={{ border: 'none', background: 'none', padding: 0, color: 'var(--text-primary)' }}>
-                                                {visitForm.notes || 'No notes available.'}
-                                            </div>
-                                        </div>
-                                        {!visitForm.purpose?.toLowerCase().includes('quick note') && (
-                                            <>
-                                                <div className="visit-detail-item">
-                                                    <div className="visit-detail-label">Outcome</div>
-                                                    <div className="visit-detail-value">{visitForm.outcome || '-'}</div>
-                                                </div>
-                                                <div className="visit-detail-item">
-                                                    <div className="visit-detail-label">Follow Up</div>
-                                                    <div className="visit-detail-value">{visitForm.followUp || visitForm.nextAction || '-'}</div>
-                                                </div>
-                                                {visitForm.followUpDate && (
-                                                    <div className="visit-detail-item">
-                                                        <div className="visit-detail-label">Follow Up Date</div>
-                                                        <div className="visit-detail-value">{formatDate(visitForm.followUpDate)}</div>
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-                                        <div className="visit-detail-item full-width">
-                                            <div className="visit-detail-label">Attachments</div>
-                                            {console.log('[DEBUG MODAL] visitForm.image:', visitForm.image)}
-                                            {(visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).length > 0) ? (
-                                                <div className="visit-attachments-grid" style={{ marginTop: '0.5rem' }}>
-                                                    {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
-                                                        <div key={idx} className="attachment-preview-card">
-                                                            {img.startsWith('data:application/pdf') ? (
-                                                                <div
-                                                                    className="attachment-pdf"
-                                                                    onClick={() => handleDashboardDownload({ content: img, name: `Visit-Doc-${idx}.pdf`, type: 'file' })}
-                                                                >
-                                                                    <FileText size={32} />
-                                                                    <span style={{ fontSize: '10px', marginTop: '4px', fontWeight: 600 }}>PDF</span>
-                                                                </div>
-                                                            ) : (
-                                                                <img
-                                                                    src={img}
-                                                                    alt="Preview"
-                                                                    className="attachment-img"
-                                                                    onClick={() => setFullScreenImage(img)}
-                                                                    style={{ borderRadius: '8px', cursor: 'pointer' }}
-                                                                />
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div className="visit-detail-value">-</div>
-                                            )}
-                                        </div>
-                                        <div className="visit-detail-item">
-                                            <div className="visit-detail-label">Manager Comment</div>
-                                            <div className="visit-detail-value">{visitForm.managerComment || '-'}</div>
-                                        </div>
-                                        <div className="visit-detail-item">
-                                            <div className="visit-detail-label">Headquarters Comment</div>
-                                            <div className="visit-detail-value">{visitForm.headquartersComment || '-'}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
-
-                {/* Resource Modal */}
-                {
-                    showResourceModal && (
-                        <div className="modal-overlay" onClick={() => setShowResourceModal(false)}>
-                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                                <div className="modal-header">
-                                    <h2>{editingResource ? (isViewingResource ? 'Resource Details' : 'Edit Resource') : 'Add Resource'}</h2>
-                                    <button className="close-btn" onClick={() => setShowResourceModal(false)}>
-                                        <X size={20} />
-                                    </button>
-                                </div>
-
-                                {isViewingResource ? (
-                                    /* View Mode Layout */
-                                    <div className={`modal-body view-mode ${resourceForm.image ? 'has-image' : ''}`}>
-                                        {resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).length > 0 && (
-                                            <div className="view-image-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
-                                                {(Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
-                                                    <div key={idx} style={{ position: 'relative', aspectRatio: '1' }}>
-                                                        <img
-                                                            src={(() => {
-                                                                if (!img) return '';
-                                                                if (img.startsWith('data:') || img.startsWith('http')) return img;
-                                                                if (img.includes('uploads/')) {
-                                                                    return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
-                                                                }
-                                                                return `${API_URL}/uploads/resources/${img}`;
-                                                            })()}
-                                                            alt={`Resource ${idx + 1}`}
-                                                            onClick={() => setFullScreenImage(img)}
-                                                            className="view-resource-image"
-                                                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }}
-                                                        />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        <div className="view-content-wrapper">
-                                            <div className="view-details-grid">
-                                                <div className="view-detail-item">
-                                                    <label>Client</label>
-                                                    <p>{resourceForm.customer || '-'}</p>
-                                                </div>
-                                                <div className="view-detail-item">
-                                                    <label>Type</label>
-                                                    <p>{resourceForm.resourceType || '-'}</p>
-                                                </div>
-                                                <div className="view-detail-item">
-                                                    <label>Date</label>
-                                                    <p>{formatDate(resourceForm.date)}</p>
-                                                </div>
-                                                <div className="view-detail-item">
-                                                    <label>Status</label>
-                                                    <span className={`status-badge ${resourceForm.status?.toLowerCase()}`}>
-                                                        {resourceForm.status || 'Active'}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <div className="view-section">
-                                                <label>Description</label>
-                                                <p className="view-text">{resourceForm.description || 'No description provided.'}</p>
-                                            </div>
-
-                                            {resourceForm.notes && (
-                                                <div className="view-section">
-                                                    <label>Notes</label>
-                                                    <p className="view-text">{resourceForm.notes}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    /* Edit/Add Mode Layout */
-                                    <div className="modal-body">
-
-                                        <div className="form-group">
-                                            <label>Client *</label>
-                                            <SearchableSelect
-                                                options={customerOptions}
-                                                value={resourceForm.customerId}
-                                                onChange={(value) => {
-                                                    const selectedC = customers.find(c => c._id === value);
-                                                    setResourceForm({
-                                                        ...resourceForm,
-                                                        customerId: value,
-                                                        customer: selectedC ? (selectedC.company || selectedC.contactName) : ''
-                                                    });
-                                                }}
-                                                placeholder="Select a Client..."
-                                            />
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Resource Type *</label>
-                                            <SearchableSelect
-                                                options={resourceTypes.map(type => ({ value: type, label: type }))}
-                                                value={resourceForm.resourceType}
-                                                onChange={(value) => setResourceForm({ ...resourceForm, resourceType: value, title: value })}
-                                                placeholder="Please Select Resource Type"
-                                            />
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label>Date *</label>
-                                            <CustomDatePicker
-                                                value={resourceForm.date}
-                                                onChange={(value) => setResourceForm({ ...resourceForm, date: value })}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Status</label>
-                                            <SearchableSelect
-                                                options={[
-                                                    { value: 'Active', label: 'Active' },
-                                                    { value: 'Inactive', label: 'Inactive' },
-                                                    { value: 'Archived', label: 'Archived' }
-                                                ]}
-                                                value={resourceForm.status}
-                                                onChange={(value) => setResourceForm({ ...resourceForm, status: value })}
-                                                placeholder="Select Status"
-                                            />
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label>Description</label>
-                                            <input
-                                                type="text"
-                                                value={resourceForm.description}
-                                                onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
-                                                placeholder="Description"
-                                            />
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label>Notes</label>
-                                            <textarea
-                                                value={resourceForm.notes}
-                                                onChange={(e) => setResourceForm({ ...resourceForm, notes: e.target.value })}
-                                                placeholder="Additional notes"
-                                                rows="3"
-                                            />
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label>Attachments</label>
-                                            <div className="image-upload-container">
-                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginBottom: '8px' }}>
-                                                    {resourceForm.image && (Array.isArray(resourceForm.image) ? resourceForm.image : [resourceForm.image]).map((img, idx) => (
-                                                        <div key={idx} className="image-preview-wrapper" style={{ width: '100%', height: '80px', position: 'relative' }}>
-                                                            {img.startsWith('data:application/pdf') ? (
-                                                                <div className="pdf-preview" style={{
-                                                                    width: '100%',
-                                                                    height: '100%',
-                                                                    display: 'flex',
-                                                                    flexDirection: 'column',
-                                                                    alignItems: 'center',
-                                                                    justifyContent: 'center',
-                                                                    background: '#f5f5f5',
-                                                                    borderRadius: '4px',
-                                                                    border: '1px solid #ddd'
-                                                                }}>
-                                                                    <FileText size={32} color="#E5C04A" />
-                                                                    <span style={{ fontSize: '10px', marginTop: '4px', color: '#666' }}>PDF</span>
-                                                                </div>
-                                                            ) : (
-                                                                <img
-                                                                    src={(() => {
-                                                                        if (!img) return '';
-                                                                        if (img.startsWith('data:') || img.startsWith('http')) return img;
-                                                                        // If path already contains uploads (e.g. /uploads/resources/foo.jpg or uploads/resources/foo.jpg)
-                                                                        if (img.includes('uploads/')) {
-                                                                            return `${API_URL}${img.startsWith('/') ? '' : '/'}${img}`;
-                                                                        }
-                                                                        // Otherwise assume it's a filename in the resources folder
-                                                                        return `${API_URL}/uploads/resources/${img}`;
-                                                                    })()}
-                                                                    alt="Preview"
-                                                                    className="image-preview"
-                                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                                />
-                                                            )}
-                                                            <button type="button" className="remove-image-btn" onClick={() => handleRemoveResourceImage(idx)} style={{ padding: '2px', position: 'absolute', top: '-6px', right: '-6px', background: 'red', color: 'white', borderRadius: '50%', border: 'none', cursor: 'pointer', zIndex: 10 }}>
-                                                                <X size={12} />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="file-input-wrapper-simple">
-                                                    <input
-                                                        type="file"
-                                                        id="resource-image-upload"
-                                                        accept="image/*,application/pdf"
-                                                        multiple
-                                                        onChange={handleImageUpload}
-                                                        className="file-input"
-                                                    />
-                                                    <label htmlFor="resource-image-upload" className="file-input-label">
-                                                        {resourceForm.image && resourceForm.image.length > 0 ? 'Add More Files' : 'Choose Files'}
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="modal-footer">
-                                    {isViewingResource ? (
-                                        <button className="btn-secondary" onClick={handleCloseResourceModal}>Close</button>
-                                    ) : (
-                                        <>
-                                            <button className="btn-secondary" onClick={handleCloseResourceModal} disabled={isSaving}>
-                                                Cancel
-                                            </button>
-                                            <button className="btn-primary" onClick={handleSaveResource} disabled={isSaving}>
-                                                {isSaving ? 'Saving...' : (editingResource ? 'Save Changes' : 'Add Resource')}
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
+                <ResourceModal
+                    showResourceModal={showResourceModal}
+                    setShowResourceModal={setShowResourceModal}
+                    editingResource={editingResource}
+                    isViewingResource={isViewingResource}
+                    resourceForm={resourceForm}
+                    setResourceForm={setResourceForm}
+                    customerOptions={customerOptions}
+                    customers={customers}
+                    resourceTypes={resourceTypes}
+                    formatDate={formatDate}
+                    API_URL={API_URL}
+                    isSaving={isSaving}
+                    handleSaveResource={handleSaveResource}
+                    handleResourceImageUpload={handleResourceImageUpload}
+                    handleRemoveResourceImage={handleRemoveResourceImage}
+                    handleDashboardDownload={handleDashboardDownload}
+                    setFullScreenImage={setFullScreenImage}
+                />
 
                 {
                     fullScreenImage && (
@@ -4298,19 +3662,35 @@ const SalesPage = () => {
                                 <h3>Confirm Deletion</h3>
                                 <p>{deleteConfirmation.message}</p>
                                 <div className="delete-modal-actions">
-                                    <button className="btn-cancel" onClick={cancelDelete}>
+                                    <button
+                                        className="btn-cancel"
+                                        onClick={cancelDelete}
+                                        disabled={deleteConfirmation.isDeleting}
+                                    >
                                         Cancel
                                     </button>
-                                    <button className="btn-delete" onClick={confirmDelete}>
-                                        Delete
+                                    <button
+                                        className="btn-delete"
+                                        onClick={confirmDelete}
+                                        disabled={deleteConfirmation.isDeleting}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+                                    >
+                                        {deleteConfirmation.isDeleting ? (
+                                            <>
+                                                <Loader size={16} className="animate-spin" />
+                                                Deleting...
+                                            </>
+                                        ) : (
+                                            'Delete'
+                                        )}
                                     </button>
                                 </div>
                             </div>
                         </div>
                     )
                 }
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

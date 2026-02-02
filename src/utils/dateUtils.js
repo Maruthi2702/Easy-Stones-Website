@@ -23,3 +23,14 @@ export const formatForDateInput = (date) => {
   // Use UTC date directly to avoid timezone shift for pure dates (YYYY-MM-DD)
   return d.toISOString().split('T')[0];
 };
+
+export const formatDate = (dateString, options = { month: 'short', day: 'numeric', year: 'numeric' }) => {
+  if (!dateString) return '-';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '-';
+    return new Intl.DateTimeFormat('en-US', options).format(date);
+  } catch (e) {
+    return '-';
+  }
+};
