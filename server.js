@@ -1587,19 +1587,18 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
       let buffer = req.file.buffer;
 
       if (isImage) {
-        console.log(`[DEBUG] Optimizing image: ${req.file.originalname}`);
-        buffer = await optimizeImage(req.file.buffer);
-        filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}.webp`;
+        console.log(`[DEBUG] Uploading image to Cloudinary: ${req.file.originalname}`);
+        const result = await uploadToCloudinary(req.file.buffer, 'Resources', `res_${uniqueSuffix}`);
+        content = result.secure_url;
         contentType = 'image/webp';
       } else {
         filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}${path.extname(req.file.originalname)}`;
         contentType = req.file.mimetype;
+        
+        const filePath = path.join(uploadDir, filename);
+        fs.writeFileSync(filePath, req.file.buffer);
+        content = `/uploads/resources/${filename}`;
       }
-
-      const filePath = path.join(uploadDir, filename);
-      fs.writeFileSync(filePath, buffer);
-      
-      content = `/uploads/resources/${filename}`;
     }
     // Handle Link
     else if (type === 'link') {
@@ -1677,22 +1676,20 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, uploadResources.sin
 
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       const isImage = req.file.mimetype.startsWith('image/');
-      let filename = '';
-      let buffer = req.file.buffer;
-
+      let filename = ''; // Declare filename here for both branches
       if (isImage) {
-        buffer = await optimizeImage(req.file.buffer);
-        filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}.webp`;
+        console.log(`[DEBUG] Uploading image to Cloudinary: ${req.file.originalname}`);
+        const result = await uploadToCloudinary(req.file.buffer, 'Resources', `res_${uniqueSuffix}`);
+        resource.content = result.secure_url;
         resource.contentType = 'image/webp';
       } else {
         filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}${path.extname(req.file.originalname)}`;
         resource.contentType = req.file.mimetype;
+        
+        const filePath = path.join(uploadDir, filename);
+        fs.writeFileSync(filePath, req.file.buffer);
+        resource.content = `/uploads/resources/${filename}`;
       }
-
-      const filePath = path.join(uploadDir, filename);
-      fs.writeFileSync(filePath, buffer);
-      
-      resource.content = `/uploads/resources/${filename}`;
     } else if (type === 'link' && linkContent) {
       resource.content = linkContent;
       resource.contentType = 'text/uri-list';
@@ -2219,13 +2216,16 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
       return res.status(400).json({ message: 'Resource title or type is required' });
     }
 
+    // Process images (convert base64 to Cloudinary URLs)
+    const processedImages = await processBase64Images(image, 'Resources');
+
     const newResource = {
       title: finalTitle,
       date: date || new Date(),
       customer: customer || '',
       location: location || '',
       resourceType: resourceType || '',
-      image: image || [],
+      image: processedImages,
       description: description || '',
       notes: notes || '',
       status: status || 'Active',
@@ -2254,9 +2254,14 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
 app.put('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
-    const fields = req.body;
-
     const updateData = {};
+    const fields = { ...req.body };
+
+    // Process images if they are being updated
+    if (fields.image) {
+        fields.image = await processBase64Images(fields.image, 'Resources');
+    }
+
     Object.keys(fields).forEach(key => {
       // If title is missing but resourceType is present, use resourceType as title
       if (key === 'resourceType' && !fields.title) {
@@ -2682,7 +2687,7 @@ const uploadToCloudinary = async (buffer, folder, filename) => {
       {
         folder: folder,
         public_id: filename,
-        resource_type: 'image'
+        resource_type: 'auto'
       },
       (error, result) => {
         if (error) return reject(error);
@@ -2691,6 +2696,37 @@ const uploadToCloudinary = async (buffer, folder, filename) => {
     );
     uploadStream.end(optimizedBuffer);
   });
+};
+
+// Helper to process an array of images (base64 or URLs) and upload new base64 to Cloudinary
+const processBase64Images = async (imagesArray, folder) => {
+  if (!imagesArray || !Array.isArray(imagesArray)) return [];
+  
+  const processedImages = await Promise.all(imagesArray.map(async (img, index) => {
+    // If it's already a URL, leave it as is
+    if (!img || img.startsWith('http') || img.startsWith('/uploads/')) {
+      return img;
+    }
+    
+    // If it's base64, upload it
+    if (img.startsWith('data:')) {
+      try {
+        const base64Data = img.split(',')[1];
+        const buffer = Buffer.from(base64Data, 'base64');
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const result = await uploadToCloudinary(buffer, folder, `client_res_${uniqueSuffix}_${index}`);
+        return result.secure_url;
+      } catch (err) {
+        console.error('Failed to upload base64 image to Cloudinary:', err);
+        return img; // Fallback to base64 if upload fails
+      }
+    }
+    
+    // Default fallback
+    return img;
+  }));
+  
+  return processedImages;
 };
 
 // API endpoint to upload image

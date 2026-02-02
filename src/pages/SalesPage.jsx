@@ -1076,7 +1076,7 @@ const SalesPage = () => {
                 }
             } else {
                 // Handle File Sharing
-                if (navigator.share && fullResource.content && (fullResource.content.startsWith('data:') || fullResource.content.startsWith('/uploads/'))) {
+                if (navigator.share && fullResource.content && (fullResource.content.startsWith('http') || fullResource.content.startsWith('data:') || fullResource.content.startsWith('/uploads/'))) {
                     // Convert Base64 or URL to Blob/File
                     const resourceUrl = fullResource.content.startsWith('data:')
                         ? fullResource.content
@@ -3325,7 +3325,7 @@ const SalesPage = () => {
                                 </div>
                                 <div className="preview-actions">
                                     <a
-                                        href={previewDashboardResource.content.startsWith('data:') ? '#' : `${API_URL}${previewDashboardResource.content}`}
+                                        href={previewDashboardResource.content.startsWith('http') || previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="icon-btn-ghost preview-action-btn"
@@ -3353,7 +3353,7 @@ const SalesPage = () => {
                                                 previewDashboardResource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)))) ? (
                                         <div className="image-preview-container">
                                             <img
-                                                src={previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
+                                                src={previewDashboardResource.content.startsWith('http') || previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
                                                 alt={previewDashboardResource.name}
                                                 className="preview-image"
                                                 loading="lazy"
@@ -3365,7 +3365,7 @@ const SalesPage = () => {
                                                 previewDashboardResource.name.toLowerCase().endsWith('.pdf')))) ? (
                                         <div className="pdf-preview-container">
                                             <object
-                                                data={`${previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}#toolbar=0`}
+                                                data={`${previewDashboardResource.content.startsWith('http') || previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}#toolbar=0`}
                                                 type="application/pdf"
                                                 className="preview-iframe"
                                                 width="100%"
@@ -3550,7 +3550,10 @@ const SalesPage = () => {
                                 {fullScreenImage.startsWith('data:application/pdf') ? (
                                     <iframe src={fullScreenImage} style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} title="PDF Preview"></iframe>
                                 ) : (
-                                    <img src={fullScreenImage} alt="Full Screen" />
+                                    <img
+                                        src={fullScreenImage.startsWith('data:') || fullScreenImage.startsWith('http') ? fullScreenImage : (fullScreenImage.startsWith('/uploads') ? `${API_URL}${fullScreenImage}` : `${API_URL}/uploads/resources/${fullScreenImage}`)}
+                                        alt="Full Screen"
+                                    />
                                 )}
                             </div>
                         </div>
