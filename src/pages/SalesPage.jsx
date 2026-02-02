@@ -1629,7 +1629,20 @@ const SalesPage = () => {
                 };
                 setResourceForm(formattedResource);
                 setEditingResource(formattedResource);
-                setImagePreview(Array.isArray(data.resource.image) && data.resource.image.length > 0 ? data.resource.image[0] : (data.resource.image || null));
+                const getFirstImage = (imgData) => {
+                    if (!imgData) return null;
+                    if (Array.isArray(imgData)) return imgData[0];
+                    if (typeof imgData === 'string') {
+                        if (imgData.startsWith('[') && imgData.endsWith(']')) {
+                            try { return JSON.parse(imgData)[0]; } catch (e) { }
+                        }
+                        return imgData.split(',')[0].trim();
+                    }
+                    return null;
+                };
+
+                const firstImg = getFirstImage(data.resource.image);
+                setImagePreview(firstImg);
             } else {
                 const formattedResource = {
                     ...resource,
@@ -1637,7 +1650,19 @@ const SalesPage = () => {
                 };
                 setResourceForm(formattedResource);
                 setEditingResource(formattedResource);
-                setImagePreview(Array.isArray(resource.image) && resource.image.length > 0 ? resource.image[0] : (resource.image || null));
+
+                const getFirstImage = (imgData) => {
+                    if (!imgData) return null;
+                    if (Array.isArray(imgData)) return imgData[0];
+                    if (typeof imgData === 'string') {
+                        if (imgData.startsWith('[') && imgData.endsWith(']')) {
+                            try { return JSON.parse(imgData)[0]; } catch (e) { }
+                        }
+                        return imgData.split(',')[0].trim();
+                    }
+                    return null;
+                };
+                setImagePreview(getFirstImage(resource.image));
             }
             setShowResourceModal(true);
             setIsViewingResource(true);
