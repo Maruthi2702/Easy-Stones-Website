@@ -1344,7 +1344,6 @@ const SalesPage = () => {
             purpose: 'Scheduled in Person Sales Meeting',
             notes: '',
             outcome: '',
-            outcome: '',
             followUp: '',
             followUpDate: '',
             managerComment: '',
@@ -2514,7 +2513,7 @@ const SalesPage = () => {
                                                                 handleBreadcrumbClick(-1);
                                                             }
                                                         }}>Home</span>
-                                                        <span>/</span>
+                                                        <span className="separator">/</span>
                                                         <span className="current">Dashboard</span>
                                                     </div>
                                                 </div>
@@ -3018,7 +3017,7 @@ const SalesPage = () => {
                                                             </span>
                                                             {folderPath.map((folder, index) => (
                                                                 <React.Fragment key={folder.id}>
-                                                                    <span className="breadcrumb-separator">/</span>
+                                                                    <span className="separator">/</span>
                                                                     <span
                                                                         className={`breadcrumb-item ${index === folderPath.length - 1 ? 'current' : ''}`}
                                                                         onClick={() => handleBreadcrumbClick(index)}

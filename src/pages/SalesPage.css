@@ -3324,11 +3324,13 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.breadcrumbs span:not(/) {
+.dashboard-breadcrumbs span:not(.separator),
+.resource-breadcrumbs span:not(.separator) {
     transition: color 0.2s;
 }
 
-.breadcrumbs span:hover:not(/) {
+.dashboard-breadcrumbs span:hover:not(.separator),
+.resource-breadcrumbs span:hover:not(.separator) {
     color: var(--accent-color) !important;
 }
 
