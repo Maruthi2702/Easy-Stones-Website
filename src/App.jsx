@@ -70,36 +70,16 @@ const HomeRedirect = () => {
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = React.useState(null);
-  const navigate = useNavigate();
+  const { user, loading } = useAuth();
 
-  React.useEffect(() => {
-    const verifyAuth = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/auth/verify`, {
-          credentials: 'include'
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.valid === true) {
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        setIsAuthenticated(false);
-      }
-    };
-
-    verifyAuth();
-  }, [location.pathname]);
-
-  if (isAuthenticated === null) {
+  if (loading) {
     return <PageLoader />;
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  // Check if we have a user and they are from the admin database
+  const isAuthorized = user && (user.type === 'internal' || ['admin', 'director', 'manager', 'sales_rep'].includes(user.role));
+
+  return isAuthorized ? children : <Navigate to="/admin/login" replace />;
 };
 
 function App() {

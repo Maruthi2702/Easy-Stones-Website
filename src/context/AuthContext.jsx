@@ -112,10 +112,11 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            await fetch(`${API_URL}/api/customer/logout`, {
-                method: 'POST',
-                credentials: 'include'
-            });
+            // Attempt to logout from both endpoints
+            await Promise.all([
+                fetch(`${API_URL}/api/customer/logout`, { method: 'POST', credentials: 'include' }),
+                fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' })
+            ]);
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
