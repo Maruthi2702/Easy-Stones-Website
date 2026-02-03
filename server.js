@@ -1102,6 +1102,21 @@ app.get('/api/customers', verifyAnyAuth, async (req, res) => {
   }
 });
 
+// Get ALL customers for dropdown selection (minimal fields)
+app.get('/api/customers/dropdown', verifyAnyAuth, async (req, res) => {
+  try {
+    const customers = await Customer.find({})
+      .select('_id company contactName firstName lastName email')
+      .sort({ company: 1, contactName: 1 })
+      .lean();
+    
+    res.json(customers);
+  } catch (error) {
+    console.error('Error fetching customers for dropdown:', error);
+    res.status(500).json({ message: 'Failed to fetch customers', error: error.message });
+  }
+});
+
 // Get dashboard statistics (optimized aggregation)
 app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
   try {

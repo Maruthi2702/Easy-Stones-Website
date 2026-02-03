@@ -69,6 +69,7 @@ const SalesPage = () => {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
     const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
+    const [allCustomersForSelection, setAllCustomersForSelection] = useState([]);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -205,13 +206,14 @@ const SalesPage = () => {
     const [folderName, setFolderName] = useState('');
 
     const customerOptions = React.useMemo(() => {
-        return [...(customers || [])]
+        const sourceData = allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || []);
+        return [...sourceData]
             .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
             .map(c => ({
                 value: c._id,
                 label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown'
             }));
-    }, [customers]);
+    }, [allCustomersForSelection, customers]);
 
     const allVisits = React.useMemo(() => {
         if (!customers || !Array.isArray(customers)) return [];
@@ -537,8 +539,25 @@ const SalesPage = () => {
     useEffect(() => {
         fetchCurrentUser();
         fetchCustomers();
+        fetchAllCustomersForDropdown();
         // fetchDashboardResources will be called by its own useEffect when tab is active
     }, []);
+
+    const fetchAllCustomersForDropdown = async () => {
+        try {
+            const response = await fetch(`${API_URL}/api/customers/dropdown`, {
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setAllCustomersForSelection(data);
+            }
+        } catch (error) {
+            console.error('Error fetching all customers for dropdown:', error);
+        }
+    };
 
     // Auto-select first customer only if dashboard is not active
     useEffect(() => {
