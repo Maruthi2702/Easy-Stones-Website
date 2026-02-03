@@ -4,6 +4,7 @@ import { Search, ChevronDown, Check } from 'lucide-react';
 const SearchableSelect = ({ options, value, onChange, placeholder, className, style }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [hasOpenedOnce, setHasOpenedOnce] = useState(false);
     const dropdownRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -25,15 +26,23 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
     useEffect(() => {
         if (isOpen && inputRef.current) {
             inputRef.current.focus();
+            // Mark that dropdown has been opened at least once
+            if (!hasOpenedOnce) {
+                setHasOpenedOnce(true);
+            }
         } else {
             // Reset search when closing (optional, can depend on preference)
             setSearchTerm('');
         }
-    }, [isOpen]);
+    }, [isOpen, hasOpenedOnce]);
 
-    const filteredOptions = React.useMemo(() => options.filter(option =>
-        (option.label || '').toLowerCase().includes(searchTerm.toLowerCase())
-    ), [options, searchTerm]);
+    // Only calculate filtered options if dropdown has been opened at least once
+    const filteredOptions = React.useMemo(() => {
+        if (!hasOpenedOnce) return [];
+        return options.filter(option =>
+            (option.label || '').toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [options, searchTerm, hasOpenedOnce]);
 
     const selectedOption = React.useMemo(() => options.find(option => option.value === value), [options, value]);
 
