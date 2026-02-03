@@ -6,8 +6,9 @@ const getApiUrl = () => {
   if (import.meta.env.PROD) {
     return '';
   }
-  // In development, use localhost
-  return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  // In development, use relative path to utilize Vite proxy
+  // This ensures cookies are handled as same-origin
+  return '';
 };
 
 export const API_URL = getApiUrl();

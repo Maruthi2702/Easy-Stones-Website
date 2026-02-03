@@ -141,6 +141,7 @@ const mongoOptions = {
   socketTimeoutMS: 45000,
   connectTimeoutMS: 10000,
   maxPoolSize: 10,
+  family: 4, // Force IPv4 to avoid potential dual-stack networking issues
 };
 
 mongoose.connection.on('error', err => {
