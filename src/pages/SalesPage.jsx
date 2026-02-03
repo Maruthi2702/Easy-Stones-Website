@@ -483,7 +483,7 @@ const SalesPage = () => {
 
     // Sales Dashboard State
     const [salesResources, setSalesResources] = useState([]);
-    console.log('SalesPage Render: salesResources', salesResources);
+
     const [showDashboard, setShowDashboard] = useState(true);
     const [showDashboardUploadModal, setShowDashboardUploadModal] = useState(false);
     const [loadingVisitId, setLoadingVisitId] = useState(null);
@@ -601,14 +601,14 @@ const SalesPage = () => {
         try {
             const query = currentFolderId ? `?parentId=${currentFolderId}` : '';
             const url = `${API_URL}/api/sales-dashboard/resources${query}`;
-            console.log('📁 [FETCH] Fetching resources from:', url);
+
             const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 credentials: 'include'
             });
             if (response.ok) {
                 const data = await response.json();
-                console.log(`📁 [FETCH] Received ${data.length} resources:`, data);
+
                 setSalesResources(data);
             } else {
                 console.error('❌ [FETCH] Failed to fetch resources:', response.status, response.statusText);
@@ -939,7 +939,7 @@ const SalesPage = () => {
                 if (selectedCustomerDetail) {
                     setSelectedCustomerDetail({ ...selectedCustomerDetail, quickNote: data.quickNote });
                 }
-                console.log('Quick note saved successfully');
+
             } else {
                 console.error('Failed to save quick note');
             }
@@ -1036,11 +1036,11 @@ const SalesPage = () => {
             });
             if (response.ok) {
                 const result = await response.json();
-                console.log('✅ Upload successful:', result);
+
                 setShowDashboardUploadModal(false);
                 setDashboardUploadForm({ name: '', type: 'file', content: '', file: null });
                 setEditingDashboardResource(null);
-                console.log('📁 Fetching dashboard resources after upload...');
+
                 fetchDashboardResources();
             } else {
                 const errorData = await response.json();
@@ -1258,7 +1258,7 @@ const SalesPage = () => {
                 }
             });
             const data = await response.json();
-            console.log("[DEBUG] Fetched full visit data:", data);
+
 
             if (data && data.visit) {
                 const formattedVisit = {
@@ -1328,11 +1328,49 @@ const SalesPage = () => {
 
             const method = editingVisit ? 'PUT' : 'POST';
 
+            // Parse date to ensure it doesn't shift timezones
+            // If it's a simple YYYY-MM-DD string, append T12:00:00 to keep it in the middle of the day
+            // ensuring it stays on the same day regardless of UTC shift
+            let payloadDate = visitForm.date;
+            if (visitForm.date && /^\d{4}-\d{2}-\d{2}$/.test(visitForm.date)) {
+                // Check if it's "today"
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+                if (visitForm.date === todayStr) {
+                    // For today, use actual current time to be precise
+                    payloadDate = new Date().toISOString();
+                } else {
+                    // For other days, pick Noon to be safe
+                    payloadDate = `${visitForm.date}T12:00:00.000`; // Local noon-ish
+                    // Actually, to be safer with backend "new Date()" which assumes UTC if valid ISO...
+                    // If we send "YYYY-MM-DDT12:00:00.000", new Date() often treats as Local if no Z?
+                    // Let's explicitly check what backend does. 
+                    // Backend uses new Date(val). 
+                    // If we send "2026-02-02T12:00:00.000" (no Z), browser/node might treat as Local.
+                    // If we send "2026-02-02T12:00:00.000Z", it is UTC noon.
+                    // UTC Noon is 4AM PST. That is safe (same day).
+                    // UTC Noon is 7AM EST. Safe.
+                    // UTC Noon is 8PM China. Safe.
+                    payloadDate = `${visitForm.date}T12:00:00.000Z`;
+                }
+            }
+
+            const payload = {
+                ...visitForm,
+                date: payloadDate,
+                followUpDate: visitForm.followUpDate
+                    ? (visitForm.followUpDate.match(/^\d{4}-\d{2}-\d{2}$/)
+                        ? `${visitForm.followUpDate}T12:00:00.000Z`
+                        : visitForm.followUpDate)
+                    : ''
+            };
+
             const response = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify(visitForm)
+                body: JSON.stringify(payload)
             });
 
             if (response.ok) {
@@ -1714,7 +1752,7 @@ const SalesPage = () => {
                 : `${API_URL}/api/customers/${targetCustomerId}/resources`;
 
             const method = editingResource ? 'PUT' : 'POST';
-            console.log('Saving resource - Method:', method, 'Editing:', editingResource);
+
 
             const response = await fetch(url, {
                 method,
@@ -1751,7 +1789,7 @@ const SalesPage = () => {
 
     // Reaction handler
     const handleReaction = async (visitId, type) => {
-        console.log('handleReaction called:', { visitId, type, selectedCustomerId });
+
         if (!selectedCustomerId || !visitId) {
             console.error('Missing required IDs for reaction:', { selectedCustomerId, visitId });
             return;

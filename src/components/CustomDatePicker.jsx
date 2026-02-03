@@ -8,7 +8,12 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Select date', requir
     const dropdownRef = useRef(null);
 
     // Parse value to Date object
-    const selectedDate = value ? new Date(value + 'T00:00:00') : null;
+    // For YYYY-MM-DD format, create date using local timezone components
+    // to avoid UTC midnight causing date shifts
+    const selectedDate = value ? (() => {
+        const [year, month, day] = value.split('-').map(Number);
+        return new Date(year, month - 1, day);
+    })() : null;
 
     // Close dropdown when clicking outside
     useEffect(() => {

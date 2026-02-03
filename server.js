@@ -1549,14 +1549,14 @@ app.get('/api/sales-dashboard/resources', verifyAnyAuth, async (req, res) => {
   try {
     const { parentId } = req.query;
     const query = parentId ? { parentId } : { parentId: null };
-    console.log('📁 Fetching dashboard resources with query:', query);
+
     
     // Also support getting ALL resources if specifically requested (for search maybe?) - avoiding for now to keep simple
     const resources = await SalesDashboardResource.find(query)
       .select('-content')
       .populate('uploadedBy', 'username') // Populate username
       .sort({ isFolder: -1, createdAt: -1 }); // Folders first, exclude content
-    console.log(`📁 Found ${resources.length} resources`);
+
     res.json(resources);
   } catch (error) {
     console.error('❌ Error fetching dashboard resources:', error);
@@ -1603,7 +1603,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
       let buffer = req.file.buffer;
 
       if (isImage) {
-        console.log(`[DEBUG] Uploading image to Cloudinary: ${req.file.originalname}`);
+
         const result = await uploadToCloudinary(req.file.buffer, 'Resources', `res_${uniqueSuffix}`);
         content = result.secure_url;
         contentType = 'image/webp';
@@ -1641,14 +1641,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
     // Populate before returning
     await newResource.populate('uploadedBy', 'username');
 
-    console.log(`✅ [UPLOAD] Resource saved successfully in ${Date.now() - startSave}ms:`, {
-      name: newResource.name,
-      type: newResource.type,
-      isFolder: newResource.isFolder,
-      parentId: newResource.parentId,
-      id: newResource._id,
-      uploadedBy: newResource.uploadedBy?.username
-    });
+
     res.status(201).json(newResource);
   } catch (error) {
     console.error('Error uploading dashboard resource:', error);
@@ -1694,7 +1687,7 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, uploadResources.sin
       const isImage = req.file.mimetype.startsWith('image/');
       let filename = ''; // Declare filename here for both branches
       if (isImage) {
-        console.log(`[DEBUG] Uploading image to Cloudinary: ${req.file.originalname}`);
+
         const result = await uploadToCloudinary(req.file.buffer, 'Resources', `res_${uniqueSuffix}`);
         resource.content = result.secure_url;
         resource.contentType = 'image/webp';
@@ -1778,7 +1771,7 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res)
 app.get('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
-    console.log(`[DEBUG] Fetching single visit: ${visitId} for customer: ${customerId}`);
+
     
     // Use projection to get ONLY the specific visit
     const customer = await Customer.findOne(
@@ -1787,12 +1780,12 @@ app.get('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
     ).lean();
 
     if (!customer || !customer.visits || customer.visits.length === 0) {
-      console.log(`[DEBUG] Visit ${visitId} not found`);
+
       return res.status(404).json({ message: 'Visit not found' });
     }
     
     const visit = customer.visits[0];
-    console.log(`[DEBUG] Found visit. Image count: ${visit.image ? (Array.isArray(visit.image) ? visit.image.length : 1) : 0}`);
+
     
     res.json({ visit });
   } catch (error) {
@@ -1805,7 +1798,7 @@ app.get('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
 app.get('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
-    console.log(`[DEBUG] Fetching single resource: ${resourceId} for customer: ${customerId}`);
+
 
     // Use projection to get ONLY the specific resource
     const customer = await Customer.findOne(
@@ -1814,12 +1807,12 @@ app.get('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async
     ).lean();
 
     if (!customer || !customer.resources || customer.resources.length === 0) {
-      console.log(`[DEBUG] Resource ${resourceId} not found`);
+
       return res.status(404).json({ message: 'Resource not found' });
     }
     
     const resource = customer.resources[0];
-    console.log(`[DEBUG] Found resource. Image count: ${resource.image ? (Array.isArray(resource.image) ? resource.image.length : 1) : 0}`);
+
     
     res.json({ resource });
   } catch (error) {
@@ -1828,25 +1821,50 @@ app.get('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async
   }
 });
 
+// Helper function to ensure dates are stored as strings (YYYY-MM-DD format)
+// This prevents MongoDB from converting them to Date objects with timezone shifts
+const ensureDateString = (dateValue) => {
+  if (!dateValue) return dateValue;
+  if (typeof dateValue === 'string') {
+    // If it involves a time component (ISO string), keep it to preserve specific time
+    // This fixes the issue where dates are forced to UTC midnight (and thus shift days in US timezones)
+    if (dateValue.includes('T')) {
+        return dateValue;
+    }
+    // If it's already a string in YYYY-MM-DD format, return as-is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      return dateValue;
+    }
+  }
+  // If it's a Date object or other format, convert to YYYY-MM-DD
+  const d = new Date(dateValue);
+  if (isNaN(d.getTime())) return dateValue; // Return original if invalid
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // Add visit
 app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId } = req.params;
     const { date, purpose, notes, outcome, followUp, followUpDate, managerComment, headquartersComment, image } = req.body;
 
-    console.log(`[DEBUG] Received visit creation request for Customer: ${customerId}`);
-    console.log(`[DEBUG] Auth type: ${req.authType}, User ID: ${req.userId || req.customerId}`);
-    console.log(`[DEBUG] Payload size (approx): ${JSON.stringify(req.body).length} chars`);
 
-    if (!date) {
-      console.log('[DEBUG] Missing date in payload');
-      return res.status(400).json({ message: 'Visit date is required' });
+    
+    // Process date
+    const processedDate = ensureDateString(date);
+
+
+    if (!processedDate || !purpose) {
+      return res.status(400).json({ message: 'Date and purpose are required' });
     }
 
     // Check if customer exists first (using lean query)
-    const customerExists = await Customer.findById(customerId).select('_id');
-    if (!customerExists) {
-      console.log(`[DEBUG] Customer ${customerId} not found`);
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+
       return res.status(404).json({ message: 'Customer not found' });
     }
 
@@ -1869,12 +1887,12 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
     const visitId = new mongoose.Types.ObjectId();
     const visitData = {
       _id: visitId,
-      date,
+      date: ensureDateString(date),
       purpose,
       notes,
       outcome,
       followUp,
-      followUpDate,
+      followUpDate: ensureDateString(followUpDate),
       managerComment,
       headquartersComment,
       image: processedImage,
@@ -1884,7 +1902,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       createdAt: new Date()
     };
     
-    console.log(`[DEBUG] Prepared visit data with ID: ${visitId}. Image count: ${image && Array.isArray(image) ? image.length : (image ? 1 : 0)}`);
+
 
     // Use atomic $push to add the visit without loading the entire document
     const startUpdate = Date.now();
@@ -1892,14 +1910,14 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       { _id: customerId },
       { $push: { visits: visitData } }
     );
-    console.log(`[DEBUG] UpdateOne completed in ${Date.now() - startUpdate}ms`);
+
 
     if (result.matchedCount === 0) {
-        console.error(`[DEBUG] ERROR: Update match count is 0. ID ${customerId} might not exist?`);
+
         return res.status(404).json({ message: 'Customer not found or update failed' });
     }
 
-    console.log('Saved visit atomically with image:', !!image, 'Image length:', image ? image.length : 0);
+
     
     // Return only the new visit data instead of the whole array
     res.status(201).json({ success: true, visit: visitData });
@@ -1937,12 +1955,12 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
     const { id: updatedBy, name: updatedByName } = await getPerformerInfo(req);
 
     const updateData = {};
-    if (date) updateData['visits.$.date'] = date;
+    if (date) updateData['visits.$.date'] = ensureDateString(date);
     if (purpose !== undefined) updateData['visits.$.purpose'] = purpose;
     if (notes !== undefined) updateData['visits.$.notes'] = notes;
     if (outcome !== undefined) updateData['visits.$.outcome'] = outcome;
     if (followUp !== undefined) updateData['visits.$.followUp'] = followUp;
-    if (followUpDate !== undefined) updateData['visits.$.followUpDate'] = followUpDate;
+    if (followUpDate !== undefined) updateData['visits.$.followUpDate'] = ensureDateString(followUpDate);
     if (managerComment !== undefined) updateData['visits.$.managerComment'] = managerComment;
     if (headquartersComment !== undefined) updateData['visits.$.headquartersComment'] = headquartersComment;
     if (image !== undefined) {

@@ -6,17 +6,17 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
-    // Parse the incoming ISO string
+    // Parse the incoming ISO string (UTC)
     const dateObj = value ? new Date(value) : new Date();
 
-    // Format Display Time: "10:30 AM"
+    // Format Display Time: "10:30 AM" (Local Time)
     const displayTime = dateObj.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
         hour12: true
     });
 
-    // Helper to get YYYY-MM-DD
+    // Helper to get YYYY-MM-DD (Local) for CustomDatePicker
     const getFormattedDateStr = (date) => {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -53,20 +53,21 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
     }, []);
 
     const handleDateChange = (newDateStr) => {
-        // newDateStr is "YYYY-MM-DD"
+        // newDateStr is "YYYY-MM-DD" (Local intent)
         if (!newDateStr) return;
 
         const [year, month, day] = newDateStr.split('-').map(Number);
 
-        // Create new date preserving current time
-        const newDate = new Date(dateObj);
+        // Create new date preserving current time (Local)
+        const newDate = new Date(dateObj); // Clone current
         newDate.setFullYear(year);
         newDate.setMonth(month - 1);
         newDate.setDate(day);
 
-        // Format to local ISO (YYYY-MM-DDTHH:mm)
-        const offset = newDate.getTimezoneOffset() * 60000;
-        const localISO = new Date(newDate - offset).toISOString().slice(0, 16);
+        // Emit as ISO-like string (Local Time) treated as UTC Face Value
+        // Manually format to YYYY-MM-DDTHH:mm:ss.000Z
+        const pad = (n) => String(n).padStart(2, '0');
+        const localISO = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}:00.000Z`;
         onChange(localISO);
     };
 
@@ -74,9 +75,13 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
         const newDate = new Date(dateObj);
         newDate.setHours(slot.hour);
         newDate.setMinutes(slot.min);
+        // Reset seconds/ms for clean times
+        newDate.setSeconds(0);
+        newDate.setMilliseconds(0);
 
-        const offset = newDate.getTimezoneOffset() * 60000;
-        const localISO = new Date(newDate - offset).toISOString().slice(0, 16);
+        // Emit as ISO-like string (Local Time) treated as UTC Face Value
+        const pad = (n) => String(n).padStart(2, '0');
+        const localISO = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}:00.000Z`;
         onChange(localISO);
         setIsOpen(false);
     };
