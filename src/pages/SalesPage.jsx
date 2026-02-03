@@ -207,7 +207,9 @@ const SalesPage = () => {
 
     const customerOptions = React.useMemo(() => {
         const sourceData = allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || []);
-        return [...sourceData]
+        // Sort and map in one pass to avoid creating intermediate arrays
+        return sourceData
+            .slice() // Create a shallow copy to avoid mutating original
             .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
             .map(c => ({
                 value: c._id,
