@@ -20,13 +20,12 @@ import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
 import SalesPlannerTab from '../components/SalesPlannerTab';
 import CustomDatePicker from '../components/CustomDatePicker';
-import { formatForDateInput } from '../utils/dateUtils';
+import { formatForDateInput, formatDate, toLocalISOString, getLocalISOString } from '../utils/dateUtils';
 import DashboardStats from '../components/sales/DashboardStats';
 import CustomerSidebar from '../components/sales/CustomerSidebar';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
-import { formatDate } from '../utils/dateUtils';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -1328,42 +1327,10 @@ const SalesPage = () => {
 
             const method = editingVisit ? 'PUT' : 'POST';
 
-            // Parse date to ensure it doesn't shift timezones
-            // If it's a simple YYYY-MM-DD string, append T12:00:00 to keep it in the middle of the day
-            // ensuring it stays on the same day regardless of UTC shift
-            let payloadDate = visitForm.date;
-            if (visitForm.date && /^\d{4}-\d{2}-\d{2}$/.test(visitForm.date)) {
-                // Check if it's "today"
-                const today = new Date();
-                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-                if (visitForm.date === todayStr) {
-                    // For today, use actual current time to be precise
-                    payloadDate = new Date().toISOString();
-                } else {
-                    // For other days, pick Noon to be safe
-                    payloadDate = `${visitForm.date}T12:00:00.000`; // Local noon-ish
-                    // Actually, to be safer with backend "new Date()" which assumes UTC if valid ISO...
-                    // If we send "YYYY-MM-DDT12:00:00.000", new Date() often treats as Local if no Z?
-                    // Let's explicitly check what backend does. 
-                    // Backend uses new Date(val). 
-                    // If we send "2026-02-02T12:00:00.000" (no Z), browser/node might treat as Local.
-                    // If we send "2026-02-02T12:00:00.000Z", it is UTC noon.
-                    // UTC Noon is 4AM PST. That is safe (same day).
-                    // UTC Noon is 7AM EST. Safe.
-                    // UTC Noon is 8PM China. Safe.
-                    payloadDate = `${visitForm.date}T12:00:00.000Z`;
-                }
-            }
-
             const payload = {
                 ...visitForm,
-                date: payloadDate,
-                followUpDate: visitForm.followUpDate
-                    ? (visitForm.followUpDate.match(/^\d{4}-\d{2}-\d{2}$/)
-                        ? `${visitForm.followUpDate}T12:00:00.000Z`
-                        : visitForm.followUpDate)
-                    : ''
+                date: visitForm.date, // Send as-is, backend will handle with ensureDateString
+                followUpDate: visitForm.followUpDate || ''
             };
 
             const response = await fetch(url, {

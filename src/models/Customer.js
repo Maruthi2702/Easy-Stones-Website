@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const visitSchema = new mongoose.Schema({
-  date: { type: Date, required: true },
+  date: { type: String, required: true },
   purpose: String,
   notes: String,
   outcome: String,
@@ -66,7 +66,7 @@ const customerSchema = new mongoose.Schema({
   }],
   visits: [visitSchema],
   resources: [{
-    date: { type: Date, default: Date.now },
+    date: { type: String, default: null },
     customer: String,
     location: String,
     resourceType: String,

@@ -20,6 +20,13 @@ export const toLocalISOString = (date) => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
+export const getLocalISOString = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}Z`;
+};
+
 export const formatForDateTimeInput = (date) => {
   return toLocalISOString(date);
 };

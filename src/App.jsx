@@ -79,7 +79,7 @@ const ProtectedRoute = ({ children }) => {
   // Check if we have a user and they are from the admin database
   const isAuthorized = user && (user.type === 'internal' || ['admin', 'director', 'manager', 'sales_rep'].includes(user.role));
 
-  return isAuthorized ? children : <Navigate to="/admin/login" replace />;
+  return isAuthorized ? children : <Navigate to="/login" replace />;
 };
 
 function App() {
@@ -105,6 +105,7 @@ function App() {
                   <Route path="/contact" element={<ContactPage />} />
                   <Route path="/warranty" element={<WarrantyPage />} />
                   <Route path="/login" element={<CustomerLoginPage />} />
+                  <Route path="/customer/login" element={<CustomerLoginPage />} />
                   <Route
                     path="/sales"
                     element={
