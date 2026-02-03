@@ -112,10 +112,8 @@ const SalesPage = () => {
             if (response.ok) {
                 const data = await response.json();
                 setStats(data);
-                // Also update todayScheduleCount if provided by backend stats
-                if (data.todayScheduleCount !== undefined) {
-                    setTodayScheduleCount(data.todayScheduleCount);
-                }
+                // Removed: Do not overwrite todayScheduleCount from backend stats.
+                // We rely on fetchSchedules() to calculate this client-side for correct local "today" context.
             }
         } catch (error) {
             console.error('Error fetching dashboard stats:', error);
@@ -157,41 +155,42 @@ const SalesPage = () => {
     }, [fetchDashboardData]);
 
     // Fetch schedules for the dashboard
-    useEffect(() => {
-        const fetchSchedules = async () => {
-            try {
-                // Fetch a broad range of schedules for the dashboard (e.g., +/- 1 month)
-                const now = new Date();
-                const start = new Date(now);
-                start.setMonth(now.getMonth() - 1);
-                const end = new Date(now);
-                end.setMonth(now.getMonth() + 1);
+    const fetchSchedules = useCallback(async () => {
+        try {
+            // Fetch a broad range of schedules for the dashboard (e.g., +/- 1 month)
+            const now = new Date();
+            const start = new Date(now);
+            start.setMonth(now.getMonth() - 1);
+            const end = new Date(now);
+            end.setMonth(now.getMonth() + 1);
 
-                const response = await fetch(`${API_URL}/api/schedule?start=${start.toISOString()}&end=${end.toISOString()}`, {
-                    credentials: 'include'
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    setAllSchedules(data);
+            const response = await fetch(`${API_URL}/api/schedule?start=${start.toISOString()}&end=${end.toISOString()}`, {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setAllSchedules(data);
 
-                    // Update today's count from the fetched data
-                    const todayStart = new Date();
-                    todayStart.setHours(0, 0, 0, 0);
-                    const todayEnd = new Date();
-                    todayEnd.setHours(23, 59, 59, 999);
+                // Update today's count from the fetched data
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+                const todayEnd = new Date();
+                todayEnd.setHours(23, 59, 59, 999);
 
-                    const todayCount = data.filter(s => {
-                        const d = new Date(s.startTime);
-                        return d >= todayStart && d <= todayEnd;
-                    }).length;
-                    setTodayScheduleCount(todayCount);
-                }
-            } catch (error) {
-                console.error('Error fetching schedules:', error);
+                const todayCount = data.filter(s => {
+                    const d = new Date(s.startTime);
+                    return d >= todayStart && d <= todayEnd;
+                }).length;
+                setTodayScheduleCount(todayCount);
             }
-        };
-        fetchSchedules();
+        } catch (error) {
+            console.error('Error fetching schedules:', error);
+        }
     }, []);
+
+    useEffect(() => {
+        fetchSchedules();
+    }, [fetchSchedules]);
 
     // Modal states
     const [showContactModal, setShowContactModal] = useState(false);
@@ -1041,6 +1040,9 @@ const SalesPage = () => {
                 setEditingDashboardResource(null);
 
                 fetchDashboardResources();
+                // Refresh dashboard data and stats
+                fetchDashboardData();
+                fetchDashboardStats();
             } else {
                 const errorData = await response.json();
                 alert(`Failed to ${editingDashboardResource ? 'update' : 'upload'} resource: ${errorData.message}`);
@@ -1346,6 +1348,12 @@ const SalesPage = () => {
                 } else {
                     await fetchCustomers();
                 }
+
+                // Refresh dashboard data and stats
+                await fetchDashboardData();
+                await fetchDashboardStats();
+                await fetchSchedules();
+
                 handleCloseVisitModal();
             } else {
                 const data = await response.json();
@@ -1729,7 +1737,16 @@ const SalesPage = () => {
             });
 
             if (response.ok) {
-                await fetchSingleCustomer(targetCustomerId);
+                if (selectedCustomerId && targetCustomerId === selectedCustomerId) {
+                    await fetchSingleCustomer(selectedCustomerId);
+                } else {
+                    await fetchCustomers();
+                }
+
+                // Refresh dashboard data and stats
+                await fetchDashboardData();
+                await fetchDashboardStats();
+
                 handleCloseResourceModal();
             } else {
                 const data = await response.json();
@@ -2575,6 +2592,7 @@ const SalesPage = () => {
                                                 customers={customers}
                                                 currentUserId={currentUserId}
                                                 onSelectCustomer={handleSelectCustomer}
+                                                onScheduleChange={fetchSchedules}
                                             />
                                         </div>
                                     )}

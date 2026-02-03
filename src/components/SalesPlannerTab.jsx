@@ -10,7 +10,7 @@ import SearchableSelect from './SearchableSelect';
 import { formatForDateTimeInput } from '../utils/dateUtils';
 import GoogleStyleDateTimePicker from './GoogleStyleDateTimePicker';
 
-const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer }) => {
+const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer, onScheduleChange }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewMode, setViewMode] = useState('day'); // 'day' or 'week'
     const [scheduleItems, setScheduleItems] = useState([]);
@@ -167,6 +167,7 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer }) =>
             if (response.ok) {
                 console.log('[Planner] Save successful');
                 fetchSchedule();
+                if (onScheduleChange) onScheduleChange();
                 setShowAddModal(false);
                 setEditingItem(null);
                 setForm({
@@ -178,7 +179,7 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer }) =>
             } else {
                 const errorData = await response.json();
                 console.error('[Planner] Save failed:', errorData);
-                alert(`Failed to save: ${errorData.message || 'Unknown error'}`);
+                alert(`Failed to save: ${errorData.message || errorData.error || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('[Planner] Save error:', error);
@@ -202,6 +203,7 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer }) =>
             });
             if (response.ok) {
                 fetchSchedule();
+                if (onScheduleChange) onScheduleChange();
                 setShowDeleteModal(false);
                 setItemToDelete(null);
             }
@@ -310,7 +312,7 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer }) =>
                                             setEditingItem(item);
                                             setForm({
                                                 customerId: item.customerId?._id || item.customerId,
-                                                startTime: formatForDateTimeInput(item.startTime),
+                                                startTime: item.startTime,
                                                 activityType: item.activityType,
                                                 notes: item.notes
                                             });

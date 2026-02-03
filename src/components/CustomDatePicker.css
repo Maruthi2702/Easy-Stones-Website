@@ -278,9 +278,9 @@
 }
 
 .time-slot.selected {
-    background: var(--accent-color);
+    background: #FFD700;
     color: #000;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 /* Mobile Responsive */

@@ -41,6 +41,15 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
         return slots;
     }, []);
 
+    const selectedTimeRef = useRef(null);
+
+    // Auto-scroll to selected time when dropdown opens
+    useEffect(() => {
+        if (isOpen && selectedTimeRef.current) {
+            selectedTimeRef.current.scrollIntoView({ block: 'center' });
+        }
+    }, [isOpen]);
+
     // Handle Outside Click
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -64,11 +73,8 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
         newDate.setMonth(month - 1);
         newDate.setDate(day);
 
-        // Emit as ISO-like string (Local Time) treated as UTC Face Value
-        // Manually format to YYYY-MM-DDTHH:mm:ss.000Z
-        const pad = (n) => String(n).padStart(2, '0');
-        const localISO = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}:00.000Z`;
-        onChange(localISO);
+        // Emit as ISO string (Correct UTC representation of the local time selected)
+        onChange(newDate.toISOString());
     };
 
     const handleTimeSelect = (slot) => {
@@ -79,10 +85,8 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
         newDate.setSeconds(0);
         newDate.setMilliseconds(0);
 
-        // Emit as ISO-like string (Local Time) treated as UTC Face Value
-        const pad = (n) => String(n).padStart(2, '0');
-        const localISO = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}:00.000Z`;
-        onChange(localISO);
+        // Emit as ISO string
+        onChange(newDate.toISOString());
         setIsOpen(false);
     };
 
@@ -113,6 +117,7 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
                             {timeSlots.map((slot, idx) => (
                                 <div
                                     key={idx}
+                                    ref={displayTime === slot.label ? selectedTimeRef : null}
                                     className={`time-slot ${displayTime === slot.label ? 'selected' : ''}`}
                                     onClick={() => handleTimeSelect(slot)}
                                 >
