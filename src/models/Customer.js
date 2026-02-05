@@ -18,12 +18,12 @@ const visitSchema = new mongoose.Schema({
     type: { type: String, required: true }, // e.g., 'like', 'love'
     userId: String, // Who reacted
     userName: String, // Name of reactor for display/tooltip
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: String }
   }],
-  createdAt: { type: Date, default: Date.now },
+  createdAt: { type: String },
   updatedBy: String,  // User ID or Customer ID who last updated this visit
   updatedByName: String,  // Display name of the person who last updated this visit
-  updatedAt: Date
+  updatedAt: String
 });
 
 const customerSchema = new mongoose.Schema({
@@ -62,7 +62,7 @@ const customerSchema = new mongoose.Schema({
     role: String,
     isPrimary: { type: Boolean, default: false },
     notes: String,
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: String }
   }],
   visits: [visitSchema],
   resources: [{
@@ -77,7 +77,7 @@ const customerSchema = new mongoose.Schema({
     status: { type: String, default: 'Active' },
     url: String,
     uploadedBy: String,
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: String }
   }],
   quickNote: { type: String, default: '' }
 }, { 

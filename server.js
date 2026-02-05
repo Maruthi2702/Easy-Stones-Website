@@ -78,7 +78,6 @@ const generateMockups = async (slabImageBuffer, baseFilename) => {
       const outputFilename = `${template.suffix}_${baseFilename}`;
       const result = await uploadToCloudinary(compositeBuffer, 'products/installed', outputFilename);
       
-      console.log(`✅ Mockup generated: ${result.secure_url}`);
       generatedUrls.push(result.secure_url);
 
     } catch (err) {
@@ -606,9 +605,6 @@ app.post('/api/auth/change-password', verifyToken, async (req, res) => {
 
     // Get adminId from JWT token (set by verifyToken middleware)
     const adminId = req.userId;
-    
-    console.log('Password change attempt for adminId:', adminId);
-
     const admin = await User.findById(adminId);
     if (!admin) {
       return res.status(404).json({ success: false, message: 'Admin not found' });
@@ -625,7 +621,6 @@ app.post('/api/auth/change-password', verifyToken, async (req, res) => {
     admin.password = newPassword;
     await admin.save();
 
-    console.log('Password changed successfully for adminId:', adminId);
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
     console.error('❌ Password change error:', error);
@@ -1081,8 +1076,7 @@ app.get('/api/customers', verifyAnyAuth, async (req, res) => {
     }
 
     const total = await Customer.countDocuments(query);
-    console.log('🔍 [DEBUG] /api/customers query:', query);
-    console.log('🔍 [DEBUG] /api/customers total found:', total);
+
     const customers = await Customer.find(query)
       .select('-password -contacts -visits.image -resources.image')
       .lean()
@@ -1120,15 +1114,28 @@ app.get('/api/customers/dropdown', verifyAnyAuth, async (req, res) => {
 // Get dashboard statistics (optimized aggregation)
 app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
   try {
-    const { timeRange = 'all' } = req.query;
+    const { timeRange = '7days', localDate } = req.query;
     const now = new Date();
+    
+    // Determine "Today" based on localDate from client or server now
+    let targetDateStr = localDate;
+    if (!targetDateStr) {
+      const pstDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+      targetDateStr = `${pstDate.getFullYear()}-${String(pstDate.getMonth() + 1).padStart(2, '0')}-${String(pstDate.getDate()).padStart(2, '0')}`;
+    }
+
+    const [year, month, day] = targetDateStr.split('-').map(Number);
+    // Use Face Value comparison for "Today" boundaries
+    const todayStr = targetDateStr; 
+    const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+    const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
     let startDate = null;
     let endDate = null;
 
     if (timeRange === '1day') {
-      // Use UTC components to match "Face Value" dates stored in DB
-      startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0));
-      endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+      startDate = startOfTargetDay;
+      endDate = endOfTargetDay;
     } else if (timeRange === '7days') {
       startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
     } else if (timeRange === '30days') {
@@ -1140,27 +1147,14 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
     const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
     const isAdmin = ['admin', 'director', 'manager'].includes(role);
 
-    // Strictly filter by current user for the dashboard view
-    const userMatch = { "visits.createdBy": userId.toString() };
-    // Calculate today's date in PST timezone
-    const pstDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-    const todayStr = `${pstDate.getFullYear()}-${String(pstDate.getMonth() + 1).padStart(2, '0')}-${String(pstDate.getDate()).padStart(2, '0')}`;
-    const dateMatch = startDate ? (endDate ? {
-        // For "1day" filter, compare date strings directly
-        "visits.date": todayStr
-    } : {
-        $expr: { 
-            $gte: [
-                { $toDate: { $ifNull: ["$visits.date", "$visits.createdAt"] } }, 
-                startDate 
-            ] 
-        } 
-    }) : {};
+    const userMatchObj = { "visits.createdBy": userId.toString() };
+    const visitDateMatch = getAggregationRangeMatch(startDate, endDate, "visits", userMatchObj);
+    const followUpDateMatchScoped = getFollowUpRangeMatch(startDate, endDate, userMatchObj);
 
-    // Aggregation for Visits Stats
+    // Aggregation for Visits Stats (Strictly by Visit Date)
     const visitStats = await Customer.aggregate([
       { $unwind: "$visits" },
-      { $match: { ...userMatch, ...dateMatch } },
+      { $match: visitDateMatch },
       {
         $group: {
           _id: null,
@@ -1193,21 +1187,16 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
               ]
             }
           },
-          followUp: {
-            $sum: {
-              $cond: [
-                {
-                  $or: [
-                        { $and: ["$visits.nextAction", { $ne: ["$visits.nextAction", ""] }] },
-                        { $and: ["$visits.followUp", { $ne: ["$visits.followUp", ""] }] }
-                      ]
-                },
-                1, 0
-              ]
-            }
-          }
+          followUp: { $sum: 0 } // Move to separate aggregation
         }
       }
+    ]);
+
+    // Separate Aggregation for Follow-Up Stats (Strictly by Follow-Up Date)
+    const followUpStats = await Customer.aggregate([
+        { $unwind: "$visits" },
+        { $match: followUpDateMatchScoped },
+        { $count: "count" }
     ]);
 
     // Today's Schedule count
@@ -1219,40 +1208,38 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
       { $unwind: "$visits" },
       {
         $match: {
-          ...userMatch,
-          $expr: {
-            $eq: [
-              { $dateToString: { format: "%Y-%m-%d", date: { $toDate: "$visits.followUpDate" } } },
-              `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-            ]
-          }
+          ...userMatchObj,
+          "visits.followUpDate": todayStr
         }
       },
       { $count: "count" }
     ]);
 
     // Strictly filter by current user for dashboard resources
-    const resourceMatch = { 
+    // Strictly filter by current user for dashboard resources
+    const resourceUserFilter = { 
         $or: [
             { "resources.uploadedBy": userId.toString() },
             { "resources.createdBy": userId.toString() }
         ]
     };
-    const resourceDateMatch = startDate ? (endDate ? {
-        // For "1day" filter, compare date strings directly
-        "resources.date": todayStr
-    } : {
-        $expr: { 
-            $gte: [
-                { $toDate: { $ifNull: ["$resources.date", "$resources.createdAt"] } }, 
-                startDate 
-            ] 
-        } 
-    }) : {};
     
+    const resourceRange = getAggregationRangeMatch(startDate, endDate, "resources");
     const resourceStats = await Customer.aggregate([
       { $unwind: "$resources" },
-      { $match: { ...resourceMatch, ...resourceDateMatch } },
+      { $match: { 
+          $expr: {
+              $and: [
+                  {
+                      $or: [
+                          { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
+                          { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
+                      ]
+                  },
+                  (resourceRange.$expr || { $literal: true })
+              ]
+          }
+      } },
       { $count: "count" }
     ]);
 
@@ -1260,7 +1247,7 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
       visits: visitStats[0]?.visits || 0,
       keyVisits: visitStats[0]?.keyVisits || 0,
       bids: visitStats[0]?.bids || 0,
-      followUp: visitStats[0]?.followUp || 0,
+      followUp: followUpStats[0]?.count || 0,
       resources: resourceStats[0]?.count || 0,
       todayScheduleCount: scheduleCount[0]?.count || 0
     };
@@ -1273,17 +1260,28 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
 });
 
 // Get dashboard visits (returns a flat list for all customers in range)
-app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
+ app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
     try {
-        const { timeRange = 'all' } = req.query;
+        const { timeRange = 'all', localDate, filterType } = req.query;
         const now = new Date();
+        
+        // Determine "Today" based on localDate from client or server now
+        let targetDateStr = localDate;
+        if (!targetDateStr) {
+            const pstDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+            targetDateStr = `${pstDate.getFullYear()}-${String(pstDate.getMonth() + 1).padStart(2, '0')}-${String(pstDate.getDate()).padStart(2, '0')}`;
+        }
+
+        const [year, month, day] = targetDateStr.split('-').map(Number);
+        const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+        const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
         let startDate = null;
         let endDate = null;
 
         if (timeRange === '1day') {
-            // Use UTC components to match "Face Value" dates stored in DB
-            startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0));
-            endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+            startDate = startOfTargetDay;
+            endDate = endOfTargetDay;
         } else if (timeRange === '7days') {
             startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
         } else if (timeRange === '30days') {
@@ -1293,32 +1291,33 @@ app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
         }
 
         const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
-        const isAdmin = ['admin', 'director', 'manager'].includes(role);
+        
+        const userMatchObj = { "visits.createdBy": userId.toString() };
 
-        // Strictly filter by current user for the dashboard list
-        const userMatch = { "visits.createdBy": userId.toString() };
-
-        // Calculate today's date in PST timezone
-        const pstDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-        const todayStr = `${pstDate.getFullYear()}-${String(pstDate.getMonth() + 1).padStart(2, '0')}-${String(pstDate.getDate()).padStart(2, '0')}`;
-        const dateMatch = startDate ? (endDate ? {
-            // For "1day" filter, compare date strings directly
-            "visits.date": todayStr
-        } : {
-            $expr: { 
-                $gte: [
-                    { $toDate: { $ifNull: ["$visits.date", "$visits.createdAt"] } }, 
-                    startDate 
-                ] 
-            } 
-        }) : {};
+        // Handle fallback logic for matching
+        const dateMatch = filterType === 'followup' 
+            ? getFollowUpRangeMatch(startDate, endDate, userMatchObj)
+            : getAggregationRangeMatch(startDate, endDate, "visits", userMatchObj);
 
         const visits = await Customer.aggregate([
             { $unwind: "$visits" },
-            { $match: { ...userMatch, ...dateMatch } },
+            { $match: dateMatch },
             { $project: {
                 _id: "$visits._id",
-                date: { $ifNull: ["$visits.date", { $dateToString: { format: "%Y-%m-%d", date: "$visits.createdAt" } }] },
+                date: {
+                    $cond: [
+                        { $eq: [{ $type: "$visits.date" }, "string"] },
+                        "$visits.date",
+                        { $ifNull: [
+                            "$visits.date",
+                            { $cond: [
+                                { $eq: [{ $type: "$visits.createdAt" }, "date"] },
+                                { $dateToString: { format: "%Y-%m-%d", date: "$visits.createdAt" } },
+                                { $substr: ["$visits.createdAt", 0, 10] }
+                            ]}
+                        ]}
+                    ]
+                },
                 purpose: "$visits.purpose",
                 notes: "$visits.notes",
                 outcome: "$visits.outcome",
@@ -1326,7 +1325,13 @@ app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
                 followUp: "$visits.followUp",
                 followUpDate: "$visits.followUpDate",
                 createdBy: "$visits.createdBy",
-                createdAt: { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$visits.createdAt" } },
+                createdAt: {
+                    $cond: [
+                        { $eq: [{ $type: "$visits.createdAt" }, "date"] },
+                        { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$visits.createdAt" } },
+                        "$visits.createdAt"
+                    ]
+                },
                 customerId: "$_id",
                 customerName: { $concat: [ 
                     { $ifNull: ["$company", ""] }, 
@@ -1347,15 +1352,26 @@ app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
 // Get dashboard resources (returns a flat list for all customers in range)
 app.get('/api/dashboard/resources', verifyAnyAuth, async (req, res) => {
     try {
-        const { timeRange = 'all' } = req.query;
+        const { timeRange = 'all', localDate } = req.query;
         const now = new Date();
+        
+        // Determine "Today" based on localDate from client or server now
+        let targetDateStr = localDate;
+        if (!targetDateStr) {
+            const pstDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+            targetDateStr = `${pstDate.getFullYear()}-${String(pstDate.getMonth() + 1).padStart(2, '0')}-${String(pstDate.getDate()).padStart(2, '0')}`;
+        }
+
+        const [year, month, day] = targetDateStr.split('-').map(Number);
+        const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+        const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
         let startDate = null;
         let endDate = null;
 
         if (timeRange === '1day') {
-            // Use UTC components to match "Face Value" dates stored in DB
-            startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0));
-            endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+            startDate = startOfTargetDay;
+            endDate = endOfTargetDay;
         } else if (timeRange === '7days') {
             startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
         } else if (timeRange === '30days') {
@@ -1367,41 +1383,63 @@ app.get('/api/dashboard/resources', verifyAnyAuth, async (req, res) => {
         const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
         const isAdmin = ['admin', 'director', 'manager'].includes(role);
 
-        // Strictly filter by current user for dashboard resources list
-        const resourceMatch = { 
-            $or: [
-                { "resources.uploadedBy": userId.toString() },
-                { "resources.createdBy": userId.toString() }
-            ]
+        const resourceMatchObj = { 
+            "resources.uploadedBy": userId.toString(),
+            // Note: mixing OR inside $eq is complex, let's keep it simple or use $or if needed.
+            // Actually, resourceMatch was using $or. 
+            // In $expr, $or is different.
         };
-        // Calculate today's date in PST timezone
-        const pstDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-        const todayStr = `${pstDate.getFullYear()}-${String(pstDate.getMonth() + 1).padStart(2, '0')}-${String(pstDate.getDate()).padStart(2, '0')}`;
-        const resourceDateMatch = startDate ? (endDate ? {
-            // For "1day" filter, compare date strings directly
-            "resources.date": todayStr
-        } : {
+        
+        // For resources, let's stick to the $or match outside $expr if possible, 
+        // OR wrap it properly.
+        const rangeMatch = getAggregationRangeMatch(startDate, endDate, "resources");
+        
+        const resourceMatchStage = {
             $expr: {
-                $gte: [
-                    { $toDate: { $ifNull: ["$resources.date", "$resources.createdAt"] } },
-                    startDate
+                $and: [
+                    {
+                        $or: [
+                            { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
+                            { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
+                        ]
+                    },
+                    (rangeMatch.$expr || { $literal: true })
                 ]
             }
-        }) : {};
+        };
 
         const resources = await Customer.aggregate([
             { $unwind: "$resources" },
-            { $match: { ...resourceMatch, ...resourceDateMatch } },
+            { $match: resourceMatchStage },
             { $project: {
                 _id: "$resources._id",
                 name: "$resources.name",
                 description: "$resources.description",
                 type: "$resources.type",
                 resourceType: "$resources.resourceType",
-                date: { $ifNull: ["$resources.date", { $dateToString: { format: "%Y-%m-%d", date: "$resources.createdAt" } }] },
+                date: {
+                    $cond: [
+                        { $eq: [{ $type: "$resources.date" }, "string"] },
+                        "$resources.date",
+                        { $ifNull: [
+                            "$resources.date",
+                            { $cond: [
+                                { $eq: [{ $type: "$resources.createdAt" }, "date"] },
+                                { $dateToString: { format: "%Y-%m-%d", date: "$resources.createdAt" } },
+                                { $substr: ["$resources.createdAt", 0, 10] }
+                            ]}
+                        ]}
+                    ]
+                },
                 content: "$resources.content",
                 uploadedBy: "$resources.uploadedBy",
-                createdAt: { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$resources.createdAt" } },
+                createdAt: {
+                    $cond: [
+                        { $eq: [{ $type: "$resources.createdAt" }, "date"] },
+                        { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$resources.createdAt" } },
+                        "$resources.createdAt"
+                    ]
+                },
                 customerId: "$_id",
                 customerName: { $concat: [ 
                     { $ifNull: ["$company", ""] }, 
@@ -1454,7 +1492,7 @@ app.post('/api/customers/:customerId/contacts', verifyAnyAuth, async (req, res) 
       role,
       isPrimary: isPrimary || false,
       notes,
-      createdAt: new Date(),
+      createdAt: getNowLocalISO(),
       createdBy: (await getPerformerInfo(req)).id
     };
 
@@ -1621,7 +1659,8 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
       isFolder: isFolder === 'true' || isFolder === true,
       parentId: parentId || null,
       thumbnail: thumbnail || '',
-      uploadedBy: req.userId // Save the user who uploaded/created
+      uploadedBy: req.userId, // Save the user who uploaded/created
+      createdAt: getNowLocalISO()
     });
 
     const startSave = Date.now();
@@ -1834,6 +1873,93 @@ const ensureDateString = (dateValue) => {
   return `${year}-${month}-${day}`;
 };
 
+const getNowLocalISO = () => {
+    const now = new Date();
+    // Use PST (America/Los_Angeles) as the logical local time
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Los_Angeles',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const getPart = (type) => parts.find(p => p.type === type).value;
+    
+    return `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour')}:${getPart('minute')}:${getPart('second')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
+};
+
+// --- Dashboard Aggregation Helpers (Global Scope) ---
+
+const getAggregationDateRef = (prefix) => ({
+    $cond: [
+        { $eq: [{ $type: `$${prefix}.date` }, "string"] },
+        `$${prefix}.date`,
+        {
+            $cond: [
+                { $eq: [{ $type: `$${prefix}.createdAt` }, "date"] },
+                { $dateToString: { format: "%Y-%m-%d", date: `$${prefix}.createdAt` } },
+                { $ifNull: [{ $substr: [{ $ifNull: [`$${prefix}.createdAt`, ""] }, 0, 10] }, ""] }
+            ]
+        }
+    ]
+});
+
+const getAggregationRangeMatch = (start, end, prefix, additionalMatch = {}) => {
+    const startStr = start?.toISOString().split('T')[0];
+    const endStr = end?.toISOString().split('T')[0];
+    const dateRef = getAggregationDateRef(prefix);
+    const conds = [];
+    
+    // Add additional matches (like createdBy)
+    for (const [key, value] of Object.entries(additionalMatch)) {
+        // Use $toString for ID fields to be safe with mixed types
+        if (key.includes('createdBy') || key.includes('uploadedBy')) {
+            conds.push({ $eq: [{ $toString: `$${key}` }, value] });
+        } else {
+            conds.push({ $eq: [`$${key}`, value] });
+        }
+    }
+    
+    if (startStr) conds.push({ $gte: [dateRef, startStr] });
+    if (endStr) conds.push({ $lte: [dateRef, endStr] });
+    
+    return conds.length > 0 ? { $expr: { $and: conds } } : {};
+};
+
+const getFollowUpRangeMatch = (start, end, additionalMatch = {}) => {
+    const startStr = start?.toISOString().split('T')[0];
+    const endStr = end?.toISOString().split('T')[0];
+    const conds = [];
+    
+    // Add additional matches
+    for (const [key, value] of Object.entries(additionalMatch)) {
+        if (key.includes('createdBy') || key.includes('uploadedBy')) {
+            conds.push({ $eq: [{ $toString: `$${key}` }, value] });
+        } else {
+            conds.push({ $eq: [`$${key}`, value] });
+        }
+    }
+    
+    conds.push({ $ne: ["$visits.followUpDate", ""] });
+    if (startStr) conds.push({ $gte: ["$visits.followUpDate", startStr] });
+    if (endStr) conds.push({ $lte: ["$visits.followUpDate", endStr] });
+    
+    return { $expr: { $and: conds } };
+};
+
+// For face-value date range comparisons (legacy helper, keeping for compatibility if needed)
+const getFaceValueRangeMatch = (start, end) => {
+    if (!start) return {};
+    const range = { $gte: start.toISOString().split('T')[0] };
+    if (end) range.$lte = end.toISOString().split('T')[0];
+    return range;
+};
+
 // Add visit
 app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) => {
   try {
@@ -1888,7 +2014,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       createdBy,
       createdByName,
       customerContactName,
-      createdAt: new Date()
+      createdAt: getNowLocalISO()
     };
     
 
@@ -1921,6 +2047,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
             performedBy: createdBy,
             performedByName: createdByName,
             performedByRole: req.authType,
+            timestamp: getNowLocalISO(),
             details: { purpose: visitData.purpose, date: visitData.date }
         });
     } catch (logError) {
@@ -1965,7 +2092,7 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
     // Add tracking fields
     updateData['visits.$.updatedBy'] = updatedBy;
     updateData['visits.$.updatedByName'] = updatedByName;
-    updateData['visits.$.updatedAt'] = new Date();
+    updateData['visits.$.updatedAt'] = getNowLocalISO();
 
     const result = await Customer.updateOne(
       { _id: customerId, 'visits._id': visitId },
@@ -1988,6 +2115,7 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
             performedBy: updatedBy,
             performedByName: updatedByName,
             performedByRole: req.authType,
+            timestamp: getNowLocalISO(),
             details: { fields: Object.keys(req.body) }
         });
     } catch (logError) {
@@ -2051,7 +2179,7 @@ app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (r
 
 // Get user's schedule
 app.get('/api/schedule', verifyAnyAuth, async (req, res) => {
-  console.log('[DEBUG] GET /api/schedule hit');
+
   try {
     const userId = req.userId || req.customerId;
     const { start, end } = req.query;
@@ -2205,7 +2333,8 @@ app.post('/api/customers/:customerId/visits/:visitId/react', verifyAnyAuth, asyn
         visit.reactions.push({
             type,
             userId: userId.toString(),
-            userName
+            userName,
+            createdAt: getNowLocalISO()
         });
     }
 
@@ -2254,7 +2383,7 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
       status: status || 'Active',
       url: url || '',
       uploadedBy: uploadedBy || (await getPerformerInfo(req)).id,
-      createdAt: new Date()
+      createdAt: getNowLocalISO()
     };
 
     const result = await Customer.updateOne(
@@ -2870,16 +2999,6 @@ app.post('/api/products/save', async (req, res) => {
       return res.status(400).json({ error: 'Invalid products data' });
     }
 
-    // DEBUG: Check for bundles
-    const sampleWithBundles = products.find(p => p.bundles && p.bundles.length > 0);
-    if (sampleWithBundles) {
-      console.log('📦 [DEBUG] Received product with bundles:', sampleWithBundles.name);
-      console.log('📦 [DEBUG] Bundle Count:', sampleWithBundles.bundles.length);
-      console.log('📦 [DEBUG] Full Bundles Payload:', JSON.stringify(sampleWithBundles.bundles, null, 2));
-    } else {
-      console.log('⚠️ [DEBUG] No products with bundles found in payload.');
-    }
-
     // Bulk write operations
     // Bulk write operations
     const operations = products.map(product => {
@@ -2890,14 +3009,6 @@ app.post('/api/products/save', async (req, res) => {
       if (productData.collection) {
         productData.collectionType = productData.collection;
         delete productData.collection; // Remove the original to avoid conflicts
-      }
-      
-      // Debug: Log pricing data
-      if (productData.landingCost || productData.priceLevels) {
-        console.log(`💰 Saving pricing for product ${product.id}:`, {
-          landingCost: productData.landingCost,
-          priceLevels: productData.priceLevels
-        });
       }
       
       return {
@@ -2917,7 +3028,6 @@ app.post('/api/products/save', async (req, res) => {
     // const ids = products.map(p => p.id);
     // await Product.deleteMany({ id: { $nin: ids } });
 
-    console.log('✅ Products saved successfully');
     res.json({ success: true, message: 'Products saved successfully' });
   } catch (error) {
     console.error('❌ Error saving products:', error);

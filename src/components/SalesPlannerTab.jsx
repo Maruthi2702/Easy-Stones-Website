@@ -89,13 +89,13 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer, onSc
     const fetchSchedule = async () => {
         try {
             setLoading(true);
-            const start = new Date(visibleDays[0]);
-            start.setHours(0, 0, 0, 0); // Fix: Start from beginning of the day
+            const start = visibleDays[0];
+            const end = visibleDays[visibleDays.length - 1];
 
-            const end = new Date(visibleDays[visibleDays.length - 1]);
-            end.setHours(23, 59, 59, 999); // End of the last day
+            const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}T00:00:00.000`;
+            const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}T23:59:59.999`;
 
-            const response = await fetch(`${API_URL}/api/schedule?start=${start.toISOString()}&end=${end.toISOString()}`, {
+            const response = await fetch(`${API_URL}/api/schedule?start=${startStr}&end=${endStr}`, {
                 credentials: 'include'
             });
             if (response.ok) {
@@ -143,7 +143,7 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer, onSc
 
     const handleSave = async (e) => {
         e.preventDefault();
-        console.log('[Planner] handleSave triggered', form);
+
 
         if (!form.customerId || !form.startTime) {
             alert('Please fill in Customer and Start Time');
@@ -155,7 +155,7 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer, onSc
             const method = editingItem ? 'PUT' : 'POST';
             const url = editingItem ? `${API_URL}/api/schedule/${editingItem._id}` : `${API_URL}/api/schedule`;
 
-            console.log(`[Planner] Sending ${method} request to ${url}`);
+
 
             const response = await fetch(url, {
                 method,
@@ -165,7 +165,7 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer, onSc
             });
 
             if (response.ok) {
-                console.log('[Planner] Save successful');
+
                 fetchSchedule();
                 if (onScheduleChange) onScheduleChange();
                 setShowAddModal(false);

@@ -37,8 +37,7 @@ const salesDashboardResourceSchema = new mongoose.Schema({
     ref: 'User'
   },
   createdAt: {
-    type: Date,
-    default: Date.now
+    type: String
   }
 });
 

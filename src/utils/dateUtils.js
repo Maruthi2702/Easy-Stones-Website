@@ -3,28 +3,38 @@
  * for date and time inputs.
  */
 
+// Helper to treat UTC strings as Local (stripping Z)
+const parseAsLocal = (date) => {
+    if (!date) return null;
+    if (date instanceof Date) return date;
+    if (typeof date === 'string' && date.endsWith('Z')) {
+        return new Date(date.slice(0, -1));
+    }
+    return new Date(date);
+};
+
 // Returns a date object adjusted to local time but in ISO format (for datetime-local inputs)
 export const toLocalISOString = (date) => {
   if (!date) return '';
-  // We treat the date as "Floating Time at UTC"
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return '';
+  const d = parseAsLocal(date);
+  if (!d || isNaN(d.getTime())) return '';
   
   const pad = (num) => String(num).padStart(2, '0');
-  const year = d.getUTCFullYear();
-  const month = pad(d.getUTCMonth() + 1);
-  const day = pad(d.getUTCDate());
-  const hours = pad(d.getUTCHours());
-  const minutes = pad(d.getUTCMinutes());
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
   
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
 export const getLocalISOString = (date) => {
     if (!date) return '';
-    const d = new Date(date);
+    const d = parseAsLocal(date);
+    if (!d) return '';
     const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}Z`;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
 };
 
 export const formatForDateTimeInput = (date) => {
@@ -35,24 +45,25 @@ export const formatForDateInput = (date) => {
   if (!date) return '';
   
   if (typeof date === 'string') {
-      // If it looks like an ISO string with time, split it directly to avoid timezone shift
-      // This presumes the DB stores "Face Value" dates as UTC Midnight or similar
       if (date.includes('T')) {
+          // If it ends in Z, strip it to ensure we don't shift days
+          if (date.endsWith('Z')) {
+              return formatForDateInput(date.slice(0, -1));
+          }
           return date.split('T')[0];
       }
-      // If it's already YYYY-MM-DD
       if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
           return date;
       }
   }
   
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return '';
+  const d = parseAsLocal(date);
+  if (!d || isNaN(d.getTime())) return '';
   
-  // Use UTC methods to ensure we get the date as stored/intended if it was created as UTC
-  const year = d.getUTCFullYear();
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
+  // Use local methods
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   
   return `${year}-${month}-${day}`;
 };
@@ -60,19 +71,11 @@ export const formatForDateInput = (date) => {
 export const formatDate = (dateString, options = { month: 'short', day: 'numeric', year: 'numeric' }) => {
   if (!dateString) return '-';
   try {
-    // Generic handling: try to ensure we parse as local time
-    // If it's YYYY-MM-DD, standard Date parsing treats it as UTC. 
-    // We want to treat EVERYTHING as UTC face value.
-    if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-       // It's already UTC midnight effectively
-    }
-    
-    // Create date object
-    const dateObj = new Date(dateString);
-    if (isNaN(dateObj.getTime())) return '-';
+    const dateObj = parseAsLocal(dateString);
+    if (!dateObj || isNaN(dateObj.getTime())) return '-';
 
-    // Format using UTC to preserve "Face Value"
-    return new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' }).format(dateObj);
+    // Format using local time
+    return new Intl.DateTimeFormat('en-US', { ...options }).format(dateObj);
   } catch (e) {
     return '-';
   }

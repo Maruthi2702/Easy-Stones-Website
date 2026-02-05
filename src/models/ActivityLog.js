@@ -35,8 +35,7 @@ const activityLogSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.Mixed
     },
     timestamp: {
-        type: Date,
-        default: Date.now
+        type: String, // Stored as Local ISO
     }
 });
 

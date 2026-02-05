@@ -19,7 +19,22 @@ const VisitPostCard = ({
             <div className="post-content-area">
                 <div className="post-header">
                     <span className="post-author">{visit.createdByName || visit.creatorName || 'Unknown User'}</span>
-                    <span className="post-time">{formatDate(visit.createdAt || visit.date, { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="post-time">
+                        {(() => {
+                            const dateVal = visit.date;
+                            if (!dateVal) return '-';
+                            // Strip Z to ensure local time face value
+                            const dateObj = (typeof dateVal === 'string' && dateVal.endsWith('Z'))
+                                ? new Date(dateVal.slice(0, -1))
+                                : new Date(dateVal);
+
+                            return dateObj.toLocaleDateString('en-US', {
+                                month: '2-digit',
+                                day: '2-digit',
+                                year: 'numeric'
+                            });
+                        })()}
+                    </span>
 
                     {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager' || currentUserId === visit.createdBy) && (
                         <div className="post-header-actions">

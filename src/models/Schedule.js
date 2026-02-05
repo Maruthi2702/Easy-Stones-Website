@@ -14,12 +14,12 @@ const scheduleSchema = new mongoose.Schema({
     index: true
   },
   startTime: { 
-    type: Date, 
+    type: String, 
     required: true,
     index: true
   },
   endTime: { 
-    type: Date 
+    type: String 
   },
   activityType: { 
     type: String, 

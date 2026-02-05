@@ -89,8 +89,9 @@ const SalesPage = () => {
     const [stats, setStats] = useState({ visits: 0, keyVisits: 0, bids: 0, followUp: 0, resources: 0 });
     const [statsLoading, setStatsLoading] = useState(true);
     const [dashboardVisits, setDashboardVisits] = useState([]);
-    const [dashboardResources, setDashboardResources] = useState([]);
-    const [dashboardDataLoading, setDashboardDataLoading] = useState(false);
+    const [dashboardResources, setDashboardResources] = React.useState([]);
+    const [dashboardFollowups, setDashboardFollowups] = React.useState([]);
+    const [dashboardDataLoading, setDashboardDataLoading] = React.useState(false);
     const [allSchedules, setAllSchedules] = useState([]);
     const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
     const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
@@ -106,7 +107,8 @@ const SalesPage = () => {
     const fetchDashboardStats = useCallback(async () => {
         setStatsLoading(true);
         try {
-            const response = await fetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}`, {
+            const localDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+            const response = await fetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}&localDate=${localDate}`, {
                 credentials: 'include'
             });
             if (response.ok) {
@@ -130,19 +132,19 @@ const SalesPage = () => {
     const fetchDashboardData = useCallback(async () => {
         setDashboardDataLoading(true);
         try {
-            const [visitsRes, resourcesRes] = await Promise.all([
-                fetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}`, { credentials: 'include' }),
-                fetch(`${API_URL}/api/dashboard/resources?timeRange=${dashboardTimeRange}`, { credentials: 'include' })
+            const localDateStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+            const [visitsRes, resourcesRes, followupsRes] = await Promise.all([
+                fetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}`, { credentials: 'include' }),
+                fetch(`${API_URL}/api/dashboard/resources?timeRange=${dashboardTimeRange}&localDate=${localDateStr}`, { credentials: 'include' }),
+                fetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}&filterType=followup`, { credentials: 'include' })
             ]);
+            const visits = await visitsRes.json();
+            const resources = await resourcesRes.json();
+            const followups = await followupsRes.json();
 
-            if (visitsRes.ok) {
-                const data = await visitsRes.json();
-                setDashboardVisits(data);
-            }
-            if (resourcesRes.ok) {
-                const data = await resourcesRes.json();
-                setDashboardResources(data);
-            }
+            setDashboardVisits(Array.isArray(visits) ? visits : []);
+            setDashboardResources(Array.isArray(resources) ? resources : []);
+            setDashboardFollowups(Array.isArray(followups) ? followups : []);
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
         } finally {
@@ -164,7 +166,8 @@ const SalesPage = () => {
             const end = new Date(now);
             end.setMonth(now.getMonth() + 1);
 
-            const response = await fetch(`${API_URL}/api/schedule?start=${start.toISOString()}&end=${end.toISOString()}`, {
+            // Use getLocalISOString to avoid UTC conversion logic
+            const response = await fetch(`${API_URL}/api/schedule?start=${getLocalISOString(start)}&end=${getLocalISOString(end)}`, {
                 credentials: 'include'
             });
             if (response.ok) {
@@ -252,29 +255,25 @@ const SalesPage = () => {
         let start;
         switch (dashboardTimeRange) {
             case '1day':
-                start = new Date(`${localDateStr}T00:00:00.000Z`);
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
                 break;
             case '7days':
                 start = new Date();
                 start.setDate(now.getDate() - 7);
-                const sevenDaysAgoStr = formatForDateInput(start);
-                start = new Date(`${sevenDaysAgoStr}T00:00:00.000Z`);
+                start.setHours(0, 0, 0, 0);
                 break;
             case '30days':
                 start = new Date();
                 start.setDate(now.getDate() - 30);
-                const thirtyDaysAgoStr = formatForDateInput(start);
-                start = new Date(`${thirtyDaysAgoStr}T00:00:00.000Z`);
+                start.setHours(0, 0, 0, 0);
                 break;
             case 'year':
-                start = new Date(now.getFullYear(), 0, 1);
-                const yearStartStr = formatForDateInput(start);
-                start = new Date(`${yearStartStr}T00:00:00.000Z`);
+                start = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
                 break;
             case 'all':
                 return null;
             default:
-                start = new Date(`${localDateStr}T00:00:00.000Z`);
+                start = null;
         }
         return start;
     }, [dashboardTimeRange]);
@@ -290,17 +289,31 @@ const SalesPage = () => {
             ? dashboardVisits
             : allVisits;
 
-        return sourceVisits.filter(v => {
+        const filtered = sourceVisits.filter(v => {
             if (!v) return false;
 
             // If using dashboardVisits, backend already filtered by date.
             // Only apply dateMatch if we fell back to allVisits.
             const isFromBackend = sourceVisits === dashboardVisits;
-            const visitDate = new Date(v.date || v.createdAt);
+
+            // Use a robust date parser for comparison/sort
+            const parseDate = (d, ca) => {
+                if (!d && !ca) return new Date(0);
+                const dateStr = d || ca;
+                if (typeof dateStr !== 'string') return new Date(dateStr || 0);
+
+                if (dateStr.includes('/')) {
+                    const [m, day, y] = dateStr.split('/');
+                    return new Date(y, m - 1, day);
+                }
+                return new Date(dateStr);
+            };
+
+            const visitDate = parseDate(v.date, v.createdAt);
             const dateMatch = isFromBackend || !startDate || visitDate >= startDate;
 
             // Strictly filter by current user for dashboard view
-            const userMatch = v.createdBy === currentUserIdStr;
+            const userMatch = v.createdBy?.toString() === currentUserIdStr || v.creatorId?.toString() === currentUserIdStr;
             const searchMatch = !dashboardSearchTerm ||
                 (v.customerName?.toLowerCase().includes(searchLower)) ||
                 (v.notes?.toLowerCase().includes(searchLower)) ||
@@ -309,16 +322,23 @@ const SalesPage = () => {
             const isSystemEntry = v.purpose?.toLowerCase().match(/quick note|resource placement|resource update|new tower/i);
 
             // Exclude system entries from visits tab, but allow searching for them if needed? 
-            // The request is to align with stats which exclude them.
-            // If active tab is followups, we currently allow them in the source list, but filter later?
-            // Actually, let's filter them out from the main filtered list unless specifically searching?
-
             const systemEntryExclude = true;
 
             return dateMatch && userMatch && searchMatch && systemEntryExclude;
         });
 
-        return [...filtered].sort((a, b) => new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0));
+        const parseSortDate = (v) => {
+            if (!v.date && !v.createdAt) return 0;
+            const ds = v.date || v.createdAt;
+            if (typeof ds !== 'string') return new Date(ds).getTime();
+            if (ds.includes('/')) {
+                const [m, d, y] = ds.split('/');
+                return new Date(y, m - 1, d).getTime();
+            }
+            return new Date(ds).getTime();
+        };
+
+        return [...filtered].sort((a, b) => parseSortDate(b) - parseSortDate(a));
     }, [allVisits, dashboardVisits, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, activeDashboardTab, dashboardTimeRange, dashboardDataLoading]);
 
     const memoizedFilteredResources = React.useMemo(() => {
@@ -331,7 +351,7 @@ const SalesPage = () => {
             ? dashboardResources
             : allResources;
 
-        return sourceResources.filter(r => {
+        const filtered = sourceResources.filter(r => {
             if (!r) return false;
 
             // If using dashboardResources, backend already filtered by date.
@@ -340,7 +360,11 @@ const SalesPage = () => {
             const dateMatch = isFromBackend || !startDate || resourceDate >= startDate;
 
             // Strictly filter by current user for dashboard view
-            const userMatch = (r.uploadedBy === currentUserIdStr || r.createdBy === currentUserIdStr);
+            const userMatch = (
+                r.uploadedBy?.toString() === currentUserIdStr ||
+                r.createdBy?.toString() === currentUserIdStr ||
+                r.uploaderId?.toString() === currentUserIdStr
+            );
             const searchMatch = !dashboardSearchTerm ||
                 (r.customerName?.toLowerCase().includes(searchLower)) ||
                 (r.description?.toLowerCase().includes(searchLower)) ||
@@ -350,7 +374,18 @@ const SalesPage = () => {
             return dateMatch && userMatch && searchMatch;
         });
 
-        return [...filtered].sort((a, b) => new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0));
+        const parseSortDate = (r) => {
+            if (!r.date && !r.createdAt) return 0;
+            const ds = r.date || r.createdAt;
+            if (typeof ds !== 'string') return new Date(ds).getTime();
+            if (ds.includes('/')) {
+                const [m, d, y] = ds.split('/');
+                return new Date(y, m - 1, d).getTime();
+            }
+            return new Date(ds).getTime();
+        };
+
+        return [...filtered].sort((a, b) => parseSortDate(b) - parseSortDate(a));
     }, [allResources, dashboardResources, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, dashboardTimeRange, dashboardDataLoading]);
     const [isViewingResource, setIsViewingResource] = useState(false);
     const [isViewingVisit, setIsViewingVisit] = useState(false);
@@ -2804,12 +2839,18 @@ const SalesPage = () => {
                                                         {(() => {
                                                             let followups = [];
                                                             if (followupFilter === 'all') {
-                                                                followups = memoizedFilteredVisits
+                                                                const searchLower = dashboardSearchTerm.toLowerCase();
+                                                                followups = (dashboardFollowups.length > 0 ? dashboardFollowups : memoizedFilteredVisits)
                                                                     .filter(v => v && (v.nextAction || v.followUp))
+                                                                    .filter(v => !dashboardSearchTerm ||
+                                                                        v.customerName?.toLowerCase().includes(searchLower) ||
+                                                                        v.notes?.toLowerCase().includes(searchLower) ||
+                                                                        v.followUp?.toLowerCase().includes(searchLower)
+                                                                    )
                                                                     .map(v => ({
                                                                         ...v,
                                                                         displayDate: v.followUpDate || v.date,
-                                                                        displayNote: v.nextAction || v.followUp,
+                                                                        displayNote: v.followUp || v.nextAction,
                                                                         source: 'Visit'
                                                                     }));
                                                             } else if (followupFilter === 'nextWeek') {
