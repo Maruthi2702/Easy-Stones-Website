@@ -2624,7 +2624,8 @@ const SalesPage = () => {
                                     {activeDashboardTab === 'planner' && (
                                         <div className="planner-dashboard-container">
                                             <SalesPlannerTab
-                                                customers={customers}
+                                                customerSelection={allCustomersForSelection}
+                                                customerOptions={customerOptions}
                                                 currentUserId={currentUserId}
                                                 onSelectCustomer={handleSelectCustomer}
                                                 onScheduleChange={fetchSchedules}

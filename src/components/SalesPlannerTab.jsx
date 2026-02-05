@@ -10,7 +10,7 @@ import SearchableSelect from './SearchableSelect';
 import { formatForDateTimeInput } from '../utils/dateUtils';
 import GoogleStyleDateTimePicker from './GoogleStyleDateTimePicker';
 
-const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer, onScheduleChange }) => {
+const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], currentUserId, onSelectCustomer, onScheduleChange }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewMode, setViewMode] = useState('day'); // 'day' or 'week'
     const [scheduleItems, setScheduleItems] = useState([]);
@@ -219,12 +219,13 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer, onSc
         }).sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
     };
 
-    const customerOptions = useMemo(() => {
-        return [...(customers || [])].map(c => ({
+    const effectiveCustomerOptions = useMemo(() => {
+        if (customerOptions && customerOptions.length > 0) return customerOptions;
+        return [...(customerSelection || [])].map(c => ({
             value: c._id,
             label: c.company || c.contactName
         })).sort((a, b) => (a.label || '').localeCompare(b.label || ''));
-    }, [customers]);
+    }, [customerSelection, customerOptions]);
 
     const activityTypeOptions = [
         { value: 'Visit', label: 'Visit' },
@@ -347,7 +348,7 @@ const SalesPlannerTab = ({ customers = [], currentUserId, onSelectCustomer, onSc
                                     <div className="form-group">
                                         <label>Customer <span style={{ color: 'red' }}>*</span></label>
                                         <SearchableSelect
-                                            options={customerOptions}
+                                            options={effectiveCustomerOptions}
                                             value={form.customerId}
                                             onChange={value => setForm({ ...form, customerId: value })}
                                             placeholder="Select a Customer..."

@@ -2207,7 +2207,7 @@ app.get('/api/schedule', verifyAnyAuth, async (req, res) => {
     let query = { userId };
     
     if (start && end) {
-      query.startTime = { $gte: new Date(start), $lte: new Date(end) };
+      query.startTime = { $gte: start, $lte: end };
     }
     
     const schedule = await Schedule.find(query)
