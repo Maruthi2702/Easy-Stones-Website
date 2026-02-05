@@ -1,7 +1,7 @@
 import React from 'react';
 import {
     LayoutDashboard, Pin, PinOff,
-    ChevronLeft, Search, X, ChevronRight, User
+    ChevronLeft, Search, X, ChevronRight, User, AlertCircle
 } from 'lucide-react';
 
 const CustomerSidebar = ({
@@ -158,24 +158,77 @@ const CustomerSidebar = ({
                         No customers found
                     </div>
                 ) : (
-                    filteredCustomers.map(customer => (
-                        <div
-                            key={customer._id}
-                            className={`customer-list-item ${selectedCustomerId === customer._id ? 'active' : ''} ${customer.quickNote ? 'has-quick-note' : ''}`}
-                            onClick={() => handleSelectCustomer(customer)}
-                        >
-                            <div className="list-thumb-placeholder">
-                                <User size={20} />
+                    filteredCustomers.map(customer => {
+                        // Calculate dormancy (no visit in > 60 days)
+                        // Uses 60 day grace period for new customers
+                        const getDormancyStatus = () => {
+                            try {
+                                const now = new Date();
+                                const sixtyDaysAgo = new Date(now.getTime() - (60 * 24 * 60 * 60 * 1000));
+
+                                // 1. Check visits array first (if loaded into memory)
+                                if (customer.visits && customer.visits.length > 0) {
+                                    // Robust check for the most recent date in the array
+                                    const latestInArray = customer.visits.reduce((latest, v) => {
+                                        const vDate = new Date(v.date);
+                                        return (!latest || vDate > latest) ? vDate : latest;
+                                    }, null);
+
+                                    if (latestInArray && !isNaN(latestInArray.getTime())) {
+                                        return latestInArray < sixtyDaysAgo;
+                                    }
+                                }
+
+                                // 2. Check static lastVisitDate (from list fetch)
+                                if (customer.lastVisitDate) {
+                                    const last = new Date(customer.lastVisitDate);
+                                    if (!isNaN(last.getTime())) {
+                                        return last < sixtyDaysAgo;
+                                    }
+                                }
+
+                                // 3. Fallback to creation date (Grace Period)
+                                // Only alert if they have existed for > 60 days without a visit
+                                if (customer.createdAt) {
+                                    const created = new Date(customer.createdAt);
+                                    if (!isNaN(created.getTime())) {
+                                        return created < sixtyDaysAgo;
+                                    }
+                                }
+
+                                return false;
+                            } catch (e) {
+                                return false;
+                            }
+                        };
+                        const dormant = getDormancyStatus();
+
+                        return (
+                            <div
+                                key={customer._id}
+                                className={`customer-list-item ${selectedCustomerId === customer._id ? 'active' : ''} ${customer.quickNote ? 'has-quick-note' : ''} ${dormant ? 'dormant-alert' : ''}`}
+                                onClick={() => handleSelectCustomer(customer)}
+                            >
+                                <div className="list-thumb-placeholder">
+                                    <User size={20} />
+                                </div>
+                                <div className="list-info">
+                                    <div className="list-name-row">
+                                        <span className="list-name">
+                                            {customer.company || customer.contactName || `${customer.firstName} ${customer.lastName}`}
+                                            {customer.isActive === false && <span className="inactive-badge">(Inactive)</span>}
+                                        </span>
+                                        {dormant && (
+                                            <div className="dormant-badge" title="Needs follow-up (no activity in 60+ days)">
+                                                <AlertCircle size={14} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <span className="list-meta">{customer.company || customer.email}</span>
+                                </div>
                             </div>
-                            <div className="list-info">
-                                <span className="list-name">
-                                    {customer.company || customer.contactName || `${customer.firstName} ${customer.lastName}`}
-                                    {customer.isActive === false && <span className="inactive-badge">(Inactive)</span>}
-                                </span>
-                                <span className="list-meta">{customer.company || customer.email}</span>
-                            </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
         </div>

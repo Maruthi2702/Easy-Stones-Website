@@ -1077,12 +1077,25 @@ app.get('/api/customers', verifyAnyAuth, async (req, res) => {
 
     const total = await Customer.countDocuments(query);
 
-    const customers = await Customer.find(query)
-      .select('-password -contacts -visits.image -resources.image')
-      .lean()
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    const customers = await Customer.aggregate([
+      { $match: query },
+      {
+        $addFields: {
+          lastVisitDate: { $max: "$visits.date" }
+        }
+      },
+      {
+        $project: {
+          password: 0,
+          contacts: 0,
+          "visits": 0,
+          "resources": 0
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit }
+    ]);
 
     res.json({
       customers,
@@ -1464,7 +1477,14 @@ app.get('/api/customers/:id', verifyAnyAuth, async (req, res) => {
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
-    res.json(customer);
+    
+    // Add calculated fields for dormancy alerts
+    const customerObj = customer.toObject();
+    customerObj.lastVisitDate = customer.visits && customer.visits.length > 0 
+        ? customer.visits.reduce((latest, v) => (v.date > latest ? v.date : latest), customer.visits[0].date)
+        : null;
+
+    res.json(customerObj);
   } catch (error) {
     console.error('Error fetching customer details:', error);
     res.status(500).json({ message: 'Failed to fetch customer details', error: error.message });
