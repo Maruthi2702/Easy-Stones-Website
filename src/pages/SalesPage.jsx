@@ -26,6 +26,8 @@ import CustomerSidebar from '../components/sales/CustomerSidebar';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
+import LeadsSheet from '../components/sales/LeadsSheet';
+import './LeadsSheet.css';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -403,7 +405,7 @@ const SalesPage = () => {
     });
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const saved = localStorage.getItem('sidebarWidth');
-        return saved ? parseInt(saved, 10) : 300;
+        return saved ? parseInt(saved, 10) : 325;
     });
     const [isResizing, setIsResizing] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
@@ -666,6 +668,24 @@ const SalesPage = () => {
         newUrl.searchParams.delete('customer');
         window.history.pushState({}, '', newUrl);
         setShowDashboard(true);
+        setActiveDashboardTab('visits');
+        if (isMobile) {
+            setIsSidebarOpen(false);
+        }
+    };
+
+    const handleGoLeads = () => {
+        setSelectedCustomerId(null);
+        setSelectedCustomerDetail(null);
+
+        // Clear URL
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.delete('customer');
+        window.history.pushState({}, '', newUrl);
+
+        setShowDashboard(true);
+        setActiveDashboardTab('leads');
+
         if (isMobile) {
             setIsSidebarOpen(false);
         }
@@ -925,7 +945,7 @@ const SalesPage = () => {
 
             if (response && response.ok) {
                 // If we're on the Dashboard view (dashboard tabs), refresh dashboard data
-                const isDashboardView = activeDashboardTab === 'visits' || activeDashboardTab === 'resources' || activeDashboardTab === 'followups';
+                const isDashboardView = activeDashboardTab === 'visits' || activeDashboardTab === 'resources' || activeDashboardTab === 'followups' || activeDashboardTab === 'leads';
 
                 if (type === 'dashboardResource') {
                     fetchDashboardResources();
@@ -2125,6 +2145,7 @@ const SalesPage = () => {
                 togglePin={togglePin}
                 setIsSidebarOpen={setIsSidebarOpen}
                 handleGoHome={handleGoHome}
+                handleGoLeads={handleGoLeads}
                 handleSelectCustomer={handleSelectCustomer}
                 currentPage={currentPage}
                 setCurrentPage={setCurrentPage}
@@ -3063,6 +3084,9 @@ const SalesPage = () => {
                                                 );
                                             })()}
                                         </div>
+                                    )}
+                                    {activeDashboardTab === 'leads' && (
+                                        <LeadsSheet />
                                     )}
 
                                     {/* Resources Table */}

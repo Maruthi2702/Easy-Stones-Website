@@ -1,7 +1,8 @@
 import React from 'react';
 import {
     LayoutDashboard, Pin, PinOff,
-    ChevronLeft, Search, X, ChevronRight, User, AlertCircle
+    ChevronLeft, Search, X, ChevronRight, User, AlertCircle,
+    FileSpreadsheet
 } from 'lucide-react';
 
 const CustomerSidebar = ({
@@ -19,6 +20,7 @@ const CustomerSidebar = ({
     togglePin,
     setIsSidebarOpen,
     handleGoHome,
+    handleGoLeads,
     handleSelectCustomer,
     currentPage,
     setCurrentPage,
@@ -45,6 +47,13 @@ const CustomerSidebar = ({
                         title="Sales Dashboard"
                     >
                         <LayoutDashboard size={18} />
+                    </button>
+                    <button
+                        className="icon-btn-ghost"
+                        onClick={handleGoLeads}
+                        title="Leads Management (Excel)"
+                    >
+                        <FileSpreadsheet size={18} />
                     </button>
                     <button
                         className="icon-btn-ghost"

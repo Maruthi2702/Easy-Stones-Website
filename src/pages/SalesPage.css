@@ -10,7 +10,8 @@
 /* Sidebar */
   /* Sidebar */
 .sales-sidebar {
-  width: 300px;
+  width: 325px;
+  min-width: 325px;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -363,7 +364,7 @@
 /* Main Content */
 .sales-main {
   flex: 1;
-  margin-left: 300px; /* Default pinned state */
+  margin-left: 325px; /* Default pinned state */
   padding: 0;
   overflow: hidden; /* Changed from auto to prevent double scrollbars */
   height: calc(100vh - 80px);
@@ -768,12 +769,8 @@
 
 /* Responsive Design */
 @media (max-width: 1400px) {
-  .sales-sidebar {
-    width: 250px;
-  }
-
   .sales-main {
-    margin-left: 250px;
+    margin-left: 325px;
   }
 }
 

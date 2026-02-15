@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserPlus, FolderPlus, Clock, Calendar } from 'lucide-react';
+import { UserPlus, FolderPlus, Clock, Calendar, FileText } from 'lucide-react';
 
 const DashboardStats = ({
     stats,
@@ -104,8 +104,8 @@ const DashboardStats = ({
                         <div className="stat-title">CALENDAR</div>
                     </div>
                     <div className="stat-value">{statsLoading ? '...' : todayScheduleCount}</div>
-                    <div className="stat-footer">Schedule</div>
                 </div>
+
 
             </div>
         </>

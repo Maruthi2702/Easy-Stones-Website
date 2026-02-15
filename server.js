@@ -27,6 +27,7 @@ import SalesResource from './src/models/SalesResource.js';
 import SalesDashboardResource from './src/models/SalesDashboardResource.js';
 import ActivityLog from './src/models/ActivityLog.js';
 import Schedule from './src/models/Schedule.js';
+import Lead from './src/models/Lead.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -1256,12 +1257,16 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
       { $count: "count" }
     ]);
 
+    // Count Leads for current user
+    const leadCount = await Lead.countDocuments({ createdBy: userId });
+
     const result = {
       visits: visitStats[0]?.visits || 0,
       keyVisits: visitStats[0]?.keyVisits || 0,
       bids: visitStats[0]?.bids || 0,
       followUp: followUpStats[0]?.count || 0,
       resources: resourceStats[0]?.count || 0,
+      leads: leadCount,
       todayScheduleCount: scheduleCount[0]?.count || 0
     };
 
@@ -1809,7 +1814,85 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res)
   }
 });
 
+// ============================================
+// LEADS MANAGEMENT ENDPOINTS
+// ============================================
 
+// Get all leads for the current user
+app.get('/api/leads', verifyAnyAuth, async (req, res) => {
+  try {
+    const leads = await Lead.find({ createdBy: req.userId }).sort({ createdAt: -1 });
+    res.json(leads);
+  } catch (error) {
+    console.error('Error fetching leads:', error);
+    res.status(500).json({ message: 'Failed to fetch leads' });
+  }
+});
+
+// Create a new lead
+app.post('/api/leads', verifyAnyAuth, async (req, res) => {
+  try {
+    const { name, company, email, phone, notes, status, followUpDate } = req.body;
+    
+    if (!company) {
+      return res.status(400).json({ message: 'Company is required' });
+    }
+
+    const newLead = new Lead({
+      name,
+      company,
+      email,
+      phone,
+      notes,
+      status,
+      followUpDate,
+      createdBy: req.userId
+    });
+
+    await newLead.save();
+    res.status(201).json(newLead);
+  } catch (error) {
+    console.error('Error creating lead:', error);
+    res.status(500).json({ message: 'Failed to create lead' });
+  }
+});
+
+// Update a lead
+app.put('/api/leads/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const { name, company, email, phone, notes, status, followUpDate } = req.body;
+    const lead = await Lead.findOneAndUpdate(
+      { _id: req.params.id, createdBy: req.userId },
+      { name, company, email, phone, notes, status, followUpDate },
+      { new: true }
+    );
+
+    if (!lead) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
+
+    res.json(lead);
+  } catch (error) {
+    console.error('Error updating lead:', error);
+    res.status(500).json({ message: 'Failed to update lead' });
+  }
+});
+
+// Delete a lead
+app.delete('/api/leads/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const lead = await Lead.findOneAndDelete({ _id: req.params.id, createdBy: req.userId });
+
+    if (!lead) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
+
+    res.json({ message: 'Lead deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting lead:', error);
+    res.status(500).json({ message: 'Failed to delete lead' });
+  }
+});
 
 // ============================================
 // VISITS CRUD ENDPOINTS
