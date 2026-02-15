@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User } from 'lucide-react';
 import { API_URL } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 import './LoginPage.css';
 
 const LoginPage = () => {
     const navigate = useNavigate();
+    const { login } = useAuth();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -27,6 +29,16 @@ const LoginPage = () => {
             const data = await response.json();
 
             if (data.success) {
+                // Normalize user data for AuthContext
+                const userData = {
+                    ...data.admin,
+                    type: 'internal',
+                    contactName: data.admin.username
+                };
+
+                // Update global auth state
+                login(userData);
+
                 // JWT is stored in httpOnly cookie automatically
                 navigate('/admin');
             } else {

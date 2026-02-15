@@ -789,7 +789,8 @@
   }
 
   .modal-overlay {
-    padding-top: 0; /* Reset for better scrolling */
+    padding-top: 80px; /* Leave room for site header if stacking context fails */
+    z-index: 10000;
   }
 
   /* Mobile Header Adjustments */
@@ -903,11 +904,11 @@
     position: relative;
     overflow: hidden; /* Internal scrolling only */
     background: var(--bg-primary);
-    z-index: 1;
+    z-index: auto;
   }
   
   .sales-main.full-width {
-      z-index: 1; 
+      z-index: auto; 
   }
 
   .info-boxes {
@@ -1300,7 +1301,7 @@
   display: flex;
   align-items: flex-start; /* Better for scrolling */
   justify-content: center;
-  z-index: 9999; /* Higher than Header (1100) and other layers */
+  z-index: 10000; /* Higher than Header (1100) and other layers */
   padding: 2rem 1rem;
   overflow-y: auto; /* Enable overlay scroll */
 }

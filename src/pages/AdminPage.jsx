@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, Users, User, Menu, X, Pencil } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../config/api';
 import { useProducts } from '../context/ProductContext';
+import { useAuth } from '../context/AuthContext';
 import './AdminPage.css';
 
 const AdminPage = () => {
   const navigate = useNavigate();
   const { refreshProducts } = useProducts();
+  const { logout } = useAuth();
   // Initialize with empty array
   const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState(null);
@@ -556,10 +558,7 @@ const AdminPage = () => {
 
   const handleLogout = async () => {
     try {
-      await fetch(`${API_URL}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include'
-      });
+      await logout();
       navigate('/admin/login');
     } catch (error) {
       console.error('Logout error:', error);
