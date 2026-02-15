@@ -84,8 +84,7 @@ const customerSchema = new mongoose.Schema({
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true },
-  autoIndex: false,
-  bufferCommands: false 
+  autoIndex: false 
 });
 
 // Indexes for performance optimization

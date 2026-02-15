@@ -1412,11 +1412,18 @@ const SalesPage = () => {
                 handleCloseVisitModal();
             } else {
                 const data = await response.json();
+                console.error(`[Visit Save Failed] URL: ${url}, Status: ${response.status}, Message: ${data.message}`);
                 alert(data.message || 'Failed to save visit');
             }
         } catch (error) {
-            console.error('Error saving visit:', error);
-            alert('Failed to save visit');
+            console.error('[Visit Save Exception] Details:', {
+                message: error.message,
+                url: editingVisit
+                    ? `${API_URL}/api/customers/${targetCustomerId}/visits/${editingVisit._id}`
+                    : `${API_URL}/api/customers/${targetCustomerId}/visits`,
+                payload: visitForm
+            });
+            alert('Failed to save visit. Please check your connection and try again.');
         } finally {
             setIsSaving(false);
         }

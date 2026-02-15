@@ -9,7 +9,7 @@ import mongoose from 'mongoose';
 // MOVED TO TOP to ensure settings apply to all models
 mongoose.set('debug', true);
 mongoose.set('autoIndex', false);
-mongoose.set('bufferCommands', false); // Disable buffering to fail fast if connection is bad
+// Removed bufferCommands: false to allow resilient reconnects
 
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
@@ -2079,10 +2079,10 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       return res.status(400).json({ message: 'Date and purpose are required' });
     }
 
-    // Check if customer exists first (using lean query)
-    const customer = await Customer.findById(customerId);
-    if (!customer) {
-
+    // Check if customer exists and get necessary info in one query
+    const customerInfo = await Customer.findById(customerId).select('contactName company').lean();
+    if (!customerInfo) {
+      console.error(`[Add Visit] Customer not found: ${customerId}`);
       return res.status(404).json({ message: 'Customer not found' });
     }
 
@@ -2090,8 +2090,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
     const { id: createdBy, name: createdByName } = await getPerformerInfo(req);
 
     // Get the customer's contact name (the customer being visited)
-    const visitedCustomer = await Customer.findById(customerId).select('contactName company');
-    const customerContactName = visitedCustomer ? (visitedCustomer.company || visitedCustomer.contactName) : '';
+    const customerContactName = customerInfo.company || customerInfo.contactName || '';
 
     // Process images: Convert base64 to optimized disk files
     let processedImage = image;
@@ -2119,25 +2118,20 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
       customerContactName,
       createdAt: getNowLocalISO()
     };
-    
 
-
-    // Use atomic $push to add the visit without loading the entire document
-    const startUpdate = Date.now();
+    // Use atomic $push to add the visit
+    const updateStart = Date.now();
     const result = await Customer.updateOne(
       { _id: customerId },
       { $push: { visits: visitData } }
     );
 
-
     if (result.matchedCount === 0) {
-
-        return res.status(404).json({ message: 'Customer not found or update failed' });
+      console.error(`[Add Visit] Atomic update matched zero docs for customer: ${customerId}`);
+      return res.status(404).json({ message: 'Customer not found during update' });
     }
 
-
-    
-    // Return only the new visit data instead of the whole array
+    console.log(`[Add Visit] Success in ${Date.now() - updateStart}ms for customer ${customerId}`);
     res.status(201).json({ success: true, visit: visitData });
 
     // Background: Log the activity
