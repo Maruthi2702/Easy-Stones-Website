@@ -56,11 +56,10 @@ const customerSchema = new mongoose.Schema({
   lockUntil: { type: Date },
   loginIps: { type: [String], default: [] },
   contacts: [{
-    name: { type: String, required: true },
+    name: { type: String, trim: true },
     phone: String,
     email: String,
     role: String,
-    isPrimary: { type: Boolean, default: false },
     notes: String,
     createdAt: { type: String }
   }],

@@ -1504,18 +1504,13 @@ app.get('/api/customers/:id', verifyAnyAuth, async (req, res) => {
 app.post('/api/customers/:customerId/contacts', verifyAnyAuth, async (req, res) => {
   try {
     const { customerId } = req.params;
-    const { name, phone, email, role, isPrimary, notes } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ message: 'Contact name is required' });
-    }
+    const { name, phone, email, role, notes } = req.body;
 
     const newContact = {
       name,
       phone,
       email,
       role,
-      isPrimary: isPrimary || false,
       notes,
       createdAt: getNowLocalISO(),
       createdBy: (await getPerformerInfo(req)).id
@@ -1834,6 +1829,7 @@ app.post('/api/leads', verifyAnyAuth, async (req, res) => {
   try {
     const { name, company, email, phone, notes, status, followUpDate } = req.body;
     
+    // Validate required fields
     if (!company) {
       return res.status(400).json({ message: 'Company is required' });
     }
@@ -1850,9 +1846,13 @@ app.post('/api/leads', verifyAnyAuth, async (req, res) => {
     });
 
     await newLead.save();
+    console.log(`✅ Lead created successfully: ${company} / ${name} by ${req.userId}`);
     res.status(201).json(newLead);
   } catch (error) {
-    console.error('Error creating lead:', error);
+    console.error('❌ Error creating lead:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Failed to create lead' });
   }
 });

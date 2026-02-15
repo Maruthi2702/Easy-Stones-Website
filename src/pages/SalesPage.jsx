@@ -475,7 +475,6 @@ const SalesPage = () => {
         phone: '',
         email: '',
         role: '',
-        isPrimary: false,
         notes: ''
     });
 
@@ -845,7 +844,6 @@ const SalesPage = () => {
             phone: '',
             email: '',
             role: '',
-            isPrimary: false,
             notes: ''
         });
         setShowContactModal(true);
@@ -858,7 +856,6 @@ const SalesPage = () => {
             phone: contact.phone || '',
             email: contact.email || '',
             role: contact.role || '',
-            isPrimary: contact.isPrimary || false,
             notes: contact.notes || ''
         });
         setShowContactModal(true);
@@ -2368,7 +2365,6 @@ const SalesPage = () => {
                                                                 <td data-label="Phone">{contact.phone || '-'}</td>
                                                                 <td data-label="Email">{contact.email || '-'}</td>
                                                                 <td data-label="Role">{contact.role || '-'}</td>
-                                                                <td data-label="Primary">{contact.isPrimary ? 'Yes' : 'No'}</td>
                                                                 <td data-label="Notes">{contact.notes || '-'}</td>
                                                                 <td data-label="Actions">
                                                                     <div className="action-buttons">
@@ -2384,7 +2380,7 @@ const SalesPage = () => {
                                                         ))
                                                     ) : (
                                                         <tr>
-                                                            <td colSpan="7" className="empty-row">No contacts added yet</td>
+                                                            <td colSpan="6" className="empty-row">No contacts added yet</td>
                                                         </tr>
                                                     )}
                                                 </tbody>
@@ -3596,16 +3592,6 @@ const SalesPage = () => {
                                             onChange={(e) => setContactForm({ ...contactForm, role: e.target.value })}
                                             placeholder="Job title or role"
                                         />
-                                    </div>
-                                    <div className="form-group checkbox-group">
-                                        <label>
-                                            <input
-                                                type="checkbox"
-                                                checked={contactForm.isPrimary}
-                                                onChange={(e) => setContactForm({ ...contactForm, isPrimary: e.target.checked })}
-                                            />
-                                            <span>Primary Contact</span>
-                                        </label>
                                     </div>
                                     <div className="form-group">
                                         <label>Notes</label>

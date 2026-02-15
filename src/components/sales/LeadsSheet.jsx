@@ -65,8 +65,7 @@ const LeadsSheet = () => {
             const response = await fetch(url, {
                 method,
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(leadData),
                 credentials: 'include'
@@ -76,6 +75,7 @@ const LeadsSheet = () => {
                 await fetchLeads();
                 setShowAddModal(false);
                 setEditingLead(null);
+                setViewingLead(null);
                 setNewLead({
                     name: '',
                     company: '',
@@ -84,6 +84,10 @@ const LeadsSheet = () => {
                     notes: '',
                     status: 'New'
                 });
+            } else {
+                const errorData = await response.json();
+                console.error('Server error saving lead:', errorData);
+                alert(errorData.message || 'Failed to save lead');
             }
         } catch (error) {
             console.error('Error saving lead:', error);
@@ -156,7 +160,11 @@ const LeadsSheet = () => {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <button className="lead-add-btn pulse" onClick={() => setShowAddModal(true)}>
+                    <button className="lead-add-btn pulse" onClick={() => {
+                        setEditingLead(null);
+                        setViewingLead(null);
+                        setShowAddModal(true);
+                    }}>
                         <Plus size={18} />
                         Add Lead
                     </button>
