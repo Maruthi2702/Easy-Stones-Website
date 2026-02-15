@@ -168,22 +168,26 @@ const LeadsSheet = () => {
                     <thead>
                         <tr>
                             <th>Company</th>
-                            <th>Contact Name</th>
-                            <th>Status</th>
-                            <th>Notes</th>
+                            {!isMobile && (
+                                <>
+                                    <th>Contact Name</th>
+                                    <th>Status</th>
+                                    <th>Notes</th>
+                                </>
+                            )}
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan="6" style={{ textAlign: 'center', padding: '3rem' }}>
+                            <tr><td colSpan={isMobile ? 2 : 5} style={{ textAlign: 'center', padding: '3rem' }}>
                                 <div className="loader-container">
                                     <div className="loader-spinner"></div>
                                     <span>Loading leads...</span>
                                 </div>
                             </td></tr>
                         ) : filteredLeads.length === 0 ? (
-                            <tr><td colSpan="6" style={{ textAlign: 'center', padding: '3rem' }}>
+                            <tr><td colSpan={isMobile ? 2 : 5} style={{ textAlign: 'center', padding: '3rem' }}>
                                 <div className="empty-state">
                                     <FileText size={48} opacity={0.2} />
                                     <p>No leads found. Start by adding your first lead!</p>
@@ -192,13 +196,17 @@ const LeadsSheet = () => {
                         ) : filteredLeads.map(lead => (
                             <tr key={lead._id}>
                                 <td><strong>{lead.company || '-'}</strong></td>
-                                <td>{lead.name}</td>
-                                <td>
-                                    <span className={`status-pill ${lead.status.toLowerCase()}`}>
-                                        {lead.status}
-                                    </span>
-                                </td>
-                                <td className="notes-cell" title={lead.notes}>{lead.notes || '-'}</td>
+                                {!isMobile && (
+                                    <>
+                                        <td>{lead.name}</td>
+                                        <td>
+                                            <span className={`status-pill ${lead.status.toLowerCase()}`}>
+                                                {lead.status}
+                                            </span>
+                                        </td>
+                                        <td className="notes-cell" title={lead.notes}>{lead.notes || '-'}</td>
+                                    </>
+                                )}
                                 <td>
                                     <div className="table-actions">
                                         <button className="icon-btn edit" onClick={() => { setViewingLead(lead); setShowAddModal(true); }} title="View Lead">
