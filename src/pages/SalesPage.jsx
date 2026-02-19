@@ -2713,8 +2713,8 @@ const SalesPage = () => {
                                                                         <span
                                                                             className="link"
                                                                             onClick={() => {
-                                                                                const customer = customers.find(c => c._id === visit.customerId);
-                                                                                if (customer) handleSelectCustomer(customer);
+                                                                                handleSelectCustomer({ _id: visit.customerId });
+                                                                                setShowDashboard(false);
                                                                             }}
                                                                             title="Go to Customer Chat"
                                                                         >
@@ -2949,8 +2949,8 @@ const SalesPage = () => {
                                                                         <span
                                                                             className="link"
                                                                             onClick={() => {
-                                                                                const customer = customers.find(c => String(c._id) === String(item.customerId));
-                                                                                if (customer) handleSelectCustomer(customer);
+                                                                                handleSelectCustomer({ _id: item.customerId });
+                                                                                setShowDashboard(false);
                                                                             }}
                                                                         >
                                                                             {item.customerName}
@@ -3212,12 +3212,9 @@ const SalesPage = () => {
                                                                                 style={{ cursor: 'pointer', color: '#E5C04A', fontWeight: '500' }}
                                                                                 onClick={() => {
                                                                                     if (resource.customerId) {
-                                                                                        const customer = customers.find(c => c._id === resource.customerId);
-                                                                                        if (customer) {
-                                                                                            handleSelectCustomer(customer);
-                                                                                            setActiveTab('resources');
-                                                                                            setShowDashboard(false);
-                                                                                        }
+                                                                                        handleSelectCustomer({ _id: resource.customerId });
+                                                                                        setActiveTab('resources');
+                                                                                        setShowDashboard(false);
                                                                                     }
                                                                                 }}
                                                                             >
