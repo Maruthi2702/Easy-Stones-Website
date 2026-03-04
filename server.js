@@ -338,7 +338,12 @@ app.get('/api/products', async (req, res) => {
 // JWT Verification Middleware
 // JWT Verification Middleware
 const verifyToken = (req, res, next) => {
-  const token = req.cookies.adminToken;
+  let token = req.cookies.adminToken;
+
+  // Fallback to Authorization header
+  if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
 
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
@@ -358,24 +363,34 @@ const verifyToken = (req, res, next) => {
 const verifyAnyAuth = (req, res, next) => {
   const adminToken = req.cookies.adminToken;
   const customerToken = req.cookies.customerToken;
+  let authHeaderToken = null;
 
-  // Try admin token first
-  if (adminToken) {
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    authHeaderToken = req.headers.authorization.split(' ')[1];
+  }
+
+  // 1. Try admin token (Cookie or Header)
+  const effectiveAdminToken = adminToken || authHeaderToken;
+  if (effectiveAdminToken) {
     try {
-      const decoded = jwt.verify(adminToken, JWT_SECRET);
-      req.userId = decoded.userId;
-      req.userRole = decoded.role;
-      req.authType = 'admin';
-      return next();
+      const decoded = jwt.verify(effectiveAdminToken, JWT_SECRET);
+      // For verifyToken equivalent (admin routes)
+      if (decoded.userId) {
+        req.userId = decoded.userId;
+        req.userRole = decoded.role;
+        req.authType = 'admin';
+        return next();
+      }
     } catch (error) {
-      // Admin token invalid, try customer token
+      // Admin token invalid, continue to customer/internal
     }
   }
 
-  // Try customer token
-  if (customerToken) {
+  // 2. Try customer/internal token (Cookie or Header)
+  const effectiveCustomerToken = customerToken || authHeaderToken;
+  if (effectiveCustomerToken) {
     try {
-      const decoded = jwt.verify(customerToken, JWT_SECRET);
+      const decoded = jwt.verify(effectiveCustomerToken, JWT_SECRET);
       if (decoded.type === 'customer' || decoded.type === 'internal') {
         req.customerId = decoded.id;
 

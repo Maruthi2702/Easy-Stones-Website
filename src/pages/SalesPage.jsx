@@ -693,6 +693,7 @@ const SalesPage = () => {
 
             const newCustomer = await response.json();
             await fetchCustomers();
+            await fetchAllCustomersForDropdown(); // Refresh dropdown options
             closeModal();
             handleSelectCustomer(newCustomer);
         } catch (error) {
