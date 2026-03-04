@@ -255,7 +255,7 @@ const VisitModal = ({
                                                     src={img}
                                                     alt="Preview"
                                                     className="attachment-img"
-                                                    onClick={() => setFullScreenImage(img)}
+                                                    onClick={() => handleOpenGallery(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image], idx)}
                                                     style={{ borderRadius: '8px', cursor: 'pointer' }}
                                                     loading="lazy"
                                                 />

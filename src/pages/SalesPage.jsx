@@ -2219,11 +2219,7 @@ const SalesPage = () => {
                                         <div className="header-right" style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
                                             <button
                                                 className="info-toggle-btn"
-                                                onClick={() => {
-                                                    setSelectedCustomerId(null);
-                                                    setSelectedCustomerDetail(null);
-                                                    navigate('/sales');
-                                                }}
+                                                onClick={handleGoHome}
                                                 title="Sales Dashboard"
                                                 style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', padding: '6px' }}
                                             >
@@ -2535,7 +2531,10 @@ const SalesPage = () => {
                                                                                                         src={img}
                                                                                                         alt="Resource"
                                                                                                         style={{ maxWidth: '100px', maxHeight: '100px', objectFit: 'cover', cursor: 'pointer', borderRadius: '4px', border: '1px solid #ddd' }}
-                                                                                                        onClick={() => setFullScreenImage(img)}
+                                                                                                        onClick={() => {
+                                                                                                            const attachments = Array.isArray(resource.image) ? resource.image : [resource.image];
+                                                                                                            handleOpenGallery(attachments, idx);
+                                                                                                        }}
                                                                                                         loading="lazy"
                                                                                                     />
                                                                                                 )
@@ -3253,8 +3252,8 @@ const SalesPage = () => {
                                                                                             className="icon-btn-ghost"
                                                                                             title="View Attachments"
                                                                                             onClick={() => {
-                                                                                                const img = (Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : [resource.image || resource.content])[0];
-                                                                                                if (img) setFullScreenImage(img);
+                                                                                                const attachments = Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : [resource.image || resource.content];
+                                                                                                handleOpenGallery(attachments, 0);
                                                                                             }}
                                                                                             disabled={loadingResourceId === resource._id}
                                                                                         >
@@ -3631,6 +3630,7 @@ const SalesPage = () => {
                     customers={customers}
                     handleDashboardDownload={handleDashboardDownload}
                     setFullScreenImage={setFullScreenImage}
+                    handleOpenGallery={handleOpenGallery}
                 />
 
                 <ResourceModal
