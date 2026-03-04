@@ -2,7 +2,7 @@ import React from 'react';
 import {
     LayoutDashboard, Pin, PinOff,
     ChevronLeft, Search, X, ChevronRight, User, AlertCircle,
-    FileSpreadsheet
+    FileSpreadsheet, UserPlus
 } from 'lucide-react';
 
 const CustomerSidebar = ({
@@ -25,7 +25,8 @@ const CustomerSidebar = ({
     currentPage,
     setCurrentPage,
     totalPages,
-    totalCustomers
+    totalCustomers,
+    onAddCustomer
 }) => {
     return (
         <div
@@ -55,6 +56,16 @@ const CustomerSidebar = ({
                     >
                         <FileSpreadsheet size={18} />
                     </button>
+                    {onAddCustomer && (
+                        <button
+                            className="icon-btn-ghost"
+                            onClick={onAddCustomer}
+                            title="Add New Customer"
+                            style={{ color: '#E5C04A' }}
+                        >
+                            <UserPlus size={18} />
+                        </button>
+                    )}
                     <button
                         className="icon-btn-ghost"
                         onClick={togglePin}

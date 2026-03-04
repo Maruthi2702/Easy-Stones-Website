@@ -26,6 +26,7 @@ import CustomerSidebar from '../components/sales/CustomerSidebar';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
+import AddCustomerModal from '../components/sales/AddCustomerModal';
 import LeadsSheet from '../components/sales/LeadsSheet';
 import './LeadsSheet.css';
 
@@ -520,6 +521,7 @@ const SalesPage = () => {
 
     const [showDashboard, setShowDashboard] = useState(true);
     const [showDashboardUploadModal, setShowDashboardUploadModal] = useState(false);
+    const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
     const [loadingVisitId, setLoadingVisitId] = useState(null);
     const [loadingResourceId, setLoadingResourceId] = useState(null);
 
@@ -670,6 +672,32 @@ const SalesPage = () => {
         setActiveDashboardTab('visits');
         if (isMobile) {
             setIsSidebarOpen(false);
+        }
+    };
+
+    const handleCreateCustomer = async (formData, closeModal) => {
+        try {
+            const response = await fetch(`${API_URL}/api/sales/customers`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message || 'Failed to create customer');
+            }
+
+            const newCustomer = await response.json();
+            await fetchCustomers();
+            closeModal();
+            handleSelectCustomer(newCustomer);
+        } catch (error) {
+            console.error('Error creating customer:', error);
+            alert(error.message || 'Failed to create customer');
         }
     };
 
@@ -2155,6 +2183,7 @@ const SalesPage = () => {
                 setCurrentPage={setCurrentPage}
                 totalPages={totalPages}
                 totalCustomers={totalCustomers}
+                onAddCustomer={() => setShowAddCustomerModal(true)}
             />
 
             {/* Main Content */}
@@ -3631,6 +3660,7 @@ const SalesPage = () => {
                     handleDashboardDownload={handleDashboardDownload}
                     setFullScreenImage={setFullScreenImage}
                     handleOpenGallery={handleOpenGallery}
+                    onCreateNew={() => { setShowVisitModal(false); setShowAddCustomerModal(true); }}
                 />
 
                 <ResourceModal
@@ -3652,6 +3682,7 @@ const SalesPage = () => {
                     handleDashboardDownload={handleDashboardDownload}
                     setFullScreenImage={setFullScreenImage}
                     handleOpenGallery={handleOpenGallery}
+                    onCreateNew={() => { setShowResourceModal(false); setShowAddCustomerModal(true); }}
                 />
 
                 {
@@ -3689,6 +3720,13 @@ const SalesPage = () => {
                     )
                 }
 
+
+                <AddCustomerModal
+                    show={showAddCustomerModal}
+                    onClose={() => setShowAddCustomerModal(false)}
+                    onSave={handleCreateCustomer}
+                    isSaving={isSaving}
+                />
 
                 {/* Dashboard Upload Modal */}
                 {

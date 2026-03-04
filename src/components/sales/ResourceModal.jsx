@@ -21,7 +21,8 @@ const ResourceModal = ({
     handleRemoveResourceImage,
     handleDashboardDownload,
     setFullScreenImage,
-    handleOpenGallery
+    handleOpenGallery,
+    onCreateNew
 }) => {
     if (!showResourceModal) return null;
 
@@ -158,6 +159,8 @@ const ResourceModal = ({
                                     });
                                 }}
                                 placeholder="Select a Client..."
+                                onCreateNew={onCreateNew}
+                                createNewLabel="+ New Customer"
                             />
                         </div>
                         <div className="form-group">

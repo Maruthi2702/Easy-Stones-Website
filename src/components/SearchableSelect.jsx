@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown, Check } from 'lucide-react';
+import { Search, ChevronDown, Check, Plus } from 'lucide-react';
 
-const SearchableSelect = ({ options, value, onChange, placeholder, className, style }) => {
+const SearchableSelect = ({ options, value, onChange, placeholder, className, style, onCreateNew, createNewLabel }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [hasOpenedOnce, setHasOpenedOnce] = useState(false);
@@ -116,6 +116,32 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                             />
                         </div>
                     </div>
+
+                    {onCreateNew && (
+                        <div
+                            onClick={(e) => { e.stopPropagation(); setIsOpen(false); onCreateNew(); }}
+                            style={{
+                                padding: '10px 12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                color: '#E5C04A',
+                                fontWeight: 600,
+                                fontSize: '0.9rem',
+                                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                                position: 'sticky',
+                                top: '46px',
+                                backgroundColor: '#1C1C1E',
+                                zIndex: 1
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(229, 192, 74, 0.1)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1C1C1E'}
+                        >
+                            <Plus size={16} />
+                            <span>{createNewLabel || '+ New Customer'}</span>
+                        </div>
+                    )}
 
                     <div className="searchable-select-options">
                         {filteredOptions.length > 0 ? (

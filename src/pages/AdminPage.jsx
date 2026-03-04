@@ -37,7 +37,7 @@ const AdminPage = () => {
   const [customerFormData, setCustomerFormData] = useState({
     contactName: '',
     email: '',
-    password: '',
+    password: 'customer123',
     phone: '',
     company: '',
     address: {
@@ -693,7 +693,7 @@ const AdminPage = () => {
     setCustomerFormData({
       contactName: '',
       email: '',
-      password: '',
+      password: 'customer123',
       phone: '',
       company: '',
       address: {

@@ -22,7 +22,6 @@ import Product from './src/models/Product.js';
 import User from './src/models/User.js';
 import ContactSubmission from './src/models/ContactSubmission.js';
 import Customer from './src/models/Customer.js';
-import SalesCustomer from './src/models/SalesCustomer.js';
 import SalesResource from './src/models/SalesResource.js';
 import SalesDashboardResource from './src/models/SalesDashboardResource.js';
 import ActivityLog from './src/models/ActivityLog.js';
@@ -41,7 +40,7 @@ const __dirname = path.dirname(__filename);
 // Mockup Generation Utility
 const generateMockups = async (slabImageBuffer, baseFilename) => {
   const templatesDir = path.join(__dirname, 'public', 'images', 'templates');
-  
+
   const templates = [
     { name: 'kitchen_template.png', suffix: 'installed_1' },
     { name: 'bathroom_template.png', suffix: 'installed_2' }
@@ -59,7 +58,7 @@ const generateMockups = async (slabImageBuffer, baseFilename) => {
 
       // Get template metadata
       const templateMetadata = await sharp(templatePath).metadata();
-      
+
       // Resize slab to cover the template dimensions
       const slabBuffer = await sharp(slabImageBuffer)
         .resize(templateMetadata.width, templateMetadata.height, { fit: 'cover' })
@@ -78,7 +77,7 @@ const generateMockups = async (slabImageBuffer, baseFilename) => {
       // Upload to Cloudinary
       const outputFilename = `${template.suffix}_${baseFilename}`;
       const result = await uploadToCloudinary(compositeBuffer, 'products/installed', outputFilename);
-      
+
       generatedUrls.push(result.secure_url);
 
     } catch (err) {
@@ -113,7 +112,7 @@ const processBase64Image = async (base64String, subDir = 'visits') => {
     const base64Data = base64String.split(';base64,').pop();
     const buffer = Buffer.from(base64Data, 'base64');
     const optimizedBuffer = await optimizeImage(buffer);
-    
+
     const uploadDir = path.join(__dirname, 'public/uploads', subDir);
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -122,7 +121,7 @@ const processBase64Image = async (base64String, subDir = 'visits') => {
     const filename = `img_${Date.now()}_${Math.round(Math.random() * 1E9)}.webp`;
     const filePath = path.join(uploadDir, filename);
     fs.writeFileSync(filePath, optimizedBuffer);
-    
+
     return `/uploads/${subDir}/${filename}`;
   } catch (err) {
     console.error('Failed to process base64 image:', err);
@@ -185,7 +184,7 @@ async function startServer() {
 
     app.listen(PORT, () => {
       console.log(`🚀 Backend server running on port ${PORT}`);
-      
+
       // Keep-Alive Mechanism for Render Free Tier
       const keepAliveInterval = 5 * 60 * 1000;
       setInterval(() => {
@@ -210,7 +209,7 @@ app.get('/api/debug/config', async (req, res) => {
     const adminCount = await User.countDocuments();
     const dbName = mongoose.connection.name;
     const host = mongoose.connection.host;
-    
+
     // Check for specific user if provided
     let userCheck = null;
     if (req.query.username) {
@@ -238,7 +237,7 @@ app.get('/api/debug/config', async (req, res) => {
 // Cloudinary config removed - using local storage
 // Cloudinary config removed - using local storage
 const memoryStorage = multer.memoryStorage();
-const uploadMemory = multer({ 
+const uploadMemory = multer({
   storage: memoryStorage,
   limits: { fileSize: 200 * 1024 * 1024 } // 200MB limit for memory uploads (Excel bulk, etc.)
 });
@@ -294,11 +293,11 @@ const loginLimiter = rateLimit({
 app.get('/api/products', async (req, res) => {
   try {
     const products = await Product.find().sort({ id: -1 }); // Sort by ID descending (newest first)
-    
+
     // Check if customer is logged in
     const token = req.cookies.customerToken;
     let priceLevel = 1; // Default to level 1
-    
+
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
@@ -312,23 +311,23 @@ app.get('/api/products', async (req, res) => {
         // Token invalid or expired, use default level 1
       }
     }
-    
+
     // Transform products to show price based on customer's level
     const productsWithPrices = products.map(product => {
       const productObj = product.toObject();
-      
+
       if (productObj.priceLevels) {
         const levelKey = `level${priceLevel}`;
         const levelPrice = productObj.priceLevels[levelKey];
-        
+
         if (levelPrice) {
           productObj.price = `$${levelPrice.toFixed(2)}/sqft`;
         }
       }
-      
+
       return productObj;
     });
-    
+
     res.json(productsWithPrices);
   } catch (error) {
     console.error('❌ Error fetching products:', error);
@@ -340,11 +339,11 @@ app.get('/api/products', async (req, res) => {
 // JWT Verification Middleware
 const verifyToken = (req, res, next) => {
   const token = req.cookies.adminToken;
-  
+
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
   }
-  
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
@@ -379,14 +378,14 @@ const verifyAnyAuth = (req, res, next) => {
       const decoded = jwt.verify(customerToken, JWT_SECRET);
       if (decoded.type === 'customer' || decoded.type === 'internal') {
         req.customerId = decoded.id;
-        
+
         // If internal user, also set userId so admin routes work
         if (decoded.type === 'internal') {
-            req.userId = decoded.id;
+          req.userId = decoded.id;
         }
 
         req.accountType = decoded.type;
-        req.authType = decoded.type === 'customer' ? 'customer' : 'admin'; 
+        req.authType = decoded.type === 'customer' ? 'customer' : 'admin';
         return next();
       }
     } catch (error) {
@@ -412,63 +411,63 @@ const authorize = (...roles) => {
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
-    
+
     if (!username || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Username and password are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Username and password are required'
       });
     }
-    
+
     // Find user by username
     console.log(`🔍 Attempting to find User (Admin): ${username} (ReadyState: ${mongoose.connection.readyState})`);
     const startQuery = Date.now();
     const user = await User.findOne({ username: username.toLowerCase() });
     console.log(`⏱️ Query took ${Date.now() - startQuery}ms`);
-    
+
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid credentials' 
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
       });
     }
-    
+
     // Check if account is locked
     if (user.isLocked()) {
-      return res.status(423).json({ 
-        success: false, 
-        message: 'Account locked due to too many failed attempts. Try again in 15 minutes.' 
+      return res.status(423).json({
+        success: false,
+        message: 'Account locked due to too many failed attempts. Try again in 15 minutes.'
       });
     }
-    
+
     // Verify password
     const isMatch = await user.comparePassword(password);
-    
+
     if (!isMatch) {
       // Increment login attempts
       await user.incLoginAttempts();
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid credentials' 
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
       });
     }
-    
+
     // Reset login attempts on successful login
     if (user.loginAttempts > 0) {
       await user.resetLoginAttempts();
     }
-    
+
     // Generate JWT
     const token = jwt.sign(
-      { 
-        userId: user._id, 
+      {
+        userId: user._id,
         username: user.username,
-        role: user.role 
+        role: user.role
       },
       JWT_SECRET,
       { expiresIn: '6h' }
     );
-    
+
     // Set HTTP-only cookie
     res.cookie('adminToken', token, {
       httpOnly: true,
@@ -476,17 +475,17 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       sameSite: 'lax',
       maxAge: 6 * 60 * 60 * 1000 // 6 hours
     });
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Login successful',
-      admin: { 
-        username: user.username, 
+      admin: {
+        username: user.username,
         email: user.email,
         role: user.role
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Login error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -511,7 +510,7 @@ app.get('/api/admin/users', verifyToken, authorize('admin', 'director'), async (
 app.post('/api/admin/users', verifyToken, authorize('admin', 'director'), async (req, res) => {
   try {
     const { username, password, email, role, location } = req.body;
-    
+
     // Check if user exists
     const existingUser = await User.findOne({ username });
     if (existingUser) {
@@ -527,16 +526,16 @@ app.post('/api/admin/users', verifyToken, authorize('admin', 'director'), async 
     });
 
     await newUser.save();
-    
-    res.status(201).json({ 
-      message: 'User created successfully', 
-      user: { 
-        id: newUser._id, 
-        username: newUser.username, 
-        email: newUser.email, 
+
+    res.status(201).json({
+      message: 'User created successfully',
+      user: {
+        id: newUser._id,
+        username: newUser.username,
+        email: newUser.email,
         role: newUser.role,
         location: newUser.location
-      } 
+      }
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to create user', error: error.message });
@@ -599,7 +598,7 @@ app.delete('/api/admin/users/:id', verifyToken, authorize('admin', 'director'), 
 app.post('/api/auth/change-password', verifyToken, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    
+
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ success: false, message: 'Current password and new password are required' });
     }
@@ -641,9 +640,9 @@ app.post('/api/auth/logout', (req, res) => {
 
 // Verify token endpoint
 app.get('/api/auth/verify', verifyAnyAuth, (req, res) => {
-  res.json({ 
-    valid: true, 
-    id: req.userId || req.customerId, 
+  res.json({
+    valid: true,
+    id: req.userId || req.customerId,
     role: req.userRole || 'customer',
     authType: req.authType
   });
@@ -675,9 +674,9 @@ app.post('/api/contact', async (req, res) => {
 
     // Validate required fields
     if (!name || !email || !message) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Name, email, and message are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and message are required'
       });
     }
 
@@ -734,15 +733,15 @@ app.post('/api/contact', async (req, res) => {
     }
 
     // Always return success - the form submission is logged
-    res.json({ 
-      success: true, 
-      message: 'Thank you for your message! We\'ll get back to you soon.' 
+    res.json({
+      success: true,
+      message: 'Thank you for your message! We\'ll get back to you soon.'
     });
   } catch (error) {
     console.error('❌ Contact form error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to send message. Please try again.' 
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send message. Please try again.'
     });
   }
 });
@@ -784,8 +783,8 @@ app.post('/api/customer/register', async (req, res) => {
       maxAge: 6 * 60 * 60 * 1000 // 6 hours
     });
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       message: 'Registration successful',
       user: {
         id: customer._id,
@@ -828,11 +827,11 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     const startQuery = Date.now();
     let account;
     let accountType = 'customer';
-    
+
     try {
       // 1. Try finding as a Customer first
       account = await Customer.findOne({ email: loginIdentifier }).select('-visits -resources');
-      
+
       // 2. If not found in Customers, check internal Users
       if (!account) {
         account = await User.findOne({
@@ -841,7 +840,7 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
             { username: loginIdentifier }
           ]
         });
-        
+
         if (account) {
           accountType = 'internal';
         }
@@ -860,7 +859,7 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
 
       // Verify password
       const isMatch = await account.comparePassword(password);
-      
+
       if (!isMatch) {
         if (typeof account.incLoginAttempts === 'function') {
           await account.incLoginAttempts();
@@ -874,25 +873,25 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       }
     } catch (dbError) {
       console.error(`[${new Date().toISOString()}] ❌ DB ERROR during account lookup:`, dbError);
-      throw dbError; 
+      throw dbError;
     }
 
     // Reset login attempts and save IP address
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     console.log(`💾 Updating ${accountType} login info (IP: ${ip}) for ${email}`);
-    
+
     if (accountType === 'customer') {
       await Customer.updateOne({ _id: account._id }, {
-        $set: { 
+        $set: {
           loginAttempts: 0,
           lastLoginIp: ip
         },
         $unset: { lockUntil: 1 },
-        $push: { 
-          loginIps: { 
-            $each: [ip], 
-            $slice: -3 
-          } 
+        $push: {
+          loginIps: {
+            $each: [ip],
+            $slice: -3
+          }
         }
       });
     } else {
@@ -905,8 +904,8 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     // Generate JWT token
     console.log(`🔑 Generating JWT for ${email} (Type: ${accountType})`);
     const token = jwt.sign(
-      { 
-        id: account._id, 
+      {
+        id: account._id,
         type: accountType,
         role: account.role || 'customer'
       },
@@ -1001,7 +1000,7 @@ const customerAuthMiddleware = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    
+
     if (decoded.type === 'internal') {
       const user = await User.findById(decoded.id).select('-password');
       if (!user) {
@@ -1017,7 +1016,7 @@ const customerAuthMiddleware = async (req, res, next) => {
       req.user = customer;
       req.accountType = 'customer';
     }
-    
+
     next();
   } catch (error) {
     return res.status(401).json({ message: 'Invalid or expired token' });
@@ -1039,21 +1038,21 @@ app.post('/api/customer/logout', (req, res) => {
 
 // Helper: Standardized User Attribution
 const getPerformerInfo = async (req) => {
-    let id = '';
-    let name = '';
-    let role = req.authType;
+  let id = '';
+  let name = '';
+  let role = req.authType;
 
-    if (req.authType === 'admin') {
-        id = req.userId;
-        const user = await User.findById(req.userId).select('username');
-        name = user ? user.username : `Unknown User (${req.userId})`;
-    } else if (req.authType === 'customer') {
-        id = req.customerId;
-        const customer = await Customer.findById(req.customerId).select('contactName email');
-        name = customer ? (customer.contactName || customer.email) : `Unknown Customer (${req.customerId})`;
-    }
+  if (req.authType === 'admin') {
+    id = req.userId;
+    const user = await User.findById(req.userId).select('username');
+    name = user ? user.username : `Unknown User (${req.userId})`;
+  } else if (req.authType === 'customer') {
+    id = req.customerId;
+    const customer = await Customer.findById(req.customerId).select('contactName email');
+    name = customer ? (customer.contactName || customer.email) : `Unknown Customer (${req.customerId})`;
+  }
 
-    return { id, name, role };
+  return { id, name, role };
 };
 
 // Customer-accessible endpoint: Get all customers (for sales page)
@@ -1064,7 +1063,7 @@ app.get('/api/customers', verifyAnyAuth, async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
     const search = req.query.search || '';
-    
+
     let query = {};
     if (search) {
       query = {
@@ -1117,7 +1116,7 @@ app.get('/api/customers/dropdown', verifyAnyAuth, async (req, res) => {
       .select('_id company contactName firstName lastName email')
       .sort({ company: 1, contactName: 1 })
       .lean();
-    
+
     res.json(customers);
   } catch (error) {
     console.error('Error fetching customers for dropdown:', error);
@@ -1130,7 +1129,7 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
   try {
     const { timeRange = '7days', localDate } = req.query;
     const now = new Date();
-    
+
     // Determine "Today" based on localDate from client or server now
     let targetDateStr = localDate;
     if (!targetDateStr) {
@@ -1140,7 +1139,7 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
 
     const [year, month, day] = targetDateStr.split('-').map(Number);
     // Use Face Value comparison for "Today" boundaries
-    const todayStr = targetDateStr; 
+    const todayStr = targetDateStr;
     const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
     const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
@@ -1193,9 +1192,9 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
               $cond: [
                 {
                   $or: [
-                        { $regexMatch: { input: { $ifNull: ["$visits.outcome", ""] }, regex: /bid|quote/i } },
-                        { $regexMatch: { input: { $ifNull: ["$visits.notes", ""] }, regex: /bid|quote/i } }
-                      ]
+                    { $regexMatch: { input: { $ifNull: ["$visits.outcome", ""] }, regex: /bid|quote/i } },
+                    { $regexMatch: { input: { $ifNull: ["$visits.notes", ""] }, regex: /bid|quote/i } }
+                  ]
                 },
                 1, 0
               ]
@@ -1208,9 +1207,9 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
 
     // Separate Aggregation for Follow-Up Stats (Strictly by Follow-Up Date)
     const followUpStats = await Customer.aggregate([
-        { $unwind: "$visits" },
-        { $match: followUpDateMatchScoped },
-        { $count: "count" }
+      { $unwind: "$visits" },
+      { $match: followUpDateMatchScoped },
+      { $count: "count" }
     ]);
 
     // Today's Schedule count
@@ -1231,29 +1230,31 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
 
     // Strictly filter by current user for dashboard resources
     // Strictly filter by current user for dashboard resources
-    const resourceUserFilter = { 
-        $or: [
-            { "resources.uploadedBy": userId.toString() },
-            { "resources.createdBy": userId.toString() }
-        ]
+    const resourceUserFilter = {
+      $or: [
+        { "resources.uploadedBy": userId.toString() },
+        { "resources.createdBy": userId.toString() }
+      ]
     };
-    
+
     const resourceRange = getAggregationRangeMatch(startDate, endDate, "resources");
     const resourceStats = await Customer.aggregate([
       { $unwind: "$resources" },
-      { $match: { 
+      {
+        $match: {
           $expr: {
-              $and: [
-                  {
-                      $or: [
-                          { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
-                          { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
-                      ]
-                  },
-                  (resourceRange.$expr || { $literal: true })
-              ]
+            $and: [
+              {
+                $or: [
+                  { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
+                  { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
+                ]
+              },
+              (resourceRange.$expr || { $literal: true })
+            ]
           }
-      } },
+        }
+      },
       { $count: "count" }
     ]);
 
@@ -1278,201 +1279,217 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
 });
 
 // Get dashboard visits (returns a flat list for all customers in range)
- app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
-    try {
-        const { timeRange = 'all', localDate, filterType } = req.query;
-        const now = new Date();
-        
-        // Determine "Today" based on localDate from client or server now
-        let targetDateStr = localDate;
-        if (!targetDateStr) {
-            const pstDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-            targetDateStr = `${pstDate.getFullYear()}-${String(pstDate.getMonth() + 1).padStart(2, '0')}-${String(pstDate.getDate()).padStart(2, '0')}`;
-        }
+app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
+  try {
+    const { timeRange = 'all', localDate, filterType } = req.query;
+    const now = new Date();
 
-        const [year, month, day] = targetDateStr.split('-').map(Number);
-        const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-        const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-
-        let startDate = null;
-        let endDate = null;
-
-        if (timeRange === '1day') {
-            startDate = startOfTargetDay;
-            endDate = endOfTargetDay;
-        } else if (timeRange === '7days') {
-            startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-        } else if (timeRange === '30days') {
-            startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-        } else if (timeRange === 'year') {
-            startDate = new Date(now.getFullYear(), 0, 1);
-        }
-
-        const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
-        
-        const userMatchObj = { "visits.createdBy": userId.toString() };
-
-        // Handle fallback logic for matching
-        const dateMatch = filterType === 'followup' 
-            ? getFollowUpRangeMatch(startDate, endDate, userMatchObj)
-            : getAggregationRangeMatch(startDate, endDate, "visits", userMatchObj);
-
-        const visits = await Customer.aggregate([
-            { $unwind: "$visits" },
-            { $match: dateMatch },
-            { $project: {
-                _id: "$visits._id",
-                date: {
-                    $cond: [
-                        { $eq: [{ $type: "$visits.date" }, "string"] },
-                        "$visits.date",
-                        { $ifNull: [
-                            "$visits.date",
-                            { $cond: [
-                                { $eq: [{ $type: "$visits.createdAt" }, "date"] },
-                                { $dateToString: { format: "%Y-%m-%d", date: "$visits.createdAt" } },
-                                { $substr: ["$visits.createdAt", 0, 10] }
-                            ]}
-                        ]}
-                    ]
-                },
-                purpose: "$visits.purpose",
-                notes: "$visits.notes",
-                outcome: "$visits.outcome",
-                nextAction: "$visits.nextAction",
-                followUp: "$visits.followUp",
-                followUpDate: "$visits.followUpDate",
-                createdBy: "$visits.createdBy",
-                createdAt: {
-                    $cond: [
-                        { $eq: [{ $type: "$visits.createdAt" }, "date"] },
-                        { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$visits.createdAt" } },
-                        "$visits.createdAt"
-                    ]
-                },
-                customerId: "$_id",
-                customerName: { $concat: [ 
-                    { $ifNull: ["$company", ""] }, 
-                    { $cond: [{ $and: ["$company", "$contactName"] }, " - ", ""] }, 
-                    { $ifNull: ["$contactName", ""] } 
-                ]}
-            }},
-            { $sort: { date: -1, createdAt: -1 } }
-        ]);
-
-        res.json(visits);
-    } catch (error) {
-        console.error('Error fetching dashboard visits:', error);
-        res.status(500).json({ message: 'Failed to fetch dashboard visits' });
+    // Determine "Today" based on localDate from client or server now
+    let targetDateStr = localDate;
+    if (!targetDateStr) {
+      const pstDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+      targetDateStr = `${pstDate.getFullYear()}-${String(pstDate.getMonth() + 1).padStart(2, '0')}-${String(pstDate.getDate()).padStart(2, '0')}`;
     }
+
+    const [year, month, day] = targetDateStr.split('-').map(Number);
+    const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+    const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+    let startDate = null;
+    let endDate = null;
+
+    if (timeRange === '1day') {
+      startDate = startOfTargetDay;
+      endDate = endOfTargetDay;
+    } else if (timeRange === '7days') {
+      startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+    } else if (timeRange === '30days') {
+      startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+    } else if (timeRange === 'year') {
+      startDate = new Date(now.getFullYear(), 0, 1);
+    }
+
+    const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
+
+    const userMatchObj = { "visits.createdBy": userId.toString() };
+
+    // Handle fallback logic for matching
+    const dateMatch = filterType === 'followup'
+      ? getFollowUpRangeMatch(startDate, endDate, userMatchObj)
+      : getAggregationRangeMatch(startDate, endDate, "visits", userMatchObj);
+
+    const visits = await Customer.aggregate([
+      { $unwind: "$visits" },
+      { $match: dateMatch },
+      {
+        $project: {
+          _id: "$visits._id",
+          date: {
+            $cond: [
+              { $eq: [{ $type: "$visits.date" }, "string"] },
+              "$visits.date",
+              {
+                $ifNull: [
+                  "$visits.date",
+                  {
+                    $cond: [
+                      { $eq: [{ $type: "$visits.createdAt" }, "date"] },
+                      { $dateToString: { format: "%Y-%m-%d", date: "$visits.createdAt" } },
+                      { $substr: ["$visits.createdAt", 0, 10] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          purpose: "$visits.purpose",
+          notes: "$visits.notes",
+          outcome: "$visits.outcome",
+          nextAction: "$visits.nextAction",
+          followUp: "$visits.followUp",
+          followUpDate: "$visits.followUpDate",
+          createdBy: "$visits.createdBy",
+          createdAt: {
+            $cond: [
+              { $eq: [{ $type: "$visits.createdAt" }, "date"] },
+              { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$visits.createdAt" } },
+              "$visits.createdAt"
+            ]
+          },
+          customerId: "$_id",
+          customerName: {
+            $concat: [
+              { $ifNull: ["$company", ""] },
+              { $cond: [{ $and: ["$company", "$contactName"] }, " - ", ""] },
+              { $ifNull: ["$contactName", ""] }
+            ]
+          }
+        }
+      },
+      { $sort: { date: -1, createdAt: -1 } }
+    ]);
+
+    res.json(visits);
+  } catch (error) {
+    console.error('Error fetching dashboard visits:', error);
+    res.status(500).json({ message: 'Failed to fetch dashboard visits' });
+  }
 });
 
 // Get dashboard resources (returns a flat list for all customers in range)
 app.get('/api/dashboard/resources', verifyAnyAuth, async (req, res) => {
-    try {
-        const { timeRange = 'all', localDate } = req.query;
-        const now = new Date();
-        
-        // Determine "Today" based on localDate from client or server now
-        let targetDateStr = localDate;
-        if (!targetDateStr) {
-            const pstDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-            targetDateStr = `${pstDate.getFullYear()}-${String(pstDate.getMonth() + 1).padStart(2, '0')}-${String(pstDate.getDate()).padStart(2, '0')}`;
-        }
+  try {
+    const { timeRange = 'all', localDate } = req.query;
+    const now = new Date();
 
-        const [year, month, day] = targetDateStr.split('-').map(Number);
-        const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-        const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-
-        let startDate = null;
-        let endDate = null;
-
-        if (timeRange === '1day') {
-            startDate = startOfTargetDay;
-            endDate = endOfTargetDay;
-        } else if (timeRange === '7days') {
-            startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-        } else if (timeRange === '30days') {
-            startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-        } else if (timeRange === 'year') {
-            startDate = new Date(now.getFullYear(), 0, 1);
-        }
-
-        const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
-        const isAdmin = ['admin', 'director', 'manager'].includes(role);
-
-        const resourceMatchObj = { 
-            "resources.uploadedBy": userId.toString(),
-            // Note: mixing OR inside $eq is complex, let's keep it simple or use $or if needed.
-            // Actually, resourceMatch was using $or. 
-            // In $expr, $or is different.
-        };
-        
-        // For resources, let's stick to the $or match outside $expr if possible, 
-        // OR wrap it properly.
-        const rangeMatch = getAggregationRangeMatch(startDate, endDate, "resources");
-        
-        const resourceMatchStage = {
-            $expr: {
-                $and: [
-                    {
-                        $or: [
-                            { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
-                            { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
-                        ]
-                    },
-                    (rangeMatch.$expr || { $literal: true })
-                ]
-            }
-        };
-
-        const resources = await Customer.aggregate([
-            { $unwind: "$resources" },
-            { $match: resourceMatchStage },
-            { $project: {
-                _id: "$resources._id",
-                name: "$resources.name",
-                description: "$resources.description",
-                type: "$resources.type",
-                resourceType: "$resources.resourceType",
-                date: {
-                    $cond: [
-                        { $eq: [{ $type: "$resources.date" }, "string"] },
-                        "$resources.date",
-                        { $ifNull: [
-                            "$resources.date",
-                            { $cond: [
-                                { $eq: [{ $type: "$resources.createdAt" }, "date"] },
-                                { $dateToString: { format: "%Y-%m-%d", date: "$resources.createdAt" } },
-                                { $substr: ["$resources.createdAt", 0, 10] }
-                            ]}
-                        ]}
-                    ]
-                },
-                content: "$resources.content",
-                uploadedBy: "$resources.uploadedBy",
-                createdAt: {
-                    $cond: [
-                        { $eq: [{ $type: "$resources.createdAt" }, "date"] },
-                        { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$resources.createdAt" } },
-                        "$resources.createdAt"
-                    ]
-                },
-                customerId: "$_id",
-                customerName: { $concat: [ 
-                    { $ifNull: ["$company", ""] }, 
-                    { $cond: [{ $and: ["$company", "$contactName"] }, " - ", ""] }, 
-                    { $ifNull: ["$contactName", ""] } 
-                ]}
-            }},
-            { $sort: { date: -1, createdAt: -1 } }
-        ]);
-
-        res.json(resources);
-    } catch (error) {
-        console.error('Error fetching dashboard resources:', error);
-        res.status(500).json({ message: 'Failed to fetch dashboard resources' });
+    // Determine "Today" based on localDate from client or server now
+    let targetDateStr = localDate;
+    if (!targetDateStr) {
+      const pstDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+      targetDateStr = `${pstDate.getFullYear()}-${String(pstDate.getMonth() + 1).padStart(2, '0')}-${String(pstDate.getDate()).padStart(2, '0')}`;
     }
+
+    const [year, month, day] = targetDateStr.split('-').map(Number);
+    const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+    const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+    let startDate = null;
+    let endDate = null;
+
+    if (timeRange === '1day') {
+      startDate = startOfTargetDay;
+      endDate = endOfTargetDay;
+    } else if (timeRange === '7days') {
+      startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+    } else if (timeRange === '30days') {
+      startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+    } else if (timeRange === 'year') {
+      startDate = new Date(now.getFullYear(), 0, 1);
+    }
+
+    const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
+    const isAdmin = ['admin', 'director', 'manager'].includes(role);
+
+    const resourceMatchObj = {
+      "resources.uploadedBy": userId.toString(),
+      // Note: mixing OR inside $eq is complex, let's keep it simple or use $or if needed.
+      // Actually, resourceMatch was using $or. 
+      // In $expr, $or is different.
+    };
+
+    // For resources, let's stick to the $or match outside $expr if possible, 
+    // OR wrap it properly.
+    const rangeMatch = getAggregationRangeMatch(startDate, endDate, "resources");
+
+    const resourceMatchStage = {
+      $expr: {
+        $and: [
+          {
+            $or: [
+              { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
+              { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
+            ]
+          },
+          (rangeMatch.$expr || { $literal: true })
+        ]
+      }
+    };
+
+    const resources = await Customer.aggregate([
+      { $unwind: "$resources" },
+      { $match: resourceMatchStage },
+      {
+        $project: {
+          _id: "$resources._id",
+          name: "$resources.name",
+          description: "$resources.description",
+          type: "$resources.type",
+          resourceType: "$resources.resourceType",
+          date: {
+            $cond: [
+              { $eq: [{ $type: "$resources.date" }, "string"] },
+              "$resources.date",
+              {
+                $ifNull: [
+                  "$resources.date",
+                  {
+                    $cond: [
+                      { $eq: [{ $type: "$resources.createdAt" }, "date"] },
+                      { $dateToString: { format: "%Y-%m-%d", date: "$resources.createdAt" } },
+                      { $substr: ["$resources.createdAt", 0, 10] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          content: "$resources.content",
+          uploadedBy: "$resources.uploadedBy",
+          createdAt: {
+            $cond: [
+              { $eq: [{ $type: "$resources.createdAt" }, "date"] },
+              { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$resources.createdAt" } },
+              "$resources.createdAt"
+            ]
+          },
+          customerId: "$_id",
+          customerName: {
+            $concat: [
+              { $ifNull: ["$company", ""] },
+              { $cond: [{ $and: ["$company", "$contactName"] }, " - ", ""] },
+              { $ifNull: ["$contactName", ""] }
+            ]
+          }
+        }
+      },
+      { $sort: { date: -1, createdAt: -1 } }
+    ]);
+
+    res.json(resources);
+  } catch (error) {
+    console.error('Error fetching dashboard resources:', error);
+    res.status(500).json({ message: 'Failed to fetch dashboard resources' });
+  }
 });
 
 // Get single customer with full details (including images)
@@ -1482,12 +1499,12 @@ app.get('/api/customers/:id', verifyAnyAuth, async (req, res) => {
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
-    
+
     // Add calculated fields for dormancy alerts
     const customerObj = customer.toObject();
-    customerObj.lastVisitDate = customer.visits && customer.visits.length > 0 
-        ? customer.visits.reduce((latest, v) => (v.date > latest ? v.date : latest), customer.visits[0].date)
-        : null;
+    customerObj.lastVisitDate = customer.visits && customer.visits.length > 0
+      ? customer.visits.reduce((latest, v) => (v.date > latest ? v.date : latest), customer.visits[0].date)
+      : null;
 
     res.json(customerObj);
   } catch (error) {
@@ -1597,7 +1614,7 @@ app.get('/api/sales-dashboard/resources', verifyAnyAuth, async (req, res) => {
     const { parentId } = req.query;
     const query = parentId ? { parentId } : { parentId: null };
 
-    
+
     // Also support getting ALL resources if specifically requested (for search maybe?) - avoiding for now to keep simple
     const resources = await SalesDashboardResource.find(query)
       .select('-content')
@@ -1634,8 +1651,8 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
 
     // Handle Folder Creation
     if (isFolder === 'true' || isFolder === true) {
-        content = ''; 
-        contentType = 'application/vnd.google-apps.folder'; 
+      content = '';
+      contentType = 'application/vnd.google-apps.folder';
     }
     // Handle File Upload
     else if (req.file) {
@@ -1657,7 +1674,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
       } else {
         filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}${path.extname(req.file.originalname)}`;
         contentType = req.file.mimetype;
-        
+
         const filePath = path.join(uploadDir, filename);
         fs.writeFileSync(filePath, req.file.buffer);
         content = `/uploads/resources/${filename}`;
@@ -1668,7 +1685,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
       content = linkContent;
       contentType = 'text/uri-list';
     } else {
-        return res.status(400).json({ message: 'Invalid resource data' });
+      return res.status(400).json({ message: 'Invalid resource data' });
     }
 
     const newResource = new SalesDashboardResource({
@@ -1685,7 +1702,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
 
     const startSave = Date.now();
     await newResource.save();
-    
+
     // Populate before returning
     await newResource.populate('uploadedBy', 'username');
 
@@ -1710,10 +1727,10 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, uploadResources.sin
 
     if (name) resource.name = name;
     if (parentId !== undefined) resource.parentId = parentId || null;
-    
+
     // Update modified by
     if (req.userId) {
-        resource.uploadedBy = req.userId;
+      resource.uploadedBy = req.userId;
     }
 
     // If a new file is uploaded
@@ -1742,7 +1759,7 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, uploadResources.sin
       } else {
         filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}${path.extname(req.file.originalname)}`;
         resource.contentType = req.file.mimetype;
-        
+
         const filePath = path.join(uploadDir, filename);
         fs.writeFileSync(filePath, req.file.buffer);
         resource.content = `/uploads/resources/${filename}`;
@@ -1771,34 +1788,34 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res)
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
     if (resource.isFolder) {
-        // Recursive delete: Find all children and delete them
-        // Note: For deep nesting, this should be recursive function, but 
-        // typically MongoDB $graphLookup or separate logic is used. 
-        // For simplicity, we'll just delete direct children or use a recursive function.
-        // Let's implement a helper function for recursive delete.
-        
-        const deleteFolderContents = async (folderId) => {
-            const children = await SalesDashboardResource.find({ parentId: folderId });
-            for (const child of children) {
-                if (child.isFolder) {
-                    await deleteFolderContents(child._id);
-                } else if (child.content && child.content.startsWith('/uploads/')) {
-                    // Delete file from disk
-                    const filePath = path.join(__dirname, 'public', child.content);
-                    if (fs.existsSync(filePath)) {
-                        try { fs.unlinkSync(filePath); } catch (e) { }
-                    }
-                }
-                await SalesDashboardResource.findByIdAndDelete(child._id);
+      // Recursive delete: Find all children and delete them
+      // Note: For deep nesting, this should be recursive function, but 
+      // typically MongoDB $graphLookup or separate logic is used. 
+      // For simplicity, we'll just delete direct children or use a recursive function.
+      // Let's implement a helper function for recursive delete.
+
+      const deleteFolderContents = async (folderId) => {
+        const children = await SalesDashboardResource.find({ parentId: folderId });
+        for (const child of children) {
+          if (child.isFolder) {
+            await deleteFolderContents(child._id);
+          } else if (child.content && child.content.startsWith('/uploads/')) {
+            // Delete file from disk
+            const filePath = path.join(__dirname, 'public', child.content);
+            if (fs.existsSync(filePath)) {
+              try { fs.unlinkSync(filePath); } catch (e) { }
             }
-        };
-        await deleteFolderContents(resourceId);
-    } else if (resource.content && resource.content.startsWith('/uploads/')) {
-        // Delete file from disk
-        const filePath = path.join(__dirname, 'public', resource.content);
-        if (fs.existsSync(filePath)) {
-            try { fs.unlinkSync(filePath); } catch (e) { }
+          }
+          await SalesDashboardResource.findByIdAndDelete(child._id);
         }
+      };
+      await deleteFolderContents(resourceId);
+    } else if (resource.content && resource.content.startsWith('/uploads/')) {
+      // Delete file from disk
+      const filePath = path.join(__dirname, 'public', resource.content);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch (e) { }
+      }
     }
 
     await SalesDashboardResource.findByIdAndDelete(resourceId);
@@ -1828,7 +1845,7 @@ app.get('/api/leads', verifyAnyAuth, async (req, res) => {
 app.post('/api/leads', verifyAnyAuth, async (req, res) => {
   try {
     const { name, company, email, phone, notes, status, followUpDate } = req.body;
-    
+
     // Validate required fields
     if (!company) {
       return res.status(400).json({ message: 'Company is required' });
@@ -1903,7 +1920,7 @@ app.get('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
   try {
     const { customerId, visitId } = req.params;
 
-    
+
     // Use projection to get ONLY the specific visit
     const customer = await Customer.findOne(
       { _id: customerId, 'visits._id': visitId },
@@ -1914,10 +1931,10 @@ app.get('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
 
       return res.status(404).json({ message: 'Visit not found' });
     }
-    
+
     const visit = customer.visits[0];
 
-    
+
     res.json({ visit });
   } catch (error) {
     console.error('[ERROR] Failed to fetch visit detail:', error);
@@ -1941,10 +1958,10 @@ app.get('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async
 
       return res.status(404).json({ message: 'Resource not found' });
     }
-    
+
     const resource = customer.resources[0];
 
-    
+
     res.json({ resource });
   } catch (error) {
     console.error('[ERROR] Failed to fetch resource detail:', error);
@@ -1960,7 +1977,7 @@ const ensureDateString = (dateValue) => {
     // If it involves a time component (ISO string), keep it to preserve specific time
     // This fixes the issue where dates are forced to UTC midnight (and thus shift days in US timezones)
     if (dateValue.includes('T')) {
-        return dateValue;
+      return dateValue;
     }
     // If it's already a string in YYYY-MM-DD format, return as-is
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
@@ -1977,90 +1994,90 @@ const ensureDateString = (dateValue) => {
 };
 
 const getNowLocalISO = () => {
-    const now = new Date();
-    // Use PST (America/Los_Angeles) as the logical local time
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Los_Angeles',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-    });
-    
-    const parts = formatter.formatToParts(now);
-    const getPart = (type) => parts.find(p => p.type === type).value;
-    
-    return `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour')}:${getPart('minute')}:${getPart('second')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
+  const now = new Date();
+  // Use PST (America/Los_Angeles) as the logical local time
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+
+  const parts = formatter.formatToParts(now);
+  const getPart = (type) => parts.find(p => p.type === type).value;
+
+  return `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour')}:${getPart('minute')}:${getPart('second')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
 };
 
 // --- Dashboard Aggregation Helpers (Global Scope) ---
 
 const getAggregationDateRef = (prefix) => ({
-    $cond: [
-        { $eq: [{ $type: `$${prefix}.date` }, "string"] },
-        `$${prefix}.date`,
-        {
-            $cond: [
-                { $eq: [{ $type: `$${prefix}.createdAt` }, "date"] },
-                { $dateToString: { format: "%Y-%m-%d", date: `$${prefix}.createdAt` } },
-                { $ifNull: [{ $substr: [{ $ifNull: [`$${prefix}.createdAt`, ""] }, 0, 10] }, ""] }
-            ]
-        }
-    ]
+  $cond: [
+    { $eq: [{ $type: `$${prefix}.date` }, "string"] },
+    `$${prefix}.date`,
+    {
+      $cond: [
+        { $eq: [{ $type: `$${prefix}.createdAt` }, "date"] },
+        { $dateToString: { format: "%Y-%m-%d", date: `$${prefix}.createdAt` } },
+        { $ifNull: [{ $substr: [{ $ifNull: [`$${prefix}.createdAt`, ""] }, 0, 10] }, ""] }
+      ]
+    }
+  ]
 });
 
 const getAggregationRangeMatch = (start, end, prefix, additionalMatch = {}) => {
-    const startStr = start?.toISOString().split('T')[0];
-    const endStr = end?.toISOString().split('T')[0];
-    const dateRef = getAggregationDateRef(prefix);
-    const conds = [];
-    
-    // Add additional matches (like createdBy)
-    for (const [key, value] of Object.entries(additionalMatch)) {
-        // Use $toString for ID fields to be safe with mixed types
-        if (key.includes('createdBy') || key.includes('uploadedBy')) {
-            conds.push({ $eq: [{ $toString: `$${key}` }, value] });
-        } else {
-            conds.push({ $eq: [`$${key}`, value] });
-        }
+  const startStr = start?.toISOString().split('T')[0];
+  const endStr = end?.toISOString().split('T')[0];
+  const dateRef = getAggregationDateRef(prefix);
+  const conds = [];
+
+  // Add additional matches (like createdBy)
+  for (const [key, value] of Object.entries(additionalMatch)) {
+    // Use $toString for ID fields to be safe with mixed types
+    if (key.includes('createdBy') || key.includes('uploadedBy')) {
+      conds.push({ $eq: [{ $toString: `$${key}` }, value] });
+    } else {
+      conds.push({ $eq: [`$${key}`, value] });
     }
-    
-    if (startStr) conds.push({ $gte: [dateRef, startStr] });
-    if (endStr) conds.push({ $lte: [dateRef, endStr] });
-    
-    return conds.length > 0 ? { $expr: { $and: conds } } : {};
+  }
+
+  if (startStr) conds.push({ $gte: [dateRef, startStr] });
+  if (endStr) conds.push({ $lte: [dateRef, endStr] });
+
+  return conds.length > 0 ? { $expr: { $and: conds } } : {};
 };
 
 const getFollowUpRangeMatch = (start, end, additionalMatch = {}) => {
-    const startStr = start?.toISOString().split('T')[0];
-    const endStr = end?.toISOString().split('T')[0];
-    const conds = [];
-    
-    // Add additional matches
-    for (const [key, value] of Object.entries(additionalMatch)) {
-        if (key.includes('createdBy') || key.includes('uploadedBy')) {
-            conds.push({ $eq: [{ $toString: `$${key}` }, value] });
-        } else {
-            conds.push({ $eq: [`$${key}`, value] });
-        }
+  const startStr = start?.toISOString().split('T')[0];
+  const endStr = end?.toISOString().split('T')[0];
+  const conds = [];
+
+  // Add additional matches
+  for (const [key, value] of Object.entries(additionalMatch)) {
+    if (key.includes('createdBy') || key.includes('uploadedBy')) {
+      conds.push({ $eq: [{ $toString: `$${key}` }, value] });
+    } else {
+      conds.push({ $eq: [`$${key}`, value] });
     }
-    
-    conds.push({ $ne: ["$visits.followUpDate", ""] });
-    if (startStr) conds.push({ $gte: ["$visits.followUpDate", startStr] });
-    if (endStr) conds.push({ $lte: ["$visits.followUpDate", endStr] });
-    
-    return { $expr: { $and: conds } };
+  }
+
+  conds.push({ $ne: ["$visits.followUpDate", ""] });
+  if (startStr) conds.push({ $gte: ["$visits.followUpDate", startStr] });
+  if (endStr) conds.push({ $lte: ["$visits.followUpDate", endStr] });
+
+  return { $expr: { $and: conds } };
 };
 
 // For face-value date range comparisons (legacy helper, keeping for compatibility if needed)
 const getFaceValueRangeMatch = (start, end) => {
-    if (!start) return {};
-    const range = { $gte: start.toISOString().split('T')[0] };
-    if (end) range.$lte = end.toISOString().split('T')[0];
-    return range;
+  if (!start) return {};
+  const range = { $gte: start.toISOString().split('T')[0] };
+  if (end) range.$lte = end.toISOString().split('T')[0];
+  return range;
 };
 
 // Add visit
@@ -2070,7 +2087,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
     const { date, purpose, notes, outcome, followUp, followUpDate, managerComment, headquartersComment, image } = req.body;
 
 
-    
+
     // Process date
     const processedDate = ensureDateString(date);
 
@@ -2136,19 +2153,19 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
 
     // Background: Log the activity
     try {
-        await ActivityLog.create({
-            entityType: 'Visit',
-            entityId: visitId,
-            customerId: customerId,
-            action: 'CREATE',
-            performedBy: createdBy,
-            performedByName: createdByName,
-            performedByRole: req.authType,
-            timestamp: getNowLocalISO(),
-            details: { purpose: visitData.purpose, date: visitData.date }
-        });
+      await ActivityLog.create({
+        entityType: 'Visit',
+        entityId: visitId,
+        customerId: customerId,
+        action: 'CREATE',
+        performedBy: createdBy,
+        performedByName: createdByName,
+        performedByRole: req.authType,
+        timestamp: getNowLocalISO(),
+        details: { purpose: visitData.purpose, date: visitData.date }
+      });
     } catch (logError) {
-        console.error('Failed to log visit creation:', logError);
+      console.error('Failed to log visit creation:', logError);
     }
   } catch (error) {
     console.error('Add visit error:', error);
@@ -2185,7 +2202,7 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
       }
       updateData['visits.$.image'] = processedImage;
     }
-    
+
     // Add tracking fields
     updateData['visits.$.updatedBy'] = updatedBy;
     updateData['visits.$.updatedByName'] = updatedByName;
@@ -2204,19 +2221,19 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
 
     // Background: Log the activity
     try {
-        await ActivityLog.create({
-            entityType: 'Visit',
-            entityId: visitId,
-            customerId: customerId,
-            action: 'UPDATE',
-            performedBy: updatedBy,
-            performedByName: updatedByName,
-            performedByRole: req.authType,
-            timestamp: getNowLocalISO(),
-            details: { fields: Object.keys(req.body) }
-        });
+      await ActivityLog.create({
+        entityType: 'Visit',
+        entityId: visitId,
+        customerId: customerId,
+        action: 'UPDATE',
+        performedBy: updatedBy,
+        performedByName: updatedByName,
+        performedByRole: req.authType,
+        timestamp: getNowLocalISO(),
+        details: { fields: Object.keys(req.body) }
+      });
     } catch (logError) {
-        console.error('Failed to log visit update:', logError);
+      console.error('Failed to log visit update:', logError);
     }
   } catch (error) {
     console.error('Update visit error:', error);
@@ -2251,18 +2268,18 @@ app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (r
 
     // Background: Log the activity
     try {
-        await ActivityLog.create({
-            entityType: 'Visit',
-            entityId: visitId,
-            customerId: customerId,
-            action: 'DELETE',
-            performedBy: performedBy,
-            performedByName: performedByName,
-            performedByRole: req.authType,
-            details: { visitDate: visit ? visit.date : null, purpose: visit ? visit.purpose : null }
-        });
+      await ActivityLog.create({
+        entityType: 'Visit',
+        entityId: visitId,
+        customerId: customerId,
+        action: 'DELETE',
+        performedBy: performedBy,
+        performedByName: performedByName,
+        performedByRole: req.authType,
+        details: { visitDate: visit ? visit.date : null, purpose: visit ? visit.purpose : null }
+      });
     } catch (logError) {
-        console.error('Failed to log visit deletion:', logError);
+      console.error('Failed to log visit deletion:', logError);
     }
   } catch (error) {
     console.error('Delete visit error:', error);
@@ -2280,17 +2297,17 @@ app.get('/api/schedule', verifyAnyAuth, async (req, res) => {
   try {
     const userId = req.userId || req.customerId;
     const { start, end } = req.query;
-    
+
     let query = { userId };
-    
+
     if (start && end) {
       query.startTime = { $gte: start, $lte: end };
     }
-    
+
     const schedule = await Schedule.find(query)
       .populate('customerId', 'contactName company')
       .sort({ startTime: 1 });
-      
+
     res.json(schedule);
   } catch (error) {
     console.error('Fetch schedule error:', error);
@@ -2303,11 +2320,11 @@ app.post('/api/schedule', verifyAnyAuth, async (req, res) => {
   try {
     const userId = req.userId || req.customerId;
     const { customerId, startTime, endTime, activityType, notes } = req.body;
-    
+
     if (!customerId || !startTime) {
       return res.status(400).json({ message: 'Missing required schedule fields' });
     }
-    
+
     const newItem = new Schedule({
       userId,
       customerId,
@@ -2316,12 +2333,12 @@ app.post('/api/schedule', verifyAnyAuth, async (req, res) => {
       activityType,
       notes
     });
-    
+
     await newItem.save();
-    
+
     // Populate customer info for the response
     const populatedItem = await Schedule.findById(newItem._id).populate('customerId', 'contactName company');
-    
+
     res.status(201).json(populatedItem);
   } catch (error) {
     console.error('Create schedule error:', error);
@@ -2335,17 +2352,17 @@ app.put('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
     const userId = req.userId || req.customerId;
     const { id } = req.params;
     const updates = req.body;
-    
+
     const item = await Schedule.findOneAndUpdate(
       { _id: id, userId },
       updates,
       { new: true }
     ).populate('customerId', 'contactName company');
-    
+
     if (!item) {
       return res.status(404).json({ message: 'Schedule item not found' });
     }
-    
+
     res.json(item);
   } catch (error) {
     console.error('Update schedule error:', error);
@@ -2358,13 +2375,13 @@ app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
   try {
     const userId = req.userId || req.customerId;
     const { id } = req.params;
-    
+
     const result = await Schedule.deleteOne({ _id: id, userId });
-    
+
     if (result.deletedCount === 0) {
       return res.status(404).json({ message: 'Schedule item not found' });
     }
-    
+
     res.json({ success: true });
   } catch (error) {
     console.error('Delete schedule error:', error);
@@ -2377,70 +2394,70 @@ app.post('/api/customers/:customerId/visits/:visitId/react', verifyAnyAuth, asyn
   try {
     const { customerId, visitId } = req.params;
     const { type } = req.body;
-    
+
     // Get user info from auth middleware
     // verifyAnyAuth sets userId (for admin) or customerId (for customer)
     // and authType ('admin' or 'customer')
     const userId = req.userId || req.customerId;
     const isCustomer = req.authType !== 'admin';
-    
+
     let userName = 'Unknown';
     if (!isCustomer) {
-        const user = await User.findById(userId);
-        userName = user ? user.username : 'Admin';
+      const user = await User.findById(userId);
+      userName = user ? user.username : 'Admin';
     } else {
-        const customer = await Customer.findById(userId);
-        userName = customer ? (customer.contactName || customer.email) : 'Customer';
+      const customer = await Customer.findById(userId);
+      userName = customer ? (customer.contactName || customer.email) : 'Customer';
     }
 
     // Find the customer and specific visit
     const customer = await Customer.findById(customerId);
     if (!customer) {
-        return res.status(404).json({ message: 'Customer not found' });
+      return res.status(404).json({ message: 'Customer not found' });
     }
 
     const visit = customer.visits.id(visitId);
     if (!visit) {
-        return res.status(404).json({ message: 'Visit not found' });
+      return res.status(404).json({ message: 'Visit not found' });
     }
 
     // Initialize reactions array if it doesn't exist (legacy support)
     if (!visit.reactions) {
-        visit.reactions = [];
+      visit.reactions = [];
     }
 
     // Check if user already reacted with this type
     const existingIndex = visit.reactions.findIndex(
-        r => r.userId === userId.toString() && r.type === type
+      r => r.userId === userId.toString() && r.type === type
     );
 
     if (existingIndex > -1) {
-        // Remove reaction (toggle off)
-        visit.reactions.splice(existingIndex, 1);
+      // Remove reaction (toggle off)
+      visit.reactions.splice(existingIndex, 1);
     } else {
-        // Add reaction (toggle on)
-        // Optionally remove other reactions by same user if we want single-reaction logic
-        // But requested feature implies "Like", "Love", etc. which could theoretically co-exist,
-        // though typically mutually exclusive. Let's make them mutually exclusive for simplicity.
-        const otherReactionIndex = visit.reactions.findIndex(r => r.userId === userId.toString());
-        if (otherReactionIndex > -1) {
-             visit.reactions.splice(otherReactionIndex, 1);
-        }
+      // Add reaction (toggle on)
+      // Optionally remove other reactions by same user if we want single-reaction logic
+      // But requested feature implies "Like", "Love", etc. which could theoretically co-exist,
+      // though typically mutually exclusive. Let's make them mutually exclusive for simplicity.
+      const otherReactionIndex = visit.reactions.findIndex(r => r.userId === userId.toString());
+      if (otherReactionIndex > -1) {
+        visit.reactions.splice(otherReactionIndex, 1);
+      }
 
-        visit.reactions.push({
-            type,
-            userId: userId.toString(),
-            userName,
-            createdAt: getNowLocalISO()
-        });
+      visit.reactions.push({
+        type,
+        userId: userId.toString(),
+        userName,
+        createdAt: getNowLocalISO()
+      });
     }
 
     await customer.save();
 
-    res.json({ 
-        success: true, 
-        message: 'Reaction updated', 
-        reactions: visit.reactions 
+    res.json({
+      success: true,
+      message: 'Reaction updated',
+      reactions: visit.reactions
     });
   } catch (error) {
     console.error('Reaction error:', error);
@@ -2508,19 +2525,19 @@ app.put('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async
 
     // Process images if they are being updated
     if (fields.image) {
-        fields.image = await processBase64Images(fields.image, 'Resources');
+      fields.image = await processBase64Images(fields.image, 'Resources');
     }
 
     Object.keys(fields).forEach(key => {
       // If title is missing but resourceType is present, use resourceType as title
       if (key === 'resourceType' && !fields.title) {
-          updateData['resources.$.title'] = fields[key];
+        updateData['resources.$.title'] = fields[key];
       }
       // Ensure date fields are properly formatted as YYYY-MM-DD strings
       if (key === 'date') {
-          updateData[`resources.$.${key}`] = ensureDateString(fields[key]);
+        updateData[`resources.$.${key}`] = ensureDateString(fields[key]);
       } else {
-          updateData[`resources.$.${key}`] = fields[key];
+        updateData[`resources.$.${key}`] = fields[key];
       }
     });
 
@@ -2578,7 +2595,7 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
     const data = utils.sheet_to_json(sheet);
 
     if (!data || data.length === 0) {
-        return res.status(400).json({ message: 'Sheet is empty or could not be parsed' });
+      return res.status(400).json({ message: 'Sheet is empty or could not be parsed' });
     }
 
     // Heuristic matching to find correct columns regardless of exact name
@@ -2587,7 +2604,7 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
     const keys = Object.keys(firstRow);
 
     const findKey = (keywords) => {
-        return keys.find(k => keywords.some(w => k.toLowerCase().includes(w)));
+      return keys.find(k => keywords.some(w => k.toLowerCase().includes(w)));
     };
 
     // Attempt to identify columns based on likely keywords
@@ -2595,24 +2612,24 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
     const nameKey = findKey(['contact', 'name', 'customer', 'full name']);
     const companyKey = findKey(['company', 'business', 'organization', 'firm']);
     const phoneKey = findKey(['phone', 'mobile', 'cell', 'tel']);
-    
+
     // Address components
     const addressKey = findKey(['address', 'street', 'location']);
     const cityKey = findKey(['city', 'town']);
     const stateKey = findKey(['state', 'province', 'region']);
     const zipKey = findKey(['zip', 'postal', 'code']);
 
-    console.log('Bulk Upload - Detected Column Mapping:', { 
-        email: emailKey, 
-        name: nameKey, 
-        company: companyKey,
-        phone: phoneKey 
+    console.log('Bulk Upload - Detected Column Mapping:', {
+      email: emailKey,
+      name: nameKey,
+      company: companyKey,
+      phone: phoneKey
     });
 
     if (!emailKey) {
-        return res.status(400).json({ 
-            message: 'Could not detect an "Email" column. Please ensure your Excel file has a column header containing "Email".' 
-        });
+      return res.status(400).json({
+        message: 'Could not detect an "Email" column. Please ensure your Excel file has a column header containing "Email".'
+      });
     }
 
     const results = {
@@ -2630,23 +2647,23 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
         const rawEmail = row[emailKey];
 
         if (!rawEmail || typeof rawEmail !== 'string') {
-            // Only report error if the row looks like it should contain data (has other fields)
-            if (Object.keys(row).length > 2) {
-                results.errors.push(`Row ${i + 2}: Missing or invalid email`);
-            }
-            continue;
+          // Only report error if the row looks like it should contain data (has other fields)
+          if (Object.keys(row).length > 2) {
+            results.errors.push(`Row ${i + 2}: Missing or invalid email`);
+          }
+          continue;
         }
-        
+
         // Basic validation
         if (!rawEmail.includes('@')) {
-             results.errors.push(`Row ${i + 2}: Invalid email format "${rawEmail}"`);
-             continue;
+          results.errors.push(`Row ${i + 2}: Invalid email format "${rawEmail}"`);
+          continue;
         }
 
         const email = rawEmail.toLowerCase().trim();
 
         let customer = await Customer.findOne({ email: email });
-        
+
         // Prepare data from row
         const contactName = (nameKey && row[nameKey]) ? String(row[nameKey]).trim() : 'Unknown';
         const company = (companyKey && row[companyKey]) ? String(row[companyKey]).trim() : contactName;
@@ -2661,17 +2678,17 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
           if (nameKey && row[nameKey]) customer.contactName = contactName;
           if (companyKey && row[companyKey]) customer.company = company;
           if (phoneKey && row[phoneKey]) customer.phone = phone;
-          
+
           if (addressKey && row[addressKey]) customer.address.street = street;
           if (cityKey && row[cityKey]) customer.address.city = city;
           if (stateKey && row[stateKey]) customer.address.state = state;
           if (zipKey && row[zipKey]) customer.address.zipCode = zipCode;
-          
+
           await customer.save();
           results.updated++;
         } else {
           const hashedPassword = await bcrypt.hash('Welcome123!', 10);
-          
+
           const newCustomer = new Customer({
             contactName: contactName,
             email: email,
@@ -2684,14 +2701,14 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
               state: state,
               zipCode: zipCode
             },
-          isVerified: true,
-          priceLevel: 1 // Default level
-        });
+            isVerified: true,
+            priceLevel: 1 // Default level
+          });
 
-        await newCustomer.save();
-        results.added++;
-      }
-    } catch (err) {
+          await newCustomer.save();
+          results.added++;
+        }
+      } catch (err) {
         results.errors.push(`Row ${i + 2}: ${err.message}`);
       }
     }
@@ -2875,7 +2892,7 @@ app.delete('/api/admin/customers/:id', verifyToken, async (req, res) => {
 app.patch('/api/customers/:id/quick-note', verifyAnyAuth, async (req, res) => {
   try {
     const { quickNote } = req.body;
-    
+
     // Authorization check: Only staff (admin/internal) can modify notes
     if (req.authType !== 'admin' && req.accountType !== 'internal') {
       return res.status(403).json({ message: 'Only staff can update quick notes' });
@@ -2886,11 +2903,11 @@ app.patch('/api/customers/:id/quick-note', verifyAnyAuth, async (req, res) => {
       { quickNote },
       { new: true }
     );
-    
+
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
-    
+
     res.json({ success: true, message: 'Quick note updated successfully', quickNote: customer.quickNote });
   } catch (error) {
     console.error('Update quick note error:', error);
@@ -2907,11 +2924,11 @@ app.patch('/api/admin/customers/:id/status', verifyToken, async (req, res) => {
       { isActive },
       { new: true }
     );
-    
+
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
-    
+
     res.json({ success: true, message: `Customer ${isActive ? 'activated' : 'deactivated'} successfully` });
   } catch (error) {
     console.error('Update status error:', error);
@@ -2935,7 +2952,7 @@ const upload = multer({ storage: storage });
 const uploadToCloudinary = async (buffer, folder, filename) => {
   // Optimize before uploading to save credits
   const optimizedBuffer = await optimizeImage(buffer);
-  
+
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
@@ -2955,13 +2972,13 @@ const uploadToCloudinary = async (buffer, folder, filename) => {
 // Helper to process an array of images (base64 or URLs) and upload new base64 to Cloudinary
 const processBase64Images = async (imagesArray, folder) => {
   if (!imagesArray || !Array.isArray(imagesArray)) return [];
-  
+
   const processedImages = await Promise.all(imagesArray.map(async (img, index) => {
     // If it's already a URL, leave it as is
     if (!img || img.startsWith('http') || img.startsWith('/uploads/')) {
       return img;
     }
-    
+
     // If it's base64, upload it
     if (img.startsWith('data:')) {
       try {
@@ -2975,11 +2992,11 @@ const processBase64Images = async (imagesArray, folder) => {
         return img; // Fallback to base64 if upload fails
       }
     }
-    
+
     // Default fallback
     return img;
   }));
-  
+
   return processedImages;
 };
 
@@ -2991,7 +3008,7 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
     }
 
     console.log('✅ File received in memory:', req.file.originalname, `(${req.file.size} bytes)`);
-    
+
     // Generate unique ID
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(req.file.originalname);
@@ -3001,8 +3018,8 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
     // 1. Upload Main Image
     console.log('☁️ Uploading main image to Cloudinary...');
     const mainImageResult = await uploadToCloudinary(
-      req.file.buffer, 
-      'products/main', 
+      req.file.buffer,
+      'products/main',
       filename
     );
     console.log('✅ Main image uploaded:', mainImageResult.secure_url);
@@ -3017,11 +3034,11 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
       console.error('⚠️ Mockup generation failed (non-fatal):', mockupError);
       // Continue without mockups
     }
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       filePath: mainImageResult.secure_url,
-      installedImages: installedImages 
+      installedImages: installedImages
     });
   } catch (error) {
     console.error('❌ Error uploading file:', error);
@@ -3048,7 +3065,7 @@ app.post('/api/upload/delete', async (req, res) => {
     // We need: products/filename (without extension)
     const urlParts = imageUrl.split('/');
     const uploadIndex = urlParts.indexOf('upload');
-    
+
     if (uploadIndex === -1) {
       return res.status(400).json({ error: 'Invalid Cloudinary URL format' });
     }
@@ -3101,13 +3118,13 @@ app.post('/api/products/save', async (req, res) => {
     const operations = products.map(product => {
       // Remove _id and __v to prevent "immutable field" errors during update
       const { _id, __v, ...productData } = product;
-      
+
       // Map 'collection' to 'collectionType' for the schema
       if (productData.collection) {
         productData.collectionType = productData.collection;
         delete productData.collection; // Remove the original to avoid conflicts
       }
-      
+
       return {
         updateOne: {
           filter: { id: product.id },
@@ -3137,7 +3154,7 @@ app.post('/api/migrate-collection', async (req, res) => {
   try {
     const products = await Product.find({});
     let updated = 0;
-    
+
     for (const product of products) {
       // If collectionType is missing but we have the data in the request or can infer it
       if (!product.collectionType && product.collection) {
@@ -3146,7 +3163,7 @@ app.post('/api/migrate-collection', async (req, res) => {
         updated++;
       }
     }
-    
+
     console.log(`✅ Migration complete: Updated ${updated} products`);
     res.json({ success: true, message: `Updated ${updated} products with collectionType` });
   } catch (error) {
@@ -3159,92 +3176,56 @@ app.post('/api/migrate-collection', async (req, res) => {
 // SALES CRM API ENDPOINTS
 // ============================================
 
-// Get all sales customers for logged-in user
-// Get all sales customers (Global access for all authenticated users)
-app.get('/api/sales/customers', verifyToken, async (req, res) => {
+// ============================================
+// Create new sales customer (Maps to global Customer collection)
+app.post('/api/sales/customers', verifyAnyAuth, async (req, res) => {
   try {
-    const customers = await SalesCustomer.find().sort({ createdAt: -1 });
-    res.json(customers);
-  } catch (error) {
-    console.error('Error fetching sales customers:', error);
-    res.status(500).json({ message: 'Failed to fetch customers' });
-  }
-});
+    const { customerName, company, address, phone, email, notes } = req.body;
 
-// Create new sales customer
-// Create new sales customer
-app.post('/api/sales/customers', verifyToken, async (req, res) => {
-  try {
-    const { customerName, company, address, coordinates, phone, email, notes, lastVisit, nextVisit, status, tags } = req.body;
-
-    if (!customerName || !address) {
-      return res.status(400).json({ message: 'Customer name and address are required' });
+    if (!company) {
+      return res.status(400).json({ message: 'Company name is required' });
     }
 
-    const salesCustomer = new SalesCustomer({
-      userId: req.userId, // Use the authenticated user's ID
-      customerName,
-      company,
-      address,
-      coordinates,
-      phone,
-      email,
-      notes,
-      lastVisit,
-      nextVisit,
-      status,
-      tags
+    // Auto-generate dummy credentials if missing (Customer model requires them)
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 8);
+
+    // Use provided email or generate a fake one
+    const customerEmail = email && email.trim() !== ''
+      ? email.trim().toLowerCase()
+      : `sales_${timestamp}_${randomString}@temp-customer.com`;
+
+    // Generate a random secure password
+    const customerPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).toUpperCase().slice(-4) + "1!";
+
+    const newCustomer = new Customer({
+      contactName: customerName || company, // Fallback to company if no contact name
+      email: customerEmail,
+      password: customerPassword,
+      company: company,
+      phone: phone || '',
+      address: {
+        street: address?.street || '',
+        city: address?.city || '',
+        state: address?.state || '',
+        zipCode: address?.zipCode || ''
+      },
+      quickNote: notes || '',
+      isVerified: true, // Auto-verify sales-created accounts
+      priceLevel: 1,
+      isActive: true
     });
 
-    await salesCustomer.save();
-    res.status(201).json(salesCustomer);
+    await newCustomer.save();
+
+    // Return formatted to match what the frontend expects
+    res.status(201).json(newCustomer);
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'A customer with this email already exists.' });
+    }
     console.error('Error creating sales customer:', error);
-    res.status(500).json({ message: 'Failed to create customer' });
-  }
-});
-
-// Update sales customer
-// Update sales customer
-app.put('/api/sales/customers/:id', verifyToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
-
-    // Allow update of any customer (Global access)
-    const customer = await SalesCustomer.findById(id);
-    
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-
-    Object.assign(customer, updates);
-    await customer.save();
-
-    res.json(customer);
-  } catch (error) {
-    console.error('Error updating sales customer:', error);
-    res.status(500).json({ message: 'Failed to update customer' });
-  }
-});
-
-// Delete sales customer
-// Delete sales customer
-app.delete('/api/sales/customers/:id', verifyToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Allow delete of any customer (Global access)
-    const customer = await SalesCustomer.findByIdAndDelete(id);
-    
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-
-    res.json({ message: 'Customer deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting sales customer:', error);
-    res.status(500).json({ message: 'Failed to delete customer' });
+    res.status(500).json({ message: `Failed to create customer: ${error.message}` });
   }
 });
 
@@ -3267,7 +3248,7 @@ app.get('/api/sales-resources', verifyToken, authorize('admin'), async (req, res
 app.post('/api/sales-resources', verifyToken, authorize('admin'), async (req, res) => {
   try {
     const { name, type, content, contentType } = req.body;
-    
+
     const resource = new SalesResource({
       name,
       type,
@@ -3275,7 +3256,7 @@ app.post('/api/sales-resources', verifyToken, authorize('admin'), async (req, re
       contentType,
       uploadedBy: req.userId
     });
-    
+
     await resource.save();
     res.status(201).json(resource);
   } catch (error) {
@@ -3300,8 +3281,8 @@ app.delete('/api/sales-resources/:id', verifyToken, authorize('admin'), async (r
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const dbStatusMap = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     dbStatus: dbStatusMap[mongoose.connection.readyState] || 'unknown',
     dbHost: mongoose.connection.host
@@ -3327,7 +3308,7 @@ if (fs.existsSync(distPath)) {
     immutable: true,
     index: false // Don't serve index.html with long cache
   }));
-  
+
   app.get(/(.*)/, (req, res) => {
     // Send index.html with NO CACHE so users always get the latest version of the app
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
