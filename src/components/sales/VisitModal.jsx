@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, FileText, Loader, Plus } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
+import { API_URL } from '../../config/api';
 import CustomDatePicker from '../CustomDatePicker';
 import { formatDate } from '../../utils/dateUtils';
 
@@ -23,6 +24,13 @@ const VisitModal = ({
     setFullScreenImage
 }) => {
     if (!showVisitModal) return null;
+
+    const resolveImageSrc = (img) => {
+        if (!img) return '';
+        if (img.startsWith('data:') || img.startsWith('http')) return img;
+        if (img.startsWith('/uploads')) return `${API_URL}${img}`;
+        return `${API_URL}/uploads/visits/${img}`;
+    };
 
     const renderAddEditModal = () => (
         <div className="modal-overlay" onClick={handleCloseVisitModal}>
@@ -127,7 +135,7 @@ const VisitModal = ({
                                                 <span>PDF Document</span>
                                             </div>
                                         ) : (
-                                            <img src={img} alt="Preview" loading="lazy" />
+                                            <img src={resolveImageSrc(img)} alt="Preview" loading="lazy" />
                                         )}
                                         <button type="button" className="remove-image-btn" onClick={() => handleRemoveVisitImage(idx)}>
                                             <X size={12} />
@@ -252,7 +260,7 @@ const VisitModal = ({
                                                 </div>
                                             ) : (
                                                 <img
-                                                    src={img}
+                                                    src={resolveImageSrc(img)}
                                                     alt="Preview"
                                                     className="attachment-img"
                                                     onClick={() => handleOpenGallery(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image], idx)}
