@@ -3660,7 +3660,7 @@ const SalesPage = () => {
                     handleDashboardDownload={handleDashboardDownload}
                     setFullScreenImage={setFullScreenImage}
                     handleOpenGallery={handleOpenGallery}
-                    onCreateNew={() => { setShowVisitModal(false); setShowAddCustomerModal(true); }}
+                    onCreateNew={() => setShowAddCustomerModal(true)}
                 />
 
                 <ResourceModal
@@ -3682,7 +3682,7 @@ const SalesPage = () => {
                     handleDashboardDownload={handleDashboardDownload}
                     setFullScreenImage={setFullScreenImage}
                     handleOpenGallery={handleOpenGallery}
-                    onCreateNew={() => { setShowResourceModal(false); setShowAddCustomerModal(true); }}
+                    onCreateNew={() => setShowAddCustomerModal(true)}
                 />
 
                 {

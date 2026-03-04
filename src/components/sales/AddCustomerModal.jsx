@@ -46,8 +46,8 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
     if (!show) return null;
 
     return (
-        <div className="modal-overlay" onClick={handleClose}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+        <div className="modal-overlay add-customer-modal-overlay" onClick={handleClose} style={{ zIndex: 20000 }}>
+            <div className="modal-content add-customer-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
                 <div className="modal-header">
                     <h2>Add New Customer</h2>
                     <button className="close-btn" onClick={handleClose}>
