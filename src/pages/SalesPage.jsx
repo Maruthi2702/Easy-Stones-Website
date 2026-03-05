@@ -101,6 +101,13 @@ const SalesPage = () => {
     const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
     const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
 
+    // Sync currentUserId when currentUser loads
+    useEffect(() => {
+        if (currentUser) {
+            setCurrentUserId(currentUser.id || currentUser._id);
+        }
+    }, [currentUser]);
+
     // Fetch Dashboard Stats from Backend — merged into one effect with fetchDashboardData below
     const fetchDashboardStats = useCallback(async () => {
         setStatsLoading(true);
@@ -305,8 +312,10 @@ const SalesPage = () => {
             const visitDate = parseDate(v.date, v.createdAt);
             const dateMatch = isFromBackend || !startDate || visitDate >= startDate;
 
-            // Strictly filter by current user for dashboard view
-            const userMatch = v.createdBy?.toString() === currentUserIdStr || v.creatorId?.toString() === currentUserIdStr;
+            // Relax filtering for Admins
+            const isAdmin = ['admin', 'director', 'manager'].includes(currentUser?.role);
+            const userMatch = isAdmin || v.createdBy?.toString() === currentUserIdStr || v.creatorId?.toString() === currentUserIdStr;
+
             const searchMatch = !dashboardSearchTerm ||
                 (v.customerName?.toLowerCase().includes(searchLower)) ||
                 (v.notes?.toLowerCase().includes(searchLower)) ||
@@ -314,7 +323,7 @@ const SalesPage = () => {
 
             const isSystemEntry = v.purpose?.toLowerCase().match(/quick note|resource placement|resource update|new tower/i);
 
-            // Exclude system entries from visits tab, but allow searching for them if needed? 
+            // Exclude system entries from visits tab
             const systemEntryExclude = true;
 
             return dateMatch && userMatch && searchMatch && systemEntryExclude;
@@ -352,12 +361,14 @@ const SalesPage = () => {
             const resourceDate = new Date(r.date || r.createdAt);
             const dateMatch = isFromBackend || !startDate || resourceDate >= startDate;
 
-            // Strictly filter by current user for dashboard view
-            const userMatch = (
+            // Relax filtering for Admins
+            const isAdmin = ['admin', 'director', 'manager'].includes(currentUser?.role);
+            const userMatch = isAdmin || (
                 r.uploadedBy?.toString() === currentUserIdStr ||
                 r.createdBy?.toString() === currentUserIdStr ||
                 r.uploaderId?.toString() === currentUserIdStr
             );
+
             const searchMatch = !dashboardSearchTerm ||
                 (r.customerName?.toLowerCase().includes(searchLower)) ||
                 (r.description?.toLowerCase().includes(searchLower)) ||

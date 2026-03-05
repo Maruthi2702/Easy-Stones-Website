@@ -1206,10 +1206,11 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
       startDate = new Date(now.getFullYear(), 0, 1);
     }
 
-    const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
+    const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: req.userRole || 'admin' } : { id: req.customerId, role: 'customer' };
     const isAdmin = ['admin', 'director', 'manager'].includes(role);
 
-    const userMatchObj = { "visits.createdBy": userId.toString() };
+    // If Admin/Manager, show all stats for the team. If regular salesperson/customer, filter by createdBy.
+    const userMatchObj = isAdmin ? {} : { "visits.createdBy": userId.toString() };
     const visitDateMatch = getAggregationRangeMatch(startDate, endDate, "visits", userMatchObj);
     const followUpDateMatchScoped = getFollowUpRangeMatch(startDate, endDate, userMatchObj);
 
@@ -1358,9 +1359,11 @@ app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
       startDate = new Date(now.getFullYear(), 0, 1);
     }
 
-    const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
+    const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: req.userRole || 'admin' } : { id: req.customerId, role: 'customer' };
+    const isAdmin = ['admin', 'director', 'manager'].includes(role);
 
-    const userMatchObj = { "visits.createdBy": userId.toString() };
+    // If Admin/Manager, show all data. Otherwise filter by creator.
+    const userMatchObj = isAdmin ? {} : { "visits.createdBy": userId.toString() };
 
     // Handle fallback logic for matching
     const dateMatch = filterType === 'followup'
@@ -2115,8 +2118,36 @@ const getFollowUpRangeMatch = (start, end, additionalMatch = {}) => {
   }
 
   conds.push({ $ne: ["$visits.followUpDate", ""] });
-  if (startStr) conds.push({ $gte: ["$visits.followUpDate", startStr] });
-  if (endStr) conds.push({ $lte: ["$visits.followUpDate", endStr] });
+
+  // Optimised Follow-up Logic:
+  // 1. If a range is provided, we MUST include those in the range.
+  // 2. We also want to include "Overdue" items (followUpDate < start or followUpDate < today).
+  // 3. To prevent cluttering with years of old data, we filter for active follow-ups.
+
+  if (startStr && endStr) {
+    // Range view: show items in range OR items that are overdue relative to today
+    const todayStr = new Date().toISOString().split('T')[0];
+    conds.push({
+      $or: [
+        {
+          $and: [
+            { $gte: ["$visits.followUpDate", startStr] },
+            { $lte: ["$visits.followUpDate", endStr] }
+          ]
+        },
+        { $lt: ["$visits.followUpDate", todayStr] } // Include Overdue
+      ]
+    });
+  } else if (startStr) {
+    // Single start point: include everything from start onwards OR overdue
+    const todayStr = new Date().toISOString().split('T')[0];
+    conds.push({
+      $or: [
+        { $gte: ["$visits.followUpDate", startStr] },
+        { $lt: ["$visits.followUpDate", todayStr] }
+      ]
+    });
+  }
 
   return { $expr: { $and: conds } };
 };
