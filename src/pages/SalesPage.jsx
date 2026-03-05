@@ -678,6 +678,7 @@ const SalesPage = () => {
 
     const handleCreateCustomer = async (formData, closeModal) => {
         try {
+            setIsSaving(true);
             const response = await fetch(`${API_URL}/api/sales/customers`, {
                 method: 'POST',
                 headers: {
@@ -700,6 +701,8 @@ const SalesPage = () => {
         } catch (error) {
             console.error('Error creating customer:', error);
             alert(error.message || 'Failed to create customer');
+        } finally {
+            setIsSaving(false);
         }
     };
 
