@@ -79,26 +79,24 @@ const customerSchema = new mongoose.Schema({
     createdAt: { type: String }
   }],
   quickNote: { type: String, default: '' }
-}, { 
+}, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true },
-  autoIndex: false 
+  autoIndex: false
 });
 
 // Indexes for performance optimization
-// Indices correctly defined in field definitions above:
-// - email (unique: true)
-customerSchema.index({ isActive: 1 }); // Index for filtering active customers
-customerSchema.index({ isActive: 1, email: 1 }); // Compound index for common queries
-customerSchema.index({ priceLevel: 1 }); // Index for price level queries
-customerSchema.index({ createdAt: -1 }); // Index for sorting by creation date
+customerSchema.index({ contactName: 'text', company: 'text', email: 'text' }); // Text search index
+customerSchema.index({ 'visits.date': -1 }); // Index for dashboard max visit calculation
+customerSchema.index({ isActive: 1, createdAt: -1 }); // Index for listing all active customers
+customerSchema.index({ priceLevel: 1, isActive: 1 }); // Index for price level filtering
 
 // Hash password before saving
 // Hash password before saving
-customerSchema.pre('save', async function() {
+customerSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
-  
+
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
@@ -108,17 +106,17 @@ customerSchema.pre('save', async function() {
 });
 
 // Method to compare passwords
-customerSchema.methods.comparePassword = async function(candidatePassword) {
+customerSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Check if account is locked
-customerSchema.methods.isLocked = function() {
+customerSchema.methods.isLocked = function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 };
 
 // Increment login attempts
-customerSchema.methods.incLoginAttempts = async function() {
+customerSchema.methods.incLoginAttempts = async function () {
   // If lock has expired, reset attempts
   if (this.lockUntil && this.lockUntil < Date.now()) {
     return await this.updateOne({
@@ -126,21 +124,21 @@ customerSchema.methods.incLoginAttempts = async function() {
       $unset: { lockUntil: 1 }
     });
   }
-  
+
   const updates = { $inc: { loginAttempts: 1 } };
   const maxAttempts = 5;
   const lockTime = 15 * 60 * 1000; // 15 minutes
-  
+
   // Lock account after max attempts
   if (this.loginAttempts + 1 >= maxAttempts && !this.isLocked()) {
     updates.$set = { lockUntil: Date.now() + lockTime };
   }
-  
+
   return await this.updateOne(updates);
 };
 
 // Reset login attempts
-customerSchema.methods.resetLoginAttempts = async function() {
+customerSchema.methods.resetLoginAttempts = async function () {
   return await this.updateOne({
     $set: { loginAttempts: 0 },
     $unset: { lockUntil: 1 }

@@ -48,20 +48,19 @@ const productSchema = new mongoose.Schema({
 });
 
 // Indexes for performance optimization
-productSchema.index({ category: 1 }); // Index for category filtering
-productSchema.index({ name: 1 }); // Index for search
-productSchema.index({ category: 1, availability: 1 }); // Compound index for filtered queries
-productSchema.index({ showInSlider: 1 }); // Index for slider products
+productSchema.index({ name: 'text', category: 'text', description: 'text' }); // Text search index
+productSchema.index({ category: 1, availability: 1, id: -1 }); // Compound index for filtered listing
+productSchema.index({ showInSlider: 1, isActive: 1 });
 
 // Virtual property to map 'collection' to 'collectionType'
-productSchema.virtual('collection').get(function() {
+productSchema.virtual('collection').get(function () {
   return this.collectionType;
-}).set(function(value) {
+}).set(function (value) {
   this.collectionType = value;
 });
 
 // Virtual property for 'price' - returns level1 formatted as price
-productSchema.virtual('price').get(function() {
+productSchema.virtual('price').get(function () {
   if (this.priceLevels && this.priceLevels.level1) {
     return `$${this.priceLevels.level1.toFixed(2)}/sqft`;
   }

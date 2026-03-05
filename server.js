@@ -104,28 +104,41 @@ const optimizeImage = async (buffer) => {
   }
 };
 
-// Base64 to Disk Optimization Utility
+// Simple Memory Cache for Products (Cache for 10 minutes)
+const memoryCache = {
+  products: { data: null, lastFetched: 0 },
+  TTL: 10 * 60 * 1000
+};
+
+// Base64 to Disk Optimization Utility (Optimized for speed)
 const processBase64Image = async (base64String, subDir = 'visits') => {
   if (!base64String || !base64String.startsWith('data:image/')) return base64String;
 
   try {
     const base64Data = base64String.split(';base64,').pop();
     const buffer = Buffer.from(base64Data, 'base64');
-    const optimizedBuffer = await optimizeImage(buffer);
+
+    // Process with sharp (resize + convert to webp)
+    const optimizedBuffer = await sharp(buffer)
+      .resize(1000, 1000, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 75, effort: 2 }) // Balanced quality/speed
+      .toBuffer();
 
     const uploadDir = path.join(__dirname, 'public/uploads', subDir);
     if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+      await fs.promises.mkdir(uploadDir, { recursive: true });
     }
 
     const filename = `img_${Date.now()}_${Math.round(Math.random() * 1E9)}.webp`;
     const filePath = path.join(uploadDir, filename);
-    fs.writeFileSync(filePath, optimizedBuffer);
+
+    // Use async file write to avoid blocking the event loop
+    await fs.promises.writeFile(filePath, optimizedBuffer);
 
     return `/uploads/${subDir}/${filename}`;
   } catch (err) {
     console.error('Failed to process base64 image:', err);
-    return base64String; // Fallback to original
+    return base64String;
   }
 };
 
@@ -292,7 +305,19 @@ const loginLimiter = rateLimit({
 // API endpoint to fetch all products
 app.get('/api/products', async (req, res) => {
   try {
-    const products = await Product.find().sort({ id: -1 }); // Sort by ID descending (newest first)
+    const now = Date.now();
+    let products;
+
+    // Check Cache
+    if (memoryCache.products.data && (now - memoryCache.products.lastFetched < memoryCache.TTL)) {
+      products = memoryCache.products.data;
+    } else {
+      // Fetch fresh and update cache
+      products = await Product.find().sort({ id: -1 }).lean();
+      memoryCache.products.data = products;
+      memoryCache.products.lastFetched = now;
+      console.log('✅ Products Cache Refreshed');
+    }
 
     // Check if customer is logged in
     const token = req.cookies.customerToken;
@@ -302,7 +327,8 @@ app.get('/api/products', async (req, res) => {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
         if (decoded.type === 'customer') {
-          const customer = await Customer.findById(decoded.id);
+          // Optimized: Only fetch priceLevel
+          const customer = await Customer.findById(decoded.id).select('priceLevel').lean();
           if (customer && customer.priceLevel) {
             priceLevel = customer.priceLevel;
           }
@@ -314,7 +340,8 @@ app.get('/api/products', async (req, res) => {
 
     // Transform products to show price based on customer's level
     const productsWithPrices = products.map(product => {
-      const productObj = product.toObject();
+      // Product is already a lean object from cache/db
+      const productObj = { ...product };
 
       if (productObj.priceLevels) {
         const levelKey = `level${priceLevel}`;
