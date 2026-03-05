@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, Phone, Mail, Clock, Send } from 'lucide-react';
 import { API_URL } from '../config/api';
 import './ContactPage.css';
+import { formatPhoneInput } from '../utils/phoneUtils';
 
 const ContactPage = () => {
     const [formData, setFormData] = useState({
@@ -141,9 +142,12 @@ const ContactPage = () => {
                         <input
                             type="tel"
                             name="phone"
-                            placeholder="Phone"
+                            placeholder="(555) 000-0000"
                             value={formData.phone}
-                            onChange={handleChange}
+                            onChange={(e) => {
+                                const val = formatPhoneInput(e.target.value);
+                                setFormData({ ...formData, phone: val });
+                            }}
                         />
 
                         <textarea

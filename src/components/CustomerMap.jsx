@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { MapPin } from 'lucide-react';
+import { formatPhoneForDisplay } from '../utils/phoneUtils';
 
 const containerStyle = {
     width: '100%',
@@ -161,7 +162,7 @@ const CustomerMap = ({ customers, onCustomerClick, selectedCustomer, onCloseInfo
                         <h4>{selectedCustomer.customerName}</h4>
                         {selectedCustomer.company && <p className="company">{selectedCustomer.company}</p>}
                         <p className="address">{selectedCustomer.address}</p>
-                        {selectedCustomer.phone && <p className="phone">{selectedCustomer.phone}</p>}
+                        {selectedCustomer.phone && <p className="phone">{formatPhoneForDisplay(selectedCustomer.phone)}</p>}
                         <span
                             className="status-badge"
                             style={{ backgroundColor: getStatusColor(selectedCustomer.status) }}

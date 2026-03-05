@@ -5,6 +5,7 @@ import { API_ENDPOINTS, API_URL } from '../config/api';
 import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import './AdminPage.css';
+import { formatPhoneInput } from '../utils/phoneUtils';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -1269,7 +1270,8 @@ const AdminPage = () => {
                       <input
                         type="tel"
                         value={customerFormData.phone}
-                        onChange={(e) => handleCustomerChange('phone', e.target.value)}
+                        onChange={(e) => handleCustomerChange('phone', formatPhoneInput(e.target.value))}
+                        placeholder="(555) 000-0000"
                       />
                     </div>
                     <div className="form-group">

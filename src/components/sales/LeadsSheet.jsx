@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import * as XLSX from 'xlsx';
+import { formatPhoneInput, formatPhoneForDisplay } from '../../utils/phoneUtils';
 
 const LeadsSheet = () => {
     const [leads, setLeads] = useState([]);
@@ -117,7 +118,7 @@ const LeadsSheet = () => {
             Name: l.name,
             Company: l.company,
             Email: l.email,
-            Phone: l.phone,
+            Phone: formatPhoneForDisplay(l.phone),
             Status: l.status,
             Notes: l.notes,
             Created: new Date(l.createdAt).toLocaleDateString()
@@ -296,10 +297,12 @@ const LeadsSheet = () => {
                                         placeholder="(555) 000-0000"
                                         value={viewingLead ? viewingLead.phone : (editingLead ? editingLead.phone : newLead.phone)}
                                         disabled={!!viewingLead}
-                                        onChange={e => editingLead
-                                            ? setEditingLead({ ...editingLead, phone: e.target.value })
-                                            : setNewLead({ ...newLead, phone: e.target.value })
-                                        }
+                                        onChange={e => {
+                                            const val = formatPhoneInput(e.target.value);
+                                            editingLead
+                                                ? setEditingLead({ ...editingLead, phone: val })
+                                                : setNewLead({ ...newLead, phone: val });
+                                        }}
                                     />
                                 </div>
 

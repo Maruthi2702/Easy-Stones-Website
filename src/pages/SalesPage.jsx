@@ -29,6 +29,7 @@ import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
 import LeadsSheet from '../components/sales/LeadsSheet';
 import './LeadsSheet.css';
+import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -2331,7 +2332,7 @@ const SalesPage = () => {
                                                 </div>
                                                 <div className="contact-item">
                                                     <Phone size={16} />
-                                                    <span>{selectedCustomer.phone || 'N/A'}</span>
+                                                    <span>{formatPhoneForDisplay(selectedCustomer.phone) || 'N/A'}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -2388,7 +2389,7 @@ const SalesPage = () => {
                                                         selectedCustomer.contacts.map(contact => (
                                                             <tr key={contact._id}>
                                                                 <td data-label="Name">{contact.name}</td>
-                                                                <td data-label="Phone">{contact.phone || '-'}</td>
+                                                                <td data-label="Phone">{formatPhoneForDisplay(contact.phone) || '-'}</td>
                                                                 <td data-label="Email">{contact.email || '-'}</td>
                                                                 <td data-label="Role">{contact.role || '-'}</td>
                                                                 <td data-label="Notes">{contact.notes || '-'}</td>
@@ -3596,8 +3597,8 @@ const SalesPage = () => {
                                             <input
                                                 type="tel"
                                                 value={contactForm.phone}
-                                                onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
-                                                placeholder="Phone number"
+                                                onChange={(e) => setContactForm({ ...contactForm, phone: formatPhoneInput(e.target.value) })}
+                                                placeholder="(555) 000-0000"
                                             />
                                         </div>
                                         <div className="form-group">

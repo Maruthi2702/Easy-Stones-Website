@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Loader } from 'lucide-react';
+import { formatPhoneInput } from '../../utils/phoneUtils';
 
 const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
     const [form, setForm] = useState({
@@ -82,8 +83,8 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                             <input
                                 type="tel"
                                 value={form.phone}
-                                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                                placeholder="Phone number"
+                                onChange={(e) => setForm({ ...form, phone: formatPhoneInput(e.target.value) })}
+                                placeholder="(555) 000-0000"
                             />
                         </div>
                         <div className="form-group">
