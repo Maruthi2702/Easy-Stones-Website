@@ -7,7 +7,7 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 
 // MOVED TO TOP to ensure settings apply to all models
-mongoose.set('debug', true);
+mongoose.set('debug', process.env.NODE_ENV === 'development'); // Only log queries in development
 mongoose.set('autoIndex', false);
 // Removed bufferCommands: false to allow resilient reconnects
 
@@ -108,6 +108,13 @@ const optimizeImage = async (buffer) => {
 const memoryCache = {
   products: { data: null, lastFetched: 0 },
   TTL: 10 * 60 * 1000
+};
+
+// Helper to bust the product cache after any write
+const bustProductCache = () => {
+  memoryCache.products.data = null;
+  memoryCache.products.lastFetched = 0;
+  console.log('🗑️ Product cache invalidated');
 };
 
 // Base64 to Disk Optimization Utility (Optimized for speed)
@@ -3082,6 +3089,9 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
       filePath: mainImageResult.secure_url,
       installedImages: installedImages
     });
+
+    // Bust cache so next GET /api/products sees the new image
+    bustProductCache();
   } catch (error) {
     console.error('❌ Error uploading file:', error);
     res.status(500).json({ error: 'Failed to upload file', details: error.message });
@@ -3208,6 +3218,7 @@ app.post('/api/migrate-collection', async (req, res) => {
 
     console.log(`✅ Migration complete: Updated ${updated} products`);
     res.json({ success: true, message: `Updated ${updated} products with collectionType` });
+    bustProductCache(); // Bust cache after migration
   } catch (error) {
     console.error('❌ Error during migration:', error);
     res.status(500).json({ error: 'Migration failed', details: error.message });
