@@ -100,26 +100,17 @@ const SalesPage = () => {
     const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
     const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
 
-    // Sync currentUserId when currentUser changes
-    useEffect(() => {
-        if (currentUser) {
-            setCurrentUserId(currentUser.id || currentUser._id);
-        }
-    }, [currentUser]);
-
-    // Fetch Dashboard Stats from Backend
+    // Fetch Dashboard Stats from Backend — merged into one effect with fetchDashboardData below
     const fetchDashboardStats = useCallback(async () => {
         setStatsLoading(true);
         try {
-            const localDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+            const localDate = new Date().toLocaleDateString('en-CA');
             const response = await fetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}&localDate=${localDate}`, {
                 credentials: 'include'
             });
             if (response.ok) {
                 const data = await response.json();
                 setStats(data);
-                // Removed: Do not overwrite todayScheduleCount from backend stats.
-                // We rely on fetchSchedules() to calculate this client-side for correct local "today" context.
             }
         } catch (error) {
             console.error('Error fetching dashboard stats:', error);
@@ -127,10 +118,6 @@ const SalesPage = () => {
             setStatsLoading(false);
         }
     }, [dashboardTimeRange]);
-
-    useEffect(() => {
-        fetchDashboardStats();
-    }, [fetchDashboardStats]);
 
     // Fetch Independent Dashboard Data
     const fetchDashboardData = useCallback(async () => {
@@ -156,9 +143,10 @@ const SalesPage = () => {
         }
     }, [dashboardTimeRange]);
 
+    // Single effect: fire BOTH dashboard fetches in parallel when dashboardTimeRange changes
     useEffect(() => {
-        fetchDashboardData();
-    }, [fetchDashboardData]);
+        Promise.all([fetchDashboardStats(), fetchDashboardData()]);
+    }, [fetchDashboardStats, fetchDashboardData]);
 
     // Fetch schedules for the dashboard
     const fetchSchedules = useCallback(async () => {
@@ -746,11 +734,9 @@ const SalesPage = () => {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            // Only update and reset if the search term actually changed
             if (searchTerm !== debouncedSearch) {
-                setDebouncedSearch(searchTerm);
-                setDebouncedSearch(searchTerm);
-                setCurrentPage(1); // Reset to page 1 on search
+                setDebouncedSearch(searchTerm); // Fixed: was called twice (bug)
+                setCurrentPage(1);
                 setCurrentVisitsPage(1);
                 setCurrentFollowUpPage(1);
                 setCurrentResourcesPage(1);
