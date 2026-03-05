@@ -10,7 +10,7 @@ import SearchableSelect from './SearchableSelect';
 import { formatForDateTimeInput } from '../utils/dateUtils';
 import GoogleStyleDateTimePicker from './GoogleStyleDateTimePicker';
 
-const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], currentUserId, onSelectCustomer, onScheduleChange }) => {
+const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], currentUserId, onSelectCustomer, onScheduleChange, isDropdownLoading }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewMode, setViewMode] = useState('day'); // 'day' or 'week'
     const [scheduleItems, setScheduleItems] = useState([]);
@@ -353,6 +353,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], current
                                             onChange={value => setForm({ ...form, customerId: value })}
                                             placeholder="Select a Customer..."
                                             required
+                                            isLoading={isDropdownLoading}
                                         />
                                     </div>
                                     <div className="form-group">

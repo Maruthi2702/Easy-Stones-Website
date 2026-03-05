@@ -23,7 +23,8 @@ const VisitModal = ({
     handleDashboardDownload,
     setFullScreenImage,
     handleOpenGallery,
-    onCreateNew
+    onCreateNew,
+    isDropdownLoading
 }) => {
     if (!showVisitModal) return null;
 
@@ -61,7 +62,8 @@ const VisitModal = ({
                                 onChange={(value) => setVisitForm({ ...visitForm, customerId: value })}
                                 placeholder="Select a Customer..."
                                 onCreateNew={onCreateNew}
-                                createNewLabel="+ New Customer"
+                                createNewLabel="New Customer"
+                                isLoading={isDropdownLoading}
                             />
                         </div>
                         <div className="form-group">

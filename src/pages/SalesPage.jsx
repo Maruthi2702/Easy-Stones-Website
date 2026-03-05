@@ -77,6 +77,7 @@ const SalesPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('visits');
+    const [isDropdownLoading, setIsDropdownLoading] = useState(true); // tracks customer dropdown fetch
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -571,6 +572,7 @@ const SalesPage = () => {
     }, []);
 
     const fetchAllCustomersForDropdown = async () => {
+        setIsDropdownLoading(true);
         try {
             const response = await fetch(`${API_URL}/api/customers/dropdown`, {
                 headers: { 'Content-Type': 'application/json' },
@@ -583,6 +585,8 @@ const SalesPage = () => {
             }
         } catch (error) {
             console.error('Error fetching all customers for dropdown:', error);
+        } finally {
+            setIsDropdownLoading(false);
         }
     };
 
@@ -2708,6 +2712,7 @@ const SalesPage = () => {
                                             <SalesPlannerTab
                                                 customerSelection={allCustomersForSelection}
                                                 customerOptions={customerOptions}
+                                                isDropdownLoading={isDropdownLoading}
                                                 currentUserId={currentUserId}
                                                 onSelectCustomer={handleSelectCustomer}
                                                 onScheduleChange={fetchSchedules}
@@ -3681,6 +3686,7 @@ const SalesPage = () => {
                     setVisitForm={setVisitForm}
                     isMobile={isMobile}
                     customerOptions={customerOptions}
+                    isDropdownLoading={isDropdownLoading}
                     isSaving={isSaving}
                     handleSaveVisit={handleSaveVisit}
                     handleVisitImageUpload={handleVisitImageUpload}
@@ -3701,6 +3707,7 @@ const SalesPage = () => {
                     resourceForm={resourceForm}
                     setResourceForm={setResourceForm}
                     customerOptions={customerOptions}
+                    isDropdownLoading={isDropdownLoading}
                     customers={customers}
                     resourceTypes={resourceTypes}
                     formatDate={formatDate}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown, Check, Plus } from 'lucide-react';
+import { Search, ChevronDown, Check, Plus, Loader } from 'lucide-react';
 
-const SearchableSelect = ({ options, value, onChange, placeholder, className, style, onCreateNew, createNewLabel }) => {
+const SearchableSelect = ({ options, value, onChange, placeholder, className, style, onCreateNew, createNewLabel, isLoading }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [hasOpenedOnce, setHasOpenedOnce] = useState(false);
@@ -17,7 +17,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
         };
 
         document.addEventListener('mousedown', handleOutside);
-        document.addEventListener('touchstart', handleOutside, { passive: true }); // iOS fix
+        document.addEventListener('touchstart', handleOutside, { passive: true });
         return () => {
             document.removeEventListener('mousedown', handleOutside);
             document.removeEventListener('touchstart', handleOutside);
@@ -27,7 +27,6 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
     // Focus input when opening
     useEffect(() => {
         if (isOpen && inputRef.current) {
-            // Small delay on iOS to let the keyboard settle before focusing
             setTimeout(() => inputRef.current?.focus(), 50);
             if (!hasOpenedOnce) setHasOpenedOnce(true);
         } else {
@@ -35,7 +34,6 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
         }
     }, [isOpen, hasOpenedOnce]);
 
-    // Only calculate filtered options if dropdown has been opened at least once
     const filteredOptions = React.useMemo(() => {
         if (!hasOpenedOnce) return [];
         return options.filter(option =>
@@ -71,13 +69,16 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                     justifyContent: 'space-between',
                     minHeight: '38px',
                     color: '#FFF',
-                    touchAction: 'manipulation' // Eliminates iOS 300ms click delay
+                    touchAction: 'manipulation'
                 }}
             >
                 <span style={{ color: selectedOption ? '#FFF' : '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {selectedOption ? selectedOption.label : placeholder || 'Select...'}
                 </span>
-                <ChevronDown size={16} color="#9CA3AF" />
+                {isLoading
+                    ? <Loader size={14} color="#9CA3AF" style={{ animation: 'spin 1s linear infinite' }} />
+                    : <ChevronDown size={16} color="#9CA3AF" />
+                }
             </div>
 
             {isOpen && (
@@ -96,99 +97,109 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.1)',
                         zIndex: 1000,
                         marginTop: '4px',
-                        WebkitOverflowScrolling: 'touch' // Smooth scroll on iOS
+                        WebkitOverflowScrolling: 'touch'
                     }}
                 >
-                    <div className="searchable-select-search" style={{ padding: '8px', position: 'sticky', top: 0, backgroundColor: '#1C1C1E', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                        <div style={{ position: 'relative' }}>
-                            <Search size={14} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                placeholder="Search..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                onTouchEnd={(e) => e.stopPropagation()} // Prevent dropdown close on search tap
-                                style={{
-                                    width: '100%',
-                                    padding: '6px 8px 6px 28px',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                    borderRadius: '4px',
-                                    fontSize: '16px', // 16px prevents iOS auto-zoom on focus
-                                    outline: 'none',
-                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                    color: '#FFF',
-                                    touchAction: 'manipulation'
-                                }}
-                            />
+                    {/* Loading state */}
+                    {isLoading ? (
+                        <div style={{ padding: '16px', textAlign: 'center', color: '#9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                            <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                            <span style={{ fontSize: '0.875rem' }}>Loading customers...</span>
                         </div>
-                    </div>
+                    ) : (
+                        <>
+                            <div className="searchable-select-search" style={{ padding: '8px', position: 'sticky', top: 0, backgroundColor: '#1C1C1E', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                <div style={{ position: 'relative' }}>
+                                    <Search size={14} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        placeholder="Search..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onTouchEnd={(e) => e.stopPropagation()}
+                                        style={{
+                                            width: '100%',
+                                            padding: '6px 8px 6px 28px',
+                                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                                            borderRadius: '4px',
+                                            fontSize: '16px',
+                                            outline: 'none',
+                                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                            color: '#FFF',
+                                            touchAction: 'manipulation'
+                                        }}
+                                    />
+                                </div>
+                            </div>
 
-                    {onCreateNew && (
-                        <div
-                            onClick={(e) => { e.stopPropagation(); setIsOpen(false); onCreateNew(); }}
-                            onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); setIsOpen(false); onCreateNew(); }}
-                            style={{
-                                padding: '10px 12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                color: '#E5C04A',
-                                fontWeight: 600,
-                                fontSize: '0.9rem',
-                                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                                position: 'sticky',
-                                top: '46px',
-                                backgroundColor: '#1C1C1E',
-                                zIndex: 1,
-                                touchAction: 'manipulation'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(229, 192, 74, 0.1)'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1C1C1E'}
-                        >
-                            <Plus size={16} />
-                            <span>{createNewLabel || '+ New Customer'}</span>
-                        </div>
-                    )}
-
-                    <div className="searchable-select-options">
-                        {filteredOptions.length > 0 ? (
-                            filteredOptions.map(option => (
+                            {onCreateNew && (
                                 <div
-                                    key={option.value}
-                                    className="searchable-select-option"
-                                    onClick={(e) => handleSelect(option.value, e)}
-                                    onTouchEnd={(e) => handleSelect(option.value, e)} // iOS fix: fires immediately on touch
+                                    onClick={(e) => { e.stopPropagation(); setIsOpen(false); onCreateNew(); }}
+                                    onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); setIsOpen(false); onCreateNew(); }}
                                     style={{
-                                        padding: '10px 12px', // Taller tap target for touch
+                                        padding: '10px 12px',
                                         cursor: 'pointer',
-                                        fontSize: '0.9rem',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        backgroundColor: value === option.value ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                                        color: '#FFF',
-                                        touchAction: 'manipulation' // Eliminates iOS 300ms delay
+                                        gap: '8px',
+                                        color: '#E5C04A',
+                                        fontWeight: 600,
+                                        fontSize: '0.9rem',
+                                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                                        position: 'sticky',
+                                        top: '46px',
+                                        backgroundColor: '#1C1C1E',
+                                        zIndex: 1,
+                                        touchAction: 'manipulation'
                                     }}
-                                    onMouseEnter={(e) => {
-                                        if (value !== option.value) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (value !== option.value) e.currentTarget.style.backgroundColor = 'transparent';
-                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(229, 192, 74, 0.1)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1C1C1E'}
                                 >
-                                    <span>{option.label}</span>
-                                    {value === option.value && <Check size={14} color="#10B981" />}
+                                    <Plus size={16} />
+                                    <span>{createNewLabel || 'New Customer'}</span>
                                 </div>
-                            ))
-                        ) : (
-                            <div style={{ padding: '12px', textAlign: 'center', color: '#6B7280', fontSize: '0.875rem' }}>
-                                No results found
+                            )}
+
+                            <div className="searchable-select-options">
+                                {filteredOptions.length > 0 ? (
+                                    filteredOptions.map(option => (
+                                        <div
+                                            key={option.value}
+                                            className="searchable-select-option"
+                                            onClick={(e) => handleSelect(option.value, e)}
+                                            onTouchEnd={(e) => handleSelect(option.value, e)}
+                                            style={{
+                                                padding: '10px 12px',
+                                                cursor: 'pointer',
+                                                fontSize: '0.9rem',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                backgroundColor: value === option.value ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                                                color: '#FFF',
+                                                touchAction: 'manipulation'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (value !== option.value) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (value !== option.value) e.currentTarget.style.backgroundColor = 'transparent';
+                                            }}
+                                        >
+                                            <span>{option.label}</span>
+                                            {value === option.value && <Check size={14} color="#10B981" />}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div style={{ padding: '12px', textAlign: 'center', color: '#6B7280', fontSize: '0.875rem' }}>
+                                        No results found
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
+                        </>
+                    )}
                 </div>
             )}
         </div>

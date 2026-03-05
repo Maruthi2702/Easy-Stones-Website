@@ -22,7 +22,8 @@ const ResourceModal = ({
     handleDashboardDownload,
     setFullScreenImage,
     handleOpenGallery,
-    onCreateNew
+    onCreateNew,
+    isDropdownLoading
 }) => {
     if (!showResourceModal) return null;
 
@@ -160,7 +161,8 @@ const ResourceModal = ({
                                 }}
                                 placeholder="Select a Client..."
                                 onCreateNew={onCreateNew}
-                                createNewLabel="+ New Customer"
+                                createNewLabel="New Customer"
+                                isLoading={isDropdownLoading}
                             />
                         </div>
                         <div className="form-group">
