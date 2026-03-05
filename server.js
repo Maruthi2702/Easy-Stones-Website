@@ -136,9 +136,9 @@ const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 const mongoOptions = {
-  serverSelectionTimeoutMS: 5000,
+  serverSelectionTimeoutMS: 15000, // Increased from 5000 for cold-start resilience
   socketTimeoutMS: 45000,
-  connectTimeoutMS: 10000,
+  connectTimeoutMS: 15000, // Increased from 10000
   maxPoolSize: 10,
   family: 4, // Force IPv4 to avoid potential dual-stack networking issues
 };
@@ -3294,12 +3294,24 @@ app.delete('/api/sales-resources/:id', verifyToken, authorize('admin'), async (r
 
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
   const dbStatusMap = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+
+  let dbPing = 'failed';
+  try {
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.db.admin().ping();
+      dbPing = 'success';
+    }
+  } catch (err) {
+    dbPing = `error: ${err.message}`;
+  }
+
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     dbStatus: dbStatusMap[mongoose.connection.readyState] || 'unknown',
+    dbPing: dbPing,
     dbHost: mongoose.connection.host
   });
 });

@@ -679,18 +679,39 @@ const SalesPage = () => {
     const handleCreateCustomer = async (formData, closeModal) => {
         try {
             setIsSaving(true);
-            const response = await fetch(`${API_URL}/api/sales/customers`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify(formData)
-            });
 
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.message || 'Failed to create customer');
+            // Smart Retry Logic for cold-starts/stale connections
+            let response;
+            let lastError;
+            const maxRetries = 1;
+
+            for (let i = 0; i <= maxRetries; i++) {
+                try {
+                    response = await fetch(`${API_URL}/api/sales/customers`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (response.ok) break;
+
+                    const errorJson = await response.json().catch(() => ({}));
+                    lastError = new Error(errorJson.message || 'Failed to create customer');
+                } catch (err) {
+                    lastError = err;
+                }
+
+                if (i < maxRetries) {
+                    console.warn(`[Retry] Customer creation attempt ${i + 1} failed. Retrying once...`);
+                    await new Promise(resolve => setTimeout(resolve, 1500)); // wait 1.5s
+                }
+            }
+
+            if (!response || !response.ok) {
+                throw lastError || new Error('Failed to create customer');
             }
 
             const newCustomer = await response.json();
@@ -1420,31 +1441,49 @@ const SalesPage = () => {
                 followUpDate: visitForm.followUpDate || ''
             };
 
-            const response = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify(payload)
-            });
+            // Smart Retry Logic for cold-starts/stale connections
+            let response;
+            let lastError;
+            const maxRetries = 1;
 
-            if (response.ok) {
-                if (selectedCustomerId && targetCustomerId === selectedCustomerId) {
-                    await fetchSingleCustomer(selectedCustomerId);
-                } else {
-                    await fetchCustomers();
+            for (let i = 0; i <= maxRetries; i++) {
+                try {
+                    response = await fetch(url, {
+                        method,
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) break;
+
+                    const errorJson = await response.json().catch(() => ({}));
+                    lastError = new Error(errorJson.message || 'Failed to save visit');
+                } catch (err) {
+                    lastError = err;
                 }
 
-                // Refresh dashboard data and stats
-                await fetchDashboardData();
-                await fetchDashboardStats();
-                await fetchSchedules();
-
-                handleCloseVisitModal();
-            } else {
-                const data = await response.json();
-                console.error(`[Visit Save Failed] URL: ${url}, Status: ${response.status}, Message: ${data.message}`);
-                alert(data.message || 'Failed to save visit');
+                if (i < maxRetries) {
+                    console.warn(`[Retry] Visit save attempt ${i + 1} failed. Retrying once...`);
+                    await new Promise(resolve => setTimeout(resolve, 1500)); // wait 1.5s
+                }
             }
+
+            if (!response || !response.ok) {
+                throw lastError || new Error('Failed to save visit');
+            }
+
+            if (selectedCustomerId && targetCustomerId === selectedCustomerId) {
+                await fetchSingleCustomer(selectedCustomerId);
+            } else {
+                await fetchCustomers();
+            }
+
+            await fetchDashboardData();
+            await fetchDashboardStats();
+            await fetchSchedules();
+
+            handleCloseVisitModal();
         } catch (error) {
             console.error('[Visit Save Exception] Details:', {
                 message: error.message,
