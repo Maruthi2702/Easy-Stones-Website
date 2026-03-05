@@ -177,7 +177,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                             }}
                         >
                             <Scan size={14} />
-                            Scan Card
+                            Scan Document
                         </button>
                     </div>
                     <button className="close-btn" onClick={handleClose}>
@@ -232,7 +232,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                                         }} />
                                     </div>
                                     <p style={{ fontSize: '0.85rem', marginBottom: '1.5rem', opacity: 0.8 }}>
-                                        Align business card within the frame
+                                        Align ID or business card within the frame
                                     </p>
                                     <div style={{ display: 'flex', gap: '1rem' }}>
                                         <button
@@ -254,7 +254,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                             ) : (
                                 <div style={{ textAlign: 'center' }}>
                                     <Loader size={40} className="animate-spin" style={{ marginBottom: '1rem', color: '#3b82f6' }} />
-                                    <h3 style={{ marginBottom: '0.5rem' }}>Scanning Card...</h3>
+                                    <h3 style={{ marginBottom: '0.5rem' }}>Processing Document...</h3>
                                     <div style={{
                                         width: '200px',
                                         height: '6px',
