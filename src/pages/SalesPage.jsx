@@ -285,9 +285,10 @@ const SalesPage = () => {
         const currentUserIdStr = currentUserId?.toString();
 
         // Use dashboardVisits if we have them, otherwise fallback to sidebar-derived allVisits
-        const sourceVisits = dashboardVisits.length > 0 || (dashboardTimeRange !== 'all' && dashboardVisits.length === 0 && !dashboardDataLoading)
-            ? dashboardVisits
-            : allVisits;
+        // Strictly use dashboardVisits for specific ranges to avoid leaking historical data
+        const sourceVisits = (dashboardTimeRange === 'all')
+            ? allVisits
+            : dashboardVisits;
 
         const filtered = sourceVisits.filter(v => {
             if (!v) return false;
@@ -391,6 +392,102 @@ const SalesPage = () => {
 
         return [...filtered].sort((a, b) => parseSortDate(b) - parseSortDate(a));
     }, [allResources, dashboardResources, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, dashboardTimeRange, dashboardDataLoading]);
+
+    const memoizedFollowups = React.useMemo(() => {
+        let followups = [];
+        if (followupFilter === 'all') {
+            const searchLower = dashboardSearchTerm.toLowerCase();
+            // Select the source: strictly dashboardFollowups for specific ranges to avoid leaking historical data
+            const source = (dashboardTimeRange === 'all')
+                ? (dashboardFollowups.length > 0 ? dashboardFollowups : memoizedFilteredVisits)
+                : dashboardFollowups;
+
+            followups = source
+                .filter(v => v && (v.nextAction || v.followUp || v.followUpDate))
+                .filter(v => !dashboardSearchTerm ||
+                    v.customerName?.toLowerCase().includes(searchLower) ||
+                    v.notes?.toLowerCase().includes(searchLower) ||
+                    v.followUp?.toLowerCase().includes(searchLower)
+                )
+                .map(v => ({
+                    ...v,
+                    displayDate: v.followUpDate || v.date,
+                    displayNote: v.followUp || v.nextAction,
+                    source: 'Visit'
+                }));
+        } else if (followupFilter === 'nextWeek') {
+            const now = new Date();
+            const startOfNextWeek = new Date(now);
+            startOfNextWeek.setDate(now.getDate() + (8 - now.getDay()) % 7 || 7);
+            startOfNextWeek.setHours(0, 0, 0, 0);
+            const endOfNextWeek = new Date(startOfNextWeek);
+            endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
+            endOfNextWeek.setHours(23, 59, 59, 999);
+
+            // Respect dashboard filter: only look at all items if 'all' is selected. Otherwise only use backend data.
+            const sourceVisits = (dashboardTimeRange === 'all')
+                ? (dashboardFollowups.length > 0 ? dashboardFollowups : memoizedFilteredVisits)
+                : dashboardFollowups;
+
+            // Note: Schedules are NOT filtered by the dashboard time range currently, they are always "All".
+            // If the user expects schedules to be filtered, that requires a backend change to /api/schedules.
+            // For now, we keep schedules global but strictly enforce the dashboard filter for visits.
+            const nextWeekSchedules = allSchedules.filter(s => {
+                const d = new Date(s.startTime);
+                return d >= startOfNextWeek && d <= endOfNextWeek;
+            }).map(s => {
+                const targetId = s.customerId?._id || s.customerId;
+                const customer = customers.find(c => String(c._id) === String(targetId));
+                const customerName = customer
+                    ? (customer.company || customer.contactName || `${customer.firstName || ''} ${customer.lastName || ''}`.trim())
+                    : (s.customerId?.company || s.customerId?.contactName || 'Unknown Customer');
+
+                return {
+                    _id: s._id,
+                    customerId: targetId,
+                    customerName,
+                    displayDate: s.startTime,
+                    displayNote: s.notes || 'Scheduled Follow-up',
+                    source: 'Planner',
+                    isSchedule: true
+                };
+            });
+            const nextWeekVisits = sourceVisits.filter(v => {
+                if (!v.followUpDate) return false;
+                const d = new Date(v.followUpDate);
+                return d >= startOfNextWeek && d <= endOfNextWeek;
+            }).map(v => ({
+                ...v,
+                displayDate: v.followUpDate,
+                displayNote: v.followUp || v.nextAction || 'Follow-up Visit',
+                source: 'Visit'
+            }));
+
+            followups = [...nextWeekSchedules, ...nextWeekVisits];
+        }
+
+        if (dashboardSearchTerm && followupFilter === 'nextWeek') {
+            const term = dashboardSearchTerm.toLowerCase();
+            followups = followups.filter(f =>
+                f.customerName?.toLowerCase().includes(term) ||
+                f.displayNote?.toLowerCase().includes(term)
+            );
+        }
+
+        const parseDate = (d) => {
+            if (!d) return 0;
+            if (d instanceof Date) return d.getTime();
+            const dateStr = String(d);
+            if (dateStr.includes('/')) {
+                const [m, day, y] = dateStr.split('/');
+                return new Date(y, m - 1, day).getTime();
+            }
+            const parsed = new Date(dateStr).getTime();
+            return isNaN(parsed) ? 0 : parsed;
+        };
+
+        return [...followups].sort((a, b) => parseDate(b.displayDate) - parseDate(a.displayDate));
+    }, [followupFilter, dashboardFollowups, memoizedFilteredVisits, dashboardSearchTerm, allSchedules, customers]);
     const [isViewingResource, setIsViewingResource] = useState(false);
     const [isViewingVisit, setIsViewingVisit] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -1484,6 +1581,7 @@ const SalesPage = () => {
             await fetchDashboardStats();
             await fetchSchedules();
 
+            setCurrentFollowUpPage(1);
             handleCloseVisitModal();
         } catch (error) {
             console.error('[Visit Save Exception] Details:', {
@@ -2893,14 +2991,20 @@ const SalesPage = () => {
                                                     <div className="dashboard-sub-tabs" style={{ marginBottom: 0, border: 'none' }}>
                                                         <button
                                                             className={`sub-tab-btn ${followupFilter === 'all' ? 'active' : ''}`}
-                                                            onClick={() => setFollowupFilter('all')}
+                                                            onClick={() => {
+                                                                setFollowupFilter('all');
+                                                                setCurrentFollowUpPage(1);
+                                                            }}
                                                             style={{ padding: '0.5rem 1rem' }}
                                                         >
                                                             All Notes
                                                         </button>
                                                         <button
                                                             className={`sub-tab-btn ${followupFilter === 'nextWeek' ? 'active' : ''}`}
-                                                            onClick={() => setFollowupFilter('nextWeek')}
+                                                            onClick={() => {
+                                                                setFollowupFilter('nextWeek');
+                                                                setCurrentFollowUpPage(1);
+                                                            }}
                                                             style={{ padding: '0.5rem 1rem' }}
                                                         >
                                                             Next Week
@@ -2936,72 +3040,7 @@ const SalesPage = () => {
                                                     </thead>
                                                     <tbody>
                                                         {(() => {
-                                                            let followups = [];
-                                                            if (followupFilter === 'all') {
-                                                                const searchLower = dashboardSearchTerm.toLowerCase();
-                                                                followups = (dashboardFollowups.length > 0 ? dashboardFollowups : memoizedFilteredVisits)
-                                                                    .filter(v => v && (v.nextAction || v.followUp))
-                                                                    .filter(v => !dashboardSearchTerm ||
-                                                                        v.customerName?.toLowerCase().includes(searchLower) ||
-                                                                        v.notes?.toLowerCase().includes(searchLower) ||
-                                                                        v.followUp?.toLowerCase().includes(searchLower)
-                                                                    )
-                                                                    .map(v => ({
-                                                                        ...v,
-                                                                        displayDate: v.followUpDate || v.date,
-                                                                        displayNote: v.followUp || v.nextAction,
-                                                                        source: 'Visit'
-                                                                    }));
-                                                            } else if (followupFilter === 'nextWeek') {
-                                                                const now = new Date();
-                                                                const startOfNextWeek = new Date(now);
-                                                                startOfNextWeek.setDate(now.getDate() + (8 - now.getDay()) % 7 || 7);
-                                                                startOfNextWeek.setHours(0, 0, 0, 0);
-                                                                const endOfNextWeek = new Date(startOfNextWeek);
-                                                                endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
-                                                                endOfNextWeek.setHours(23, 59, 59, 999);
-
-                                                                const nextWeekSchedules = allSchedules.filter(s => {
-                                                                    const d = new Date(s.startTime);
-                                                                    return d >= startOfNextWeek && d <= endOfNextWeek;
-                                                                }).map(s => {
-                                                                    const targetId = s.customerId?._id || s.customerId;
-                                                                    const customer = customers.find(c => String(c._id) === String(targetId));
-                                                                    const customerName = customer
-                                                                        ? (customer.company || customer.contactName || `${customer.firstName || ''} ${customer.lastName || ''}`.trim())
-                                                                        : (s.customerId?.company || s.customerId?.contactName || 'Unknown Customer');
-
-                                                                    return {
-                                                                        _id: s._id,
-                                                                        customerId: targetId,
-                                                                        customerName,
-                                                                        displayDate: s.startTime,
-                                                                        displayNote: s.notes || 'Scheduled Follow-up',
-                                                                        source: 'Planner',
-                                                                        isSchedule: true
-                                                                    };
-                                                                });
-                                                                const nextWeekVisits = memoizedFilteredVisits.filter(v => {
-                                                                    if (!v.followUpDate) return false;
-                                                                    const d = new Date(v.followUpDate);
-                                                                    return d >= startOfNextWeek && d <= endOfNextWeek;
-                                                                }).map(v => ({
-                                                                    ...v,
-                                                                    displayDate: v.followUpDate,
-                                                                    displayNote: v.followUp || v.nextAction || 'Follow-up Visit',
-                                                                    source: 'Visit'
-                                                                }));
-
-                                                                followups = [...nextWeekSchedules, ...nextWeekVisits];
-                                                            }
-
-                                                            if (dashboardSearchTerm) {
-                                                                const term = dashboardSearchTerm.toLowerCase();
-                                                                followups = followups.filter(f =>
-                                                                    f.customerName?.toLowerCase().includes(term) ||
-                                                                    f.displayNote?.toLowerCase().includes(term)
-                                                                );
-                                                            }
+                                                            const followups = memoizedFollowups;
 
                                                             if (followups.length === 0) {
                                                                 return (
@@ -3079,41 +3118,7 @@ const SalesPage = () => {
 
                                             {/* Follow-up Pagination Controls */}
                                             {(() => {
-                                                let followups = [];
-                                                if (followupFilter === 'all') {
-                                                    followups = memoizedFilteredVisits
-                                                        .filter(v => v && (v.nextAction || v.followUp));
-                                                } else if (followupFilter === 'nextWeek') {
-                                                    const now = new Date();
-                                                    const startOfNextWeek = new Date(now);
-                                                    startOfNextWeek.setDate(now.getDate() + (8 - now.getDay()) % 7 || 7);
-                                                    startOfNextWeek.setHours(0, 0, 0, 0);
-                                                    const endOfNextWeek = new Date(startOfNextWeek);
-                                                    endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
-                                                    endOfNextWeek.setHours(23, 59, 59, 999);
-
-                                                    const nextWeekSchedules = allSchedules.filter(s => {
-                                                        const d = new Date(s.startTime);
-                                                        return d >= startOfNextWeek && d <= endOfNextWeek;
-                                                    });
-
-                                                    const nextWeekVisits = memoizedFilteredVisits.filter(v => {
-                                                        if (!v.followUpDate) return false;
-                                                        const d = new Date(v.followUpDate);
-                                                        return d >= startOfNextWeek && d <= endOfNextWeek;
-                                                    });
-
-                                                    followups = [...nextWeekSchedules, ...nextWeekVisits];
-                                                }
-
-                                                if (dashboardSearchTerm) {
-                                                    const term = dashboardSearchTerm.toLowerCase();
-                                                    followups = followups.filter(f => {
-                                                        const customerName = f.customerName || (f.customerId?.company);
-                                                        const note = f.displayNote || f.notes || f.nextAction || f.followUp;
-                                                        return (customerName?.toLowerCase().includes(term) || note?.toLowerCase().includes(term));
-                                                    });
-                                                }
+                                                const followups = memoizedFollowups;
 
                                                 const totalPages = Math.ceil(followups.length / visitsPerPage);
 
@@ -3121,7 +3126,13 @@ const SalesPage = () => {
 
                                                 const handlePageChange = (pageNumber) => {
                                                     setCurrentFollowUpPage(pageNumber);
-                                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                    // Scroll the dashboard content container if it exists, otherwise window
+                                                    const dashboardContent = document.querySelector('.dashboard-content-area') || document.querySelector('.sales-dashboard-main');
+                                                    if (dashboardContent) {
+                                                        dashboardContent.scrollTo({ top: 0, behavior: 'smooth' });
+                                                    } else {
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                    }
                                                 };
 
                                                 return (

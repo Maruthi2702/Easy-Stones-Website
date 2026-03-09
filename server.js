@@ -1212,7 +1212,21 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
     // If Admin/Manager, show all stats for the team. If regular salesperson/customer, filter by createdBy.
     const userMatchObj = isAdmin ? {} : { "visits.createdBy": userId.toString() };
     const visitDateMatch = getAggregationRangeMatch(startDate, endDate, "visits", userMatchObj);
-    const followUpDateMatchScoped = getFollowUpRangeMatch(startDate, endDate, userMatchObj);
+
+    // Crucial: Pass the exact same string arguments as the visits endpoint to trigger the "Today + Future" logic
+    let followUpStartStr = startDate ? startDate.toISOString().split('T')[0] : null;
+    let followUpEndStr = endDate ? endDate.toISOString().split('T')[0] : null;
+    if (timeRange === '1day') {
+      // Force strings to be identical to trigger 'Today' logic in getFollowUpRangeMatch
+      followUpStartStr = targetDateStr;
+      followUpEndStr = targetDateStr;
+    }
+
+    // Create a mock object that getFollowUpRangeMatch will extract strings from
+    const mockStartDate = followUpStartStr ? { toISOString: () => followUpStartStr + 'T' } : null;
+    const mockEndDate = followUpEndStr ? { toISOString: () => followUpEndStr + 'T' } : null;
+
+    const followUpDateMatchScoped = getFollowUpRangeMatch(mockStartDate, mockEndDate, userMatchObj);
 
     // Aggregation for Visits Stats (Strictly by Visit Date)
     const visitStats = await Customer.aggregate([
@@ -2117,37 +2131,47 @@ const getFollowUpRangeMatch = (start, end, additionalMatch = {}) => {
     }
   }
 
-  conds.push({ $ne: ["$visits.followUpDate", ""] });
+  // Include if follow-up date is set OR if follow-up notes exist
+  conds.push({
+    $or: [
+      { $and: [{ $ne: ["$visits.followUpDate", ""] }, { $ne: ["$visits.followUpDate", null] }] },
+      { $and: [{ $ne: ["$visits.followUp", ""] }, { $ne: ["$visits.followUp", null] }] },
+      { $and: [{ $ne: ["$visits.nextAction", ""] }, { $ne: ["$visits.nextAction", null] }] }
+    ]
+  });
 
   // Optimised Follow-up Logic:
-  // 1. If a range is provided, we MUST include those in the range.
-  // 2. We also want to include "Overdue" items (followUpDate < start or followUpDate < today).
-  // 3. To prevent cluttering with years of old data, we filter for active follow-ups.
+  // 1. If a range is provided, we filter based on followUpDate.
+  if (startStr) {
+    if (startStr === endStr) {
+      // "Today" (or single day) filter on dashboard: show follow-ups for that day OR anytime in the future
+      // This excludes past/overdue follow-ups to keep the "Today" view focused on current/upcoming work.
+      conds.push({
+        $and: [
+          { $ne: ["$visits.followUpDate", ""] },
+          { $ne: ["$visits.followUpDate", null] },
+          { $gte: ["$visits.followUpDate", startStr] }
+        ]
+      });
+    } else {
+      // Other ranges (7 days, 30 days, or "All"): Show items in range PLUS overdue items.
+      const todayStr = new Date().toISOString().split('T')[0];
+      const referenceToday = (startStr < todayStr) ? todayStr : startStr;
 
-  if (startStr && endStr) {
-    // Range view: show items in range OR items that are overdue relative to today
-    const todayStr = new Date().toISOString().split('T')[0];
-    conds.push({
-      $or: [
-        {
-          $and: [
-            { $gte: ["$visits.followUpDate", startStr] },
-            { $lte: ["$visits.followUpDate", endStr] }
-          ]
-        },
-        { $lt: ["$visits.followUpDate", todayStr] } // Include Overdue
-      ]
-    });
-  } else if (startStr) {
-    // Single start point: include everything from start onwards OR overdue
-    const todayStr = new Date().toISOString().split('T')[0];
-    conds.push({
-      $or: [
-        { $gte: ["$visits.followUpDate", startStr] },
-        { $lt: ["$visits.followUpDate", todayStr] }
-      ]
-    });
+      conds.push({
+        $or: [
+          { $gte: ["$visits.followUpDate", startStr] },
+          { $lt: ["$visits.followUpDate", referenceToday] },
+          // Items without a date (notes only) are included in the "All" or relative views
+          { $eq: ["$visits.followUpDate", ""] },
+          { $eq: ["$visits.followUpDate", null] }
+        ]
+      });
+    }
   }
+
+
+
 
   return { $expr: { $and: conds } };
 };
