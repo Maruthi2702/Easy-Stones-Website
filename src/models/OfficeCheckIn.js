@@ -17,11 +17,6 @@ const officeCheckInSchema = new mongoose.Schema({
     lowercase: true,
     default: ''
   },
-  address: {
-    type: String,
-    trim: true,
-    default: ''
-  },
   fabricatorCompany: {
     type: String,
     trim: true,

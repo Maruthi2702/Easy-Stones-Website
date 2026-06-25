@@ -11,7 +11,6 @@ const CheckInPage = () => {
     name: '',
     phone: '',
     email: '',
-    address: '',
     fabricatorCompany: '',
     fabricatorName: '',
     fabricatorPhone: ''
@@ -77,7 +76,6 @@ const CheckInPage = () => {
             name: '',
             phone: '',
             email: '',
-            address: '',
             fabricatorCompany: '',
             fabricatorName: '',
             fabricatorPhone: ''
@@ -159,16 +157,6 @@ const CheckInPage = () => {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="example@email.com"
-                  />
-                </div>
-                <div className="input-field">
-                  <label><MapPin size={16} /> Address</label>
-                  <input
-                    type="text"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    placeholder="Street, City, State"
                   />
                 </div>
               </div>

@@ -1627,7 +1627,6 @@ app.post('/api/checkin', async (req, res) => {
       name,
       phone,
       email,
-      address,
       fabricatorCompany,
       fabricatorName,
       fabricatorPhone
@@ -1641,7 +1640,6 @@ app.post('/api/checkin', async (req, res) => {
       name,
       phone,
       email,
-      address,
       fabricatorCompany,
       fabricatorName,
       fabricatorPhone
