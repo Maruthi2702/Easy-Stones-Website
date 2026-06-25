@@ -27,6 +27,7 @@ import SalesDashboardResource from './src/models/SalesDashboardResource.js';
 import ActivityLog from './src/models/ActivityLog.js';
 import Schedule from './src/models/Schedule.js';
 import Lead from './src/models/Lead.js';
+import OfficeCheckIn from './src/models/OfficeCheckIn.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -1614,6 +1615,67 @@ app.post('/api/customers/:customerId/contacts', verifyAnyAuth, async (req, res) 
     res.status(500).json({ message: 'Failed to add contact' });
   }
 });
+
+// ============================================
+// OFFICE CHECK-IN ENDPOINTS (PUBLIC)
+// ============================================
+
+// Submit public check-in
+app.post('/api/checkin', async (req, res) => {
+  try {
+    const {
+      name,
+      phone,
+      email,
+      address,
+      fabricatorCompany,
+      fabricatorName,
+      fabricatorPhone
+    } = req.body;
+
+    if (!name || !phone) {
+      return res.status(400).json({ message: 'Name and Phone Number are required' });
+    }
+
+    const checkIn = new OfficeCheckIn({
+      name,
+      phone,
+      email,
+      address,
+      fabricatorCompany,
+      fabricatorName,
+      fabricatorPhone
+    });
+
+    await checkIn.save();
+    console.log(`✅ New office check-in: ${name} (${phone})`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Check-in successful! Welcome to Easy Stones.',
+      data: checkIn
+    });
+  } catch (error) {
+    console.error('❌ Check-in error:', error);
+    res.status(500).json({ message: 'Check-in failed. Please try again.' });
+  }
+});
+
+// Get recent check-ins (temporary public access)
+app.get('/api/checkin', async (req, res) => {
+  try {
+    // Get last 50 check-ins, sorted by newest first
+    const checkIns = await OfficeCheckIn.find()
+      .sort({ createdAt: -1 })
+      .limit(50);
+    
+    res.json(checkIns);
+  } catch (error) {
+    console.error('❌ Error fetching check-ins:', error);
+    res.status(500).json({ message: 'Failed to fetch check-ins' });
+  }
+});
+
 
 // Update contact
 app.put('/api/customers/:customerId/contacts/:contactId', verifyAnyAuth, async (req, res) => {
