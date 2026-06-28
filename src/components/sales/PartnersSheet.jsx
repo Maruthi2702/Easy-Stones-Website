@@ -20,6 +20,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const [formErrors, setFormErrors] = useState({});
+    const [showFilters, setShowFilters] = useState(false);
+
+    // Filter State
+    const [filterLevel, setFilterLevel] = useState('');
+    const [filterType, setFilterType] = useState('');
+    const [filterCity, setFilterCity] = useState('');
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -49,7 +55,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
 
     useEffect(() => {
         fetchPartners();
-    }, [currentPage, debouncedSearch, limit]);
+    }, [currentPage, debouncedSearch, limit, filterLevel, filterType, filterCity]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -65,9 +71,10 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
             const url = new URL(`${API_URL}/api/partners`, window.location.origin);
             url.searchParams.append('page', currentPage);
             url.searchParams.append('limit', limit);
-            if (debouncedSearch) {
-                url.searchParams.append('search', debouncedSearch);
-            }
+            if (debouncedSearch) url.searchParams.append('search', debouncedSearch);
+            if (filterLevel)    url.searchParams.append('level', filterLevel);
+            if (filterType)     url.searchParams.append('type', filterType);
+            if (filterCity)     url.searchParams.append('city', filterCity);
 
             const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
@@ -85,6 +92,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
             setLoading(false);
         }
     };
+
+    const clearFilters = () => {
+        setFilterLevel('');
+        setFilterType('');
+        setFilterCity('');
+        setCurrentPage(1);
+    };
+
+    const activeFilterCount = [filterLevel, filterType, filterCity].filter(Boolean).length;
 
     const handleSavePartner = async (e) => {
         if (e) e.preventDefault();
@@ -270,6 +286,17 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+                    <button
+                        className={`filter-toggle-btn${activeFilterCount > 0 ? ' active' : ''}`}
+                        onClick={() => setShowFilters(f => !f)}
+                        title="Filter"
+                    >
+                        <Filter size={16} />
+                        {!isMobile && 'Filter'}
+                        {activeFilterCount > 0 && (
+                            <span className="filter-badge">{activeFilterCount}</span>
+                        )}
+                    </button>
                     <button className="partner-add-btn pulse" onClick={() => {
                         setEditingPartner(null);
                         setViewingPartner(null);
@@ -280,6 +307,82 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
                     </button>
                 </div>
             </div>
+
+            {/* Filter Panel */}
+            {showFilters && (
+                <div className="filter-panel">
+                    <div className="filter-panel-inner">
+                        <div className="filter-group">
+                            <label>Level</label>
+                            <select
+                                className="filter-select"
+                                value={filterLevel}
+                                onChange={e => { setFilterLevel(e.target.value); setCurrentPage(1); }}
+                            >
+                                <option value="">All Levels</option>
+                                <option value="Level - 1">Level 1</option>
+                                <option value="Level - 2">Level 2</option>
+                                <option value="Level - 3">Level 3</option>
+                                <option value="Level - 4">Level 4</option>
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <label>Type</label>
+                            <select
+                                className="filter-select"
+                                value={filterType}
+                                onChange={e => { setFilterType(e.target.value); setCurrentPage(1); }}
+                            >
+                                <option value="">All Types</option>
+                                <option value="Fabricator">Fabricator</option>
+                                <option value="Contractor">Contractor</option>
+                                <option value="Dealer">Dealer</option>
+                                <option value="Floor Covering">Floor Covering</option>
+                                <option value="Designer">Designer</option>
+                                <option value="Builder">Builder</option>
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <label>City</label>
+                            <input
+                                type="text"
+                                className="filter-input"
+                                placeholder="e.g. Seattle"
+                                value={filterCity}
+                                onChange={e => { setFilterCity(e.target.value); setCurrentPage(1); }}
+                            />
+                        </div>
+                        {activeFilterCount > 0 && (
+                            <button className="clear-filters-btn" onClick={clearFilters}>
+                                <X size={14} /> Clear All
+                            </button>
+                        )}
+                    </div>
+                    {/* Active filter chips */}
+                    {activeFilterCount > 0 && (
+                        <div className="filter-chips">
+                            {filterLevel && (
+                                <span className="filter-chip">
+                                    {filterLevel}
+                                    <button onClick={() => { setFilterLevel(''); setCurrentPage(1); }}><X size={11} /></button>
+                                </span>
+                            )}
+                            {filterType && (
+                                <span className="filter-chip">
+                                    {filterType}
+                                    <button onClick={() => { setFilterType(''); setCurrentPage(1); }}><X size={11} /></button>
+                                </span>
+                            )}
+                            {filterCity && (
+                                <span className="filter-chip">
+                                    {filterCity}
+                                    <button onClick={() => { setFilterCity(''); setCurrentPage(1); }}><X size={11} /></button>
+                                </span>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
 
             <div className="dashboard-table-wrapper">
                 <table className="dashboard-table">

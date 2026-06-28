@@ -2043,11 +2043,18 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
     const limitInput = parseInt(req.query.limit);
     const limit = isNaN(limitInput) ? 50 : limitInput;
     const search = req.query.search || '';
+    const filterLevel = req.query.level || '';
+    const filterType = req.query.type || '';
+    const filterCity = req.query.city || '';
     const skip = (page - 1) * limit;
 
     let query = {};
+
+    // Build filter conditions
+    const filterConditions = [];
+
     if (search) {
-      query = {
+      filterConditions.push({
         $or: [
           { company: { $regex: search, $options: 'i' } },
           { contactName: { $regex: search, $options: 'i' } },
@@ -2057,14 +2064,26 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
           { city: { $regex: search, $options: 'i' } },
           { status: { $regex: search, $options: 'i' } }
         ]
-      };
+      });
+    }
+
+    if (filterLevel) filterConditions.push({ level: filterLevel });
+    if (filterType) filterConditions.push({ customerType: filterType });
+    if (filterCity) filterConditions.push({
+      $or: [
+        { city: { $regex: filterCity, $options: 'i' } },
+        { 'address.city': { $regex: filterCity, $options: 'i' } }
+      ]
+    });
+
+    if (filterConditions.length > 0) {
+      query = filterConditions.length === 1 ? filterConditions[0] : { $and: filterConditions };
     }
 
     const totalCount = await Customer.countDocuments(query);
-    
+
     let customers;
     if (limit === -1) {
-      // Export case: get all matching records
       customers = await Customer.find(query).sort({ createdAt: -1 });
     } else {
       customers = await Customer.find(query)
@@ -2076,7 +2095,7 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
     res.json({
       partners: customers,
       totalCount,
-      totalPages: Math.ceil(totalCount / limit),
+      totalPages: Math.ceil(totalCount / (limit === -1 ? totalCount || 1 : limit)),
       currentPage: page
     });
   } catch (error) {
