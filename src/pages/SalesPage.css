@@ -2,7 +2,7 @@
   display: flex;
   height: 100vh;
   width: 100%;
-  padding-top: 80px;
+  padding-top: 96px;
   background: var(--bg-primary);
   overflow: hidden;
 }
@@ -20,7 +20,7 @@
   flex-direction: column;
   position: fixed;
   left: 0;
-  top: 80px;
+  top: 96px;
   bottom: 0;
   z-index: 50;
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
@@ -39,7 +39,7 @@
 
 .sidebar-overlay-backdrop {
     position: fixed;
-    top: 80px;
+    top: 96px;
     left: 0;
     right: 0;
     bottom: 0;
@@ -367,7 +367,7 @@
   margin-left: 325px; /* Default pinned state */
   padding: 0;
   overflow: hidden; /* Changed from auto to prevent double scrollbars */
-  height: calc(100vh - 80px);
+  height: calc(100vh - 96px);
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -783,13 +783,13 @@
 @media (max-width: 768px) {
   .sales-container {
     flex-direction: column;
-    padding-top: 80px; 
+    padding-top: 96px; 
     height: 100vh; /* Fill viewport */
     overflow: hidden; /* Desktop-like internal scroll */
   }
 
   .modal-overlay {
-    padding-top: 80px; /* Leave room for site header if stacking context fails */
+    padding-top: 96px; /* Leave room for site header if stacking context fails */
     z-index: 10000;
   }
 
@@ -876,10 +876,10 @@
   /* Mobile: Sidebar (Master View) */
   .sales-sidebar {
     position: fixed;
-    top: 80px;
+    top: 96px;
     left: 0;
     width: 100%;
-    height: calc(100vh - 80px);
+    height: calc(100vh - 96px);
     z-index: 100;
     background: var(--bg-primary); /* Solid bg */
     border-right: none;

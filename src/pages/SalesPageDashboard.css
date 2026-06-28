@@ -1330,7 +1330,7 @@
 .crm-checkin-log-panel {
     padding: 2rem;
     background: var(--bg-primary);
-    height: calc(100vh - 120px);
+    height: calc(100vh - 136px);
     overflow-y: auto;
 }
 
@@ -1559,10 +1559,7 @@
     border: 1px solid var(--border-color);
 }
 
-/* Partners sheet wrapper card look */
-.crm-partners-sheet-wrapper {
-    background: var(--bg-primary);
-}
+
 
 @media (max-width: 768px) {
     .crm-sub-navbar {
