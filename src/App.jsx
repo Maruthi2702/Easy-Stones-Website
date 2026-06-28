@@ -100,6 +100,7 @@ function App() {
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   <Route path="/" element={<HomeRedirect />} />
+                  <Route path="/products" element={<HomePage />} />
                   <Route path="/sales/map" element={<ProtectedRoute><SalesMapPage /></ProtectedRoute>} />
                   <Route
                     path="/sales"
