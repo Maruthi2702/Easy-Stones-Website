@@ -1294,7 +1294,7 @@
 /* Modal */
 .modal-overlay {
   position: fixed;
-  top: 0;
+  top: 96px; /* Position below the main website header */
   left: 0;
   right: 0;
   bottom: 0;
@@ -4387,7 +4387,7 @@
 /* Modal Styles */
 .planner-modal-overlay {
     position: fixed;
-    top: 0;
+    top: 96px; /* Position below main website header */
     left: 0;
     right: 0;
     bottom: 0;
