@@ -3,7 +3,7 @@ import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { Navigation } from 'lucide-react';
 import './SalesMapPage.css';
 
-const SalesMapPage = () => {
+const SalesMapPage = ({ embedded = false }) => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     const [userLocation, setUserLocation] = useState(null);
     const [locationError, setLocationError] = useState(null);
@@ -96,10 +96,12 @@ const SalesMapPage = () => {
 
     if (loadError) {
         return (
-            <div className="sales-page">
-                <div className="sales-header">
-                    <h1>Google Maps</h1>
-                </div>
+            <div className={embedded ? "sales-page-embedded" : "sales-page"}>
+                {!embedded && (
+                    <div className="sales-header">
+                        <h1>Google Maps</h1>
+                    </div>
+                )}
                 <div className="container" style={{ padding: '2rem', textAlign: 'center' }}>
                     <p style={{ color: '#ef4444' }}>Error loading Google Maps: {loadError.message}</p>
                 </div>
@@ -109,10 +111,12 @@ const SalesMapPage = () => {
 
     if (!isLoaded || !userLocation) {
         return (
-            <div className="sales-page">
-                <div className="sales-header">
-                    <h1>Google Maps</h1>
-                </div>
+            <div className={embedded ? "sales-page-embedded" : "sales-page"}>
+                {!embedded && (
+                    <div className="sales-header">
+                        <h1>Google Maps</h1>
+                    </div>
+                )}
                 <div className="container" style={{ padding: '2rem', textAlign: 'center' }}>
                     <p>Loading map and detecting your location...</p>
                 </div>
@@ -121,16 +125,18 @@ const SalesMapPage = () => {
     }
 
     return (
-        <div className="sales-page">
-            <div className="sales-header">
-                <h1>Google Maps</h1>
-                <p>
-                    {locationError
-                        ? `Using default location (${locationError})`
-                        : 'Centered on your current location'}
-                </p>
-            </div>
-            <div className="container" style={{ height: 'calc(100vh - 200px)', padding: '2rem', position: 'relative' }}>
+        <div className={embedded ? "sales-page-embedded" : "sales-page"}>
+            {!embedded && (
+                <div className="sales-header">
+                    <h1>Google Maps</h1>
+                    <p>
+                        {locationError
+                            ? `Using default location (${locationError})`
+                            : 'Centered on your current location'}
+                    </p>
+                </div>
+            )}
+            <div className={embedded ? "map-container-embedded" : "container"} style={{ height: embedded ? 'calc(100vh - 120px)' : 'calc(100vh - 200px)', padding: embedded ? '1rem' : '2rem', position: 'relative' }}>
                 {/* Marker Controls */}
                 <div style={{
                     position: 'absolute',

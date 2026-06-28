@@ -1259,3 +1259,284 @@
         margin-bottom: 1rem;
     }
 }
+
+/* CRM Navigation Overhaul Styles */
+.crm-sub-navbar {
+    background: rgba(17, 24, 39, 0.6);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.5rem 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.crm-nav-tabs {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    overflow-x: auto;
+    scrollbar-width: none; /* Hide scrollbar for clean UI */
+}
+
+.crm-nav-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.crm-nav-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.75rem 1.25rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: all 0.2s ease-in-out;
+    white-space: nowrap;
+}
+
+.crm-nav-tab:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.crm-nav-tab.active {
+    color: var(--accent-primary);
+    background: rgba(229, 192, 74, 0.1);
+    font-weight: 600;
+}
+
+.crm-nav-tab svg {
+    transition: transform 0.2s;
+}
+
+.crm-nav-tab:hover svg {
+    transform: translateY(-1px);
+}
+
+/* Visitor Check-In Log Panel */
+.crm-checkin-log-panel {
+    padding: 2rem;
+    background: var(--bg-primary);
+    min-height: calc(100vh - 120px);
+}
+
+.crm-checkin-log-panel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.crm-checkin-log-panel .panel-header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.crm-checkin-log-panel .panel-header p {
+    color: var(--text-secondary);
+    margin: 0.25rem 0 0 0;
+    font-size: 0.95rem;
+}
+
+.crm-checkin-log-panel .refresh-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    transition: all 0.2s;
+}
+
+.crm-checkin-log-panel .refresh-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--text-secondary);
+}
+
+.crm-checkin-log-panel .refresh-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.spin-animation {
+    animation: crm-spin 1s linear infinite;
+}
+
+@keyframes crm-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.crm-checkin-log-panel .panel-filters {
+    margin-bottom: 1.5rem;
+}
+
+.crm-checkin-log-panel .search-box {
+    position: relative;
+    max-width: 400px;
+}
+
+.crm-checkin-log-panel .search-box .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    pointer-events: none;
+}
+
+.crm-checkin-log-panel .search-box input {
+    width: 100%;
+    padding: 0.6rem 1rem 0.6rem 2.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.crm-checkin-log-panel .search-box input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 0 2px rgba(229, 192, 74, 0.2);
+}
+
+.crm-checkin-log-panel .search-box .clear-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+}
+
+.crm-checkin-log-panel .search-box .clear-btn:hover {
+    color: var(--text-primary);
+}
+
+/* CRM Tables Layout */
+.crm-checkin-log-panel .panel-table-wrapper {
+    background: rgba(31, 41, 55, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.crm-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.95rem;
+}
+
+.crm-table th,
+.crm-table td {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.crm-table th {
+    background: rgba(31, 41, 55, 0.4);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.crm-table tr:last-child td {
+    border-bottom: none;
+}
+
+.crm-table tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.crm-table .datetime-cell {
+    display: flex;
+    flex-direction: column;
+}
+
+.crm-table .datetime-cell .date-text {
+    font-weight: 500;
+}
+
+.crm-table .company-badge,
+.crm-table .staff-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.crm-table .company-badge {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+}
+
+.crm-table .company-badge.none {
+    background: rgba(156, 163, 175, 0.15);
+    color: #9ca3af;
+}
+
+.crm-table .staff-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+}
+
+/* CRM Map Panel */
+.crm-map-panel {
+    background: var(--bg-primary);
+    min-height: calc(100vh - 120px);
+}
+
+.sales-page-embedded {
+    background: transparent !important;
+}
+
+.map-container-embedded {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+@media (max-width: 768px) {
+    .crm-sub-navbar {
+        padding: 0.5rem 1rem;
+    }
+    .crm-nav-tab {
+        padding: 0.6rem 0.8rem;
+        font-size: 0.85rem;
+    }
+    .crm-checkin-log-panel {
+        padding: 1rem;
+    }
+    .crm-table th,
+    .crm-table td {
+        padding: 0.75rem 1rem;
+    }
+}

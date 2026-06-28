@@ -28,6 +28,7 @@ import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
 import PartnersSheet from '../components/sales/PartnersSheet';
+import SalesMapPage from './SalesMapPage';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 
 class ErrorBoundary extends React.Component {
@@ -84,9 +85,14 @@ const SalesPage = () => {
     const [totalCustomers, setTotalCustomers] = useState(0);
     const customersPerPage = 50;
 
-    // Dashboard State (Required for memoized values)
+        // Dashboard State (Required for memoized values)
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
+    
+    const [crmTab, setCrmTab] = useState('dashboard'); // 'dashboard', 'customers', 'checkin', 'map'
+    const [checkIns, setCheckIns] = useState([]);
+    const [checkInsLoading, setCheckInsLoading] = useState(false);
+    const [checkInSearch, setCheckInSearch] = useState('');
     
     const [showDashboard, setShowDashboard] = useState(true);
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
@@ -195,6 +201,39 @@ const SalesPage = () => {
     useEffect(() => {
         fetchSchedules();
     }, [fetchSchedules]);
+
+    const handleCrmTabChange = (tabName) => {
+        setCrmTab(tabName);
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('tab', tabName);
+        if (tabName !== 'customers') {
+            newUrl.searchParams.delete('customer');
+        }
+        window.history.pushState({}, '', newUrl);
+    };
+
+    const fetchCheckIns = async () => {
+        setCheckInsLoading(true);
+        try {
+            const response = await fetch(`${API_URL}/api/checkin`, { credentials: 'include' });
+            if (response.ok) {
+                const data = await response.json();
+                setCheckIns(Array.isArray(data) ? data : []);
+            }
+        } catch (error) {
+            console.error('Error fetching check-ins:', error);
+        } finally {
+            setCheckInsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (crmTab === 'checkin') {
+            fetchCheckIns();
+            const interval = setInterval(fetchCheckIns, 30000);
+            return () => clearInterval(interval);
+        }
+    }, [crmTab]);
 
     // Modal states
     const [showContactModal, setShowContactModal] = useState(false);
@@ -818,12 +857,7 @@ const SalesPage = () => {
     const handleGoHome = () => {
         setSelectedCustomerId(null);
         setSelectedCustomerDetail(null);
-
-        // Clear URL
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.delete('customer');
-        window.history.pushState({}, '', newUrl);
-        setShowDashboard(true);
+        handleCrmTabChange('dashboard');
         setActiveDashboardTab('visits');
         if (isMobile) {
             setIsSidebarOpen(false);
@@ -833,13 +867,7 @@ const SalesPage = () => {
     const handleGoLeads = () => {
         setSelectedCustomerId(null);
         setSelectedCustomerDetail(null);
-
-        // Clear URL
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.delete('customer');
-        window.history.pushState({}, '', newUrl);
-
-        setShowDashboard(true);
+        handleCrmTabChange('dashboard');
         setActiveDashboardTab('leads');
 
         if (isMobile) {
@@ -942,9 +970,15 @@ const SalesPage = () => {
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const customerId = params.get('customer');
-        if (customerId) {
-            setSelectedCustomerId(customerId);
+        const tabParam = params.get('tab');
+        if (tabParam && ['dashboard', 'customers', 'checkin', 'map'].includes(tabParam)) {
+            setCrmTab(tabParam);
+        } else {
+            const customerId = params.get('customer');
+            if (customerId) {
+                setSelectedCustomerId(customerId);
+                setCrmTab('customers');
+            }
         }
     }, []);
 
@@ -960,11 +994,7 @@ const SalesPage = () => {
             setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
         }
         setSelectedCustomerId(customer._id);
-
-        // Update URL
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.set('customer', customer._id);
-        window.history.pushState({}, '', newUrl);
+        handleCrmTabChange('customers');
 
         // On mobile, close sidebar (list view) to show details
         if (isMobile) {
@@ -2297,6 +2327,118 @@ const SalesPage = () => {
 
 
 
+    const renderCheckInLogView = () => {
+        const filteredCheckIns = checkIns.filter(c => {
+            const search = checkInSearch.toLowerCase();
+            return (
+                (c.name || '').toLowerCase().includes(search) ||
+                (c.phone || '').toLowerCase().includes(search) ||
+                (c.fabricatorCompany || '').toLowerCase().includes(search) ||
+                (c.fabricatorName || '').toLowerCase().includes(search)
+            );
+        });
+
+        const formatCheckInTime = (timestamp) => {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        };
+
+        const formatCheckInDate = (timestamp) => {
+            const date = new Date(timestamp);
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+        };
+
+        return (
+            <div className="crm-checkin-log-panel">
+                <div className="panel-header">
+                    <div className="header-left">
+                        <h1>Visitor Check-In Log</h1>
+                        <p>Live tracking of clients and fabricators visiting the office</p>
+                    </div>
+                    <div className="header-actions">
+                        <button 
+                            className="btn-secondary refresh-btn" 
+                            onClick={fetchCheckIns}
+                            disabled={checkInsLoading}
+                        >
+                            <RefreshCw size={16} className={checkInsLoading ? "spin-animation" : ""} />
+                            <span>Refresh</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div className="panel-filters">
+                    <div className="search-box">
+                        <Search size={18} className="search-icon" />
+                        <input
+                            type="text"
+                            placeholder="Search by name, phone, or company..."
+                            value={checkInSearch}
+                            onChange={(e) => setCheckInSearch(e.target.value)}
+                        />
+                        {checkInSearch && (
+                            <button className="clear-btn" onClick={() => setCheckInSearch('')}>
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                <div className="panel-table-wrapper">
+                    {checkInsLoading && checkIns.length === 0 ? (
+                        <div className="loading-spinner-container" style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+                            <Loader className="spin-animation" size={32} color="#E5C04A" />
+                        </div>
+                    ) : filteredCheckIns.length === 0 ? (
+                        <div className="empty-state" style={{ textAlign: 'center', padding: '3rem' }}>
+                            <Clock size={48} className="placeholder-icon" style={{ margin: '0 auto 1rem', color: '#9CA3AF' }} />
+                            <h3>No Visitor Records</h3>
+                            <p style={{ color: '#9CA3AF' }}>No check-in entries match your search criteria.</p>
+                        </div>
+                    ) : (
+                        <table className="crm-table">
+                            <thead>
+                                <tr>
+                                    <th>Check-In Time</th>
+                                    <th>Visitor Name</th>
+                                    <th>Phone Number</th>
+                                    <th>Email</th>
+                                    <th>Fabricator / Company</th>
+                                    <th>Staff Contact</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredCheckIns.map(checkIn => (
+                                    <tr key={checkIn._id}>
+                                        <td>
+                                            <div className="datetime-cell">
+                                                <span className="date-text">{formatCheckInDate(checkIn.createdAt)}</span>
+                                                <span className="time-text" style={{ fontSize: '0.8rem', color: '#E5C04A', display: 'block', marginTop: '2px' }}>{formatCheckInTime(checkIn.createdAt)}</span>
+                                            </div>
+                                        </td>
+                                        <td className="name-cell" style={{ fontWeight: '600' }}>{checkIn.name}</td>
+                                        <td>{formatPhoneForDisplay(checkIn.phone) || checkIn.phone}</td>
+                                        <td>{checkIn.email || '-'}</td>
+                                        <td>
+                                            <span className={`company-badge ${!checkIn.fabricatorCompany ? 'none' : ''}`}>
+                                                {checkIn.fabricatorCompany || 'None'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className="staff-badge">
+                                                {checkIn.fabricatorName || 'None'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="sales-container">
             {/* Sidebar Overlay */}
@@ -2308,41 +2450,91 @@ const SalesPage = () => {
             )}
 
             {/* Sidebar */}
-            <CustomerSidebar
-                isSidebarOpen={isSidebarOpen}
-                isMobile={isMobile}
-                isPinned={isPinned}
-                sidebarWidth={sidebarWidth}
-                startResizing={startResizing}
-                filteredCustomers={filteredCustomers}
-                selectedCustomerId={selectedCustomerId}
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                loading={loading}
-                error={error}
-                togglePin={togglePin}
-                setIsSidebarOpen={setIsSidebarOpen}
-                handleGoHome={handleGoHome}
-                handleGoLeads={handleGoLeads}
-                handleSelectCustomer={handleSelectCustomer}
-                currentPage={currentPage}
-                setCurrentPage={setCurrentPage}
-                totalPages={totalPages}
-                totalCustomers={totalCustomers}
-                onAddCustomer={() => setShowAddCustomerModal(true)}
-            />
+            {crmTab === 'customers' && (
+                <CustomerSidebar
+                    isSidebarOpen={isSidebarOpen}
+                    isMobile={isMobile}
+                    isPinned={isPinned}
+                    sidebarWidth={sidebarWidth}
+                    startResizing={startResizing}
+                    filteredCustomers={filteredCustomers}
+                    selectedCustomerId={selectedCustomerId}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    loading={loading}
+                    error={error}
+                    togglePin={togglePin}
+                    setIsSidebarOpen={setIsSidebarOpen}
+                    handleGoHome={handleGoHome}
+                    handleGoLeads={handleGoLeads}
+                    handleSelectCustomer={handleSelectCustomer}
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                    totalCustomers={totalCustomers}
+                    onAddCustomer={() => setShowAddCustomerModal(true)}
+                />
+            )}
 
             {/* Main Content */}
             <div
-                className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isPinned || !isSidebarOpen ? 'full-width' : ''}`}
+                className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${crmTab !== 'customers' || !isPinned || !isSidebarOpen ? 'full-width' : ''}`}
                 style={{
-                    marginLeft: isMobile || !isSidebarOpen || !isPinned ? 0 : `${sidebarWidth}px`,
+                    marginLeft: isMobile || crmTab !== 'customers' || !isSidebarOpen || !isPinned ? 0 : `${sidebarWidth}px`,
                     position: 'relative'
                 }}
             >
-                {/* Header removed from here to be placed inside specific views */}
-                <ErrorBoundary key={selectedCustomerId || 'no-customer'}>
-                    {selectedCustomer ? (
+                {/* CRM Sub-Navbar */}
+                <div className="crm-sub-navbar">
+                    <div className="crm-nav-tabs">
+                        <button 
+                            className={`crm-nav-tab ${crmTab === 'dashboard' ? 'active' : ''}`}
+                            onClick={() => handleCrmTabChange('dashboard')}
+                        >
+                            <LayoutDashboard size={18} />
+                            <span>Dashboard</span>
+                        </button>
+                        <button 
+                            className={`crm-nav-tab ${crmTab === 'customers' ? 'active' : ''}`}
+                            onClick={() => handleCrmTabChange('customers')}
+                        >
+                            <User size={18} />
+                            <span>Customers</span>
+                        </button>
+                        <button 
+                            className={`crm-nav-tab ${crmTab === 'checkin' ? 'active' : ''}`}
+                            onClick={() => handleCrmTabChange('checkin')}
+                        >
+                            <Clock size={18} />
+                            <span>Check-In Log</span>
+                        </button>
+                        <button 
+                            className={`crm-nav-tab ${crmTab === 'map' ? 'active' : ''}`}
+                            onClick={() => handleCrmTabChange('map')}
+                        >
+                            <MapPin size={18} />
+                            <span>Sales Map</span>
+                        </button>
+                    </div>
+                </div>
+
+                {crmTab === 'checkin' && (
+                    <ErrorBoundary key="checkin-log-view">
+                        {renderCheckInLogView()}
+                    </ErrorBoundary>
+                )}
+
+                {crmTab === 'map' && (
+                    <ErrorBoundary key="map-view">
+                        <div className="crm-map-panel">
+                            <SalesMapPage embedded={true} />
+                        </div>
+                    </ErrorBoundary>
+                )}
+
+                {crmTab === 'customers' && (
+                    <ErrorBoundary key={selectedCustomerId || 'no-customer'}>
+                        {selectedCustomer ? (
                         <>
                             {/* Customer Header - Hide in full screen chat */}
                             {!isChatFullScreen && (
@@ -2756,7 +2948,31 @@ const SalesPage = () => {
                             </div>
                         </>
                     ) : (
-                        <div className="sales-dashboard-v2">
+                        <div className="no-customer-selected-panel">
+                            <div className="no-customer-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', background: 'rgba(31,41,55,0.2)', borderRadius: '12px', border: '1px dashed var(--border-color)', margin: '2rem' }}>
+                                <User size={64} className="placeholder-icon" style={{ color: '#E5C04A', marginBottom: '1.5rem' }} />
+                                <h2 style={{ fontSize: '1.8rem', fontWeight: '600', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>No Customer Selected</h2>
+                                <p style={{ color: 'var(--text-secondary)', maxWidth: '400px', textAlign: 'center', lineHeight: '1.5' }}>
+                                    Select a customer from the left sidebar to view their activity log, resources, and contacts.
+                                </p>
+                                {!isSidebarOpen && (
+                                    <button 
+                                        className="btn-primary" 
+                                        onClick={() => setIsSidebarOpen(true)}
+                                        style={{ marginTop: '1.5rem' }}
+                                    >
+                                        Open Customer List
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </ErrorBoundary>
+            )}
+
+            {crmTab === 'dashboard' && (
+                <ErrorBoundary key="dashboard-view">
+                    <div className="sales-dashboard-v2">
                             {loading ? (
                                 <div className="skeleton-dashboard">
                                     <div className="skeleton-stats">
@@ -3524,8 +3740,8 @@ const SalesPage = () => {
                                 </>
                             )}
                         </div>
-                    )}
                 </ErrorBoundary>
+            )}
 
                 {/* Dashboard Resource Preview Modal */}
                 {previewDashboardResource && (
