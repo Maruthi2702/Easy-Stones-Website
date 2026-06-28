@@ -167,9 +167,13 @@ const PartnersSheet = ({ onSelectCustomer }) => {
             });
             if (response.ok) {
                 setPartners(partners.filter(l => l._id !== id));
+            } else {
+                const errorData = await response.json();
+                alert(errorData.message || 'Failed to delete partner');
             }
         } catch (error) {
             console.error('Error deleting partner:', error);
+            alert('An error occurred while deleting the partner');
         }
     };
 
