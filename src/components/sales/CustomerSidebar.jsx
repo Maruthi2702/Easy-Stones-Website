@@ -33,8 +33,8 @@ const CustomerSidebar = ({
 
     return (
         <div
-            className={`sales-sidebar ${!isSidebarOpen ? 'closed' : ''} ${!isPinned ? 'overlay' : ''}`}
-            style={{ width: isMobile ? '100%' : `${sidebarWidth}px` }}
+            className={`sales-sidebar ${!isSidebarOpen ? 'closed' : ''} ${!isPinned ? 'mini-mode' : ''}`}
+            style={{ width: isMobile ? '100%' : (isPinned ? `${sidebarWidth}px` : '72px') }}
         >
             {!isMobile && (
                 <div className="resize-handle" onMouseDown={startResizing} />
@@ -43,8 +43,11 @@ const CustomerSidebar = ({
             {/* Sidebar Brand Header */}
             <div className="sidebar-brand-header">
                 <div className="brand-logo-text">
-                    <h3>EASY STONES</h3>
-                    <span>SALES CRM</span>
+                    <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                        <h3>E</h3>
+                        <span className="full-text" style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-primary, #d4af37)', margin: 0, letterSpacing: '0.05em' }}>ASY STONES</span>
+                    </div>
+                    <span className="sub-text">SALES CRM</span>
                 </div>
                 {!isMobile && (
                     <button
