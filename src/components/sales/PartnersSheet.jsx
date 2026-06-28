@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Search, Plus, Download, Edit2, Trash2, FileText, Menu,
     X, Mail, Phone, Eye, Filter, MoreVertical, Loader
@@ -495,7 +496,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 itemLabel="partners"
             />
 
-            {showAddModal && (
+            {showAddModal && createPortal(
                 <div className="modal-overlay" onClick={handleCloseModal}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
@@ -713,7 +714,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                         </div>
                     </div>
                 </div>
-            )}
+            , document.body)}
         </div>
     );
 };
