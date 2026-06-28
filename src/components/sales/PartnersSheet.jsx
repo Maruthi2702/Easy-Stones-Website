@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx';
 import { formatPhoneInput, formatPhoneForDisplay } from '../../utils/phoneUtils';
 import './PartnersSheet.css';
 
-const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
+const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPinned }) => {
     const [partners, setPartners] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -250,7 +250,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
         <div className="partners-sheet-container">
             <div className="section-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                    {isMobile && onToggleSidebar && (
+                    {(!isSidebarOpen || !isPinned || isMobile) && onToggleSidebar && (
                         <button
                             onClick={onToggleSidebar}
                             className="dashboard-sidebar-toggle"

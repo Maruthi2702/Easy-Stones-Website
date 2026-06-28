@@ -2370,7 +2370,7 @@ const SalesPage = () => {
             <div className="crm-checkin-log-panel">
                 <div className="panel-header">
                     <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        {isMobile && (
+                        {(!isSidebarOpen || isMobile) && (
                             <button
                                 onClick={() => setIsSidebarOpen(true)}
                                 className="dashboard-sidebar-toggle"
@@ -2954,6 +2954,8 @@ const SalesPage = () => {
                             <PartnersSheet 
                                 onSelectCustomer={handleSelectCustomer} 
                                 onToggleSidebar={() => setIsSidebarOpen(true)}
+                                isSidebarOpen={isSidebarOpen}
+                                isPinned={isPinned}
                             />
                         </div>
                     )}
@@ -3301,7 +3303,12 @@ const SalesPage = () => {
                                         </div>
                                     )}
                                     {activeDashboardTab === 'leads' && (
-                                        <PartnersSheet onSelectCustomer={handleSelectCustomer} />
+                                        <PartnersSheet 
+                                            onSelectCustomer={handleSelectCustomer} 
+                                            onToggleSidebar={() => setIsSidebarOpen(true)}
+                                            isSidebarOpen={isSidebarOpen}
+                                            isPinned={isPinned}
+                                         />
                                     )}
 
                                     {/* Resources Table */}
