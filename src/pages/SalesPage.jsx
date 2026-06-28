@@ -2916,7 +2916,7 @@ const SalesPage = () => {
                             </div>
                         </>
                     ) : (
-                        <div className="crm-partners-sheet-wrapper" style={{ padding: '2rem' }}>
+                        <div className="crm-partners-sheet-wrapper" style={{ padding: '2rem', overflowY: 'auto', height: 'calc(100vh - 120px)' }}>
                             <div style={{ marginBottom: '1.5rem' }}>
                                 <h1 style={{ fontSize: '1.8rem', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>Partners & Customers List</h1>
                                 <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0', fontSize: '0.95rem' }}>Comprehensive spreadsheet view of active fabricators, designers, builders, and developers</p>

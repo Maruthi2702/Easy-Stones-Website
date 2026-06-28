@@ -1325,7 +1325,8 @@
 .crm-checkin-log-panel {
     padding: 2rem;
     background: var(--bg-primary);
-    min-height: calc(100vh - 120px);
+    height: calc(100vh - 120px);
+    overflow-y: auto;
 }
 
 .crm-checkin-log-panel .panel-header {
