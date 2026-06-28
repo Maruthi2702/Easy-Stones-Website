@@ -87,6 +87,22 @@ const PartnersSheet = ({ onSelectCustomer }) => {
 
     const handleSavePartner = async (e) => {
         if (e) e.preventDefault();
+        
+        // Frontend validation
+        const partner = editingPartner || newPartner;
+        if (!partner.company?.trim()) {
+            alert('Company name is required');
+            return;
+        }
+        if (!partner.contactName?.trim()) {
+            alert('Contact name is required');
+            return;
+        }
+        if (!partner.email?.trim()) {
+            alert('Email address is required');
+            return;
+        }
+
         setIsSaving(true);
         try {
             const method = editingPartner ? 'PUT' : 'POST';
@@ -94,7 +110,12 @@ const PartnersSheet = ({ onSelectCustomer }) => {
                 ? `${API_URL}/api/partners/${editingPartner._id}`
                 : `${API_URL}/api/partners`;
 
-            const leadData = editingPartner || newPartner;
+            // Prepare correct payload
+            const leadData = {
+                ...(editingPartner || newPartner),
+                // Ensure name is also populated for legacy mapping compatibility
+                name: (editingPartner || newPartner).contactName
+            };
 
             const response = await fetch(url, {
                 method,
@@ -111,13 +132,13 @@ const PartnersSheet = ({ onSelectCustomer }) => {
                 setEditingPartner(null);
                 setViewingPartner(null);
                 setNewPartner({
-                    name: '',
+                    contactName: '',
                     company: '',
                     email: '',
                     phone: '',
                     notes: '',
                     status: 'New',
-                    segment: '',
+                    level: 'Level - 1',
                     city: '',
                     customerType: 'Fabricator',
                     modaDisplay: 'No',

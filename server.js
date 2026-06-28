@@ -2090,7 +2090,10 @@ app.post('/api/partners', verifyAnyAuth, async (req, res) => {
   try {
     const newCustomer = new Customer({
       ...req.body,
-      contactName: req.body.name || 'Unknown', // Map 'name' from lead form to 'contactName' in Customer
+      contactName: req.body.contactName || req.body.name || 'Unknown', // Map contactName/name to contactName
+      address: {
+        city: req.body.city || ''
+      },
       password: '', // Leads don't have passwords yet
       isVerified: false,
       createdBy: req.userId
@@ -2108,7 +2111,18 @@ app.post('/api/partners', verifyAnyAuth, async (req, res) => {
 app.put('/api/partners/:id', verifyAnyAuth, async (req, res) => {
   try {
     const updateData = { ...req.body };
-    if (req.body.name) updateData.contactName = req.body.name; // Carry over 'name' mapping
+    if (req.body.contactName) {
+      updateData.contactName = req.body.contactName;
+    } else if (req.body.name) {
+      updateData.contactName = req.body.name;
+    }
+    
+    if (req.body.city) {
+      updateData.address = {
+        ...updateData.address,
+        city: req.body.city
+      };
+    }
 
     const updatedCustomer = await Customer.findByIdAndUpdate(
       req.params.id,
