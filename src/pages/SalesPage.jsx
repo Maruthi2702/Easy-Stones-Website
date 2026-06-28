@@ -208,6 +208,10 @@ const SalesPage = () => {
         newUrl.searchParams.set('tab', tabName);
         if (tabName !== 'customers') {
             newUrl.searchParams.delete('customer');
+            setSelectedCustomerId(null);
+        } else {
+            setSelectedCustomerId(null);
+            newUrl.searchParams.delete('customer');
         }
         window.history.pushState({}, '', newUrl);
     };
@@ -994,7 +998,13 @@ const SalesPage = () => {
             setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
         }
         setSelectedCustomerId(customer._id);
-        handleCrmTabChange('customers');
+        
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('tab', 'customers');
+        newUrl.searchParams.set('customer', customer._id);
+        window.history.pushState({}, '', newUrl);
+        
+        setCrmTab('customers');
 
         // On mobile, close sidebar (list view) to show details
         if (isMobile) {
@@ -1005,10 +1015,12 @@ const SalesPage = () => {
         window.scrollTo(0, 0);
     };
 
-    const handleMobileBack = () => {
-        setIsSidebarOpen(true); // Show list
-        // Optional: clear selection if you want to unmount details, but keeping it keeps state
-        // setSelectedCustomerId(null);
+    const handleBackToCustomersList = () => {
+        setSelectedCustomerId(null);
+        setSelectedCustomerDetail(null);
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.delete('customer');
+        window.history.pushState({}, '', newUrl);
     };
 
     const getPriceLevelLabel = (level) => {
@@ -2503,15 +2515,14 @@ const SalesPage = () => {
                                 <div className="customer-header">
                                     <div className="header-main">
                                         <div className="header-left">
-                                            {isMobile && (
-                                                <button
-                                                    className="fancy-mobile-menu-btn"
-                                                    onClick={handleMobileBack}
-                                                    title="Back to customer list"
-                                                >
-                                                    <Menu size={24} />
-                                                </button>
-                                            )}
+                                            <button
+                                                className="fancy-mobile-menu-btn"
+                                                onClick={handleBackToCustomersList}
+                                                title="Back to customers list"
+                                                style={{ marginRight: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                            >
+                                                <ArrowLeft size={20} />
+                                            </button>
                                             <div className="name-block">
                                                 <h1 className="customer-name">
                                                     {selectedCustomer.company || selectedCustomer.contactName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}
@@ -2910,11 +2921,7 @@ const SalesPage = () => {
                             </div>
                         </>
                     ) : (
-                        <div className="crm-partners-sheet-wrapper" style={{ padding: '2rem', overflowY: 'auto', height: 'calc(100vh - 120px)' }}>
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <h1 style={{ fontSize: '1.8rem', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>Partners & Customers List</h1>
-                                <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0', fontSize: '0.95rem' }}>Comprehensive spreadsheet view of active fabricators, designers, builders, and developers</p>
-                            </div>
+                        <div className="sales-dashboard-v2">
                             <PartnersSheet onSelectCustomer={handleSelectCustomer} />
                         </div>
                     )}
