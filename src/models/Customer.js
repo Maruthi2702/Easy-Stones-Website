@@ -55,7 +55,7 @@ const customerSchema = new mongoose.Schema({
   level: {
     type: String,
     enum: ['Level - 1', 'Level - 2', 'Level - 3', 'Level - 4'],
-    default: 'Level - 1'
+    default: 'Level - 3'
   },
   modaDisplay: {
     type: String,
@@ -63,7 +63,7 @@ const customerSchema = new mongoose.Schema({
   },
   modaBinder: {
     type: String,
-    default: ''
+    default: '0'
   },
   followUpDate: Date,
   createdBy: {

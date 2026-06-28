@@ -1993,7 +1993,7 @@ app.get('/api/unified-merge', verifyAnyAuth, async (req, res) => {
         // Merge metadata
         customer.status = lead.status || 'New';
         customer.customerType = lead.customerType || 'Fabricator';
-        customer.level = lead.level || 'Level - 1';
+        customer.level = lead.level || 'Level - 3';
         customer.modaDisplay = lead.modaDisplay || 'No';
         customer.modaBinder = lead.modaBinder || '';
         customer.followUpDate = lead.followUpDate;
@@ -2011,7 +2011,7 @@ app.get('/api/unified-merge', verifyAnyAuth, async (req, res) => {
           phone: lead.phone,
           status: lead.status || 'New',
           customerType: lead.customerType || 'Fabricator',
-          level: lead.level || 'Level - 1',
+          level: lead.level || 'Level - 3',
           modaDisplay: lead.modaDisplay || 'No',
           modaBinder: lead.modaBinder || '',
           followUpDate: lead.followUpDate,
