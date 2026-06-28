@@ -1294,17 +1294,18 @@
 /* Modal */
 .modal-overlay {
   position: fixed;
-  top: 96px; /* Position below the main website header */
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.75);
   display: flex;
-  align-items: flex-start; /* Better for scrolling */
+  align-items: flex-start;
   justify-content: center;
-  z-index: 10000; /* Higher than Header (1100) and other layers */
-  padding: 2rem 1rem;
-  overflow-y: auto; /* Enable overlay scroll */
+  z-index: 99999; /* Higher than everything including site header (1100) */
+  padding: 1.5rem 1rem;
+  padding-top: calc(96px + 1.5rem); /* Push content below fixed site header */
+  overflow-y: auto;
 }
 
 .modal-content {
@@ -1510,7 +1511,9 @@
   }
 
   .modal-overlay {
-    padding: 0.5rem;
+    padding-bottom: 0;
+    padding-left: 0;
+    padding-right: 0;
     align-items: flex-end; /* slide up from bottom on mobile */
   }
 
