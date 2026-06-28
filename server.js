@@ -118,20 +118,39 @@ const bustProductCache = () => {
   console.log('🗑️ Product cache invalidated');
 };
 
-// Base64 to Disk Optimization Utility (Optimized for speed)
-const processBase64Image = async (base64String, subDir = 'visits') => {
+// Base64 to Cloudinary Upload Utility (persistent across restarts)
+// Falls back to disk only if Cloudinary is not configured (local dev without .env)
+const processBase64Image = async (base64String, subDir = 'Visits') => {
   if (!base64String || !base64String.startsWith('data:image/')) return base64String;
 
   try {
     const base64Data = base64String.split(';base64,').pop();
     const buffer = Buffer.from(base64Data, 'base64');
 
-    // Process with sharp (resize + convert to webp)
+    // Optimize with sharp before uploading
     const optimizedBuffer = await sharp(buffer)
       .resize(1000, 1000, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 75, effort: 2 }) // Balanced quality/speed
+      .webp({ quality: 75, effort: 2 })
       .toBuffer();
 
+    // Upload to Cloudinary if configured (persistent — survives Render restarts)
+    if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+      const uniqueSuffix = `${Date.now()}_${Math.round(Math.random() * 1E9)}`;
+      const result = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: subDir, public_id: `img_${uniqueSuffix}`, resource_type: 'image' },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        uploadStream.end(optimizedBuffer);
+      });
+      return result.secure_url;
+    }
+
+    // Fallback: save to disk (local dev only — not suitable for Render/cloud)
+    console.warn('⚠️ Cloudinary not configured — saving visit image to disk (will be lost on restart)');
     const uploadDir = path.join(__dirname, 'public/uploads', subDir);
     if (!fs.existsSync(uploadDir)) {
       await fs.promises.mkdir(uploadDir, { recursive: true });
@@ -139,8 +158,6 @@ const processBase64Image = async (base64String, subDir = 'visits') => {
 
     const filename = `img_${Date.now()}_${Math.round(Math.random() * 1E9)}.webp`;
     const filePath = path.join(uploadDir, filename);
-
-    // Use async file write to avoid blocking the event loop
     await fs.promises.writeFile(filePath, optimizedBuffer);
 
     return `/uploads/${subDir}/${filename}`;
