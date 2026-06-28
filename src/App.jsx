@@ -112,7 +112,7 @@ function App() {
                     }
                   />
                   <Route path="/checkin" element={<CheckInPage />} />
-                  <Route path="/checkin-log" element={<ProtectedRoute><CheckInLogPage /></ProtectedRoute>} />
+                  <Route path="/checkin-log" element={<CheckInLogPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                   <Route path="/product/:productId" element={<ProductDetail />} />
                   <Route path="/contact" element={<ContactPage />} />
