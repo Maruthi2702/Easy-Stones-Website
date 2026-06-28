@@ -28,7 +28,7 @@ const CheckInPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || !formData.fabricatorCompany || !formData.fabricatorPhone) {
-      setError('Name, Phone Number, Fabricator Company Name, and Fabricator Phone are mandatory');
+      setError('Your Name, Phone Number, Company Name, and Company Phone Number are mandatory');
       return;
     }
 
@@ -163,13 +163,13 @@ const CheckInPage = () => {
                 </div>
               </div>
               <div className="input-field">
-                <label><Phone size={16} /> Fabricator Phone <span className="required">*</span></label>
+                <label><Phone size={16} /> Phone Number <span className="required">*</span></label>
                 <input
                   type="tel"
                   name="fabricatorPhone"
                   value={formData.fabricatorPhone}
                   onChange={handleChange}
-                  placeholder="Fabricator's phone number"
+                  placeholder="Enter phone number"
                   required
                 />
               </div>
