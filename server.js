@@ -26,7 +26,7 @@ import SalesResource from './src/models/SalesResource.js';
 import SalesDashboardResource from './src/models/SalesDashboardResource.js';
 import ActivityLog from './src/models/ActivityLog.js';
 import Schedule from './src/models/Schedule.js';
-import Lead from './src/models/Lead.js';
+// Unified Model: Customer (now handles both Leads & Active Customers)
 import OfficeCheckIn from './src/models/OfficeCheckIn.js';
 import path from 'path';
 import fs from 'fs';
@@ -1323,8 +1323,11 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
       { $count: "count" }
     ]);
 
-    // Count Leads for current user
-    const leadCount = await Lead.countDocuments({ createdBy: userId });
+    // Count Unified Leads for current user (any Customer with a status set)
+    const leadCount = await Customer.countDocuments({ 
+      createdBy: userId, 
+      status: { $exists: true } 
+    });
 
     const result = {
       visits: visitStats[0]?.visits || 0,
@@ -1953,87 +1956,173 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res)
 });
 
 // ============================================
-// LEADS MANAGEMENT ENDPOINTS
-// ============================================
-
-// Get all leads for the current user
-app.get('/api/leads', verifyAnyAuth, async (req, res) => {
+// UNIFIED CUSTOMER & LEAD MANAGEMENT // One-time merge route to move Lead metadata to Customer records
+app.get('/api/unified-merge', verifyAnyAuth, async (req, res) => {
   try {
-    const leads = await Lead.find({ createdBy: req.userId }).sort({ createdAt: -1 });
-    res.json(leads);
+    const leads = await Lead.find({});
+    let mergedCount = 0;
+    let skippedCount = 0;
+
+    for (const lead of leads) {
+      // Find customer by email (most reliable) or company
+      let customer = await Customer.findOne({ 
+        $or: [
+          { email: lead.email },
+          { company: lead.company, contactName: lead.name }
+        ]
+      });
+
+      if (customer) {
+        // Merge metadata
+        customer.status = lead.status || 'New';
+        customer.customerType = lead.customerType || 'Fabricator';
+        customer.level = lead.level || 'Level - 1';
+        customer.modaDisplay = lead.modaDisplay || 'No';
+        customer.modaBinder = lead.modaBinder || '';
+        customer.followUpDate = lead.followUpDate;
+        customer.createdBy = lead.createdBy;
+        if (!customer.phone) customer.phone = lead.phone;
+        
+        await customer.save();
+        mergedCount++;
+      } else {
+        // If lead doesn't exist as customer, create them as a new customer
+        const newCustomer = new Customer({
+          contactName: lead.name || 'Unknown',
+          email: lead.email || `temp_${Date.now()}@easystones.com`,
+          company: lead.company,
+          phone: lead.phone,
+          status: lead.status || 'New',
+          customerType: lead.customerType || 'Fabricator',
+          level: lead.level || 'Level - 1',
+          modaDisplay: lead.modaDisplay || 'No',
+          modaBinder: lead.modaBinder || '',
+          followUpDate: lead.followUpDate,
+          createdBy: lead.createdBy,
+          isVerified: false,
+          isActive: true
+        });
+        await newCustomer.save();
+        mergedCount++;
+      }
+    }
+
+    res.json({ 
+      message: 'Merge completed successfully', 
+      processed: leads.length,
+      merged: mergedCount,
+      skipped: skippedCount
+    });
   } catch (error) {
-    console.error('Error fetching leads:', error);
-    res.status(500).json({ message: 'Failed to fetch leads' });
+    console.error('Merge error:', error);
+    res.status(500).json({ message: 'Merge failed', error: error.message });
   }
 });
 
-// Create a new lead
-app.post('/api/leads', verifyAnyAuth, async (req, res) => {
+// CUSTOMER LIST (Spreadsheet Data Source with Pagination & Search)
+app.get('/api/partners', verifyAnyAuth, async (req, res) => {
   try {
-    const { name, company, email, phone, notes, status, followUpDate } = req.body;
+    const page = parseInt(req.query.page) || 1;
+    const limitInput = parseInt(req.query.limit);
+    const limit = isNaN(limitInput) ? 50 : limitInput;
+    const search = req.query.search || '';
+    const skip = (page - 1) * limit;
 
-    // Validate required fields
-    if (!company) {
-      return res.status(400).json({ message: 'Company is required' });
+    let query = {};
+    if (search) {
+      query = {
+        $or: [
+          { company: { $regex: search, $options: 'i' } },
+          { contactName: { $regex: search, $options: 'i' } },
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+          { phone: { $regex: search, $options: 'i' } },
+          { city: { $regex: search, $options: 'i' } },
+          { status: { $regex: search, $options: 'i' } }
+        ]
+      };
     }
 
-    const newLead = new Lead({
-      name,
-      company,
-      email,
-      phone,
-      notes,
-      status,
-      followUpDate,
+    const totalCount = await Customer.countDocuments(query);
+    
+    let customers;
+    if (limit === -1) {
+      // Export case: get all matching records
+      customers = await Customer.find(query).sort({ createdAt: -1 });
+    } else {
+      customers = await Customer.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+    }
+
+    res.json({
+      partners: customers,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: page
+    });
+  } catch (error) {
+    console.error('Error fetching customer list:', error);
+    res.status(500).json({ message: 'Failed to fetch customer list' });
+  }
+});
+
+// Create a new lead (as a Customer)
+app.post('/api/partners', verifyAnyAuth, async (req, res) => {
+  try {
+    const newCustomer = new Customer({
+      ...req.body,
+      contactName: req.body.name || 'Unknown', // Map 'name' from lead form to 'contactName' in Customer
+      password: '', // Leads don't have passwords yet
+      isVerified: false,
       createdBy: req.userId
     });
-
-    await newLead.save();
-    console.log(`✅ Lead created successfully: ${company} / ${name} by ${req.userId}`);
-    res.status(201).json(newLead);
+    await newCustomer.save();
+    console.log(`✅ Unified Lead (Customer) created: ${req.body.company}`);
+    res.status(201).json(newCustomer);
   } catch (error) {
-    console.error('❌ Error creating lead:', error);
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ message: error.message });
-    }
-    res.status(500).json({ message: 'Failed to create lead' });
+    console.error('Error creating customer-lead:', error);
+    res.status(400).json({ message: error.message });
   }
 });
 
-// Update a lead
-app.put('/api/leads/:id', verifyAnyAuth, async (req, res) => {
+// Update a lead (Customer)
+app.put('/api/partners/:id', verifyAnyAuth, async (req, res) => {
   try {
-    const { name, company, email, phone, notes, status, followUpDate } = req.body;
-    const lead = await Lead.findOneAndUpdate(
-      { _id: req.params.id, createdBy: req.userId },
-      { name, company, email, phone, notes, status, followUpDate },
-      { new: true }
+    const updateData = { ...req.body };
+    if (req.body.name) updateData.contactName = req.body.name; // Carry over 'name' mapping
+
+    const updatedCustomer = await Customer.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
     );
 
-    if (!lead) {
-      return res.status(404).json({ message: 'Lead not found' });
+    if (!updatedCustomer) {
+      return res.status(404).json({ message: 'Customer not found' });
     }
 
-    res.json(lead);
+    res.json(updatedCustomer);
   } catch (error) {
-    console.error('Error updating lead:', error);
-    res.status(500).json({ message: 'Failed to update lead' });
+    console.error('Error updating unified lead:', error);
+    res.status(400).json({ message: error.message });
   }
 });
 
-// Delete a lead
-app.delete('/api/leads/:id', verifyAnyAuth, async (req, res) => {
+// Delete a lead (Customer)
+app.delete('/api/partners/:id', verifyAnyAuth, async (req, res) => {
   try {
-    const lead = await Lead.findOneAndDelete({ _id: req.params.id, createdBy: req.userId });
+    const customer = await Customer.findByIdAndDelete(req.params.id);
 
-    if (!lead) {
-      return res.status(404).json({ message: 'Lead not found' });
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
     }
 
-    res.json({ message: 'Lead deleted successfully' });
+    res.json({ message: 'Lead record removed successfully' });
   } catch (error) {
-    console.error('Error deleting lead:', error);
-    res.status(500).json({ message: 'Failed to delete lead' });
+    console.error('Error deleting lead record:', error);
+    res.status(500).json({ message: 'Failed to delete record' });
   }
 });
 

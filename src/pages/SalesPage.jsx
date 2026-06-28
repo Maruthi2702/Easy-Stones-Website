@@ -27,8 +27,7 @@ import VisitPostCard from '../components/sales/VisitPostCard';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
-import LeadsSheet from '../components/sales/LeadsSheet';
-import './LeadsSheet.css';
+import PartnersSheet from '../components/sales/PartnersSheet';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 
 class ErrorBoundary extends React.Component {
@@ -88,6 +87,8 @@ const SalesPage = () => {
     // Dashboard State (Required for memoized values)
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
+    
+    const [showDashboard, setShowDashboard] = useState(true);
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
     const [followupFilter, setFollowupFilter] = useState('all'); // 'all' or 'nextWeek'
     const [todayScheduleCount, setTodayScheduleCount] = useState(0);
@@ -617,7 +618,7 @@ const SalesPage = () => {
     // Sales Dashboard State
     const [salesResources, setSalesResources] = useState([]);
 
-    const [showDashboard, setShowDashboard] = useState(true);
+
     const [showDashboardUploadModal, setShowDashboardUploadModal] = useState(false);
     const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
     const [loadingVisitId, setLoadingVisitId] = useState(null);
@@ -761,20 +762,7 @@ const SalesPage = () => {
         }
     }, [showDashboard, currentFolderId, activeResourceSubTab]);
 
-    const handleGoHome = () => {
-        setSelectedCustomerId(null);
-        setSelectedCustomerDetail(null);
 
-        // Clear URL
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.delete('customer');
-        window.history.pushState({}, '', newUrl);
-        setShowDashboard(true);
-        setActiveDashboardTab('visits');
-        if (isMobile) {
-            setIsSidebarOpen(false);
-        }
-    };
 
     const handleCreateCustomer = async (formData, closeModal) => {
         try {
@@ -824,6 +812,21 @@ const SalesPage = () => {
             alert(error.message || 'Failed to create customer');
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleGoHome = () => {
+        setSelectedCustomerId(null);
+        setSelectedCustomerDetail(null);
+
+        // Clear URL
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.delete('customer');
+        window.history.pushState({}, '', newUrl);
+        setShowDashboard(true);
+        setActiveDashboardTab('visits');
+        if (isMobile) {
+            setIsSidebarOpen(false);
         }
     };
 
@@ -3174,7 +3177,7 @@ const SalesPage = () => {
                                         </div>
                                     )}
                                     {activeDashboardTab === 'leads' && (
-                                        <LeadsSheet />
+                                        <PartnersSheet onSelectCustomer={handleSelectCustomer} />
                                     )}
 
                                     {/* Resources Table */}

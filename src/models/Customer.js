@@ -39,7 +39,36 @@ const customerSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true
+    required: false
+  },
+  // Lead Management Fields
+  status: {
+    type: String,
+    enum: ['New', 'Qualified', 'Met', 'Won', 'Lost', 'Not Contacted'],
+    default: 'New'
+  },
+  customerType: {
+    type: String,
+    enum: ['Fabricator', 'Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder'],
+    default: 'Fabricator'
+  },
+  level: {
+    type: String,
+    enum: ['Level - 1', 'Level - 2', 'Level - 3', 'Level - 4'],
+    default: 'Level - 1'
+  },
+  modaDisplay: {
+    type: String,
+    default: 'No'
+  },
+  modaBinder: {
+    type: String,
+    default: ''
+  },
+  followUpDate: Date,
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   },
   company: String,
   phone: String,

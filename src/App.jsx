@@ -101,13 +101,6 @@ function App() {
                 <Routes>
                   <Route path="/" element={<HomeRedirect />} />
                   <Route path="/sales/map" element={<ProtectedRoute><SalesMapPage /></ProtectedRoute>} />
-                  <Route path="/checkin" element={<CheckInPage />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                  <Route path="/product/:productId" element={<ProductDetail />} />
-                  <Route path="/contact" element={<ContactPage />} />
-                  <Route path="/warranty" element={<WarrantyPage />} />
-                  <Route path="/login" element={<CustomerLoginPage />} />
-                  <Route path="/customer/login" element={<CustomerLoginPage />} />
                   <Route
                     path="/sales"
                     element={
@@ -116,14 +109,14 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route
-                    path="/sales/map"
-                    element={
-                      <ProtectedRoute>
-                        <SalesMapPage />
-                      </ProtectedRoute>
-                    }
-                  />
+                  <Route path="/checkin" element={<CheckInPage />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                  <Route path="/product/:productId" element={<ProductDetail />} />
+                  <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/warranty" element={<WarrantyPage />} />
+                  <Route path="/login" element={<CustomerLoginPage />} />
+                  <Route path="/customer/login" element={<CustomerLoginPage />} />
+
                   <Route path="/admin/login" element={<LoginPage />} />
                   <Route
                     path="/admin"

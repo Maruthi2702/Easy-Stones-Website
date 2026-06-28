@@ -52,7 +52,7 @@ const CustomerSidebar = ({
                     <button
                         className="icon-btn-ghost"
                         onClick={handleGoLeads}
-                        title="Leads Management (Excel)"
+                        title="Customer List (Spreadsheet)"
                     >
                         <FileSpreadsheet size={18} />
                     </button>
