@@ -198,9 +198,9 @@ const CheckInLogPanel = ({
                   <th>CHECK-IN TIME</th>
                   <th>VISITOR NAME</th>
                   <th>PHONE NUMBER</th>
-                  <th>EMAIL</th>
-                  <th>FABRICATOR / COMPANY</th>
-                  <th>STAFF CONTACT</th>
+                  <th>FABRICATOR/COMPANY</th>
+                  <th>PHONE NUMBER</th>
+                  <th>CONTACT NAME</th>
                 </tr>
               </thead>
               <tbody>
@@ -234,17 +234,17 @@ const CheckInLogPanel = ({
                       )}
                     </td>
                     <td>
-                      {c.email ? (
-                        <div className="clp-icon-text">
-                          <Mail size={12} /> {c.email}
-                        </div>
+                      {c.fabricatorCompany ? (
+                        <span className="clp-badge clp-badge-company">{c.fabricatorCompany}</span>
                       ) : (
                         <span className="clp-dash">—</span>
                       )}
                     </td>
                     <td>
-                      {c.fabricatorCompany ? (
-                        <span className="clp-badge clp-badge-company">{c.fabricatorCompany}</span>
+                      {c.fabricatorPhone ? (
+                        <div className="clp-icon-text">
+                          <Phone size={12} /> {c.fabricatorPhone}
+                        </div>
                       ) : (
                         <span className="clp-dash">—</span>
                       )}
