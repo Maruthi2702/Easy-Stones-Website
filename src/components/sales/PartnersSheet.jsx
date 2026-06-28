@@ -380,34 +380,34 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
                         ))}
                     </tbody>
                 </table>
-
-                {!loading && totalPages > 1 && (
-                    <div className="pagination-controls">
-                        <button 
-                            className="pagi-btn" 
-                            disabled={currentPage === 1}
-                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                            title="Previous Page"
-                        >
-                            <ChevronLeft size={16} />
-                        </button>
-                        
-                        <span className="pagi-info">
-                            Page {currentPage} of {totalPages}
-                            <span className="pagi-count"> · {totalCount} partners</span>
-                        </span>
-
-                        <button 
-                            className="pagi-btn" 
-                            disabled={currentPage === totalPages}
-                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                            title="Next Page"
-                        >
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
-                )}
             </div>
+
+            {!loading && totalPages > 1 && (
+                <div className="pagination-controls">
+                    <button 
+                        className="pagi-btn" 
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        title="Previous Page"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                    
+                    <span className="pagi-info">
+                        Page {currentPage} of {totalPages}
+                        <span className="pagi-count"> · {totalCount} partners</span>
+                    </span>
+
+                    <button 
+                        className="pagi-btn" 
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        title="Next Page"
+                    >
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+            )}
 
             {showAddModal && (
                 <div className="modal-overlay" onClick={handleCloseModal}>
