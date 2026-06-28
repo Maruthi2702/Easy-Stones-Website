@@ -553,8 +553,8 @@ const SalesPage = () => {
     });
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const saved = localStorage.getItem('sidebarWidth');
-        const width = saved ? parseInt(saved, 10) : 200;
-        return (width === 325 || width === 250) ? 200 : width;
+        const width = saved ? parseInt(saved, 10) : 252;
+        return (width === 325 || width === 250 || width === 200) ? 252 : width;
     });
     const [isResizing, setIsResizing] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
