@@ -10,8 +10,8 @@
 /* Sidebar */
   /* Sidebar */
 .sales-sidebar {
-  width: 250px;
-  min-width: 200px;
+  width: 200px;
+  min-width: 160px;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
