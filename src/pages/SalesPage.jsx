@@ -971,7 +971,7 @@ const SalesPage = () => {
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const tabParam = params.get('tab');
-        if (tabParam && ['dashboard', 'customers', 'checkin', 'map'].includes(tabParam)) {
+        if (tabParam && ['dashboard', 'customers', 'checkin'].includes(tabParam)) {
             setCrmTab(tabParam);
         } else {
             const customerId = params.get('customer');
@@ -2492,13 +2492,7 @@ const SalesPage = () => {
                     </ErrorBoundary>
                 )}
 
-                {crmTab === 'map' && (
-                    <ErrorBoundary key="map-view">
-                        <div className="crm-map-panel">
-                            <SalesMapPage embedded={true} />
-                        </div>
-                    </ErrorBoundary>
-                )}
+
 
                 {crmTab === 'customers' && (
                     <ErrorBoundary key={selectedCustomerId || 'no-customer'}>

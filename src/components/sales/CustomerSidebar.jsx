@@ -89,13 +89,6 @@ const CustomerSidebar = ({
                     <Clock size={18} />
                     <span>Check-In Log</span>
                 </button>
-                <button
-                    className={`sidebar-nav-link ${crmTab === 'map' ? 'active' : ''}`}
-                    onClick={() => handleCrmTabChange('map')}
-                >
-                    <MapPin size={18} />
-                    <span>Sales Map</span>
-                </button>
             </div>
 
             {/* Customer List section - Render only on Customers tab */}

@@ -1289,20 +1289,25 @@
     font-size: 0.95rem;
     font-weight: 500;
     border-radius: 8px;
-    transition: all 0.2s ease-in-out;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     width: 100%;
     text-align: left;
+    position: relative;
+    border-left: 3px solid transparent;
 }
 
 .sidebar-nav-link:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
+    border-left-color: rgba(229, 192, 74, 0.3);
 }
 
 .sidebar-nav-link.active {
     color: var(--accent-primary);
-    background: rgba(229, 192, 74, 0.1);
+    background: rgba(229, 192, 74, 0.08);
     font-weight: 600;
+    border-left-color: var(--accent-primary);
+    box-shadow: inset 4px 0 10px rgba(229, 192, 74, 0.03);
 }
 
 .sidebar-nav-link svg {
@@ -1312,7 +1317,7 @@
 }
 
 .sidebar-nav-link:hover svg {
-    transform: translateX(1px);
+    transform: translateX(2px);
 }
 
 .sidebar-customer-section {
@@ -1327,6 +1332,29 @@
     background: var(--bg-primary);
     height: calc(100vh - 120px);
     overflow-y: auto;
+}
+
+/* Custom scrollbar styling for Check-In Log panel & Partners list */
+.crm-checkin-log-panel::-webkit-scrollbar,
+.crm-partners-sheet-wrapper::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.crm-checkin-log-panel::-webkit-scrollbar-track,
+.crm-partners-sheet-wrapper::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.crm-checkin-log-panel::-webkit-scrollbar-thumb,
+.crm-partners-sheet-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.crm-checkin-log-panel::-webkit-scrollbar-thumb:hover,
+.crm-partners-sheet-wrapper::-webkit-scrollbar-thumb:hover {
+    background: rgba(229, 192, 74, 0.3);
 }
 
 .crm-checkin-log-panel .panel-header {
@@ -1360,15 +1388,15 @@
     font-weight: 600;
     border-radius: 8px;
     cursor: pointer;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
     transition: all 0.2s;
 }
 
 .crm-checkin-log-panel .refresh-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--accent-primary);
 }
 
 .crm-checkin-log-panel .refresh-btn:disabled {
@@ -1406,7 +1434,7 @@
 .crm-checkin-log-panel .search-box input {
     width: 100%;
     padding: 0.6rem 1rem 0.6rem 2.5rem;
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     color: var(--text-primary);
@@ -1417,8 +1445,8 @@
 .crm-checkin-log-panel .search-box input:focus {
     outline: none;
     border-color: var(--accent-primary);
-    background: rgba(255, 255, 255, 0.05);
-    box-shadow: 0 0 0 2px rgba(229, 192, 74, 0.2);
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: 0 0 0 2px rgba(229, 192, 74, 0.15);
 }
 
 .crm-checkin-log-panel .search-box .clear-btn {
@@ -1441,10 +1469,11 @@
 
 /* CRM Tables Layout */
 .crm-checkin-log-panel .panel-table-wrapper {
-    background: rgba(31, 41, 55, 0.2);
+    background: rgba(31, 41, 55, 0.15);
     border: 1px solid var(--border-color);
     border-radius: 12px;
     overflow: hidden;
+    backdrop-filter: blur(8px);
 }
 
 .crm-table {
@@ -1461,7 +1490,7 @@
 }
 
 .crm-table th {
-    background: rgba(31, 41, 55, 0.4);
+    background: rgba(31, 41, 55, 0.3);
     color: var(--text-secondary);
     font-weight: 600;
     font-size: 0.85rem;
@@ -1498,16 +1527,19 @@
 .crm-table .company-badge {
     background: rgba(59, 130, 246, 0.15);
     color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .crm-table .company-badge.none {
     background: rgba(156, 163, 175, 0.15);
     color: #9ca3af;
+    border: 1px solid rgba(156, 163, 175, 0.2);
 }
 
 .crm-table .staff-badge {
     background: rgba(16, 185, 129, 0.15);
     color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 /* CRM Map Panel */
@@ -1525,6 +1557,11 @@
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid var(--border-color);
+}
+
+/* Partners sheet wrapper card look */
+.crm-partners-sheet-wrapper {
+    background: var(--bg-primary);
 }
 
 @media (max-width: 768px) {
