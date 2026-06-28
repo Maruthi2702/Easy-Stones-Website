@@ -53,28 +53,16 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    useEffect(() => {
-        fetchPartners();
-    }, [currentPage, debouncedSearch, limit, filterLevel, filterType, filterCity]);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearch(searchTerm);
-            setCurrentPage(1); // Reset to first page on search
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [searchTerm]);
-
-    const fetchPartners = async () => {
+    const fetchPartners = async ({ page = currentPage, search = debouncedSearch, level = filterLevel, type = filterType, city = filterCity, lim = limit } = {}) => {
         setLoading(true);
         try {
             const url = new URL(`${API_URL}/api/partners`, window.location.origin);
-            url.searchParams.append('page', currentPage);
-            url.searchParams.append('limit', limit);
-            if (debouncedSearch) url.searchParams.append('search', debouncedSearch);
-            if (filterLevel)    url.searchParams.append('level', filterLevel);
-            if (filterType)     url.searchParams.append('type', filterType);
-            if (filterCity)     url.searchParams.append('city', filterCity);
+            url.searchParams.append('page', page);
+            url.searchParams.append('limit', lim);
+            if (search) url.searchParams.append('search', search);
+            if (level)  url.searchParams.append('level', level);
+            if (type)   url.searchParams.append('type', type);
+            if (city)   url.searchParams.append('city', city);
 
             const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
@@ -92,6 +80,21 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchPartners({ page: currentPage, search: debouncedSearch, level: filterLevel, type: filterType, city: filterCity, lim: limit });
+    }, [currentPage, debouncedSearch, limit, filterLevel, filterType, filterCity]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setCurrentPage(1); // Reset to first page on search
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+
+
 
     const clearFilters = () => {
         setFilterLevel('');
@@ -141,7 +144,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
             });
 
             if (response.ok) {
-                await fetchPartners();
+                await fetchPartners({ page: currentPage, search: debouncedSearch, level: filterLevel, type: filterType, city: filterCity, lim: limit });
                 setShowAddModal(false);
                 setEditingPartner(null);
                 setViewingPartner(null);
@@ -181,7 +184,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
             });
             if (response.ok) {
                 // Refetch current page so pagination counts stay accurate
-                fetchPartners();
+                fetchPartners({ page: currentPage, search: debouncedSearch, level: filterLevel, type: filterType, city: filterCity, lim: limit });
             } else {
                 const errorData = await response.json();
                 alert(errorData.message || 'Failed to delete customer');
