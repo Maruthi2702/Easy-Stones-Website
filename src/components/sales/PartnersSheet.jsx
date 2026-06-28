@@ -44,7 +44,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
         city: '',
         customerType: 'Fabricator',
         modaDisplay: 'No',
-        modaBinder: ''
+        modaBinder: '0'
     });
 
     useEffect(() => {
@@ -159,7 +159,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
                     city: '',
                     customerType: 'Fabricator',
                     modaDisplay: 'No',
-                    modaBinder: '',
+                    modaBinder: '0',
                     priority: 'Medium'
                 });
             } else {

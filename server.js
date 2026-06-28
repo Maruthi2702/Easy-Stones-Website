@@ -1995,7 +1995,7 @@ app.get('/api/unified-merge', verifyAnyAuth, async (req, res) => {
         customer.customerType = lead.customerType || 'Fabricator';
         customer.level = lead.level || 'Level - 3';
         customer.modaDisplay = lead.modaDisplay || 'No';
-        customer.modaBinder = lead.modaBinder || '';
+        customer.modaBinder = lead.modaBinder || '0';
         customer.followUpDate = lead.followUpDate;
         customer.createdBy = lead.createdBy;
         if (!customer.phone) customer.phone = lead.phone;
@@ -2013,7 +2013,7 @@ app.get('/api/unified-merge', verifyAnyAuth, async (req, res) => {
           customerType: lead.customerType || 'Fabricator',
           level: lead.level || 'Level - 3',
           modaDisplay: lead.modaDisplay || 'No',
-          modaBinder: lead.modaBinder || '',
+          modaBinder: lead.modaBinder || '0',
           followUpDate: lead.followUpDate,
           createdBy: lead.createdBy,
           isVerified: false,
