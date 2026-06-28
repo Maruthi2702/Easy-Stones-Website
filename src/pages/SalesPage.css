@@ -10,8 +10,9 @@
 /* Sidebar */
   /* Sidebar */
 .sales-sidebar {
-  width: 252px;
-  min-width: 160px;
+  width: 18% !important;
+  min-width: 220px !important;
+  max-width: 320px !important;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -364,7 +365,7 @@
 /* Main Content */
 .sales-main {
   flex: 1;
-  margin-left: 325px; /* Default pinned state */
+  margin-left: 18% !important; /* Default pinned state percentage */
   padding: 0;
   overflow: hidden; /* Changed from auto to prevent double scrollbars */
   height: calc(100vh - 96px);
@@ -376,7 +377,7 @@
 }
 
 .sales-main.full-width {
-    margin-left: 0;
+    margin-left: 0 !important;
 }
 
 /* Customer Header */
