@@ -19,6 +19,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
     const [viewingPartner, setViewingPartner] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    const [formErrors, setFormErrors] = useState({});
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -87,22 +88,19 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
 
     const handleSavePartner = async (e) => {
         if (e) e.preventDefault();
-        
-        // Frontend validation
-        const partner = editingPartner || newPartner;
-        if (!partner.company?.trim()) {
-            alert('Company name is required');
-            return;
-        }
-        if (!partner.contactName?.trim()) {
-            alert('Contact name is required');
-            return;
-        }
-        if (!partner.email?.trim()) {
-            alert('Email address is required');
-            return;
-        }
 
+        // Inline field validation
+        const partner = editingPartner || newPartner;
+        const errors = {};
+        if (!partner.company?.trim()) errors.company = 'Company name is required';
+        if (!partner.contactName?.trim()) errors.contactName = 'Contact name is required';
+        if (!partner.email?.trim()) errors.email = 'Email address is required';
+
+        if (Object.keys(errors).length > 0) {
+            setFormErrors(errors);
+            return;
+        }
+        setFormErrors({});
         setIsSaving(true);
         try {
             const method = editingPartner ? 'PUT' : 'POST';
@@ -226,6 +224,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
         setShowAddModal(false);
         setEditingPartner(null);
         setViewingPartner(null);
+        setFormErrors({});
     };
 
     return (
@@ -401,47 +400,56 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
                             </button>
                         </div>
                         <div className="modal-body">
-                            <div className="form-group">
-                                <label>Company <span style={{ color: 'red' }}>*</span></label>
+                            <div className={`form-group${formErrors.company ? ' field-error' : ''}`}>
+                                <label>Company <span className="required-star">*</span></label>
                                 <input
                                     type="text"
                                     required
                                     placeholder="Company name"
                                     value={viewingPartner ? viewingPartner.company : (editingPartner ? editingPartner.company : newPartner.company)}
                                     disabled={!!viewingPartner}
-                                    onChange={e => editingPartner
-                                        ? setEditingPartner({ ...editingPartner, company: e.target.value })
-                                        : setNewPartner({ ...newPartner, company: e.target.value })
-                                    }
+                                    onChange={e => {
+                                        if (formErrors.company) setFormErrors(prev => ({ ...prev, company: '' }));
+                                        editingPartner
+                                            ? setEditingPartner({ ...editingPartner, company: e.target.value })
+                                            : setNewPartner({ ...newPartner, company: e.target.value });
+                                    }}
                                 />
+                                {formErrors.company && <span className="field-error-msg">{formErrors.company}</span>}
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                <div className="form-group">
-                                    <label>Contact Name</label>
+                                <div className={`form-group${formErrors.contactName ? ' field-error' : ''}`}>
+                                    <label>Contact Name <span className="required-star">*</span></label>
                                     <input
                                         type="text"
                                         placeholder="Partner contact name"
                                         value={viewingPartner ? (viewingPartner.contactName || viewingPartner.name) : (editingPartner ? (editingPartner.contactName || editingPartner.name) : newPartner.contactName)}
                                         disabled={!!viewingPartner}
-                                        onChange={e => editingPartner
-                                            ? setEditingPartner({ ...editingPartner, contactName: e.target.value })
-                                            : setNewPartner({ ...newPartner, contactName: e.target.value })
-                                        }
+                                        onChange={e => {
+                                            if (formErrors.contactName) setFormErrors(prev => ({ ...prev, contactName: '' }));
+                                            editingPartner
+                                                ? setEditingPartner({ ...editingPartner, contactName: e.target.value })
+                                                : setNewPartner({ ...newPartner, contactName: e.target.value });
+                                        }}
                                     />
+                                    {formErrors.contactName && <span className="field-error-msg">{formErrors.contactName}</span>}
                                 </div>
-                                <div className="form-group">
-                                    <label>Email</label>
+                                <div className={`form-group${formErrors.email ? ' field-error' : ''}`}>
+                                    <label>Email <span className="required-star">*</span></label>
                                     <input
                                         type="email"
                                         placeholder="email@example.com"
                                         value={viewingPartner ? viewingPartner.email : (editingPartner ? editingPartner.email : newPartner.email)}
                                         disabled={!!viewingPartner}
-                                        onChange={e => editingPartner
-                                            ? setEditingPartner({ ...editingPartner, email: e.target.value })
-                                            : setNewPartner({ ...newPartner, email: e.target.value })
-                                        }
+                                        onChange={e => {
+                                            if (formErrors.email) setFormErrors(prev => ({ ...prev, email: '' }));
+                                            editingPartner
+                                                ? setEditingPartner({ ...editingPartner, email: e.target.value })
+                                                : setNewPartner({ ...newPartner, email: e.target.value });
+                                        }}
                                     />
+                                    {formErrors.email && <span className="field-error-msg">{formErrors.email}</span>}
                                 </div>
                             </div>
 

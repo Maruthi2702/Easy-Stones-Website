@@ -4666,3 +4666,46 @@
 .text-purple { color: #a855f7; }
 .text-red { color: #ef4444; }
 .text-gray { color: #9ca3af; }
+
+/* ============================================================
+   Required field indicator & inline validation errors
+   ============================================================ */
+
+.required-star {
+    color: #ef4444;
+    font-weight: 700;
+    margin-left: 2px;
+}
+
+.form-group.field-error input,
+.form-group.field-error select,
+.form-group.field-error textarea {
+    border-color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.06) !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18);
+    animation: shake 0.3s ease;
+}
+
+.field-error-msg {
+    display: block;
+    font-size: 0.75rem;
+    color: #ef4444;
+    font-weight: 500;
+    margin-top: 3px;
+    padding-left: 2px;
+    animation: fadeInDown 0.2s ease;
+}
+
+@keyframes shake {
+    0%   { transform: translateX(0); }
+    25%  { transform: translateX(-4px); }
+    50%  { transform: translateX(4px); }
+    75%  { transform: translateX(-3px); }
+    100% { transform: translateX(0); }
+}
+
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
