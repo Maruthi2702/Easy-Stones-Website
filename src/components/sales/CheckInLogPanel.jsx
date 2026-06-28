@@ -114,6 +114,21 @@ const CheckInLogPanel = ({
         </div>
 
         <div className="clp-header-actions">
+          <div className="clp-search-wrap">
+            <Search size={14} className="clp-search-icon" />
+            <input
+              type="text"
+              className="clp-search"
+              placeholder="Search by name, phone..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+            />
+            {searchTerm && (
+              <button className="clp-search-clear" onClick={() => onSearchChange('')}>
+                <X size={13} />
+              </button>
+            )}
+          </div>
           {onExport && (
             <button className="clp-export-btn" onClick={onExport}>
               <Download size={14} />
@@ -159,25 +174,6 @@ const CheckInLogPanel = ({
             <div className="clp-stat-val">{withCompanyCount}</div>
             <div className="clp-stat-lbl">With Company</div>
           </div>
-        </div>
-      </div>
-
-      {/* ── Search ── */}
-      <div className="clp-controls">
-        <div className="clp-search-wrap">
-          <Search size={14} className="clp-search-icon" />
-          <input
-            type="text"
-            className="clp-search"
-            placeholder="Search by name, phone, or company..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-          />
-          {searchTerm && (
-            <button className="clp-search-clear" onClick={() => onSearchChange('')}>
-              <X size={13} />
-            </button>
-          )}
         </div>
       </div>
 

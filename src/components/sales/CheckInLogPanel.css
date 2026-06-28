@@ -216,19 +216,9 @@
 }
 
 /* ── Search ── */
-.clp-controls {
-  padding: 0.75rem 2rem;
-  position: relative;
-  z-index: 1;
-}
-
-.clp-embedded .clp-controls {
-  padding: 0.75rem 1.75rem;
-}
-
 .clp-search-wrap {
   position: relative;
-  max-width: 420px;
+  width: 240px;
 }
 
 .clp-search-icon {
@@ -478,10 +468,10 @@
 @media (max-width: 768px) {
   .clp-page-header,
   .clp-stats,
-  .clp-controls,
   .clp-table-card { padding-left: 1rem; padding-right: 1rem; margin-left: 0; margin-right: 0; }
 
   .clp-stats { grid-template-columns: 1fr; }
   .clp-title { font-size: 1.2rem; }
-  .clp-search-wrap { max-width: 100%; }
+  .clp-header-actions { width: 100%; margin-top: 0.5rem; justify-content: space-between; }
+  .clp-search-wrap { flex: 1; width: auto; max-width: 100%; }
 }
