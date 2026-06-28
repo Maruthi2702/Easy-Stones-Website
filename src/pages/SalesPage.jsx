@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     Calendar, MapPin, Phone, Mail, Clock, Plus, Search,
     Filter, X, Upload, Home, ArrowLeft,
-    CheckCircle, MessageSquare, Heart, ThumbsUp, Send, User, Menu,
+    CheckCircle, MessageSquare, Heart, ThumbsUp, Send, User, Users, UserCheck, Building, Menu,
     Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft, ChevronRight,
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
     CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus, Folder, Link,
@@ -2366,48 +2366,92 @@ const SalesPage = () => {
             return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
         };
 
+        const isToday = (ts) => {
+            const d = new Date(ts);
+            const now = new Date();
+            return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        };
+
+        const getInitials = (name) => name ? name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '?';
+        const getAvatarColor = (name) => {
+            const colors = ['#d4af37', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
+            let hash = 0;
+            for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+            return colors[Math.abs(hash) % colors.length];
+        };
+
+        const todayCount = checkIns.filter(c => isToday(c.createdAt)).length;
+        const withCompanyCount = checkIns.filter(c => c.fabricatorCompany).length;
+
         return (
             <div className="crm-checkin-log-panel">
-                <div className="panel-header">
-                    <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                {/* Header */}
+                <div className="checkin-crm-header">
+                    <div className="checkin-crm-header-left">
                         {(!isSidebarOpen || isMobile) && (
                             <button
                                 onClick={() => setIsSidebarOpen(true)}
                                 className="dashboard-sidebar-toggle"
                                 title="Open Sidebar"
-                                style={{ 
-                                    marginRight: '0.5rem', 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    justify: 'center',
-                                    background: 'rgba(255, 255, 255, 0.08)',
-                                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                                    borderRadius: '6px',
-                                    padding: '6px',
-                                    color: 'var(--gold-color, #d4af37)',
-                                    cursor: 'pointer'
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+                                    borderRadius: '6px', padding: '6px', color: 'var(--gold-color, #d4af37)', cursor: 'pointer'
                                 }}
                             >
                                 <Menu size={20} />
                             </button>
                         )}
+                        <div className="checkin-crm-icon-wrap">
+                            <Clock size={20} />
+                        </div>
                         <div>
-                            <h1>Visitor Check-In Log</h1>
-                            <p>Live tracking of clients and fabricators visiting the office</p>
+                            <h1 className="checkin-crm-title">Visitor Check-In Log</h1>
+                            <p className="checkin-crm-subtitle">Live tracking of clients and fabricators visiting the office</p>
                         </div>
                     </div>
-                    <div className="header-actions">
-                        <button 
-                            className="btn-secondary refresh-btn" 
-                            onClick={fetchCheckIns}
-                            disabled={checkInsLoading}
-                        >
-                            <RefreshCw size={16} className={checkInsLoading ? "spin-animation" : ""} />
-                            <span>Refresh</span>
-                        </button>
+                    <button
+                        className="checkin-crm-refresh-btn"
+                        onClick={fetchCheckIns}
+                        disabled={checkInsLoading}
+                    >
+                        <RefreshCw size={15} className={checkInsLoading ? 'spin-animation' : ''} />
+                        {checkInsLoading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                </div>
+
+                {/* Stats */}
+                <div className="checkin-crm-stats">
+                    <div className="checkin-crm-stat">
+                        <div className="checkin-crm-stat-icon" style={{ background: 'rgba(212,175,55,0.12)', color: '#d4af37' }}>
+                            <Users size={16} />
+                        </div>
+                        <div>
+                            <div className="checkin-crm-stat-val">{checkIns.length}</div>
+                            <div className="checkin-crm-stat-lbl">Total</div>
+                        </div>
+                    </div>
+                    <div className="checkin-crm-stat">
+                        <div className="checkin-crm-stat-icon" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
+                            <UserCheck size={16} />
+                        </div>
+                        <div>
+                            <div className="checkin-crm-stat-val">{todayCount}</div>
+                            <div className="checkin-crm-stat-lbl">Today</div>
+                        </div>
+                    </div>
+                    <div className="checkin-crm-stat">
+                        <div className="checkin-crm-stat-icon" style={{ background: 'rgba(59,130,246,0.12)', color: '#3b82f6' }}>
+                            <Building size={16} />
+                        </div>
+                        <div>
+                            <div className="checkin-crm-stat-val">{withCompanyCount}</div>
+                            <div className="checkin-crm-stat-lbl">With Co.</div>
+                        </div>
                     </div>
                 </div>
 
+                {/* Search */}
                 <div className="panel-filters">
                     <div className="search-box">
                         <Search size={18} className="search-icon" />
@@ -2425,55 +2469,84 @@ const SalesPage = () => {
                     </div>
                 </div>
 
-                <div className="panel-table-wrapper">
+                {/* Table */}
+                <div className="checkin-crm-table-card">
                     {checkInsLoading && checkIns.length === 0 ? (
-                        <div className="loading-spinner-container" style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-                            <Loader className="spin-animation" size={32} color="#E5C04A" />
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', gap: '1rem', color: 'var(--text-secondary)' }}>
+                            <Loader className="spin-animation" size={36} color="#d4af37" />
+                            <p>Loading visitors...</p>
                         </div>
                     ) : filteredCheckIns.length === 0 ? (
-                        <div className="empty-state" style={{ textAlign: 'center', padding: '3rem' }}>
-                            <Clock size={48} className="placeholder-icon" style={{ margin: '0 auto 1rem', color: '#9CA3AF' }} />
-                            <h3>No Visitor Records</h3>
-                            <p style={{ color: '#9CA3AF' }}>No check-in entries match your search criteria.</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', gap: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                            <Clock size={48} style={{ opacity: 0.3 }} />
+                            <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', margin: 0 }}>No Visitor Records</h3>
+                            <p style={{ fontSize: '0.875rem', margin: 0 }}>{checkInSearch ? 'Try adjusting your search.' : 'No check-ins recorded yet.'}</p>
                         </div>
                     ) : (
-                        <table className="crm-table">
-                            <thead>
-                                <tr>
-                                    <th>Check-In Time</th>
-                                    <th>Visitor Name</th>
-                                    <th>Phone Number</th>
-                                    <th>Email</th>
-                                    <th>Fabricator / Company</th>
-                                    <th>Staff Contact</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredCheckIns.map(checkIn => (
-                                    <tr key={checkIn._id}>
-                                        <td>
-                                            <div className="datetime-cell">
-                                                <span className="date-text">{formatCheckInDate(checkIn.createdAt)}</span>
-                                                <span className="time-text" style={{ fontSize: '0.8rem', color: '#E5C04A', display: 'block', marginTop: '2px' }}>{formatCheckInTime(checkIn.createdAt)}</span>
-                                            </div>
-                                        </td>
-                                        <td className="name-cell" style={{ fontWeight: '600' }}>{checkIn.name}</td>
-                                        <td>{formatPhoneForDisplay(checkIn.phone) || checkIn.phone}</td>
-                                        <td>{checkIn.email || '-'}</td>
-                                        <td>
-                                            <span className={`company-badge ${!checkIn.fabricatorCompany ? 'none' : ''}`}>
-                                                {checkIn.fabricatorCompany || 'None'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className="staff-badge">
-                                                {checkIn.fabricatorName || 'None'}
-                                            </span>
-                                        </td>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table className="checkin-crm-table">
+                                <thead>
+                                    <tr>
+                                        <th>CHECK-IN TIME</th>
+                                        <th>VISITOR NAME</th>
+                                        <th>PHONE NUMBER</th>
+                                        <th>EMAIL</th>
+                                        <th>FABRICATOR / COMPANY</th>
+                                        <th>STAFF CONTACT</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {filteredCheckIns.map(checkIn => (
+                                        <tr key={checkIn._id} className={isToday(checkIn.createdAt) ? 'checkin-row-today' : ''}>
+                                            <td className="checkin-td-time">
+                                                <div className="checkin-date">{formatCheckInDate(checkIn.createdAt)}</div>
+                                                <div className="checkin-time">{formatCheckInTime(checkIn.createdAt)}</div>
+                                                {isToday(checkIn.createdAt) && <span className="checkin-badge-today">Today</span>}
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                                    <div
+                                                        className="checkin-avatar"
+                                                        style={{ background: `linear-gradient(135deg, ${getAvatarColor(checkIn.name)}, ${getAvatarColor(checkIn.name)}88)` }}
+                                                    >
+                                                        {getInitials(checkIn.name)}
+                                                    </div>
+                                                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{checkIn.name}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                                                    <Phone size={12} />
+                                                    {formatPhoneForDisplay(checkIn.phone) || checkIn.phone || '—'}
+                                                </div>
+                                            </td>
+                                            <td style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                                                {checkIn.email ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                        <Mail size={12} />
+                                                        {checkIn.email}
+                                                    </div>
+                                                ) : <span style={{ color: 'rgba(255,255,255,0.2)' }}>—</span>}
+                                            </td>
+                                            <td>
+                                                {checkIn.fabricatorCompany ? (
+                                                    <span className="checkin-badge-company">{checkIn.fabricatorCompany}</span>
+                                                ) : (
+                                                    <span style={{ color: 'rgba(255,255,255,0.2)' }}>—</span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                {checkIn.fabricatorName ? (
+                                                    <span className="checkin-badge-staff">{checkIn.fabricatorName}</span>
+                                                ) : (
+                                                    <span className="checkin-badge-none">None</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
                 </div>
             </div>

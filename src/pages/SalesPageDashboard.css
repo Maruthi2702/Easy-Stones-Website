@@ -1700,3 +1700,253 @@
         padding: 0.75rem 1rem;
     }
 }
+
+/* =============================================
+   Check-In Log Panel — CRM Premium Styles
+   ============================================= */
+
+.crm-checkin-log-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.checkin-crm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 1.75rem 1rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.checkin-crm-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+}
+
+.checkin-crm-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(212,175,55,0.18), rgba(212,175,55,0.06));
+    border: 1px solid rgba(212,175,55,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #d4af37;
+    flex-shrink: 0;
+}
+
+.checkin-crm-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin: 0 0 0.2rem;
+    color: var(--text-primary, #fff);
+    letter-spacing: -0.01em;
+}
+
+.checkin-crm-subtitle {
+    font-size: 0.78rem;
+    color: var(--text-secondary, #b0b0b0);
+    margin: 0;
+}
+
+.checkin-crm-refresh-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    color: var(--text-primary, #fff);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.checkin-crm-refresh-btn:hover {
+    background: rgba(212,175,55,0.1);
+    border-color: rgba(212,175,55,0.3);
+    color: #d4af37;
+}
+
+.checkin-crm-refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.checkin-crm-stats {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem 1.75rem;
+    flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.checkin-crm-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+    padding: 0.75rem 1.1rem;
+    flex: 1;
+    transition: border-color 0.2s;
+}
+
+.checkin-crm-stat:hover {
+    border-color: rgba(212,175,55,0.2);
+}
+
+.checkin-crm-stat-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.checkin-crm-stat-val {
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--text-primary, #fff);
+}
+
+.checkin-crm-stat-lbl {
+    font-size: 0.7rem;
+    color: var(--text-secondary, #b0b0b0);
+    margin-top: 0.2rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+}
+
+.checkin-crm-table-card {
+    flex: 1;
+    overflow-y: auto;
+    margin: 1rem 1.75rem 1.75rem;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.checkin-crm-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.checkin-crm-table thead tr {
+    background: rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.checkin-crm-table thead th {
+    padding: 0.8rem 1rem;
+    text-align: left;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-secondary, #b0b0b0);
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+}
+
+.checkin-crm-table tbody tr {
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.15s;
+}
+
+.checkin-crm-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+.checkin-crm-table tbody tr.checkin-row-today { background: rgba(212,175,55,0.03); }
+.checkin-crm-table tbody tr.checkin-row-today:hover { background: rgba(212,175,55,0.06); }
+.checkin-crm-table tbody tr:last-child { border-bottom: none; }
+.checkin-crm-table td { padding: 0.85rem 1rem; vertical-align: middle; }
+
+.checkin-td-time { white-space: nowrap; }
+
+.checkin-date {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary, #fff);
+}
+
+.checkin-time {
+    font-size: 0.74rem;
+    color: #d4af37;
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+.checkin-badge-today {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 1px 5px;
+    background: rgba(16,185,129,0.15);
+    color: #10b981;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.checkin-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.62rem;
+    font-weight: 800;
+    color: #000;
+    flex-shrink: 0;
+}
+
+.checkin-badge-company {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    background: rgba(212,175,55,0.12);
+    color: #d4af37;
+    border: 1px solid rgba(212,175,55,0.2);
+    border-radius: 5px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.checkin-badge-staff {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    background: rgba(59,130,246,0.12);
+    color: #60a5fa;
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 5px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.checkin-badge-none {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-secondary, #b0b0b0);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 5px;
+    font-size: 0.78rem;
+    font-weight: 500;
+}
