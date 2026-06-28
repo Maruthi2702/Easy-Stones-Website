@@ -214,6 +214,10 @@ const SalesPage = () => {
             newUrl.searchParams.delete('customer');
         }
         window.history.pushState({}, '', newUrl);
+
+        if (isMobile) {
+            setIsSidebarOpen(false);
+        }
     };
 
     const fetchCheckIns = async () => {
