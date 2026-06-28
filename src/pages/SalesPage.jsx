@@ -3160,17 +3160,9 @@ const SalesPage = () => {
                                                             ← Previous
                                                         </button>
 
-                                                        <div className="pagination-pages">
-                                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                                                                <button
-                                                                    key={pageNum}
-                                                                    className={`pagination-page ${currentVisitsPage === pageNum ? 'active' : ''}`}
-                                                                    onClick={() => handlePageChange(pageNum)}
-                                                                >
-                                                                    {pageNum}
-                                                                </button>
-                                                            ))}
-                                                        </div>
+                                                        <span className="pagi-info">
+                                                            Page {currentVisitsPage} of {totalPages}
+                                                        </span>
 
                                                         <button
                                                             className="pagination-btn"
@@ -3352,17 +3344,9 @@ const SalesPage = () => {
                                                             ← Previous
                                                         </button>
 
-                                                        <div className="pagination-pages">
-                                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                                                                <button
-                                                                    key={pageNum}
-                                                                    className={`pagination-page ${currentFollowUpPage === pageNum ? 'active' : ''}`}
-                                                                    onClick={() => handlePageChange(pageNum)}
-                                                                >
-                                                                    {pageNum}
-                                                                </button>
-                                                            ))}
-                                                        </div>
+                                                        <span className="pagi-info">
+                                                            Page {currentFollowUpPage} of {totalPages}
+                                                        </span>
 
                                                         <button
                                                             className="pagination-btn"
@@ -3600,17 +3584,9 @@ const SalesPage = () => {
                                                                     ← Previous
                                                                 </button>
 
-                                                                <div className="pagination-pages">
-                                                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                                                                        <button
-                                                                            key={pageNum}
-                                                                            className={`pagination-page ${currentResourcesPage === pageNum ? 'active' : ''}`}
-                                                                            onClick={() => handlePageChange(pageNum)}
-                                                                        >
-                                                                            {pageNum}
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
+                                                                <span className="pagi-info">
+                                                                    Page {currentResourcesPage} of {totalPages}
+                                                                </span>
 
                                                                 <button
                                                                     className="pagination-btn"
