@@ -28,6 +28,7 @@ import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
 import PartnersSheet from '../components/sales/PartnersSheet';
+import Pagination from '../components/shared/Pagination';
 import SalesMapPage from './SalesMapPage';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 
@@ -3139,45 +3140,13 @@ const SalesPage = () => {
                                             </div>
 
                                             {/* Pagination Controls */}
-                                            {(() => {
-                                                const visits = memoizedFilteredVisits;
-                                                const totalPages = Math.ceil(visits.length / visitsPerPage);
-
-                                                if (totalPages <= 1) return null;
-
-                                                const handlePageChange = (pageNumber) => {
-                                                    setCurrentVisitsPage(pageNumber);
-                                                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                };
-
-                                                return (
-                                                    <div className="pagination-controls">
-                                                        <button
-                                                            className="pagination-btn"
-                                                            onClick={() => handlePageChange(currentVisitsPage - 1)}
-                                                            disabled={currentVisitsPage === 1}
-                                                        >
-                                                            ← Previous
-                                                        </button>
-
-                                                        <span className="pagi-info">
-                                                            Page {currentVisitsPage} of {totalPages}
-                                                        </span>
-
-                                                        <button
-                                                            className="pagination-btn"
-                                                            onClick={() => handlePageChange(currentVisitsPage + 1)}
-                                                            disabled={currentVisitsPage === totalPages}
-                                                        >
-                                                            Next →
-                                                        </button>
-
-                                                        <div className="pagination-info">
-                                                            Showing {((currentVisitsPage - 1) * visitsPerPage) + 1}-{Math.min(currentVisitsPage * visitsPerPage, visits.length)} of {visits.length} visits
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
+                                            <Pagination
+                                                currentPage={currentVisitsPage}
+                                                totalPages={Math.ceil(memoizedFilteredVisits.length / visitsPerPage)}
+                                                onPageChange={(p) => { setCurrentVisitsPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                                totalCount={memoizedFilteredVisits.length}
+                                                itemLabel="visits"
+                                            />
                                         </div>
                                     )}
 
@@ -3316,52 +3285,18 @@ const SalesPage = () => {
                                             </div>
 
                                             {/* Follow-up Pagination Controls */}
-                                            {(() => {
-                                                const followups = memoizedFollowups;
-
-                                                const totalPages = Math.ceil(followups.length / visitsPerPage);
-
-                                                if (totalPages <= 1) return null;
-
-                                                const handlePageChange = (pageNumber) => {
-                                                    setCurrentFollowUpPage(pageNumber);
-                                                    // Scroll the dashboard content container if it exists, otherwise window
-                                                    const dashboardContent = document.querySelector('.dashboard-content-area') || document.querySelector('.sales-dashboard-main');
-                                                    if (dashboardContent) {
-                                                        dashboardContent.scrollTo({ top: 0, behavior: 'smooth' });
-                                                    } else {
-                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                    }
-                                                };
-
-                                                return (
-                                                    <div className="pagination-controls">
-                                                        <button
-                                                            className="pagination-btn"
-                                                            onClick={() => handlePageChange(currentFollowUpPage - 1)}
-                                                            disabled={currentFollowUpPage === 1}
-                                                        >
-                                                            ← Previous
-                                                        </button>
-
-                                                        <span className="pagi-info">
-                                                            Page {currentFollowUpPage} of {totalPages}
-                                                        </span>
-
-                                                        <button
-                                                            className="pagination-btn"
-                                                            onClick={() => handlePageChange(currentFollowUpPage + 1)}
-                                                            disabled={currentFollowUpPage === totalPages}
-                                                        >
-                                                            Next →
-                                                        </button>
-
-                                                        <div className="pagination-info">
-                                                            Showing {((currentFollowUpPage - 1) * visitsPerPage) + 1}-{Math.min(currentFollowUpPage * visitsPerPage, followups.length)} of {followups.length} follow-ups
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
+                                            <Pagination
+                                                currentPage={currentFollowUpPage}
+                                                totalPages={Math.ceil(memoizedFollowups.length / visitsPerPage)}
+                                                onPageChange={(p) => {
+                                                    setCurrentFollowUpPage(p);
+                                                    const el = document.querySelector('.dashboard-content-area') || document.querySelector('.sales-dashboard-main');
+                                                    if (el) el.scrollTo({ top: 0, behavior: 'smooth' });
+                                                    else window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                }}
+                                                totalCount={memoizedFollowups.length}
+                                                itemLabel="follow-ups"
+                                            />
                                         </div>
                                     )}
                                     {activeDashboardTab === 'leads' && (
@@ -3563,45 +3498,13 @@ const SalesPage = () => {
                                                     </div>
 
                                                     {/* Resources Pagination Controls */}
-                                                    {(() => {
-                                                        const resources = memoizedFilteredResources;
-                                                        const totalPages = Math.ceil(resources.length / visitsPerPage);
-
-                                                        if (totalPages <= 1) return null;
-
-                                                        const handlePageChange = (pageNumber) => {
-                                                            setCurrentResourcesPage(pageNumber);
-                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                        };
-
-                                                        return (
-                                                            <div className="pagination-controls">
-                                                                <button
-                                                                    className="pagination-btn"
-                                                                    onClick={() => handlePageChange(currentResourcesPage - 1)}
-                                                                    disabled={currentResourcesPage === 1}
-                                                                >
-                                                                    ← Previous
-                                                                </button>
-
-                                                                <span className="pagi-info">
-                                                                    Page {currentResourcesPage} of {totalPages}
-                                                                </span>
-
-                                                                <button
-                                                                    className="pagination-btn"
-                                                                    onClick={() => handlePageChange(currentResourcesPage + 1)}
-                                                                    disabled={currentResourcesPage === totalPages}
-                                                                >
-                                                                    Next →
-                                                                </button>
-
-                                                                <div className="pagination-info">
-                                                                    Showing {((currentResourcesPage - 1) * visitsPerPage) + 1}-{Math.min(currentResourcesPage * visitsPerPage, resources.length)} of {resources.length} resources
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })()}
+                                                    <Pagination
+                                                        currentPage={currentResourcesPage}
+                                                        totalPages={Math.ceil(memoizedFilteredResources.length / visitsPerPage)}
+                                                        onPageChange={(p) => { setCurrentResourcesPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                                        totalCount={memoizedFilteredResources.length}
+                                                        itemLabel="resources"
+                                                    />
                                                 </>
                                             )}
 

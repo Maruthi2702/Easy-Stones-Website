@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
     Search, Plus, Download, Edit2, Trash2, FileText, Menu,
-    ChevronLeft, ChevronRight, X, Mail, Phone, Eye,
-    Filter, MoreVertical, Loader
+    X, Mail, Phone, Eye, Filter, MoreVertical, Loader
 } from 'lucide-react';
+import Pagination from '../shared/Pagination';
 import { API_URL } from '../../config/api';
 import * as XLSX from 'xlsx';
 import { formatPhoneInput, formatPhoneForDisplay } from '../../utils/phoneUtils';
@@ -382,32 +382,13 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
                 </table>
             </div>
 
-            {!loading && totalPages > 1 && (
-                <div className="pagination-controls">
-                    <button 
-                        className="pagi-btn" 
-                        disabled={currentPage === 1}
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        title="Previous Page"
-                    >
-                        <ChevronLeft size={16} />
-                    </button>
-                    
-                    <span className="pagi-info">
-                        Page {currentPage} of {totalPages}
-                        <span className="pagi-count"> · {totalCount} partners</span>
-                    </span>
-
-                    <button 
-                        className="pagi-btn" 
-                        disabled={currentPage === totalPages}
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        title="Next Page"
-                    >
-                        <ChevronRight size={16} />
-                    </button>
-                </div>
-            )}
+            <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalCount={totalCount}
+                itemLabel="partners"
+            />
 
             {showAddModal && (
                 <div className="modal-overlay" onClick={handleCloseModal}>

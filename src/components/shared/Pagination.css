@@ -1,0 +1,69 @@
+/* ============================================================
+   Shared Pagination – used site-wide across all tabs/pages
+   ============================================================ */
+
+.shared-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 0.85rem 1.5rem;
+    background: rgba(0, 0, 0, 0.15);
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.shared-pagi-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.85rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--text-primary, #e5e7eb);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.shared-pagi-btn:hover:not(:disabled) {
+    background: rgba(229, 192, 74, 0.15);
+    border-color: var(--accent-color, #d4af37);
+    color: var(--accent-color, #d4af37);
+}
+
+.shared-pagi-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.shared-pagi-info {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary, #9ca3af);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.shared-pagi-count {
+    font-weight: 400;
+    color: var(--text-muted, #6b7280);
+}
+
+/* Mobile: stack tighter */
+@media (max-width: 480px) {
+    .shared-pagination {
+        gap: 0.6rem;
+        padding: 0.7rem 1rem;
+    }
+
+    .shared-pagi-btn span {
+        display: none; /* icon only on very small screens */
+    }
+
+    .shared-pagi-btn {
+        padding: 0.4rem 0.55rem;
+    }
+}
