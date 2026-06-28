@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Search, Plus, Download, Edit2, Trash2, FileText,
+    Search, Plus, Download, Edit2, Trash2, FileText, Menu,
     ChevronLeft, ChevronRight, X, Mail, Phone, Eye,
     Filter, MoreVertical, Loader
 } from 'lucide-react';
@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx';
 import { formatPhoneInput, formatPhoneForDisplay } from '../../utils/phoneUtils';
 import './PartnersSheet.css';
 
-const PartnersSheet = ({ onSelectCustomer }) => {
+const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
     const [partners, setPartners] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -231,6 +231,28 @@ const PartnersSheet = ({ onSelectCustomer }) => {
         <div className="partners-sheet-container">
             <div className="section-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                    {isMobile && onToggleSidebar && (
+                        <button
+                            onClick={onToggleSidebar}
+                            className="dashboard-sidebar-toggle"
+                            title="Open Sidebar"
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                borderRadius: '6px',
+                                padding: '6px',
+                                color: 'var(--gold-color, #d4af37)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                marginRight: '0.25rem'
+                            }}
+                        >
+                            <Menu size={20} />
+                        </button>
+                    )}
                     <h2>Customer List</h2>
                     {!loading && <span className="customer-count">{totalCount}</span>}
                 </div>

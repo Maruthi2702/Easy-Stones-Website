@@ -2363,9 +2363,32 @@ const SalesPage = () => {
         return (
             <div className="crm-checkin-log-panel">
                 <div className="panel-header">
-                    <div className="header-left">
-                        <h1>Visitor Check-In Log</h1>
-                        <p>Live tracking of clients and fabricators visiting the office</p>
+                    <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        {isMobile && (
+                            <button
+                                onClick={() => setIsSidebarOpen(true)}
+                                className="dashboard-sidebar-toggle"
+                                title="Open Sidebar"
+                                style={{ 
+                                    marginRight: '0.5rem', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justify: 'center',
+                                    background: 'rgba(255, 255, 255, 0.08)',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    borderRadius: '6px',
+                                    padding: '6px',
+                                    color: 'var(--gold-color, #d4af37)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <Menu size={20} />
+                            </button>
+                        )}
+                        <div>
+                            <h1>Visitor Check-In Log</h1>
+                            <p>Live tracking of clients and fabricators visiting the office</p>
+                        </div>
                     </div>
                     <div className="header-actions">
                         <button 
@@ -2922,7 +2945,10 @@ const SalesPage = () => {
                         </>
                     ) : (
                         <div className="sales-dashboard-v2">
-                            <PartnersSheet onSelectCustomer={handleSelectCustomer} />
+                            <PartnersSheet 
+                                onSelectCustomer={handleSelectCustomer} 
+                                onToggleSidebar={() => setIsSidebarOpen(true)}
+                            />
                         </div>
                     )}
                 </ErrorBoundary>
