@@ -2916,23 +2916,12 @@ const SalesPage = () => {
                             </div>
                         </>
                     ) : (
-                        <div className="no-customer-selected-panel">
-                            <div className="no-customer-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', background: 'rgba(31,41,55,0.2)', borderRadius: '12px', border: '1px dashed var(--border-color)', margin: '2rem' }}>
-                                <User size={64} className="placeholder-icon" style={{ color: '#E5C04A', marginBottom: '1.5rem' }} />
-                                <h2 style={{ fontSize: '1.8rem', fontWeight: '600', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>No Customer Selected</h2>
-                                <p style={{ color: 'var(--text-secondary)', maxWidth: '400px', textAlign: 'center', lineHeight: '1.5' }}>
-                                    Select a customer from the left sidebar to view their activity log, resources, and contacts.
-                                </p>
-                                {!isSidebarOpen && (
-                                    <button 
-                                        className="btn-primary" 
-                                        onClick={() => setIsSidebarOpen(true)}
-                                        style={{ marginTop: '1.5rem' }}
-                                    >
-                                        Open Customer List
-                                    </button>
-                                )}
+                        <div className="crm-partners-sheet-wrapper" style={{ padding: '2rem' }}>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <h1 style={{ fontSize: '1.8rem', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>Partners & Customers List</h1>
+                                <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0', fontSize: '0.95rem' }}>Comprehensive spreadsheet view of active fabricators, designers, builders, and developers</p>
                             </div>
+                            <PartnersSheet onSelectCustomer={handleSelectCustomer} />
                         </div>
                     )}
                 </ErrorBoundary>
