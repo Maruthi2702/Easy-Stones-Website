@@ -158,7 +158,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
     };
 
     const handleDeletePartner = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this lead?')) return;
+        if (!window.confirm('Are you sure you want to delete this customer?')) return;
         try {
             const response = await fetch(`${API_URL}/api/partners/${id}`, {
                 method: 'DELETE',
@@ -166,14 +166,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar }) => {
                 credentials: 'include'
             });
             if (response.ok) {
-                setPartners(partners.filter(l => l._id !== id));
+                // Refetch current page so pagination counts stay accurate
+                fetchPartners();
             } else {
                 const errorData = await response.json();
-                alert(errorData.message || 'Failed to delete partner');
+                alert(errorData.message || 'Failed to delete customer');
             }
         } catch (error) {
-            console.error('Error deleting partner:', error);
-            alert('An error occurred while deleting the partner');
+            console.error('Error deleting customer:', error);
+            alert('An error occurred while deleting the customer');
         }
     };
 
