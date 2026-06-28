@@ -27,8 +27,8 @@ const CheckInPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone) {
-      setError('Name and Phone Number are mandatory');
+    if (!formData.name || !formData.phone || !formData.fabricatorCompany || !formData.fabricatorName) {
+      setError('Name, Phone Number, Fabricator Company Name, and Contact Person are mandatory');
       return;
     }
 
@@ -44,8 +44,7 @@ const CheckInPage = () => {
 
       if (response.ok) {
         setSubmitted(true);
-        fetchRecentCheckIns();
-        // Reset form after 3 seconds success message
+        // Reset form after success message
         setTimeout(() => {
           setSubmitted(false);
           setFormData({
@@ -142,23 +141,25 @@ const CheckInPage = () => {
               <h3>Fabricator / Contractor Details</h3>
               <div className="input-group">
                 <div className="input-field">
-                  <label><Building size={16} /> Company Name</label>
+                  <label><Building size={16} /> Company Name <span className="required">*</span></label>
                   <input
                     type="text"
                     name="fabricatorCompany"
                     value={formData.fabricatorCompany}
                     onChange={handleChange}
                     placeholder="Enter company name"
+                    required
                   />
                 </div>
                 <div className="input-field">
-                  <label><UserCheck size={16} /> Contact Person</label>
+                  <label><UserCheck size={16} /> Contact Person <span className="required">*</span></label>
                   <input
                     type="text"
                     name="fabricatorName"
                     value={formData.fabricatorName}
                     onChange={handleChange}
                     placeholder="Who are you working with?"
+                    required
                   />
                 </div>
               </div>
