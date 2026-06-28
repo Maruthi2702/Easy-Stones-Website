@@ -40,6 +40,7 @@ const SalesMapPage = lazyRetry(() => import('./pages/SalesMapPage'));
 const AdminPage = lazyRetry(() => import('./pages/AdminPage'));
 const LoginPage = lazyRetry(() => import('./pages/LoginPage'));
 const CheckInPage = lazyRetry(() => import('./pages/CheckInPage'));
+const CheckInLogPage = lazyRetry(() => import('./pages/CheckInLogPage'));
 
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -111,6 +112,7 @@ function App() {
                     }
                   />
                   <Route path="/checkin" element={<CheckInPage />} />
+                  <Route path="/checkin-log" element={<ProtectedRoute><CheckInLogPage /></ProtectedRoute>} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                   <Route path="/product/:productId" element={<ProductDetail />} />
                   <Route path="/contact" element={<ContactPage />} />

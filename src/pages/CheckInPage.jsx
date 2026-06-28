@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   User, Phone, Mail, MapPin, Building, 
-  UserCheck, Send, Loader2, CheckCircle2, Clock
+  UserCheck, Send, Loader2, CheckCircle2
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import './CheckInPage.css';
@@ -19,30 +19,6 @@ const CheckInPage = () => {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
-  const [recentCheckIns, setRecentCheckIns] = useState([]);
-  const [fetchingCheckIns, setFetchingCheckIns] = useState(false);
-
-  useEffect(() => {
-    fetchRecentCheckIns();
-    // Auto-refresh the list every 30 seconds
-    const interval = setInterval(fetchRecentCheckIns, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchRecentCheckIns = async () => {
-    setFetchingCheckIns(true);
-    try {
-      const response = await fetch(`${API_URL}/api/checkin`);
-      if (response.ok) {
-        const data = await response.json();
-        setRecentCheckIns(data);
-      }
-    } catch (err) {
-      console.error('Error fetching check-ins:', err);
-    } finally {
-      setFetchingCheckIns(false);
-    }
-  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -205,52 +181,6 @@ const CheckInPage = () => {
             </button>
           </form>
         )}
-      </div>
-
-      <div className="recent-checkins-section">
-        <div className="section-header">
-          <Clock size={20} />
-          <h2>Recent Visitors Today</h2>
-          {fetchingCheckIns && <Loader2 size={16} className="animate-spin" />}
-        </div>
-        
-        <div className="checkins-list">
-          {recentCheckIns.length === 0 ? (
-            <p className="no-data">No visitors recorded today.</p>
-          ) : (
-            <div className="table-responsive">
-              <table className="checkin-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Name</th>
-                    <th>Phone Number</th>
-                    <th>Fabricator/Contractor Company</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentCheckIns.map(checkIn => (
-                    <tr key={checkIn._id}>
-                      <td>
-                        <div className="date-cell">
-                          <span className="date-text">{formatDate(checkIn.createdAt)}</span>
-                          <span className="time-text">{formatTime(checkIn.createdAt)}</span>
-                        </div>
-                      </td>
-                      <td className="name-cell">{checkIn.name}</td>
-                      <td>{checkIn.phone}</td>
-                      <td>
-                        <span className={`company-badge ${!checkIn.fabricatorCompany ? 'none' : ''}`}>
-                          {checkIn.fabricatorCompany || 'None'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
