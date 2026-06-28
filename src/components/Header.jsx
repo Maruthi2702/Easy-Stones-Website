@@ -1,5 +1,5 @@
 import { NavLink, Link, useNavigate } from 'react-router-dom';
-import { Menu, LogOut, X } from 'lucide-react';
+import { Menu, LogOut, X, Package, Warehouse, TrendingUp, ShieldCheck, PhoneCall } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 import './Header.css';
@@ -34,20 +34,33 @@ const Header = () => {
         </Link>
 
         <nav className="nav-desktop">
-          <NavLink to="/products" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>Products</NavLink>
+          <NavLink to="/products" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>
+            <Package size={16} />
+            <span>Products</span>
+          </NavLink>
           <a
             href="https://easystones.stoneprofitsweb.com/"
             target="_blank"
             rel="noopener noreferrer"
             className="nav-link"
           >
-            Live Inventory
+            <Warehouse size={16} />
+            <span>Live Inventory</span>
           </a>
           {user && user.type === 'internal' && (
-            <NavLink to="/sales" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Sales</NavLink>
+            <NavLink to="/sales" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <TrendingUp size={16} />
+              <span>Sales</span>
+            </NavLink>
           )}
-          <NavLink to="/warranty" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Warranty</NavLink>
-          <NavLink to="/contact" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Contact Us</NavLink>
+          <NavLink to="/warranty" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <ShieldCheck size={16} />
+            <span>Warranty</span>
+          </NavLink>
+          <NavLink to="/contact" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <PhoneCall size={16} />
+            <span>Contact Us</span>
+          </NavLink>
         </nav>
 
         <div className="header-actions">
@@ -82,7 +95,8 @@ const Header = () => {
             end
             onClick={closeMobileMenu}
           >
-            Products
+            <Package size={18} />
+            <span>Products</span>
           </NavLink>
           <a
             href="https://easystones.stoneprofitsweb.com/"
@@ -91,7 +105,8 @@ const Header = () => {
             className="nav-link"
             onClick={closeMobileMenu}
           >
-            Live Inventory
+            <Warehouse size={18} />
+            <span>Live Inventory</span>
           </a>
           {user && user.type === 'internal' && (
             <NavLink
@@ -99,7 +114,8 @@ const Header = () => {
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
               onClick={closeMobileMenu}
             >
-              Sales
+              <TrendingUp size={18} />
+              <span>Sales</span>
             </NavLink>
           )}
           <NavLink
@@ -107,14 +123,16 @@ const Header = () => {
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             onClick={closeMobileMenu}
           >
-            Warranty
+            <ShieldCheck size={18} />
+            <span>Warranty</span>
           </NavLink>
           <NavLink
             to="/contact"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             onClick={closeMobileMenu}
           >
-            Contact Us
+            <PhoneCall size={18} />
+            <span>Contact Us</span>
           </NavLink>
 
           {/* Login/Logout for Mobile */}

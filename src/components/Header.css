@@ -58,6 +58,9 @@
   transition: color var(--transition-base);
   position: relative;
   padding: 0.5rem 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .nav-link.active {
