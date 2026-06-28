@@ -5,6 +5,8 @@
   padding-top: 96px;
   background: var(--bg-primary);
   overflow: hidden;
+  position: relative;
+  z-index: 1; /* Below header (z-index: 1100) so header nav links are always clickable */
 }
 
 /* Sidebar */
