@@ -159,8 +159,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     city: '',
                     customerType: 'Fabricator',
                     modaDisplay: 'No',
-                    modaBinder: '0',
-                    priority: 'Medium'
+                    modaBinder: '0'
                 });
             } else {
                 const errorData = await response.json();
@@ -679,22 +678,6 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                             : setNewPartner({ ...newPartner, modaBinder: e.target.value })
                                         }
                                     />
-                                </div>
-                                <div className="form-group">
-                                    <label>Priority</label>
-                                    <select
-                                        className="form-select"
-                                        value={viewingPartner ? viewingPartner.priority : (editingPartner ? editingPartner.priority : newPartner.priority)}
-                                        disabled={!!viewingPartner}
-                                        onChange={e => editingPartner
-                                            ? setEditingPartner({ ...editingPartner, priority: e.target.value })
-                                            : setNewPartner({ ...newPartner, priority: e.target.value })
-                                        }
-                                    >
-                                        <option value="Low">Low</option>
-                                        <option value="Medium">Medium</option>
-                                        <option value="High">High</option>
-                                    </select>
                                 </div>
                             </div>
 
