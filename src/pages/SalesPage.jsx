@@ -2520,9 +2520,9 @@ const SalesPage = () => {
 
             {/* Main Content */}
             <div
-                className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isSidebarOpen ? 'full-width' : ''}`}
+                className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isPinned || !isSidebarOpen ? 'full-width' : ''}`}
                 style={{
-                    marginLeft: isMobile || !isSidebarOpen ? 0 : (isPinned ? `${sidebarWidth}px` : '72px'),
+                    marginLeft: isMobile || !isSidebarOpen || !isPinned ? 0 : `${sidebarWidth}px`,
                     position: 'relative'
                 }}
             >
