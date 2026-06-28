@@ -1260,63 +1260,65 @@
     }
 }
 
-/* CRM Navigation Overhaul Styles */
-.crm-sub-navbar {
-    background: rgba(17, 24, 39, 0.6);
-    backdrop-filter: blur(16px);
+/* CRM Navigation Overhaul Styles - Sidebar Tabs */
+.sidebar-top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
     border-bottom: 1px solid var(--border-color);
-    padding: 0.5rem 2rem;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
-.crm-nav-tabs {
+.sidebar-nav-links {
     display: flex;
-    gap: 1rem;
-    align-items: center;
-    overflow-x: auto;
-    scrollbar-width: none; /* Hide scrollbar for clean UI */
-}
-
-.crm-nav-tabs::-webkit-scrollbar {
-    display: none;
-}
-
-.crm-nav-tab {
-    display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 0.5rem;
+    padding: 1.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     background: none;
     border: none;
     color: var(--text-secondary);
-    padding: 0.75rem 1.25rem;
+    padding: 0.75rem 1rem;
     cursor: pointer;
     font-size: 0.95rem;
     font-weight: 500;
     border-radius: 8px;
     transition: all 0.2s ease-in-out;
-    white-space: nowrap;
+    width: 100%;
+    text-align: left;
 }
 
-.crm-nav-tab:hover {
+.sidebar-nav-link:hover {
     color: var(--text-primary);
     background: rgba(255, 255, 255, 0.05);
 }
 
-.crm-nav-tab.active {
+.sidebar-nav-link.active {
     color: var(--accent-primary);
     background: rgba(229, 192, 74, 0.1);
     font-weight: 600;
 }
 
-.crm-nav-tab svg {
+.sidebar-nav-link svg {
     transition: transform 0.2s;
+    color: inherit;
+    flex-shrink: 0;
 }
 
-.crm-nav-tab:hover svg {
-    transform: translateY(-1px);
+.sidebar-nav-link:hover svg {
+    transform: translateX(1px);
+}
+
+.sidebar-customer-section {
+    display: flex;
+    flex-direction: column;
+    height: calc(100% - 240px); /* Adjust height for the top logo/nav links */
 }
 
 /* Visitor Check-In Log Panel */

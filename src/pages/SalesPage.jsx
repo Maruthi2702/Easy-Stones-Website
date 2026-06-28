@@ -2450,73 +2450,41 @@ const SalesPage = () => {
             )}
 
             {/* Sidebar */}
-            {crmTab === 'customers' && (
-                <CustomerSidebar
-                    isSidebarOpen={isSidebarOpen}
-                    isMobile={isMobile}
-                    isPinned={isPinned}
-                    sidebarWidth={sidebarWidth}
-                    startResizing={startResizing}
-                    filteredCustomers={filteredCustomers}
-                    selectedCustomerId={selectedCustomerId}
-                    searchTerm={searchTerm}
-                    setSearchTerm={setSearchTerm}
-                    loading={loading}
-                    error={error}
-                    togglePin={togglePin}
-                    setIsSidebarOpen={setIsSidebarOpen}
-                    handleGoHome={handleGoHome}
-                    handleGoLeads={handleGoLeads}
-                    handleSelectCustomer={handleSelectCustomer}
-                    currentPage={currentPage}
-                    setCurrentPage={setCurrentPage}
-                    totalPages={totalPages}
-                    totalCustomers={totalCustomers}
-                    onAddCustomer={() => setShowAddCustomerModal(true)}
-                />
-            )}
+            {/* Sidebar */}
+            <CustomerSidebar
+                crmTab={crmTab}
+                handleCrmTabChange={handleCrmTabChange}
+                isSidebarOpen={isSidebarOpen}
+                isMobile={isMobile}
+                isPinned={isPinned}
+                sidebarWidth={sidebarWidth}
+                startResizing={startResizing}
+                filteredCustomers={filteredCustomers}
+                selectedCustomerId={selectedCustomerId}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                loading={loading}
+                error={error}
+                togglePin={togglePin}
+                setIsSidebarOpen={setIsSidebarOpen}
+                handleGoHome={handleGoHome}
+                handleGoLeads={handleGoLeads}
+                handleSelectCustomer={handleSelectCustomer}
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+                totalPages={totalPages}
+                totalCustomers={totalCustomers}
+                onAddCustomer={() => setShowAddCustomerModal(true)}
+            />
 
             {/* Main Content */}
             <div
-                className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${crmTab !== 'customers' || !isPinned || !isSidebarOpen ? 'full-width' : ''}`}
+                className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isPinned || !isSidebarOpen ? 'full-width' : ''}`}
                 style={{
-                    marginLeft: isMobile || crmTab !== 'customers' || !isSidebarOpen || !isPinned ? 0 : `${sidebarWidth}px`,
+                    marginLeft: isMobile || !isSidebarOpen || !isPinned ? 0 : `${sidebarWidth}px`,
                     position: 'relative'
                 }}
             >
-                {/* CRM Sub-Navbar */}
-                <div className="crm-sub-navbar">
-                    <div className="crm-nav-tabs">
-                        <button 
-                            className={`crm-nav-tab ${crmTab === 'dashboard' ? 'active' : ''}`}
-                            onClick={() => handleCrmTabChange('dashboard')}
-                        >
-                            <LayoutDashboard size={18} />
-                            <span>Dashboard</span>
-                        </button>
-                        <button 
-                            className={`crm-nav-tab ${crmTab === 'customers' ? 'active' : ''}`}
-                            onClick={() => handleCrmTabChange('customers')}
-                        >
-                            <User size={18} />
-                            <span>Customers</span>
-                        </button>
-                        <button 
-                            className={`crm-nav-tab ${crmTab === 'checkin' ? 'active' : ''}`}
-                            onClick={() => handleCrmTabChange('checkin')}
-                        >
-                            <Clock size={18} />
-                            <span>Check-In Log</span>
-                        </button>
-                        <button 
-                            className={`crm-nav-tab ${crmTab === 'map' ? 'active' : ''}`}
-                            onClick={() => handleCrmTabChange('map')}
-                        >
-                            <MapPin size={18} />
-                            <span>Sales Map</span>
-                        </button>
-                    </div>
-                </div>
 
                 {crmTab === 'checkin' && (
                     <ErrorBoundary key="checkin-log-view">
