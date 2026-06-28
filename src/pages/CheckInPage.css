@@ -285,6 +285,17 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@media (max-width: 1024px) {
+  .checkin-container {
+    padding: 1.5rem;
+  }
+  
+  .checkin-card {
+    padding: 2rem;
+    margin-bottom: 2.5rem;
+  }
+}
+
 @media (max-width: 768px) {
   .checkin-container {
     padding: 1rem;
@@ -292,6 +303,7 @@
   
   .checkin-card {
     padding: 1.5rem;
+    margin-bottom: 2rem;
   }
   
   .input-group {

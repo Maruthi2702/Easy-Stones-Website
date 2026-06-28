@@ -465,13 +465,25 @@
 .clp-page-info strong { color: var(--text-primary, #fff); }
 
 /* ── Responsive ── */
+@media (max-width: 1024px) {
+  .clp-page-header,
+  .clp-stats,
+  .clp-table-card { padding-left: 1.5rem; padding-right: 1.5rem; }
+  .clp-stats { gap: 0.65rem; }
+  .clp-stat { padding: 0.75rem 1rem; }
+  .clp-stat-val { font-size: 1.35rem; }
+  .clp-table-card { margin-left: 1.5rem; margin-right: 1.5rem; }
+}
+
 @media (max-width: 768px) {
   .clp-page-header,
   .clp-stats,
   .clp-table-card { padding-left: 1rem; padding-right: 1rem; margin-left: 0; margin-right: 0; }
 
-  .clp-stats { grid-template-columns: 1fr; }
-  .clp-title { font-size: 1.2rem; }
-  .clp-header-actions { width: 100%; margin-top: 0.5rem; justify-content: space-between; }
-  .clp-search-wrap { flex: 1; width: auto; max-width: 100%; }
+  .clp-stats { grid-template-columns: 1fr; gap: 0.5rem; }
+  .clp-stat { padding: 0.75rem 1rem; }
+  .clp-title { font-size: 1.25rem; }
+  .clp-header-actions { width: 100%; margin-top: 0.75rem; justify-content: flex-start; flex-direction: column; gap: 0.5rem; align-items: stretch; }
+  .clp-search-wrap { width: 100%; max-width: 100%; }
+  .clp-refresh-btn, .clp-export-btn { justify-content: center; width: 100%; }
 }
