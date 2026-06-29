@@ -17,6 +17,7 @@ import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import compression from 'compression';
 import Product from './src/models/Product.js';
 import User from './src/models/User.js';
@@ -1669,24 +1670,14 @@ app.post('/api/checkin', async (req, res) => {
     await checkIn.save();
     console.log(`✅ New office check-in: ${name} (${phone})`);
 
-    // Send email alert to staff if SMTP configured
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    // Send email alert to staff via Resend API (works on Render - no SMTP port blocks)
+    if (process.env.RESEND_API_KEY) {
       try {
-        const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || 'smtp.gmail.com',
-          port: Number(process.env.SMTP_PORT) || 587,
-          secure: isSecure,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-          }
-        });
-
+        const resend = new Resend(process.env.RESEND_API_KEY);
         const recipient = process.env.CHECKIN_ALERT_EMAIL || 'krish@easystones.com';
 
-        const mailOptions = {
-          from: process.env.SMTP_USER,
+        resend.emails.send({
+          from: 'Easy Stones Check-In <onboarding@resend.dev>',
           to: recipient,
           subject: `🔔 Front Desk Check-In Alert: ${name}`,
           html: `
@@ -1725,13 +1716,11 @@ app.post('/api/checkin', async (req, res) => {
               <p style="font-size: 0.85rem; color: #888; margin: 0;">This is an automated notification from the Easy Stones Office Visitor App.</p>
             </div>
           `
-        };
-
-        transporter.sendMail(mailOptions)
-          .then(() => console.log(`✅ Check-in email notification sent to ${recipient}`))
-          .catch(emailError => console.error('⚠️ Check-in email alert failed:', emailError.message));
+        })
+          .then(() => console.log(`✅ Check-in email sent via Resend to ${recipient}`))
+          .catch(emailError => console.error('⚠️ Resend check-in email failed:', emailError.message));
       } catch (emailError) {
-        console.error('⚠️ Check-in email alert setup failed:', emailError.message);
+        console.error('⚠️ Check-in email setup failed:', emailError.message);
       }
     }
 
