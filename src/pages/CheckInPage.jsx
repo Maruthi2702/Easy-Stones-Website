@@ -4,6 +4,7 @@ import {
   UserCheck, Send, Loader2, CheckCircle2
 } from 'lucide-react';
 import { API_URL } from '../config/api';
+import { formatPhoneInput } from '../utils/phoneUtils';
 import './CheckInPage.css';
 
 const CheckInPage = () => {
@@ -22,7 +23,11 @@ const CheckInPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    if (name === 'phone' || name === 'fabricatorPhone') {
+      setFormData(prev => ({ ...prev, [name]: formatPhoneInput(value) }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = async (e) => {

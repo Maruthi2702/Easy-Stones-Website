@@ -4025,7 +4025,7 @@ const SalesPage = () => {
                                         <input
                                             type="text"
                                             value={checkInModalMode === 'view' ? (selectedCheckIn.phone || '') : checkInForm.phone}
-                                            onChange={(e) => setCheckInForm({ ...checkInForm, phone: e.target.value })}
+                                            onChange={(e) => setCheckInForm({ ...checkInForm, phone: formatPhoneInput(e.target.value) })}
                                             readOnly={checkInModalMode === 'view'}
                                             placeholder="e.g. (555) 000-0000"
                                             required
@@ -4060,7 +4060,7 @@ const SalesPage = () => {
                                         <input
                                             type="text"
                                             value={checkInModalMode === 'view' ? (selectedCheckIn.fabricatorPhone || '') : checkInForm.fabricatorPhone}
-                                            onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorPhone: e.target.value })}
+                                            onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorPhone: formatPhoneInput(e.target.value) })}
                                             readOnly={checkInModalMode === 'view'}
                                             placeholder="e.g. (555) 000-0000"
                                             required
