@@ -289,6 +289,10 @@ const SalesPage = () => {
 
     const handleSaveCheckIn = async (e) => {
         e.preventDefault();
+        if (!checkInForm.name || !checkInForm.phone || !checkInForm.fabricatorCompany || !checkInForm.fabricatorPhone) {
+            alert('Name, Phone Number, Company Name, and Company Phone Number are mandatory');
+            return;
+        }
         try {
             const response = await fetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
                 method: 'PUT',
@@ -4005,7 +4009,7 @@ const SalesPage = () => {
                             <form onSubmit={handleSaveCheckIn}>
                                 <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
                                     <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Visitor Name</label>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Visitor Name <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
                                         <input
                                             type="text"
                                             value={checkInModalMode === 'view' ? selectedCheckIn.name : checkInForm.name}
@@ -4016,7 +4020,7 @@ const SalesPage = () => {
                                         />
                                     </div>
                                     <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Phone Number</label>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Phone Number <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
                                         <input
                                             type="text"
                                             value={checkInModalMode === 'view' ? selectedCheckIn.phone : checkInForm.phone}
@@ -4037,22 +4041,24 @@ const SalesPage = () => {
                                         />
                                     </div>
                                     <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Company Name</label>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Company Name <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
                                         <input
                                             type="text"
                                             value={checkInModalMode === 'view' ? selectedCheckIn.fabricatorCompany : checkInForm.fabricatorCompany}
                                             onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorCompany: e.target.value })}
                                             disabled={checkInModalMode === 'view'}
+                                            required
                                             style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem' }}
                                         />
                                     </div>
                                     <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Company Phone Number</label>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Company Phone Number <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
                                         <input
                                             type="text"
                                             value={checkInModalMode === 'view' ? selectedCheckIn.fabricatorPhone : checkInForm.fabricatorPhone}
                                             onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorPhone: e.target.value })}
                                             disabled={checkInModalMode === 'view'}
+                                            required
                                             style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem' }}
                                         />
                                     </div>
