@@ -1727,10 +1727,11 @@ app.post('/api/checkin', async (req, res) => {
           `
         };
 
-        await transporter.sendMail(mailOptions);
-        console.log(`✅ Check-in email notification sent to ${recipient}`);
+        transporter.sendMail(mailOptions)
+          .then(() => console.log(`✅ Check-in email notification sent to ${recipient}`))
+          .catch(emailError => console.error('⚠️ Check-in email alert failed:', emailError.message));
       } catch (emailError) {
-        console.error('⚠️ Check-in email alert failed:', emailError.message);
+        console.error('⚠️ Check-in email alert setup failed:', emailError.message);
       }
     }
 
