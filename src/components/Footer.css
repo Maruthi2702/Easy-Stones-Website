@@ -109,17 +109,6 @@
   margin: 0;
 }
 
-@media (max-width: 1024px) {
-  .footer-content {
-    grid-template-columns: 1fr 1fr;
-    gap: 2.5rem;
-  }
-  
-  .footer-brand {
-    grid-column: 1 / -1;
-  }
-}
-
 @media (max-width: 768px) {
   .footer {
     padding: 3rem 0 2rem;
