@@ -127,9 +127,6 @@ const CheckInPage = () => {
                     required
                   />
                 </div>
-              </div>
-
-              <div className="input-group">
                 <div className="input-field">
                   <label><Mail size={16} /> Email Address</label>
                   <input
@@ -158,7 +155,18 @@ const CheckInPage = () => {
                   />
                 </div>
                 <div className="input-field">
-                  <label><UserCheck size={16} /> Contact Person</label>
+                  <label><Phone size={16} /> Company Phone Number <span className="required">*</span></label>
+                  <input
+                    type="tel"
+                    name="fabricatorPhone"
+                    value={formData.fabricatorPhone}
+                    onChange={handleChange}
+                    placeholder="Enter phone number"
+                    required
+                  />
+                </div>
+                <div className="input-field">
+                  <label><UserCheck size={16} /> Contact Name</label>
                   <input
                     type="text"
                     name="fabricatorName"
@@ -167,17 +175,6 @@ const CheckInPage = () => {
                     placeholder="Who are you working with?"
                   />
                 </div>
-              </div>
-              <div className="input-field">
-                <label><Phone size={16} /> Phone Number <span className="required">*</span></label>
-                <input
-                  type="tel"
-                  name="fabricatorPhone"
-                  value={formData.fabricatorPhone}
-                  onChange={handleChange}
-                  placeholder="Enter phone number"
-                  required
-                />
               </div>
             </div>
 
