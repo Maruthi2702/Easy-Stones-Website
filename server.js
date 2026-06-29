@@ -764,10 +764,11 @@ app.post('/api/contact', async (req, res) => {
     // Try to send email if credentials are configured
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
       try {
+        const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
         const transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST || 'smtp.gmail.com',
-          port: process.env.SMTP_PORT || 587,
-          secure: false,
+          port: Number(process.env.SMTP_PORT) || 587,
+          secure: isSecure,
           auth: {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS
@@ -1671,10 +1672,11 @@ app.post('/api/checkin', async (req, res) => {
     // Send email alert to staff if SMTP configured
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
       try {
+        const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
         const transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST || 'smtp.gmail.com',
-          port: process.env.SMTP_PORT || 587,
-          secure: false,
+          port: Number(process.env.SMTP_PORT) || 587,
+          secure: isSecure,
           auth: {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS
@@ -1743,15 +1745,44 @@ app.post('/api/checkin', async (req, res) => {
   }
 });
 
-// Get recent check-ins (temporary public access)
 app.get('/api/checkin', async (req, res) => {
   try {
-    // Get last 50 check-ins, sorted by newest first
-    const checkIns = await OfficeCheckIn.find()
+    const { page, limit, search } = req.query;
+
+    // If query parameters are not supplied, return standard raw array for backward compatibility
+    if (!page && !limit && !search) {
+      const checkIns = await OfficeCheckIn.find()
+        .sort({ createdAt: -1 })
+        .limit(50);
+      return res.json(checkIns);
+    }
+
+    // Otherwise, support full pagination and search
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 20;
+    const query = {};
+
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { phone: searchRegex },
+        { fabricatorCompany: searchRegex },
+        { fabricatorPhone: searchRegex }
+      ];
+    }
+
+    const total = await OfficeCheckIn.countDocuments(query);
+    const checkIns = await OfficeCheckIn.find(query)
       .sort({ createdAt: -1 })
-      .limit(50);
-    
-    res.json(checkIns);
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
+
+    res.json({
+      checkIns,
+      totalPages: Math.ceil(total / limitNum),
+      total
+    });
   } catch (error) {
     console.error('❌ Error fetching check-ins:', error);
     res.status(500).json({ message: 'Failed to fetch check-ins' });
