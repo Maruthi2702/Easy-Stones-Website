@@ -1,5 +1,5 @@
 .warranty-page {
-  padding-top: 80px; /* Header height */
+  padding-top: 0;
   min-height: 100vh;
   background-color: var(--bg-primary);
 }

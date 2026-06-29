@@ -96,7 +96,7 @@ function App() {
           <ScrollToTop />
           <div className="bg-gradient"></div>
           <Header />
-          <main>
+          <main className={isSalesPage || isAdminPage ? 'main-dashboard' : 'main-site'}>
             <ErrorBoundary>
               <Suspense fallback={<PageLoader />}>
                 <Routes>

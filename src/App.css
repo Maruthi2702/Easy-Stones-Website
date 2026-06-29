@@ -97,3 +97,13 @@
     padding: 0 1rem;
   }
 }
+
+main.main-site {
+  padding-top: 82px; /* Offset fixed header */
+}
+
+@media (max-width: 1024px) {
+  main.main-site {
+    padding-top: 74px; /* Offset mobile fixed header */
+  }
+}
