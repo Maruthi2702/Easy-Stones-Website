@@ -102,9 +102,9 @@ const CheckInPage = () => {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="checkin-form">
-            <div className="form-section">
-              <h3>Customer Information</h3>
-              <div className="input-group">
+            <div className="form-sections-container">
+              <div className="form-section">
+                <h3>Customer Information</h3>
                 <div className="input-field">
                   <label><User size={16} /> Name <span className="required">*</span></label>
                   <input
@@ -138,11 +138,9 @@ const CheckInPage = () => {
                   />
                 </div>
               </div>
-            </div>
 
-            <div className="form-section">
-              <h3>Fabricator / Contractor Details</h3>
-              <div className="input-group">
+              <div className="form-section">
+                <h3>Fabricator / Contractor Details</h3>
                 <div className="input-field">
                   <label><Building size={16} /> Company Name <span className="required">*</span></label>
                   <input
