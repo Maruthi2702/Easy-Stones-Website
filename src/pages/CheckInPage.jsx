@@ -87,8 +87,7 @@ const CheckInPage = () => {
     <div className="checkin-container">
       <div className="checkin-header">
         <div className="logo-section">
-          <h1>Easy Stones</h1>
-          <p>Visitor Check-in</p>
+          <h1>Visitor Check-in</h1>
         </div>
       </div>
 
