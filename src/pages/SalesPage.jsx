@@ -271,6 +271,7 @@ const SalesPage = () => {
             try {
                 const response = await fetch(`${API_URL}/api/checkin/${checkIn._id}`, {
                     method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                     credentials: 'include'
                 });
                 if (response.ok) {
@@ -291,7 +292,10 @@ const SalesPage = () => {
         try {
             const response = await fetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
                 body: JSON.stringify(checkInForm),
                 credentials: 'include'
             });
