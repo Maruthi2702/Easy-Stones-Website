@@ -261,7 +261,7 @@
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1025px) {
   .nav-desktop {
     display: flex;
   }
@@ -343,7 +343,7 @@
   transform: translateY(-2px);
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1025px) {
   .login-btn {
     display: inline-block;
   }
@@ -425,7 +425,7 @@
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1025px) {
   .nav-mobile {
     display: none;
   }
