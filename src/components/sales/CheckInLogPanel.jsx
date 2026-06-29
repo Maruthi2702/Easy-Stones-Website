@@ -25,7 +25,7 @@ import React from 'react';
 import {
   Clock, Search, Download, Loader2, Calendar,
   ChevronLeft, ChevronRight, RefreshCw,
-  Users, Building2, Phone, Mail, UserCheck, X
+  Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2
 } from 'lucide-react';
 import './CheckInLogPanel.css';
 
@@ -76,6 +76,9 @@ const CheckInLogPanel = ({
   onExport,
   sidebarToggle = null,
   embedded = false,
+  onView = null,
+  onEdit = null,
+  onDelete = null,
 }) => {
   const todayCount = checkIns.filter((c) => isToday(c.createdAt)).length;
   const withCompanyCount = checkIns.filter((c) => c.fabricatorCompany).length;
@@ -201,6 +204,7 @@ const CheckInLogPanel = ({
                   <th>FABRICATOR/COMPANY</th>
                   <th>PHONE NUMBER</th>
                   <th>CONTACT NAME</th>
+                  {(onView || onEdit || onDelete) && <th style={{ textAlign: 'center' }}>ACTIONS</th>}
                 </tr>
               </thead>
               <tbody>
@@ -256,6 +260,39 @@ const CheckInLogPanel = ({
                         <span className="clp-badge clp-badge-none">None</span>
                       )}
                     </td>
+                    {(onView || onEdit || onDelete) && (
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', justifyContent: 'center' }}>
+                          {onView && (
+                            <button
+                              onClick={() => onView(c)}
+                              title="View details"
+                              style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                            >
+                              <Eye size={15} />
+                            </button>
+                          )}
+                          {onEdit && (
+                            <button
+                              onClick={() => onEdit(c)}
+                              title="Edit check-in"
+                              style={{ background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                          )}
+                          {onDelete && (
+                            <button
+                              onClick={() => onDelete(c)}
+                              title="Delete check-in"
+                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

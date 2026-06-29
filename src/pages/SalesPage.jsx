@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
     Calendar, MapPin, Phone, Mail, Clock, Plus, Search,
@@ -95,6 +96,16 @@ const SalesPage = () => {
     const [checkIns, setCheckIns] = useState([]);
     const [checkInsLoading, setCheckInsLoading] = useState(false);
     const [checkInSearch, setCheckInSearch] = useState('');
+    const [selectedCheckIn, setSelectedCheckIn] = useState(null);
+    const [checkInModalMode, setCheckInModalMode] = useState(null); // 'view' | 'edit'
+    const [checkInForm, setCheckInForm] = useState({
+        name: '',
+        phone: '',
+        email: '',
+        fabricatorCompany: '',
+        fabricatorName: '',
+        fabricatorPhone: ''
+    });
     
     const [showDashboard, setShowDashboard] = useState(true);
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
@@ -234,6 +245,67 @@ const SalesPage = () => {
             console.error('Error fetching check-ins:', error);
         } finally {
             setCheckInsLoading(false);
+        }
+    };
+
+    const handleViewCheckIn = (checkIn) => {
+        setSelectedCheckIn(checkIn);
+        setCheckInModalMode('view');
+    };
+
+    const handleEditCheckIn = (checkIn) => {
+        setSelectedCheckIn(checkIn);
+        setCheckInModalMode('edit');
+        setCheckInForm({
+            name: checkIn.name || '',
+            phone: checkIn.phone || '',
+            email: checkIn.email || '',
+            fabricatorCompany: checkIn.fabricatorCompany || '',
+            fabricatorName: checkIn.fabricatorName || '',
+            fabricatorPhone: checkIn.fabricatorPhone || ''
+        });
+    };
+
+    const handleDeleteCheckIn = async (checkIn) => {
+        if (window.confirm(`Are you sure you want to delete the check-in record for ${checkIn.name}?`)) {
+            try {
+                const response = await fetch(`${API_URL}/api/checkin/${checkIn._id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    fetchCheckIns();
+                } else {
+                    const data = await response.json();
+                    alert(data.message || 'Failed to delete check-in');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Network error. Please try again.');
+            }
+        }
+    };
+
+    const handleSaveCheckIn = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(checkInForm),
+                credentials: 'include'
+            });
+            if (response.ok) {
+                setCheckInModalMode(null);
+                setSelectedCheckIn(null);
+                fetchCheckIns();
+            } else {
+                const data = await response.json();
+                alert(data.message || 'Failed to save check-in');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Network error. Please try again.');
         }
     };
 
@@ -2374,6 +2446,9 @@ const SalesPage = () => {
                 totalCount={checkIns.length}
                 embedded={true}
                 sidebarToggle={sidebarToggle}
+                onView={handleViewCheckIn}
+                onEdit={handleEditCheckIn}
+                onDelete={handleDeleteCheckIn}
             />
         );
     };
@@ -3910,6 +3985,108 @@ const SalesPage = () => {
                         </div>
                     )
                 }
+
+                {/* Check-In Detail/Edit Modal */}
+                {selectedCheckIn && checkInModalMode && createPortal(
+                    <div className="modal-overlay" onClick={() => { setSelectedCheckIn(null); setCheckInModalMode(null); }}>
+                        <div className="modal-content animate-slide-up" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            <div className="modal-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                    {checkInModalMode === 'view' ? 'Check-In Details' : 'Edit Check-In'}
+                                </h2>
+                                <button className="close-btn" onClick={() => { setSelectedCheckIn(null); setCheckInModalMode(null); }} style={{ color: 'var(--text-secondary)' }}>
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <form onSubmit={handleSaveCheckIn}>
+                                <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
+                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Visitor Name</label>
+                                        <input
+                                            type="text"
+                                            value={checkInModalMode === 'view' ? selectedCheckIn.name : checkInForm.name}
+                                            onChange={(e) => setCheckInForm({ ...checkInForm, name: e.target.value })}
+                                            disabled={checkInModalMode === 'view'}
+                                            required
+                                            style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem' }}
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Phone Number</label>
+                                        <input
+                                            type="text"
+                                            value={checkInModalMode === 'view' ? selectedCheckIn.phone : checkInForm.phone}
+                                            onChange={(e) => setCheckInForm({ ...checkInForm, phone: e.target.value })}
+                                            disabled={checkInModalMode === 'view'}
+                                            required
+                                            style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem' }}
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Email</label>
+                                        <input
+                                            type="email"
+                                            value={checkInModalMode === 'view' ? selectedCheckIn.email : checkInForm.email}
+                                            onChange={(e) => setCheckInForm({ ...checkInForm, email: e.target.value })}
+                                            disabled={checkInModalMode === 'view'}
+                                            style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem' }}
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Company Name</label>
+                                        <input
+                                            type="text"
+                                            value={checkInModalMode === 'view' ? selectedCheckIn.fabricatorCompany : checkInForm.fabricatorCompany}
+                                            onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorCompany: e.target.value })}
+                                            disabled={checkInModalMode === 'view'}
+                                            style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem' }}
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Company Phone Number</label>
+                                        <input
+                                            type="text"
+                                            value={checkInModalMode === 'view' ? selectedCheckIn.fabricatorPhone : checkInForm.fabricatorPhone}
+                                            onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorPhone: e.target.value })}
+                                            disabled={checkInModalMode === 'view'}
+                                            style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem' }}
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Contact Name</label>
+                                        <input
+                                            type="text"
+                                            value={checkInModalMode === 'view' ? selectedCheckIn.fabricatorName : checkInForm.fabricatorName}
+                                            onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorName: e.target.value })}
+                                            disabled={checkInModalMode === 'view'}
+                                            style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem' }}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="modal-footer" style={{ padding: '1.25rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        onClick={() => { setSelectedCheckIn(null); setCheckInModalMode(null); }}
+                                        style={{ padding: '0.65rem 1.25rem', borderRadius: '8px', cursor: 'pointer', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.875rem' }}
+                                    >
+                                        Close
+                                    </button>
+                                    {checkInModalMode === 'edit' && (
+                                        <button
+                                            type="submit"
+                                            className="btn-primary"
+                                            style={{ padding: '0.65rem 1.25rem', borderRadius: '8px', cursor: 'pointer', background: 'linear-gradient(135deg, #d4af37, #b8961f)', color: '#000', border: 'none', fontWeight: 700, fontSize: '0.875rem' }}
+                                        >
+                                            Save Changes
+                                        </button>
+                                    )}
+                                </div>
+                            </form>
+                        </div>
+                    </div>,
+                    document.body
+                )}
             </div >
         </div >
     );

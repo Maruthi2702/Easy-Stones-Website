@@ -1695,6 +1695,62 @@ app.get('/api/checkin', async (req, res) => {
 });
 
 
+// Get specific check-in
+app.get('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const checkIn = await OfficeCheckIn.findById(req.params.id);
+    if (!checkIn) {
+      return res.status(404).json({ message: 'Check-in not found' });
+    }
+    res.json(checkIn);
+  } catch (error) {
+    console.error('❌ Error fetching check-in details:', error);
+    res.status(500).json({ message: 'Failed to fetch check-in details' });
+  }
+});
+
+// Update specific check-in
+app.put('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const { name, phone, email, fabricatorCompany, fabricatorName, fabricatorPhone } = req.body;
+    const checkIn = await OfficeCheckIn.findById(req.params.id);
+    if (!checkIn) {
+      return res.status(404).json({ message: 'Check-in not found' });
+    }
+
+    if (name) checkIn.name = name;
+    if (phone) checkIn.phone = phone;
+    if (email !== undefined) checkIn.email = email;
+    if (fabricatorCompany !== undefined) checkIn.fabricatorCompany = fabricatorCompany;
+    if (fabricatorName !== undefined) checkIn.fabricatorName = fabricatorName;
+    if (fabricatorPhone !== undefined) checkIn.fabricatorPhone = fabricatorPhone;
+
+    await checkIn.save();
+    console.log(`✅ Office check-in updated: ${checkIn.name}`);
+    res.json({ success: true, message: 'Check-in updated successfully', data: checkIn });
+  } catch (error) {
+    console.error('❌ Error updating check-in:', error);
+    res.status(500).json({ message: 'Failed to update check-in' });
+  }
+});
+
+// Delete specific check-in
+app.delete('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const checkIn = await OfficeCheckIn.findByIdAndDelete(req.params.id);
+    if (!checkIn) {
+      return res.status(404).json({ message: 'Check-in not found' });
+    }
+    console.log(`🗑️ Office check-in deleted: ${checkIn.name}`);
+    res.json({ success: true, message: 'Check-in deleted successfully' });
+  } catch (error) {
+    console.error('❌ Error deleting check-in:', error);
+    res.status(500).json({ message: 'Failed to delete check-in' });
+  }
+});
+
+
+
 // Update contact
 app.put('/api/customers/:customerId/contacts/:contactId', verifyAnyAuth, async (req, res) => {
   try {
