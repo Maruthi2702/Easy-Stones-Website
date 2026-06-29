@@ -49,6 +49,7 @@ const CheckInPage = () => {
 
       if (response.ok) {
         setSubmitted(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         // Reset form after success message
         setTimeout(() => {
           setSubmitted(false);
