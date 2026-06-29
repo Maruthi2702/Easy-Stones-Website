@@ -1,8 +1,8 @@
 .checkin-container {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 2rem 1rem;
-  min-height: 100vh;
+  padding: 6rem 1rem 2rem 1rem;
+  min-height: auto;
   font-family: var(--font-main);
   background-color: var(--bg-primary);
   color: var(--text-primary);
