@@ -1674,11 +1674,13 @@ app.post('/api/checkin', async (req, res) => {
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
-        const recipient = process.env.CHECKIN_ALERT_EMAIL || 'ponugupatimaruthi@gmail.com';
+        // Support comma-separated list of recipients
+        const rawRecipients = process.env.CHECKIN_ALERT_EMAIL || 'ponugupatimaruthi@gmail.com';
+        const recipients = rawRecipients.split(',').map(e => e.trim()).filter(Boolean);
 
         resend.emails.send({
           from: 'Easy Stones Check-In <onboarding@resend.dev>',
-          to: recipient,
+          to: recipients,
           subject: `🔔 Front Desk Check-In Alert: ${name}`,
           html: `
             <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 12px; background: #fafafa;">
@@ -1717,7 +1719,7 @@ app.post('/api/checkin', async (req, res) => {
             </div>
           `
         })
-          .then(() => console.log(`✅ Check-in email sent via Resend to ${recipient}`))
+          .then(() => console.log(`✅ Check-in email sent via Resend to ${recipients.join(', ')}`))
           .catch(emailError => console.error('⚠️ Resend check-in email failed:', emailError.message));
       } catch (emailError) {
         console.error('⚠️ Check-in email setup failed:', emailError.message);
