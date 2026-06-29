@@ -1652,8 +1652,8 @@ app.post('/api/checkin', async (req, res) => {
       fabricatorPhone
     } = req.body;
 
-    if (!name || !phone) {
-      return res.status(400).json({ message: 'Name and Phone Number are required' });
+    if (!name || !phone || !fabricatorCompany || !fabricatorPhone) {
+      return res.status(400).json({ message: 'Name, Phone, Company Name, and Company Phone are required' });
     }
 
     const checkIn = new OfficeCheckIn({
