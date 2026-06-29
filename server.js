@@ -1668,6 +1668,70 @@ app.post('/api/checkin', async (req, res) => {
     await checkIn.save();
     console.log(`✅ New office check-in: ${name} (${phone})`);
 
+    // Send email alert to staff if SMTP configured
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: process.env.SMTP_PORT || 587,
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+          }
+        });
+
+        const recipient = process.env.CHECKIN_ALERT_EMAIL || 'krish@easystones.com';
+
+        const mailOptions = {
+          from: process.env.SMTP_USER,
+          to: recipient,
+          subject: `🔔 Front Desk Check-In Alert: ${name}`,
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 12px; background: #fafafa;">
+              <h2 style="color: #d4af37; margin-top: 0;">Visitor Check-In Notification</h2>
+              <p>A new visitor has checked in at the front desk office:</p>
+              <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #555; width: 180px;">Visitor Name:</td>
+                  <td style="padding: 8px 0; color: #222;">${name}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Phone Number:</td>
+                  <td style="padding: 8px 0; color: #222;">${phone}</td>
+                </tr>
+                ${email ? `
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Email:</td>
+                  <td style="padding: 8px 0; color: #222;">${email}</td>
+                </tr>
+                ` : ''}
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Company Name:</td>
+                  <td style="padding: 8px 0; color: #222;">${fabricatorCompany || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Company Phone:</td>
+                  <td style="padding: 8px 0; color: #222;">${fabricatorPhone || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Contact Name:</td>
+                  <td style="padding: 8px 0; color: #222;">${fabricatorName || 'N/A'}</td>
+                </tr>
+              </table>
+              <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
+              <p style="font-size: 0.85rem; color: #888; margin: 0;">This is an automated notification from the Easy Stones Office Visitor App.</p>
+            </div>
+          `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Check-in email notification sent to ${recipient}`);
+      } catch (emailError) {
+        console.error('⚠️ Check-in email alert failed:', emailError.message);
+      }
+    }
+
     res.status(201).json({
       success: true,
       message: 'Check-in successful! Welcome to Easy Stones.',
