@@ -1674,7 +1674,7 @@ app.post('/api/checkin', async (req, res) => {
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
-        const recipient = process.env.CHECKIN_ALERT_EMAIL || 'krish@easystones.com';
+        const recipient = process.env.CHECKIN_ALERT_EMAIL || 'ponugupatimaruthi@gmail.com';
 
         resend.emails.send({
           from: 'Easy Stones Check-In <onboarding@resend.dev>',
