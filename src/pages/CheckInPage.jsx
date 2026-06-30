@@ -11,9 +11,7 @@ const CheckInPage = () => {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    email: '',
     fabricatorCompany: '',
-    fabricatorName: '',
     fabricatorPhone: ''
   });
 
@@ -33,7 +31,7 @@ const CheckInPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || !formData.fabricatorCompany || !formData.fabricatorPhone) {
-      setError('Your Name, Phone Number, Company Name, and Company Phone Number are mandatory');
+      setError('Your Name, Phone Number, Company/Contact Name, and Company Phone Number are mandatory');
       return;
     }
     setLoading(true);
@@ -65,9 +63,7 @@ const CheckInPage = () => {
           setFormData({
             name: '',
             phone: '',
-            email: '',
             fabricatorCompany: '',
-            fabricatorName: '',
             fabricatorPhone: ''
           });
         }, 5000);
@@ -135,28 +131,18 @@ const CheckInPage = () => {
                     required
                   />
                 </div>
-                <div className="input-field">
-                  <label><Mail size={16} /> Email Address</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="example@email.com"
-                  />
-                </div>
               </div>
 
               <div className="form-section">
                 <h3>Fabricator / Contractor Information</h3>
                 <div className="input-field">
-                  <label><Building size={16} /> Company Name <span className="required">*</span></label>
+                  <label><Building size={16} /> Company/Contact Name <span className="required">*</span></label>
                   <input
                     type="text"
                     name="fabricatorCompany"
                     value={formData.fabricatorCompany}
                     onChange={handleChange}
-                    placeholder="Enter company name"
+                    placeholder="Enter company/contact name"
                     required
                   />
                 </div>
@@ -169,16 +155,6 @@ const CheckInPage = () => {
                     onChange={handleChange}
                     placeholder="Enter phone number"
                     required
-                  />
-                </div>
-                <div className="input-field">
-                  <label><UserCheck size={16} /> Contact Name</label>
-                  <input
-                    type="text"
-                    name="fabricatorName"
-                    value={formData.fabricatorName}
-                    onChange={handleChange}
-                    placeholder="Who are you working with?"
                   />
                 </div>
               </div>

@@ -4033,24 +4033,13 @@ const SalesPage = () => {
                                         />
                                     </div>
                                     <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Email</label>
-                                        <input
-                                            type="email"
-                                            value={checkInModalMode === 'view' ? (selectedCheckIn.email || '') : checkInForm.email}
-                                            onChange={(e) => setCheckInForm({ ...checkInForm, email: e.target.value })}
-                                            readOnly={checkInModalMode === 'view'}
-                                            placeholder="e.g. example@mail.com"
-                                            style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: checkInModalMode === 'view' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: checkInModalMode === 'view' ? 'rgba(255,255,255,0.7)' : '#fff', fontSize: '0.9rem', outline: 'none' }}
-                                        />
-                                    </div>
-                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Company Name <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Company/Contact Name <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
                                         <input
                                             type="text"
                                             value={checkInModalMode === 'view' ? (selectedCheckIn.fabricatorCompany || '') : checkInForm.fabricatorCompany}
                                             onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorCompany: e.target.value })}
                                             readOnly={checkInModalMode === 'view'}
-                                            placeholder="e.g. Premier Builders"
+                                            placeholder="e.g. Premier Builders / Jane Smith"
                                             required
                                             style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: checkInModalMode === 'view' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: checkInModalMode === 'view' ? 'rgba(255,255,255,0.7)' : '#fff', fontSize: '0.9rem', outline: 'none' }}
                                         />
@@ -4064,17 +4053,6 @@ const SalesPage = () => {
                                             readOnly={checkInModalMode === 'view'}
                                             placeholder="e.g. (555) 000-0000"
                                             required
-                                            style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: checkInModalMode === 'view' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: checkInModalMode === 'view' ? 'rgba(255,255,255,0.7)' : '#fff', fontSize: '0.9rem', outline: 'none' }}
-                                        />
-                                    </div>
-                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Contact Name</label>
-                                        <input
-                                            type="text"
-                                            value={checkInModalMode === 'view' ? (selectedCheckIn.fabricatorName || '') : checkInForm.fabricatorName}
-                                            onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorName: e.target.value })}
-                                            readOnly={checkInModalMode === 'view'}
-                                            placeholder="e.g. Jane Smith"
                                             style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: checkInModalMode === 'view' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: checkInModalMode === 'view' ? 'rgba(255,255,255,0.7)' : '#fff', fontSize: '0.9rem', outline: 'none' }}
                                         />
                                     </div>

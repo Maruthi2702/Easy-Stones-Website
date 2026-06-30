@@ -74,9 +74,7 @@ const CheckInLogPage = () => {
       Time: new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       Name: c.name,
       Phone: c.phone,
-      Email: c.email || '',
-      'Fabricator Company': c.fabricatorCompany || '',
-      'Fabricator Name': c.fabricatorName || '',
+      'Company/Contact Name': c.fabricatorCompany || '',
       'Fabricator Phone': c.fabricatorPhone || '',
     }));
     const ws = XLSX.utils.json_to_sheet(rows);

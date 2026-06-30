@@ -205,9 +205,8 @@ const CheckInLogPanel = ({
                   <th>CHECK-IN TIME</th>
                   <th>VISITOR NAME</th>
                   <th>PHONE NUMBER</th>
-                  <th>COMPANY NAME</th>
+                  <th>COMPANY/CONTACT NAME</th>
                   <th>PHONE NUMBER</th>
-                  <th>CONTACT NAME</th>
                   {(onView || onEdit || onDelete) && <th style={{ textAlign: 'center' }}>ACTIONS</th>}
                 </tr>
               </thead>
@@ -262,34 +261,7 @@ const CheckInLogPanel = ({
                         <span className="clp-dash">—</span>
                       )}
                     </td>
-                    <td>
-                      {c.fabricatorName ? (
-                        <div className="clp-visitor-row">
-                          <div
-                            className="clp-avatar"
-                            style={{
-                              background: `linear-gradient(135deg, ${getAvatarColor(c.fabricatorName)}, ${getAvatarColor(c.fabricatorName)}99)`,
-                            }}
-                          >
-                            {getInitials(c.fabricatorName)}
-                          </div>
-                          <span className="clp-visitor-name">{c.fabricatorName}</span>
-                        </div>
-                      ) : (
-                        <div className="clp-visitor-row" style={{ opacity: 0.65 }}>
-                          <div
-                            className="clp-avatar"
-                            style={{
-                              background: 'linear-gradient(135deg, #4b5563, #374151)',
-                              color: '#fff'
-                            }}
-                          >
-                            N
-                          </div>
-                          <span className="clp-visitor-name">None</span>
-                        </div>
-                      )}
-                    </td>
+
                     {(onView || onEdit || onDelete) && (
                       <td>
                         <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', justifyContent: 'center' }}>
