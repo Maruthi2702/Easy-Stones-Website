@@ -14,12 +14,28 @@ const CheckInLogPage = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [todayCount, setTodayCount] = useState(0);
+  const [monthCount, setMonthCount] = useState(0);
 
   useEffect(() => {
     fetchCheckIns();
-    const interval = setInterval(() => fetchCheckIns(true), 30000);
+    fetchStats();
+    const interval = setInterval(() => { fetchCheckIns(true); fetchStats(); }, 30000);
     return () => clearInterval(interval);
   }, [currentPage, searchTerm]);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/checkin/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        setTodayCount(data.todayCount || 0);
+        setMonthCount(data.monthCount || 0);
+      }
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+    }
+  };
 
   const fetchCheckIns = async (silent = false) => {
     if (silent) setRefreshing(true);
@@ -75,11 +91,13 @@ const CheckInLogPage = () => {
         checkIns={checkIns}
         loading={loading}
         refreshing={refreshing}
-        onRefresh={() => fetchCheckIns(true)}
+        onRefresh={() => { fetchCheckIns(true); fetchStats(); }}
         searchTerm={searchTerm}
         onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
         lastUpdated={lastUpdated}
         totalCount={totalCount}
+        todayCount={todayCount}
+        monthCount={monthCount}
         currentPage={currentPage}
         totalPages={totalPages}
         onPageChange={setCurrentPage}

@@ -70,6 +70,8 @@ const CheckInLogPanel = ({
   onSearchChange,
   lastUpdated = null,
   totalCount = 0,
+  todayCount: todayCountProp = null,
+  monthCount = 0,
   currentPage = 1,
   totalPages = 1,
   onPageChange,
@@ -80,8 +82,10 @@ const CheckInLogPanel = ({
   onEdit = null,
   onDelete = null,
 }) => {
-  const todayCount = checkIns.filter((c) => isToday(c.createdAt)).length;
-  const withCompanyCount = checkIns.filter((c) => c.fabricatorCompany).length;
+  // Use prop if provided (accurate from DB), else compute from loaded page
+  const todayCount = todayCountProp !== null
+    ? todayCountProp
+    : checkIns.filter((c) => isToday(c.createdAt)).length;
 
   const filtered = checkIns.filter((c) => {
     const s = searchTerm.toLowerCase();
@@ -157,7 +161,7 @@ const CheckInLogPanel = ({
           </div>
           <div>
             <div className="clp-stat-val">{embedded ? checkIns.length : totalCount}</div>
-            <div className="clp-stat-lbl">Total Visitors</div>
+            <div className="clp-stat-lbl">All-Time Visitors</div>
           </div>
         </div>
         <div className="clp-stat">
@@ -171,11 +175,11 @@ const CheckInLogPanel = ({
         </div>
         <div className="clp-stat">
           <div className="clp-stat-icon clp-stat-blue">
-            <Building2 size={16} />
+            <Calendar size={16} />
           </div>
           <div>
-            <div className="clp-stat-val">{withCompanyCount}</div>
-            <div className="clp-stat-lbl">With Company</div>
+            <div className="clp-stat-val">{monthCount}</div>
+            <div className="clp-stat-lbl">{new Date().toLocaleString('default', { month: 'long' })} Visitors</div>
           </div>
         </div>
       </div>

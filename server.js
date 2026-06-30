@@ -1786,6 +1786,26 @@ app.get('/api/checkin', async (req, res) => {
 });
 
 
+// Check-in stats: today count + this month count
+app.get('/api/checkin/stats', async (req, res) => {
+  try {
+    const now = new Date();
+
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [todayCount, monthCount] = await Promise.all([
+      OfficeCheckIn.countDocuments({ createdAt: { $gte: startOfToday } }),
+      OfficeCheckIn.countDocuments({ createdAt: { $gte: startOfMonth } }),
+    ]);
+
+    res.json({ todayCount, monthCount });
+  } catch (error) {
+    console.error('❌ Error fetching check-in stats:', error);
+    res.status(500).json({ message: 'Failed to fetch stats' });
+  }
+});
+
 // Get specific check-in
 app.get('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
   try {
