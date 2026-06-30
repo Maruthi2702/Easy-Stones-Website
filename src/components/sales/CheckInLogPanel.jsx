@@ -205,7 +205,7 @@ const CheckInLogPanel = ({
                   <th>CHECK-IN TIME</th>
                   <th>VISITOR NAME</th>
                   <th>PHONE NUMBER</th>
-                  <th>FABRICATOR/COMPANY</th>
+                  <th>COMPANY NAME</th>
                   <th>PHONE NUMBER</th>
                   <th>CONTACT NAME</th>
                   {(onView || onEdit || onDelete) && <th style={{ textAlign: 'center' }}>ACTIONS</th>}
@@ -243,7 +243,12 @@ const CheckInLogPanel = ({
                     </td>
                     <td>
                       {c.fabricatorCompany ? (
-                        <span className="clp-badge clp-badge-company">{c.fabricatorCompany}</span>
+                        <div className="clp-company-row">
+                          <div className="clp-company-icon">
+                            <Building2 size={13} />
+                          </div>
+                          <span className="clp-company-name">{c.fabricatorCompany}</span>
+                        </div>
                       ) : (
                         <span className="clp-dash">—</span>
                       )}
@@ -259,9 +264,30 @@ const CheckInLogPanel = ({
                     </td>
                     <td>
                       {c.fabricatorName ? (
-                        <span className="clp-badge clp-badge-staff">{c.fabricatorName}</span>
+                        <div className="clp-visitor-row">
+                          <div
+                            className="clp-avatar"
+                            style={{
+                              background: `linear-gradient(135deg, ${getAvatarColor(c.fabricatorName)}, ${getAvatarColor(c.fabricatorName)}99)`,
+                            }}
+                          >
+                            {getInitials(c.fabricatorName)}
+                          </div>
+                          <span className="clp-visitor-name">{c.fabricatorName}</span>
+                        </div>
                       ) : (
-                        <span className="clp-badge clp-badge-none">None</span>
+                        <div className="clp-visitor-row" style={{ opacity: 0.65 }}>
+                          <div
+                            className="clp-avatar"
+                            style={{
+                              background: 'linear-gradient(135deg, #4b5563, #374151)',
+                              color: '#fff'
+                            }}
+                          >
+                            N
+                          </div>
+                          <span className="clp-visitor-name">None</span>
+                        </div>
                       )}
                     </td>
                     {(onView || onEdit || onDelete) && (

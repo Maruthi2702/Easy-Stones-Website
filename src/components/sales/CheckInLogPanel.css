@@ -409,6 +409,38 @@
   color: #d4af37;
   border: 1px solid rgba(212,175,55,0.2);
 }
+
+.clp-company-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.clp-company-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(212,175,55,0.08);
+  border: 1px solid rgba(212,175,55,0.2);
+  color: #d4af37;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.clp-company-row:hover .clp-company-icon {
+  background: rgba(212,175,55,0.15);
+  border-color: rgba(212,175,55,0.35);
+  transform: scale(1.05);
+}
+
+.clp-company-name {
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  font-size: 0.875rem;
+}
 .clp-badge-staff {
   background: rgba(59,130,246,0.12);
   color: #60a5fa;
