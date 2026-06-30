@@ -44,8 +44,8 @@ const customerSchema = new mongoose.Schema({
   // Lead Management Fields
   status: {
     type: String,
-    enum: ['New', 'Qualified', 'Met', 'Won', 'Lost', 'Not Contacted'],
-    default: 'New'
+    enum: ['Onboarded', 'Trying to Onboard', 'New Lead', 'Working with other sales Rep', 'Not Interested'],
+    default: 'New Lead'
   },
   customerType: {
     type: String,

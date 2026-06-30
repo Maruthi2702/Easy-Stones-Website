@@ -199,7 +199,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         }
     };
 
-    const paginatedPartners = partners; // Server-side handles filtering and paging
+    const sortedPartners = [...partners].sort((a, b) => {
+        const aLow = a.status === 'Working with other sales Rep' || a.status === 'Not Interested';
+        const bLow = b.status === 'Working with other sales Rep' || b.status === 'Not Interested';
+        if (aLow && !bLow) return 1;
+        if (!aLow && bLow) return -1;
+        return 0;
+    });
+
+    const paginatedPartners = sortedPartners; // Server-side handles filtering and paging, local sorting keeps low-priority at end
 
     const handleCloseModal = () => {
         setShowAddModal(false);
@@ -386,7 +394,14 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                 </div>
                             </td></tr>
                         ) : paginatedPartners.map(partner => (
-                            <tr key={partner._id}>
+                            <tr 
+                                key={partner._id}
+                                className={
+                                    partner.status === 'Working with other sales Rep' || partner.status === 'Not Interested'
+                                        ? 'partner-row-low-priority'
+                                        : ''
+                                }
+                            >
                                 <td>
                                     <button 
                                         className="company-link-btn" 
@@ -425,7 +440,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                             )}
                                         </td>
                                         <td>
-                                            <span className={`status-pill ${partner.status?.replace(' ', '-').toLowerCase()}`}>
+                                            <span className={`status-pill ${partner.status?.toLowerCase().replace(/\s+/g, '-')}`}>
                                                 {partner.status}
                                             </span>
                                         </td>

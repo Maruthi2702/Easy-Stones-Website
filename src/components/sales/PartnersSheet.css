@@ -65,24 +65,29 @@
 
 
 
-.status-pill.won {
+.status-pill.onboarded {
     background: rgba(16, 185, 129, 0.15);
     color: #10b981;
 }
 
-.status-pill.met {
+.status-pill.trying-to-onboard {
     background: rgba(59, 130, 246, 0.15);
     color: #3b82f6;
 }
 
-.status-pill.not-contacted {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-secondary);
-}
-
-.status-pill.new {
+.status-pill.new-lead {
     background: rgba(212, 175, 55, 0.15);
     color: var(--accent-primary);
+}
+
+.status-pill.working-with-other-sales-rep {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+.status-pill.not-interested {
+    background: rgba(156, 163, 175, 0.15);
+    color: #9ca3af;
 }
 
 .customer-count {
@@ -128,6 +133,15 @@
 
 .dashboard-table tr:hover {
     background: rgba(212, 175, 55, 0.03);
+}
+
+.dashboard-table tr.partner-row-low-priority {
+    background: rgba(239, 68, 68, 0.04) !important;
+    opacity: 0.85;
+}
+
+.dashboard-table tr.partner-row-low-priority:hover {
+    background: rgba(239, 68, 68, 0.08) !important;
 }
 
 /* Modal layout refinements for more fields */

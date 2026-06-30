@@ -17,7 +17,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
         phone: '',
         email: '',
         notes: '',
-        status: 'New',
+        status: 'New Lead',
         level: 'Level - 3',
         customerType: 'Fabricator',
         modaDisplay: 'No',
@@ -46,7 +46,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                 phone: activeCustomer.phone || '',
                 email: activeCustomer.email || '',
                 notes: activeCustomer.notes || activeCustomer.quickNote || '',
-                status: activeCustomer.status || 'New',
+                status: activeCustomer.status || 'New Lead',
                 level: activeCustomer.level || 'Level - 3',
                 customerType: activeCustomer.customerType || 'Fabricator',
                 modaDisplay: activeCustomer.modaDisplay || 'No',
@@ -65,7 +65,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                 phone: '',
                 email: '',
                 notes: '',
-                status: 'New',
+                status: 'New Lead',
                 level: 'Level - 3',
                 customerType: 'Fabricator',
                 modaDisplay: 'No',
@@ -183,7 +183,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
             phone: '',
             email: '',
             notes: '',
-            status: 'New',
+            status: 'New Lead',
             level: 'Level - 3',
             customerType: 'Fabricator',
             modaDisplay: 'No',
@@ -390,12 +390,11 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                                 onChange={(e) => setForm({ ...form, status: e.target.value })}
                                 disabled={isViewMode}
                             >
-                                <option value="New">New</option>
-                                <option value="Not Contacted">Not Contacted</option>
-                                <option value="Met">Met</option>
-                                <option value="Qualified">Qualified</option>
-                                <option value="Won">Won</option>
-                                <option value="Lost">Lost</option>
+                                <option value="Onboarded">Onboarded</option>
+                                <option value="Trying to Onboard">Trying to Onboard</option>
+                                <option value="New Lead">New Lead</option>
+                                <option value="Working with other sales Rep">Working with other sales Rep</option>
+                                <option value="Not Interested">Not Interested</option>
                             </select>
                         </div>
                         <div className="form-group">
