@@ -1674,15 +1674,10 @@ app.post('/api/checkin', async (req, res) => {
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
-        // Support comma-separated list of recipients
         const rawRecipients = process.env.CHECKIN_ALERT_EMAIL || 'ponugupatimaruthi@gmail.com';
         const recipients = rawRecipients.split(',').map(e => e.trim()).filter(Boolean);
 
-        resend.emails.send({
-          from: 'Easy Stones Check-In <onboarding@resend.dev>',
-          to: recipients,
-          subject: `🔔 Front Desk Check-In Alert: ${name}`,
-          html: `
+        const emailHtml = `
             <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 12px; background: #fafafa;">
               <h2 style="color: #d4af37; margin-top: 0;">Visitor Check-In Notification</h2>
               <p>A new visitor has checked in at the front desk office:</p>
@@ -1717,10 +1712,19 @@ app.post('/api/checkin', async (req, res) => {
               <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
               <p style="font-size: 0.85rem; color: #888; margin: 0;">This is an automated notification from the Easy Stones Office Visitor App.</p>
             </div>
-          `
-        })
-          .then(() => console.log(`✅ Check-in email sent via Resend to ${recipients.join(', ')}`))
-          .catch(emailError => console.error('⚠️ Resend check-in email failed:', emailError.message));
+          `;
+
+        // Send individually to each recipient so failures are isolated
+        recipients.forEach(recipient => {
+          resend.emails.send({
+            from: 'Easy Stones Check-In <onboarding@resend.dev>',
+            to: [recipient],
+            subject: `🔔 Front Desk Check-In Alert: ${name}`,
+            html: emailHtml
+          })
+            .then(() => console.log(`✅ Check-in email sent via Resend to ${recipient}`))
+            .catch(err => console.error(`⚠️ Resend failed for ${recipient}: ${err.message}`));
+        });
       } catch (emailError) {
         console.error('⚠️ Check-in email setup failed:', emailError.message);
       }
