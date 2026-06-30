@@ -17,7 +17,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
         phone: '',
         email: '',
         notes: '',
-        status: 'New Lead',
+        status: 'Onboarded',
         level: 'Level - 3',
         customerType: 'Fabricator',
         modaDisplay: 'No',
@@ -46,7 +46,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                 phone: activeCustomer.phone || '',
                 email: activeCustomer.email || '',
                 notes: activeCustomer.notes || activeCustomer.quickNote || '',
-                status: activeCustomer.status || 'New Lead',
+                status: activeCustomer.status || 'Onboarded',
                 level: activeCustomer.level || 'Level - 3',
                 customerType: activeCustomer.customerType || 'Fabricator',
                 modaDisplay: activeCustomer.modaDisplay || 'No',
@@ -65,7 +65,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                 phone: '',
                 email: '',
                 notes: '',
-                status: 'New Lead',
+                status: 'Onboarded',
                 level: 'Level - 3',
                 customerType: 'Fabricator',
                 modaDisplay: 'No',
@@ -183,7 +183,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
             phone: '',
             email: '',
             notes: '',
-            status: 'New Lead',
+            status: 'Onboarded',
             level: 'Level - 3',
             customerType: 'Fabricator',
             modaDisplay: 'No',
@@ -390,9 +390,11 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                                 onChange={(e) => setForm({ ...form, status: e.target.value })}
                                 disabled={isViewMode}
                             >
-                                <option value="Onboarded">Onboarded</option>
-                                <option value="Trying to Onboard">Trying to Onboard</option>
                                 <option value="New Lead">New Lead</option>
+                                <option value="Contacted / In Discussion">Contacted / In Discussion</option>
+                                <option value="Trying to Onboard">Trying to Onboard</option>
+                                <option value="Onboarded">Onboarded</option>
+                                <option value="Inactive">Inactive</option>
                                 <option value="Working with other sales Rep">Working with other sales Rep</option>
                                 <option value="Not Interested">Not Interested</option>
                             </select>

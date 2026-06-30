@@ -440,7 +440,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                             )}
                                         </td>
                                         <td>
-                                            <span className={`status-pill ${partner.status?.toLowerCase().replace(/\s+/g, '-')}`}>
+                                            <span className={`status-pill ${partner.status?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
                                                 {partner.status}
                                             </span>
                                         </td>
