@@ -328,40 +328,27 @@
 }
 
 .waiver-section {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  background: rgba(212, 175, 55, 0.02);
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  border-left: 4px solid var(--accent-primary, #d4af37);
   border-radius: 12px;
   padding: 1.25rem;
   margin-bottom: 2rem;
   transition: all var(--transition-base, 0.2s);
 }
 
-.waiver-section:focus-within {
-  border-color: var(--accent-primary, #d4af37);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.waiver-label {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.85rem;
-  cursor: pointer;
-  user-select: none;
-}
-
-.waiver-label input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  accent-color: var(--accent-primary, #d4af37);
-  cursor: pointer;
+.waiver-icon {
+  color: var(--accent-primary, #d4af37);
   flex-shrink: 0;
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .waiver-text {
-  font-size: 0.9rem;
-  line-height: 1.5;
+  font-size: 0.875rem;
+  line-height: 1.55;
   color: var(--text-secondary, #b0b0b0);
 }
 

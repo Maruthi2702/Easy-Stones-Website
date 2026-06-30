@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   User, Phone, Mail, MapPin, Building, 
-  UserCheck, Send, Loader2, CheckCircle2
+  UserCheck, Send, Loader2, CheckCircle2, AlertTriangle
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { formatPhoneInput } from '../utils/phoneUtils';
@@ -175,6 +175,7 @@ const CheckInPage = () => {
             </div>
 
             <div className="waiver-section">
+              <AlertTriangle size={20} className="waiver-icon" />
               <span className="waiver-text">
                 <strong>Waiver:</strong> By checking in, I understand that I'm entering at my own risk to a working warehouse where tripping hazards as well as carbon monoxide may be present and any adult or underage child accompanying me are completely under my responsibility and to be always kept under my watch all the time.
               </span>
