@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import {
     Search, Plus, Download, Edit2, Trash2, FileText, Menu,
     X, Mail, Phone, Eye, Filter, MoreVertical, Loader
 } from 'lucide-react';
 import Pagination from '../shared/Pagination';
+import AddCustomerModal from './AddCustomerModal';
 import { API_URL } from '../../config/api';
 import * as XLSX from 'xlsx';
 import { formatPhoneInput, formatPhoneForDisplay } from '../../utils/phoneUtils';
@@ -33,20 +33,6 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const [limit, setLimit] = useState(15);
-
-    const [newPartner, setNewPartner] = useState({
-        contactName: '',
-        company: '',
-        email: '',
-        phone: '',
-        notes: '',
-        status: 'New',
-        level: 'Level - 3',
-        city: '',
-        customerType: 'Fabricator',
-        modaDisplay: 'No',
-        modaBinder: '0'
-    });
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -106,21 +92,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
 
     const activeFilterCount = [filterLevel, filterType, filterCity].filter(Boolean).length;
 
-    const handleSavePartner = async (e) => {
-        if (e) e.preventDefault();
-
-        // Inline field validation
-        const partner = editingPartner || newPartner;
-        const errors = {};
-        if (!partner.company?.trim()) errors.company = 'Company name is required';
-        if (!partner.contactName?.trim()) errors.contactName = 'Contact name is required';
-        if (!partner.email?.trim()) errors.email = 'Email address is required';
-
-        if (Object.keys(errors).length > 0) {
-            setFormErrors(errors);
-            return;
-        }
-        setFormErrors({});
+    const handleSavePartner = async (formData, closeModal) => {
         setIsSaving(true);
         try {
             const method = editingPartner ? 'PUT' : 'POST';
@@ -130,9 +102,11 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
 
             // Prepare correct payload
             const leadData = {
-                ...(editingPartner || newPartner),
-                // Ensure name is also populated for legacy mapping compatibility
-                name: (editingPartner || newPartner).contactName
+                ...formData,
+                contactName: formData.customerName, // Map customerName to contactName
+                name: formData.customerName, // Ensure name is also populated for legacy mapping compatibility
+                city: formData.address?.city || '', // Map address.city to top-level city for backward compatibility
+                quickNote: formData.notes // Map notes to quickNote
             };
 
             const response = await fetch(url, {
@@ -146,29 +120,17 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
 
             if (response.ok) {
                 await fetchPartners({ page: currentPage, search: debouncedSearch, level: filterLevel, type: filterType, city: filterCity, lim: limit });
-                setShowAddModal(false);
+                closeModal();
                 setEditingPartner(null);
                 setViewingPartner(null);
-                setNewPartner({
-                    contactName: '',
-                    company: '',
-                    email: '',
-                    phone: '',
-                    notes: '',
-                    status: 'New',
-                    level: 'Level - 3',
-                    city: '',
-                    customerType: 'Fabricator',
-                    modaDisplay: 'No',
-                    modaBinder: '0'
-                });
             } else {
                 const errorData = await response.json();
                 console.error('Server error saving lead:', errorData);
-                alert(errorData.message || 'Failed to save lead');
+                alert(errorData.message || 'Failed to save customer');
             }
         } catch (error) {
             console.error('Error saving lead:', error);
+            alert('Failed to save customer. Please try again.');
         } finally {
             setIsSaving(false);
         }
@@ -496,225 +458,14 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 itemLabel="partners"
             />
 
-            {showAddModal && createPortal(
-                <div className="modal-overlay" onClick={handleCloseModal}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h2>{viewingPartner ? 'View Partner' : (editingPartner ? 'Edit Partner' : 'Add New Partner')}</h2>
-                            <button className="close-btn" onClick={handleCloseModal}>
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="modal-body">
-                            <div className={`form-group${formErrors.company ? ' field-error' : ''}`}>
-                                <label>Company <span className="required-star">*</span></label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="Company name"
-                                    value={viewingPartner ? viewingPartner.company : (editingPartner ? editingPartner.company : newPartner.company)}
-                                    disabled={!!viewingPartner}
-                                    onChange={e => {
-                                        if (formErrors.company) setFormErrors(prev => ({ ...prev, company: '' }));
-                                        editingPartner
-                                            ? setEditingPartner({ ...editingPartner, company: e.target.value })
-                                            : setNewPartner({ ...newPartner, company: e.target.value });
-                                    }}
-                                />
-                                {formErrors.company && <span className="field-error-msg">{formErrors.company}</span>}
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                <div className={`form-group${formErrors.contactName ? ' field-error' : ''}`}>
-                                    <label>Contact Name <span className="required-star">*</span></label>
-                                    <input
-                                        type="text"
-                                        placeholder="Partner contact name"
-                                        value={viewingPartner ? (viewingPartner.contactName || viewingPartner.name) : (editingPartner ? (editingPartner.contactName || editingPartner.name) : newPartner.contactName)}
-                                        disabled={!!viewingPartner}
-                                        onChange={e => {
-                                            if (formErrors.contactName) setFormErrors(prev => ({ ...prev, contactName: '' }));
-                                            editingPartner
-                                                ? setEditingPartner({ ...editingPartner, contactName: e.target.value })
-                                                : setNewPartner({ ...newPartner, contactName: e.target.value });
-                                        }}
-                                    />
-                                    {formErrors.contactName && <span className="field-error-msg">{formErrors.contactName}</span>}
-                                </div>
-                                <div className={`form-group${formErrors.email ? ' field-error' : ''}`}>
-                                    <label>Email <span className="required-star">*</span></label>
-                                    <input
-                                        type="email"
-                                        placeholder="email@example.com"
-                                        value={viewingPartner ? viewingPartner.email : (editingPartner ? editingPartner.email : newPartner.email)}
-                                        disabled={!!viewingPartner}
-                                        onChange={e => {
-                                            if (formErrors.email) setFormErrors(prev => ({ ...prev, email: '' }));
-                                            editingPartner
-                                                ? setEditingPartner({ ...editingPartner, email: e.target.value })
-                                                : setNewPartner({ ...newPartner, email: e.target.value });
-                                        }}
-                                    />
-                                    {formErrors.email && <span className="field-error-msg">{formErrors.email}</span>}
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                <div className="form-group">
-                                    <label>Phone</label>
-                                    <input
-                                        type="text"
-                                        placeholder="(555) 000-0000"
-                                        value={viewingPartner ? viewingPartner.phone : (editingPartner ? editingPartner.phone : newPartner.phone)}
-                                        disabled={!!viewingPartner}
-                                        onChange={e => {
-                                            const val = formatPhoneInput(e.target.value);
-                                            editingPartner
-                                                ? setEditingPartner({ ...editingPartner, phone: val })
-                                                : setNewPartner({ ...newPartner, phone: val });
-                                        }}
-                                    />
-                                </div>
-
-                                <div className="form-group">
-                                    <label>Status</label>
-                                    <select
-                                        className="form-select"
-                                        value={viewingPartner ? viewingPartner.status : (editingPartner ? editingPartner.status : newPartner.status)}
-                                        disabled={!!viewingPartner}
-                                        onChange={e => editingPartner
-                                            ? setEditingPartner({ ...editingPartner, status: e.target.value })
-                                            : setNewPartner({ ...newPartner, status: e.target.value })
-                                        }
-                                    >
-                                        <option value="Not Contacted">Not Contacted</option>
-                                        <option value="Met">Met</option>
-                                        <option value="Won">Won</option>
-                                        <option value="New">New</option>
-                                        <option value="Qualified">Qualified</option>
-                                        <option value="Lost">Lost</option>
-                                        <option value="Converted">Converted</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                                <div className="form-group">
-                                    <label>Level</label>
-                                    <select
-                                        className="form-select"
-                                        value={viewingPartner ? (viewingPartner.level || viewingPartner.segment) : (editingPartner ? (editingPartner.level || editingPartner.segment) : newPartner.level)}
-                                        disabled={!!viewingPartner}
-                                        onChange={e => editingPartner
-                                            ? setEditingPartner({ ...editingPartner, level: e.target.value })
-                                            : setNewPartner({ ...newPartner, level: e.target.value })
-                                        }
-                                    >
-                                        <option value="">-- Select Level --</option>
-                                        <option value="Level - 1">Level 1</option>
-                                        <option value="Level - 2">Level 2</option>
-                                        <option value="Level - 3">Level 3</option>
-                                        <option value="Level - 4">Level 4</option>
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label>City</label>
-                                    <input
-                                        type="text"
-                                        placeholder="City name"
-                                        value={viewingPartner ? viewingPartner.city : (editingPartner ? editingPartner.city : newPartner.city)}
-                                        disabled={!!viewingPartner}
-                                        onChange={e => editingPartner
-                                            ? setEditingPartner({ ...editingPartner, city: e.target.value })
-                                            : setNewPartner({ ...newPartner, city: e.target.value })
-                                        }
-                                    />
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '1rem' }}>
-                                <div className="form-group">
-                                    <label>Customer Type</label>
-                                    <select
-                                        className="form-select"
-                                        value={viewingPartner ? viewingPartner.customerType : (editingPartner ? editingPartner.customerType : newPartner.customerType)}
-                                        disabled={!!viewingPartner}
-                                        onChange={e => editingPartner
-                                            ? setEditingPartner({ ...editingPartner, customerType: e.target.value })
-                                            : setNewPartner({ ...newPartner, customerType: e.target.value })
-                                        }
-                                    >
-                                        <option value="Fabricator">Fabricator</option>
-                                        <option value="Contractor">Contractor</option>
-                                        <option value="Dealer">Dealer</option>
-                                        <option value="Floor Covering">Floor Covering</option>
-                                        <option value="Designer">Designer</option>
-                                        <option value="Builder">Builder</option>
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label>Moda Display</label>
-                                    <select
-                                        className="form-select"
-                                        value={viewingPartner ? viewingPartner.modaDisplay : (editingPartner ? editingPartner.modaDisplay : newPartner.modaDisplay)}
-                                        disabled={!!viewingPartner}
-                                        onChange={e => editingPartner
-                                            ? setEditingPartner({ ...editingPartner, modaDisplay: e.target.value })
-                                            : setNewPartner({ ...newPartner, modaDisplay: e.target.value })
-                                        }
-                                    >
-                                        <option value="No">No</option>
-                                        <option value="Yes">Yes</option>
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label>Moda Binder</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Qty/Note"
-                                        value={viewingPartner ? viewingPartner.modaBinder : (editingPartner ? editingPartner.modaBinder : newPartner.modaBinder)}
-                                        disabled={!!viewingPartner}
-                                        onChange={e => editingPartner
-                                            ? setEditingPartner({ ...editingPartner, modaBinder: e.target.value })
-                                            : setNewPartner({ ...newPartner, modaBinder: e.target.value })
-                                        }
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="form-group">
-                                <label>Notes</label>
-                                <textarea
-                                    rows="4"
-                                    placeholder="Add important notes or partner context..."
-                                    value={viewingPartner ? viewingPartner.notes : (editingPartner ? editingPartner.notes : newPartner.notes)}
-                                    disabled={!!viewingPartner}
-                                    onChange={e => editingPartner
-                                        ? setEditingPartner({ ...editingPartner, notes: e.target.value })
-                                        : setNewPartner({ ...newPartner, notes: e.target.value })
-                                    }
-                                />
-                            </div>
-                        </div>
-                        <div className="modal-footer">
-                            {viewingPartner ? (
-                                <button className="btn-primary" onClick={handleCloseModal}>
-                                    Close
-                                </button>
-                            ) : (
-                                <>
-                                    <button className="btn-secondary" onClick={handleCloseModal} disabled={isSaving}>
-                                        Cancel
-                                    </button>
-                                    <button className="btn-primary" onClick={handleSavePartner} disabled={isSaving}>
-                                        {isSaving ? <Loader size={20} className="animate-spin" /> : (editingPartner ? 'Save Changes' : 'Add Partner')}
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            , document.body)}
+            <AddCustomerModal
+                show={showAddModal}
+                onClose={handleCloseModal}
+                onSave={handleSavePartner}
+                isSaving={isSaving}
+                editingCustomer={editingPartner}
+                viewingCustomer={viewingPartner}
+            />
         </div>
     );
 };

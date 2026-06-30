@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Loader, Camera, Scan, RotateCcw, Check } from 'lucide-react';
+import { X, Loader, Scan } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import { formatPhoneInput } from '../../utils/phoneUtils';
 import { parseBusinessCard } from '../../utils/cardParser';
 
-const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
+const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, viewingCustomer }) => {
     const [form, setForm] = useState({
         customerName: '',
         company: '',
@@ -17,14 +17,62 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
         phone: '',
         email: '',
         notes: '',
-        status: 'active'
+        status: 'New',
+        level: 'Level - 3',
+        customerType: 'Fabricator',
+        modaDisplay: 'No',
+        modaBinder: '0'
     });
 
-    const [isScanning, setIsScanning] = useState(false);
     const [scanProgress, setScanProgress] = useState(0);
     const [scanStatus, setScanStatus] = useState('idle'); // 'idle', 'camera', 'processing'
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
+
+    const activeCustomer = viewingCustomer || editingCustomer;
+
+    // Populate form fields if editing or viewing
+    useEffect(() => {
+        if (activeCustomer && show) {
+            setForm({
+                customerName: activeCustomer.contactName || activeCustomer.customerName || activeCustomer.name || '',
+                company: activeCustomer.company || '',
+                address: {
+                    street: activeCustomer.address?.street || '',
+                    city: activeCustomer.address?.city || activeCustomer.city || '',
+                    state: activeCustomer.address?.state || '',
+                    zipCode: activeCustomer.address?.zipCode || ''
+                },
+                phone: activeCustomer.phone || '',
+                email: activeCustomer.email || '',
+                notes: activeCustomer.notes || activeCustomer.quickNote || '',
+                status: activeCustomer.status || 'New',
+                level: activeCustomer.level || 'Level - 3',
+                customerType: activeCustomer.customerType || 'Fabricator',
+                modaDisplay: activeCustomer.modaDisplay || 'No',
+                modaBinder: activeCustomer.modaBinder || '0'
+            });
+        } else if (show) {
+            setForm({
+                customerName: '',
+                company: '',
+                address: {
+                    street: '',
+                    city: '',
+                    state: '',
+                    zipCode: ''
+                },
+                phone: '',
+                email: '',
+                notes: '',
+                status: 'New',
+                level: 'Level - 3',
+                customerType: 'Fabricator',
+                modaDisplay: 'No',
+                modaBinder: '0'
+            });
+        }
+    }, [activeCustomer, show]);
 
     const startScanner = async () => {
         setScanStatus('camera');
@@ -104,7 +152,6 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                 setForm(updatedForm);
             } else {
                 console.warn('Scanner: No recognizable data found in the text.');
-                // Show raw text in a prompt so user can copy it for us to debug
                 const showRaw = window.confirm('Scanning complete, but no specific contact details could be identified.\n\nWould you like to see the raw text found on the card? This helps us improve the scanner.');
                 if (showRaw) {
                     alert(`Raw Text Found:\n\n${text}`);
@@ -136,7 +183,11 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
             phone: '',
             email: '',
             notes: '',
-            status: 'active'
+            status: 'New',
+            level: 'Level - 3',
+            customerType: 'Fabricator',
+            modaDisplay: 'No',
+            modaBinder: '0'
         });
         onClose();
     };
@@ -151,40 +202,45 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
 
     if (!show) return null;
 
+    const isViewMode = !!viewingCustomer;
+    const isEditMode = !!editingCustomer;
+
     return (
         <div className="modal-overlay add-customer-modal-overlay" onClick={handleClose} style={{ zIndex: 20000 }}>
-            <div className="modal-content add-customer-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-content add-customer-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
                 <div className="modal-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <h2>Add New Customer</h2>
-                        <button
-                            className="scan-card-btn"
-                            onClick={startScanner}
-                            title="Scan Business Card"
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                padding: '0.4rem 0.8rem',
-                                borderRadius: '20px',
-                                border: '1px solid #3b82f6',
-                                background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-                                color: '#1d4ed8',
-                                fontSize: '0.8rem',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            <Scan size={14} />
-                            Scan Document
-                        </button>
+                        <h2>{isViewMode ? 'View Customer' : (isEditMode ? 'Edit Customer' : 'Add New Customer')}</h2>
+                        {!isViewMode && (
+                            <button
+                                className="scan-card-btn"
+                                onClick={startScanner}
+                                title="Scan Business Card"
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.4rem 0.8rem',
+                                    borderRadius: '20px',
+                                    border: '1px solid #3b82f6',
+                                    background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                                    color: '#1d4ed8',
+                                    fontSize: '0.8rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <Scan size={14} />
+                                Scan Document
+                            </button>
+                        )}
                     </div>
                     <button className="close-btn" onClick={handleClose}>
                         <X size={20} />
                     </button>
                 </div>
-                <div className="modal-body" style={{ position: 'relative' }}>
+                <div className="modal-body" style={{ position: 'relative', maxHeight: '70vh', overflowY: 'auto' }}>
                     {scanStatus !== 'idle' && (
                         <div style={{
                             position: 'absolute',
@@ -277,6 +333,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                         </div>
                     )}
                     <canvas ref={canvasRef} style={{ display: 'none' }} />
+                    
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div className="form-group">
                             <label>Company Name <span style={{ color: 'red' }}>*</span></label>
@@ -285,19 +342,22 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                                 value={form.company}
                                 onChange={(e) => setForm({ ...form, company: e.target.value })}
                                 placeholder="Enter company name"
-                                autoFocus
+                                disabled={isViewMode}
+                                autoFocus={!isViewMode && !isEditMode}
                             />
                         </div>
                         <div className="form-group">
-                            <label>Customer Name</label>
+                            <label>Contact Name</label>
                             <input
                                 type="text"
                                 value={form.customerName}
                                 onChange={(e) => setForm({ ...form, customerName: e.target.value })}
                                 placeholder="Contact person name"
+                                disabled={isViewMode}
                             />
                         </div>
                     </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div className="form-group">
                             <label>Phone</label>
@@ -306,6 +366,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                                 value={form.phone}
                                 onChange={(e) => setForm({ ...form, phone: formatPhoneInput(e.target.value) })}
                                 placeholder="(555) 000-0000"
+                                disabled={isViewMode}
                             />
                         </div>
                         <div className="form-group">
@@ -315,9 +376,85 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                                 value={form.email}
                                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                                 placeholder="Email address"
+                                disabled={isViewMode}
                             />
                         </div>
                     </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                            <label>Status</label>
+                            <select
+                                className="form-select"
+                                value={form.status}
+                                onChange={(e) => setForm({ ...form, status: e.target.value })}
+                                disabled={isViewMode}
+                            >
+                                <option value="New">New</option>
+                                <option value="Not Contacted">Not Contacted</option>
+                                <option value="Met">Met</option>
+                                <option value="Qualified">Qualified</option>
+                                <option value="Won">Won</option>
+                                <option value="Lost">Lost</option>
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label>Level</label>
+                            <select
+                                className="form-select"
+                                value={form.level}
+                                onChange={(e) => setForm({ ...form, level: e.target.value })}
+                                disabled={isViewMode}
+                            >
+                                <option value="Level - 1">Level 1</option>
+                                <option value="Level - 2">Level 2</option>
+                                <option value="Level - 3">Level 3</option>
+                                <option value="Level - 4">Level 4</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                            <label>Customer Type</label>
+                            <select
+                                className="form-select"
+                                value={form.customerType}
+                                onChange={(e) => setForm({ ...form, customerType: e.target.value })}
+                                disabled={isViewMode}
+                            >
+                                <option value="Fabricator">Fabricator</option>
+                                <option value="Contractor">Contractor</option>
+                                <option value="Dealer">Dealer</option>
+                                <option value="Floor Covering">Floor Covering</option>
+                                <option value="Designer">Designer</option>
+                                <option value="Builder">Builder</option>
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label>Moda Display</label>
+                            <select
+                                className="form-select"
+                                value={form.modaDisplay}
+                                onChange={(e) => setForm({ ...form, modaDisplay: e.target.value })}
+                                disabled={isViewMode}
+                            >
+                                <option value="No">No</option>
+                                <option value="Yes">Yes</option>
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label>Moda Binder</label>
+                            <input
+                                type="text"
+                                value={form.modaBinder}
+                                onChange={(e) => setForm({ ...form, modaBinder: e.target.value })}
+                                placeholder="Qty/Note"
+                                disabled={isViewMode}
+                            />
+                        </div>
+                    </div>
+
                     <div className="form-group">
                         <label>Address</label>
                         <input
@@ -325,6 +462,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                             value={form.address.street}
                             onChange={(e) => setForm({ ...form, address: { ...form.address, street: e.target.value } })}
                             placeholder="Street Address"
+                            disabled={isViewMode}
                             style={{ marginBottom: '0.5rem' }}
                         />
                         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '0.5rem' }}>
@@ -333,18 +471,21 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                                 value={form.address.city}
                                 onChange={(e) => setForm({ ...form, address: { ...form.address, city: e.target.value } })}
                                 placeholder="City"
+                                disabled={isViewMode}
                             />
                             <input
                                 type="text"
                                 value={form.address.state}
                                 onChange={(e) => setForm({ ...form, address: { ...form.address, state: e.target.value } })}
                                 placeholder="State"
+                                disabled={isViewMode}
                             />
                             <input
                                 type="text"
                                 value={form.address.zipCode}
                                 onChange={(e) => setForm({ ...form, address: { ...form.address, zipCode: e.target.value } })}
                                 placeholder="ZIP"
+                                disabled={isViewMode}
                             />
                         </div>
                     </div>
@@ -355,26 +496,34 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving }) => {
                             value={form.notes}
                             onChange={(e) => setForm({ ...form, notes: e.target.value })}
                             placeholder="Any additional notes..."
+                            disabled={isViewMode}
                             rows="3"
                         />
                     </div>
                 </div>
                 <div className="modal-footer">
-                    <button className="btn-secondary" onClick={handleClose} disabled={isSaving}>
-                        Cancel
-                    </button>
-                    <button className="btn-primary" onClick={handleSave} disabled={isSaving}>
-                        {isSaving ? (
-                            <><Loader size={14} className="animate-spin" style={{ marginRight: '0.5rem' }} /> Saving...</>
-                        ) : (
-                            'Add Customer'
-                        )}
-                    </button>
+                    {isViewMode ? (
+                        <button className="btn-primary" onClick={handleClose}>
+                            Close
+                        </button>
+                    ) : (
+                        <>
+                            <button className="btn-secondary" onClick={handleClose} disabled={isSaving}>
+                                Cancel
+                            </button>
+                            <button className="btn-primary" onClick={handleSave} disabled={isSaving}>
+                                {isSaving ? (
+                                    <><Loader size={14} className="animate-spin" style={{ marginRight: '0.5rem' }} /> Saving...</>
+                                ) : (
+                                    isEditMode ? 'Save Changes' : 'Add Customer'
+                                )}
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
     );
 };
-
 
 export default AddCustomerModal;

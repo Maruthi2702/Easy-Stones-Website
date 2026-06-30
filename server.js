@@ -2289,7 +2289,10 @@ app.post('/api/partners', verifyAnyAuth, async (req, res) => {
       ...req.body,
       contactName: req.body.contactName || req.body.name || 'Unknown', // Map contactName/name to contactName
       address: {
-        city: req.body.city || ''
+        street: req.body.address?.street || '',
+        city: req.body.address?.city || req.body.city || '',
+        state: req.body.address?.state || '',
+        zipCode: req.body.address?.zipCode || ''
       },
       password: '', // Leads don't have passwords yet
       isVerified: false,
@@ -2314,7 +2317,14 @@ app.put('/api/partners/:id', verifyAnyAuth, async (req, res) => {
       updateData.contactName = req.body.name;
     }
     
-    if (req.body.city) {
+    if (req.body.address) {
+      updateData.address = {
+        street: req.body.address.street || '',
+        city: req.body.address.city || req.body.city || '',
+        state: req.body.address.state || '',
+        zipCode: req.body.address.zipCode || ''
+      };
+    } else if (req.body.city) {
       updateData.address = {
         ...updateData.address,
         city: req.body.city
@@ -3665,7 +3675,7 @@ app.post('/api/migrate-collection', async (req, res) => {
 // Create new sales customer (Maps to global Customer collection)
 app.post('/api/sales/customers', verifyAnyAuth, async (req, res) => {
   try {
-    const { customerName, company, address, phone, email, notes } = req.body;
+    const { customerName, company, address, phone, email, notes, status, level, customerType, modaDisplay, modaBinder } = req.body;
 
     if (!company) {
       return res.status(400).json({ message: 'Company name is required' });
@@ -3696,6 +3706,11 @@ app.post('/api/sales/customers', verifyAnyAuth, async (req, res) => {
         zipCode: address?.zipCode || ''
       },
       quickNote: notes || '',
+      status: status || 'New',
+      level: level || 'Level - 3',
+      customerType: customerType || 'Fabricator',
+      modaDisplay: modaDisplay || 'No',
+      modaBinder: modaBinder || '0',
       isVerified: true, // Auto-verify sales-created accounts
       priceLevel: 1,
       isActive: true
