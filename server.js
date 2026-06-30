@@ -1786,13 +1786,24 @@ app.get('/api/checkin', async (req, res) => {
 });
 
 
-// Check-in stats: today count + this month count
+// Check-in stats: today count + this month count (Pacific timezone aware)
 app.get('/api/checkin/stats', async (req, res) => {
   try {
     const now = new Date();
 
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Convert server UTC time to Pacific timezone to get correct day/month boundaries
+    const pacificNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+    // Calculate the UTC offset between real time and Pacific time
+    const tzOffsetMs = now.getTime() - pacificNow.getTime();
+
+    // Midnight Pacific = today's start in Pacific time, expressed in UTC
+    const pacificMidnight = new Date(pacificNow);
+    pacificMidnight.setHours(0, 0, 0, 0);
+    const startOfToday = new Date(pacificMidnight.getTime() + tzOffsetMs);
+
+    // First day of current Pacific month, expressed in UTC
+    const pacificMonthStart = new Date(pacificNow.getFullYear(), pacificNow.getMonth(), 1, 0, 0, 0, 0);
+    const startOfMonth = new Date(pacificMonthStart.getTime() + tzOffsetMs);
 
     const [todayCount, monthCount] = await Promise.all([
       OfficeCheckIn.countDocuments({ createdAt: { $gte: startOfToday } }),
