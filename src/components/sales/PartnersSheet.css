@@ -146,11 +146,11 @@
 }
 
 .dashboard-table tr.partner-row-low-priority td {
-    background: rgba(239, 68, 68, 0.08) !important;
+    background: rgba(239, 68, 68, 0.16) !important;
 }
 
 .dashboard-table tr.partner-row-low-priority:hover td {
-    background: rgba(239, 68, 68, 0.15) !important;
+    background: rgba(239, 68, 68, 0.25) !important;
 }
 
 .dashboard-table tr.partner-row-low-priority {
