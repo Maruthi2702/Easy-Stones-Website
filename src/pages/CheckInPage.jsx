@@ -48,7 +48,17 @@ const CheckInPage = () => {
 
       if (response.ok) {
         setSubmitted(true);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Scroll to top immediately to bypass iOS virtual keyboard dismissal conflict
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+
+        // Delayed fallback scroll to ensure page goes to top after keyboard fully retracts
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          document.body.scrollTop = 0;
+          document.documentElement.scrollTop = 0;
+        }, 300);
         // Reset form after success message
         setTimeout(() => {
           setSubmitted(false);
