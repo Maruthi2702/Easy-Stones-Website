@@ -20,7 +20,6 @@ const CheckInPage = () => {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
-  const [agreeWaiver, setAgreeWaiver] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -37,11 +36,6 @@ const CheckInPage = () => {
       setError('Your Name, Phone Number, Company Name, and Company Phone Number are mandatory');
       return;
     }
-    if (!agreeWaiver) {
-      setError('Please agree to the waiver terms to check in.');
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
@@ -58,7 +52,6 @@ const CheckInPage = () => {
         // Reset form after success message
         setTimeout(() => {
           setSubmitted(false);
-          setAgreeWaiver(false);
           setFormData({
             name: '',
             phone: '',
@@ -145,7 +138,7 @@ const CheckInPage = () => {
               </div>
 
               <div className="form-section">
-                <h3>Who is your Fabricator / Contractor / Designer?</h3>
+                <h3>Fabricator / Contractor Information</h3>
                 <div className="input-field">
                   <label><Building size={16} /> Company Name <span className="required">*</span></label>
                   <input
@@ -182,22 +175,14 @@ const CheckInPage = () => {
             </div>
 
             <div className="waiver-section">
-              <label className="waiver-label">
-                <input
-                  type="checkbox"
-                  checked={agreeWaiver}
-                  onChange={(e) => setAgreeWaiver(e.target.checked)}
-                  required
-                />
-                <span className="waiver-text">
-                  <strong>Waiver:</strong> By checking this I understand that I'm entering at my own risk to a working warehouse where tripping hazards as well as carbon monoxide may be present and any adult or underage child accompanying me are completely under my responsibility and to be always kept under my watch all the time.
-                </span>
-              </label>
+              <span className="waiver-text">
+                <strong>Waiver:</strong> By checking in, I understand that I'm entering at my own risk to a working warehouse where tripping hazards as well as carbon monoxide may be present and any adult or underage child accompanying me are completely under my responsibility and to be always kept under my watch all the time.
+              </span>
             </div>
 
             {error && <div className="error-message">{error}</div>}
 
-            <button type="submit" className="submit-btn" disabled={loading || !agreeWaiver}>
+            <button type="submit" className="submit-btn" disabled={loading}>
               {loading ? <Loader2 className="animate-spin" /> : <><Send size={18} /> Check In Now</>}
             </button>
           </form>
