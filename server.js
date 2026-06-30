@@ -2262,12 +2262,43 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
 
     let customers;
     if (limit === -1) {
-      customers = await Customer.find(query).sort({ createdAt: -1 });
+      customers = await Customer.aggregate([
+        { $match: query },
+        {
+          $addFields: {
+            sortPriority: {
+              $cond: {
+                if: {
+                  $in: ["$status", ["Working with other sales Rep", "Not Interested"]]
+                },
+                then: 1,
+                else: 0
+              }
+            }
+          }
+        },
+        { $sort: { sortPriority: 1, createdAt: -1 } }
+      ]);
     } else {
-      customers = await Customer.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+      customers = await Customer.aggregate([
+        { $match: query },
+        {
+          $addFields: {
+            sortPriority: {
+              $cond: {
+                if: {
+                  $in: ["$status", ["Working with other sales Rep", "Not Interested"]]
+                },
+                then: 1,
+                else: 0
+              }
+            }
+          }
+        },
+        { $sort: { sortPriority: 1, createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit }
+      ]);
     }
 
     res.json({

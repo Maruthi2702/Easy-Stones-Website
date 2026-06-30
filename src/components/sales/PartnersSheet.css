@@ -145,13 +145,16 @@
     background: rgba(212, 175, 55, 0.03);
 }
 
-.dashboard-table tr.partner-row-low-priority {
-    background: rgba(239, 68, 68, 0.04) !important;
-    opacity: 0.85;
+.dashboard-table tr.partner-row-low-priority td {
+    background: rgba(239, 68, 68, 0.08) !important;
 }
 
-.dashboard-table tr.partner-row-low-priority:hover {
-    background: rgba(239, 68, 68, 0.08) !important;
+.dashboard-table tr.partner-row-low-priority:hover td {
+    background: rgba(239, 68, 68, 0.15) !important;
+}
+
+.dashboard-table tr.partner-row-low-priority {
+    opacity: 0.85;
 }
 
 /* Modal layout refinements for more fields */
