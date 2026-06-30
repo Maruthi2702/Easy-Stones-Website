@@ -293,28 +293,80 @@
 
 @media (max-width: 1024px) {
   .checkin-container {
-    padding: 1.5rem;
+    padding: 1rem;
+    max-width: 900px;
+  }
+  
+  .checkin-header {
+    margin-bottom: 1.25rem;
+  }
+  
+  .logo-section h1 {
+    font-size: 2rem;
+    margin-bottom: 0.25rem;
   }
   
   .checkin-card {
-    padding: 2rem;
-    margin-bottom: 2.5rem;
+    padding: 1.75rem;
+    margin-bottom: 1.5rem;
+    border-radius: 18px;
+  }
+  
+  .form-section {
+    margin-bottom: 1.25rem;
+  }
+  
+  .form-section h3 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+  }
+  
+  .form-sections-container {
+    gap: 1.5rem;
+  }
+  
+  .input-field {
+    margin-bottom: 0.75rem;
+    gap: 0.25rem;
+  }
+  
+  .input-field input {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.95rem;
+  }
+  
+  .waiver-section {
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+    gap: 0.75rem;
+  }
+  
+  .waiver-text {
+    font-size: 0.825rem;
+    line-height: 1.45;
+  }
+  
+  .submit-btn {
+    padding: 0.95rem;
+    font-size: 1rem;
+    border-radius: 10px;
   }
 }
 
 @media (max-width: 768px) {
   .checkin-container {
-    padding: 1rem;
+    padding: 0.75rem;
   }
   
   .checkin-card {
-    padding: 1.5rem;
-    margin-bottom: 2rem;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
   }
   
   .form-sections-container {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 0.75rem;
   }
   
   .input-group {
@@ -323,7 +375,7 @@
   }
   
   .logo-section h1 {
-    font-size: 2rem;
+    font-size: 1.75rem;
   }
 }
 
