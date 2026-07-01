@@ -762,8 +762,68 @@ app.post('/api/contact', async (req, res) => {
     await contactSubmission.save();
     console.log('📧 Contact form saved to database:', contactSubmission._id);
 
-    // Try to send email if credentials are configured
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    // Try to send email alert
+    let emailSentSuccessfully = false;
+
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const rawRecipients = process.env.CONTACT_ALERT_EMAIL || process.env.CHECKIN_ALERT_EMAIL || 'krish@easystones.com, ponugupatimaruthi@gmail.com';
+        const recipients = rawRecipients.split(',').map(e => e.trim()).filter(Boolean);
+
+        const emailHtml = `
+          <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 12px; background: #fafafa;">
+            <h2 style="color: #d4af37; margin-top: 0;">New Contact Form Message</h2>
+            <p>You have received a new message from the website contact form:</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555; width: 150px;">Name:</td>
+                <td style="padding: 8px 0; color: #222;">${name}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Company:</td>
+                <td style="padding: 8px 0; color: #222;">${company || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Email:</td>
+                <td style="padding: 8px 0; color: #222;"><a href="mailto:${email}">${email}</a></td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #555;">Phone:</td>
+                <td style="padding: 8px 0; color: #222;">${phone || 'N/A'}</td>
+              </tr>
+            </table>
+            <div style="margin-top: 15px; padding: 15px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <h4 style="margin: 0 0 10px 0; color: #475569;">Message:</h4>
+              <p style="margin: 0; color: #334155; white-space: pre-wrap; line-height: 1.5;">${message}</p>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
+            <p style="font-size: 0.85rem; color: #888; margin: 0;">This is an automated notification from the Easy Stones Website.</p>
+          </div>
+        `;
+
+        for (const recipient of recipients) {
+          try {
+            await resend.emails.send({
+              from: 'Easy Stones Contact <onboarding@resend.dev>',
+              to: [recipient],
+              subject: `📩 Contact Form Message from ${name}`,
+              html: emailHtml,
+              replyTo: email
+            });
+            console.log(`✅ Contact form email sent via Resend to ${recipient}`);
+          } catch (err) {
+            console.error(`⚠️ Resend failed to send contact email to ${recipient}: ${err.message}`);
+          }
+        }
+        emailSentSuccessfully = true;
+      } catch (resendError) {
+        console.error('⚠️ Resend contact email setup failed:', resendError.message);
+      }
+    }
+
+    // Fallback to nodemailer SMTP if Resend is not configured/failed
+    if (!emailSentSuccessfully && process.env.SMTP_USER && process.env.SMTP_PASS) {
       try {
         const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
         const transporter = nodemailer.createTransport({
@@ -776,10 +836,11 @@ app.post('/api/contact', async (req, res) => {
           }
         });
 
+        const rawRecipients = process.env.CONTACT_ALERT_EMAIL || process.env.CHECKIN_ALERT_EMAIL || 'krish@easystones.com, ponugupatimaruthi@gmail.com';
         const mailOptions = {
           from: process.env.SMTP_USER,
-          to: 'krish@easystones.com',
-          subject: `New Contact Form Submission from ${name}`,
+          to: rawRecipients,
+          subject: `📩 Contact Form Message from ${name}`,
           html: `
             <h2>New Contact Form Submission</h2>
             <p><strong>Name:</strong> ${name}</p>
@@ -793,12 +854,16 @@ app.post('/api/contact', async (req, res) => {
         };
 
         await transporter.sendMail(mailOptions);
-        contactSubmission.emailSent = true;
-        await contactSubmission.save();
-        console.log(`✅ Email sent to krish@easystones.com from ${email}`);
-      } catch (emailError) {
-        console.error('⚠️ Email sending failed (but saved to database):', emailError.message);
+        emailSentSuccessfully = true;
+        console.log(`✅ Contact form email sent via SMTP to ${rawRecipients}`);
+      } catch (smtpError) {
+        console.error('⚠️ SMTP sending failed for contact form:', smtpError.message);
       }
+    }
+
+    if (emailSentSuccessfully) {
+      contactSubmission.emailSent = true;
+      await contactSubmission.save();
     }
 
     // Always return success - the form submission is logged
