@@ -47,9 +47,9 @@ const Footer = () => {
                     <div className="link-column">
                         <h3>CONTACT</h3>
                         <a href="tel:+12535143348">+1 253-514-3348</a>
-                        <a href="mailto:info.sea@easystones.com">info.sea@easystones.com</a>
+                        <a href="mailto:krish@easystones.com">krish@easystones.com</a>
                         <p className="contact-address">
-                            22601 76th Ave S,<br />
+                            6012 S 196th St,<br />
                             Kent, WA 98032
                         </p>
                     </div>

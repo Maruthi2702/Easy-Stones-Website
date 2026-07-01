@@ -60,7 +60,7 @@ const ContactPage = () => {
                         <div className="info-item">
                             <MapPin className="info-icon" size={20} />
                             <div>
-                                <p>22601 76th Ave S,</p>
+                                <p>6012 S 196th St,</p>
                                 <p>Kent, WA 98032</p>
                             </div>
                         </div>
@@ -72,7 +72,7 @@ const ContactPage = () => {
 
                         <div className="info-item">
                             <Mail className="info-icon" size={20} />
-                            <p>info.sea@easystones.com</p>
+                            <p>krish@easystones.com</p>
                         </div>
 
                         <div className="info-item">
@@ -87,7 +87,7 @@ const ContactPage = () => {
                     {/* Embedded Map */}
                     <div className="map-container">
                         <iframe
-                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2702.5!2d-122.2347!3d47.3803!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x54905d0b8c8c8c8d%3A0x1234567890abcdef!2s22601%2076th%20Ave%20S%2C%20Kent%2C%20WA%2098032!5e0!3m2!1sen!2sus!4v1732672800000!5m2!1sen!2sus"
+                            src="https://maps.google.com/maps?q=6012%20S%20196th%20St,%20Kent,%20WA%2098032&t=&z=15&ie=UTF8&iwloc=&output=embed"
                             width="100%"
                             height="300"
                             style={{ border: 0, borderRadius: '12px' }}
