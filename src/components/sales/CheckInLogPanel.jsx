@@ -96,7 +96,7 @@ const CheckInLogPanel = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [productList, setProductList] = useState([]);
-  const [showEmailInput, setShowEmailInput] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailAddress, setEmailAddress] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState(false);
@@ -119,7 +119,7 @@ const CheckInLogPanel = ({
     setBuilderName(checkIn.builderName || '');
     setBuilderPhone(checkIn.builderPhone || '');
     setSalesRep(checkIn.salesRep || '');
-    setShowEmailInput(false);
+    setShowEmailModal(false);
     setEmailAddress('');
     setIsSendingEmail(false);
     setEmailSuccess(false);
@@ -204,7 +204,7 @@ const CheckInLogPanel = ({
       if (response.ok) {
         setEmailSuccess(true);
         setTimeout(() => {
-          setShowEmailInput(false);
+          setShowEmailModal(false);
           setEmailAddress('');
           setEmailSuccess(false);
         }, 1500);
@@ -625,50 +625,14 @@ const CheckInLogPanel = ({
               {/* Actions */}
               <div className="selection-modal-actions">
                 <div className="selection-modal-actions-left">
-                  {!showEmailInput ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowEmailInput(true)}
-                      className="btn-email-trigger"
-                      disabled={isSaving}
-                    >
-                      <Mail size={15} /> Send Email
-                    </button>
-                  ) : (
-                    <div className="email-input-wrapper">
-                      <input
-                        type="email"
-                        value={emailAddress}
-                        onChange={(e) => setEmailAddress(e.target.value)}
-                        placeholder="Enter email address..."
-                        className="selection-email-field"
-                        required
-                        disabled={isSendingEmail}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSendEmail}
-                        className="btn-email-submit"
-                        disabled={isSendingEmail || !emailAddress.trim()}
-                      >
-                        {isSendingEmail ? (
-                          <Loader2 size={13} className="animate-spin" />
-                        ) : emailSuccess ? (
-                          'Sent! ✓'
-                        ) : (
-                          'Send'
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setShowEmailInput(false); setEmailAddress(''); }}
-                        className="btn-email-cancel"
-                        disabled={isSendingEmail}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailModal(true)}
+                    className="btn-email-trigger"
+                    disabled={isSaving}
+                  >
+                    <Mail size={15} /> Send Email
+                  </button>
                 </div>
 
                 <div className="selection-modal-actions-right">
@@ -698,6 +662,67 @@ const CheckInLogPanel = ({
                     )}
                   </button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEmailModal && (
+        <div className="selection-email-modal-overlay">
+          <div className="selection-email-modal-container">
+            <div className="selection-email-modal-header">
+              <h4>Send Selection Sheet</h4>
+              <button
+                type="button"
+                onClick={() => { setShowEmailModal(false); setEmailAddress(''); }}
+                className="btn-close-email-modal"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleSendEmail} className="selection-email-modal-body">
+              <p className="email-modal-description">
+                Enter the email address where you would like to send this customer selection sheet.
+              </p>
+              <div className="email-field-wrapper">
+                <input
+                  type="email"
+                  value={emailAddress}
+                  onChange={(e) => setEmailAddress(e.target.value)}
+                  placeholder="recipient@email.com"
+                  className="selection-email-modal-input"
+                  required
+                  disabled={isSendingEmail}
+                  autoFocus
+                />
+              </div>
+              <div className="selection-email-modal-actions">
+                <button
+                  type="button"
+                  onClick={() => { setShowEmailModal(false); setEmailAddress(''); }}
+                  className="btn-email-modal-cancel"
+                  disabled={isSendingEmail}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-email-modal-send"
+                  disabled={isSendingEmail || !emailAddress.trim()}
+                >
+                  {isSendingEmail ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" /> Sending...
+                    </>
+                  ) : emailSuccess ? (
+                    'Sent Successfully! ✓'
+                  ) : (
+                    <>
+                      <Mail size={14} /> Send Email
+                    </>
+                  )}
+                </button>
               </div>
             </form>
           </div>
