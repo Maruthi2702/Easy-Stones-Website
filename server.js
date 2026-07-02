@@ -1909,7 +1909,8 @@ app.put('/api/checkin/:id', async (req, res) => {
       builderName,
       builderPhone,
       selections,
-      specialNotes
+      specialNotes,
+      salesRep
     } = req.body;
     const checkIn = await OfficeCheckIn.findById(req.params.id);
     if (!checkIn) {
@@ -1926,6 +1927,7 @@ app.put('/api/checkin/:id', async (req, res) => {
     if (builderPhone !== undefined) checkIn.builderPhone = builderPhone;
     if (selections !== undefined) checkIn.selections = selections;
     if (specialNotes !== undefined) checkIn.specialNotes = specialNotes;
+    if (salesRep !== undefined) checkIn.salesRep = salesRep;
 
     await checkIn.save();
     console.log(`✅ Office check-in updated: ${checkIn.name}`);

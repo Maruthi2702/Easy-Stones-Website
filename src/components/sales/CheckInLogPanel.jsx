@@ -88,6 +88,7 @@ const CheckInLogPanel = ({
   const [selectedCheckIn, setSelectedCheckIn] = useState(null);
   const [builderName, setBuilderName] = useState('');
   const [builderPhone, setBuilderPhone] = useState('');
+  const [salesRep, setSalesRep] = useState('');
   const [selections, setSelections] = useState(
     Array.from({ length: 6 }, () => ({ material: '', details: '', size: '', lot: '' }))
   );
@@ -113,6 +114,7 @@ const CheckInLogPanel = ({
     setSelectedCheckIn(checkIn);
     setBuilderName(checkIn.builderName || '');
     setBuilderPhone(checkIn.builderPhone || '');
+    setSalesRep(checkIn.salesRep || '');
     
     const savedSelections = checkIn.selections || [];
     const formattedSelections = Array.from({ length: 6 }, (_, idx) => {
@@ -157,7 +159,8 @@ const CheckInLogPanel = ({
           builderName,
           builderPhone,
           selections: cleanSelections,
-          specialNotes
+          specialNotes,
+          salesRep
         }),
         credentials: 'include'
       });
@@ -480,6 +483,18 @@ const CheckInLogPanel = ({
                     <Phone size={12} className="detail-icon" /> Company Phone Number:
                   </span>
                   <span className="detail-value">{selectedCheckIn.fabricatorPhone || 'N/A'}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">
+                    <Users size={12} className="detail-icon" /> Sales Rep:
+                  </span>
+                  <input
+                    type="text"
+                    value={salesRep}
+                    onChange={(e) => setSalesRep(e.target.value)}
+                    placeholder="Enter sales rep name"
+                    className="selection-input"
+                  />
                 </div>
               </div>
 

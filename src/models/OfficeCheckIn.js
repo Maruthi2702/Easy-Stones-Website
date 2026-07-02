@@ -58,6 +58,11 @@ const officeCheckInSchema = new mongoose.Schema({
   specialNotes: {
     type: String,
     default: ''
+  },
+  salesRep: {
+    type: String,
+    trim: true,
+    default: ''
   }
 }, {
   timestamps: true
