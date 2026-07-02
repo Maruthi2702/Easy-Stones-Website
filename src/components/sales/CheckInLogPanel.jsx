@@ -21,12 +21,13 @@
  *  sidebarToggle   – ReactNode | null  (sidebar menu button for CRM mode)
  *  embedded        – bool  (true = CRM panel mode, false = full-page mode)
  */
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Clock, Search, Download, Loader2, Calendar,
   ChevronLeft, ChevronRight, RefreshCw,
-  Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2
+  Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList
 } from 'lucide-react';
+import { API_URL } from '../../config/api';
 import './CheckInLogPanel.css';
 
 /* ── helpers ──────────────────────────────────── */
@@ -82,6 +83,101 @@ const CheckInLogPanel = ({
   onEdit = null,
   onDelete = null,
 }) => {
+  // ── Selection Sheet State ──
+  const [selectedCheckIn, setSelectedCheckIn] = useState(null);
+  const [builderName, setBuilderName] = useState('');
+  const [builderPhone, setBuilderPhone] = useState('');
+  const [selections, setSelections] = useState(
+    Array.from({ length: 6 }, () => ({ material: '', details: '', size: '', lot: '' }))
+  );
+  const [specialNotes, setSpecialNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [productList, setProductList] = useState([]);
+
+  // Fetch product auto-suggestions when selections modal is opened
+  useEffect(() => {
+    if (selectedCheckIn) {
+      fetch(`${API_URL}/api/products`)
+        .then(res => res.json())
+        .then(data => {
+          const list = Array.isArray(data) ? data : (data.data || []);
+          setProductList(list);
+        })
+        .catch(err => console.error('Error fetching products:', err));
+    }
+  }, [selectedCheckIn]);
+
+  const handleOpenSelectionModal = (checkIn) => {
+    setSelectedCheckIn(checkIn);
+    setBuilderName(checkIn.builderName || '');
+    setBuilderPhone(checkIn.builderPhone || '');
+    
+    const savedSelections = checkIn.selections || [];
+    const formattedSelections = Array.from({ length: 6 }, (_, idx) => {
+      if (savedSelections[idx]) {
+        return {
+          material: savedSelections[idx].material || '',
+          details: savedSelections[idx].details || '',
+          size: savedSelections[idx].size || '',
+          lot: savedSelections[idx].lot || ''
+        };
+      }
+      return { material: '', details: '', size: '', lot: '' };
+    });
+    setSelections(formattedSelections);
+    setSpecialNotes(checkIn.specialNotes || '');
+    setSaveSuccess(false);
+  };
+
+  const handleSelectionChange = (idx, field, value) => {
+    setSelections(prev => prev.map((sel, i) => {
+      if (i === idx) {
+        return { ...sel, [field]: value };
+      }
+      return sel;
+    }));
+  };
+
+  const handleSaveSelections = async (e) => {
+    if (e) e.preventDefault();
+    setIsSaving(true);
+    try {
+      // Filter out completely blank rows
+      const cleanSelections = selections.filter(s => s.material.trim() !== '');
+
+      const response = await fetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          builderName,
+          builderPhone,
+          selections: cleanSelections,
+          specialNotes
+        }),
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => {
+          setSelectedCheckIn(null);
+          if (onRefresh) onRefresh();
+        }, 1000);
+      } else {
+        alert('Failed to save selections. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error saving selection sheet:', err);
+      alert('Network error. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Use prop if provided (accurate from DB), else compute from loaded page
   const todayCount = todayCountProp !== null
     ? todayCountProp
@@ -207,7 +303,7 @@ const CheckInLogPanel = ({
                   <th>PHONE NUMBER</th>
                   <th>COMPANY/CONTACT NAME</th>
                   <th>PHONE NUMBER</th>
-                  {(onView || onEdit || onDelete) && <th style={{ textAlign: 'center' }}>ACTIONS</th>}
+                  <th style={{ textAlign: 'center' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -262,39 +358,44 @@ const CheckInLogPanel = ({
                       )}
                     </td>
 
-                    {(onView || onEdit || onDelete) && (
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', justifyContent: 'center' }}>
-                          {onView && (
-                            <button
-                              onClick={() => onView(c)}
-                              title="View details"
-                              style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                            >
-                              <Eye size={15} />
-                            </button>
-                          )}
-                          {onEdit && (
-                            <button
-                              onClick={() => onEdit(c)}
-                              title="Edit check-in"
-                              style={{ background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                            >
-                              <Edit2 size={15} />
-                            </button>
-                          )}
-                          {onDelete && (
-                            <button
-                              onClick={() => onDelete(c)}
-                              title="Delete check-in"
-                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
+                    <td>
+                      <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', justifyContent: 'center' }}>
+                        <button
+                          onClick={() => handleOpenSelectionModal(c)}
+                          title="Selection sheet"
+                          style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                        >
+                          <ClipboardList size={15} />
+                        </button>
+                        {onView && (
+                          <button
+                            onClick={() => onView(c)}
+                            title="View details"
+                            style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                          >
+                            <Eye size={15} />
+                          </button>
+                        )}
+                        {onEdit && (
+                          <button
+                            onClick={() => onEdit(c)}
+                            title="Edit check-in"
+                            style={{ background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            onClick={() => onDelete(c)}
+                            title="Delete check-in"
+                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -323,6 +424,180 @@ const CheckInLogPanel = ({
           >
             Next <ChevronRight size={15} />
           </button>
+        </div>
+      )}
+      {/* ── Selection Sheet Modal ── */}
+      {selectedCheckIn && (
+        <div className="selection-modal-overlay">
+          <div className="selection-modal-container">
+            <div className="selection-modal-header">
+              <div className="selection-modal-brand">
+                <h2>EASY STONES</h2>
+                <p>6012 S 196th St, Kent, WA 98032</p>
+              </div>
+              <button 
+                type="button" 
+                className="selection-modal-close" 
+                onClick={() => setSelectedCheckIn(null)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSelections} className="selection-modal-form">
+              <h3 className="selection-modal-title">CUSTOMER VISIT / STONE SELECTION</h3>
+
+              {/* Customer & Fabricator Details Grid */}
+              <div className="selection-details-grid">
+                <div className="detail-item">
+                  <span className="detail-label">Customer:</span>
+                  <span className="detail-value">{selectedCheckIn.name}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Date:</span>
+                  <span className="detail-value">{formatDate(selectedCheckIn.createdAt)}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Phone Number:</span>
+                  <span className="detail-value">{selectedCheckIn.phone}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Builder:</span>
+                  <input
+                    type="text"
+                    value={builderName}
+                    onChange={(e) => setBuilderName(e.target.value)}
+                    placeholder="Enter builder name"
+                    className="selection-input"
+                  />
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Fabricator:</span>
+                  <span className="detail-value">{selectedCheckIn.fabricatorCompany || 'N/A'}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Builder Contact:</span>
+                  <input
+                    type="text"
+                    value={builderPhone}
+                    onChange={(e) => setBuilderPhone(e.target.value)}
+                    placeholder="Enter builder phone"
+                    className="selection-input"
+                  />
+                </div>
+              </div>
+
+              {/* Selections Grid Table */}
+              <div className="selections-table-wrapper">
+                <table className="selections-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40%' }}>Material Selection(s)</th>
+                      <th style={{ width: '30%' }}>Details (Polished/Leathered/LF/Slab ID)</th>
+                      <th style={{ width: '15%' }}>Size</th>
+                      <th style={{ width: '15%' }}>Lot</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selections.map((sel, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <input
+                            type="text"
+                            value={sel.material}
+                            onChange={(e) => handleSelectionChange(idx, 'material', e.target.value)}
+                            placeholder="Type material name..."
+                            className="selection-grid-input"
+                            list="products-datalist"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            value={sel.details}
+                            onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)}
+                            placeholder="e.g. Pol: 13524-10"
+                            className="selection-grid-input"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            value={sel.size}
+                            onChange={(e) => handleSelectionChange(idx, 'size', e.target.value)}
+                            placeholder="120 x 60"
+                            className="selection-grid-input"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            value={sel.lot}
+                            onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)}
+                            placeholder="Lot #"
+                            className="selection-grid-input"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* HTML5 Datalist for autocomplete */}
+              <datalist id="products-datalist">
+                {productList.map((prod, pIdx) => (
+                  <option key={prod._id || pIdx} value={prod.name} />
+                ))}
+              </datalist>
+
+              {/* Special Notes */}
+              <div className="selection-notes-wrapper">
+                <label className="selection-notes-label">Special Notes:</label>
+                <textarea
+                  value={specialNotes}
+                  onChange={(e) => setSpecialNotes(e.target.value)}
+                  placeholder="Enter any special requests, delivery notes, or details..."
+                  rows="3"
+                  className="selection-textarea"
+                />
+              </div>
+
+              {/* Disclaimer */}
+              <div className="selection-disclaimer">
+                <p>
+                  <strong>Note:</strong> Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice to you or your fabricator.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="selection-modal-actions">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCheckIn(null)}
+                  className="btn-cancel"
+                  disabled={isSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-save-selection"
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" /> Saving...
+                    </>
+                  ) : saveSuccess ? (
+                    'Saved Successfully! ✓'
+                  ) : (
+                    'Save Selection Sheet'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

@@ -1899,7 +1899,18 @@ app.get('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
 // Update specific check-in
 app.put('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
   try {
-    const { name, phone, email, fabricatorCompany, fabricatorName, fabricatorPhone } = req.body;
+    const { 
+      name, 
+      phone, 
+      email, 
+      fabricatorCompany, 
+      fabricatorName, 
+      fabricatorPhone,
+      builderName,
+      builderPhone,
+      selections,
+      specialNotes
+    } = req.body;
     const checkIn = await OfficeCheckIn.findById(req.params.id);
     if (!checkIn) {
       return res.status(404).json({ message: 'Check-in not found' });
@@ -1911,6 +1922,10 @@ app.put('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
     if (fabricatorCompany !== undefined) checkIn.fabricatorCompany = fabricatorCompany;
     if (fabricatorName !== undefined) checkIn.fabricatorName = fabricatorName;
     if (fabricatorPhone !== undefined) checkIn.fabricatorPhone = fabricatorPhone;
+    if (builderName !== undefined) checkIn.builderName = builderName;
+    if (builderPhone !== undefined) checkIn.builderPhone = builderPhone;
+    if (selections !== undefined) checkIn.selections = selections;
+    if (specialNotes !== undefined) checkIn.specialNotes = specialNotes;
 
     await checkIn.save();
     console.log(`✅ Office check-in updated: ${checkIn.name}`);

@@ -36,6 +36,28 @@ const officeCheckInSchema = new mongoose.Schema({
     type: String,
     enum: ['New', 'Processed'],
     default: 'New'
+  },
+  builderName: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  builderPhone: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  selections: [
+    {
+      material: { type: String, default: '' },
+      details: { type: String, default: '' },
+      size: { type: String, default: '' },
+      lot: { type: String, default: '' }
+    }
+  ],
+  specialNotes: {
+    type: String,
+    default: ''
   }
 }, {
   timestamps: true
