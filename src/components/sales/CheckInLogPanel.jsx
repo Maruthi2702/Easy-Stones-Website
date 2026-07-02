@@ -25,7 +25,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Clock, Search, Download, Loader2, Calendar,
   ChevronLeft, ChevronRight, RefreshCw,
-  Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList
+  Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
+  Save, AlertTriangle
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import './CheckInLogPanel.css';
@@ -450,19 +451,27 @@ const CheckInLogPanel = ({
               {/* Customer & Fabricator Details Grid */}
               <div className="selection-details-grid">
                 <div className="detail-item">
-                  <span className="detail-label">Customer:</span>
+                  <span className="detail-label">
+                    <Users size={12} className="detail-icon" /> Customer:
+                  </span>
                   <span className="detail-value">{selectedCheckIn.name}</span>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Date:</span>
+                  <span className="detail-label">
+                    <Calendar size={12} className="detail-icon" /> Date:
+                  </span>
                   <span className="detail-value">{formatDate(selectedCheckIn.createdAt)}</span>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Phone Number:</span>
+                  <span className="detail-label">
+                    <Phone size={12} className="detail-icon" /> Phone Number:
+                  </span>
                   <span className="detail-value">{selectedCheckIn.phone}</span>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Builder:</span>
+                  <span className="detail-label">
+                    <Building2 size={12} className="detail-icon" /> Builder:
+                  </span>
                   <input
                     type="text"
                     value={builderName}
@@ -472,11 +481,15 @@ const CheckInLogPanel = ({
                   />
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Fabricator:</span>
+                  <span className="detail-label">
+                    <Building2 size={12} className="detail-icon" /> Fabricator:
+                  </span>
                   <span className="detail-value">{selectedCheckIn.fabricatorCompany || 'N/A'}</span>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Builder Contact:</span>
+                  <span className="detail-label">
+                    <Phone size={12} className="detail-icon" /> Builder Contact:
+                  </span>
                   <input
                     type="text"
                     value={builderPhone}
@@ -492,15 +505,17 @@ const CheckInLogPanel = ({
                 <table className="selections-table">
                   <thead>
                     <tr>
+                      <th style={{ width: '6%', textAlign: 'center' }}>#</th>
                       <th style={{ width: '40%' }}>Material Selection(s)</th>
-                      <th style={{ width: '30%' }}>Details (Polished/Leathered/LF/Slab ID)</th>
-                      <th style={{ width: '15%' }}>Size</th>
-                      <th style={{ width: '15%' }}>Lot</th>
+                      <th style={{ width: '28%' }}>Details (Polished/Leathered/LF/Slab ID)</th>
+                      <th style={{ width: '13%' }}>Size</th>
+                      <th style={{ width: '13%' }}>Lot</th>
                     </tr>
                   </thead>
                   <tbody>
                     {selections.map((sel, idx) => (
-                      <tr key={idx}>
+                      <tr key={idx} className="selection-row-item">
+                        <td className="selection-row-num">{idx + 1}</td>
                         <td>
                           <input
                             type="text"
@@ -565,6 +580,7 @@ const CheckInLogPanel = ({
 
               {/* Disclaimer */}
               <div className="selection-disclaimer">
+                <AlertTriangle size={18} className="disclaimer-warning-icon" />
                 <p>
                   <strong>Note:</strong> Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice to you or your fabricator.
                 </p>
@@ -578,7 +594,7 @@ const CheckInLogPanel = ({
                   className="btn-cancel"
                   disabled={isSaving}
                 >
-                  Cancel
+                  <X size={15} /> Cancel
                 </button>
                 <button
                   type="submit"
@@ -587,12 +603,14 @@ const CheckInLogPanel = ({
                 >
                   {isSaving ? (
                     <>
-                      <Loader2 size={16} className="animate-spin" /> Saving...
+                      <Loader2 size={15} className="animate-spin" /> Saving...
                     </>
                   ) : saveSuccess ? (
                     'Saved Successfully! ✓'
                   ) : (
-                    'Save Selection Sheet'
+                    <>
+                      <Save size={15} /> Save Selection Sheet
+                    </>
                   )}
                 </button>
               </div>
