@@ -835,10 +835,104 @@
 
 .selection-modal-actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.875rem;
-  border-top: 1px solid rgba(255,255,255,0.05);
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
   padding-top: 1.5rem;
+}
+
+.selection-modal-actions-right {
+  display: flex;
+  gap: 0.875rem;
+}
+
+.selection-modal-actions-left {
+  display: flex;
+  align-items: center;
+}
+
+/* Email trigger button */
+.btn-email-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  color: #d4af37;
+  border-radius: 10px;
+  padding: 0.7rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-email-trigger:hover:not(:disabled) {
+  background: rgba(212, 175, 55, 0.1);
+  border-color: #d4af37;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* Email inline input layout */
+.email-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.selection-email-field {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  color: #fff;
+  font-size: 0.85rem;
+  width: 230px;
+  transition: all 0.2s ease;
+}
+
+.selection-email-field:focus {
+  outline: none;
+  border-color: #d4af37;
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.25);
+}
+
+.btn-email-submit {
+  background: #d4af37;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1.1rem;
+  font-weight: 750;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-email-submit:hover:not(:disabled) {
+  background: #e5c158;
+}
+
+.btn-email-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-email-cancel {
+  background: transparent;
+  color: #9ca3af;
+  border: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: color 0.2s ease;
+}
+
+.btn-email-cancel:hover {
+  color: #fff;
 }
 
 .btn-cancel,
@@ -916,5 +1010,23 @@
   }
   .selections-table {
     table-layout: auto;
+  }
+  .selection-modal-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  .selection-modal-actions-right {
+    justify-content: flex-end;
+  }
+  .selection-modal-actions-left {
+    width: 100%;
+  }
+  .email-input-wrapper {
+    width: 100%;
+  }
+  .selection-email-field {
+    flex: 1;
+    width: auto;
   }
 }

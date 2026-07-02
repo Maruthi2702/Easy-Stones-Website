@@ -96,6 +96,10 @@ const CheckInLogPanel = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [productList, setProductList] = useState([]);
+  const [showEmailInput, setShowEmailInput] = useState(false);
+  const [emailAddress, setEmailAddress] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSuccess, setEmailSuccess] = useState(false);
 
   // Fetch product auto-suggestions when selections modal is opened
   useEffect(() => {
@@ -115,6 +119,10 @@ const CheckInLogPanel = ({
     setBuilderName(checkIn.builderName || '');
     setBuilderPhone(checkIn.builderPhone || '');
     setSalesRep(checkIn.salesRep || '');
+    setShowEmailInput(false);
+    setEmailAddress('');
+    setIsSendingEmail(false);
+    setEmailSuccess(false);
     
     const savedSelections = checkIn.selections || [];
     const formattedSelections = Array.from({ length: 6 }, (_, idx) => {
@@ -179,6 +187,36 @@ const CheckInLogPanel = ({
       alert('Network error. Please try again.');
     } finally {
       setIsSaving(false);
+    }
+  };
+  const handleSendEmail = async (e) => {
+    if (e) e.preventDefault();
+    if (!emailAddress.trim()) return;
+    setIsSendingEmail(true);
+    try {
+      const response = await fetch(`${API_URL}/api/checkin/${selectedCheckIn._id}/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: emailAddress.trim() })
+      });
+      if (response.ok) {
+        setEmailSuccess(true);
+        setTimeout(() => {
+          setShowEmailInput(false);
+          setEmailAddress('');
+          setEmailSuccess(false);
+        }, 1500);
+      } else {
+        const errData = await response.json();
+        alert(errData.message || 'Failed to send email. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error sending selection sheet email:', err);
+      alert('Network error. Please try again.');
+    } finally {
+      setIsSendingEmail(false);
     }
   };
 
@@ -586,31 +624,80 @@ const CheckInLogPanel = ({
 
               {/* Actions */}
               <div className="selection-modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setSelectedCheckIn(null)}
-                  className="btn-cancel"
-                  disabled={isSaving}
-                >
-                  <X size={15} /> Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-save-selection"
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 size={15} className="animate-spin" /> Saving...
-                    </>
-                  ) : saveSuccess ? (
-                    'Saved Successfully! ✓'
+                <div className="selection-modal-actions-left">
+                  {!showEmailInput ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowEmailInput(true)}
+                      className="btn-email-trigger"
+                      disabled={isSaving}
+                    >
+                      <Mail size={15} /> Send Email
+                    </button>
                   ) : (
-                    <>
-                      <Save size={15} /> Save Selection Sheet
-                    </>
+                    <div className="email-input-wrapper">
+                      <input
+                        type="email"
+                        value={emailAddress}
+                        onChange={(e) => setEmailAddress(e.target.value)}
+                        placeholder="Enter email address..."
+                        className="selection-email-field"
+                        required
+                        disabled={isSendingEmail}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSendEmail}
+                        className="btn-email-submit"
+                        disabled={isSendingEmail || !emailAddress.trim()}
+                      >
+                        {isSendingEmail ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : emailSuccess ? (
+                          'Sent! ✓'
+                        ) : (
+                          'Send'
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowEmailInput(false); setEmailAddress(''); }}
+                        className="btn-email-cancel"
+                        disabled={isSendingEmail}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   )}
-                </button>
+                </div>
+
+                <div className="selection-modal-actions-right">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCheckIn(null)}
+                    className="btn-cancel"
+                    disabled={isSaving}
+                  >
+                    <X size={15} /> Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-save-selection"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" /> Saving...
+                      </>
+                    ) : saveSuccess ? (
+                      'Saved Successfully! ✓'
+                    ) : (
+                      <>
+                        <Save size={15} /> Save Selection Sheet
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
