@@ -26,7 +26,7 @@ import {
   Clock, Search, Download, Loader2, Calendar,
   ChevronLeft, ChevronRight, RefreshCw,
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
-  Save, AlertTriangle
+  Save, AlertTriangle, Printer
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import './CheckInLogPanel.css';
@@ -125,6 +125,223 @@ const CheckInLogPanel = ({
         .catch(err => console.error('Error fetching sales reps:', err));
     }
   }, [selectedCheckIn]);
+
+  const handlePrintPDF = () => {
+    if (!selectedCheckIn) return;
+
+    const dateStr = formatDate(selectedCheckIn.createdAt);
+    const validSelections = selections.filter(s => s.material.trim() !== '');
+
+    let selectionsRowsHtml = '';
+    if (validSelections.length === 0) {
+      selectionsRowsHtml = `
+        <tr>
+          <td colspan="5" style="padding: 12px 10px; text-align: center; color: #666; font-style: italic;">No selections registered.</td>
+        </tr>
+      `;
+    } else {
+      validSelections.forEach((sel, idx) => {
+        selectionsRowsHtml += `
+          <tr style="border-bottom: 1px solid #eaeaea;">
+            <td style="padding: 10px; text-align: center; color: #d4af37; font-weight: bold;">${idx + 1}</td>
+            <td style="padding: 10px; color: #222; font-weight: 500;">${sel.material || 'N/A'}</td>
+            <td style="padding: 10px; color: #555;">${sel.lot || 'N/A'}</td>
+            <td style="padding: 10px; color: #555;">${sel.details || 'N/A'}</td>
+            <td style="padding: 10px; color: #555;">${sel.size || 'N/A'}</td>
+          </tr>
+        `;
+      });
+    }
+
+    const printWindow = window.open('', '_blank', 'width=800,height=800');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Selection Sheet - ${selectedCheckIn.name}</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              color: #333;
+              margin: 40px;
+              padding: 0;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid #d4af37;
+              padding-bottom: 15px;
+              margin-bottom: 30px;
+            }
+            .header h1 {
+              margin: 0;
+              font-size: 24px;
+              font-weight: 800;
+              letter-spacing: 1px;
+            }
+            .header p {
+              margin: 5px 0 0 0;
+              color: #666;
+              font-size: 13px;
+            }
+            .title {
+              text-align: center;
+              font-size: 16px;
+              font-weight: bold;
+              letter-spacing: 1px;
+              color: #d4af37;
+              text-transform: uppercase;
+              margin-bottom: 25px;
+            }
+            .details-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 15px;
+              background: #fff;
+              border: 1px solid #eaeaea;
+              border-radius: 12px;
+              padding: 20px;
+              margin-bottom: 30px;
+            }
+            .detail-item {
+              font-size: 14px;
+            }
+            .detail-label {
+              font-weight: bold;
+              color: #555;
+            }
+            .detail-value {
+              color: #222;
+            }
+            .section-title {
+              font-size: 14px;
+              margin: 20px 0 12px 0;
+              color: #111;
+              border-left: 3px solid #d4af37;
+              padding-left: 8px;
+              text-transform: uppercase;
+              font-weight: bold;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 30px;
+              font-size: 13px;
+            }
+            th {
+              background: #f1f5f9;
+              border-bottom: 2px solid #e2e8f0;
+              padding: 10px;
+              text-align: left;
+              color: #475569;
+              font-weight: bold;
+            }
+            td {
+              padding: 10px;
+              border-bottom: 1px solid #eaeaea;
+            }
+            .notes {
+              background: #fff;
+              border: 1px solid #eaeaea;
+              border-radius: 12px;
+              padding: 15px;
+              margin-bottom: 30px;
+              font-size: 13px;
+            }
+            .notes h4 {
+              margin: 0 0 8px 0;
+              color: #475569;
+            }
+            .notes p {
+              margin: 0;
+              color: #334155;
+              white-space: pre-wrap;
+              line-height: 1.5;
+            }
+            .policy-box {
+              background: #fef2f2;
+              border: 1px dashed #fca5a5;
+              border-radius: 12px;
+              padding: 15px;
+              margin-bottom: 40px;
+              font-size: 12px;
+              color: #ef4444;
+              line-height: 1.5;
+            }
+            .footer {
+              text-align: center;
+              font-size: 11px;
+              color: #888;
+              margin-top: 30px;
+            }
+            @media print {
+              body {
+                margin: 20px;
+              }
+              .policy-box {
+                background: #fff !important;
+                border: 1px dashed #ef4444 !important;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>EASY STONES</h1>
+            <p>6012 S 196th St, Kent, WA 98032</p>
+          </div>
+          
+          <div class="title">Customer Visit / Stone Selection</div>
+          
+          <div class="details-grid">
+            <div class="detail-item"><span class="detail-label">Date:</span> <span class="detail-value">${dateStr}</span></div>
+            <div class="detail-item"><span class="detail-label">Customer Name:</span> <span class="detail-value">${selectedCheckIn.name}</span></div>
+            <div class="detail-item"><span class="detail-label">Phone Number:</span> <span class="detail-value">${selectedCheckIn.phone}</span></div>
+            <div class="detail-item"><span class="detail-label">Company Name:</span> <span class="detail-value">${selectedCheckIn.fabricatorCompany || 'N/A'}</span></div>
+            <div class="detail-item"><span class="detail-label">Company Phone:</span> <span class="detail-value">${selectedCheckIn.fabricatorPhone || 'N/A'}</span></div>
+            <div class="detail-item"><span class="detail-label">Sales Rep:</span> <span class="detail-value">${salesRep || 'N/A'}</span></div>
+          </div>
+          
+          <div class="section-title">Material Selection(s)</div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 5%; text-align: center;">#</th>
+                <th>Material Name</th>
+                <th>Lot/Bundle Number</th>
+                <th>Slab Numbers</th>
+                <th>Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${selectionsRowsHtml}
+            </tbody>
+          </table>
+          
+          ${specialNotes ? `
+          <div class="notes">
+            <h4>Special Notes:</h4>
+            <p>${specialNotes.replace(/\n/g, '<br>')}</p>
+          </div>
+          ` : ''}
+          
+          <div class="policy-box">
+            <strong>Hold Policy Note:</strong> Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice to you or your fabricator.
+          </div>
+          
+          <div class="footer">
+            This is an automated selection record from the Easy Stones Check-In Portal.
+          </div>
+          
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   const handleOpenSelectionModal = (checkIn) => {
     setSelectedCheckIn(checkIn);
@@ -668,6 +885,14 @@ const CheckInLogPanel = ({
                     disabled={isSaving}
                   >
                     <Mail size={15} /> Send Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrintPDF}
+                    className="btn-print-trigger"
+                    disabled={isSaving}
+                  >
+                    <Printer size={15} /> Print / Save PDF
                   </button>
                 </div>
 
