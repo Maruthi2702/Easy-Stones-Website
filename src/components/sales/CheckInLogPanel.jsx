@@ -448,11 +448,11 @@ const CheckInLogPanel = ({
             <form onSubmit={handleSaveSelections} className="selection-modal-form">
               <h3 className="selection-modal-title">CUSTOMER VISIT / STONE SELECTION</h3>
 
-              {/* Customer & Fabricator Details Grid */}
+               {/* Customer & Fabricator Details Grid */}
               <div className="selection-details-grid">
                 <div className="detail-item">
                   <span className="detail-label">
-                    <Users size={12} className="detail-icon" /> Customer:
+                    <Users size={12} className="detail-icon" /> Customer Name:
                   </span>
                   <span className="detail-value">{selectedCheckIn.name}</span>
                 </div>
@@ -468,6 +468,23 @@ const CheckInLogPanel = ({
                   </span>
                   <span className="detail-value">{selectedCheckIn.phone}</span>
                 </div>
+
+                <div className="detail-item">
+                  <span className="detail-label">
+                    <Building2 size={12} className="detail-icon" /> Company Name:
+                  </span>
+                  <span className="detail-value">{selectedCheckIn.fabricatorCompany || 'N/A'}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">
+                    <Phone size={12} className="detail-icon" /> Company Phone Number:
+                  </span>
+                  <span className="detail-value">{selectedCheckIn.fabricatorPhone || 'N/A'}</span>
+                </div>
+                <div className="detail-item">
+                  {/* Empty spacer for alignment */}
+                </div>
+
                 <div className="detail-item">
                   <span className="detail-label">
                     <Building2 size={12} className="detail-icon" /> Builder:
@@ -482,12 +499,6 @@ const CheckInLogPanel = ({
                 </div>
                 <div className="detail-item">
                   <span className="detail-label">
-                    <Building2 size={12} className="detail-icon" /> Fabricator:
-                  </span>
-                  <span className="detail-value">{selectedCheckIn.fabricatorCompany || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">
                     <Phone size={12} className="detail-icon" /> Builder Contact:
                   </span>
                   <input
@@ -497,6 +508,9 @@ const CheckInLogPanel = ({
                     placeholder="Enter builder phone"
                     className="selection-input"
                   />
+                </div>
+                <div className="detail-item">
+                  {/* Empty spacer for alignment */}
                 </div>
               </div>
 
