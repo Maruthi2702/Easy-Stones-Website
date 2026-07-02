@@ -506,10 +506,10 @@ const CheckInLogPanel = ({
                   <thead>
                     <tr>
                       <th style={{ width: '6%', textAlign: 'center' }}>#</th>
-                      <th style={{ width: '40%' }}>Material Selection(s)</th>
-                      <th style={{ width: '28%' }}>Details (Polished/Leathered/LF/Slab ID)</th>
+                      <th style={{ width: '38%' }}>Material Name</th>
+                      <th style={{ width: '20%' }}>Lot/Bundle Number</th>
+                      <th style={{ width: '23%' }}>Slab Numbers</th>
                       <th style={{ width: '13%' }}>Size</th>
-                      <th style={{ width: '13%' }}>Lot</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -529,6 +529,15 @@ const CheckInLogPanel = ({
                         <td>
                           <input
                             type="text"
+                            value={sel.lot}
+                            onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)}
+                            placeholder="Lot / Bundle #"
+                            className="selection-grid-input"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
                             value={sel.details}
                             onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)}
                             placeholder="e.g. Pol: 13524-10"
@@ -541,15 +550,6 @@ const CheckInLogPanel = ({
                             value={sel.size}
                             onChange={(e) => handleSelectionChange(idx, 'size', e.target.value)}
                             placeholder="120 x 60"
-                            className="selection-grid-input"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            value={sel.lot}
-                            onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)}
-                            placeholder="Lot #"
                             className="selection-grid-input"
                           />
                         </td>
