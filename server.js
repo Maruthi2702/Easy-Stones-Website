@@ -802,21 +802,30 @@ app.post('/api/contact', async (req, res) => {
           </div>
         `;
 
+        let allResendEmailsSent = true;
         for (const recipient of recipients) {
           try {
-            await resend.emails.send({
+            const { data, error } = await resend.emails.send({
               from: 'Easy Stones Contact <onboarding@resend.dev>',
               to: [recipient],
               subject: `📩 Contact Form Message from ${name}`,
               html: emailHtml,
               replyTo: email
             });
-            console.log(`✅ Contact form email sent via Resend to ${recipient}`);
+            if (error) {
+              console.error(`⚠️ Resend failed to send contact email to ${recipient}: ${error.message || JSON.stringify(error)}`);
+              allResendEmailsSent = false;
+            } else {
+              console.log(`✅ Contact form email sent via Resend to ${recipient}`);
+            }
           } catch (err) {
             console.error(`⚠️ Resend failed to send contact email to ${recipient}: ${err.message}`);
+            allResendEmailsSent = false;
           }
         }
-        emailSentSuccessfully = true;
+        if (allResendEmailsSent) {
+          emailSentSuccessfully = true;
+        }
       } catch (resendError) {
         console.error('⚠️ Resend contact email setup failed:', resendError.message);
       }
@@ -2057,16 +2066,21 @@ app.post('/api/checkin/:id/send-email', async (req, res) => {
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
-        await resend.emails.send({
+        const { data, error } = await resend.emails.send({
           from: 'Easy Stones Selection <onboarding@resend.dev>',
           to: [email.trim()],
           subject: `🪨 Stone Selection Sheet: ${checkIn.name}`,
           html: emailHtml
         });
-        emailSentSuccessfully = true;
-        console.log(`✅ Selection sheet email sent via Resend to ${email}`);
+        
+        if (error) {
+          console.error(`⚠️ Resend failed to send selection sheet email to ${email}: ${error.message || JSON.stringify(error)}`);
+        } else {
+          emailSentSuccessfully = true;
+          console.log(`✅ Selection sheet email sent via Resend to ${email}`);
+        }
       } catch (err) {
-        console.error(`⚠️ Resend failed to send selection sheet email to ${email}: ${err.message}`);
+        console.error(`⚠️ Resend threw exception sending selection sheet email to ${email}: ${err.message}`);
       }
     }
 
