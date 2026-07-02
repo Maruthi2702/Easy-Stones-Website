@@ -299,11 +299,11 @@ const CheckInLogPanel = ({
             <table className="clp-table">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Customer Name</th>
-                  <th>Phone Number</th>
-                  <th>Company Name</th>
-                  <th>Company Phone Number</th>
+                  <th>CHECK-IN TIME</th>
+                  <th>VISITOR NAME</th>
+                  <th>PHONE NUMBER</th>
+                  <th>COMPANY/CONTACT NAME</th>
+                  <th>PHONE NUMBER</th>
                   <th style={{ textAlign: 'center' }}>ACTIONS</th>
                 </tr>
               </thead>
