@@ -452,15 +452,15 @@ const CheckInLogPanel = ({
               <div className="selection-details-grid">
                 <div className="detail-item">
                   <span className="detail-label">
-                    <Users size={12} className="detail-icon" /> Customer Name:
-                  </span>
-                  <span className="detail-value">{selectedCheckIn.name}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">
                     <Calendar size={12} className="detail-icon" /> Date:
                   </span>
                   <span className="detail-value">{formatDate(selectedCheckIn.createdAt)}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">
+                    <Users size={12} className="detail-icon" /> Customer Name:
+                  </span>
+                  <span className="detail-value">{selectedCheckIn.name}</span>
                 </div>
                 <div className="detail-item">
                   <span className="detail-label">
