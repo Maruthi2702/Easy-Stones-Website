@@ -1025,17 +1025,111 @@
     gap: 0.875rem;
     padding: 1rem;
   }
-  .selections-table th:nth-child(1),
-  .selections-table td:nth-child(1),
-  .selections-table th:nth-child(4),
-  .selections-table td:nth-child(4),
-  .selections-table th:nth-child(5),
-  .selections-table td:nth-child(5) {
-    display: none; /* Hide #, size and lot on mobile tables to fit width */
+
+  /* Responsive table to cards layout conversion */
+  .selections-table-wrapper {
+    background: transparent;
+    border: none;
+    max-height: 400px;
+    overflow-y: auto;
   }
+  
   .selections-table {
-    table-layout: auto;
+    display: block;
+    width: 100%;
+    counter-reset: card-index;
   }
+
+  .selections-table thead {
+    display: none; /* Hide standard headers */
+  }
+
+  .selections-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
+  }
+
+  .selections-table tr.selection-row-item {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 1.25rem;
+    position: relative;
+    box-sizing: border-box;
+  }
+
+  .selections-table tr.selection-row-item td {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    border: none !important;
+    padding: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Make Material Name span both columns (100% width) */
+  .selections-table tr.selection-row-item td:nth-child(2) {
+    grid-column: span 2;
+  }
+
+  /* Hide the raw index column since we can display the card count */
+  .selections-table tr.selection-row-item td:nth-child(1) {
+    display: none;
+  }
+
+  /* Add friendly input field title labels on mobile cards */
+  .selections-table tr.selection-row-item td:nth-child(2)::before {
+    content: "Material Name";
+    font-size: 0.7rem;
+    color: #a0aec0;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .selections-table tr.selection-row-item td:nth-child(3)::before {
+    content: "Lot / Bundle Number";
+    font-size: 0.7rem;
+    color: #a0aec0;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .selections-table tr.selection-row-item td:nth-child(4)::before {
+    content: "Slab Numbers";
+    font-size: 0.7rem;
+    color: #a0aec0;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .selections-table tr.selection-row-item td:nth-child(5)::before {
+    content: "Size";
+    font-size: 0.7rem;
+    color: #a0aec0;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Add card header label so they know which item it is */
+  .selections-table tr.selection-row-item::before {
+    counter-increment: card-index;
+    content: "Selection Item #" counter(card-index);
+    grid-column: span 2;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #d4af37;
+    margin-bottom: 0.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 0.5rem;
+  }
+
   .selection-modal-actions {
     flex-direction: column;
     align-items: stretch;
