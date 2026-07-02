@@ -805,8 +805,9 @@ app.post('/api/contact', async (req, res) => {
         let allResendEmailsSent = true;
         for (const recipient of recipients) {
           try {
+            const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
             const { data, error } = await resend.emails.send({
-              from: 'Easy Stones Contact <onboarding@resend.dev>',
+              from: `Easy Stones Contact <${fromEmail}>`,
               to: [recipient],
               subject: `📩 Contact Form Message from ${name}`,
               html: emailHtml,
@@ -1720,8 +1721,9 @@ async function sendNotificationEmail(to, subject, html) {
   if (process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
+      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
       const { data, error } = await resend.emails.send({
-        from: 'Easy Stones Check-In <onboarding@resend.dev>',
+        from: `Easy Stones Check-In <${fromEmail}>`,
         to: [to],
         subject,
         html
@@ -2075,8 +2077,9 @@ async function sendSelectionSheetEmail(checkIn, email) {
   if (process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
+      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
       const { data, error } = await resend.emails.send({
-        from: 'Easy Stones Selection <onboarding@resend.dev>',
+        from: `Easy Stones Selection <${fromEmail}>`,
         to: [email.trim()],
         subject: `🪨 Stone Selection Sheet: ${checkIn.name}`,
         html: emailHtml
