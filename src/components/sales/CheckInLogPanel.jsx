@@ -540,7 +540,7 @@ const CheckInLogPanel = ({
                             type="text"
                             value={sel.details}
                             onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)}
-                            placeholder="e.g. Pol: 13524-10"
+                            placeholder="1, 2"
                             className="selection-grid-input"
                           />
                         </td>

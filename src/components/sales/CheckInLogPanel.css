@@ -702,6 +702,7 @@
 .selections-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .selections-table th {
@@ -912,5 +913,8 @@
   .selections-table th:nth-child(5),
   .selections-table td:nth-child(5) {
     display: none; /* Hide #, size and lot on mobile tables to fit width */
+  }
+  .selections-table {
+    table-layout: auto;
   }
 }
