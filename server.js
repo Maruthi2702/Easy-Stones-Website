@@ -1712,24 +1712,75 @@ app.post('/api/customers/:customerId/contacts', verifyAnyAuth, async (req, res) 
   }
 });
 
-// ============================================
-// OFFICE CHECK-IN ENDPOINTS (PUBLIC)
-// ============================================
+// =============// Helper to send notification email with Resend API (checking for errors) and SMTP fallback
+async function sendNotificationEmail(to, subject, html) {
+  let sent = false;
+
+  // 1. Try Resend
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const { data, error } = await resend.emails.send({
+        from: 'Easy Stones Check-In <onboarding@resend.dev>',
+        to: [to],
+        subject,
+        html
+      });
+      if (error) {
+        console.error(`⚠️ Resend failed to send alert to ${to}: ${error.message || JSON.stringify(error)}`);
+      } else {
+        sent = true;
+        console.log(`✅ Alert email sent via Resend to ${to}`);
+      }
+    } catch (err) {
+      console.error(`⚠️ Resend exception sending alert to ${to}: ${err.message}`);
+    }
+  }
+
+  // 2. Try SMTP Fallback
+  if (!sent && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    try {
+      const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: Number(process.env.SMTP_PORT) || 587,
+        secure: isSecure,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+
+      await transporter.sendMail({
+        from: process.env.SMTP_USER,
+        to,
+        subject,
+        html
+      });
+      sent = true;
+      console.log(`✅ Alert email sent via SMTP to ${to}`);
+    } catch (smtpError) {
+      console.error(`⚠️ SMTP failed to send alert to ${to}: ${smtpError.message}`);
+    }
+  }
+
+  return sent;
+}
 
 // Submit public check-in
 app.post('/api/checkin', async (req, res) => {
   try {
-    const {
-      name,
-      phone,
-      email,
-      fabricatorCompany,
-      fabricatorName,
+    const { 
+      name, 
+      phone, 
+      email, 
+      fabricatorCompany, 
+      fabricatorName, 
       fabricatorPhone
     } = req.body;
 
-    if (!name || !phone || !fabricatorCompany || !fabricatorPhone) {
-      return res.status(400).json({ message: 'Name, Phone, Company Name, and Company Phone are required' });
+    if (!name || !phone) {
+      return res.status(400).json({ message: 'Name and phone number are required' });
     }
 
     const checkIn = new OfficeCheckIn({
@@ -1744,65 +1795,59 @@ app.post('/api/checkin', async (req, res) => {
     await checkIn.save();
     console.log(`✅ New office check-in: ${name} (${phone})`);
 
-    // Send email alert to staff via Resend API (works on Render - no SMTP port blocks)
-    if (process.env.RESEND_API_KEY) {
+    // Send email alert to staff with priority fallback logic
+    const emailHtml = `
+        <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 12px; background: #fafafa;">
+          <h2 style="color: #d4af37; margin-top: 0;">Visitor Check-In Notification</h2>
+          <p>A new visitor has checked in at the front desk office:</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; color: #555; width: 180px;">Visitor Name:</td>
+              <td style="padding: 8px 0; color: #222;">${name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; color: #555;">Phone Number:</td>
+              <td style="padding: 8px 0; color: #222;">${phone}</td>
+            </tr>
+            ${email ? `
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; color: #555;">Email:</td>
+              <td style="padding: 8px 0; color: #222;">${email}</td>
+            </tr>
+            ` : ''}
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; color: #555;">Company Name:</td>
+              <td style="padding: 8px 0; color: #222;">${fabricatorCompany || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; color: #555;">Company Phone:</td>
+              <td style="padding: 8px 0; color: #222;">${fabricatorPhone || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; color: #555;">Contact Name:</td>
+              <td style="padding: 8px 0; color: #222;">${fabricatorName || 'N/A'}</td>
+            </tr>
+          </table>
+          <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
+          <p style="font-size: 0.85rem; color: #888; margin: 0;">This is an automated notification from the Easy Stones Office Visitor App.</p>
+        </div>
+      `;
+
+    const subject = `🔔 Front Desk Check-In Alert: ${name}`;
+
+    // Send check-in email alert (try krish@easystones.com first; fallback to ponugupatimaruthi@gmail.com if it fails)
+    (async () => {
       try {
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        const rawRecipients = process.env.CHECKIN_ALERT_EMAIL || 'ponugupatimaruthi@gmail.com';
-        const recipients = rawRecipients.split(',').map(e => e.trim()).filter(Boolean);
-
-        const emailHtml = `
-            <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 12px; background: #fafafa;">
-              <h2 style="color: #d4af37; margin-top: 0;">Visitor Check-In Notification</h2>
-              <p>A new visitor has checked in at the front desk office:</p>
-              <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-                <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #555; width: 180px;">Visitor Name:</td>
-                  <td style="padding: 8px 0; color: #222;">${name}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Phone Number:</td>
-                  <td style="padding: 8px 0; color: #222;">${phone}</td>
-                </tr>
-                ${email ? `
-                <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Email:</td>
-                  <td style="padding: 8px 0; color: #222;">${email}</td>
-                </tr>
-                ` : ''}
-                <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Company Name:</td>
-                  <td style="padding: 8px 0; color: #222;">${fabricatorCompany || 'N/A'}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Company Phone:</td>
-                  <td style="padding: 8px 0; color: #222;">${fabricatorPhone || 'N/A'}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #555;">Contact Name:</td>
-                  <td style="padding: 8px 0; color: #222;">${fabricatorName || 'N/A'}</td>
-                </tr>
-              </table>
-              <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
-              <p style="font-size: 0.85rem; color: #888; margin: 0;">This is an automated notification from the Easy Stones Office Visitor App.</p>
-            </div>
-          `;
-
-        // Send individually to each recipient so failures are isolated
-        recipients.forEach(recipient => {
-          resend.emails.send({
-            from: 'Easy Stones Check-In <onboarding@resend.dev>',
-            to: [recipient],
-            subject: `🔔 Front Desk Check-In Alert: ${name}`,
-            html: emailHtml
-          })
-            .then(() => console.log(`✅ Check-in email sent via Resend to ${recipient}`))
-            .catch(err => console.error(`⚠️ Resend failed for ${recipient}: ${err.message}`));
-        });
-      } catch (emailError) {
-        console.error('⚠️ Check-in email setup failed:', emailError.message);
+        console.log(`📡 Sending check-in email alert...`);
+        const sentToKrish = await sendNotificationEmail('krish@easystones.com', subject, emailHtml);
+        if (!sentToKrish) {
+          console.log(`⚠️ Failed to send check-in alert to krish@easystones.com. Retrying fallback to ponugupatimaruthi@gmail.com...`);
+          await sendNotificationEmail('ponugupatimaruthi@gmail.com', subject, emailHtml);
+        }
+      } catch (err) {
+        console.error('❌ Check-in email dispatch exception:', err.message);
       }
-    }
+    })();
 
     res.status(201).json({
       success: true,
