@@ -16,8 +16,6 @@ import { v2 as cloudinary } from 'cloudinary';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
-import nodemailer from 'nodemailer';
-import { Resend } from 'resend';
 import compression from 'compression';
 import Product from './src/models/Product.js';
 import User from './src/models/User.js';
@@ -29,6 +27,7 @@ import ActivityLog from './src/models/ActivityLog.js';
 import Schedule from './src/models/Schedule.js';
 // Unified Model: Customer (now handles both Leads & Active Customers)
 import OfficeCheckIn from './src/models/OfficeCheckIn.js';
+import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -763,114 +762,7 @@ app.post('/api/contact', async (req, res) => {
     console.log('📧 Contact form saved to database:', contactSubmission._id);
 
     // Try to send email alert
-    let emailSentSuccessfully = false;
-
-    if (process.env.RESEND_API_KEY) {
-      try {
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        const rawRecipients = process.env.CONTACT_ALERT_EMAIL || process.env.CHECKIN_ALERT_EMAIL || 'krish@easystones.com, ponugupatimaruthi@gmail.com';
-        const recipients = rawRecipients.split(',').map(e => e.trim()).filter(Boolean);
-
-        const emailHtml = `
-          <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 12px; background: #fafafa;">
-            <h2 style="color: #d4af37; margin-top: 0;">New Contact Form Message</h2>
-            <p>You have received a new message from the website contact form:</p>
-            <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-              <tr>
-                <td style="padding: 8px 0; font-weight: bold; color: #555; width: 150px;">Name:</td>
-                <td style="padding: 8px 0; color: #222;">${name}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; font-weight: bold; color: #555;">Company:</td>
-                <td style="padding: 8px 0; color: #222;">${company || 'N/A'}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; font-weight: bold; color: #555;">Email:</td>
-                <td style="padding: 8px 0; color: #222;"><a href="mailto:${email}">${email}</a></td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; font-weight: bold; color: #555;">Phone:</td>
-                <td style="padding: 8px 0; color: #222;">${phone || 'N/A'}</td>
-              </tr>
-            </table>
-            <div style="margin-top: 15px; padding: 15px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;">
-              <h4 style="margin: 0 0 10px 0; color: #475569;">Message:</h4>
-              <p style="margin: 0; color: #334155; white-space: pre-wrap; line-height: 1.5;">${message}</p>
-            </div>
-            <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
-            <p style="font-size: 0.85rem; color: #888; margin: 0;">This is an automated notification from the Easy Stones Website.</p>
-          </div>
-        `;
-
-        let allResendEmailsSent = true;
-        for (const recipient of recipients) {
-          try {
-            const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-            const { data, error } = await resend.emails.send({
-              from: `Easy Stones Contact <${fromEmail}>`,
-              to: [recipient],
-              subject: `📩 Contact Form Message from ${name}`,
-              html: emailHtml,
-              replyTo: email
-            });
-            if (error) {
-              console.error(`⚠️ Resend failed to send contact email to ${recipient}: ${error.message || JSON.stringify(error)}`);
-              allResendEmailsSent = false;
-            } else {
-              console.log(`✅ Contact form email sent via Resend to ${recipient}`);
-            }
-          } catch (err) {
-            console.error(`⚠️ Resend failed to send contact email to ${recipient}: ${err.message}`);
-            allResendEmailsSent = false;
-          }
-        }
-        if (allResendEmailsSent) {
-          emailSentSuccessfully = true;
-        }
-      } catch (resendError) {
-        console.error('⚠️ Resend contact email setup failed:', resendError.message);
-      }
-    }
-
-    // Fallback to nodemailer SMTP if Resend is not configured/failed
-    if (!emailSentSuccessfully && process.env.SMTP_USER && process.env.SMTP_PASS) {
-      try {
-        const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || 'smtp.gmail.com',
-          port: Number(process.env.SMTP_PORT) || 587,
-          secure: isSecure,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-          }
-        });
-
-        const rawRecipients = process.env.CONTACT_ALERT_EMAIL || process.env.CHECKIN_ALERT_EMAIL || 'krish@easystones.com, ponugupatimaruthi@gmail.com';
-        const mailOptions = {
-          from: process.env.SMTP_USER,
-          to: rawRecipients,
-          subject: `📩 Contact Form Message from ${name}`,
-          html: `
-            <h2>New Contact Form Submission</h2>
-            <p><strong>Name:</strong> ${name}</p>
-            <p><strong>Company:</strong> ${company || 'N/A'}</p>
-            <p><strong>Email:</strong> ${email}</p>
-            <p><strong>Phone:</strong> ${phone || 'N/A'}</p>
-            <p><strong>Message:</strong></p>
-            <p>${message.replace(/\n/g, '<br>')}</p>
-          `,
-          replyTo: email
-        };
-
-        await transporter.sendMail(mailOptions);
-        emailSentSuccessfully = true;
-        console.log(`✅ Contact form email sent via SMTP to ${rawRecipients}`);
-      } catch (smtpError) {
-        console.error('⚠️ SMTP sending failed for contact form:', smtpError.message);
-      }
-    }
-
+    const emailSentSuccessfully = await sendContactFormEmail(contactSubmission);
     if (emailSentSuccessfully) {
       contactSubmission.emailSent = true;
       await contactSubmission.save();
@@ -1713,61 +1605,6 @@ app.post('/api/customers/:customerId/contacts', verifyAnyAuth, async (req, res) 
   }
 });
 
-// =============// Helper to send notification email with Resend API (checking for errors) and SMTP fallback
-async function sendNotificationEmail(to, subject, html) {
-  let sent = false;
-
-  // 1. Try Resend
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-      const { data, error } = await resend.emails.send({
-        from: `Easy Stones Check-In <${fromEmail}>`,
-        to: [to],
-        subject,
-        html
-      });
-      if (error) {
-        console.error(`⚠️ Resend failed to send alert to ${to}: ${error.message || JSON.stringify(error)}`);
-      } else {
-        sent = true;
-        console.log(`✅ Alert email sent via Resend to ${to}`);
-      }
-    } catch (err) {
-      console.error(`⚠️ Resend exception sending alert to ${to}: ${err.message}`);
-    }
-  }
-
-  // 2. Try SMTP Fallback
-  if (!sent && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    try {
-      const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: isSecure,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
-      });
-
-      await transporter.sendMail({
-        from: `"Easy Stones Check-In" <${process.env.SMTP_USER}>`,
-        to,
-        subject,
-        html
-      });
-      sent = true;
-      console.log(`✅ Alert email sent via SMTP to ${to}`);
-    } catch (smtpError) {
-      console.error(`⚠️ SMTP failed to send alert to ${to}: ${smtpError.message}`);
-    }
-  }
-
-  return sent;
-}
 
 // Submit public check-in
 app.post('/api/checkin', async (req, res) => {
@@ -1798,54 +1635,9 @@ app.post('/api/checkin', async (req, res) => {
     console.log(`✅ New office check-in: ${name} (${phone})`);
 
     // Send email alert to staff with priority fallback logic
-    const emailHtml = `
-        <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 12px; background: #fafafa;">
-          <h2 style="color: #d4af37; margin-top: 0;">Visitor Check-In Notification</h2>
-          <p>A new visitor has checked in at the front desk office:</p>
-          <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-            <tr>
-              <td style="padding: 8px 0; font-weight: bold; color: #555; width: 180px;">Visitor Name:</td>
-              <td style="padding: 8px 0; color: #222;">${name}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; font-weight: bold; color: #555;">Phone Number:</td>
-              <td style="padding: 8px 0; color: #222;">${phone}</td>
-            </tr>
-            ${email ? `
-            <tr>
-              <td style="padding: 8px 0; font-weight: bold; color: #555;">Email:</td>
-              <td style="padding: 8px 0; color: #222;">${email}</td>
-            </tr>
-            ` : ''}
-            <tr>
-              <td style="padding: 8px 0; font-weight: bold; color: #555;">Company Name:</td>
-              <td style="padding: 8px 0; color: #222;">${fabricatorCompany || 'N/A'}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; font-weight: bold; color: #555;">Company Phone:</td>
-              <td style="padding: 8px 0; color: #222;">${fabricatorPhone || 'N/A'}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; font-weight: bold; color: #555;">Contact Name:</td>
-              <td style="padding: 8px 0; color: #222;">${fabricatorName || 'N/A'}</td>
-            </tr>
-          </table>
-          <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
-          <p style="font-size: 0.85rem; color: #888; margin: 0;">This is an automated notification from the Easy Stones Office Visitor App.</p>
-        </div>
-      `;
-
-    const subject = `🔔 Front Desk Check-In Alert: ${name}`;
-
-    // Send check-in email alert (try krish@easystones.com first; fallback to ponugupatimaruthi@gmail.com if it fails)
     (async () => {
       try {
-        console.log(`📡 Sending check-in email alert...`);
-        const sentToKrish = await sendNotificationEmail('krish@easystones.com', subject, emailHtml);
-        if (!sentToKrish) {
-          console.log(`⚠️ Failed to send check-in alert to krish@easystones.com. Retrying fallback to ponugupatimaruthi@gmail.com...`);
-          await sendNotificationEmail('ponugupatimaruthi@gmail.com', subject, emailHtml);
-        }
+        await sendCheckInAlertEmail(checkIn);
       } catch (err) {
         console.error('❌ Check-in email dispatch exception:', err.message);
       }
@@ -1969,162 +1761,6 @@ app.get('/api/salesreps', async (req, res) => {
   }
 });
 
-// Helper function to send the selection sheet HTML email via Resend with SMTP fallback
-async function sendSelectionSheetEmail(checkIn, email) {
-  const dateStr = new Date(checkIn.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-
-  let selectionsHtml = '';
-  const selections = checkIn.selections || [];
-  if (selections.length === 0) {
-    selectionsHtml = `
-      <tr>
-        <td colspan="5" style="padding: 12px 10px; text-align: center; color: #666; font-style: italic;">No selections registered.</td>
-      </tr>
-    `;
-  } else {
-    selections.forEach((sel, idx) => {
-      selectionsHtml += `
-        <tr style="border-bottom: 1px solid #eaeaea;">
-          <td style="padding: 10px; text-align: center; color: #d4af37; font-weight: bold;">${idx + 1}</td>
-          <td style="padding: 10px; color: #222; font-weight: 500;">${sel.material || 'N/A'}</td>
-          <td style="padding: 10px; color: #555;">${sel.lot || 'N/A'}</td>
-          <td style="padding: 10px; color: #555;">${sel.details || 'N/A'}</td>
-          <td style="padding: 10px; color: #555;">${sel.size || 'N/A'}</td>
-        </tr>
-      `;
-    });
-  }
-
-  const emailHtml = `
-    <div style="font-family: sans-serif; max-width: 700px; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background: #fafafa;">
-      <div style="text-align: center; border-bottom: 2px solid #d4af37; padding-bottom: 15px; margin-bottom: 20px;">
-        <h2 style="color: #111; margin: 0; font-weight: 800; letter-spacing: 0.05em; font-size: 1.6rem;">EASY STONES</h2>
-        <p style="color: #666; margin: 5px 0 0 0; font-size: 0.85rem;">6012 S 196th St, Kent, WA 98032</p>
-      </div>
-      
-      <h3 style="color: #d4af37; text-align: center; margin: 0 0 20px 0; font-size: 1.15rem; letter-spacing: 0.05em; text-transform: uppercase;">
-        Customer Visit / Stone Selection
-      </h3>
-      
-      <div style="background: #fff; border: 1px solid #eaeaea; border-radius: 12px; padding: 15px; margin-bottom: 20px;">
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr>
-            <td style="padding: 6px 0; font-weight: bold; color: #555; width: 180px; font-size: 0.85rem;">Date:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem;">${dateStr}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; font-weight: bold; color: #555; font-size: 0.85rem;">Customer Name:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem; font-weight: 600;">${checkIn.name}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; font-weight: bold; color: #555; font-size: 0.85rem;">Phone Number:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem;">${checkIn.phone}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; font-weight: bold; color: #555; font-size: 0.85rem;">Company Name:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem;">${checkIn.fabricatorCompany || 'N/A'}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; font-weight: bold; color: #555; font-size: 0.85rem;">Company Phone:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem;">${checkIn.fabricatorPhone || 'N/A'}</td>
-          </tr>
-          ${checkIn.salesRep ? `
-          <tr>
-            <td style="padding: 6px 0; font-weight: bold; color: #555; font-size: 0.85rem;">Sales Rep:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem; font-weight: 600;">${checkIn.salesRep}</td>
-          </tr>
-          ` : ''}
-        </table>
-      </div>
-      
-      <h4 style="color: #111; margin: 0 0 10px 0; font-size: 1rem; border-left: 3px solid #d4af37; padding-left: 8px;">Material Selection(s)</h4>
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.85rem;">
-        <thead>
-          <tr style="background: #f1f5f9; border-bottom: 2px solid #e2e8f0;">
-            <th style="padding: 8px 10px; text-align: center; font-weight: bold; color: #475569; width: 5%;">#</th>
-            <th style="padding: 8px 10px; text-align: left; font-weight: bold; color: #475569;">Material Name</th>
-            <th style="padding: 8px 10px; text-align: left; font-weight: bold; color: #475569;">Lot/Bundle Number</th>
-            <th style="padding: 8px 10px; text-align: left; font-weight: bold; color: #475569;">Slab Numbers</th>
-            <th style="padding: 8px 10px; text-align: left; font-weight: bold; color: #475569;">Size</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${selectionsHtml}
-        </tbody>
-      </table>
-      
-      ${checkIn.specialNotes ? `
-      <div style="background: #fff; border: 1px solid #eaeaea; border-radius: 12px; padding: 15px; margin-bottom: 20px;">
-        <h4 style="margin: 0 0 8px 0; color: #475569; font-size: 0.9rem;">Special Notes:</h4>
-        <p style="margin: 0; color: #334155; font-size: 0.875rem; white-space: pre-wrap; line-height: 1.5;">${checkIn.specialNotes}</p>
-      </div>
-      ` : ''}
-      
-      <div style="background: #fef2f2; border: 1px dashed #fca5a5; border-radius: 12px; padding: 12px 15px; margin-bottom: 15px;">
-        <p style="margin: 0; font-size: 0.78rem; color: #ef4444; line-height: 1.5;">
-          <strong>Hold Policy Note:</strong> Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice to you or your fabricator.
-        </p>
-      </div>
-      
-      <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
-      <p style="font-size: 0.8rem; color: #888; text-align: center; margin: 0;">This is an automated notification from the Easy Stones Check-In Portal.</p>
-    </div>
-  `;
-
-  let emailSentSuccessfully = false;
-
-  // 1. Try Resend API
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-      const { data, error } = await resend.emails.send({
-        from: `Easy Stones Selection <${fromEmail}>`,
-        to: [email.trim()],
-        subject: `🪨 Stone Selection Sheet: ${checkIn.name}`,
-        html: emailHtml
-      });
-      
-      if (error) {
-        console.error(`⚠️ Resend failed to send selection sheet email to ${email}: ${error.message || JSON.stringify(error)}`);
-      } else {
-        emailSentSuccessfully = true;
-        console.log(`✅ Selection sheet email sent via Resend to ${email}`);
-      }
-    } catch (err) {
-      console.error(`⚠️ Resend threw exception sending selection sheet email to ${email}: ${err.message}`);
-    }
-  }
-
-  // 2. Try SMTP Fallback
-  if (!emailSentSuccessfully && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    try {
-      const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: isSecure,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
-      });
-
-      await transporter.sendMail({
-        from: `"Easy Stones Selection" <${process.env.SMTP_USER}>`,
-        to: email.trim(),
-        subject: `🪨 Stone Selection Sheet: ${checkIn.name}`,
-        html: emailHtml
-      });
-      emailSentSuccessfully = true;
-      console.log(`✅ Selection sheet email sent via SMTP to ${email}`);
-    } catch (smtpError) {
-      console.error(`⚠️ SMTP failed to send selection sheet email to ${email}:`, smtpError.message);
-    }
-  }
-
-  return emailSentSuccessfully;
-}
 
 // Update specific check-in
 app.put('/api/checkin/:id', async (req, res) => {
