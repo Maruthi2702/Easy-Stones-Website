@@ -1897,7 +1897,7 @@ app.get('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
 });
 
 // Update specific check-in
-app.put('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
+app.put('/api/checkin/:id', async (req, res) => {
   try {
     const { 
       name, 
