@@ -100,10 +100,13 @@ const CheckInLogPanel = ({
   const [emailAddress, setEmailAddress] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState(false);
+  const [salesReps, setSalesReps] = useState([]);
+  const [salesRepEmail, setSalesRepEmail] = useState('');
 
-  // Fetch product auto-suggestions when selections modal is opened
+  // Fetch product and sales rep auto-suggestions when selections modal is opened
   useEffect(() => {
     if (selectedCheckIn) {
+      // 1. Products
       fetch(`${API_URL}/api/products`)
         .then(res => res.json())
         .then(data => {
@@ -111,6 +114,15 @@ const CheckInLogPanel = ({
           setProductList(list);
         })
         .catch(err => console.error('Error fetching products:', err));
+
+      // 2. Sales Reps
+      fetch(`${API_URL}/api/salesreps`)
+        .then(res => res.json())
+        .then(data => {
+          const list = data.success ? data.data : (Array.isArray(data) ? data : []);
+          setSalesReps(list);
+        })
+        .catch(err => console.error('Error fetching sales reps:', err));
     }
   }, [selectedCheckIn]);
 
@@ -119,6 +131,7 @@ const CheckInLogPanel = ({
     setBuilderName(checkIn.builderName || '');
     setBuilderPhone(checkIn.builderPhone || '');
     setSalesRep(checkIn.salesRep || '');
+    setSalesRepEmail(checkIn.salesRepEmail || '');
     setShowEmailModal(false);
     setEmailAddress('');
     setIsSendingEmail(false);
@@ -139,6 +152,21 @@ const CheckInLogPanel = ({
     setSelections(formattedSelections);
     setSpecialNotes(checkIn.specialNotes || '');
     setSaveSuccess(false);
+  };
+
+  const handleSalesRepChange = (val) => {
+    setSalesRep(val);
+    // Find matching sales rep in state list
+    const matched = salesReps.find(r => 
+      r.name.toLowerCase() === val.trim().toLowerCase() || 
+      r.username.toLowerCase() === val.trim().toLowerCase()
+    );
+    if (matched) {
+      setSalesRepEmail(matched.email || '');
+      console.log(`Matched sales rep email: ${matched.email}`);
+    } else {
+      setSalesRepEmail('');
+    }
   };
 
   const handleSelectionChange = (idx, field, value) => {
@@ -168,7 +196,8 @@ const CheckInLogPanel = ({
           builderPhone,
           selections: cleanSelections,
           specialNotes,
-          salesRep
+          salesRep,
+          salesRepEmail
         }),
         credentials: 'include'
       });
@@ -529,9 +558,10 @@ const CheckInLogPanel = ({
                   <input
                     type="text"
                     value={salesRep}
-                    onChange={(e) => setSalesRep(e.target.value)}
+                    onChange={(e) => handleSalesRepChange(e.target.value)}
                     placeholder="Enter sales rep name"
                     className="selection-input"
+                    list="salesreps-datalist"
                   />
                 </div>
               </div>
@@ -599,6 +629,12 @@ const CheckInLogPanel = ({
               <datalist id="products-datalist">
                 {productList.map((prod, pIdx) => (
                   <option key={prod._id || pIdx} value={prod.name} />
+                ))}
+              </datalist>
+
+              <datalist id="salesreps-datalist">
+                {salesReps.map((rep, idx) => (
+                  <option key={rep.username || idx} value={rep.name} />
                 ))}
               </datalist>
 

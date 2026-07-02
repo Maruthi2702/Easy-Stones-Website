@@ -63,6 +63,11 @@ const officeCheckInSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: ''
+  },
+  salesRepEmail: {
+    type: String,
+    trim: true,
+    default: ''
   }
 }, {
   timestamps: true
