@@ -481,37 +481,6 @@ const CheckInLogPanel = ({
                   </span>
                   <span className="detail-value">{selectedCheckIn.fabricatorPhone || 'N/A'}</span>
                 </div>
-                <div className="detail-item">
-                  {/* Empty spacer for alignment */}
-                </div>
-
-                <div className="detail-item">
-                  <span className="detail-label">
-                    <Building2 size={12} className="detail-icon" /> Builder:
-                  </span>
-                  <input
-                    type="text"
-                    value={builderName}
-                    onChange={(e) => setBuilderName(e.target.value)}
-                    placeholder="Enter builder name"
-                    className="selection-input"
-                  />
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">
-                    <Phone size={12} className="detail-icon" /> Builder Contact:
-                  </span>
-                  <input
-                    type="text"
-                    value={builderPhone}
-                    onChange={(e) => setBuilderPhone(e.target.value)}
-                    placeholder="Enter builder phone"
-                    className="selection-input"
-                  />
-                </div>
-                <div className="detail-item">
-                  {/* Empty spacer for alignment */}
-                </div>
               </div>
 
               {/* Selections Grid Table */}
