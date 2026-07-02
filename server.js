@@ -1754,7 +1754,7 @@ async function sendNotificationEmail(to, subject, html) {
       });
 
       await transporter.sendMail({
-        from: process.env.SMTP_USER,
+        from: `"Easy Stones Check-In" <${process.env.SMTP_USER}>`,
         to,
         subject,
         html
@@ -2111,7 +2111,7 @@ async function sendSelectionSheetEmail(checkIn, email) {
       });
 
       await transporter.sendMail({
-        from: process.env.SMTP_USER,
+        from: `"Easy Stones Selection" <${process.env.SMTP_USER}>`,
         to: email.trim(),
         subject: `🪨 Stone Selection Sheet: ${checkIn.name}`,
         html: emailHtml
