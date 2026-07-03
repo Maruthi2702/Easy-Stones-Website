@@ -1832,10 +1832,10 @@ app.post('/api/checkin/:id/send-email', async (req, res) => {
       return res.status(404).json({ message: 'Check-in record not found' });
     }
 
-    const emailSent = await sendSelectionSheetEmail(checkIn, email);
+    const emailResult = await sendSelectionSheetEmail(checkIn, email);
 
-    if (!emailSent) {
-      return res.status(500).json({ message: 'Failed to send selection sheet email' });
+    if (!emailResult.success) {
+      return res.status(500).json({ message: `Failed to send selection sheet email. Details: ${emailResult.error || 'Unknown error'}` });
     }
 
     res.json({ success: true, message: 'Selection sheet email sent successfully' });

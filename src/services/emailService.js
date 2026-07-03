@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 // Helper to send general mail using Resend API with SMTP fallback
 export async function sendEmail({ to, subject, html, replyTo, defaultSenderName }) {
   let sent = false;
+  let errorDetails = [];
 
   // 1. Try Resend
   if (process.env.RESEND_API_KEY) {
@@ -22,49 +23,62 @@ export async function sendEmail({ to, subject, html, replyTo, defaultSenderName 
       
       const { data, error } = await resend.emails.send(payload);
       if (error) {
-        console.error(`⚠️ Resend failed to send email to ${to}: ${error.message || JSON.stringify(error)}`);
+        const errMsg = error.message || JSON.stringify(error);
+        console.error(`⚠️ Resend failed to send email to ${to}: ${errMsg}`);
+        errorDetails.push(`Resend error: ${errMsg}`);
       } else {
         sent = true;
         console.log(`✅ Email sent via Resend to ${to}`);
       }
     } catch (err) {
       console.error(`⚠️ Resend exception sending email to ${to}: ${err.message}`);
+      errorDetails.push(`Resend exception: ${err.message}`);
     }
+  } else {
+    errorDetails.push('Resend API key missing');
   }
 
   // 2. Try SMTP Fallback
-  if (!sent && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    try {
-      const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: isSecure,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
+  if (!sent) {
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      try {
+        const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: Number(process.env.SMTP_PORT) || 587,
+          secure: isSecure,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+          }
+        });
+
+        const payload = {
+          from: `"${defaultSenderName}" <${process.env.SMTP_USER}>`,
+          to: Array.isArray(to) ? to.join(', ') : to,
+          subject,
+          html
+        };
+        if (replyTo) {
+          payload.replyTo = replyTo;
         }
-      });
 
-      const payload = {
-        from: `"${defaultSenderName}" <${process.env.SMTP_USER}>`,
-        to: Array.isArray(to) ? to.join(', ') : to,
-        subject,
-        html
-      };
-      if (replyTo) {
-        payload.replyTo = replyTo;
+        await transporter.sendMail(payload);
+        sent = true;
+        console.log(`✅ Email sent via SMTP to ${to}`);
+      } catch (smtpError) {
+        console.error(`⚠️ SMTP failed to send email to ${to}: ${smtpError.message}`);
+        errorDetails.push(`SMTP error: ${smtpError.message}`);
       }
-
-      await transporter.sendMail(payload);
-      sent = true;
-      console.log(`✅ Email sent via SMTP to ${to}`);
-    } catch (smtpError) {
-      console.error(`⚠️ SMTP failed to send email to ${to}: ${smtpError.message}`);
+    } else {
+      errorDetails.push('SMTP auth details missing');
     }
   }
 
-  return sent;
+  return {
+    success: sent,
+    error: sent ? null : errorDetails.join(' | ')
+  };
 }
 
 // 1. Send Check-In Alert Notification
@@ -118,7 +132,7 @@ export async function sendCheckInAlertEmail(checkIn) {
     defaultSenderName: 'Easy Stones Check-In'
   });
 
-  if (!sentToKrish) {
+  if (!sentToKrish.success) {
     console.log(`⚠️ Failed to send check-in alert to krish@easystones.com. Retrying fallback to ponugupatimaruthi@gmail.com...`);
     await sendEmail({
       to: 'ponugupatimaruthi@gmail.com',
