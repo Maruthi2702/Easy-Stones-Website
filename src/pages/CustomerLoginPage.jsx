@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
@@ -132,8 +132,11 @@ const CustomerLoginPage = () => {
                     </form>
 
                     <div className="toggle-form">
+                        <p style={{ marginBottom: '0.75rem' }}>
+                            Don't have an account? <Link to="/contact" className="contact-admin" style={{ textDecoration: 'none' }}>Contact us to register.</Link>
+                        </p>
                         <p>
-                            Don't have an account? <span className="contact-admin">Contact us to register.</span>
+                            Already registered? <Link to="/contact" className="contact-admin" style={{ textDecoration: 'none' }}>Contact Your Sales Rep.</Link>
                         </p>
                     </div>
                 </div>
