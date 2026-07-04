@@ -39,7 +39,7 @@
 /* ── Headers ── */
 .clp-page-header {
   position: relative;
-  z-index: 1;
+  z-index: 10;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -49,6 +49,8 @@
 }
 
 .clp-panel-header {
+  position: relative;
+  z-index: 10;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1822,4 +1824,296 @@
 /* Page wrappers under light theme */
 .checkin-log-page-wrapper.light-theme {
   background-color: #f8fafc !important;
+}
+
+/* ── Date Filter Container & Button ── */
+.clp-filter-container {
+  position: relative;
+  display: inline-block;
+}
+
+.clp-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.6rem 1.1rem;
+  border-radius: 10px;
+  color: #e5e7eb;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  font-family: inherit;
+}
+
+.clp-filter-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.clp-filter-btn.clp-filter-active {
+  background: rgba(212, 175, 55, 0.1);
+  border-color: rgba(212, 175, 55, 0.3);
+  color: #d4af37;
+}
+
+/* ── Date Filter Popover Panel ── */
+.clp-filter-popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 16px;
+  padding: 1.25rem;
+  width: 300px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6) !important;
+  z-index: 1000;
+  animation: clp-filter-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes clp-filter-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.clp-filter-popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.75rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #fff;
+}
+
+.clp-filter-popover-close {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.clp-filter-popover-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.clp-filter-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.filter-select-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.filter-select-group label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #9ca3af;
+  letter-spacing: 0.05em;
+}
+
+.filter-dropdown-select {
+  background: #27272a !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 8px;
+  padding: 0.5rem;
+  color: #fff !important;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.filter-dropdown-select:focus {
+  border-color: #d4af37;
+}
+
+.filter-months-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+}
+
+.filter-month-cell {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 0.45rem 0;
+  color: #d1d5db;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  font-family: inherit;
+}
+
+.filter-month-cell:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.filter-month-cell.active {
+  background: #d4af37 !important;
+  border-color: #d4af37 !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+}
+
+.clp-filter-popover-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 0.75rem;
+  margin-top: 1rem;
+}
+
+.filter-btn-clear {
+  background: transparent;
+  border: none;
+  color: #f87171;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 4px 0;
+}
+
+.filter-btn-clear:hover {
+  color: #ef4444;
+  text-decoration: underline;
+}
+
+.filter-btn-apply {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 0.4rem 0.9rem;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.filter-btn-apply:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Light Theme Date Filter Overrides ── */
+.clp-root.light-theme .clp-filter-btn {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .clp-filter-btn:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+}
+
+.clp-root.light-theme .clp-filter-btn.clp-filter-active {
+  background: #fffbeb !important;
+  border-color: #d4af37 !important;
+  color: #b45309 !important;
+}
+
+.clp-root.light-theme .clp-filter-popover {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 
+              0 8px 16px -8px rgba(15, 23, 42, 0.08) !important;
+}
+
+.clp-root.light-theme .clp-filter-popover-header {
+  color: #0f172a !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.clp-root.light-theme .clp-filter-popover-close {
+  color: #64748b !important;
+}
+
+.clp-root.light-theme .clp-filter-popover-close:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .filter-select-group label {
+  color: #64748b !important;
+}
+
+.clp-root.light-theme .filter-dropdown-select {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  font-weight: 500 !important;
+}
+
+.clp-root.light-theme .filter-dropdown-select:focus {
+  border-color: #d4af37 !important;
+}
+
+.clp-root.light-theme .filter-month-cell {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .filter-month-cell:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .filter-month-cell.active {
+  background: #d4af37 !important;
+  border-color: #d4af37 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+.clp-root.light-theme .clp-filter-popover-footer {
+  border-top: 1px solid #e2e8f0 !important;
+}
+
+.clp-root.light-theme .filter-btn-clear {
+  color: #ef4444 !important;
+}
+
+.clp-root.light-theme .filter-btn-clear:hover {
+  color: #dc2626 !important;
+}
+
+.clp-root.light-theme .filter-btn-apply {
+  background: #f1f5f9 !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .filter-btn-apply:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
 }

@@ -26,7 +26,7 @@ import {
   Clock, Search, Download, Loader2, Calendar,
   ChevronLeft, ChevronRight, RefreshCw,
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
-  Save, AlertTriangle, Printer, Sun, Moon
+  Save, AlertTriangle, Printer, Sun, Moon, Filter
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import './CheckInLogPanel.css';
@@ -62,6 +62,16 @@ const getAvatarColor = (name) => {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 };
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const MONTH_SHORT_NAMES = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
 /* ── component ────────────────────────────────── */
 const CheckInLogPanel = ({
   checkIns = [],
@@ -79,6 +89,10 @@ const CheckInLogPanel = ({
   onPageChange,
   rowsPerPage = 20,
   onRowsPerPageChange = () => {},
+  filterMonth = null,
+  filterYear = null,
+  onFilterMonthChange = () => {},
+  onFilterYearChange = () => {},
   onExport,
   sidebarToggle = null,
   embedded = false,
@@ -88,6 +102,7 @@ const CheckInLogPanel = ({
   theme: themeProp = null,
   onToggleTheme = null,
 }) => {
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [internalTheme, setInternalTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_theme');
@@ -609,6 +624,104 @@ const CheckInLogPanel = ({
               </button>
             )}
           </div>
+
+          {/* Date Filter */}
+          {!embedded && onFilterMonthChange && onFilterYearChange && (
+            <div className="clp-filter-container">
+              <button
+                type="button"
+                className={`clp-filter-btn ${(filterMonth || filterYear) ? 'clp-filter-active' : ''}`}
+                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                title="Filter by Month & Year"
+              >
+                <Filter size={14} />
+                <span>
+                  {filterMonth && filterYear
+                    ? `${MONTH_NAMES[filterMonth - 1]} ${filterYear}`
+                    : 'All Time'}
+                </span>
+              </button>
+
+              {showFilterDropdown && (
+                <div className="clp-filter-popover">
+                  <div className="clp-filter-popover-header">
+                    <span>Filter Check-ins</span>
+                    <button 
+                      type="button" 
+                      className="clp-filter-popover-close"
+                      onClick={() => setShowFilterDropdown(false)}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="clp-filter-popover-body">
+                    <div className="filter-select-group">
+                      <label>Year</label>
+                      <select
+                        value={filterYear || ''}
+                        onChange={(e) => {
+                          const val = e.target.value ? Number(e.target.value) : null;
+                          onFilterYearChange(val);
+                        }}
+                        className="filter-dropdown-select"
+                      >
+                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((y) => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="filter-select-group">
+                      <label>Month</label>
+                      <div className="filter-months-grid">
+                        {MONTH_SHORT_NAMES.map((m, idx) => {
+                          const monthVal = idx + 1;
+                          const isActive = filterMonth === monthVal;
+                          return (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                onFilterMonthChange(isActive ? null : monthVal);
+                                // If activating a month but year is null, default to current year
+                                if (!isActive && !filterYear) {
+                                  onFilterYearChange(new Date().getFullYear());
+                                }
+                              }}
+                              className={`filter-month-cell ${isActive ? 'active' : ''}`}
+                            >
+                              {m}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="clp-filter-popover-footer">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onFilterMonthChange(null);
+                        onFilterYearChange(null);
+                        setShowFilterDropdown(false);
+                      }}
+                      className="filter-btn-clear"
+                    >
+                      Clear Filter (All Time)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowFilterDropdown(false)}
+                      className="filter-btn-apply"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {onExport && (
             <button className="clp-export-btn" onClick={onExport}>
               <Download size={14} />

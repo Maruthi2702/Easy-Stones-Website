@@ -1656,20 +1656,31 @@ app.post('/api/checkin', async (req, res) => {
 
 app.get('/api/checkin', async (req, res) => {
   try {
-    const { page, limit, search } = req.query;
+    const { page, limit, search, month, year } = req.query;
 
     // If query parameters are not supplied, return standard raw array for backward compatibility
-    if (!page && !limit && !search) {
+    if (!page && !limit && !search && !month && !year) {
       const checkIns = await OfficeCheckIn.find()
         .sort({ createdAt: -1 })
         .limit(50);
       return res.json(checkIns);
     }
 
-    // Otherwise, support full pagination and search
+    // Otherwise, support full pagination, search, and date filters
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 20;
     const query = {};
+
+    if (month && year) {
+      const m = parseInt(month);
+      const y = parseInt(year);
+      const startDate = new Date(Date.UTC(y, m - 1, 1));
+      const endDate = new Date(Date.UTC(y, m, 1));
+      query.createdAt = {
+        $gte: startDate,
+        $lt: endDate
+      };
+    }
 
     if (search) {
       const searchRegex = new RegExp(search, 'i');

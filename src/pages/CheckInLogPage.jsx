@@ -54,12 +54,17 @@ const CheckInLogPage = () => {
   const [todayCount, setTodayCount] = useState(0);
   const [monthCount, setMonthCount] = useState(0);
 
+  // Default to current month and year
+  const currentDate = new Date();
+  const [filterMonth, setFilterMonth] = useState(currentDate.getMonth() + 1); // 1-12, null = All Months
+  const [filterYear, setFilterYear] = useState(currentDate.getFullYear()); // null = All Years
+
   useEffect(() => {
     fetchCheckIns();
     fetchStats();
     const interval = setInterval(() => { fetchCheckIns(true); fetchStats(); }, 30000);
     return () => clearInterval(interval);
-  }, [currentPage, searchTerm, limit]);
+  }, [currentPage, searchTerm, limit, filterMonth, filterYear]);
 
   const fetchStats = async () => {
     try {
@@ -82,6 +87,8 @@ const CheckInLogPage = () => {
         page: currentPage,
         limit: limit,
         ...(searchTerm && { search: searchTerm }),
+        ...(filterMonth && { month: filterMonth }),
+        ...(filterYear && { year: filterYear }),
       });
       const response = await fetch(`${API_URL}/api/checkin?${params}`);
       if (response.ok) {
@@ -139,6 +146,10 @@ const CheckInLogPage = () => {
           onPageChange={setCurrentPage}
           rowsPerPage={limit}
           onRowsPerPageChange={(val) => { setLimit(val); setCurrentPage(1); }}
+          filterMonth={filterMonth}
+          filterYear={filterYear}
+          onFilterMonthChange={(val) => { setFilterMonth(val); setCurrentPage(1); }}
+          onFilterYearChange={(val) => { setFilterYear(val); setCurrentPage(1); }}
           onExport={handleExport}
           embedded={false}
           theme={theme}
