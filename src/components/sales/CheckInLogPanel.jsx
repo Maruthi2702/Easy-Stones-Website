@@ -819,6 +819,7 @@ const CheckInLogPanel = ({
                 type="button" 
                 className="selection-modal-close" 
                 onClick={() => setSelectedCheckIn(null)}
+                autoFocus
               >
                 <X size={20} />
               </button>
