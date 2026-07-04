@@ -141,7 +141,7 @@
   .login-container {
     padding: 1rem;
     align-items: flex-start; /* Align to top on mobile to avoid keyboard covering input */
-    padding-top: 7rem; /* Increased to clear fixed header */
+    padding-top: 2rem; /* Adjusted to respect global header offset */
     padding-bottom: 2rem;
   }
 

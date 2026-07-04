@@ -179,7 +179,7 @@
 
 @media (max-width: 480px) {
   .customer-login-page {
-    padding-top: 7rem;
+    padding-top: 2rem; /* Adjusted to respect global header offset */
     align-items: flex-start;
     padding-bottom: 2rem;
   }
