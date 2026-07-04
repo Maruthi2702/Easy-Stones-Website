@@ -1287,3 +1287,338 @@
   transform: none;
   box-shadow: none;
 }
+
+/* ==========================================================================
+   CheckInLogPanel Light Theme Overrides
+   ========================================================================== */
+
+/* Root and main background wrapper */
+.clp-root.light-theme {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Header Text elements */
+.clp-root.light-theme .clp-title {
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .clp-subtitle {
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .clp-updated {
+  color: #64748b !important;
+}
+
+/* Header Search */
+.clp-root.light-theme .clp-search-wrap {
+  border-color: #cbd5e1 !important;
+}
+
+.clp-root.light-theme .clp-search {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .clp-search::placeholder {
+  color: #94a3b8 !important;
+}
+
+.clp-root.light-theme .clp-search-icon {
+  color: #64748b !important;
+}
+
+/* Header Buttons */
+.clp-root.light-theme .clp-export-btn,
+.clp-root.light-theme .clp-refresh-btn {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .clp-export-btn:hover,
+.clp-root.light-theme .clp-refresh-btn:hover {
+  background: #f1f5f9 !important;
+}
+
+/* Stats Row */
+.clp-root.light-theme .clp-stat {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.02) !important;
+}
+
+.clp-root.light-theme .clp-stat-val {
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .clp-stat-lbl {
+  color: #475569 !important;
+}
+
+/* Main Table */
+.clp-root.light-theme .clp-table-container {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.03) !important;
+}
+
+.clp-root.light-theme .clp-table th {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border-bottom-color: #cbd5e1 !important;
+}
+
+.clp-root.light-theme .clp-table td {
+  border-bottom-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.clp-root.light-theme .clp-table tr:hover td {
+  background: #f8fafc !important;
+}
+
+.clp-root.light-theme .clp-name-main {
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .clp-icon-text {
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .clp-company-name {
+  color: #334155 !important;
+}
+
+.clp-root.light-theme .clp-company-icon {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+}
+
+/* Selections Modal Overlay */
+.clp-root.light-theme .selection-modal-overlay {
+  background: rgba(15, 23, 42, 0.4) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Selections Modal Container */
+.clp-root.light-theme .selection-modal-container {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.15) !important;
+}
+
+/* Selection Modal Header */
+.clp-root.light-theme .selection-modal-header {
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.clp-root.light-theme .selection-modal-brand h2 {
+  background: linear-gradient(135deg, #0f172a 70%, #d4af37 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.clp-root.light-theme .selection-modal-brand p {
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .selection-modal-close {
+  color: #64748b !important;
+}
+
+.clp-root.light-theme .selection-modal-close:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* Form Sections */
+.clp-root.light-theme .selection-form-grid {
+  background: #ffffff !important;
+}
+
+.clp-root.light-theme .selection-form-section {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.clp-root.light-theme .selection-form-section h4 {
+  color: #0f172a !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.clp-root.light-theme .selection-input-group label {
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .selection-input-group input,
+.clp-root.light-theme .selection-input-group select {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .selection-input-group input:focus,
+.clp-root.light-theme .selection-input-group select:focus {
+  border-color: #d4af37 !important;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.15) !important;
+  background: #ffffff !important;
+}
+
+.clp-root.light-theme .selection-input-group input::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Materials Table Grid */
+.clp-root.light-theme .selection-table-header {
+  background: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .selection-row-card {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+
+.clp-root.light-theme .selection-row-num {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .notes-textarea {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .notes-textarea:focus {
+  border-color: #d4af37 !important;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.15) !important;
+}
+
+.clp-root.light-theme .notes-textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Modal Actions bar */
+.clp-root.light-theme .selection-modal-actions {
+  background: #f8fafc !important;
+  border-top: 1px solid #e2e8f0 !important;
+}
+
+.clp-root.light-theme .btn-print-pdf,
+.clp-root.light-theme .btn-email-link {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .btn-print-pdf:hover,
+.clp-root.light-theme .btn-email-link:hover {
+  background: #f1f5f9 !important;
+}
+
+.clp-root.light-theme .btn-save {
+  background: linear-gradient(135deg, #d4af37 0%, #b89324 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.25) !important;
+}
+
+.clp-root.light-theme .btn-save:hover {
+  box-shadow: 0 6px 16px rgba(212, 175, 55, 0.4) !important;
+}
+
+/* Email Modal */
+.clp-root.light-theme .selection-email-modal-overlay {
+  background: rgba(15, 23, 42, 0.4) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+.clp-root.light-theme .selection-email-modal-container {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.15) !important;
+}
+
+.clp-root.light-theme .selection-email-modal-header {
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .selection-email-modal-header h4 {
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .btn-close-email-modal {
+  color: #64748b !important;
+}
+
+.clp-root.light-theme .btn-close-email-modal:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .email-modal-description {
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .selection-email-modal-input {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .selection-email-modal-input:focus {
+  border-color: #d4af37 !important;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.15) !important;
+}
+
+.clp-root.light-theme .selection-email-modal-input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.clp-root.light-theme .btn-email-modal-cancel {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .btn-email-modal-cancel:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .btn-email-modal-send {
+  background: linear-gradient(135deg, #d4af37 0%, #b89324 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 10px rgba(212, 175, 55, 0.25) !important;
+}
+
+.clp-root.light-theme .btn-email-modal-send:hover {
+  box-shadow: 0 6px 15px rgba(212, 175, 55, 0.35) !important;
+}
+
+/* Pagination */
+.clp-root.light-theme .clp-pagination {
+  border-top-color: #e2e8f0 !important;
+}
+
+.clp-root.light-theme .clp-page-info {
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .clp-page-btn {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .clp-page-btn:hover:not(:disabled) {
+  background: #f1f5f9 !important;
+}

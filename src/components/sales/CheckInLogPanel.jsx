@@ -84,6 +84,30 @@ const CheckInLogPanel = ({
   onEdit = null,
   onDelete = null,
 }) => {
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('checkin_theme');
+      return saved === 'light' ? 'light' : 'dark';
+    } catch (e) {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const saved = localStorage.getItem('checkin_theme');
+        setTheme(saved === 'light' ? 'light' : 'dark');
+      } catch (e) {}
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('checkin_theme_changed', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('checkin_theme_changed', handleStorageChange);
+    };
+  }, []);
+
   // ── Selection Sheet State ──
   const [selectedCheckIn, setSelectedCheckIn] = useState(null);
   const [builderName, setBuilderName] = useState('');
@@ -482,7 +506,7 @@ const CheckInLogPanel = ({
   });
 
   return (
-    <div className={`clp-root ${embedded ? 'clp-embedded' : 'clp-page'}`}>
+    <div className={`clp-root ${embedded ? 'clp-embedded' : 'clp-page'} ${theme}-theme`}>
 
       {/* ── Hero / Header ── */}
       {!embedded && <div className="clp-hero-bg" />}

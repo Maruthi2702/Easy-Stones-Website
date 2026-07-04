@@ -23,10 +23,26 @@ const CheckInPage = () => {
     setTheme(nextTheme);
     try {
       localStorage.setItem('checkin_theme', nextTheme);
+      window.dispatchEvent(new Event('checkin_theme_changed'));
     } catch (err) {
       console.error('Failed to save check-in theme:', err);
     }
   };
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const saved = localStorage.getItem('checkin_theme');
+        setTheme(saved === 'light' ? 'light' : 'dark');
+      } catch (e) {}
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('checkin_theme_changed', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('checkin_theme_changed', handleStorageChange);
+    };
+  }, []);
 
   const [formData, setFormData] = useState(() => {
     try {

@@ -1,11 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { API_URL } from '../config/api';
 import * as XLSX from 'xlsx';
+import { Sun, Moon } from 'lucide-react';
 import CheckInLogPanel from '../components/sales/CheckInLogPanel';
 
 const LIMIT = 20;
 
 const CheckInLogPage = () => {
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('checkin_theme');
+      return saved === 'light' ? 'light' : 'dark';
+    } catch (e) {
+      return 'dark';
+    }
+  });
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem('checkin_theme', nextTheme);
+      window.dispatchEvent(new Event('checkin_theme_changed'));
+    } catch (err) {
+      console.error('Failed to save check-in theme:', err);
+    }
+  };
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const saved = localStorage.getItem('checkin_theme');
+        setTheme(saved === 'light' ? 'light' : 'dark');
+      } catch (e) {}
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('checkin_theme_changed', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('checkin_theme_changed', handleStorageChange);
+    };
+  }, []);
+
   const [checkIns, setCheckIns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -84,24 +120,31 @@ const CheckInLogPage = () => {
   };
 
   return (
-    <div style={{ paddingTop: '96px' }}>
-      <CheckInLogPanel
-        checkIns={checkIns}
-        loading={loading}
-        refreshing={refreshing}
-        onRefresh={() => { fetchCheckIns(true); fetchStats(); }}
-        searchTerm={searchTerm}
-        onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
-        lastUpdated={lastUpdated}
-        totalCount={totalCount}
-        todayCount={todayCount}
-        monthCount={monthCount}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={setCurrentPage}
-        onExport={handleExport}
-        embedded={false}
-      />
+    <div className={`checkin-log-page-wrapper ${theme}-theme`} style={{ minHeight: '100vh', transition: 'background-color 0.2s ease-in-out' }}>
+      <button type="button" onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle Theme" style={{ top: 'calc(96px + 1.5rem)' }}>
+        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        <span>{theme === 'dark' ? 'Light Theme' : 'Dark Theme'}</span>
+      </button>
+
+      <div style={{ paddingTop: '96px' }}>
+        <CheckInLogPanel
+          checkIns={checkIns}
+          loading={loading}
+          refreshing={refreshing}
+          onRefresh={() => { fetchCheckIns(true); fetchStats(); }}
+          searchTerm={searchTerm}
+          onSearchChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+          lastUpdated={lastUpdated}
+          totalCount={totalCount}
+          todayCount={todayCount}
+          monthCount={monthCount}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          onExport={handleExport}
+          embedded={false}
+        />
+      </div>
     </div>
   );
 };
