@@ -1,5 +1,4 @@
 .contact-page {
-  margin-top: 80px;
   padding: 2rem 2rem 0;
   background: var(--bg-secondary);
 }
@@ -178,10 +177,6 @@
 
 /* Responsive Design */
 @media (max-width: 968px) {
-  .contact-page {
-    margin-top: 100px;
-  }
-
   .contact-container {
     grid-template-columns: 1fr;
     gap: 2rem;

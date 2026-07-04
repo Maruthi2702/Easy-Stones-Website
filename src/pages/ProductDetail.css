@@ -1,5 +1,5 @@
 .product-detail {
-  padding-top: 6rem; /* Reduced padding since image is huge */
+  padding-top: 2rem; /* Aligned with global page padding */
   padding-bottom: 4rem;
   position: relative;
   z-index: 1;

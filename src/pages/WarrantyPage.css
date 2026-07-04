@@ -102,11 +102,11 @@
 
 @media (max-width: 768px) {
   .warranty-page {
-    padding-top: 100px;
+    padding-top: 0;
   }
   
   .warranty-nav-container {
-    top: 100px;
+    top: 74px; /* Sticks right below mobile fixed header */
   }
 
   .sub-nav {
