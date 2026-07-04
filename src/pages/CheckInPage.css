@@ -411,3 +411,124 @@
   margin-right: 0.35rem;
   letter-spacing: 0.05em;
 }
+
+/* --- Theme Toggle Button --- */
+.theme-toggle-btn {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 30px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  background: var(--glass-background, rgba(255, 255, 255, 0.03));
+  color: var(--text-primary, #ffffff);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all var(--transition-base, 0.2s);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+/* --- Light Theme Overrides --- */
+.checkin-container.light-theme {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.checkin-container.light-theme .theme-toggle-btn {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.checkin-container.light-theme .theme-toggle-btn:hover {
+  background: #f1f5f9;
+}
+
+.checkin-container.light-theme .logo-section h1 {
+  background: linear-gradient(135deg, #0f172a 30%, #d4af37 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.checkin-container.light-theme .checkin-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 15px 40px rgba(15, 23, 42, 0.05), 
+              0 1px 3px rgba(15, 23, 42, 0.02);
+}
+
+.checkin-container.light-theme .form-section h3 {
+  color: #1e293b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.checkin-container.light-theme .input-field label {
+  color: #475569;
+}
+
+.checkin-container.light-theme .input-field input {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  color: #0f172a;
+}
+
+.checkin-container.light-theme .input-field input:focus {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.15);
+  background: #ffffff;
+}
+
+.checkin-container.light-theme .input-field input::placeholder {
+  color: #94a3b8;
+}
+
+.checkin-container.light-theme .waiver-section {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  border-left: 4px solid #d4af37;
+}
+
+.checkin-container.light-theme .waiver-text {
+  color: #451a03;
+}
+
+.checkin-container.light-theme .waiver-text strong {
+  color: #b45309;
+}
+
+.checkin-container.light-theme .submit-btn {
+  background: linear-gradient(135deg, #d4af37 0%, #b89324 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.25);
+}
+
+.checkin-container.light-theme .submit-btn:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
+}
+
+.checkin-container.light-theme .success-message h2 {
+  color: #1e293b;
+}
+
+.checkin-container.light-theme .success-message p {
+  color: #475569;
+}
+
+.checkin-container.light-theme .error-message {
+  background: #fef2f2;
+  border-left: 4px solid #ef4444;
+  color: #991b1b;
+}

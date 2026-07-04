@@ -1,13 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { 
   User, Phone, Mail, MapPin, Building, 
-  UserCheck, Send, Loader2, CheckCircle2, AlertTriangle
+  UserCheck, Send, Loader2, CheckCircle2, AlertTriangle,
+  Sun, Moon
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { formatPhoneInput } from '../utils/phoneUtils';
 import './CheckInPage.css';
 
 const CheckInPage = () => {
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('checkin_theme');
+      return saved === 'light' ? 'light' : 'dark';
+    } catch (e) {
+      return 'dark';
+    }
+  });
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem('checkin_theme', nextTheme);
+    } catch (err) {
+      console.error('Failed to save check-in theme:', err);
+    }
+  };
+
   const [formData, setFormData] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_draft');
@@ -122,7 +142,12 @@ const CheckInPage = () => {
   };
 
   return (
-    <div className="checkin-container">
+    <div className={`checkin-container ${theme}-theme`}>
+      <button type="button" onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle Theme">
+        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        <span>{theme === 'dark' ? 'Light Theme' : 'Dark Theme'}</span>
+      </button>
+
       <div className="checkin-header">
         <div className="logo-section">
           <h1>Visitor Check-in</h1>
