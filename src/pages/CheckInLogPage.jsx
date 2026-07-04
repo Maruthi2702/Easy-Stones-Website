@@ -47,6 +47,7 @@ const CheckInLogPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -58,7 +59,7 @@ const CheckInLogPage = () => {
     fetchStats();
     const interval = setInterval(() => { fetchCheckIns(true); fetchStats(); }, 30000);
     return () => clearInterval(interval);
-  }, [currentPage, searchTerm]);
+  }, [currentPage, searchTerm, limit]);
 
   const fetchStats = async () => {
     try {
@@ -79,7 +80,7 @@ const CheckInLogPage = () => {
     try {
       const params = new URLSearchParams({
         page: currentPage,
-        limit: LIMIT,
+        limit: limit,
         ...(searchTerm && { search: searchTerm }),
       });
       const response = await fetch(`${API_URL}/api/checkin?${params}`);
@@ -136,6 +137,8 @@ const CheckInLogPage = () => {
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
+          rowsPerPage={limit}
+          onRowsPerPageChange={(val) => { setLimit(val); setCurrentPage(1); }}
           onExport={handleExport}
           embedded={false}
           theme={theme}

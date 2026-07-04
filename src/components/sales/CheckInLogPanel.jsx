@@ -77,6 +77,8 @@ const CheckInLogPanel = ({
   currentPage = 1,
   totalPages = 1,
   onPageChange,
+  rowsPerPage = 20,
+  onRowsPerPageChange = () => {},
   onExport,
   sidebarToggle = null,
   embedded = false,
@@ -790,23 +792,37 @@ const CheckInLogPanel = ({
       {/* ── Pagination (standalone only) ── */}
       {!embedded && totalPages >= 1 && (
         <div className="clp-pagination">
-          <button
-            className="clp-page-btn"
-            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft size={15} /> Prev
-          </button>
-          <span className="clp-page-info">
-            Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
-          </span>
-          <button
-            className="clp-page-btn"
-            onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Next <ChevronRight size={15} />
-          </button>
+          <div className="clp-rows-per-page">
+            <span className="clp-rows-label">Rows per page:</span>
+            <select
+              value={rowsPerPage}
+              onChange={(e) => onRowsPerPageChange(Number(e.target.value))}
+              className="clp-rows-select"
+            >
+              <option value={15}>15</option>
+              <option value={20}>20</option>
+              <option value={25}>25</option>
+            </select>
+          </div>
+          <div className="clp-page-controls">
+            <button
+              className="clp-page-btn"
+              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft size={15} /> Prev
+            </button>
+            <span className="clp-page-info">
+              Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+            </span>
+            <button
+              className="clp-page-btn"
+              onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next <ChevronRight size={15} />
+            </button>
+          </div>
         </div>
       )}
       {/* ── Selection Sheet Modal ── */}
