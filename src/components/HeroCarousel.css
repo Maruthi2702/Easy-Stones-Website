@@ -4,7 +4,7 @@
   height: 69vh; /* Increased by 15% from 60vh */
   overflow: hidden;
   background: #000;
-  margin-top: 80px; /* Push below fixed header */
+  margin-top: 0; /* Align to the very top, behind fixed transparent header */
 }
 
 .carousel-slide {
