@@ -1300,6 +1300,8 @@
 
 /* Header Text elements */
 .clp-root.light-theme .clp-title {
+  background: none !important;
+  -webkit-text-fill-color: #0f172a !important;
   color: #0f172a !important;
 }
 
@@ -1380,7 +1382,11 @@
   background: #f8fafc !important;
 }
 
-.clp-root.light-theme .clp-name-main {
+.clp-root.light-theme .clp-visitor-name {
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .clp-date {
   color: #0f172a !important;
 }
 
@@ -1648,4 +1654,31 @@
 
 .clp-root.light-theme .clp-page-btn:hover:not(:disabled) {
   background: #f1f5f9 !important;
+}
+
+/* --- Theme Toggle Button --- */
+.theme-toggle-btn {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
 }
