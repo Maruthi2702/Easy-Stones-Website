@@ -990,14 +990,6 @@ const CheckInLogPanel = ({
 
                 <div className="selection-modal-actions-right">
                   <button
-                    type="button"
-                    onClick={() => setSelectedCheckIn(null)}
-                    className="btn-cancel"
-                    disabled={isSaving}
-                  >
-                    <X size={15} /> Cancel
-                  </button>
-                  <button
                     type="submit"
                     className="btn-save-selection"
                     disabled={isSaving}
@@ -1010,7 +1002,7 @@ const CheckInLogPanel = ({
                       'Saved Successfully! ✓'
                     ) : (
                       <>
-                        <Save size={15} /> Save Selection Sheet
+                        <Save size={15} /> Save Selection
                       </>
                     )}
                   </button>

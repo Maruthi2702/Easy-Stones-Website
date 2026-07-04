@@ -597,20 +597,20 @@
 }
 
 .selection-modal-close {
-  background: transparent;
+  background: rgba(239, 68, 68, 0.08);
   border: none;
-  color: var(--text-secondary, #9ca3af);
+  color: #fca5a5;
   cursor: pointer;
   padding: 8px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.2s ease-in-out;
 }
 
 .selection-modal-close:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: #ef4444;
   color: #fff;
   transform: rotate(90deg);
 }
@@ -991,14 +991,15 @@
 }
 
 .btn-cancel {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #e5e7eb;
+  background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
 }
 
 .btn-cancel:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
   color: #fff;
   transform: translateY(-1px);
 }
@@ -1447,12 +1448,15 @@
 }
 
 .clp-root.light-theme .selection-modal-close {
-  color: #64748b !important;
+  background: #fee2e2 !important;
+  color: #ef4444 !important;
+  transition: all 0.2s ease-in-out !important;
 }
 
 .clp-root.light-theme .selection-modal-close:hover {
-  background: #e2e8f0 !important;
-  color: #0f172a !important;
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  transform: rotate(90deg) !important;
 }
 
 /* Form Sections */
@@ -1471,18 +1475,21 @@
 }
 
 .clp-root.light-theme .detail-label {
-  color: #475569 !important;
+  color: #334155 !important;
+  font-weight: 700 !important;
 }
 
 .clp-root.light-theme .detail-value {
-  color: #0f172a !important;
-  border-bottom-color: #cbd5e1 !important;
+  color: #000000 !important;
+  border-bottom-color: #94a3b8 !important;
+  font-weight: 600 !important;
 }
 
 .clp-root.light-theme .selection-input {
   background: #ffffff !important;
-  border: 1.5px solid #cbd5e1 !important;
-  color: #0f172a !important;
+  border: 1.5px solid #475569 !important;
+  color: #000000 !important;
+  font-weight: 600 !important;
 }
 
 .clp-root.light-theme .selection-input:focus {
@@ -1492,18 +1499,20 @@
 }
 
 .clp-root.light-theme .selection-input::placeholder {
-  color: #94a3b8 !important;
+  color: #556375 !important;
+  opacity: 1 !important;
 }
 
 .clp-root.light-theme .selection-grid-input {
   background: #ffffff !important;
-  border: 1px solid #cbd5e1 !important;
-  color: #0f172a !important;
+  border: 1.5px solid #475569 !important;
+  color: #000000 !important;
+  font-weight: 600 !important;
 }
 
 .clp-root.light-theme .selection-grid-input:hover {
   background: #f8fafc !important;
-  border-color: #94a3b8 !important;
+  border-color: #334155 !important;
 }
 
 .clp-root.light-theme .selection-grid-input:focus {
@@ -1513,13 +1522,17 @@
 }
 
 .clp-root.light-theme .selection-grid-input::placeholder {
-  color: #94a3b8 !important;
+  color: #556375 !important;
+  opacity: 1 !important;
 }
 
 /* Materials Table Grid */
-.clp-root.light-theme .selection-table-header {
-  background: #cbd5e1 !important;
+.clp-root.light-theme .selections-table th {
+  background: #e2e8f0 !important;
   color: #0f172a !important;
+  border-bottom: 2px solid #94a3b8 !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
 }
 
 .clp-root.light-theme .selection-row-card {
@@ -1528,14 +1541,16 @@
 }
 
 .clp-root.light-theme .selection-row-num {
-  background: #f1f5f9 !important;
-  color: #475569 !important;
+  background: #cbd5e1 !important;
+  color: #0f172a !important;
+  font-weight: 800 !important;
 }
 
 .clp-root.light-theme .selection-textarea {
   background: #ffffff !important;
-  border: 1.5px solid #cbd5e1 !important;
-  color: #0f172a !important;
+  border: 1.5px solid #475569 !important;
+  color: #000000 !important;
+  font-weight: 500 !important;
 }
 
 .clp-root.light-theme .selection-textarea:focus {
@@ -1544,7 +1559,24 @@
 }
 
 .clp-root.light-theme .selection-textarea::placeholder {
-  color: #94a3b8 !important;
+  color: #556375 !important;
+  opacity: 1 !important;
+}
+
+/* High contrast selection disclaimer alert box */
+.clp-root.light-theme .selection-disclaimer {
+  background: #fef2f2 !important;
+  border: 1.5px dashed #fca5a5 !important;
+}
+
+.clp-root.light-theme .selection-disclaimer p {
+  color: #991b1b !important;
+  font-weight: 500 !important;
+}
+
+.clp-root.light-theme .selection-disclaimer strong {
+  color: #b91c1c !important;
+  font-weight: 700 !important;
 }
 
 /* Modal Actions bar */
@@ -1554,17 +1586,34 @@
 }
 
 .clp-root.light-theme .btn-print-trigger,
-.clp-root.light-theme .btn-email-trigger,
-.clp-root.light-theme .btn-cancel {
+.clp-root.light-theme .btn-email-trigger {
   background: #ffffff !important;
-  border-color: #cbd5e1 !important;
+  border: 1.5px solid #94a3b8 !important;
   color: #0f172a !important;
+  transition: all 0.2s ease-in-out !important;
 }
 
 .clp-root.light-theme .btn-print-trigger:hover,
-.clp-root.light-theme .btn-email-trigger:hover,
-.clp-root.light-theme .btn-cancel:hover {
+.clp-root.light-theme .btn-email-trigger:hover {
   background: #f1f5f9 !important;
+  border-color: #475569 !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06) !important;
+  transform: translateY(-1px) !important;
+}
+
+.clp-root.light-theme .btn-cancel {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  transition: all 0.2s ease-in-out !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15) !important;
+  font-weight: 600 !important;
+}
+
+.clp-root.light-theme .btn-cancel:hover {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3) !important;
+  transform: translateY(-1px) !important;
 }
 
 .clp-root.light-theme .btn-save-selection {
@@ -1615,8 +1664,9 @@
 
 .clp-root.light-theme .selection-email-modal-input {
   background: #ffffff !important;
-  border: 1.5px solid #cbd5e1 !important;
-  color: #0f172a !important;
+  border: 1.5px solid #475569 !important;
+  color: #000000 !important;
+  font-weight: 600 !important;
 }
 
 .clp-root.light-theme .selection-email-modal-input:focus {
@@ -1625,7 +1675,13 @@
 }
 
 .clp-root.light-theme .selection-email-modal-input::placeholder {
-  color: #94a3b8 !important;
+  color: #556375 !important;
+  opacity: 1 !important;
+}
+
+/* Row hover highlighting for selections table under light theme */
+.clp-root.light-theme .selections-table tbody tr:hover {
+  background: #f1f5f9 !important;
 }
 
 .clp-root.light-theme .btn-email-modal-cancel {
