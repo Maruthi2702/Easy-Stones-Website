@@ -585,22 +585,15 @@
   background: rgba(255, 255, 255, 0.01);
 }
 
-.selection-modal-brand h2 {
-  font-size: 1.35rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
+.selection-modal-header-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
   color: var(--text-primary, #fff);
   margin: 0;
   background: linear-gradient(135deg, #fff 70%, rgba(212,175,55,0.9));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-}
-
-.selection-modal-brand p {
-  font-size: 0.75rem;
-  color: var(--text-secondary, #9ca3af);
-  margin: 4px 0 0 0;
-  letter-spacing: 0.02em;
 }
 
 .selection-modal-close {
@@ -1447,15 +1440,10 @@
   border-bottom: 1px solid #e2e8f0 !important;
 }
 
-.clp-root.light-theme .selection-modal-brand h2 {
-  background: linear-gradient(135deg, #0f172a 70%, #d4af37 100%) !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-}
-
-.clp-root.light-theme .selection-modal-brand p {
-  color: #475569 !important;
+.clp-root.light-theme .selection-modal-header-title {
+  background: none !important;
+  -webkit-text-fill-color: #0f172a !important;
+  color: #0f172a !important;
 }
 
 .clp-root.light-theme .selection-modal-close {

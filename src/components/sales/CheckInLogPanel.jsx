@@ -814,10 +814,7 @@ const CheckInLogPanel = ({
         <div className="selection-modal-overlay">
           <div className="selection-modal-container">
             <div className="selection-modal-header">
-              <div className="selection-modal-brand">
-                <h2>EASY STONES</h2>
-                <p>6012 S 196th St, Kent, WA 98032</p>
-              </div>
+              <h2 className="selection-modal-header-title">CUSTOMER VISIT / STONE SELECTION</h2>
               <button 
                 type="button" 
                 className="selection-modal-close" 
@@ -828,7 +825,6 @@ const CheckInLogPanel = ({
             </div>
 
             <form onSubmit={handleSaveSelections} className="selection-modal-form">
-              <h3 className="selection-modal-title">CUSTOMER VISIT / STONE SELECTION</h3>
 
                {/* Customer & Fabricator Details Grid */}
               <div className="selection-details-grid">
