@@ -146,6 +146,50 @@ const CheckInLogPanel = ({
   const [salesReps, setSalesReps] = useState([]);
   const [salesRepEmail, setSalesRepEmail] = useState('');
 
+  // Load active selection sheet state from localStorage on mount (if page was refreshed)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('active_selection_sheet');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.checkIn) {
+          setSelectedCheckIn(parsed.checkIn);
+          setBuilderName(parsed.builderName || '');
+          setBuilderPhone(parsed.builderPhone || '');
+          setSalesRep(parsed.salesRep || '');
+          setSalesRepEmail(parsed.salesRepEmail || '');
+          setSelections(parsed.selections || Array.from({ length: 6 }, () => ({ material: '', details: '', size: '', lot: '' })));
+          setSpecialNotes(parsed.specialNotes || '');
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load active selection sheet from localStorage:', e);
+    }
+  }, []);
+
+  // Save active selection sheet state to localStorage reactively when fields change
+  useEffect(() => {
+    if (selectedCheckIn) {
+      try {
+        localStorage.setItem('active_selection_sheet', JSON.stringify({
+          checkIn: selectedCheckIn,
+          builderName,
+          builderPhone,
+          salesRep,
+          salesRepEmail,
+          selections,
+          specialNotes
+        }));
+      } catch (e) {
+        console.error('Failed to save active selection sheet state to localStorage:', e);
+      }
+    } else {
+      try {
+        localStorage.removeItem('active_selection_sheet');
+      } catch (e) {}
+    }
+  }, [selectedCheckIn, builderName, builderPhone, salesRep, salesRepEmail, selections, specialNotes]);
+
   // Fetch product and sales rep auto-suggestions when selections modal is opened
   useEffect(() => {
     if (selectedCheckIn) {
