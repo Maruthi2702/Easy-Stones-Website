@@ -1694,3 +1694,8 @@
 .light-theme .theme-toggle-btn:hover {
   background: #f1f5f9 !important;
 }
+
+/* Page wrappers under light theme */
+.checkin-log-page-wrapper.light-theme {
+  background-color: #f8fafc !important;
+}
