@@ -1514,18 +1514,18 @@
   color: #475569 !important;
 }
 
-.clp-root.light-theme .notes-textarea {
+.clp-root.light-theme .selection-textarea {
   background: #ffffff !important;
   border: 1.5px solid #cbd5e1 !important;
   color: #0f172a !important;
 }
 
-.clp-root.light-theme .notes-textarea:focus {
+.clp-root.light-theme .selection-textarea:focus {
   border-color: #d4af37 !important;
   box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.15) !important;
 }
 
-.clp-root.light-theme .notes-textarea::placeholder {
+.clp-root.light-theme .selection-textarea::placeholder {
   color: #94a3b8 !important;
 }
 
@@ -1535,25 +1535,27 @@
   border-top: 1px solid #e2e8f0 !important;
 }
 
-.clp-root.light-theme .btn-print-pdf,
-.clp-root.light-theme .btn-email-link {
+.clp-root.light-theme .btn-print-trigger,
+.clp-root.light-theme .btn-email-trigger,
+.clp-root.light-theme .btn-cancel {
   background: #ffffff !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
 }
 
-.clp-root.light-theme .btn-print-pdf:hover,
-.clp-root.light-theme .btn-email-link:hover {
+.clp-root.light-theme .btn-print-trigger:hover,
+.clp-root.light-theme .btn-email-trigger:hover,
+.clp-root.light-theme .btn-cancel:hover {
   background: #f1f5f9 !important;
 }
 
-.clp-root.light-theme .btn-save {
+.clp-root.light-theme .btn-save-selection {
   background: linear-gradient(135deg, #d4af37 0%, #b89324 100%) !important;
   color: #ffffff !important;
   box-shadow: 0 4px 12px rgba(212, 175, 55, 0.25) !important;
 }
 
-.clp-root.light-theme .btn-save:hover {
+.clp-root.light-theme .btn-save-selection:hover {
   box-shadow: 0 6px 16px rgba(212, 175, 55, 0.4) !important;
 }
 
