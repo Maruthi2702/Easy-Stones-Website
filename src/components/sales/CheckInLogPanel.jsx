@@ -788,7 +788,7 @@ const CheckInLogPanel = ({
       </div>
 
       {/* ── Pagination (standalone only) ── */}
-      {!embedded && totalPages > 1 && (
+      {!embedded && totalPages >= 1 && (
         <div className="clp-pagination">
           <button
             className="clp-page-btn"

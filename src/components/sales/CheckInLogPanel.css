@@ -488,6 +488,7 @@
   padding: 1.25rem;
   position: relative;
   z-index: 1;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .clp-page-btn {
@@ -1707,7 +1708,7 @@
 
 /* Pagination */
 .clp-root.light-theme .clp-pagination {
-  border-top-color: #e2e8f0 !important;
+  border-top: 1px solid #e2e8f0 !important;
 }
 
 .clp-root.light-theme .clp-page-info {
