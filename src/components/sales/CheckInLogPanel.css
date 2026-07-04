@@ -1682,3 +1682,15 @@
   background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
 }
+
+/* --- Light Theme Toggle Button Override --- */
+.light-theme .theme-toggle-btn {
+  border-color: #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+}
+
+.light-theme .theme-toggle-btn:hover {
+  background: #f1f5f9 !important;
+}
