@@ -26,7 +26,7 @@ import {
   Clock, Search, Download, Loader2, Calendar,
   ChevronLeft, ChevronRight, RefreshCw,
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
-  Save, AlertTriangle, Printer
+  Save, AlertTriangle, Printer, Sun, Moon
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import './CheckInLogPanel.css';
@@ -83,8 +83,10 @@ const CheckInLogPanel = ({
   onView = null,
   onEdit = null,
   onDelete = null,
+  theme: themeProp = null,
+  onToggleTheme = null,
 }) => {
-  const [theme, setTheme] = useState(() => {
+  const [internalTheme, setInternalTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_theme');
       return saved === 'light' ? 'light' : 'dark';
@@ -93,11 +95,28 @@ const CheckInLogPanel = ({
     }
   });
 
+  const theme = themeProp || internalTheme;
+
+  const handleToggleTheme = () => {
+    if (onToggleTheme) {
+      onToggleTheme();
+    } else {
+      const nextTheme = theme === 'dark' ? 'light' : 'dark';
+      try {
+        localStorage.setItem('checkin_theme', nextTheme);
+        setInternalTheme(nextTheme);
+        window.dispatchEvent(new Event('checkin_theme_changed'));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
   useEffect(() => {
     const handleStorageChange = () => {
       try {
         const saved = localStorage.getItem('checkin_theme');
-        setTheme(saved === 'light' ? 'light' : 'dark');
+        setInternalTheme(saved === 'light' ? 'light' : 'dark');
       } catch (e) {}
     };
     window.addEventListener('storage', handleStorageChange);
@@ -557,6 +576,14 @@ const CheckInLogPanel = ({
           >
             <RefreshCw size={14} className={refreshing ? 'clp-spin' : ''} />
             {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button
+            type="button"
+            className="clp-theme-btn"
+            onClick={handleToggleTheme}
+            title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+          >
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </button>
         </div>
       </div>

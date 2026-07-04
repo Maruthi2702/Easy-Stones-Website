@@ -121,11 +121,6 @@ const CheckInLogPage = () => {
 
   return (
     <div className={`checkin-log-page-wrapper ${theme}-theme`} style={{ minHeight: '100vh', transition: 'background-color 0.2s ease-in-out', position: 'relative', background: 'var(--bg-primary)' }}>
-      <button type="button" onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle Theme" style={{ position: 'absolute', right: '1.5rem', top: '1.5rem', zIndex: 100 }}>
-        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        <span>{theme === 'dark' ? 'Light Theme' : 'Dark Theme'}</span>
-      </button>
-
       <div>
         <CheckInLogPanel
           checkIns={checkIns}
@@ -143,6 +138,8 @@ const CheckInLogPage = () => {
           onPageChange={setCurrentPage}
           onExport={handleExport}
           embedded={false}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
       </div>
     </div>

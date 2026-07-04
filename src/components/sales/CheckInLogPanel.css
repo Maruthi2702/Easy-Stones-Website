@@ -147,6 +147,28 @@
   cursor: not-allowed;
 }
 
+.clp-theme-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 9px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-primary, #fff);
+  padding: 0;
+  box-sizing: border-box;
+}
+.clp-theme-btn:hover {
+  background: rgba(212,175,55,0.1);
+  border-color: rgba(212,175,55,0.35);
+  color: #d4af37;
+}
+
 .clp-export-btn {
   background: linear-gradient(135deg, #d4af37, #b8961f);
   color: #000;
@@ -1334,14 +1356,16 @@
 
 /* Header Buttons */
 .clp-root.light-theme .clp-export-btn,
-.clp-root.light-theme .clp-refresh-btn {
+.clp-root.light-theme .clp-refresh-btn,
+.clp-root.light-theme .clp-theme-btn {
   background: #ffffff !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
 }
 
 .clp-root.light-theme .clp-export-btn:hover,
-.clp-root.light-theme .clp-refresh-btn:hover {
+.clp-root.light-theme .clp-refresh-btn:hover,
+.clp-root.light-theme .clp-theme-btn:hover {
   background: #f1f5f9 !important;
 }
 
