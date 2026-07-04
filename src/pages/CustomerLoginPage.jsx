@@ -132,11 +132,8 @@ const CustomerLoginPage = () => {
                     </form>
 
                     <div className="toggle-form">
-                        <p style={{ marginBottom: '0.75rem' }}>
-                            Don't have an account? <Link to="/contact" className="contact-admin" style={{ textDecoration: 'none' }}>Contact us to register.</Link>
-                        </p>
-                        <p>
-                            Already registered? <Link to="/contact" className="contact-admin" style={{ textDecoration: 'none' }}>Contact Your Sales Rep.</Link>
+                        <p style={{ margin: 0 }}>
+                            Don't have an account? <Link to="/contact" className="contact-admin" style={{ textDecoration: 'none' }}>Contact Your Sales Rep.</Link>
                         </p>
                     </div>
                 </div>
