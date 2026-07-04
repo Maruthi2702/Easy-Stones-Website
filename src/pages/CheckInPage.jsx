@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, Phone, Mail, MapPin, Building, 
   UserCheck, Send, Loader2, CheckCircle2, AlertTriangle
@@ -8,24 +8,52 @@ import { formatPhoneInput } from '../utils/phoneUtils';
 import './CheckInPage.css';
 
 const CheckInPage = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    fabricatorCompany: '',
-    fabricatorPhone: ''
+  const [formData, setFormData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('checkin_draft');
+      return saved ? JSON.parse(saved) : {
+        name: '',
+        phone: '',
+        fabricatorCompany: '',
+        fabricatorPhone: ''
+      };
+    } catch (e) {
+      return {
+        name: '',
+        phone: '',
+        fabricatorCompany: '',
+        fabricatorPhone: ''
+      };
+    }
   });
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
 
+  // Background warm-up ping to wake up Render server
+  useEffect(() => {
+    fetch(`${API_URL}/api/salesreps`)
+      .then(() => console.log('⚡ Render backend warmed up successfully.'))
+      .catch(err => console.warn('Backend warm-up ping failed:', err));
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+    let formattedVal = value;
     if (name === 'phone' || name === 'fabricatorPhone') {
-      setFormData(prev => ({ ...prev, [name]: formatPhoneInput(value) }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      formattedVal = formatPhoneInput(value);
     }
+    
+    setFormData(prev => {
+      const next = { ...prev, [name]: formattedVal };
+      try {
+        localStorage.setItem('checkin_draft', JSON.stringify(next));
+      } catch (err) {
+        console.error('Failed to save check-in draft:', err);
+      }
+      return next;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -46,6 +74,11 @@ const CheckInPage = () => {
 
       if (response.ok) {
         setSubmitted(true);
+        try {
+          localStorage.removeItem('checkin_draft');
+        } catch (err) {
+          console.error('Failed to clear check-in draft:', err);
+        }
         // Scroll to top immediately to bypass iOS virtual keyboard dismissal conflict
         window.scrollTo(0, 0);
         document.body.scrollTop = 0;
