@@ -126,9 +126,8 @@ const CheckInLogPage = () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Check-In Log');
     XLSX.writeFile(wb, `checkin-log-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
-
   return (
-    <div className={`checkin-log-page-wrapper ${theme}-theme`} style={{ minHeight: '100vh', transition: 'background-color 0.2s ease-in-out', position: 'relative', background: 'var(--bg-primary)' }}>
+    <div className={`checkin-log-page-wrapper ${theme}-theme`} style={{ minHeight: '100vh', transition: 'background-color 0.2s ease-in-out', position: 'relative', background: theme === 'light' ? '#f8fafc' : 'var(--bg-primary)' }}>
       <div>
         <CheckInLogPanel
           checkIns={checkIns}
