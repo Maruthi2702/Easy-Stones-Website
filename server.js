@@ -2223,6 +2223,7 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
     const search = req.query.search || '';
     const filterLevel = req.query.level || '';
     const filterType = req.query.type || '';
+    const filterTypeExclude = req.query.typeExclude || ''; // comma-separated types to exclude
     const filterCity = req.query.city || '';
     const skip = (page - 1) * limit;
 
@@ -2247,6 +2248,12 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
 
     if (filterLevel) filterConditions.push({ level: filterLevel });
     if (filterType) filterConditions.push({ customerType: filterType });
+    if (filterTypeExclude) {
+      const excludeList = filterTypeExclude.split(',').map(t => t.trim()).filter(Boolean);
+      if (excludeList.length > 0) {
+        filterConditions.push({ customerType: { $nin: excludeList } });
+      }
+    }
     if (filterCity) filterConditions.push({
       $or: [
         { city: { $regex: filterCity, $options: 'i' } },

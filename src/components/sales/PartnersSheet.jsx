@@ -69,13 +69,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             if (level)  url.searchParams.append('level', level);
             if (city)   url.searchParams.append('city', city);
 
-            // Tab-driven type filter
             if (tab === 'fabricators') {
+                // Fabricators tab: only Fabricator type
                 url.searchParams.append('type', 'Fabricator');
             } else {
-                // Partners tab: exclude Fabricators by requesting all and filtering client-side
-                // OR, pass a special param if your backend supports exclusion
-                // For now we pass no type so we get all, then exclude Fabricator client-side
+                // Partners tab: server-side exclude Fabricators so pagination is correct
+                url.searchParams.append('typeExclude', 'Fabricator');
             }
 
             const response = await fetch(url, {
@@ -84,18 +83,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             });
             if (response.ok) {
                 const data = await response.json();
-                let fetchedPartners = data.partners || [];
-
-                // For the Partners tab, exclude Fabricators client-side
-                if (tab === 'partners') {
-                    fetchedPartners = fetchedPartners.filter(
-                        p => (p.customerType || 'Fabricator') !== 'Fabricator'
-                    );
-                }
-
-                setPartners(fetchedPartners);
+                setPartners(data.partners || []);
                 setTotalPages(data.totalPages || 1);
-                setTotalCount(tab === 'partners' ? fetchedPartners.length : (data.totalCount || 0));
+                setTotalCount(data.totalCount || 0);
             }
         } catch (error) {
             console.error('Error fetching partners:', error);
@@ -202,7 +192,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             const url = new URL(`${API_URL}/api/partners`, window.location.origin);
             url.searchParams.append('limit', -1);
             if (debouncedSearch) url.searchParams.append('search', debouncedSearch);
-            if (activeTab === 'fabricators') url.searchParams.append('type', 'Fabricator');
+
+            if (activeTab === 'fabricators') {
+                url.searchParams.append('type', 'Fabricator');
+            } else {
+                url.searchParams.append('typeExclude', 'Fabricator');
+            }
 
             const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
@@ -211,10 +206,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
 
             if (response.ok) {
                 const data = await response.json();
-                let allPartners = data.partners || [];
-                if (activeTab === 'partners') {
-                    allPartners = allPartners.filter(p => (p.customerType || 'Fabricator') !== 'Fabricator');
-                }
+                const allPartners = data.partners || [];
 
                 const worksheet = XLSX.utils.json_to_sheet(allPartners.map(l => ({
                     Name: l.contactName || l.name || '-',
