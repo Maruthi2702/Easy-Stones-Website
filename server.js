@@ -2251,7 +2251,22 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
     if (filterTypeExclude) {
       const excludeList = filterTypeExclude.split(',').map(t => t.trim()).filter(Boolean);
       if (excludeList.length > 0) {
-        filterConditions.push({ customerType: { $nin: excludeList } });
+        // When excluding 'Fabricator', also exclude records where customerType is null/empty/missing
+        // because the UI renders those as "Fabricator" by default.
+        const isFabricatorExcluded = excludeList.some(t => t.toLowerCase() === 'fabricator');
+        if (isFabricatorExcluded) {
+          // Must have a non-null, non-empty customerType that is not in the exclude list
+          filterConditions.push({
+            $and: [
+              { customerType: { $exists: true } },
+              { customerType: { $ne: null } },
+              { customerType: { $ne: '' } },
+              { customerType: { $nin: excludeList } }
+            ]
+          });
+        } else {
+          filterConditions.push({ customerType: { $nin: excludeList } });
+        }
       }
     }
     if (filterCity) filterConditions.push({
