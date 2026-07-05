@@ -306,6 +306,10 @@
   overflow-y: auto;
 }
 
+.clp-embedded .clp-pagination {
+  margin: 0 1.75rem 1.5rem;
+}
+
 .clp-state-center {
   display: flex;
   flex-direction: column;
@@ -488,7 +492,8 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 1rem;
-  padding: 1.25rem;
+  padding: 1.25rem 0;
+  margin: 0 2rem 1.5rem;
   position: relative;
   z-index: 1;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -569,13 +574,15 @@
   .clp-stats { gap: 0.65rem; }
   .clp-stat { padding: 0.75rem 1rem; }
   .clp-stat-val { font-size: 1.35rem; }
-  .clp-table-card { margin-left: 1.5rem; margin-right: 1.5rem; }
+  .clp-table-card,
+  .clp-pagination { margin-left: 1.5rem; margin-right: 1.5rem; }
 }
 
 @media (max-width: 768px) {
   .clp-page-header,
   .clp-stats,
-  .clp-table-card { padding-left: 1rem; padding-right: 1rem; margin-left: 0; margin-right: 0; }
+  .clp-table-card,
+  .clp-pagination { padding-left: 1rem; padding-right: 1rem; margin-left: 0; margin-right: 0; }
 
   .clp-stats { grid-template-columns: 1fr; gap: 0.5rem; }
   .clp-stat { padding: 0.75rem 1rem; }
@@ -1748,9 +1755,15 @@
   box-shadow: 0 6px 15px rgba(212, 175, 55, 0.35) !important;
 }
 
+/* Light theme panel header override */
+.clp-root.light-theme .clp-panel-header {
+  background: #f1f5f9 !important;
+  border-bottom: 1.5px solid #cbd5e1 !important;
+}
+
 /* Pagination */
 .clp-root.light-theme .clp-pagination {
-  border-top: 1px solid #e2e8f0 !important;
+  border-top: 1.5px solid #cbd5e1 !important;
 }
 
 .clp-root.light-theme .clp-rows-label {
@@ -1767,9 +1780,12 @@
   background: #f1f5f9 !important;
   border-color: #94a3b8 !important;
 }
-
 .clp-root.light-theme .clp-page-info {
   color: #475569 !important;
+}
+
+.clp-root.light-theme .clp-page-info strong {
+  color: #0f172a !important;
 }
 
 .clp-root.light-theme .clp-page-btn {

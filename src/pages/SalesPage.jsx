@@ -96,6 +96,12 @@ const SalesPage = () => {
     const [checkIns, setCheckIns] = useState([]);
     const [checkInsLoading, setCheckInsLoading] = useState(false);
     const [checkInSearch, setCheckInSearch] = useState('');
+    const [checkInPage, setCheckInPage] = useState(1);
+    const [checkInTotalPages, setCheckInTotalPages] = useState(1);
+    const [checkInLimit, setCheckInLimit] = useState(20);
+    const currentSalesDate = new Date();
+    const [checkInFilterMonth, setCheckInFilterMonth] = useState(currentSalesDate.getMonth() + 1);
+    const [checkInFilterYear, setCheckInFilterYear] = useState(currentSalesDate.getFullYear());
     const [selectedCheckIn, setSelectedCheckIn] = useState(null);
     const [checkInModalMode, setCheckInModalMode] = useState(null); // 'view' | 'edit'
     const [checkInForm, setCheckInForm] = useState({
@@ -236,10 +242,23 @@ const SalesPage = () => {
     const fetchCheckIns = async () => {
         setCheckInsLoading(true);
         try {
-            const response = await fetch(`${API_URL}/api/checkin`, { credentials: 'include' });
+            const params = new URLSearchParams({
+                page: checkInPage,
+                limit: checkInLimit,
+                ...(checkInSearch && { search: checkInSearch }),
+                ...(checkInFilterMonth && { month: checkInFilterMonth }),
+                ...(checkInFilterYear && { year: checkInFilterYear }),
+            });
+            const response = await fetch(`${API_URL}/api/checkin?${params}`, { credentials: 'include' });
             if (response.ok) {
                 const data = await response.json();
-                setCheckIns(Array.isArray(data) ? data : []);
+                if (Array.isArray(data)) {
+                    setCheckIns(data);
+                    setCheckInTotalPages(1);
+                } else {
+                    setCheckIns(data.checkIns || data.data || []);
+                    setCheckInTotalPages(data.totalPages || 1);
+                }
             }
         } catch (error) {
             console.error('Error fetching check-ins:', error);
@@ -323,7 +342,7 @@ const SalesPage = () => {
             const interval = setInterval(fetchCheckIns, 30000);
             return () => clearInterval(interval);
         }
-    }, [crmTab]);
+    }, [crmTab, checkInPage, checkInLimit, checkInSearch, checkInFilterMonth, checkInFilterYear]);
 
     // Modal states
     const [showContactModal, setShowContactModal] = useState(false);
@@ -2449,9 +2468,18 @@ const SalesPage = () => {
                 refreshing={checkInsLoading && checkIns.length > 0}
                 onRefresh={fetchCheckIns}
                 searchTerm={checkInSearch}
-                onSearchChange={setCheckInSearch}
+                onSearchChange={(val) => { setCheckInSearch(val); setCheckInPage(1); }}
                 lastUpdated={null}
                 totalCount={checkIns.length}
+                currentPage={checkInPage}
+                totalPages={checkInTotalPages}
+                onPageChange={setCheckInPage}
+                rowsPerPage={checkInLimit}
+                onRowsPerPageChange={(val) => { setCheckInLimit(val); setCheckInPage(1); }}
+                filterMonth={checkInFilterMonth}
+                filterYear={checkInFilterYear}
+                onFilterMonthChange={(val) => { setCheckInFilterMonth(val); setCheckInPage(1); }}
+                onFilterYearChange={(val) => { setCheckInFilterYear(val); setCheckInPage(1); }}
                 embedded={true}
                 sidebarToggle={sidebarToggle}
                 onView={handleViewCheckIn}

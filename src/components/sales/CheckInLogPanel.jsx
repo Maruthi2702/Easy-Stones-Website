@@ -626,7 +626,7 @@ const CheckInLogPanel = ({
           </div>
 
           {/* Date Filter */}
-          {!embedded && onFilterMonthChange && onFilterYearChange && (
+          {onFilterMonthChange && onFilterYearChange && (
             <div className="clp-filter-container">
               <button
                 type="button"
@@ -902,8 +902,8 @@ const CheckInLogPanel = ({
         )}
       </div>
 
-      {/* ── Pagination (standalone only) ── */}
-      {!embedded && totalPages >= 1 && (
+      {/* ── Pagination ── */}
+      {totalPages >= 1 && (
         <div className="clp-pagination">
           <div className="clp-rows-per-page">
             <span className="clp-rows-label">Rows per page:</span>

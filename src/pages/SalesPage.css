@@ -10,9 +10,8 @@
 }
 
 /* Sidebar */
-  /* Sidebar */
 .sales-sidebar {
-  width: 18% !important;
+  width: clamp(220px, 18%, 320px) !important;
   min-width: 220px !important;
   max-width: 320px !important;
   background: rgba(0, 0, 0, 0.4);
@@ -367,7 +366,7 @@
 /* Main Content */
 .sales-main {
   flex: 1;
-  margin-left: 18% !important; /* Default pinned state percentage */
+  margin-left: clamp(220px, 18%, 320px) !important;
   padding: 0;
   overflow: hidden; /* Changed from auto to prevent double scrollbars */
   height: calc(100vh - 96px);
