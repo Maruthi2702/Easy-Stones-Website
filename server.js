@@ -2247,7 +2247,22 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
     }
 
     if (filterLevel) filterConditions.push({ level: filterLevel });
-    if (filterType) filterConditions.push({ customerType: filterType });
+    if (filterType) {
+      if (filterType === 'Fabricator') {
+        // Include explicit Fabricators AND records with null/missing/empty customerType
+        // (the UI defaults null → "Fabricator")
+        filterConditions.push({
+          $or: [
+            { customerType: 'Fabricator' },
+            { customerType: null },
+            { customerType: { $exists: false } },
+            { customerType: '' }
+          ]
+        });
+      } else {
+        filterConditions.push({ customerType: filterType });
+      }
+    }
     if (filterTypeExclude) {
       const excludeList = filterTypeExclude.split(',').map(t => t.trim()).filter(Boolean);
       if (excludeList.length > 0) {
