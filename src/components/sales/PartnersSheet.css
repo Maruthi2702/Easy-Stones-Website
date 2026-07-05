@@ -109,6 +109,112 @@
     font-weight: 800;
 }
 
+/* ============================================================
+   Partners Tab Bar
+   ============================================================ */
+
+.partners-tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.08);
+    flex-wrap: wrap;
+    min-height: 46px;
+}
+
+.partners-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.65rem 1.1rem;
+    background: none;
+    border: none;
+    border-bottom: 2.5px solid transparent;
+    color: var(--text-muted, #9ca3af);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    white-space: nowrap;
+    margin-bottom: -1px; /* align border-bottom with container border */
+}
+
+.partners-tab:hover {
+    color: var(--text-primary, #f9fafb);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.partners-tab.active {
+    color: var(--tab-color, #d4af37);
+    border-bottom-color: var(--tab-color, #d4af37);
+}
+
+.partners-tab svg {
+    opacity: 0.75;
+    flex-shrink: 0;
+}
+
+.partners-tab.active svg {
+    opacity: 1;
+}
+
+.tab-count {
+    background: var(--tab-color, #d4af37);
+    color: #000;
+    border-radius: 10px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 1px 7px;
+    line-height: 1.5;
+    min-width: 20px;
+    text-align: center;
+}
+
+.tab-hint {
+    margin-left: auto;
+    font-size: 0.73rem;
+    color: var(--text-muted, #6b7280);
+    font-style: italic;
+    padding: 0 0.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+}
+
+/* Light theme overrides */
+.light-theme .partners-tab-bar {
+    background: rgba(0, 0, 0, 0.03);
+    border-bottom-color: #e5e7eb;
+}
+
+.light-theme .partners-tab {
+    color: #6b7280;
+}
+
+.light-theme .partners-tab:hover {
+    color: #111827;
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.light-theme .partners-tab.active {
+    color: var(--tab-color, #b89324);
+    border-bottom-color: var(--tab-color, #b89324);
+}
+
+.light-theme .tab-hint {
+    color: #9ca3af;
+}
+
+@media (max-width: 640px) {
+    .tab-hint { display: none; }
+    .partners-tab-bar { padding: 0 0.75rem; }
+    .partners-tab { padding: 0.55rem 0.75rem; font-size: 0.8rem; }
+}
+
 .leads-sheet-container {
     padding: 1.5rem;
 }
