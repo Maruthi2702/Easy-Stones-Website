@@ -135,3 +135,55 @@
     max-width: 100%;
   }
 }
+
+/* ── Light Theme Footer Overrides ── */
+.footer.light-theme {
+  background: #f8fafc !important;
+  border-top: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.footer.light-theme .footer-desc {
+  color: #475569 !important;
+}
+
+.footer.light-theme .social-icons a {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+.footer.light-theme .social-icons a:hover {
+  background: var(--accent-primary, #d4af37) !important;
+  border-color: var(--accent-primary, #d4af37) !important;
+  color: #ffffff !important;
+}
+
+.footer.light-theme .link-column h3 {
+  color: #0f172a !important;
+}
+
+.footer.light-theme .link-column a {
+  color: #475569 !important;
+}
+
+.footer.light-theme .link-column a:hover {
+  color: #b45309 !important;
+}
+
+.footer.light-theme .contact-address {
+  color: #475569 !important;
+}
+
+.footer.light-theme .view-locations {
+  color: #0f172a !important;
+}
+
+.footer.light-theme .view-locations:hover {
+  color: #b45309 !important;
+}
+
+.footer.light-theme .footer-bottom {
+  border-top: 1.5px solid #cbd5e1 !important;
+  color: #64748b !important;
+}

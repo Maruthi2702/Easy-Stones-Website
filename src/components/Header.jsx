@@ -1,13 +1,36 @@
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { Menu, LogOut, X, Package, Warehouse, TrendingUp, ShieldCheck, PhoneCall } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './Header.css';
 
 const Header = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('checkin_theme');
+      return saved === 'light' ? 'light' : 'dark';
+    } catch (e) {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const saved = localStorage.getItem('checkin_theme');
+        setTheme(saved === 'light' ? 'light' : 'dark');
+      } catch (e) {}
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('checkin_theme_changed', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('checkin_theme_changed', handleStorageChange);
+    };
+  }, []);
 
   /* navigate('/login') is needed. Adding useNavigate hook. */
 
@@ -27,7 +50,7 @@ const Header = () => {
 
 
   return (
-    <header className="header glass-panel">
+    <header className={`header glass-panel ${theme}-theme`}>
       <div className="container header-content">
         <Link to="/" className="logo">
           <img src="/logo.png" alt="Easy Stones" className="logo-image" />
@@ -81,7 +104,11 @@ const Header = () => {
             aria-label="Menu"
             onClick={toggleMobileMenu}
           >
-            {isMobileMenuOpen ? <X size={24} color="#fff" /> : <Menu size={24} color="#fff" />}
+            {isMobileMenuOpen ? (
+              <X size={24} color={theme === 'light' ? '#0f172a' : '#ffffff'} />
+            ) : (
+              <Menu size={24} color={theme === 'light' ? '#0f172a' : '#ffffff'} />
+            )}
           </button>
         </div>
       </div>

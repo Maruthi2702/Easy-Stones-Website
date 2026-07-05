@@ -1,11 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Linkedin } from 'lucide-react';
 import './Footer.css';
 
 const Footer = () => {
+    const [theme, setTheme] = useState(() => {
+        try {
+            const saved = localStorage.getItem('checkin_theme');
+            return saved === 'light' ? 'light' : 'dark';
+        } catch (e) {
+            return 'dark';
+        }
+    });
+
+    useEffect(() => {
+        const handleStorageChange = () => {
+            try {
+                const saved = localStorage.getItem('checkin_theme');
+                setTheme(saved === 'light' ? 'light' : 'dark');
+            } catch (e) {}
+        };
+        window.addEventListener('storage', handleStorageChange);
+        window.addEventListener('checkin_theme_changed', handleStorageChange);
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('checkin_theme_changed', handleStorageChange);
+        };
+    }, []);
+
     return (
-        <footer className="footer">
+        <footer className={`footer ${theme}-theme`}>
             <div className="container">
                 <div className="footer-content">
                     {/* Brand Section */}

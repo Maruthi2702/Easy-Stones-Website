@@ -430,3 +430,78 @@
     display: none;
   }
 }
+
+/* ── Light Theme Header Overrides ── */
+.header.light-theme {
+  background: #ffffff !important;
+  border-bottom: 1.5px solid #cbd5e1 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+}
+
+.header.light-theme.scrolled {
+  background: #ffffff !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+.header.light-theme .nav-link {
+  color: #475569 !important;
+}
+
+.header.light-theme .nav-link:hover,
+.header.light-theme .nav-link.active {
+  color: #b45309 !important;
+}
+
+.header.light-theme .nav-link::after {
+  background: #d4af37 !important;
+}
+
+.header.light-theme .login-btn {
+  background: #d4af37 !important;
+  color: #ffffff !important;
+}
+
+.header.light-theme .login-btn:hover {
+  background: #b89324 !important;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2) !important;
+}
+
+.header.light-theme .user-menu {
+  background: #f1f5f9 !important;
+  border: 1.5px solid #cbd5e1 !important;
+}
+
+.header.light-theme .logged-in-btn {
+  background: #d4af37 !important;
+  color: #ffffff !important;
+}
+
+.header.light-theme .logout-btn {
+  background: #f8fafc !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+.header.light-theme .logout-btn:hover {
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+  color: #ef4444 !important;
+}
+
+/* Mobile menu light theme */
+.header.light-theme .nav-mobile {
+  background: #ffffff !important;
+  border-top: 1.5px solid #cbd5e1 !important;
+  border-bottom: 1.5px solid #cbd5e1 !important;
+}
+
+.header.light-theme .nav-mobile .nav-link {
+  color: #475569 !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.header.light-theme .nav-mobile .nav-link:hover,
+.header.light-theme .nav-mobile .nav-link.active {
+  background: #f8fafc !important;
+  color: #b45309 !important;
+}
