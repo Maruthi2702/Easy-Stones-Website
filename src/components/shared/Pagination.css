@@ -6,17 +6,19 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
+    gap: 0.6rem;
     padding: 0.85rem 1.5rem;
     background: rgba(0, 0, 0, 0.15);
     border-top: 1px solid rgba(255, 255, 255, 0.07);
+    flex-wrap: wrap;
 }
 
+/* Prev / Next buttons */
 .shared-pagi-btn {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.4rem 0.85rem;
+    gap: 0.3rem;
+    padding: 0.38rem 0.8rem;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
@@ -26,10 +28,11 @@
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
+    line-height: 1;
 }
 
 .shared-pagi-btn:hover:not(:disabled) {
-    background: rgba(229, 192, 74, 0.15);
+    background: rgba(212, 175, 55, 0.15);
     border-color: var(--accent-color, #d4af37);
     color: var(--accent-color, #d4af37);
 }
@@ -37,6 +40,19 @@
 .shared-pagi-btn:disabled {
     opacity: 0.3;
     cursor: not-allowed;
+}
+
+/* First/Last icon-only buttons */
+.shared-pagi-icon-btn {
+    padding: 0.38rem 0.5rem;
+}
+
+/* Centre block: info text + jump */
+.shared-pagi-centre {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
 }
 
 .shared-pagi-info {
@@ -52,11 +68,128 @@
     color: var(--text-muted, #6b7280);
 }
 
-/* Mobile: stack tighter */
+/* ── Jump-to-page ── */
+.shared-pagi-jump {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.shared-pagi-jump-label {
+    font-size: 0.72rem;
+    color: var(--text-muted, #6b7280);
+    white-space: nowrap;
+    user-select: none;
+}
+
+.shared-pagi-jump-input {
+    width: 44px;
+    padding: 0.25rem 0.4rem;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    color: var(--text-primary, #f9fafb);
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+    -moz-appearance: textfield;
+}
+
+.shared-pagi-jump-input::-webkit-inner-spin-button,
+.shared-pagi-jump-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+}
+
+.shared-pagi-jump-input:focus {
+    border-color: var(--accent-color, #d4af37);
+    background: rgba(212, 175, 55, 0.08);
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.15);
+}
+
+.shared-pagi-jump-input::placeholder {
+    color: var(--text-muted, #6b7280);
+    font-weight: 400;
+}
+
+.shared-pagi-jump-btn {
+    padding: 0.26rem 0.6rem;
+    background: rgba(212, 175, 55, 0.15);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 6px;
+    color: var(--accent-color, #d4af37);
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.shared-pagi-jump-btn:hover:not(:disabled) {
+    background: rgba(212, 175, 55, 0.28);
+    border-color: rgba(212, 175, 55, 0.55);
+}
+
+.shared-pagi-jump-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* ── Light Theme ── */
+.light-theme .shared-pagination {
+    background: rgba(0, 0, 0, 0.03);
+    border-top-color: #e5e7eb;
+}
+
+.light-theme .shared-pagi-btn {
+    background: #ffffff;
+    border-color: #d1d5db;
+    color: #374151;
+}
+
+.light-theme .shared-pagi-btn:hover:not(:disabled) {
+    background: rgba(212, 175, 55, 0.08);
+    border-color: #b89324;
+    color: #b89324;
+}
+
+.light-theme .shared-pagi-info {
+    color: #6b7280;
+}
+
+.light-theme .shared-pagi-count {
+    color: #9ca3af;
+}
+
+.light-theme .shared-pagi-jump-input {
+    background: #f9fafb;
+    border-color: #d1d5db;
+    color: #111827;
+}
+
+.light-theme .shared-pagi-jump-input:focus {
+    border-color: #b89324;
+    background: rgba(212, 175, 55, 0.05);
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.12);
+}
+
+.light-theme .shared-pagi-jump-btn {
+    background: rgba(212, 175, 55, 0.1);
+    border-color: rgba(184, 147, 36, 0.35);
+    color: #8a6e14;
+}
+
+.light-theme .shared-pagi-jump-btn:hover:not(:disabled) {
+    background: rgba(212, 175, 55, 0.2);
+    border-color: rgba(184, 147, 36, 0.55);
+}
+
+/* ── Mobile ── */
 @media (max-width: 480px) {
     .shared-pagination {
-        gap: 0.6rem;
-        padding: 0.7rem 1rem;
+        gap: 0.4rem;
+        padding: 0.7rem 0.8rem;
     }
 
     .shared-pagi-btn span {
@@ -64,6 +197,10 @@
     }
 
     .shared-pagi-btn {
-        padding: 0.4rem 0.55rem;
+        padding: 0.38rem 0.5rem;
+    }
+
+    .shared-pagi-jump-label {
+        display: none;
     }
 }
