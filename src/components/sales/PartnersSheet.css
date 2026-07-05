@@ -388,10 +388,73 @@
 .filter-chip button:hover {
     opacity: 1;
 }
-
 /* Mobile: stack filter groups full-width */
 @media (max-width: 480px) {
     .filter-group {
         min-width: 100%;
     }
+}
+
+/* Add Customer Button */
+.partner-add-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 1rem;
+    background: linear-gradient(135deg, #d4af37 0%, #b89324 100%);
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    border-radius: 8px;
+    color: #000000 !important;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.15);
+}
+
+.partner-add-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(212, 175, 55, 0.35);
+    background: linear-gradient(135deg, #e6c25e 0%, #c5a028 100%);
+    border-color: rgba(212, 175, 55, 0.6);
+}
+
+.partner-add-btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 6px rgba(212, 175, 55, 0.2);
+}
+
+.partner-add-btn svg {
+    margin-right: 2px;
+}
+
+/* Light Theme Add Button styles */
+.light-theme .partner-add-btn {
+    background: linear-gradient(135deg, #d4af37 0%, #b89324 100%);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.2);
+}
+
+.light-theme .partner-add-btn:hover {
+    background: linear-gradient(135deg, #b89324 0%, #9c7b1c 100%);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+/* Optional Pulse Animation */
+@keyframes addPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(212, 175, 55, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(212, 175, 55, 0);
+    }
+}
+
+.partner-add-btn.pulse {
+    animation: addPulse 2.5s infinite;
 }
