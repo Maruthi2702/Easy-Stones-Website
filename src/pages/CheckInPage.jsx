@@ -44,6 +44,17 @@ const CheckInPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme-active');
+    } else {
+      document.body.classList.remove('light-theme-active');
+    }
+    return () => {
+      document.body.classList.remove('light-theme-active');
+    };
+  }, [theme]);
+
   const [formData, setFormData] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_draft');

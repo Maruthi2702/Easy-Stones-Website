@@ -532,3 +532,13 @@
   border-left: 4px solid #ef4444;
   color: #991b1b;
 }
+
+/* ── Global Light Theme Toggled Page Wrapper Overrides ── */
+body.light-theme-active .app {
+  background: #f8fafc !important;
+  background-color: #f8fafc !important;
+}
+
+body.light-theme-active .bg-gradient {
+  display: none !important;
+}
