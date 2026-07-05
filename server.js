@@ -2249,11 +2249,10 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
     if (filterLevel) filterConditions.push({ level: filterLevel });
     if (filterType) {
       if (filterType === 'Fabricator') {
-        // Include explicit Fabricators AND records with null/missing/empty customerType
-        // (the UI defaults null → "Fabricator")
+        // Include explicit Fabricators (case-insensitive) AND records with null/missing/empty customerType
         filterConditions.push({
           $or: [
-            { customerType: 'Fabricator' },
+            { customerType: { $regex: /^fabricator$/i } },
             { customerType: null },
             { customerType: { $exists: false } },
             { customerType: '' }
@@ -2270,13 +2269,13 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
         // because the UI renders those as "Fabricator" by default.
         const isFabricatorExcluded = excludeList.some(t => t.toLowerCase() === 'fabricator');
         if (isFabricatorExcluded) {
-          // Must have a non-null, non-empty customerType that is not in the exclude list
+          // Must have a non-null, non-empty customerType that is not a Fabricator (case-insensitive)
           filterConditions.push({
             $and: [
               { customerType: { $exists: true } },
               { customerType: { $ne: null } },
               { customerType: { $ne: '' } },
-              { customerType: { $nin: excludeList } }
+              { customerType: { $not: { $regex: /^fabricator$/i } } }
             ]
           });
         } else {
