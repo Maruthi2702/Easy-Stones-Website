@@ -801,7 +801,14 @@ const SalesPage = () => {
     const [currentVisitsPage, setCurrentVisitsPage] = useState(1);
     const [currentFollowUpPage, setCurrentFollowUpPage] = useState(1);
     const [currentResourcesPage, setCurrentResourcesPage] = useState(1);
-    const visitsPerPage = 10;
+    const [visitsPerPage, setVisitsPerPage] = useState(15);
+
+    const handleVisitsPerPageChange = (newVal) => {
+        setVisitsPerPage(newVal);
+        setCurrentVisitsPage(1);
+        setCurrentFollowUpPage(1);
+        setCurrentResourcesPage(1);
+    };
 
     const resourceTypes = [
         "Moda Tower 2024 version 2",
@@ -3153,12 +3160,13 @@ const SalesPage = () => {
 
                                             {/* Pagination Controls */}
                                             <Pagination
-                                                currentPage={currentVisitsPage}
-                                                totalPages={Math.ceil(memoizedFilteredVisits.length / visitsPerPage)}
-                                                onPageChange={(p) => { setCurrentVisitsPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                                                totalCount={memoizedFilteredVisits.length}
-                                                itemLabel="visits"
-                                            />
+                                                 currentPage={currentVisitsPage}
+                                                 totalPages={Math.ceil(memoizedFilteredVisits.length / visitsPerPage)}
+                                                 onPageChange={(p) => { setCurrentVisitsPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                                 rowsPerPage={visitsPerPage}
+                                                 onRowsPerPageChange={handleVisitsPerPageChange}
+                                                 rowsPerPageOptions={[15, 25, 50]}
+                                             />
                                         </div>
                                     )}
 
@@ -3298,17 +3306,18 @@ const SalesPage = () => {
 
                                             {/* Follow-up Pagination Controls */}
                                             <Pagination
-                                                currentPage={currentFollowUpPage}
-                                                totalPages={Math.ceil(memoizedFollowups.length / visitsPerPage)}
-                                                onPageChange={(p) => {
-                                                    setCurrentFollowUpPage(p);
-                                                    const el = document.querySelector('.dashboard-content-area') || document.querySelector('.sales-dashboard-main');
-                                                    if (el) el.scrollTo({ top: 0, behavior: 'smooth' });
-                                                    else window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                }}
-                                                totalCount={memoizedFollowups.length}
-                                                itemLabel="follow-ups"
-                                            />
+                                                 currentPage={currentFollowUpPage}
+                                                 totalPages={Math.ceil(memoizedFollowups.length / visitsPerPage)}
+                                                 onPageChange={(p) => {
+                                                     setCurrentFollowUpPage(p);
+                                                     const el = document.querySelector('.dashboard-content-area') || document.querySelector('.sales-dashboard-main');
+                                                     if (el) el.scrollTo({ top: 0, behavior: 'smooth' });
+                                                     else window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                 }}
+                                                 rowsPerPage={visitsPerPage}
+                                                 onRowsPerPageChange={handleVisitsPerPageChange}
+                                                 rowsPerPageOptions={[15, 25, 50]}
+                                             />
                                         </div>
                                     )}
                                     {activeDashboardTab === 'leads' && (
@@ -3516,12 +3525,13 @@ const SalesPage = () => {
 
                                                     {/* Resources Pagination Controls */}
                                                     <Pagination
-                                                        currentPage={currentResourcesPage}
-                                                        totalPages={Math.ceil(memoizedFilteredResources.length / visitsPerPage)}
-                                                        onPageChange={(p) => { setCurrentResourcesPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                                                        totalCount={memoizedFilteredResources.length}
-                                                        itemLabel="resources"
-                                                    />
+                                                         currentPage={currentResourcesPage}
+                                                         totalPages={Math.ceil(memoizedFilteredResources.length / visitsPerPage)}
+                                                         onPageChange={(p) => { setCurrentResourcesPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                                         rowsPerPage={visitsPerPage}
+                                                         onRowsPerPageChange={handleVisitsPerPageChange}
+                                                         rowsPerPageOptions={[15, 25, 50]}
+                                                     />
                                                 </>
                                             )}
 

@@ -1,136 +1,133 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import './Pagination.css';
 
 /**
- * Reusable Pagination component – used site-wide.
+ * Reusable Pagination — used site-wide.
+ *
+ * Layout:  ⟨⟨  ‹  Page [n] of T  ›  ⟩⟩ (with optional "Rows per page:" select)
  *
  * Props:
- *   currentPage  {number}    – current active page (1-indexed)
- *   totalPages   {number}    – total number of pages
- *   onPageChange {function}  – called with new page number
- *   totalCount   {number}    – optional total item count to display
- *   itemLabel    {string}    – label for items e.g. "partners", "visits" (default: "items")
- *   showJump     {boolean}   – show the Go-to-page input (default: true when totalPages > 3)
+ *   currentPage        {number}    – current active page (1-indexed)
+ *   totalPages         {number}    – total number of pages
+ *   onPageChange       {function}  – called with new page number
+ *   rowsPerPage        {number}    – current rows per page limit
+ *   onRowsPerPageChange {function} – callback to change limit
+ *   rowsPerPageOptions {number[]}  – custom options for rows per page selector
+ *   totalCount         {number}    – unused (kept for back-compat)
+ *   itemLabel          {string}    – unused (kept for back-compat)
  */
 const Pagination = ({
     currentPage,
     totalPages,
     onPageChange,
-    totalCount,
-    itemLabel = 'items',
-    showJump,
+    rowsPerPage,
+    onRowsPerPageChange,
+    rowsPerPageOptions = [15, 25, 50],
 }) => {
-    const [jumpValue, setJumpValue] = useState('');
+    const [inputVal, setInputVal] = useState(String(currentPage));
+    const inputRef = useRef(null);
 
-    // Sync input if the page changes externally
+    // Keep input in sync when page changes externally
     useEffect(() => {
-        setJumpValue('');
+        setInputVal(String(currentPage));
     }, [currentPage]);
 
-    if (!totalPages || totalPages <= 1) return null;
+    if (!totalPages || totalPages < 1) return null;
 
-    // Show jump input when there are more than 3 pages (or forced via prop)
-    const shouldShowJump = showJump !== undefined ? showJump : totalPages > 3;
+    const goTo = (page) => {
+        const p = Math.max(1, Math.min(totalPages, page));
+        if (p !== currentPage) onPageChange(p);
+    };
 
-    const handleJumpChange = (e) => {
+    const handleInputChange = (e) => {
         const val = e.target.value;
-        if (val === '' || /^\d+$/.test(val)) setJumpValue(val);
+        if (val === '' || /^\d+$/.test(val)) setInputVal(val);
     };
 
-    const commitJump = () => {
-        const page = parseInt(jumpValue, 10);
-        if (!isNaN(page) && page >= 1 && page <= totalPages && page !== currentPage) {
-            onPageChange(page);
+    const commitInput = () => {
+        const parsed = parseInt(inputVal, 10);
+        if (!isNaN(parsed)) {
+            goTo(parsed);
+        } else {
+            setInputVal(String(currentPage)); // reset on bad input
         }
-        setJumpValue('');
     };
 
-    const handleJumpKeyDown = (e) => {
-        if (e.key === 'Enter') commitJump();
-        if (e.key === 'Escape') setJumpValue('');
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') { commitInput(); inputRef.current?.blur(); }
+        if (e.key === 'Escape') { setInputVal(String(currentPage)); inputRef.current?.blur(); }
+        if (e.key === 'ArrowUp')   { e.preventDefault(); goTo(currentPage + 1); }
+        if (e.key === 'ArrowDown') { e.preventDefault(); goTo(currentPage - 1); }
     };
+
+    const inputWidth = `${Math.max(1.8, String(totalPages).length * 0.65 + 0.8)}rem`;
+    const hasRowsSelect = !!onRowsPerPageChange && rowsPerPage !== undefined;
 
     return (
-        <div className="shared-pagination">
-            {/* First page */}
-            <button
-                className="shared-pagi-btn shared-pagi-icon-btn"
-                onClick={() => onPageChange(1)}
-                disabled={currentPage === 1}
-                title="First Page"
-            >
-                <ChevronsLeft size={15} />
-            </button>
+        <div className={`spag-root ${hasRowsSelect ? 'has-rows-select' : ''}`}>
+            {hasRowsSelect && (
+                <div className="spag-rows-select-wrapper">
+                    <span className="spag-rows-label">Rows per page:</span>
+                    <select
+                        className="spag-rows-select"
+                        value={rowsPerPage}
+                        onChange={(e) => onRowsPerPageChange(Number(e.target.value))}
+                        aria-label="Rows per page"
+                    >
+                        {rowsPerPageOptions.map((opt) => (
+                            <option key={opt} value={opt}>
+                                {opt}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            )}
 
-            {/* Previous */}
-            <button
-                className="shared-pagi-btn"
-                onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                title="Previous Page"
-            >
-                <ChevronLeft size={15} />
-                <span>Previous</span>
-            </button>
+            <div className="spag-controls-group">
+                {/* Prev */}
+                <button
+                    className="spag-nav-btn"
+                    onClick={() => goTo(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    title="Previous page"
+                    aria-label="Previous page"
+                >
+                    <ChevronLeft size={14} />
+                </button>
 
-            {/* Centre info + jump input */}
-            <div className="shared-pagi-centre">
-                <span className="shared-pagi-info">
-                    Page {currentPage} of {totalPages}
-                    {totalCount != null && (
-                        <span className="shared-pagi-count"> · {totalCount.toLocaleString()} {itemLabel}</span>
-                    )}
-                </span>
+                {/* Page pill */}
+                <div className="spag-page-pill">
+                    <span className="spag-page-label">Page</span>
+                    <input
+                        ref={inputRef}
+                        className="spag-page-input"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={inputVal}
+                        onChange={handleInputChange}
+                        onKeyDown={handleKeyDown}
+                        onBlur={commitInput}
+                        onFocus={(e) => e.target.select()}
+                        style={{ width: inputWidth }}
+                        aria-label={`Page ${currentPage} of ${totalPages}`}
+                    />
+                    <span className="spag-page-sep">of</span>
+                    <span className="spag-page-total">{totalPages}</span>
+                </div>
 
-                {shouldShowJump && (
-                    <div className="shared-pagi-jump">
-                        <label className="shared-pagi-jump-label">Go to</label>
-                        <input
-                            className="shared-pagi-jump-input"
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            placeholder="pg"
-                            value={jumpValue}
-                            onChange={handleJumpChange}
-                            onKeyDown={handleJumpKeyDown}
-                            onBlur={commitJump}
-                            aria-label="Go to page"
-                            title={`Enter a page number between 1 and ${totalPages}`}
-                        />
-                        <button
-                            className="shared-pagi-jump-btn"
-                            onClick={commitJump}
-                            disabled={!jumpValue}
-                            title="Go to page"
-                        >
-                            Go
-                        </button>
-                    </div>
-                )}
+                {/* Next */}
+                <button
+                    className="spag-nav-btn"
+                    onClick={() => goTo(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    title="Next page"
+                    aria-label="Next page"
+                >
+                    <ChevronRight size={14} />
+                </button>
             </div>
-
-            {/* Next */}
-            <button
-                className="shared-pagi-btn"
-                onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-                title="Next Page"
-            >
-                <span>Next</span>
-                <ChevronRight size={15} />
-            </button>
-
-            {/* Last page */}
-            <button
-                className="shared-pagi-btn shared-pagi-icon-btn"
-                onClick={() => onPageChange(totalPages)}
-                disabled={currentPage === totalPages}
-                title="Last Page"
-            >
-                <ChevronsRight size={15} />
-            </button>
         </div>
     );
 };

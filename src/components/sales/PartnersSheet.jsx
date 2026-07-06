@@ -39,7 +39,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
-    const [limit] = useState(15);
+    const [limit, setLimit] = useState(15);
+
+    const handleRowsPerPageChange = (newLimit) => {
+        setLimit(newLimit);
+        setCurrentPage(1);
+    };
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -507,8 +512,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 currentPage={currentPage}
                 totalPages={totalPages}
                 onPageChange={setCurrentPage}
-                totalCount={totalCount}
-                itemLabel={isFabTab ? 'fabricators' : 'partners'}
+                rowsPerPage={limit}
+                onRowsPerPageChange={handleRowsPerPageChange}
+                rowsPerPageOptions={[15, 25, 50]}
             />
 
             <AddCustomerModal

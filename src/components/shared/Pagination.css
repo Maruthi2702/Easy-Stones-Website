@@ -1,206 +1,247 @@
-/* ============================================================
-   Shared Pagination – used site-wide across all tabs/pages
-   ============================================================ */
+/* =============================================================
+   Shared Pagination  —  ⟨⟨  ‹  Page [n] of T  ›  ⟩⟩
+   Used site-wide. Premium dark + light theme support.
+   ============================================================= */
 
-.shared-pagination {
+/* ── Root wrapper ─────────────────────────────────────────── */
+.spag-root {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.6rem;
-    padding: 0.85rem 1.5rem;
+    gap: 1rem;
+    padding: 0.8rem 1.5rem;
     background: rgba(0, 0, 0, 0.15);
     border-top: 1px solid rgba(255, 255, 255, 0.07);
+    user-select: none;
     flex-wrap: wrap;
+    width: 100%;
 }
 
-/* Prev / Next buttons */
-.shared-pagi-btn {
+.spag-root.has-rows-select {
+    justify-content: space-between;
+}
+
+/* ── Controls group ───────────────────────────────────────── */
+.spag-controls-group {
     display: flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.38rem 0.8rem;
+    gap: 0.4rem;
+}
+
+/* ── Rows Per Page Select ─────────────────────────────────── */
+.spag-rows-select-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.spag-rows-label {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-muted, #6b7280);
+    letter-spacing: 0.02em;
+}
+
+.spag-rows-select {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    color: var(--text-primary, #e5e7eb);
-    font-size: 0.8rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    line-height: 1;
-}
-
-.shared-pagi-btn:hover:not(:disabled) {
-    background: rgba(212, 175, 55, 0.15);
-    border-color: var(--accent-color, #d4af37);
-    color: var(--accent-color, #d4af37);
-}
-
-.shared-pagi-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-}
-
-/* First/Last icon-only buttons */
-.shared-pagi-icon-btn {
-    padding: 0.38rem 0.5rem;
-}
-
-/* Centre block: info text + jump */
-.shared-pagi-centre {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.35rem;
-}
-
-.shared-pagi-info {
-    font-size: 0.78rem;
-    font-weight: 600;
+    padding: 0.25rem 0.55rem;
     color: var(--text-secondary, #9ca3af);
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-}
-
-.shared-pagi-count {
-    font-weight: 400;
-    color: var(--text-muted, #6b7280);
-}
-
-/* ── Jump-to-page ── */
-.shared-pagi-jump {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-}
-
-.shared-pagi-jump-label {
-    font-size: 0.72rem;
-    color: var(--text-muted, #6b7280);
-    white-space: nowrap;
-    user-select: none;
-}
-
-.shared-pagi-jump-input {
-    width: 44px;
-    padding: 0.25rem 0.4rem;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 6px;
-    color: var(--text-primary, #f9fafb);
     font-size: 0.78rem;
     font-weight: 600;
+    outline: none;
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s, color 0.18s;
+}
+
+.spag-rows-select:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--text-primary, #e5e7eb);
+}
+
+.spag-rows-select:focus {
+    border-color: #d4af37;
+}
+
+/* ── Nav buttons (first / prev / next / last) ─────────────── */
+.spag-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--text-muted, #9ca3af);
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.12s, box-shadow 0.18s;
+    outline: none;
+    flex-shrink: 0;
+}
+
+.spag-nav-btn:hover:not(:disabled) {
+    background: rgba(212, 175, 55, 0.14);
+    border-color: rgba(212, 175, 55, 0.4);
+    color: #d4af37;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(212, 175, 55, 0.18);
+}
+
+.spag-nav-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.spag-nav-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* ── Centre pill: "Page [n] of T" ────────────────────────── */
+.spag-page-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.28rem 0.8rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    margin: 0 0.25rem;
+}
+
+.spag-page-label,
+.spag-page-sep {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted, #6b7280);
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+}
+
+/* Editable current-page input */
+.spag-page-input {
+    min-width: 1.8rem;
+    height: 24px;
+    padding: 0 0.3rem;
+    background: rgba(212, 175, 55, 0.12);
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: 6px;
+    color: #d4af37;
+    font-size: 0.78rem;
+    font-weight: 800;
     text-align: center;
     outline: none;
-    transition: border-color 0.2s, background 0.2s;
+    cursor: text;
+    transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
     -moz-appearance: textfield;
+    appearance: textfield;
+    letter-spacing: 0.02em;
 }
 
-.shared-pagi-jump-input::-webkit-inner-spin-button,
-.shared-pagi-jump-input::-webkit-outer-spin-button {
-    -webkit-appearance: none;
+.spag-page-input::-webkit-inner-spin-button,
+.spag-page-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+.spag-page-input:focus {
+    background: rgba(212, 175, 55, 0.2);
+    border-color: rgba(212, 175, 55, 0.65);
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+    color: #f0d060;
 }
 
-.shared-pagi-jump-input:focus {
-    border-color: var(--accent-color, #d4af37);
-    background: rgba(212, 175, 55, 0.08);
-    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.15);
-}
-
-.shared-pagi-jump-input::placeholder {
-    color: var(--text-muted, #6b7280);
-    font-weight: 400;
-}
-
-.shared-pagi-jump-btn {
-    padding: 0.26rem 0.6rem;
-    background: rgba(212, 175, 55, 0.15);
-    border: 1px solid rgba(212, 175, 55, 0.3);
-    border-radius: 6px;
-    color: var(--accent-color, #d4af37);
-    font-size: 0.72rem;
+/* Total pages */
+.spag-page-total {
+    font-size: 0.78rem;
     font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    color: var(--text-secondary, #9ca3af);
     white-space: nowrap;
 }
 
-.shared-pagi-jump-btn:hover:not(:disabled) {
-    background: rgba(212, 175, 55, 0.28);
-    border-color: rgba(212, 175, 55, 0.55);
-}
-
-.shared-pagi-jump-btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-}
-
-/* ── Light Theme ── */
-.light-theme .shared-pagination {
-    background: rgba(0, 0, 0, 0.03);
+/* =============================================================
+   Light Theme
+   ============================================================= */
+.light-theme .spag-root {
+    background: rgba(0, 0, 0, 0.025);
     border-top-color: #e5e7eb;
 }
 
-.light-theme .shared-pagi-btn {
-    background: #ffffff;
-    border-color: #d1d5db;
-    color: #374151;
-}
-
-.light-theme .shared-pagi-btn:hover:not(:disabled) {
-    background: rgba(212, 175, 55, 0.08);
-    border-color: #b89324;
-    color: #b89324;
-}
-
-.light-theme .shared-pagi-info {
+.light-theme .spag-rows-label {
     color: #6b7280;
 }
 
-.light-theme .shared-pagi-count {
+.light-theme .spag-rows-select {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #374151;
+}
+
+.light-theme .spag-rows-select:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+.light-theme .spag-nav-btn {
+    background: #ffffff;
+    border-color: #e5e7eb;
+    color: #9ca3af;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+}
+
+.light-theme .spag-nav-btn:hover:not(:disabled) {
+    background: rgba(212, 175, 55, 0.08);
+    border-color: rgba(184, 147, 36, 0.45);
+    color: #8a6e14;
+    box-shadow: 0 3px 10px rgba(212, 175, 55, 0.12);
+}
+
+.light-theme .spag-page-pill {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: #e5e7eb;
+}
+
+.light-theme .spag-page-label,
+.light-theme .spag-page-sep {
     color: #9ca3af;
 }
 
-.light-theme .shared-pagi-jump-input {
-    background: #f9fafb;
-    border-color: #d1d5db;
-    color: #111827;
-}
-
-.light-theme .shared-pagi-jump-input:focus {
-    border-color: #b89324;
-    background: rgba(212, 175, 55, 0.05);
-    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.12);
-}
-
-.light-theme .shared-pagi-jump-btn {
-    background: rgba(212, 175, 55, 0.1);
-    border-color: rgba(184, 147, 36, 0.35);
+.light-theme .spag-page-input {
+    background: rgba(212, 175, 55, 0.08);
+    border-color: rgba(184, 147, 36, 0.4);
     color: #8a6e14;
 }
 
-.light-theme .shared-pagi-jump-btn:hover:not(:disabled) {
-    background: rgba(212, 175, 55, 0.2);
-    border-color: rgba(184, 147, 36, 0.55);
+.light-theme .spag-page-input:focus {
+    background: rgba(212, 175, 55, 0.14);
+    border-color: rgba(184, 147, 36, 0.65);
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.12);
+    color: #6b5510;
 }
 
-/* ── Mobile ── */
-@media (max-width: 480px) {
-    .shared-pagination {
-        gap: 0.4rem;
+.light-theme .spag-page-total {
+    color: #6b7280;
+}
+
+/* =============================================================
+   Mobile
+   ============================================================= */
+@media (max-width: 580px) {
+    .spag-root {
         padding: 0.7rem 0.8rem;
+        gap: 0.6rem;
+    }
+    
+    .spag-root.has-rows-select {
+        justify-content: center;
+        flex-direction: column;
     }
 
-    .shared-pagi-btn span {
-        display: none; /* icon only on very small screens */
-    }
-
-    .shared-pagi-btn {
-        padding: 0.38rem 0.5rem;
-    }
-
-    .shared-pagi-jump-label {
-        display: none;
+    .spag-nav-btn {
+        width: 30px;
+        height: 30px;
+        border-radius: 7px;
     }
 }
