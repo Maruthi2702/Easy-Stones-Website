@@ -718,14 +718,54 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
-// Verify token endpoint
-app.get('/api/auth/verify', verifyAnyAuth, (req, res) => {
-  res.json({
-    valid: true,
-    id: req.userId || req.customerId,
-    role: req.userRole || 'customer',
-    authType: req.authType
-  });
+// Verify token endpoint — returns 200 with valid:false when no token (avoids 401 noise on public pages)
+app.get('/api/auth/verify', (req, res) => {
+  const adminToken = req.cookies.adminToken;
+  const customerToken = req.cookies.customerToken;
+  let authHeaderToken = null;
+
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    authHeaderToken = req.headers.authorization.split(' ')[1];
+  }
+
+  // 1. Try admin token
+  const effectiveAdminToken = adminToken || authHeaderToken;
+  if (effectiveAdminToken) {
+    try {
+      const decoded = jwt.verify(effectiveAdminToken, JWT_SECRET);
+      if (decoded.userId) {
+        return res.json({
+          valid: true,
+          id: decoded.userId,
+          role: decoded.role,
+          authType: 'admin'
+        });
+      }
+    } catch (error) {
+      // Admin token invalid, continue
+    }
+  }
+
+  // 2. Try customer/internal token
+  const effectiveCustomerToken = customerToken || authHeaderToken;
+  if (effectiveCustomerToken) {
+    try {
+      const decoded = jwt.verify(effectiveCustomerToken, JWT_SECRET);
+      if (decoded.type === 'customer' || decoded.type === 'internal') {
+        return res.json({
+          valid: true,
+          id: decoded.id,
+          role: decoded.type === 'internal' ? 'admin' : 'customer',
+          authType: decoded.type === 'customer' ? 'customer' : 'admin'
+        });
+      }
+    } catch (error) {
+      // Customer token invalid
+    }
+  }
+
+  // No valid token — return 200 with valid:false instead of 401
+  return res.json({ valid: false });
 });
 
 // Get current user info (for admin/internal users)

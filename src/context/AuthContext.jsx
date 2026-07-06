@@ -35,6 +35,13 @@ export const AuthProvider = ({ children }) => {
 
             const authData = await verifyRes.json();
 
+            // Server returns { valid: false } when no token is present
+            if (!authData.valid) {
+                setUser(null);
+                setLoading(false);
+                return;
+            }
+
             // Then fetch full profile based on authType
             let profileUrl = authData.authType === 'admin'
                 ? `${API_URL}/api/user/me`
