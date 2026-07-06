@@ -2,6 +2,15 @@ import React from 'react';
 import { Smile, Edit2, Trash2, FileText, X } from 'lucide-react';
 import { API_URL } from '../../config/api';
 
+const getInitials = (name) => {
+    if (!name) return '??';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+};
+
 const VisitPostCard = ({
     visit,
     currentUser,
@@ -14,27 +23,37 @@ const VisitPostCard = ({
     handleDeleteVisit,
     handleOpenGallery
 }) => {
+    const isQuickNote = visit.purpose?.toLowerCase().includes('quick note');
+    const isMeeting = visit.purpose?.toLowerCase().includes('meeting') || visit.purpose?.toLowerCase().includes('visit');
+    const cardClass = isQuickNote ? 'quick-note-card' : (isMeeting ? 'meeting-card' : '');
+
     return (
-        <div className="visit-post-card">
+        <div className={`visit-post-card ${cardClass}`}>
             <div className="post-content-area">
                 <div className="post-header">
-                    <span className="post-author">{visit.createdByName || visit.creatorName || 'Unknown User'}</span>
-                    <span className="post-time">
-                        {(() => {
-                            const dateVal = visit.date;
-                            if (!dateVal) return '-';
-                            // Strip Z to ensure local time face value
-                            const dateObj = (typeof dateVal === 'string' && dateVal.endsWith('Z'))
-                                ? new Date(dateVal.slice(0, -1))
-                                : new Date(dateVal);
+                    <div className="post-header-main-info">
+                        <div className="author-avatar">
+                            {getInitials(visit.createdByName || visit.creatorName)}
+                        </div>
+                        <div className="author-details-wrapper">
+                            <span className="post-author">{visit.createdByName || visit.creatorName || 'Unknown User'}</span>
+                            <span className="post-time">
+                                {(() => {
+                                    const dateVal = visit.date;
+                                    if (!dateVal) return '-';
+                                    const dateObj = (typeof dateVal === 'string' && dateVal.endsWith('Z'))
+                                        ? new Date(dateVal.slice(0, -1))
+                                        : new Date(dateVal);
 
-                            return dateObj.toLocaleDateString('en-US', {
-                                month: '2-digit',
-                                day: '2-digit',
-                                year: 'numeric'
-                            });
-                        })()}
-                    </span>
+                                    return dateObj.toLocaleDateString('en-US', {
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        year: 'numeric'
+                                    });
+                                })()}
+                            </span>
+                        </div>
+                    </div>
 
                     {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager' || currentUserId === visit.createdBy) && (
                         <div className="post-header-actions">
@@ -88,7 +107,11 @@ const VisitPostCard = ({
                 </div>
 
                 <div className="post-body">
-                    {visit.purpose && <h4 className="post-purpose">{visit.purpose}</h4>}
+                    {visit.purpose && (
+                        <div className={`post-purpose-badge ${visit.purpose.toLowerCase().includes('quick note') ? 'quick-note' : 'meeting'}`}>
+                            {visit.purpose}
+                        </div>
+                    )}
 
                     {/* Images */}
                     {visit.image && (Array.isArray(visit.image) ? visit.image : [visit.image]).length > 0 && (

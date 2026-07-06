@@ -430,50 +430,50 @@
 }
 
 /* Header Tabs */
+/* Header Tabs - Premium Capsule styling */
 .header-tabs {
   display: flex;
-  gap: 2rem;
+  gap: 0.5rem;
   align-items: center;
   margin-top: 0;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .header-tab {
   background: transparent;
   border: none;
   color: #9CA3AF;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 500;
   cursor: pointer;
-  padding: 1.25rem 0; /* Full height click area effect */
+  padding: 6px 16px;
+  border-radius: 6px;
   position: relative;
-  transition: all 0.2s;
-  border-bottom: 2px solid transparent;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .header-tab:hover {
   color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .header-tab.active {
-  color: #FFFFFF;
+  color: #000000 !important;
+  background: #E5C04A !important;
   font-weight: 600;
+  box-shadow: 0 4px 12px rgba(229, 192, 74, 0.2);
 }
 
-/* Gold underline */
+/* Gold underline override */
 .header-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: #E5C04A; /* Gold */
-  border-radius: 3px 3px 0 0;
-  display: block;
+  display: none !important;
 }
 
 .header-tab.active {
-    border-bottom: none; /* Override previous gold styling */
+    border-bottom: none !important;
 }
 
 /* Info toggle btn override */
@@ -940,59 +940,104 @@
   .resources-table th, 
   .resources-table td, 
   .resources-table tr { 
-    display: block; 
+    display: block !important; 
   }
 
   /* Hide headers */
   .data-table thead tr,
   .resources-table thead tr { 
-    position: absolute;
-    top: -9999px;
-    left: -9999px;
+    position: absolute !important;
+    top: -9999px !important;
+    left: -9999px !important;
   }
 
   .data-table tr,
   .resources-table tr { 
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    margin-bottom: 1rem;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.02);
-    padding: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    margin-bottom: 1rem !important;
+    border-radius: 8px !important;
+    background: #1E1E22 !important; /* Matches premium visit card background */
+    padding: 0.5rem !important;
   }
 
   .data-table td,
   .resources-table td { 
-    /* Behave  like a "row" */
-    border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05); 
-    position: relative;
-    padding-left: 0.75rem; /* Reset fixed padding */
-    padding-right: 0.75rem;
-    padding-top: 0.75rem;
-    padding-bottom: 0.75rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start; /* Align to top to handle wrapping better */
-    text-align: right;
-    gap: 1rem;
+    /* Behave like a "row" inside card */
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    text-align: right !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important; 
+    position: relative !important;
+    padding: 0.85rem 1rem !important;
+    gap: 1rem !important;
+  }
+
+  /* Prevent CSS leaks into expandable details row wrapper td */
+  .resources-table tr.resource-details-row td,
+  .data-table tr.resource-details-row td {
+    display: block !important;
+    text-align: left !important;
+    padding: 0 !important;
+    border-bottom: none !important;
+  }
+
+  /* Style mobile resource details container vertically */
+  .resource-details {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.25rem !important;
+    padding: 1.25rem !important;
+    background: rgba(0, 0, 0, 0.25) !important;
+    border-radius: 8px !important;
+    margin: 0.5rem 1rem 1rem 1rem !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    text-align: left !important;
+  }
+
+  .resource-details .detail-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    text-align: left !important;
+    gap: 0.35rem !important;
+    width: 100% !important;
+  }
+
+  .resource-details .detail-item strong {
+    font-size: 0.72rem !important;
+    color: #9CA3AF !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    text-align: left !important;
+    margin-right: 0 !important;
+  }
+
+  .resource-details .detail-item p,
+  .resource-details .detail-item div {
+    text-align: left !important;
+    color: #FFFFFF !important;
+    font-size: 0.92rem !important;
+    width: 100% !important;
   }
 
   .data-table td:last-child,
   .resources-table td:last-child {
-      border-bottom: none;
-      padding-left: 0.75rem; /* Reset padding for Actions row */
-      padding-top: 1rem;
+      border-bottom: none !important;
+      padding-left: 1rem !important; 
+      padding-top: 1rem !important;
   }
 
   .data-table td::before,
   .resources-table td::before { 
-    /* Now like a table header */
+    /* Label for cell on mobile */
     content: attr(data-label);
     font-weight: 700;
     color: var(--text-secondary);
     text-transform: uppercase;
     font-size: 0.75rem;
-    margin-right: auto; /* Push content to right */
+    margin-right: auto;
     text-align: left;
   }
 
@@ -1597,20 +1642,26 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background: #e5c04a; /* Gold hardcoded */
-  color: #000;
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #F5D060 0%, #E5C04A 100%);
+  color: #000000;
   border: none;
-  border-radius: 6px;
-  font-size: 0.875rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(229, 192, 74, 0.15);
 }
 
 .add-resource-btn:hover {
-  background: #e5c04a;
   transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(229, 192, 74, 0.3);
+  filter: brightness(1.05);
+}
+
+.add-resource-btn:active {
+  transform: translateY(0);
 }
 
 /* Toolbar */
@@ -2454,35 +2505,64 @@
 /* Top Input Area */
 /* Add Visit Button Container */
 /* Add Visit Button Container */
+/* Add Visit Button Container */
 .add-visit-container {
-    padding: 1rem 1.5rem;
-    background: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 1.25rem 2rem;
+    background: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     justify-content: flex-end;
     gap: 12px;
-    flex-wrap: wrap; /* Responsiveness */
+    align-items: center;
+    flex-wrap: wrap;
 }
 
 .icon-action-btn.secondary {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    color: #ccc;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.03);
+    color: #9CA3AF;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     padding: 8px 16px;
-    border-radius: 6px;
+    border-radius: 8px;
     font-weight: 500;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .icon-action-btn.secondary:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
     color: #fff;
+    transform: translateY(-1px);
+}
+
+.add-visit-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #F5D060 0%, #E5C04A 100%);
+    color: #000000;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(229, 192, 74, 0.15);
+}
+
+.add-visit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(229, 192, 74, 0.3);
+    filter: brightness(1.05);
+}
+
+.add-visit-btn:active {
+    transform: translateY(0);
 }
 
 /* Mobile adjustments */
@@ -2498,28 +2578,9 @@
         white-space: nowrap;
     }
     .add-visit-btn, .icon-action-btn.secondary {
-        font-size: 0.85rem;
+        font-size: 0.82rem;
         padding: 8px 10px;
     }
-}
-
-.add-visit-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #E5C04A; /* Yellow */
-    color: #000;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: filter 0.2s;
-}
-
-.add-visit-btn:hover {
-    filter: brightness(1.1);
 }
 
 .input-avatar .user-avatar {
@@ -2625,23 +2686,57 @@
     padding-bottom: 50px;
 }
 
-/* Visit Card */
+/* Visit Card - Premium Visual Design */
 .visit-post-card {
-    padding: 1.25rem;
-    background: #2b2b2b; /* Solid charcoal from image */
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 1.5rem;
+    background: #1E1E22; /* Elevated dark grey background */
+    border: 1px solid rgba(255, 255, 255, 0.08); /* Clear border separation */
     border-radius: 12px;
-    margin-bottom: 1rem;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-bottom: 1.25rem;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .visit-post-card:hover {
-    background: #333333; /* Slightly lighter on hover */
-    border-color: rgba(212, 175, 55, 0.3);
+    background: #252528; /* Slightly lighter grey on hover */
+    border-color: rgba(229, 192, 74, 0.35); /* Elegant gold highlight on hover */
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* Distinctive Type Tints - Quick Notes (Cool slate-blue tint) */
+.visit-post-card.quick-note-card {
+    background: #181D26; /* Dark steel-blue background */
+    border-color: rgba(147, 197, 253, 0.12); /* Subtle blue boundary */
+}
+
+.visit-post-card.quick-note-card:hover {
+    background: #1F2733; /* Brighter steel-blue on hover */
+    border-color: rgba(147, 197, 253, 0.3);
+}
+
+.visit-post-card.quick-note-card .author-avatar {
+    background: rgba(147, 197, 253, 0.1);
+    color: #93c5fd; /* Soft blue initials */
+    border-color: rgba(147, 197, 253, 0.25);
+}
+
+/* Distinctive Type Tints - Meetings & Visits (Warm amber tint) */
+.visit-post-card.meeting-card {
+    background: #211D16; /* Dark amber background */
+    border-color: rgba(229, 192, 74, 0.12); /* Subtle gold boundary */
+}
+
+.visit-post-card.meeting-card:hover {
+    background: #2B251B; /* Brighter amber on hover */
+    border-color: rgba(229, 192, 74, 0.35);
+}
+
+.visit-post-card.meeting-card .author-avatar {
+    background: rgba(229, 192, 74, 0.1);
+    color: #E5C04A; /* Soft gold initials */
+    border-color: rgba(229, 192, 74, 0.25);
 }
 
 .post-content-area {
@@ -2651,39 +2746,93 @@
 
 .post-header {
     display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin-bottom: 4px;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 0.85rem;
+}
+
+.post-header-main-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.author-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(229, 192, 74, 0.2) 0%, rgba(229, 192, 74, 0.05) 100%);
+    color: #E5C04A; /* Gold initials */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    border: 1px solid rgba(229, 192, 74, 0.25);
+}
+
+.author-details-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .post-author {
-    color: #e0e0e0;
+    color: #f3f4f6;
+    font-weight: 600;
     font-size: 0.95rem;
 }
 
 .post-time {
-    font-size: 0.75rem;
-    color: rgba(255,255,255,0.5);
+    font-size: 0.72rem;
+    color: #9ca3af;
 }
 
-/* Post Content */
+/* Post Content - Upgraded Legibility & Contrast */
 .post-body {
-    color: #d0d0d0;
-    font-size: 0.95rem;
-    line-height: 1.5;
+    color: #F9FAFB; /* High-contrast bright off-white */
+    font-size: 0.98rem; /* Slightly larger text */
+    font-weight: 400;
+    line-height: 1.65;
     margin-bottom: 8px;
 }
 
 .post-text {
     margin: 0;
     white-space: pre-wrap;
+    color: #FFFFFF !important; /* Pure white text for note contents */
+    font-weight: 450; /* Slightly thicker glyphs for better text definition */
+    letter-spacing: 0.01em;
 }
 
-.post-purpose {
-    font-size: 1.1rem;
+/* Custom Purpose Badges */
+.post-purpose-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.78rem;
     font-weight: 700;
-    color: #fff;
-    margin: 0 0 0.75rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 4px 10px;
+    border-radius: 6px;
+    margin: 0 0 1rem 0;
+    font-family: 'Inter', sans-serif;
+}
+
+.post-purpose-badge.quick-note {
+    background: rgba(156, 163, 175, 0.1);
+    color: #d1d5db;
+    border: 1px solid rgba(156, 163, 175, 0.15);
+}
+
+.post-purpose-badge.meeting {
+    background: rgba(229, 192, 74, 0.08);
+    color: #E5C04A;
+    border: 1px solid rgba(229, 192, 74, 0.18);
 }
 
 .post-details-ext {
@@ -2743,7 +2892,8 @@
 }
 
 .post-detail-row .detail-value {
-    color: #e0e0e0;
+    color: #FFFFFF !important;
+    font-weight: 500;
 }
 
 .post-images.gallery-layout {

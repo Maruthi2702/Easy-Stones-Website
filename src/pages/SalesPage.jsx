@@ -2869,10 +2869,10 @@ const SalesPage = () => {
 
 
                                         {/* Header with Title and Add Button */}
-                                        <div className="resources-header">
-                                            <h2>Client Resource</h2>
+                                        <div className="tab-header">
+                                            <h3>Client Resource</h3>
                                             <button className="add-resource-btn" onClick={handleAddResource}>
-                                                Add Resource 📄
+                                                <Plus size={18} /> Add Resource
                                             </button>
                                         </div>
 
