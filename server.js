@@ -2330,11 +2330,11 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
     // and we sort by the chosen sortBy field within those groupings.
     const sortStage = { sortPriority: 1 };
     if (sortBy === 'company') {
-      sortStage.company = sortOrder;
+      sortStage.normalizedCompany = sortOrder;
     } else if (sortBy === 'level') {
       sortStage.level = sortOrder;
     } else if (sortBy === 'city') {
-      sortStage.city = sortOrder;
+      sortStage.normalizedCity = sortOrder;
     } else {
       sortStage.createdAt = -1; // Default fallback to newest first
     }
@@ -2355,6 +2355,26 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
                 then: 1,
                 else: 0
               }
+            },
+            normalizedCity: {
+              $cond: {
+                if: { $and: [{ $gt: ["$city", null] }, { $ne: ["$city", ""] }] },
+                then: "$city",
+                else: { $ifNull: ["$address.city", ""] }
+              }
+            },
+            normalizedCompany: {
+              $cond: {
+                if: { $and: [{ $gt: ["$company", null] }, { $ne: ["$company", ""] }] },
+                then: "$company",
+                else: {
+                  $cond: {
+                    if: { $and: [{ $gt: ["$name", null] }, { $ne: ["$name", ""] }] },
+                    then: "$name",
+                    else: { $ifNull: ["$contactName", ""] }
+                  }
+                }
+              }
             }
           }
         },
@@ -2372,6 +2392,26 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
                 },
                 then: 1,
                 else: 0
+              }
+            },
+            normalizedCity: {
+              $cond: {
+                if: { $and: [{ $gt: ["$city", null] }, { $ne: ["$city", ""] }] },
+                then: "$city",
+                else: { $ifNull: ["$address.city", ""] }
+              }
+            },
+            normalizedCompany: {
+              $cond: {
+                if: { $and: [{ $gt: ["$company", null] }, { $ne: ["$company", ""] }] },
+                then: "$company",
+                else: {
+                  $cond: {
+                    if: { $and: [{ $gt: ["$name", null] }, { $ne: ["$name", ""] }] },
+                    then: "$name",
+                    else: { $ifNull: ["$contactName", ""] }
+                  }
+                }
               }
             }
           }
