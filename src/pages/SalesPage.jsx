@@ -1086,17 +1086,28 @@ const SalesPage = () => {
         });
 
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const tabParam = params.get('tab');
-        if (tabParam && ['dashboard', 'customers', 'checkin'].includes(tabParam)) {
-            setCrmTab(tabParam);
-        } else {
+        const handlePopState = () => {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
             const customerId = params.get('customer');
+            
+            if (tabParam && ['dashboard', 'customers', 'checkin'].includes(tabParam)) {
+                setCrmTab(tabParam);
+            }
             if (customerId) {
                 setSelectedCustomerId(customerId);
                 setCrmTab('customers');
+            } else {
+                setSelectedCustomerId(null);
+                setSelectedCustomerDetail(null);
             }
-        }
+        };
+
+        // Run once on mount
+        handlePopState();
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
     }, []);
 
     useEffect(() => {

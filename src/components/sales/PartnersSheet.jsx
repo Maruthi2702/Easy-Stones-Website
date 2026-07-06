@@ -120,10 +120,29 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [uniqueCities, setUniqueCities] = useState([]);
 
     // Pagination State
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return parseInt(params.get('p')) || 1;
+    });
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const [limit, setLimit] = useState(15);
+
+    useEffect(() => {
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('p', currentPage);
+        window.history.replaceState({}, '', newUrl);
+    }, [currentPage]);
+
+    useEffect(() => {
+        const handlePopState = () => {
+            const params = new URLSearchParams(window.location.search);
+            const pageParam = parseInt(params.get('p')) || 1;
+            setCurrentPage(pageParam);
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
 
     // Sorting State
     const [sortBy, setSortBy] = useState('level');
