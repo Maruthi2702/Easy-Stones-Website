@@ -315,19 +315,21 @@
     gap: 0.45rem;
 }
 
-/* SVG Easy Stones diamond logo */
-.es-diamond-logo {
-    width: 48px;
+/* Actual Easy Stones logo icon image */
+.es-logo-img {
+    width: auto;
     height: 52px;
     display: block;
+    object-fit: contain;
 }
 
 .dist-company-name {
-    font-size: 0.82rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    letter-spacing: 0.12em;
-    color: #000;
+    letter-spacing: 0.18em;
+    color: #1a1a1a;
     font-family: 'Inter', Arial, sans-serif;
+    text-align: center;
 }
 
 /* Page Break Line */
@@ -764,6 +766,29 @@
     .pdf-page-footer-disclaimer {
         margin-top: 1rem !important;
         font-size: 10px !important;
+    }
+
+    /* ── Logo image must render in print ── */
+    .es-logo-img {
+        display: block !important;
+        height: 44px !important;
+        width: auto !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .letterhead-distribution,
+    .dist-logo-wrap,
+    .dist-logo-col,
+    .dist-label,
+    .dist-company-name {
+        display: flex !important;
+        visibility: visible !important;
+    }
+
+    .dist-label,
+    .dist-company-name {
+        display: block !important;
     }
 
     /* ── Page size ── */

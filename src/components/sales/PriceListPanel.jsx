@@ -395,20 +395,11 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                 <div className="letterhead-distribution">
                                     <span className="dist-label">Distributed by</span>
                                     <div className="dist-logo-wrap dist-logo-col">
-                                        <svg className="es-diamond-logo" viewBox="0 0 60 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            {/* Outer diamond */}
-                                            <path d="M30 2 L58 20 L58 44 L30 62 L2 44 L2 20 Z" stroke="#c8902a" strokeWidth="2" fill="none"/>
-                                            {/* Inner left panel */}
-                                            <path d="M2 20 L20 12 L20 52 L2 44 Z" fill="#c8902a" opacity="0.55"/>
-                                            {/* Inner right panel */}
-                                            <path d="M58 20 L40 12 L40 52 L58 44 Z" fill="#c8902a" opacity="0.85"/>
-                                            {/* Center top triangle */}
-                                            <path d="M20 12 L40 12 L30 2 Z" fill="#c8902a" opacity="0.7"/>
-                                            {/* Center bottom triangle */}
-                                            <path d="M20 52 L40 52 L30 62 Z" fill="#c8902a" opacity="0.7"/>
-                                            {/* Vertical center line */}
-                                            <line x1="30" y1="2" x2="30" y2="62" stroke="#c8902a" strokeWidth="0.75" opacity="0.4"/>
-                                        </svg>
+                                        <img
+                                            src="/images/footer-logo.png"
+                                            alt="Easy Stones"
+                                            className="es-logo-img"
+                                        />
                                         <span className="dist-company-name">EASY STONES</span>
                                     </div>
                                 </div>
@@ -679,14 +670,11 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                     <div className="letterhead-distribution">
                                         <span className="dist-label">Distributed by</span>
                                         <div className="dist-logo-wrap dist-logo-col">
-                                            <svg className="es-diamond-logo" viewBox="0 0 60 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <path d="M30 2 L58 20 L58 44 L30 62 L2 44 L2 20 Z" stroke="#c8902a" strokeWidth="2" fill="none"/>
-                                                <path d="M2 20 L20 12 L20 52 L2 44 Z" fill="#c8902a" opacity="0.55"/>
-                                                <path d="M58 20 L40 12 L40 52 L58 44 Z" fill="#c8902a" opacity="0.85"/>
-                                                <path d="M20 12 L40 12 L30 2 Z" fill="#c8902a" opacity="0.7"/>
-                                                <path d="M20 52 L40 52 L30 62 Z" fill="#c8902a" opacity="0.7"/>
-                                                <line x1="30" y1="2" x2="30" y2="62" stroke="#c8902a" strokeWidth="0.75" opacity="0.4"/>
-                                            </svg>
+                                            <img
+                                                src="/images/footer-logo.png"
+                                                alt="Easy Stones"
+                                                className="es-logo-img"
+                                            />
                                             <span className="dist-company-name">EASY STONES</span>
                                         </div>
                                     </div>
