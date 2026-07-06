@@ -16,6 +16,88 @@ const TABS = [
     { key: 'partners',    label: 'Partners',    type: '',           icon: Users,  color: '#63b3ed' },
 ];
 
+// Custom MultiSelect Dropdown component
+const MultiSelect = ({ options, selectedValues = [], onChange, placeholder, showSearch = false }) => {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const [searchVal, setSearchVal] = React.useState('');
+    const containerRef = React.useRef(null);
+
+    React.useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setIsOpen(false);
+                setSearchVal('');
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleToggle = (opt) => {
+        const next = selectedValues.includes(opt)
+            ? selectedValues.filter(v => v !== opt)
+            : [...selectedValues, opt];
+        onChange(next);
+    };
+
+    const displayText = selectedValues.length === 0
+        ? placeholder
+        : selectedValues.length <= 2
+            ? selectedValues.join(', ')
+            : `${selectedValues.length} selected`;
+
+    const filteredOptions = options.filter(opt =>
+        opt.toLowerCase().includes(searchVal.toLowerCase())
+    );
+
+    return (
+        <div className="spag-multiselect" ref={containerRef}>
+            <button
+                type="button"
+                className={`spag-multiselect-trigger ${selectedValues.length > 0 ? 'active' : ''}`}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <span className="trigger-text">{displayText}</span>
+                <span className="trigger-arrow">▼</span>
+            </button>
+
+            {isOpen && (
+                <div className="spag-multiselect-dropdown">
+                    {showSearch && (
+                        <div className="spag-multiselect-search-container">
+                            <input
+                                type="text"
+                                className="spag-multiselect-search-input"
+                                placeholder="Search..."
+                                value={searchVal}
+                                onChange={(e) => setSearchVal(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                autoFocus
+                            />
+                        </div>
+                    )}
+                    <div className="spag-multiselect-items-container">
+                        {filteredOptions.length === 0 ? (
+                            <div className="spag-multiselect-empty">No results found</div>
+                        ) : (
+                            filteredOptions.map((opt) => (
+                                <label key={opt} className="spag-multiselect-item">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedValues.includes(opt)}
+                                        onChange={() => handleToggle(opt)}
+                                    />
+                                    <span>{opt}</span>
+                                </label>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPinned }) => {
     const [activeTab, setActiveTab] = useState('fabricators');
 
@@ -31,9 +113,11 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [formErrors, setFormErrors] = useState({});
     const [showFilters, setShowFilters] = useState(false);
 
-    // Filter State (not including type – that comes from the tab)
-    const [filterLevel, setFilterLevel] = useState('');
-    const [filterCity, setFilterCity] = useState('');
+    // Multi-Select Filter States
+    const [filterLevels, setFilterLevels] = useState([]);
+    const [filterTypes, setFilterTypes] = useState([]);
+    const [filterCities, setFilterCities] = useState([]);
+    const [uniqueCities, setUniqueCities] = useState([]);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -52,6 +136,30 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // Load all unique cities on mount for the filter checklist
+    useEffect(() => {
+        const fetchCities = async () => {
+            try {
+                const res = await fetch(`${API_URL}/api/partners?limit=-1`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const cities = Array.from(new Set(
+                        (data.partners || [])
+                            .map(p => p.city || p.address?.city)
+                            .filter(Boolean)
+                            .map(c => c.trim())
+                    )).sort();
+                    setUniqueCities(cities);
+                }
+            } catch (err) {
+                console.error('Error fetching unique cities:', err);
+            }
+        };
+        fetchCities();
+    }, []);
+
     // Derive the type filter from the active tab
     const activeTabDef = TABS.find(t => t.key === activeTab);
     // For the Partners tab we want everyone EXCEPT Fabricators
@@ -60,8 +168,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const fetchPartners = async ({
         page = currentPage,
         search = debouncedSearch,
-        level = filterLevel,
-        city = filterCity,
+        level = filterLevels.join(','),
+        type = filterTypes.join(','),
+        city = filterCities.join(','),
         lim = limit,
         tab = activeTab,
     } = {}) => {
@@ -72,14 +181,19 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             url.searchParams.append('limit', lim);
             if (search) url.searchParams.append('search', search);
             if (level)  url.searchParams.append('level', level);
+            if (type)   url.searchParams.append('type', type);
             if (city)   url.searchParams.append('city', city);
 
-            if (tab === 'fabricators') {
-                // Fabricators tab: only Fabricator type
-                url.searchParams.append('type', 'Fabricator');
-            } else {
-                // Partners tab: server-side exclude Fabricators so pagination is correct
-                url.searchParams.append('typeExclude', 'Fabricator');
+            // If search or filter is active, fetch across all customers (Fabricators + Partners) globally
+            const isSearchingOrFiltering = !!(search || level || type || city);
+            if (!isSearchingOrFiltering) {
+                if (tab === 'fabricators') {
+                    // Fabricators tab: only Fabricator type
+                    url.searchParams.append('type', 'Fabricator');
+                } else {
+                    // Partners tab: server-side exclude Fabricators so pagination is correct
+                    url.searchParams.append('typeExclude', 'Fabricator');
+                }
             }
 
             const response = await fetch(url, {
@@ -100,8 +214,16 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     };
 
     useEffect(() => {
-        fetchPartners({ page: currentPage, search: debouncedSearch, level: filterLevel, city: filterCity, lim: limit, tab: activeTab });
-    }, [currentPage, debouncedSearch, limit, filterLevel, filterCity, activeTab]);
+        fetchPartners({
+            page: currentPage,
+            search: debouncedSearch,
+            level: filterLevels.join(','),
+            type: filterTypes.join(','),
+            city: filterCities.join(','),
+            lim: limit,
+            tab: activeTab
+        });
+    }, [currentPage, debouncedSearch, limit, filterLevels, filterTypes, filterCities, activeTab]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -117,18 +239,20 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         setCurrentPage(1);
         setSearchTerm('');
         setDebouncedSearch('');
-        setFilterLevel('');
-        setFilterCity('');
+        setFilterLevels([]);
+        setFilterTypes([]);
+        setFilterCities([]);
         setShowFilters(false);
     };
 
     const clearFilters = () => {
-        setFilterLevel('');
-        setFilterCity('');
+        setFilterLevels([]);
+        setFilterTypes([]);
+        setFilterCities([]);
         setCurrentPage(1);
     };
 
-    const activeFilterCount = [filterLevel, filterCity].filter(Boolean).length;
+    const activeFilterCount = filterLevels.length + filterTypes.length + filterCities.length;
 
     const handleSavePartner = async (formData, closeModal) => {
         setIsSaving(true);
@@ -154,7 +278,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             });
 
             if (response.ok) {
-                await fetchPartners({ page: currentPage, search: debouncedSearch, level: filterLevel, city: filterCity, lim: limit, tab: activeTab });
+                await fetchPartners({
+                    page: currentPage,
+                    search: debouncedSearch,
+                    level: filterLevels.join(','),
+                    type: filterTypes.join(','),
+                    city: filterCities.join(','),
+                    lim: limit,
+                    tab: activeTab
+                });
                 closeModal();
                 setEditingPartner(null);
                 setViewingPartner(null);
@@ -180,7 +312,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 credentials: 'include'
             });
             if (response.ok) {
-                fetchPartners({ page: currentPage, search: debouncedSearch, level: filterLevel, city: filterCity, lim: limit, tab: activeTab });
+                fetchPartners({
+                    page: currentPage,
+                    search: debouncedSearch,
+                    level: filterLevels.join(','),
+                    type: filterTypes.join(','),
+                    city: filterCities.join(','),
+                    lim: limit,
+                    tab: activeTab
+                });
             } else {
                 const errorData = await response.json();
                 alert(errorData.message || 'Failed to delete customer');
@@ -196,12 +336,23 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             setLoading(true);
             const url = new URL(`${API_URL}/api/partners`, window.location.origin);
             url.searchParams.append('limit', -1);
+            
+            const levelParam = filterLevels.join(',');
+            const typeParam = filterTypes.join(',');
+            const cityParam = filterCities.join(',');
+            const isSearchingOrFiltering = !!(debouncedSearch || levelParam || typeParam || cityParam);
+            
             if (debouncedSearch) url.searchParams.append('search', debouncedSearch);
+            if (levelParam)     url.searchParams.append('level', levelParam);
+            if (typeParam)      url.searchParams.append('type', typeParam);
+            if (cityParam)      url.searchParams.append('city', cityParam);
 
-            if (activeTab === 'fabricators') {
-                url.searchParams.append('type', 'Fabricator');
-            } else {
-                url.searchParams.append('typeExclude', 'Fabricator');
+            if (!isSearchingOrFiltering) {
+                if (activeTab === 'fabricators') {
+                    url.searchParams.append('type', 'Fabricator');
+                } else {
+                    url.searchParams.append('typeExclude', 'Fabricator');
+                }
             }
 
             const response = await fetch(url, {
@@ -254,6 +405,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     };
 
     const isFabTab = activeTab === 'fabricators';
+    const showTypeColumn = !isFabTab || !!(debouncedSearch || filterLevels.length || filterTypes.length || filterCities.length);
 
     return (
         <div className="partners-sheet-container">
@@ -354,26 +506,30 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     <div className="filter-panel-inner">
                         <div className="filter-group">
                             <label>Level</label>
-                            <select
-                                className="filter-select"
-                                value={filterLevel}
-                                onChange={e => { setFilterLevel(e.target.value); setCurrentPage(1); }}
-                            >
-                                <option value="">All Levels</option>
-                                <option value="Level - 1">Level 1</option>
-                                <option value="Level - 2">Level 2</option>
-                                <option value="Level - 3">Level 3</option>
-                                <option value="Level - 4">Level 4</option>
-                            </select>
+                            <MultiSelect
+                                options={['Level - 1', 'Level - 2', 'Level - 3', 'Level - 4']}
+                                selectedValues={filterLevels}
+                                onChange={(vals) => { setFilterLevels(vals); setCurrentPage(1); }}
+                                placeholder="All Levels"
+                            />
+                        </div>
+                        <div className="filter-group">
+                            <label>Type</label>
+                            <MultiSelect
+                                options={['Fabricator', 'Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder']}
+                                selectedValues={filterTypes}
+                                onChange={(vals) => { setFilterTypes(vals); setCurrentPage(1); }}
+                                placeholder="All Types"
+                            />
                         </div>
                         <div className="filter-group">
                             <label>City</label>
-                            <input
-                                type="text"
-                                className="filter-input"
-                                placeholder="e.g. Seattle"
-                                value={filterCity}
-                                onChange={e => { setFilterCity(e.target.value); setCurrentPage(1); }}
+                            <MultiSelect
+                                options={uniqueCities}
+                                selectedValues={filterCities}
+                                onChange={(vals) => { setFilterCities(vals); setCurrentPage(1); }}
+                                placeholder="All Cities"
+                                showSearch={true}
                             />
                         </div>
                         {activeFilterCount > 0 && (
@@ -384,18 +540,24 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     </div>
                     {activeFilterCount > 0 && (
                         <div className="filter-chips">
-                            {filterLevel && (
-                                <span className="filter-chip">
-                                    {filterLevel}
-                                    <button onClick={() => { setFilterLevel(''); setCurrentPage(1); }}><X size={11} /></button>
+                            {filterLevels.map(lvl => (
+                                <span key={lvl} className="filter-chip">
+                                    {lvl}
+                                    <button onClick={() => { setFilterLevels(filterLevels.filter(x => x !== lvl)); setCurrentPage(1); }}><X size={11} /></button>
                                 </span>
-                            )}
-                            {filterCity && (
-                                <span className="filter-chip">
-                                    {filterCity}
-                                    <button onClick={() => { setFilterCity(''); setCurrentPage(1); }}><X size={11} /></button>
+                            ))}
+                            {filterTypes.map(t => (
+                                <span key={t} className="filter-chip">
+                                    {t}
+                                    <button onClick={() => { setFilterTypes(filterTypes.filter(x => x !== t)); setCurrentPage(1); }}><X size={11} /></button>
                                 </span>
-                            )}
+                            ))}
+                            {filterCities.map(c => (
+                                <span key={c} className="filter-chip">
+                                    {c}
+                                    <button onClick={() => { setFilterCities(filterCities.filter(x => x !== c)); setCurrentPage(1); }}><X size={11} /></button>
+                                </span>
+                            ))}
                         </div>
                     )}
                 </div>
@@ -412,7 +574,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                     <th>Contact Name</th>
                                     <th>Email</th>
                                     <th>Phone</th>
-                                    {!isFabTab && <th>Type</th>}
+                                    {showTypeColumn && <th>Type</th>}
                                     <th>City</th>
                                     <th>Level</th>
                                     <th>Moda Display</th>
@@ -425,14 +587,14 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan={isMobile ? 2 : (isFabTab ? 10 : 11)} style={{ textAlign: 'center', padding: '3rem' }}>
+                            <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 11 : 10)} style={{ textAlign: 'center', padding: '3rem' }}>
                                 <div className="loader-container">
                                     <div className="loader-spinner"></div>
                                     <span>Loading {isFabTab ? 'fabricators' : 'partners'}...</span>
                                 </div>
                             </td></tr>
                         ) : sortedPartners.length === 0 ? (
-                            <tr><td colSpan={isMobile ? 2 : (isFabTab ? 10 : 11)} style={{ textAlign: 'center', padding: '3rem' }}>
+                            <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 11 : 10)} style={{ textAlign: 'center', padding: '3rem' }}>
                                 <div className="empty-state">
                                     <FileText size={48} opacity={0.2} />
                                     <p>No {isFabTab ? 'fabricators' : 'partners'} found.</p>
@@ -458,12 +620,18 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                 </td>
                                 {!isMobile && (
                                     <>
-                                        <td>{partner.name || partner.contactName || '-'}</td>
                                         <td>
-                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{partner.email || '-'}</span>
+                                            <div className="partner-text-cell" title={partner.name || partner.contactName}>
+                                                {partner.name || partner.contactName || '-'}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="partner-email-cell" title={partner.email}>
+                                                {partner.email || '-'}
+                                            </div>
                                         </td>
                                         <td>{formatPhoneForDisplay(partner.phone) || '-'}</td>
-                                        {!isFabTab && (
+                                        {showTypeColumn && (
                                             <td>
                                                 <span className={`customer-type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
                                                     {partner.customerType || 'Fabricator'}

@@ -2246,20 +2246,42 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
       });
     }
 
-    if (filterLevel) filterConditions.push({ level: filterLevel });
+    if (filterLevel) {
+      const levels = filterLevel.split(',').map(l => l.trim()).filter(Boolean);
+      if (levels.length > 0) {
+        filterConditions.push({ level: { $in: levels } });
+      }
+    }
     if (filterType) {
-      if (filterType === 'Fabricator') {
-        // Include explicit Fabricators (case-insensitive) AND records with null/missing/empty customerType
-        filterConditions.push({
-          $or: [
+      const types = filterType.split(',').map(t => t.trim()).filter(Boolean);
+      if (types.length > 0) {
+        const orConditions = [];
+        const nonFabricatorTypes = [];
+        let hasFabricator = false;
+
+        types.forEach(t => {
+          if (t.toLowerCase() === 'fabricator') {
+            hasFabricator = true;
+          } else {
+            nonFabricatorTypes.push(t);
+          }
+        });
+
+        if (hasFabricator) {
+          orConditions.push(
             { customerType: { $regex: /^fabricator$/i } },
             { customerType: null },
             { customerType: { $exists: false } },
             { customerType: '' }
-          ]
-        });
-      } else {
-        filterConditions.push({ customerType: filterType });
+          );
+        }
+        if (nonFabricatorTypes.length > 0) {
+          orConditions.push({ customerType: { $in: nonFabricatorTypes } });
+        }
+
+        if (orConditions.length > 0) {
+          filterConditions.push(orConditions.length === 1 ? orConditions[0] : { $or: orConditions });
+        }
       }
     }
     if (filterTypeExclude) {
@@ -2283,12 +2305,19 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
         }
       }
     }
-    if (filterCity) filterConditions.push({
-      $or: [
-        { city: { $regex: filterCity, $options: 'i' } },
-        { 'address.city': { $regex: filterCity, $options: 'i' } }
-      ]
-    });
+    if (filterCity) {
+      const cities = filterCity.split(',').map(c => c.trim()).filter(Boolean);
+      if (cities.length > 0) {
+        const cityOrs = [];
+        cities.forEach(c => {
+          cityOrs.push(
+            { city: { $regex: c, $options: 'i' } },
+            { 'address.city': { $regex: c, $options: 'i' } }
+          );
+        });
+        filterConditions.push({ $or: cityOrs });
+      }
+    }
 
     if (filterConditions.length > 0) {
       query = filterConditions.length === 1 ? filterConditions[0] : { $and: filterConditions };

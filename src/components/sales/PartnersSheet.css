@@ -564,3 +564,194 @@
 .partner-add-btn.pulse {
     animation: addPulse 2.5s infinite;
 }
+
+/* ============================================================
+   MultiSelect Dropdown component styling
+   ============================================================ */
+.spag-multiselect {
+    position: relative;
+    width: 100%;
+}
+
+.spag-multiselect-trigger {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 7px;
+    color: var(--text-secondary, #9ca3af);
+    font-size: 0.82rem;
+    padding: 0.42rem 0.7rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    outline: none;
+}
+
+.spag-multiselect-trigger.active {
+    color: var(--text-primary, #e5e7eb);
+    border-color: rgba(212, 175, 55, 0.4);
+    background: rgba(212, 175, 55, 0.06);
+}
+
+.spag-multiselect-trigger:focus {
+    border-color: var(--accent-primary, #d4af37);
+}
+
+.trigger-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 0.5rem;
+}
+
+.trigger-arrow {
+    font-size: 0.55rem;
+    opacity: 0.6;
+}
+
+.spag-multiselect-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #1e1e2e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    z-index: 50;
+    padding: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.spag-multiselect-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text-secondary, #9ca3af);
+    transition: background 0.15s, color 0.15s;
+    user-select: none;
+}
+
+.spag-multiselect-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary, #e5e7eb);
+}
+
+.spag-multiselect-item input[type="checkbox"] {
+    cursor: pointer;
+    accent-color: #d4af37;
+}
+
+/* Light Theme overrides for MultiSelect */
+.light-theme .spag-multiselect-trigger {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #6b7280;
+}
+
+.light-theme .spag-multiselect-trigger.active {
+    color: #0f172a;
+    background: rgba(212, 175, 55, 0.05);
+    border-color: rgba(212, 175, 55, 0.3);
+}
+
+.light-theme .spag-multiselect-dropdown {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+.light-theme .spag-multiselect-item {
+    color: #475569;
+}
+
+.light-theme .spag-multiselect-item:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+/* MultiSelect Search styles */
+.spag-multiselect-search-container {
+    padding: 0.25rem 0.25rem 0.4rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 0.3rem;
+}
+
+.spag-multiselect-search-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.2) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 5px !important;
+    padding: 0.35rem 0.5rem !important;
+    color: #fff !important;
+    font-size: 0.78rem !important;
+    outline: none !important;
+}
+
+.spag-multiselect-search-input:focus {
+    border-color: #d4af37 !important;
+}
+
+.spag-multiselect-items-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.spag-multiselect-empty {
+    padding: 0.5rem;
+    font-size: 0.78rem;
+    color: var(--text-muted, #6b7280);
+    text-align: center;
+}
+
+/* Light Theme overrides for search */
+.light-theme .spag-multiselect-search-container {
+    border-bottom-color: #e2e8f0;
+}
+
+.light-theme .spag-multiselect-search-input {
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+}
+
+.light-theme .spag-multiselect-search-input:focus {
+    border-color: #d4af37 !important;
+}
+
+.light-theme .spag-multiselect-empty {
+    color: #94a3b8;
+}
+
+/* Contact Name and Email wrapping control */
+.partner-text-cell,
+.partner-email-cell {
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.partner-email-cell {
+    color: var(--text-secondary, #9ca3af);
+}
+
+.light-theme .partner-email-cell {
+    color: #475569;
+}
