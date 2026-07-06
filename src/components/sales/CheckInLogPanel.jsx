@@ -793,113 +793,203 @@ const CheckInLogPanel = ({
             <p>{searchTerm ? 'Try adjusting your search.' : 'No check-ins recorded yet.'}</p>
           </div>
         ) : (
-          <div className="clp-table-scroll">
-            <table className="clp-table">
-              <thead>
-                <tr>
-                  <th>CHECK-IN TIME</th>
-                  <th>VISITOR NAME</th>
-                  <th>PHONE NUMBER</th>
-                  <th>COMPANY/CONTACT NAME</th>
-                  <th>PHONE NUMBER</th>
-                  <th style={{ textAlign: 'center' }}>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => (
-                  <tr key={c._id} className={isToday(c.createdAt) ? 'clp-row-today' : ''}>
-                    <td className="clp-td-time">
-                      <div className="clp-date">{formatDate(c.createdAt)}</div>
-                      <div className="clp-time">{formatTime(c.createdAt)}</div>
-                      {isToday(c.createdAt) && <span className="clp-badge clp-badge-today">Today</span>}
-                    </td>
-                    <td>
-                      <div className="clp-visitor-row">
-                        <div
-                          className="clp-avatar"
-                          style={{
-                            background: `linear-gradient(135deg, ${getAvatarColor(c.name)}, ${getAvatarColor(c.name)}99)`,
-                          }}
-                        >
-                          {getInitials(c.name)}
-                        </div>
-                        <span className="clp-visitor-name">{c.name}</span>
-                      </div>
-                    </td>
-                    <td>
-                      {c.phone ? (
-                        <div className="clp-icon-text">
-                          <Phone size={12} /> {c.phone}
-                        </div>
-                      ) : (
-                        <span className="clp-dash">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {c.fabricatorCompany ? (
-                        <div className="clp-company-row">
-                          <div className="clp-company-icon">
-                            <Building2 size={13} />
-                          </div>
-                          <span className="clp-company-name">{c.fabricatorCompany}</span>
-                        </div>
-                      ) : (
-                        <span className="clp-dash">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {c.fabricatorPhone ? (
-                        <div className="clp-icon-text">
-                          <Phone size={12} /> {c.fabricatorPhone}
-                        </div>
-                      ) : (
-                        <span className="clp-dash">—</span>
-                      )}
-                    </td>
-
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', justifyContent: 'center' }}>
-                        <button
-                          onClick={() => handleOpenSelectionModal(c)}
-                          title="Selection sheet"
-                          style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                        >
-                          <ClipboardList size={15} />
-                        </button>
-                        {onView && (
-                          <button
-                            onClick={() => onView(c)}
-                            title="View details"
-                            style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                          >
-                            <Eye size={15} />
-                          </button>
-                        )}
-                        {onEdit && (
-                          <button
-                            onClick={() => onEdit(c)}
-                            title="Edit check-in"
-                            style={{ background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                          >
-                            <Edit2 size={15} />
-                          </button>
-                        )}
-                        {onDelete && (
-                          <button
-                            onClick={() => onDelete(c)}
-                            title="Delete check-in"
-                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+          <>
+            <div className="clp-table-scroll clp-desktop-only">
+              <table className="clp-table">
+                <thead>
+                  <tr>
+                    <th>CHECK-IN TIME</th>
+                    <th>VISITOR NAME</th>
+                    <th>PHONE NUMBER</th>
+                    <th>COMPANY/CONTACT NAME</th>
+                    <th>PHONE NUMBER</th>
+                    <th style={{ textAlign: 'center' }}>ACTIONS</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filtered.map((c) => (
+                    <tr key={c._id} className={isToday(c.createdAt) ? 'clp-row-today' : ''}>
+                      <td className="clp-td-time">
+                        <div className="clp-date">{formatDate(c.createdAt)}</div>
+                        <div className="clp-time">{formatTime(c.createdAt)}</div>
+                        {isToday(c.createdAt) && <span className="clp-badge clp-badge-today">Today</span>}
+                      </td>
+                      <td>
+                        <div className="clp-visitor-row">
+                          <div
+                            className="clp-avatar"
+                            style={{
+                              background: `linear-gradient(135deg, ${getAvatarColor(c.name)}, ${getAvatarColor(c.name)}99)`,
+                            }}
+                          >
+                            {getInitials(c.name)}
+                          </div>
+                          <span className="clp-visitor-name">{c.name}</span>
+                        </div>
+                      </td>
+                      <td>
+                        {c.phone ? (
+                          <div className="clp-icon-text">
+                            <Phone size={12} /> {c.phone}
+                          </div>
+                        ) : (
+                          <span className="clp-dash">—</span>
+                        )}
+                      </td>
+                      <td>
+                        {c.fabricatorCompany ? (
+                          <div className="clp-company-row">
+                            <div className="clp-company-icon">
+                              <Building2 size={13} />
+                            </div>
+                            <span className="clp-company-name">{c.fabricatorCompany}</span>
+                          </div>
+                        ) : (
+                          <span className="clp-dash">—</span>
+                        )}
+                      </td>
+                      <td>
+                        {c.fabricatorPhone ? (
+                          <div className="clp-icon-text">
+                            <Phone size={12} /> {c.fabricatorPhone}
+                          </div>
+                        ) : (
+                          <span className="clp-dash">—</span>
+                        )}
+                      </td>
+
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', justifyContent: 'center' }}>
+                          <button
+                            onClick={() => handleOpenSelectionModal(c)}
+                            title="Selection sheet"
+                            style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                          >
+                            <ClipboardList size={15} />
+                          </button>
+                          {onView && (
+                            <button
+                              onClick={() => onView(c)}
+                              title="View details"
+                              style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                            >
+                              <Eye size={15} />
+                            </button>
+                          )}
+                          {onEdit && (
+                            <button
+                              onClick={() => onEdit(c)}
+                              title="Edit check-in"
+                              style={{ background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                          )}
+                          {onDelete && (
+                            <button
+                              onClick={() => onDelete(c)}
+                              title="Delete check-in"
+                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="clp-mobile-list clp-mobile-only">
+              {filtered.map((c) => (
+                <div key={c._id} className={`clp-mobile-card ${isToday(c.createdAt) ? 'clp-row-today' : ''}`}>
+                  <div className="clp-card-header">
+                    <div className="clp-card-time-wrap">
+                      <span className="clp-date">{formatDate(c.createdAt)}</span>
+                      <span className="clp-time">{formatTime(c.createdAt)}</span>
+                      {isToday(c.createdAt) && <span className="clp-badge clp-badge-today">Today</span>}
+                    </div>
+                    <div className="clp-card-actions">
+                      <button
+                        onClick={() => handleOpenSelectionModal(c)}
+                        title="Selection sheet"
+                        className="clp-card-action-btn selection"
+                      >
+                        <ClipboardList size={15} />
+                      </button>
+                      {onView && (
+                        <button
+                          onClick={() => onView(c)}
+                          title="View details"
+                          className="clp-card-action-btn view"
+                        >
+                          <Eye size={15} />
+                        </button>
+                      )}
+                      {onEdit && (
+                        <button
+                          onClick={() => onEdit(c)}
+                          title="Edit check-in"
+                          className="clp-card-action-btn edit"
+                        >
+                          <Edit2 size={15} />
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          onClick={() => onDelete(c)}
+                          title="Delete check-in"
+                          className="clp-card-action-btn delete"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="clp-card-body">
+                    <div className="clp-card-row">
+                      <div
+                        className="clp-avatar"
+                        style={{
+                          background: `linear-gradient(135deg, ${getAvatarColor(c.name)}, ${getAvatarColor(c.name)}99)`,
+                        }}
+                      >
+                        {getInitials(c.name)}
+                      </div>
+                      <div className="clp-card-visitor-info">
+                        <span className="clp-visitor-name">{c.name}</span>
+                        {c.phone && (
+                          <a href={`tel:${c.phone}`} className="clp-phone-link">
+                            <Phone size={11} /> {c.phone}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {(c.fabricatorCompany || c.fabricatorPhone) && (
+                      <div className="clp-card-fabricator-details">
+                        {c.fabricatorCompany && (
+                          <div className="clp-card-detail-item">
+                            <Building2 size={12} className="clp-detail-icon" />
+                            <span className="clp-company-name">{c.fabricatorCompany}</span>
+                          </div>
+                        )}
+                        {c.fabricatorPhone && (
+                          <div className="clp-card-detail-item">
+                            <Phone size={11} className="clp-detail-icon" />
+                            <a href={`tel:${c.fabricatorPhone}`} className="clp-phone-link">{c.fabricatorPhone}</a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
