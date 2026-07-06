@@ -1456,21 +1456,38 @@ table.clp-table {
 }
 
 /* Responsive modal rules */
-@media (max-width: 768px) {
-  .selection-modal-overlay {
-    padding: 0.5rem;
-  }
+@media (min-width: 577px) and (max-width: 1024px) {
   .selection-modal-container {
-    max-height: 100vh;
-    border-radius: 0;
-  }
-  .selection-modal-form {
-    padding: 1.25rem 1rem;
+    width: 92% !important;
+    max-height: 90vh !important;
+    border-radius: 16px !important;
   }
   .selection-details-grid {
-    grid-template-columns: 1fr;
-    gap: 0.875rem;
-    padding: 1rem;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1rem !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .selection-modal-overlay {
+    padding: 0 !important;
+  }
+  .selection-modal-container {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+  }
+  .selection-details-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+    padding: 0.85rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .selection-modal-form {
+    padding: 1.25rem 1rem;
   }
 
   /* Responsive table to cards layout conversion */
@@ -1520,8 +1537,9 @@ table.clp-table {
     box-sizing: border-box;
   }
 
-  /* Make Material Name span both columns (100% width) */
-  .selections-table tr.selection-row-item td:nth-child(2) {
+  /* Make Material Name and Size span both columns (100% width) */
+  .selections-table tr.selection-row-item td:nth-child(2),
+  .selections-table tr.selection-row-item td:nth-child(5) {
     grid-column: span 2;
   }
 
@@ -1955,6 +1973,22 @@ table.clp-table {
 .clp-root.light-theme .selection-grid-input::placeholder {
   color: #556375 !important;
   opacity: 1 !important;
+}
+
+/* Light Theme overrides for Selection Modal mobile cards */
+.clp-root.light-theme .selections-table tr.selection-row-item {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+
+.clp-root.light-theme .selections-table tr.selection-row-item td::before {
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .selections-table tr.selection-row-item::before {
+  color: #b89324 !important;
+  border-bottom-color: #e2e8f0 !important;
 }
 
 /* Materials Table Grid */
