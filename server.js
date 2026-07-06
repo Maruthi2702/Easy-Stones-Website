@@ -2333,6 +2333,7 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
       sortStage.normalizedCompany = sortOrder;
     } else if (sortBy === 'level') {
       sortStage.level = sortOrder;
+      sortStage.normalizedCompany = 1;
     } else if (sortBy === 'city') {
       sortStage.normalizedCity = sortOrder;
     } else {
