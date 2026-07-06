@@ -217,15 +217,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             if (status) url.searchParams.append('status', status);
 
             // If search or filter is active, fetch across all customers (Fabricators + Partners) globally
-            const isSearchingOrFiltering = !!(search || level || type || city || status);
-            if (!isSearchingOrFiltering) {
-                if (tab === 'fabricators') {
-                    // Fabricators tab: only Fabricator type
-                    url.searchParams.append('type', 'Fabricator');
-                } else {
-                    // Partners tab: server-side exclude Fabricators so pagination is correct
-                    url.searchParams.append('typeExclude', 'Fabricator');
-                }
+            if (tab === 'fabricators') {
+                // Fabricators tab: only Fabricator type
+                url.searchParams.append('type', 'Fabricator');
+            } else {
+                // Partners tab: server-side exclude Fabricators so pagination is correct
+                url.searchParams.append('typeExclude', 'Fabricator');
             }
 
             const response = await fetch(url, {
@@ -395,12 +392,10 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             if (cityParam)      url.searchParams.append('city', cityParam);
             if (statusParam)    url.searchParams.append('status', statusParam);
 
-            if (!isSearchingOrFiltering) {
-                if (activeTab === 'fabricators') {
-                    url.searchParams.append('type', 'Fabricator');
-                } else {
-                    url.searchParams.append('typeExclude', 'Fabricator');
-                }
+            if (activeTab === 'fabricators') {
+                url.searchParams.append('type', 'Fabricator');
+            } else {
+                url.searchParams.append('typeExclude', 'Fabricator');
             }
 
             const response = await fetch(url, {
