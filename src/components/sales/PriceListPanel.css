@@ -1,622 +1,653 @@
-/* =============================================
-   PriceListPanel Stylesheet
-   Premium catalog design matching Sales CRM theme
-   ============================================= */
+/* ==========================================================================
+   PriceListPanel.css
+   Authentic replica of the PDF Pricing sheets with responsive web layout
+   ========================================================================== */
 
-.plp-root {
+/* ── Custom Theme Colors for Toolbar ── */
+.pdf-plp-root {
     display: flex;
     flex-direction: column;
-    color: var(--text-primary, #fff);
-    font-family: var(--font-main, 'Inter', sans-serif);
-    padding-bottom: 2rem;
+    width: 100%;
+    min-height: 100%;
+    background: var(--bg-primary, #090d16);
+    color: var(--text-primary, #ffffff);
+    font-family: 'Inter', -apple-system, sans-serif;
+    padding-bottom: 3rem;
 }
 
-/* ── Header ── */
-.plp-page-header {
-    position: relative;
-    z-index: 10;
+/* ── Top Toolbar (Non-Printable) ── */
+.pdf-plp-toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 1rem;
+    gap: 1.5rem;
     flex-wrap: wrap;
-    padding: 1.5rem 1.75rem 1rem;
-    background: rgba(0, 0, 0, 0.2);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 1.25rem 2rem;
+    background: rgba(15, 23, 42, 0.4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
-.plp-header-left {
+.toolbar-left {
     display: flex;
     align-items: center;
-    gap: 0.875rem;
+    gap: 0.85rem;
 }
 
-.plp-icon-wrap {
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.05));
-    border: 1px solid rgba(212, 175, 55, 0.28);
+.toolbar-icon {
+    width: 38px;
+    height: 38px;
+    background: rgba(212, 175, 55, 0.15);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #d4af37;
-    flex-shrink: 0;
 }
 
-.plp-title {
-    font-size: 1.25rem;
+.toolbar-title {
+    font-size: 1.15rem;
     font-weight: 800;
-    margin: 0 0 0.2rem;
-    letter-spacing: -0.02em;
-    background: linear-gradient(135deg, #fff 70%, rgba(212, 175, 55, 0.9));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.plp-subtitle {
-    font-size: 0.8rem;
-    color: var(--text-secondary, #b0b0b0);
     margin: 0;
+    letter-spacing: -0.02em;
 }
 
-/* ── Search ── */
-.plp-search-wrap {
+.toolbar-subtitle {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin: 3px 0 0;
+}
+
+.toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.toolbar-search-wrap {
     position: relative;
-    width: 260px;
+    width: 220px;
 }
 
-.plp-search-icon {
+.toolbar-search-icon {
     position: absolute;
-    left: 12px;
+    left: 10px;
     top: 50%;
     transform: translateY(-50%);
-    color: var(--text-secondary, #b0b0b0);
-    pointer-events: none;
+    color: #94a3b8;
 }
 
-.plp-search {
+.toolbar-search-input {
     width: 100%;
-    padding: 0.6rem 1rem 0.6rem 2.3rem;
+    padding: 0.55rem 0.85rem 0.55rem 2.2rem;
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 9px;
-    color: var(--text-primary, #fff);
-    font-size: 0.875rem;
-    font-family: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.82rem;
     outline: none;
     transition: all 0.2s ease;
 }
 
-.plp-search:focus {
-    border-color: rgba(212, 175, 55, 0.4);
+.toolbar-search-input:focus {
+    border-color: rgba(212, 175, 55, 0.45);
     background: rgba(255, 255, 255, 0.08);
 }
 
-/* ── Category filter pills ── */
-.plp-category-filter {
+.toolbar-toggle-btns {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    padding: 1rem 1.75rem 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 2px;
 }
 
-.plp-category-pill {
-    padding: 0.45rem 1.1rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: var(--text-secondary, #b0b0b0);
-    border-radius: 20px;
-    font-size: 0.8rem;
+.toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.78rem;
     font-weight: 600;
+    border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
-.plp-category-pill:hover {
-    background: rgba(255, 255, 255, 0.07);
+.toolbar-btn:hover {
     color: #fff;
-    border-color: rgba(255, 255, 255, 0.15);
 }
 
-.plp-category-pill.active {
-    background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(212, 175, 55, 0.04)) !important;
-    border-color: #d4af37 !important;
-    color: #d4af37 !important;
-    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.08);
+.toolbar-btn.active {
+    background: #d4af37;
+    color: #000 !important;
+    box-shadow: 0 2px 6px rgba(212, 175, 55, 0.2);
 }
 
-/* ── Table Card ── */
-.plp-table-card {
-    background: rgba(255, 255, 255, 0.025);
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 14px;
-    overflow: hidden;
-    margin: 0.5rem 1.75rem 1.5rem;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+.toolbar-print-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    padding: 0.55rem 0.95rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-.plp-table-scroll {
+.toolbar-print-btn:hover {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+    transform: translateY(-1px);
+}
+
+/* ── Sheet Container ── */
+.pdf-sheet-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1.5rem;
+    width: 100%;
+}
+
+/* ── PDF DOCUMENT MODE ── */
+.pdf-document-container {
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+    width: 100%;
+    max-width: 900px;
+}
+
+.pdf-page-container {
+    background: #ffffff;
+    color: #000000;
+    padding: 2.5rem 3rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
+    border: 1px solid #d1d5db;
+    display: flex;
+    flex-direction: column;
+    min-height: 1120px; /* A4 Ratio */
+    box-sizing: border-box;
+    position: relative;
+}
+
+/* Page Header metadata */
+.pdf-page-metadata-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: #555555;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 0.5rem;
+    font-family: 'Inter', sans-serif;
+}
+
+.meta-confidential {
+    font-weight: 600;
+}
+
+.meta-page-number {
+    font-weight: 600;
+}
+
+.meta-publish-date {
+    font-weight: 600;
+}
+
+/* Letterhead Layout */
+.pdf-letterhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    gap: 1.5rem;
+}
+
+.letterhead-logo-box {
+    border: 1.5px solid #000000;
+    padding: 0.85rem 1.75rem;
+    width: 180px;
+    text-align: center;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: #fff;
+}
+
+.logo-title {
+    font-family: 'Cinzel', 'Playfair Display', 'Georgia', serif;
+    font-size: 2.1rem;
+    font-weight: 400;
+    margin: 0;
+    letter-spacing: 0.18em;
+    color: #000;
+    line-height: 1;
+}
+
+.logo-divider-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 0.25rem;
+    gap: 4px;
+}
+
+.logo-line {
+    height: 1px;
+    background: #000;
+    flex-grow: 1;
+}
+
+.logo-subtitle {
+    font-size: 0.55rem;
+    letter-spacing: 0.35em;
+    font-weight: 700;
+    color: #000;
+    text-transform: uppercase;
+}
+
+.letterhead-contact-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: #000;
+    font-weight: 500;
+    flex-grow: 1;
+}
+
+.contact-phone, .contact-email, .contact-address, .contact-city, .contact-website {
+    display: block;
+}
+
+.letterhead-distribution {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+    text-align: right;
+    width: 180px;
+}
+
+.dist-label {
+    font-size: 0.65rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.dist-logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.dist-parallel-bars {
+    display: flex;
+    gap: 3px;
+    height: 22px;
+}
+
+.dist-parallel-bars .bar {
+    width: 3.5px;
+    background: #d97706; /* Easy stones gold/amber icon */
+    transform: skewX(-20deg);
+}
+
+.dist-parallel-bars .bar1 { opacity: 0.6; }
+.dist-parallel-bars .bar2 { opacity: 0.8; }
+.dist-parallel-bars .bar3 { opacity: 1.0; }
+
+.dist-company-name {
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: #000;
+}
+
+/* Page Break Line */
+.pdf-page-break-divider {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #64748b;
+    border-top: 1px dashed rgba(255, 255, 255, 0.15);
+    padding-top: 1rem;
+    margin: 1.5rem 0;
+    width: 100%;
+}
+
+/* ── EXACT PDF TABLE ── */
+.pdf-table-wrapper {
+    width: 100%;
+    margin-bottom: auto; /* Pushes disclaimer to the bottom */
+}
+
+.pdf-exact-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 3px solid #000000;
+}
+
+.pdf-exact-table thead tr th {
+    background: #e2e8f0; /* Soft cool grey header background */
+    border: 2px solid #000000;
+    padding: 0.65rem 0.5rem;
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #000000;
+    text-align: center;
+}
+
+.table-header-double-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+}
+
+.table-header-double-label .main-lbl {
+    font-weight: 800;
+}
+
+.table-header-double-label .sub-lbl {
+    font-size: 0.65rem;
+    font-style: italic;
+    font-weight: 550;
+}
+
+.pdf-exact-table tbody tr {
+    border-bottom: 1.5px solid #000000;
+}
+
+.pdf-exact-table tbody td {
+    padding: 0.38rem 0.6rem;
+    font-size: 0.85rem;
+    color: #000000;
+    border: 1.5px solid #000000;
+    vertical-align: middle;
+}
+
+.exact-color-cell {
+    font-weight: 600;
+    text-align: left;
+}
+
+.exact-price-cell {
+    background: #f1f5f9; /* Muted background for price columns */
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.exact-size-cell {
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.exact-collection-cell {
+    font-size: 0.88rem;
+    font-weight: 750;
+    background: #ffffff;
+}
+
+.text-center {
+    text-align: center !important;
+}
+
+.font-bold {
+    font-weight: 800 !important;
+}
+
+.pl-row-highlight {
+    background-color: #fef08a !important; /* Soft yellow highlighting for active search match */
+}
+
+.pl-row-highlight td {
+    background-color: #fef08a !important;
+}
+
+/* Page Footer Disclaimer */
+.pdf-page-footer-disclaimer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1.5px solid #000000;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    color: #000000;
+    text-align: left;
+}
+
+.pdf-page-footer-disclaimer p {
+    margin: 0.15rem 0;
+}
+
+.mt-1 {
+    margin-top: 0.5rem !important;
+}
+
+/* ── FLAT CATALOG INTERACTIVE LIST MODE ── */
+.pdf-flat-list-container {
+    width: 100%;
+    max-width: 950px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.pdf-flat-table-wrapper {
     overflow-x: auto;
 }
 
-.plp-table {
+.pdf-flat-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.875rem;
 }
 
-.plp-table thead tr {
-    background: rgba(255, 255, 255, 0.04);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+.pdf-flat-table thead tr {
+    border-bottom: 1.5px solid rgba(255, 255, 255, 0.1);
 }
 
-.plp-table thead th {
-    padding: 0.9rem 1rem;
-    font-size: 0.68rem;
+.pdf-flat-table thead th {
+    padding: 0.75rem 1rem;
+    font-size: 0.72rem;
     font-weight: 700;
-    color: var(--text-secondary, #b0b0b0);
+    color: #94a3b8;
     letter-spacing: 0.08em;
-    white-space: nowrap;
+    text-transform: uppercase;
+    text-align: center;
+}
+
+.pdf-flat-table thead th:first-child {
     text-align: left;
 }
 
-.plp-sortable-header {
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.15s ease;
-}
-
-.plp-sortable-header:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #fff;
-}
-
-.plp-header-cell-content {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-
-.plp-sort-arrow {
-    color: #d4af37;
-}
-
-.plp-sort-arrow-placeholder {
-    opacity: 0.25;
-    transition: opacity 0.2s ease;
-}
-
-.plp-sortable-header:hover .plp-sort-arrow-placeholder {
-    opacity: 0.65;
-}
-
-.plp-table tbody tr {
+.pdf-flat-table tbody tr {
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     transition: background 0.15s ease;
 }
 
-.plp-table tbody tr:hover {
-    background: rgba(255, 255, 255, 0.025);
+.pdf-flat-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
 }
 
-.plp-table tbody td {
+.pdf-flat-table tbody td {
     padding: 0.75rem 1rem;
     vertical-align: middle;
 }
 
-/* Image container & hover effect */
-.plp-image-container {
-    width: 44px;
-    height: 44px;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: #111;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+.pdf-flat-table tbody td.text-left {
+    text-align: left;
 }
 
-.plp-image-container:hover {
-    transform: scale(1.15);
-    border-color: #d4af37;
-    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.2);
+.pdf-flat-table tbody td.text-center {
+    text-align: center;
 }
 
-.plp-product-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+.text-gold {
+    color: #d4af37 !important;
 }
 
-.plp-product-name {
-    font-weight: 700;
-    color: var(--text-primary, #fff);
-    font-size: 0.9rem;
-}
-
-.plp-product-cat {
-    color: var(--text-secondary, #b0b0b0);
-    font-size: 0.8rem;
-    font-weight: 500;
-}
-
-.plp-price-val {
-    font-size: 0.87rem;
-}
-.plp-price-val.text-gold {
-    color: #d4af37;
-}
-
-.font-semibold {
-    font-weight: 600;
-}
-
-/* Status badges */
-.plp-status-badge {
+.pdf-collection-pill {
     display: inline-block;
-    padding: 0.25rem 0.65rem;
-    border-radius: 12px;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
     font-size: 0.72rem;
     font-weight: 700;
-    text-align: center;
-    white-space: nowrap;
+    text-transform: uppercase;
 }
 
-.plp-status-badge.in-stock {
-    background: rgba(16, 185, 129, 0.14);
-    color: #10b981;
+.pdf-collection-pill.signature {
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
-.plp-status-badge.out-of-stock {
-    background: rgba(239, 68, 68, 0.14);
-    color: #ef4444;
+.pdf-collection-pill.prestige {
+    background: rgba(168, 85, 247, 0.12);
+    color: #a855f7;
+    border: 1px solid rgba(168, 85, 247, 0.2);
 }
 
-/* State centers */
-.plp-state-center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 5rem 2rem;
-    gap: 0.75rem;
-    color: var(--text-secondary, #b0b0b0);
-    text-align: center;
-}
-.plp-state-center h3 {
-    margin: 0;
-    color: #fff;
-    font-size: 1.1rem;
-}
-.plp-state-center p {
-    margin: 0;
-    font-size: 0.875rem;
+.pdf-collection-pill.luxe {
+    background: rgba(234, 179, 8, 0.12);
+    color: #eab308;
+    border: 1px solid rgba(234, 179, 8, 0.2);
 }
 
-.plp-gold {
-    color: #d4af37;
+.pdf-collection-pill.thruteq {
+    background: rgba(244, 63, 94, 0.12);
+    color: #f43f5e;
+    border: 1px solid rgba(244, 63, 94, 0.2);
 }
 
-.plp-spin {
-    animation: plp-spin 1s linear infinite;
+/* ── LIGHT THEME FLAT TABLE OVERRIDES ── */
+.light-theme .pdf-flat-list-container {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05) !important;
 }
 
-@keyframes plp-spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+.light-theme .pdf-flat-table thead th {
+    color: #475569 !important;
 }
 
-.plp-error-text {
-    color: #ef4444;
-    font-weight: 600;
-}
-
-/* ── Mobile Layouts ── */
-.plp-mobile-only {
-    display: none !important;
-}
-
-.plp-desktop-only {
-    display: block !important;
-}
-
-@media (max-width: 768px) {
-    .plp-mobile-only {
-        display: flex !important;
-    }
-    
-    .plp-desktop-only {
-        display: none !important;
-    }
-
-    .plp-page-header {
-        padding: 1.25rem 1rem 0.85rem !important;
-    }
-
-    .plp-header-actions {
-        width: 100% !important;
-        margin-top: 0.5rem !important;
-    }
-
-    .plp-search-wrap {
-        width: 100% !important;
-    }
-
-    .plp-category-filter {
-        padding: 0.75rem 1rem 0.25rem !important;
-        gap: 0.4rem !important;
-    }
-
-    .plp-category-pill {
-        padding: 0.35rem 0.85rem !important;
-        font-size: 0.75rem !important;
-    }
-
-    .plp-table-card {
-        margin: 0.5rem 1rem 1.5rem !important;
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-    }
-
-    .plp-mobile-list {
-        display: flex;
-        flex-direction: column;
-        gap: 0.85rem;
-        width: 100%;
-    }
-
-    .plp-mobile-card {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.85rem;
-        transition: transform 0.2s ease, border-color 0.2s ease;
-    }
-
-    .plp-mobile-card:hover {
-        border-color: rgba(212, 175, 55, 0.25);
-    }
-
-    .plp-card-top {
-        display: flex;
-        gap: 0.85rem;
-        align-items: center;
-    }
-
-    .plp-card-top .plp-image-container {
-        width: 50px !important;
-        height: 50px !important;
-        flex-shrink: 0 !important;
-    }
-
-    .plp-card-header-info {
-        display: flex;
-        flex-direction: column;
-        gap: 0.3rem;
-        flex: 1;
-    }
-
-    .plp-mobile-product-name {
-        margin: 0;
-        font-size: 0.95rem;
-        font-weight: 750;
-        color: #fff;
-        line-height: 1.25;
-    }
-
-    .plp-card-meta-row {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-    }
-
-    .plp-card-cat-badge {
-        font-size: 0.7rem;
-        font-weight: 600;
-        background: rgba(255, 255, 255, 0.05);
-        color: var(--text-secondary, #b0b0b0);
-        padding: 0.15rem 0.45rem;
-        border-radius: 4px;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .plp-card-prices-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.5rem;
-        padding-top: 0.65rem;
-        border-top: 1px dashed rgba(255, 255, 255, 0.06);
-    }
-
-    .plp-price-grid-item {
-        background: rgba(255, 255, 255, 0.015);
-        border: 1px solid rgba(255, 255, 255, 0.04);
-        padding: 0.45rem;
-        border-radius: 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-
-    .plp-price-grid-item.highlighted {
-        background: rgba(212, 175, 55, 0.05);
-        border-color: rgba(212, 175, 55, 0.15);
-    }
-
-    .plp-price-label {
-        font-size: 0.65rem;
-        color: var(--text-secondary, #b0b0b0);
-        font-weight: 600;
-    }
-
-    .plp-price-value {
-        font-size: 0.82rem;
-        font-weight: 700;
-        color: #fff;
-    }
-
-    .plp-price-grid-item.highlighted .plp-price-value {
-        color: #d4af37;
-    }
-}
-
-/* =============================================
-   LIGHT THEME OVERRIDES
-   ============================================= */
-
-.light-theme .plp-page-header {
-    background: #f8fafc !important;
+.light-theme .pdf-flat-table tbody tr {
     border-bottom-color: #cbd5e1 !important;
 }
 
-.light-theme .plp-title {
-    background: none !important;
-    -webkit-text-fill-color: #0f172a !important;
+.light-theme .pdf-flat-table tbody tr:hover {
+    background: #f8fafc !important;
+}
+
+.light-theme .pdf-flat-table tbody td {
     color: #0f172a !important;
 }
 
-.light-theme .plp-subtitle {
-    color: #475569 !important;
-}
-
-.light-theme .plp-search {
-    background: #ffffff !important;
-    border-color: #cbd5e1 !important;
-    color: #0f172a !important;
-}
-
-.light-theme .plp-search::placeholder {
-    color: #64748b !important;
-}
-
-.light-theme .plp-category-pill {
-    background: #ffffff !important;
-    border-color: #cbd5e1 !important;
-    color: #475569 !important;
-}
-
-.light-theme .plp-category-pill:hover {
-    background: #f1f5f9 !important;
-    color: #0f172a !important;
-}
-
-.light-theme .plp-category-pill.active {
-    background: #fffbeb !important;
-    border-color: #d4af37 !important;
+.light-theme .text-gold {
     color: #b45309 !important;
 }
 
-.light-theme .plp-table-card {
-    background: #ffffff !important;
-    border-color: #cbd5e1 !important;
-    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05) !important;
-}
+/* ==========================================================================
+   PRINT MEDIA STYLES
+   ========================================================================== */
+@media print {
+    /* Hide scrollbars, headers, side navs, top bars */
+    .no-print,
+    .pdf-plp-toolbar,
+    .sales-sidebar,
+    .fancy-mobile-menu-btn,
+    .dashboard-sidebar-toggle {
+        display: none !important;
+    }
 
-.light-theme .plp-table thead tr {
-    background: #f1f5f9 !important;
-    border-bottom-color: #cbd5e1 !important;
-}
-
-.light-theme .plp-table thead th {
-    color: #475569 !important;
-}
-
-.light-theme .plp-sortable-header:hover {
-    background: #e2e8f0 !important;
-    color: #0f172a !important;
-}
-
-.light-theme .plp-table tbody tr {
-    border-bottom-color: #e2e8f0 !important;
-}
-
-.light-theme .plp-table tbody tr:hover {
-    background: #f8fafc !important;
-}
-
-.light-theme .plp-product-name {
-    color: #0f172a !important;
-}
-
-.light-theme .plp-product-cat {
-    color: #475569 !important;
-}
-
-.light-theme .plp-price-val {
-    color: #0f172a !important;
-}
-
-.light-theme .plp-price-val.text-gold {
-    color: #b89324 !important;
-}
-
-.light-theme .plp-image-container {
-    background: #f1f5f9 !important;
-    border-color: #cbd5e1 !important;
-}
-
-.light-theme .plp-state-center h3 {
-    color: #0f172a !important;
-}
-
-.light-theme .plp-state-center p {
-    color: #475569 !important;
-}
-
-/* Light Theme Mobile Overrides */
-@media (max-width: 768px) {
-    .light-theme .plp-mobile-card {
+    body, html, .sales-container, .sales-main, .pdf-plp-root, .pdf-sheet-wrapper {
         background: #ffffff !important;
-        border-color: #cbd5e1 !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+        color: #000000 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        box-shadow: none !important;
     }
 
-    .light-theme .plp-mobile-card:hover {
-        border-color: rgba(212, 175, 55, 0.35) !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08) !important;
+    .pdf-page-container {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 1.5cm 1.5cm !important;
+        page-break-after: always !important;
+        page-break-inside: avoid !important;
+        min-height: auto !important;
     }
 
-    .light-theme .plp-mobile-product-name {
-        color: #0f172a !important;
+    .pdf-page-break-divider {
+        display: none !important;
+    }
+}
+
+/* ==========================================================================
+   MOBILE & TABLET RESPONSIVE OVERRIDES
+   ========================================================================== */
+@media (max-width: 900px) {
+    .pdf-sheet-wrapper {
+        padding: 1rem 0.5rem !important;
     }
 
-    .light-theme .plp-card-cat-badge {
-        background: #f1f5f9 !important;
-        color: #475569 !important;
-        border-color: #cbd5e1 !important;
+    .pdf-page-container {
+        padding: 1.5rem 1rem !important;
+        min-height: auto !important;
     }
 
-    .light-theme .plp-card-prices-grid {
-        border-top-color: #cbd5e1 !important;
+    .pdf-letterhead {
+        flex-direction: column !important;
+        gap: 1rem !important;
+        align-items: center !important;
+        text-align: center !important;
     }
 
-    .light-theme .plp-price-grid-item {
-        background: #f8fafc !important;
-        border-color: #cbd5e1 !important;
+    .letterhead-logo-box,
+    .letterhead-distribution {
+        width: 100% !important;
+        align-items: center !important;
+        text-align: center !important;
     }
 
-    .light-theme .plp-price-grid-item.highlighted {
-        background: #fffbeb !important;
-        border-color: rgba(212, 175, 55, 0.25) !important;
+    .pdf-exact-table thead tr th {
+        font-size: 0.72rem !important;
+        padding: 0.4rem 0.25rem !important;
     }
 
-    .light-theme .plp-price-label {
-        color: #64748b !important;
+    .pdf-exact-table tbody td {
+        font-size: 0.72rem !important;
+        padding: 0.35rem 0.35rem !important;
     }
 
-    .light-theme .plp-price-value {
-        color: #0f172a !important;
-    }
-
-    .light-theme .plp-price-grid-item.highlighted .plp-price-value {
-        color: #b89324 !important;
+    .table-header-double-label .sub-lbl {
+        display: none !important; /* Hide tiny sub-labels to save width */
     }
 }
