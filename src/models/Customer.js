@@ -120,6 +120,11 @@ customerSchema.index({ contactName: 'text', company: 'text', email: 'text' }); /
 customerSchema.index({ 'visits.date': -1 }); // Index for dashboard max visit calculation
 customerSchema.index({ isActive: 1, createdAt: -1 }); // Index for listing all active customers
 customerSchema.index({ priceLevel: 1, isActive: 1 }); // Index for price level filtering
+customerSchema.index({ level: 1 }); // Index for level-based sorting
+customerSchema.index({ customerType: 1 }); // Index for type-based filtering
+customerSchema.index({ city: 1 }); // Index for city filtering
+customerSchema.index({ 'address.city': 1 }); // Index for address city filtering
+customerSchema.index({ company: 1, contactName: 1 }); // Compound index to speed up selection dropdown API sorts
 
 // Hash password before saving
 // Hash password before saving

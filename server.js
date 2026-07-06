@@ -2395,7 +2395,15 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
             }
           }
         },
-        { $sort: sortStage }
+        { $sort: sortStage },
+        {
+          $project: {
+            password: 0,
+            contacts: 0,
+            visits: 0,
+            resources: 0
+          }
+        }
       ]);
     } else {
       customers = await Customer.aggregate([
@@ -2434,6 +2442,14 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
           }
         },
         { $sort: sortStage },
+        {
+          $project: {
+            password: 0,
+            contacts: 0,
+            visits: 0,
+            resources: 0
+          }
+        },
         { $skip: skip },
         { $limit: limit }
       ]);
