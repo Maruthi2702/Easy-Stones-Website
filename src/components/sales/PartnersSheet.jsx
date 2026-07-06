@@ -430,8 +430,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     };
 
     const sortedPartners = [...partners].sort((a, b) => {
-        const aLow = a.status === 'Working with other sales Rep' || a.status === 'Not Interested';
-        const bLow = b.status === 'Working with other sales Rep' || b.status === 'Not Interested';
+        const aLow = a.status === 'Different Sales Person' || a.status === 'Not Interested';
+        const bLow = b.status === 'Different Sales Person' || b.status === 'Not Interested';
         if (aLow && !bLow) return 1;
         if (!aLow && bLow) return -1;
         return 0;
@@ -666,7 +666,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                             <tr
                                 key={partner._id}
                                 className={
-                                    partner.status === 'Working with other sales Rep' || partner.status === 'Not Interested'
+                                    partner.status === 'Different Sales Person' || partner.status === 'Not Interested'
                                         ? 'partner-row-low-priority'
                                         : ''
                                 }

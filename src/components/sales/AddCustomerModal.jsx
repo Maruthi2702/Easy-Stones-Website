@@ -394,9 +394,9 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                                 <option value="Trying to Onboard">Trying to Onboard</option>
                                 <option value="Contacted / In Discussion">Contacted / In Discussion</option>
                                 <option value="Onboarded">Onboarded</option>
-                                <option value="Inactive">Inactive</option>
-                                <option value="Working with other sales Rep">Working with other sales Rep</option>
+                                <option value="Different Sales Person">Different Sales Person</option>
                                 <option value="Not Interested">Not Interested</option>
+                                <option value="Inactive">Inactive</option>
                             </select>
                         </div>
                         <div className="form-group">

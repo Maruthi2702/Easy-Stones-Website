@@ -220,6 +220,19 @@ async function startServer() {
     console.log('✅ Connected to MongoDB Atlas');
     console.log('Connection Ready State:', mongoose.connection.readyState);
 
+    // Database migration: Update status value from legacy "Working with other sales Rep" to "Different Sales Person"
+    try {
+      const updateResult = await Customer.updateMany(
+        { status: 'Working with other sales Rep' },
+        { $set: { status: 'Different Sales Person' } }
+      );
+      if (updateResult.modifiedCount > 0) {
+        console.log(`🔄 Migrated ${updateResult.modifiedCount} customers to new status: "Different Sales Person"`);
+      }
+    } catch (migError) {
+      console.error('Error running status update migration:', migError);
+    }
+
     app.listen(PORT, () => {
       console.log(`🚀 Backend server running on port ${PORT}`);
 
@@ -2367,7 +2380,7 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
             sortPriority: {
               $cond: {
                 if: {
-                  $in: ["$status", ["Working with other sales Rep", "Not Interested"]]
+                  $in: ["$status", ["Different Sales Person", "Not Interested"]]
                 },
                 then: 1,
                 else: 0
@@ -2413,7 +2426,7 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
             sortPriority: {
               $cond: {
                 if: {
-                  $in: ["$status", ["Working with other sales Rep", "Not Interested"]]
+                  $in: ["$status", ["Different Sales Person", "Not Interested"]]
                 },
                 then: 1,
                 else: 0
