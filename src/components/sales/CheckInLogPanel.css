@@ -1596,15 +1596,33 @@ table.clp-table {
   }
 
   .selection-modal-actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
-  }
-  .selection-modal-actions-right {
-    justify-content: flex-end;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+    width: 100% !important;
   }
   .selection-modal-actions-left {
-    width: 100%;
+    width: 100% !important;
+    display: flex !important;
+    gap: 0.5rem !important;
+  }
+  .btn-email-trigger,
+  .btn-print-trigger {
+    flex: 1 !important;
+    width: 100% !important;
+    justify-content: center !important;
+    font-size: 0.8rem !important;
+    padding: 0.65rem 0.5rem !important;
+  }
+  .selection-modal-actions-right {
+    width: 100% !important;
+    display: flex !important;
+  }
+  .btn-save-selection {
+    width: 100% !important;
+    justify-content: center !important;
+    font-size: 0.85rem !important;
+    padding: 0.75rem 1rem !important;
   }
 }
 
