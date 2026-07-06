@@ -755,3 +755,42 @@
 .light-theme .partner-email-cell {
     color: #475569;
 }
+
+/* Sortable Headers */
+.sortable-header {
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.sortable-header:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: var(--text-primary, #ffffff);
+}
+
+.sortable-header.sorted {
+    background: rgba(212, 175, 55, 0.05) !important;
+    color: var(--gold-color, #d4af37);
+}
+
+.sort-arrow {
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
+.sort-arrow-placeholder {
+    transition: opacity 0.2s ease;
+}
+
+.sortable-header:hover .sort-arrow-placeholder {
+    opacity: 0.55 !important;
+}
+
+/* Light theme overrides for sorting headers */
+.light-theme .sortable-header:hover {
+    background: rgba(0, 0, 0, 0.04) !important;
+    color: #0f172a;
+}
+
+.light-theme .sortable-header.sorted {
+    background: rgba(212, 175, 55, 0.08) !important;
+    color: #b89324;
+}

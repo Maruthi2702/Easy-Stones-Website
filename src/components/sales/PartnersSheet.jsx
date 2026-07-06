@@ -125,6 +125,20 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [totalCount, setTotalCount] = useState(0);
     const [limit, setLimit] = useState(15);
 
+    // Sorting State
+    const [sortBy, setSortBy] = useState('createdAt');
+    const [sortOrder, setSortOrder] = useState('desc');
+
+    const handleSort = (field) => {
+        if (sortBy === field) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(field);
+            setSortOrder('asc');
+        }
+        setCurrentPage(1);
+    };
+
     const handleRowsPerPageChange = (newLimit) => {
         setLimit(newLimit);
         setCurrentPage(1);
@@ -173,12 +187,16 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         city = filterCities.join(','),
         lim = limit,
         tab = activeTab,
+        sortB = sortBy,
+        sortO = sortOrder,
     } = {}) => {
         setLoading(true);
         try {
             const url = new URL(`${API_URL}/api/partners`, window.location.origin);
             url.searchParams.append('page', page);
             url.searchParams.append('limit', lim);
+            url.searchParams.append('sortBy', sortB);
+            url.searchParams.append('sortOrder', sortO);
             if (search) url.searchParams.append('search', search);
             if (level)  url.searchParams.append('level', level);
             if (type)   url.searchParams.append('type', type);
@@ -221,9 +239,11 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             type: filterTypes.join(','),
             city: filterCities.join(','),
             lim: limit,
-            tab: activeTab
+            tab: activeTab,
+            sortB: sortBy,
+            sortO: sortOrder
         });
-    }, [currentPage, debouncedSearch, limit, filterLevels, filterTypes, filterCities, activeTab]);
+    }, [currentPage, debouncedSearch, limit, filterLevels, filterTypes, filterCities, activeTab, sortBy, sortOrder]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -242,6 +262,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         setFilterLevels([]);
         setFilterTypes([]);
         setFilterCities([]);
+        setSortBy('createdAt');
+        setSortOrder('desc');
         setShowFilters(false);
     };
 
@@ -336,6 +358,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             setLoading(true);
             const url = new URL(`${API_URL}/api/partners`, window.location.origin);
             url.searchParams.append('limit', -1);
+            url.searchParams.append('sortBy', sortBy);
+            url.searchParams.append('sortOrder', sortOrder);
             
             const levelParam = filterLevels.join(',');
             const typeParam = filterTypes.join(',');
@@ -406,6 +430,28 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
 
     const isFabTab = activeTab === 'fabricators';
     const showTypeColumn = !isFabTab || !!(debouncedSearch || filterLevels.length || filterTypes.length || filterCities.length);
+
+    const renderSortHeader = (label, field) => {
+        const isSorted = sortBy === field;
+        return (
+            <th 
+                onClick={() => handleSort(field)} 
+                className={`sortable-header ${isSorted ? 'sorted' : ''}`}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span>{label}</span>
+                    {isSorted ? (
+                        <span className="sort-arrow" style={{ color: 'var(--gold-color, #d4af37)' }}>
+                            {sortOrder === 'asc' ? '▲' : '▼'}
+                        </span>
+                    ) : (
+                        <span className="sort-arrow-placeholder" style={{ opacity: 0.2 }}>▲</span>
+                    )}
+                </div>
+            </th>
+        );
+    };
 
     return (
         <div className="partners-sheet-container">
@@ -568,15 +614,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 <table className="dashboard-table">
                     <thead>
                         <tr>
-                            <th>Company</th>
+                            {renderSortHeader('Company', 'company')}
                             {!isMobile && (
                                 <>
                                     <th>Contact Name</th>
                                     <th>Email</th>
                                     <th>Phone</th>
                                     {showTypeColumn && <th>Type</th>}
-                                    <th>City</th>
-                                    <th>Level</th>
+                                    {renderSortHeader('City', 'city')}
+                                    {renderSortHeader('Level', 'level')}
                                     <th>Moda Display</th>
                                     <th>Moda Binder</th>
                                     <th>Status</th>

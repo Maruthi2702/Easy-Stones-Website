@@ -2323,6 +2323,22 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
       query = filterConditions.length === 1 ? filterConditions[0] : { $and: filterConditions };
     }
 
+    const sortBy = req.query.sortBy || 'createdAt';
+    const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
+
+    // Build the dynamic sort stage. Low-priority statuses always float to the bottom,
+    // and we sort by the chosen sortBy field within those groupings.
+    const sortStage = { sortPriority: 1 };
+    if (sortBy === 'company') {
+      sortStage.company = sortOrder;
+    } else if (sortBy === 'level') {
+      sortStage.level = sortOrder;
+    } else if (sortBy === 'city') {
+      sortStage.city = sortOrder;
+    } else {
+      sortStage.createdAt = -1; // Default fallback to newest first
+    }
+
     const totalCount = await Customer.countDocuments(query);
 
     let customers;
@@ -2342,7 +2358,7 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
             }
           }
         },
-        { $sort: { sortPriority: 1, createdAt: -1 } }
+        { $sort: sortStage }
       ]);
     } else {
       customers = await Customer.aggregate([
@@ -2360,7 +2376,7 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
             }
           }
         },
-        { $sort: { sortPriority: 1, createdAt: -1 } },
+        { $sort: sortStage },
         { $skip: skip },
         { $limit: limit }
       ]);
