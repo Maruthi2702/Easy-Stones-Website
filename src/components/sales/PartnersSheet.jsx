@@ -258,11 +258,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         });
     }, [currentPage, debouncedSearch, limit, filterLevels, filterTypes, filterCities, activeTab, sortBy, sortOrder]);
 
-    const isFirstSearch = React.useRef(true);
-
     useEffect(() => {
-        if (isFirstSearch.current) {
-            isFirstSearch.current = false;
+        if (searchTerm === debouncedSearch) {
             return;
         }
         const timer = setTimeout(() => {
@@ -270,7 +267,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             setCurrentPage(1);
         }, 500);
         return () => clearTimeout(timer);
-    }, [searchTerm]);
+    }, [searchTerm, debouncedSearch]);
 
     // Reset page + search when tab changes
     const handleTabChange = (tabKey) => {
