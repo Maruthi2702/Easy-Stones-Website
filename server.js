@@ -2214,6 +2214,22 @@ app.get('/api/unified-merge', verifyAnyAuth, async (req, res) => {
   }
 });
 
+// GET DISTINCT CITIES (For dropdown checklists)
+app.get('/api/partners/cities', verifyAnyAuth, async (req, res) => {
+  try {
+    const cities1 = await Customer.distinct('city');
+    const cities2 = await Customer.distinct('address.city');
+    const mergedCities = Array.from(new Set([...cities1, ...cities2]))
+      .filter(Boolean)
+      .map(c => c.trim())
+      .sort();
+    res.json(mergedCities);
+  } catch (error) {
+    console.error('Error fetching distinct cities:', error);
+    res.status(500).json({ message: 'Failed to fetch distinct cities' });
+  }
+});
+
 // CUSTOMER LIST (Spreadsheet Data Source with Pagination & Search)
 app.get('/api/partners', verifyAnyAuth, async (req, res) => {
   try {

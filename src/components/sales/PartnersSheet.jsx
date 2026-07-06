@@ -154,18 +154,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     useEffect(() => {
         const fetchCities = async () => {
             try {
-                const res = await fetch(`${API_URL}/api/partners?limit=-1`, {
+                const res = await fetch(`${API_URL}/api/partners/cities`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (res.ok) {
-                    const data = await res.json();
-                    const cities = Array.from(new Set(
-                        (data.partners || [])
-                            .map(p => p.city || p.address?.city)
-                            .filter(Boolean)
-                            .map(c => c.trim())
-                    )).sort();
-                    setUniqueCities(cities);
+                    const cities = await res.json();
+                    setUniqueCities(cities || []);
                 }
             } catch (err) {
                 console.error('Error fetching unique cities:', err);
