@@ -221,19 +221,30 @@
 }
 
 .letterhead-logo-box {
-    border: 1.5px solid #1a1a1a;
-    padding: 0.75rem 1.5rem;
-    width: 190px;
-    min-height: 90px;
-    text-align: center;
+    padding: 0;
+    width: 200px;
+    height: 105px; /* Crop to show only the MODA QUARTZ white portion */
+    min-width: 180px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
-    background: #fff;
+    background: transparent;
+    border: none;
+    overflow: hidden; /* Hide the black "Distributed by" strip at bottom */
 }
 
+/* MODA QUARTZ logo image — cropped to top portion only */
+.moda-quartz-logo-img {
+    width: 200px;
+    height: auto;
+    display: block;
+    object-fit: cover;
+    object-position: top;
+}
+
+/* Legacy text-based logo styles (unused — kept for fallback) */
 .logo-title {
     font-family: 'Cinzel', 'Playfair Display', 'Georgia', serif;
     font-size: 2.5rem;
@@ -242,30 +253,19 @@
     letter-spacing: 0.12em;
     color: #000;
     line-height: 1;
+    display: none;
 }
 
 .logo-divider-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    margin-top: 0.25rem;
-    gap: 4px;
+    display: none;
 }
 
 .logo-line {
-    height: 1px;
-    background: #000;
-    flex-grow: 1;
+    display: none;
 }
 
 .logo-subtitle {
-    font-size: 0.52rem;
-    letter-spacing: 0.42em;
-    font-weight: 600;
-    color: #000;
-    text-transform: uppercase;
-    padding: 0 2px;
+    display: none;
 }
 
 .letterhead-contact-info {

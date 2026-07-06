@@ -376,12 +376,11 @@ const PriceListPanel = ({ sidebarToggle }) => {
                             {/* Letterhead Header row */}
                             <div className="pdf-letterhead">
                                 <div className="letterhead-logo-box">
-                                    <h1 className="logo-title">MODA</h1>
-                                    <div className="logo-divider-wrap">
-                                        <div className="logo-line"></div>
-                                        <span className="logo-subtitle">QUARTZ</span>
-                                        <div className="logo-line"></div>
-                                    </div>
+                                    <img
+                                        src="/images/moda-quartz-logo.jpg"
+                                        alt="MODA QUARTZ"
+                                        className="moda-quartz-logo-img"
+                                    />
                                 </div>
 
                                 <div className="letterhead-contact-info">
@@ -651,12 +650,11 @@ const PriceListPanel = ({ sidebarToggle }) => {
                             <div className="pdf-letterhead">
                                 <div className="pdf-letterhead-inner-wrap" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div className="letterhead-logo-box">
-                                        <h1 className="logo-title">MODA</h1>
-                                        <div className="logo-divider-wrap">
-                                            <div className="logo-line"></div>
-                                            <span className="logo-subtitle">QUARTZ</span>
-                                            <div className="logo-line"></div>
-                                        </div>
+                                        <img
+                                            src="/images/moda-quartz-logo.jpg"
+                                            alt="MODA QUARTZ"
+                                            className="moda-quartz-logo-img"
+                                        />
                                     </div>
 
                                     <div className="letterhead-contact-info">
