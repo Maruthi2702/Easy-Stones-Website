@@ -258,7 +258,13 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         });
     }, [currentPage, debouncedSearch, limit, filterLevels, filterTypes, filterCities, activeTab, sortBy, sortOrder]);
 
+    const isFirstSearch = React.useRef(true);
+
     useEffect(() => {
+        if (isFirstSearch.current) {
+            isFirstSearch.current = false;
+            return;
+        }
         const timer = setTimeout(() => {
             setDebouncedSearch(searchTerm);
             setCurrentPage(1);
