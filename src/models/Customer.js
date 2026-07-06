@@ -124,6 +124,7 @@ customerSchema.index({ level: 1 }); // Index for level-based sorting
 customerSchema.index({ customerType: 1 }); // Index for type-based filtering
 customerSchema.index({ city: 1 }); // Index for city filtering
 customerSchema.index({ 'address.city': 1 }); // Index for address city filtering
+customerSchema.index({ status: 1 }); // Index for status filtering
 customerSchema.index({ company: 1, contactName: 1 }); // Compound index to speed up selection dropdown API sorts
 
 // Hash password before saving

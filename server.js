@@ -2254,6 +2254,7 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
     const filterType = req.query.type || '';
     const filterTypeExclude = req.query.typeExclude || ''; // comma-separated types to exclude
     const filterCity = req.query.city || '';
+    const filterStatus = req.query.status || '';
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -2273,6 +2274,13 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
           { status: { $regex: search, $options: 'i' } }
         ]
       });
+    }
+
+    if (filterStatus) {
+      const statuses = filterStatus.split(',').map(s => s.trim()).filter(Boolean);
+      if (statuses.length > 0) {
+        filterConditions.push({ status: { $in: statuses } });
+      }
     }
 
     if (filterLevel) {
