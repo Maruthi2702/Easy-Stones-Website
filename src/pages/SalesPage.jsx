@@ -30,6 +30,7 @@ import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
 import PartnersSheet from '../components/sales/PartnersSheet';
 import CheckInLogPanel from '../components/sales/CheckInLogPanel';
+import PriceListPanel from '../components/sales/PriceListPanel';
 import Pagination from '../components/shared/Pagination';
 import SalesMapPage from './SalesMapPage';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
@@ -2507,6 +2508,27 @@ const SalesPage = () => {
         );
     };
 
+    const renderPriceListView = () => {
+        const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+            <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="dashboard-sidebar-toggle"
+                title="Open Sidebar"
+                style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: '6px', padding: '6px', color: 'var(--gold-color, #d4af37)', cursor: 'pointer'
+                }}
+            >
+                <Menu size={20} />
+            </button>
+        ) : null;
+
+        return (
+            <PriceListPanel sidebarToggle={sidebarToggle} />
+        );
+    };
+
     return (
         <div className="sales-container">
             {/* Sidebar Overlay */}
@@ -2557,6 +2579,12 @@ const SalesPage = () => {
                 {crmTab === 'checkin' && (
                     <ErrorBoundary key="checkin-log-view">
                         {renderCheckInLogView()}
+                    </ErrorBoundary>
+                )}
+
+                {crmTab === 'pricelist' && (
+                    <ErrorBoundary key="price-list-view">
+                        {renderPriceListView()}
                     </ErrorBoundary>
                 )}
 

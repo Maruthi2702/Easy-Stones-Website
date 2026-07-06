@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Pin, PinOff,
-    ChevronLeft, User, Clock, LogOut
+    ChevronLeft, User, Clock, LogOut, Tag
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -79,6 +79,13 @@ const CustomerSidebar = ({
                 >
                     <Clock size={18} />
                     <span>Check-In Log</span>
+                </button>
+                <button
+                    className={`sidebar-nav-link ${crmTab === 'pricelist' ? 'active' : ''}`}
+                    onClick={() => handleCrmTabChange('pricelist')}
+                >
+                    <Tag size={18} />
+                    <span>Price List</span>
                 </button>
             </div>
 
