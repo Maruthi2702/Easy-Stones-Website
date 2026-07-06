@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Printer, Tag, FileText, LayoutGrid } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Search, Printer, Tag, FileText, LayoutGrid, RotateCcw, Download } from 'lucide-react';
 import './PriceListPanel.css';
 
-// Exact Static Data from the PDF Price List
-const priceListData = [
+// Exact Static Data from the PDF Price List (Initial Defaults)
+const defaultPriceListData = [
     {
         collection: 'Signature',
         subgroups: [
@@ -157,26 +158,81 @@ const priceListData = [
 
 const PriceListPanel = ({ sidebarToggle }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [viewMode, setViewMode] = useState('document'); // 'document' (exact PDF style) or 'flat' (interactive list)
+    const [viewMode, setViewMode] = useState('document'); // 'document' (exact PDF style) or 'flat'
+
+    // Editable state loading from localStorage if present
+    const [sheetData, setSheetData] = useState(() => {
+        try {
+            const saved = localStorage.getItem('cached_editable_pricelist');
+            return saved ? JSON.parse(saved) : defaultPriceListData;
+        } catch (e) {
+            return defaultPriceListData;
+        }
+    });
+
+    // Handle editing cell values dynamically
+    const handleCellChange = (colIdx, subIdx, itemIdx, field, value) => {
+        setSheetData(prevData => {
+            const newData = JSON.parse(JSON.stringify(prevData));
+            if (field === 'price3cm' || field === 'price2cm') {
+                newData[colIdx].subgroups[subIdx][field] = value;
+            } else if (itemIdx !== null) {
+                newData[colIdx].subgroups[subIdx].items[itemIdx][field] = value;
+            }
+            try {
+                localStorage.setItem('cached_editable_pricelist', JSON.stringify(newData));
+            } catch (e) {
+                console.warn('Failed to cache edited pricelist', e);
+            }
+            return newData;
+        });
+    };
+
+    // Handle collection name editing
+    const handleCollectionNameChange = (colIdx, value) => {
+        setSheetData(prevData => {
+            const newData = JSON.parse(JSON.stringify(prevData));
+            newData[colIdx].collection = value;
+            try {
+                localStorage.setItem('cached_editable_pricelist', JSON.stringify(newData));
+            } catch (e) {
+                console.warn('Failed to cache edited pricelist', e);
+            }
+            return newData;
+        });
+    };
+
+    // Reset edits to original defaults
+    const handleReset = () => {
+        if (window.confirm("Are you sure you want to discard all edits and reset the Price List back to original PDF prices?")) {
+            setSheetData(defaultPriceListData);
+            try {
+                localStorage.removeItem('cached_editable_pricelist');
+            } catch (e) {}
+        }
+    };
 
     // Flat list representation of all items for searching and sorting
     const flatItems = useMemo(() => {
         const list = [];
-        priceListData.forEach(col => {
-            col.subgroups.forEach(sub => {
-                sub.items.forEach(item => {
+        sheetData.forEach((col, colIdx) => {
+            col.subgroups.forEach((sub, subIdx) => {
+                sub.items.forEach((item, itemIdx) => {
                     list.push({
                         name: item.name,
                         size: item.size,
                         price3cm: sub.price3cm,
                         price2cm: sub.price2cm,
-                        collection: col.collection
+                        collection: col.collection,
+                        colIdx,
+                        subIdx,
+                        itemIdx
                     });
                 });
             });
         });
         return list;
-    }, []);
+    }, [sheetData]);
 
     // Filter flat list items when search is active
     const filteredFlatItems = useMemo(() => {
@@ -191,6 +247,37 @@ const PriceListPanel = ({ sidebarToggle }) => {
 
     const handlePrint = () => {
         window.print();
+    };
+
+    // Export current active edits to Excel (.xlsx) file
+    const handleExportExcel = () => {
+        try {
+            const list = [];
+            sheetData.forEach(col => {
+                col.subgroups.forEach(sub => {
+                    sub.items.forEach(item => {
+                        list.push({
+                            'Color / Material Name': item.name,
+                            '3CM Price': sub.price3cm,
+                            '2CM Price': sub.price2cm,
+                            'Slab Size': item.size,
+                            'Collection Name': col.collection
+                        });
+                    });
+                });
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(list);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Quartz Price List');
+            
+            // Generate filename based on date
+            const dateStr = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(workbook, `Moda_Quartz_PriceList_${dateStr}.xlsx`);
+        } catch (error) {
+            console.error('Error exporting Price List to Excel:', error);
+            alert('Failed to export data to Excel file');
+        }
     };
 
     // Calculate total rows in a collection for rowSpan calculations
@@ -220,7 +307,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                     </div>
                     <div>
                         <h2 className="toolbar-title">Confidential Pricing Sheet</h2>
-                        <p className="toolbar-subtitle">Moda Quartz collection price list catalog</p>
+                        <p className="toolbar-subtitle">Double-click or click cells directly to edit prices and sizes in real-time</p>
                     </div>
                 </div>
 
@@ -255,9 +342,19 @@ const PriceListPanel = ({ sidebarToggle }) => {
                         </button>
                     </div>
 
-                    <button className="toolbar-print-btn" onClick={handlePrint}>
+                    <button className="toolbar-action-icon-btn reset" onClick={handleReset} title="Reset to Defaults">
+                        <RotateCcw size={15} />
+                        <span>Reset</span>
+                    </button>
+
+                    <button className="toolbar-action-icon-btn export" onClick={handleExportExcel} title="Export to Excel File">
+                        <Download size={15} />
+                        <span>Export</span>
+                    </button>
+
+                    <button className="toolbar-print-btn" onClick={handlePrint} title="Print/Save as PDF">
                         <Printer size={15} />
-                        <span>Print Price List</span>
+                        <span>Print / PDF</span>
                     </button>
                 </div>
             </div>
@@ -328,32 +425,63 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                     <tbody>
                                         {/* Signature Collection (All 4 subgroups) */}
                                         {(() => {
-                                            const sigCol = priceListData.find(c => c.collection === 'Signature');
+                                            const sigColIdx = sheetData.findIndex(c => c.collection === 'Signature' || c.collection === 'Signature Collection');
+                                            const sigCol = sheetData[sigColIdx];
+                                            if (!sigCol) return null;
                                             const renderedRows = [];
                                             let hasRenderedCollection = false;
 
                                             sigCol.subgroups.forEach((sub, subIdx) => {
                                                 sub.items.forEach((item, itemIdx) => {
                                                     const isFirstItemInSub = itemIdx === 0;
-                                                    const highlight = isMatched(item.name, 'Signature');
+                                                    const highlight = isMatched(item.name, sigCol.collection);
 
                                                     renderedRows.push(
                                                         <tr key={`sig-${subIdx}-${itemIdx}`} className={highlight ? 'pl-row-highlight' : ''}>
-                                                            <td className="exact-color-cell">{item.name}</td>
+                                                            <td className="exact-color-cell">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.name}
+                                                                    onChange={(e) => handleCellChange(sigColIdx, subIdx, itemIdx, 'name', e.target.value)}
+                                                                    className="exact-input-cell text-left font-semibold"
+                                                                />
+                                                            </td>
                                                             {isFirstItemInSub && (
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
-                                                                    <strong>{sub.price3cm}</strong>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.price3cm}
+                                                                        onChange={(e) => handleCellChange(sigColIdx, subIdx, null, 'price3cm', e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
                                                             {isFirstItemInSub && (
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
-                                                                    <strong>{sub.price2cm}</strong>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.price2cm}
+                                                                        onChange={(e) => handleCellChange(sigColIdx, subIdx, null, 'price2cm', e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
-                                                            <td className="exact-size-cell text-center">{item.size}</td>
+                                                            <td className="exact-size-cell text-center">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.size}
+                                                                    onChange={(e) => handleCellChange(sigColIdx, subIdx, itemIdx, 'size', e.target.value)}
+                                                                    className="exact-input-cell text-center font-medium"
+                                                                />
+                                                            </td>
                                                             {!hasRenderedCollection && isFirstItemInSub && (
                                                                 <td className="exact-collection-cell text-center font-bold" rowSpan={getCollectionTotalRows(sigCol)}>
-                                                                    Signature
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sigCol.collection}
+                                                                        onChange={(e) => handleCollectionNameChange(sigColIdx, e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
                                                         </tr>
@@ -366,32 +494,63 @@ const PriceListPanel = ({ sidebarToggle }) => {
 
                                         {/* Prestige Collection */}
                                         {(() => {
-                                            const presCol = priceListData.find(c => c.collection === 'Prestige');
+                                            const presColIdx = sheetData.findIndex(c => c.collection === 'Prestige');
+                                            const presCol = sheetData[presColIdx];
+                                            if (!presCol) return null;
                                             const renderedRows = [];
                                             let hasRenderedCollection = false;
 
                                             presCol.subgroups.forEach((sub, subIdx) => {
                                                 sub.items.forEach((item, itemIdx) => {
                                                     const isFirstItemInSub = itemIdx === 0;
-                                                    const highlight = isMatched(item.name, 'Prestige');
+                                                    const highlight = isMatched(item.name, presCol.collection);
 
                                                     renderedRows.push(
                                                         <tr key={`pres-${subIdx}-${itemIdx}`} className={highlight ? 'pl-row-highlight' : ''}>
-                                                            <td className="exact-color-cell">{item.name}</td>
+                                                            <td className="exact-color-cell">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.name}
+                                                                    onChange={(e) => handleCellChange(presColIdx, subIdx, itemIdx, 'name', e.target.value)}
+                                                                    className="exact-input-cell text-left font-semibold"
+                                                                />
+                                                            </td>
                                                             {isFirstItemInSub && (
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
-                                                                    <strong>{sub.price3cm}</strong>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.price3cm}
+                                                                        onChange={(e) => handleCellChange(presColIdx, subIdx, null, 'price3cm', e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
                                                             {isFirstItemInSub && (
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
-                                                                    <strong>{sub.price2cm}</strong>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.price2cm}
+                                                                        onChange={(e) => handleCellChange(presColIdx, subIdx, null, 'price2cm', e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
-                                                            <td className="exact-size-cell text-center">{item.size}</td>
+                                                            <td className="exact-size-cell text-center">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.size}
+                                                                    onChange={(e) => handleCellChange(presColIdx, subIdx, itemIdx, 'size', e.target.value)}
+                                                                    className="exact-input-cell text-center font-medium"
+                                                                />
+                                                            </td>
                                                             {!hasRenderedCollection && isFirstItemInSub && (
                                                                 <td className="exact-collection-cell text-center font-bold" rowSpan={getCollectionTotalRows(presCol)}>
-                                                                    Prestige
+                                                                    <input
+                                                                        type="text"
+                                                                        value={presCol.collection}
+                                                                        onChange={(e) => handleCollectionNameChange(presColIdx, e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
                                                         </tr>
@@ -404,7 +563,9 @@ const PriceListPanel = ({ sidebarToggle }) => {
 
                                         {/* Luxe Collection (Subgroup 1 & 2 - Renders on Page 1 in PDF) */}
                                         {(() => {
-                                            const luxeCol = priceListData.find(c => c.collection === 'Luxe');
+                                            const luxeColIdx = sheetData.findIndex(c => c.collection === 'Luxe');
+                                            const luxeCol = sheetData[luxeColIdx];
+                                            if (!luxeCol) return null;
                                             const renderedRows = [];
                                             let hasRenderedCollection = false;
 
@@ -412,25 +573,54 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                             luxeCol.subgroups.slice(0, 2).forEach((sub, subIdx) => {
                                                 sub.items.forEach((item, itemIdx) => {
                                                     const isFirstItemInSub = itemIdx === 0;
-                                                    const highlight = isMatched(item.name, 'Luxe');
+                                                    const highlight = isMatched(item.name, luxeCol.collection);
 
                                                     renderedRows.push(
                                                         <tr key={`luxe-p1-${subIdx}-${itemIdx}`} className={highlight ? 'pl-row-highlight' : ''}>
-                                                            <td className="exact-color-cell">{item.name}</td>
+                                                            <td className="exact-color-cell">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.name}
+                                                                    onChange={(e) => handleCellChange(luxeColIdx, subIdx, itemIdx, 'name', e.target.value)}
+                                                                    className="exact-input-cell text-left font-semibold"
+                                                                />
+                                                            </td>
                                                             {isFirstItemInSub && (
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
-                                                                    <strong>{sub.price3cm}</strong>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.price3cm}
+                                                                        onChange={(e) => handleCellChange(luxeColIdx, subIdx, null, 'price3cm', e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
                                                             {isFirstItemInSub && (
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
-                                                                    <strong>{sub.price2cm}</strong>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.price2cm}
+                                                                        onChange={(e) => handleCellChange(luxeColIdx, subIdx, null, 'price2cm', e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
-                                                            <td className="exact-size-cell text-center">{item.size}</td>
+                                                            <td className="exact-size-cell text-center">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.size}
+                                                                    onChange={(e) => handleCellChange(luxeColIdx, subIdx, itemIdx, 'size', e.target.value)}
+                                                                    className="exact-input-cell text-center font-medium"
+                                                                />
+                                                            </td>
                                                             {!hasRenderedCollection && isFirstItemInSub && (
                                                                 <td className="exact-collection-cell text-center font-bold" rowSpan={16}> {/* rowSpan 16 is for group 1 (7 items) + group 2 (9 items) */}
-                                                                    Luxe
+                                                                    <input
+                                                                        type="text"
+                                                                        value={luxeCol.collection}
+                                                                        onChange={(e) => handleCollectionNameChange(luxeColIdx, e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
                                                         </tr>
@@ -511,33 +701,65 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                     <tbody>
                                         {/* Luxe Collection (Subgroup 3, 4, 5 - Renders on Page 2 in PDF) */}
                                         {(() => {
-                                            const luxeCol = priceListData.find(c => c.collection === 'Luxe');
+                                            const luxeColIdx = sheetData.findIndex(c => c.collection === 'Luxe');
+                                            const luxeCol = sheetData[luxeColIdx];
+                                            if (!luxeCol) return null;
                                             const renderedRows = [];
                                             let hasRenderedCollection = false;
 
-                                            // Render Subgroup 3, 4, and 5
-                                            luxeCol.subgroups.slice(2).forEach((sub, subIdx) => {
+                                            // Render Subgroup 3, 4, and 5 (Subgroups slice from index 2 onwards)
+                                            luxeCol.subgroups.slice(2).forEach((sub, rawSubIdx) => {
+                                                const subIdx = rawSubIdx + 2; // adjust index based on slice
                                                 sub.items.forEach((item, itemIdx) => {
                                                     const isFirstItemInSub = itemIdx === 0;
-                                                    const highlight = isMatched(item.name, 'Luxe');
+                                                    const highlight = isMatched(item.name, luxeCol.collection);
 
                                                     renderedRows.push(
                                                         <tr key={`luxe-p2-${subIdx}-${itemIdx}`} className={highlight ? 'pl-row-highlight' : ''}>
-                                                            <td className="exact-color-cell">{item.name}</td>
+                                                            <td className="exact-color-cell">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.name}
+                                                                    onChange={(e) => handleCellChange(luxeColIdx, subIdx, itemIdx, 'name', e.target.value)}
+                                                                    className="exact-input-cell text-left font-semibold"
+                                                                />
+                                                            </td>
                                                             {isFirstItemInSub && (
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
-                                                                    <strong>{sub.price3cm}</strong>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.price3cm}
+                                                                        onChange={(e) => handleCellChange(luxeColIdx, subIdx, null, 'price3cm', e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
                                                             {isFirstItemInSub && (
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
-                                                                    <strong>{sub.price2cm}</strong>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.price2cm}
+                                                                        onChange={(e) => handleCellChange(luxeColIdx, subIdx, null, 'price2cm', e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
-                                                            <td className="exact-size-cell text-center">{item.size}</td>
+                                                            <td className="exact-size-cell text-center">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.size}
+                                                                    onChange={(e) => handleCellChange(luxeColIdx, subIdx, itemIdx, 'size', e.target.value)}
+                                                                    className="exact-input-cell text-center font-medium"
+                                                                />
+                                                            </td>
                                                             {!hasRenderedCollection && isFirstItemInSub && (
                                                                 <td className="exact-collection-cell text-center font-bold" rowSpan={16}> {/* rowSpan 16 is for group 3 (4 items) + group 4 (8 items) + group 5 (4 items) */}
-                                                                    Luxe
+                                                                    <input
+                                                                        type="text"
+                                                                        value={luxeCol.collection}
+                                                                        onChange={(e) => handleCollectionNameChange(luxeColIdx, e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
                                                         </tr>
@@ -550,32 +772,63 @@ const PriceListPanel = ({ sidebarToggle }) => {
 
                                         {/* ThruTeQ Collection */}
                                         {(() => {
-                                            const thruCol = priceListData.find(c => c.collection === 'ThruTeQ');
+                                            const thruColIdx = sheetData.findIndex(c => c.collection === 'ThruTeQ');
+                                            const thruCol = sheetData[thruColIdx];
+                                            if (!thruCol) return null;
                                             const renderedRows = [];
                                             let hasRenderedCollection = false;
 
                                             thruCol.subgroups.forEach((sub, subIdx) => {
                                                 sub.items.forEach((item, itemIdx) => {
                                                     const isFirstItemInSub = itemIdx === 0;
-                                                    const highlight = isMatched(item.name, 'ThruTeQ');
+                                                    const highlight = isMatched(item.name, thruCol.collection);
 
                                                     renderedRows.push(
                                                         <tr key={`thru-${subIdx}-${itemIdx}`} className={highlight ? 'pl-row-highlight' : ''}>
-                                                            <td className="exact-color-cell">{item.name}</td>
+                                                            <td className="exact-color-cell">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.name}
+                                                                    onChange={(e) => handleCellChange(thruColIdx, subIdx, itemIdx, 'name', e.target.value)}
+                                                                    className="exact-input-cell text-left font-semibold"
+                                                                />
+                                                            </td>
                                                             {isFirstItemInSub && (
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
-                                                                    <strong>{sub.price3cm}</strong>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.price3cm}
+                                                                        onChange={(e) => handleCellChange(thruColIdx, subIdx, null, 'price3cm', e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
                                                             {isFirstItemInSub && (
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
-                                                                    <strong>{sub.price2cm}</strong>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.price2cm}
+                                                                        onChange={(e) => handleCellChange(thruColIdx, subIdx, null, 'price2cm', e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
-                                                            <td className="exact-size-cell text-center">{item.size}</td>
+                                                            <td className="exact-size-cell text-center">
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.size}
+                                                                    onChange={(e) => handleCellChange(thruColIdx, subIdx, itemIdx, 'size', e.target.value)}
+                                                                    className="exact-input-cell text-center font-medium"
+                                                                />
+                                                            </td>
                                                             {!hasRenderedCollection && isFirstItemInSub && (
                                                                 <td className="exact-collection-cell text-center font-bold" rowSpan={getCollectionTotalRows(thruCol)}>
-                                                                    ThruTeQ
+                                                                    <input
+                                                                        type="text"
+                                                                        value={thruCol.collection}
+                                                                        onChange={(e) => handleCollectionNameChange(thruColIdx, e.target.value)}
+                                                                        className="exact-input-cell text-center font-bold"
+                                                                    />
                                                                 </td>
                                                             )}
                                                         </tr>
@@ -599,7 +852,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                         </div>
                     </div>
                 ) : (
-                    /* ── FLAT INTERACTIVE CATALOG SEARCH VIEW ── */
+                    /* ── FLAT INTERACTIVE CATALOG EDITABLE SEARCH VIEW ── */
                     <div className="pdf-flat-list-container no-print">
                         <div className="pdf-flat-table-wrapper">
                             <table className="pdf-flat-table">
@@ -615,14 +868,45 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                 <tbody>
                                     {filteredFlatItems.map((item, idx) => (
                                         <tr key={idx}>
-                                            <td className="font-bold text-left">{item.name}</td>
-                                            <td className="text-center font-semibold text-gold">{item.price3cm}</td>
-                                            <td className="text-center">{item.price2cm}</td>
-                                            <td className="text-center">{item.size}</td>
+                                            <td className="font-bold text-left">
+                                                <input
+                                                    type="text"
+                                                    value={item.name}
+                                                    onChange={(e) => handleCellChange(item.colIdx, item.subIdx, item.itemIdx, 'name', e.target.value)}
+                                                    className="exact-input-cell text-left font-bold"
+                                                />
+                                            </td>
+                                            <td className="text-center font-semibold text-gold">
+                                                <input
+                                                    type="text"
+                                                    value={item.price3cm}
+                                                    onChange={(e) => handleCellChange(item.colIdx, item.subIdx, null, 'price3cm', e.target.value)}
+                                                    className="exact-input-cell text-center font-bold text-gold"
+                                                />
+                                            </td>
                                             <td className="text-center">
-                                                <span className={`pdf-collection-pill ${item.collection.toLowerCase()}`}>
-                                                    {item.collection}
-                                                </span>
+                                                <input
+                                                    type="text"
+                                                    value={item.price2cm}
+                                                    onChange={(e) => handleCellChange(item.colIdx, item.subIdx, null, 'price2cm', e.target.value)}
+                                                    className="exact-input-cell text-center"
+                                                />
+                                            </td>
+                                            <td className="text-center">
+                                                <input
+                                                    type="text"
+                                                    value={item.size}
+                                                    onChange={(e) => handleCellChange(item.colIdx, item.subIdx, item.itemIdx, 'size', e.target.value)}
+                                                    className="exact-input-cell text-center"
+                                                />
+                                            </td>
+                                            <td className="text-center">
+                                                <input
+                                                    type="text"
+                                                    value={item.collection}
+                                                    onChange={(e) => handleCollectionNameChange(item.colIdx, e.target.value)}
+                                                    className={`exact-input-cell text-center pdf-collection-pill-input ${item.collection.toLowerCase()}`}
+                                                />
                                             </td>
                                         </tr>
                                     ))}

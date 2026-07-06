@@ -651,3 +651,117 @@
         display: none !important; /* Hide tiny sub-labels to save width */
     }
 }
+
+/* ── EDITABLE CELLS & INPUTS ── */
+.exact-input-cell {
+    width: 100% !important;
+    border: none !important;
+    background: transparent !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    color: inherit !important;
+    padding: 0.15rem 0.25rem !important;
+    outline: none !important;
+    text-align: inherit !important;
+    box-sizing: border-box !important;
+    transition: all 0.2s ease !important;
+    border-radius: 4px !important;
+}
+
+.exact-input-cell:hover {
+    background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.exact-input-cell:focus {
+    background: rgba(212, 175, 55, 0.08) !important;
+    box-shadow: inset 0 0 0 1px #d4af37 !important;
+}
+
+/* Light theme overrides for editable cells focus */
+.light-theme .exact-input-cell:hover {
+    background: rgba(0, 0, 0, 0.04) !important;
+}
+
+.light-theme .exact-input-cell:focus {
+    background: rgba(212, 175, 55, 0.06) !important;
+    box-shadow: inset 0 0 0 1px #b89324 !important;
+}
+
+/* Collection pill inputs inside Flat mode */
+.pdf-collection-pill-input {
+    text-align: center !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    border-radius: 6px !important;
+}
+
+/* ── TOOLBAR ACTION BUTTONS ── */
+.toolbar-action-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.toolbar-action-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    transform: translateY(-0.5px);
+}
+
+.toolbar-action-icon-btn.reset:hover {
+    background: rgba(239, 68, 68, 0.12) !important;
+    border-color: rgba(239, 68, 68, 0.35) !important;
+    color: #f87171 !important;
+}
+
+.toolbar-action-icon-btn.export:hover {
+    background: rgba(16, 185, 129, 0.12) !important;
+    border-color: rgba(16, 185, 129, 0.35) !important;
+    color: #34d399 !important;
+}
+
+/* Light Theme Toolbar Overrides */
+.light-theme .toolbar-action-icon-btn {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #475569 !important;
+}
+
+.light-theme .toolbar-action-icon-btn:hover {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+}
+
+.light-theme .toolbar-action-icon-btn.reset:hover {
+    background: #fef2f2 !important;
+    border-color: #fca5a5 !important;
+    color: #dc2626 !important;
+}
+
+.light-theme .toolbar-action-icon-btn.export:hover {
+    background: #f0fdf4 !important;
+    border-color: #86efac !important;
+    color: #16a34a !important;
+}
+
+/* Print Specific overrides for editable inputs */
+@media print {
+    .exact-input-cell {
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: #000000 !important;
+    }
+}
+
