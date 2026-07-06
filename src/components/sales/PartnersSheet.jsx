@@ -656,118 +656,210 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 </div>
             )}
 
-            {/* ── Table ── */}
-            <div className="dashboard-table-wrapper">
-                <table className="dashboard-table">
-                    <thead>
-                        <tr>
-                            {renderSortHeader('Company', 'company')}
-                            {!isMobile && (
-                                <>
-                                    <th>Contact Name</th>
-                                    <th>Email</th>
-                                    <th>Phone</th>
-                                    {showTypeColumn && <th>Type</th>}
-                                    {renderSortHeader('City', 'city')}
-                                    {renderSortHeader('Level', 'level')}
-                                    <th>Moda Display</th>
-                                    <th>Moda Binder</th>
-                                    <th>Status</th>
-                                </>
-                            )}
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading ? (
-                            <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 11 : 10)} style={{ textAlign: 'center', padding: '3rem' }}>
-                                <div className="loader-container">
-                                    <div className="loader-spinner"></div>
-                                    <span>Loading {isFabTab ? 'fabricators' : 'partners'}...</span>
-                                </div>
-                            </td></tr>
-                        ) : sortedPartners.length === 0 ? (
-                            <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 11 : 10)} style={{ textAlign: 'center', padding: '3rem' }}>
-                                <div className="empty-state">
-                                    <FileText size={48} opacity={0.2} />
-                                    <p>No {isFabTab ? 'fabricators' : 'partners'} found.</p>
-                                </div>
-                            </td></tr>
-                        ) : sortedPartners.map(partner => (
-                            <tr
-                                key={partner._id}
-                                className={
+            {/* ── Table or Cards Layout ── */}
+            {isMobile ? (
+                loading ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', gap: '1rem' }}>
+                        <div className="loader-spinner"></div>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading customers...</span>
+                    </div>
+                ) : sortedPartners.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-muted)' }}>
+                        <FileText size={48} opacity={0.2} style={{ margin: '0 auto 1rem' }} />
+                        <p>No {isFabTab ? 'fabricators' : 'partners'} found.</p>
+                    </div>
+                ) : (
+                    <div className="mobile-customer-cards">
+                        {sortedPartners.map(partner => (
+                            <div 
+                                key={partner._id} 
+                                className={`mobile-customer-card ${
                                     partner.status === 'Different Sales Person' || partner.status === 'Not Interested'
-                                        ? 'partner-row-low-priority'
+                                        ? 'low-priority'
                                         : ''
-                                }
+                                }`} 
+                                onClick={() => onSelectCustomer && onSelectCustomer(partner)}
                             >
-                                <td>
-                                    <button
-                                        className="company-link-btn"
-                                        onClick={() => onSelectCustomer && onSelectCustomer(partner)}
-                                        title="View Profile"
+                                <div className="card-header">
+                                    <h3 className="card-company-name">
+                                        {partner.company || partner.name || partner.contactName || '-'}
+                                    </h3>
+                                    <span className={`status-badge-pill ${partner.status?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+                                        {partner.status || 'Active'}
+                                    </span>
+                                </div>
+                                <div className="card-meta-row">
+                                    <span className="card-meta-badge level-badge">
+                                        {partner.level || partner.segment || 'Level - 3'}
+                                    </span>
+                                    {showTypeColumn && (
+                                        <span className={`card-meta-badge type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
+                                            {partner.customerType || 'Fabricator'}
+                                        </span>
+                                    )}
+                                    {(partner.city || partner.address?.city) && (
+                                        <span className="card-meta-location">
+                                            📍 {partner.city || partner.address?.city}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="card-body">
+                                    {(partner.name || partner.contactName) && (
+                                        <div className="card-info-item">
+                                            <span className="info-label">Contact:</span>
+                                            <span className="info-value">{partner.name || partner.contactName}</span>
+                                        </div>
+                                    )}
+                                    {partner.phone && (
+                                        <div className="card-info-item">
+                                            <span className="info-label">Phone:</span>
+                                            <a 
+                                                href={`tel:${partner.phone}`} 
+                                                className="info-value phone-link" 
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                {formatPhoneForDisplay(partner.phone)}
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+                                    <button 
+                                        className="card-action-btn view" 
+                                        onClick={() => { setViewingPartner(partner); setShowAddModal(true); }}
                                     >
-                                        <strong>{partner.company || partner.name || partner.contactName || '-'}</strong>
+                                        <Eye size={14} /> View
                                     </button>
-                                </td>
+                                    <button 
+                                        className="card-action-btn edit" 
+                                        onClick={() => { setEditingPartner(partner); setShowAddModal(true); }}
+                                    >
+                                        <Edit2 size={14} /> Edit
+                                    </button>
+                                    <button 
+                                        className="card-action-btn delete" 
+                                        onClick={() => handleDeletePartner(partner._id)}
+                                    >
+                                        <Trash2 size={14} /> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )
+            ) : (
+                <div className="dashboard-table-wrapper">
+                    <table className="dashboard-table">
+                        <thead>
+                            <tr>
+                                {renderSortHeader('Company', 'company')}
                                 {!isMobile && (
                                     <>
-                                        <td>
-                                            <div className="partner-text-cell" title={partner.name || partner.contactName}>
-                                                {partner.name || partner.contactName || '-'}
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div className="partner-email-cell" title={partner.email}>
-                                                {partner.email || '-'}
-                                            </div>
-                                        </td>
-                                        <td>{formatPhoneForDisplay(partner.phone) || '-'}</td>
-                                        {showTypeColumn && (
-                                            <td>
-                                                <span className={`customer-type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
-                                                    {partner.customerType || 'Fabricator'}
-                                                </span>
-                                            </td>
-                                        )}
-                                        <td>{partner.city || partner.address?.city || '-'}</td>
-                                        <td>{partner.level || partner.segment || '-'}</td>
-                                        <td>
-                                            <span className={`moda-badge ${partner.modaDisplay?.toLowerCase()}`}>
-                                                {partner.modaDisplay === 'Yes' ? '✅ Yes' : '❌ No'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            {partner.modaBinder ? (
-                                                <span className="moda-badge yes">{partner.modaBinder}</span>
-                                            ) : '-'}
-                                        </td>
-                                        <td>
-                                            <span className={`status-pill ${partner.status?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
-                                                {partner.status}
-                                            </span>
-                                        </td>
+                                        <th>Contact Name</th>
+                                        <th>Email</th>
+                                        <th>Phone</th>
+                                        {showTypeColumn && <th>Type</th>}
+                                        {renderSortHeader('City', 'city')}
+                                        {renderSortHeader('Level', 'level')}
+                                        <th>Moda Display</th>
+                                        <th>Moda Binder</th>
+                                        <th>Status</th>
                                     </>
                                 )}
-                                <td>
-                                    <div className="table-actions">
-                                        <button className="icon-btn edit" onClick={() => { setViewingPartner(partner); setShowAddModal(true); }} title="View">
-                                            <Eye size={16} />
-                                        </button>
-                                        <button className="icon-btn edit" onClick={() => { setEditingPartner(partner); setShowAddModal(true); }} title="Edit">
-                                            <Edit2 size={16} />
-                                        </button>
-                                        <button className="icon-btn delete" onClick={() => handleDeletePartner(partner._id)} title="Delete">
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                </td>
+                                <th>Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 11 : 10)} style={{ textAlign: 'center', padding: '3rem' }}>
+                                    <div className="loader-container">
+                                        <div className="loader-spinner"></div>
+                                        <span>Loading {isFabTab ? 'fabricators' : 'partners'}...</span>
+                                    </div>
+                                </td></tr>
+                            ) : sortedPartners.length === 0 ? (
+                                <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 11 : 10)} style={{ textAlign: 'center', padding: '3rem' }}>
+                                    <div className="empty-state">
+                                        <FileText size={48} opacity={0.2} />
+                                        <p>No {isFabTab ? 'fabricators' : 'partners'} found.</p>
+                                    </div>
+                                </td></tr>
+                            ) : sortedPartners.map(partner => (
+                                <tr
+                                    key={partner._id}
+                                    className={
+                                        partner.status === 'Different Sales Person' || partner.status === 'Not Interested'
+                                            ? 'partner-row-low-priority'
+                                            : ''
+                                    }
+                                >
+                                    <td>
+                                        <button
+                                            className="company-link-btn"
+                                            onClick={() => onSelectCustomer && onSelectCustomer(partner)}
+                                            title="View Profile"
+                                        >
+                                            <strong>{partner.company || partner.name || partner.contactName || '-'}</strong>
+                                        </button>
+                                    </td>
+                                    {!isMobile && (
+                                        <>
+                                            <td>
+                                                <div className="partner-text-cell" title={partner.name || partner.contactName}>
+                                                    {partner.name || partner.contactName || '-'}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div className="partner-email-cell" title={partner.email}>
+                                                    {partner.email || '-'}
+                                                </div>
+                                            </td>
+                                            <td>{formatPhoneForDisplay(partner.phone) || '-'}</td>
+                                            {showTypeColumn && (
+                                                <td>
+                                                    <span className={`customer-type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
+                                                        {partner.customerType || 'Fabricator'}
+                                                    </span>
+                                                </td>
+                                            )}
+                                            <td>{partner.city || partner.address?.city || '-'}</td>
+                                            <td>{partner.level || partner.segment || '-'}</td>
+                                            <td>
+                                                <span className={`moda-badge ${partner.modaDisplay?.toLowerCase()}`}>
+                                                    {partner.modaDisplay === 'Yes' ? '✅ Yes' : '❌ No'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {partner.modaBinder ? (
+                                                    <span className="moda-badge yes">{partner.modaBinder}</span>
+                                                ) : '-'}
+                                            </td>
+                                            <td>
+                                                <span className={`status-pill ${partner.status?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+                                                    {partner.status}
+                                                </span>
+                                            </td>
+                                        </>
+                                    )}
+                                    <td>
+                                        <div className="table-actions">
+                                            <button className="icon-btn edit" onClick={() => { setViewingPartner(partner); setShowAddModal(true); }} title="View">
+                                                <Eye size={16} />
+                                            </button>
+                                            <button className="icon-btn edit" onClick={() => { setEditingPartner(partner); setShowAddModal(true); }} title="Edit">
+                                                <Edit2 size={16} />
+                                            </button>
+                                            <button className="icon-btn delete" onClick={() => handleDeletePartner(partner._id)} title="Delete">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             <Pagination
                 currentPage={currentPage}
