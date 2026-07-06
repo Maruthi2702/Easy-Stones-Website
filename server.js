@@ -2323,7 +2323,7 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
       query = filterConditions.length === 1 ? filterConditions[0] : { $and: filterConditions };
     }
 
-    const sortBy = req.query.sortBy || 'createdAt';
+    const sortBy = req.query.sortBy || 'level';
     const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
 
     // Build the dynamic sort stage. Low-priority statuses always float to the bottom,

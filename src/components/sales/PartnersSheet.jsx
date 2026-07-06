@@ -126,8 +126,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [limit, setLimit] = useState(15);
 
     // Sorting State
-    const [sortBy, setSortBy] = useState('createdAt');
-    const [sortOrder, setSortOrder] = useState('desc');
+    const [sortBy, setSortBy] = useState('level');
+    const [sortOrder, setSortOrder] = useState('asc');
 
     const handleSort = (field) => {
         if (sortBy === field) {
@@ -262,8 +262,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         setFilterLevels([]);
         setFilterTypes([]);
         setFilterCities([]);
-        setSortBy('createdAt');
-        setSortOrder('desc');
+        setSortBy('level');
+        setSortOrder('asc');
         setShowFilters(false);
     };
 
