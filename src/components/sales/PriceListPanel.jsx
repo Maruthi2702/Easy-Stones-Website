@@ -394,12 +394,21 @@ const PriceListPanel = ({ sidebarToggle }) => {
 
                                 <div className="letterhead-distribution">
                                     <span className="dist-label">Distributed by</span>
-                                    <div className="dist-logo-wrap">
-                                        <div className="dist-parallel-bars">
-                                            <div className="bar bar1"></div>
-                                            <div className="bar bar2"></div>
-                                            <div className="bar bar3"></div>
-                                        </div>
+                                    <div className="dist-logo-wrap dist-logo-col">
+                                        <svg className="es-diamond-logo" viewBox="0 0 60 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            {/* Outer diamond */}
+                                            <path d="M30 2 L58 20 L58 44 L30 62 L2 44 L2 20 Z" stroke="#c8902a" strokeWidth="2" fill="none"/>
+                                            {/* Inner left panel */}
+                                            <path d="M2 20 L20 12 L20 52 L2 44 Z" fill="#c8902a" opacity="0.55"/>
+                                            {/* Inner right panel */}
+                                            <path d="M58 20 L40 12 L40 52 L58 44 Z" fill="#c8902a" opacity="0.85"/>
+                                            {/* Center top triangle */}
+                                            <path d="M20 12 L40 12 L30 2 Z" fill="#c8902a" opacity="0.7"/>
+                                            {/* Center bottom triangle */}
+                                            <path d="M20 52 L40 52 L30 62 Z" fill="#c8902a" opacity="0.7"/>
+                                            {/* Vertical center line */}
+                                            <line x1="30" y1="2" x2="30" y2="62" stroke="#c8902a" strokeWidth="0.75" opacity="0.4"/>
+                                        </svg>
                                         <span className="dist-company-name">EASY STONES</span>
                                     </div>
                                 </div>
@@ -443,7 +452,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                     type="text"
                                                                     value={item.name}
                                                                     onChange={(e) => handleCellChange(sigColIdx, subIdx, itemIdx, 'name', e.target.value)}
-                                                                    className="exact-input-cell text-left font-semibold"
+                                                                    className="exact-input-cell text-left"
                                                                 />
                                                             </td>
                                                             {isFirstItemInSub && (
@@ -466,21 +475,21 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                     />
                                                                 </td>
                                                             )}
-                                                            <td className="exact-size-cell text-center">
+                                                            <td className="exact-size-cell">
                                                                 <input
                                                                     type="text"
                                                                     value={item.size}
                                                                     onChange={(e) => handleCellChange(sigColIdx, subIdx, itemIdx, 'size', e.target.value)}
-                                                                    className="exact-input-cell text-center font-medium"
+                                                                    className="exact-input-cell"
                                                                 />
                                                             </td>
                                                             {!hasRenderedCollection && isFirstItemInSub && (
-                                                                <td className="exact-collection-cell text-center font-bold" rowSpan={getCollectionTotalRows(sigCol)}>
+                                                                <td className="exact-collection-cell" rowSpan={getCollectionTotalRows(sigCol)}>
                                                                     <input
                                                                         type="text"
                                                                         value={sigCol.collection}
                                                                         onChange={(e) => handleCollectionNameChange(sigColIdx, e.target.value)}
-                                                                        className="exact-input-cell text-center font-bold"
+                                                                        className="exact-input-cell exact-collection-input"
                                                                     />
                                                                 </td>
                                                             )}
@@ -512,7 +521,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                     type="text"
                                                                     value={item.name}
                                                                     onChange={(e) => handleCellChange(presColIdx, subIdx, itemIdx, 'name', e.target.value)}
-                                                                    className="exact-input-cell text-left font-semibold"
+                                                                    className="exact-input-cell text-left"
                                                                 />
                                                             </td>
                                                             {isFirstItemInSub && (
@@ -535,21 +544,21 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                     />
                                                                 </td>
                                                             )}
-                                                            <td className="exact-size-cell text-center">
+                                                            <td className="exact-size-cell">
                                                                 <input
                                                                     type="text"
                                                                     value={item.size}
                                                                     onChange={(e) => handleCellChange(presColIdx, subIdx, itemIdx, 'size', e.target.value)}
-                                                                    className="exact-input-cell text-center font-medium"
+                                                                    className="exact-input-cell"
                                                                 />
                                                             </td>
                                                             {!hasRenderedCollection && isFirstItemInSub && (
-                                                                <td className="exact-collection-cell text-center font-bold" rowSpan={getCollectionTotalRows(presCol)}>
+                                                                <td className="exact-collection-cell" rowSpan={getCollectionTotalRows(presCol)}>
                                                                     <input
                                                                         type="text"
                                                                         value={presCol.collection}
                                                                         onChange={(e) => handleCollectionNameChange(presColIdx, e.target.value)}
-                                                                        className="exact-input-cell text-center font-bold"
+                                                                        className="exact-input-cell exact-collection-input"
                                                                     />
                                                                 </td>
                                                             )}
@@ -582,7 +591,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                     type="text"
                                                                     value={item.name}
                                                                     onChange={(e) => handleCellChange(luxeColIdx, subIdx, itemIdx, 'name', e.target.value)}
-                                                                    className="exact-input-cell text-left font-semibold"
+                                                                    className="exact-input-cell text-left"
                                                                 />
                                                             </td>
                                                             {isFirstItemInSub && (
@@ -605,21 +614,21 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                     />
                                                                 </td>
                                                             )}
-                                                            <td className="exact-size-cell text-center">
+                                                            <td className="exact-size-cell">
                                                                 <input
                                                                     type="text"
                                                                     value={item.size}
                                                                     onChange={(e) => handleCellChange(luxeColIdx, subIdx, itemIdx, 'size', e.target.value)}
-                                                                    className="exact-input-cell text-center font-medium"
+                                                                    className="exact-input-cell"
                                                                 />
                                                             </td>
                                                             {!hasRenderedCollection && isFirstItemInSub && (
-                                                                <td className="exact-collection-cell text-center font-bold" rowSpan={16}> {/* rowSpan 16 is for group 1 (7 items) + group 2 (9 items) */}
+                                                                <td className="exact-collection-cell" rowSpan={16}> {/* rowSpan 16 is for group 1 (7 items) + group 2 (9 items) */}
                                                                     <input
                                                                         type="text"
                                                                         value={luxeCol.collection}
                                                                         onChange={(e) => handleCollectionNameChange(luxeColIdx, e.target.value)}
-                                                                        className="exact-input-cell text-center font-bold"
+                                                                        className="exact-input-cell exact-collection-input"
                                                                     />
                                                                 </td>
                                                             )}
@@ -669,12 +678,15 @@ const PriceListPanel = ({ sidebarToggle }) => {
 
                                     <div className="letterhead-distribution">
                                         <span className="dist-label">Distributed by</span>
-                                        <div className="dist-logo-wrap">
-                                            <div className="dist-parallel-bars">
-                                                <div className="bar bar1"></div>
-                                                <div className="bar bar2"></div>
-                                                <div className="bar bar3"></div>
-                                            </div>
+                                        <div className="dist-logo-wrap dist-logo-col">
+                                            <svg className="es-diamond-logo" viewBox="0 0 60 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M30 2 L58 20 L58 44 L30 62 L2 44 L2 20 Z" stroke="#c8902a" strokeWidth="2" fill="none"/>
+                                                <path d="M2 20 L20 12 L20 52 L2 44 Z" fill="#c8902a" opacity="0.55"/>
+                                                <path d="M58 20 L40 12 L40 52 L58 44 Z" fill="#c8902a" opacity="0.85"/>
+                                                <path d="M20 12 L40 12 L30 2 Z" fill="#c8902a" opacity="0.7"/>
+                                                <path d="M20 52 L40 52 L30 62 Z" fill="#c8902a" opacity="0.7"/>
+                                                <line x1="30" y1="2" x2="30" y2="62" stroke="#c8902a" strokeWidth="0.75" opacity="0.4"/>
+                                            </svg>
                                             <span className="dist-company-name">EASY STONES</span>
                                         </div>
                                     </div>
@@ -721,7 +733,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                     type="text"
                                                                     value={item.name}
                                                                     onChange={(e) => handleCellChange(luxeColIdx, subIdx, itemIdx, 'name', e.target.value)}
-                                                                    className="exact-input-cell text-left font-semibold"
+                                                                    className="exact-input-cell text-left"
                                                                 />
                                                             </td>
                                                             {isFirstItemInSub && (
@@ -744,21 +756,21 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                     />
                                                                 </td>
                                                             )}
-                                                            <td className="exact-size-cell text-center">
+                                                            <td className="exact-size-cell">
                                                                 <input
                                                                     type="text"
                                                                     value={item.size}
                                                                     onChange={(e) => handleCellChange(luxeColIdx, subIdx, itemIdx, 'size', e.target.value)}
-                                                                    className="exact-input-cell text-center font-medium"
+                                                                    className="exact-input-cell"
                                                                 />
                                                             </td>
                                                             {!hasRenderedCollection && isFirstItemInSub && (
-                                                                <td className="exact-collection-cell text-center font-bold" rowSpan={16}> {/* rowSpan 16 is for group 3 (4 items) + group 4 (8 items) + group 5 (4 items) */}
+                                                                <td className="exact-collection-cell" rowSpan={16}> {/* rowSpan 16 is for group 3 (4 items) + group 4 (8 items) + group 5 (4 items) */}
                                                                     <input
                                                                         type="text"
                                                                         value={luxeCol.collection}
                                                                         onChange={(e) => handleCollectionNameChange(luxeColIdx, e.target.value)}
-                                                                        className="exact-input-cell text-center font-bold"
+                                                                        className="exact-input-cell exact-collection-input"
                                                                     />
                                                                 </td>
                                                             )}
@@ -790,7 +802,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                     type="text"
                                                                     value={item.name}
                                                                     onChange={(e) => handleCellChange(thruColIdx, subIdx, itemIdx, 'name', e.target.value)}
-                                                                    className="exact-input-cell text-left font-semibold"
+                                                                    className="exact-input-cell text-left"
                                                                 />
                                                             </td>
                                                             {isFirstItemInSub && (
@@ -813,21 +825,21 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                     />
                                                                 </td>
                                                             )}
-                                                            <td className="exact-size-cell text-center">
+                                                            <td className="exact-size-cell">
                                                                 <input
                                                                     type="text"
                                                                     value={item.size}
                                                                     onChange={(e) => handleCellChange(thruColIdx, subIdx, itemIdx, 'size', e.target.value)}
-                                                                    className="exact-input-cell text-center font-medium"
+                                                                    className="exact-input-cell"
                                                                 />
                                                             </td>
                                                             {!hasRenderedCollection && isFirstItemInSub && (
-                                                                <td className="exact-collection-cell text-center font-bold" rowSpan={getCollectionTotalRows(thruCol)}>
+                                                                <td className="exact-collection-cell" rowSpan={getCollectionTotalRows(thruCol)}>
                                                                     <input
                                                                         type="text"
                                                                         value={thruCol.collection}
                                                                         onChange={(e) => handleCollectionNameChange(thruColIdx, e.target.value)}
-                                                                        className="exact-input-cell text-center font-bold"
+                                                                        className="exact-input-cell exact-collection-input"
                                                                     />
                                                                 </td>
                                                             )}
