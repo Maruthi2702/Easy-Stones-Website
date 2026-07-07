@@ -24,7 +24,7 @@
   left: 0;
   top: 96px;
   bottom: 0;
-  z-index: 50;
+  z-index: 95; /* Keep above overlay backdrop (90) */
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
               width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -46,7 +46,7 @@
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 40;
+    z-index: 90; /* Keep above main content and customer sticky headers (40) */
     backdrop-filter: blur(4px);
     animation: fadeIn 0.2s ease-out;
 }

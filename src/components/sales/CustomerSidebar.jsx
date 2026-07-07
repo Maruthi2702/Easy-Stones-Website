@@ -31,6 +31,13 @@ const CustomerSidebar = ({
         return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     };
 
+    const handleLinkClick = (tab) => {
+        handleCrmTabChange(tab);
+        if (isMobile || !isPinned) {
+            setIsSidebarOpen(false);
+        }
+    };
+
     return (
         <div
             className={`sales-sidebar ${!isSidebarOpen ? 'closed' : ''} ${!isPinned ? 'overlay' : ''}`}
@@ -61,28 +68,28 @@ const CustomerSidebar = ({
             <div className="sidebar-nav-links">
                 <button
                     className={`sidebar-nav-link ${crmTab === 'dashboard' ? 'active' : ''}`}
-                    onClick={() => handleCrmTabChange('dashboard')}
+                    onClick={() => handleLinkClick('dashboard')}
                 >
                     <LayoutDashboard size={18} />
                     <span>Dashboard</span>
                 </button>
                 <button
                     className={`sidebar-nav-link ${crmTab === 'customers' ? 'active' : ''}`}
-                    onClick={() => handleCrmTabChange('customers')}
+                    onClick={() => handleLinkClick('customers')}
                 >
                     <User size={18} />
                     <span>Customers</span>
                 </button>
                 <button
                     className={`sidebar-nav-link ${crmTab === 'checkin' ? 'active' : ''}`}
-                    onClick={() => handleCrmTabChange('checkin')}
+                    onClick={() => handleLinkClick('checkin')}
                 >
                     <Clock size={18} />
                     <span>Check-In Log</span>
                 </button>
                 <button
                     className={`sidebar-nav-link ${crmTab === 'pricelist' ? 'active' : ''}`}
-                    onClick={() => handleCrmTabChange('pricelist')}
+                    onClick={() => handleLinkClick('pricelist')}
                 >
                     <Tag size={18} />
                     <span>Price List</span>

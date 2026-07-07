@@ -2544,7 +2544,7 @@ const SalesPage = () => {
     return (
         <div className="sales-container">
             {/* Sidebar Overlay */}
-            {!isPinned && isSidebarOpen && (
+            {(isMobile || !isPinned) && isSidebarOpen && (
                 <div
                     className="sidebar-overlay-backdrop"
                     onClick={() => setIsSidebarOpen(false)}
