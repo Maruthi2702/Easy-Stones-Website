@@ -1086,13 +1086,21 @@ const SalesPage = () => {
             return nameA.localeCompare(nameB);
         });
 
+    const handleActiveTabChange = (tabName) => {
+        setActiveTab(tabName);
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('view', tabName);
+        window.history.replaceState({}, '', newUrl);
+    };
+
     useEffect(() => {
         const handlePopState = () => {
             const params = new URLSearchParams(window.location.search);
             const tabParam = params.get('tab');
             const customerId = params.get('customer');
+            const viewParam = params.get('view');
             
-            if (tabParam && ['dashboard', 'customers', 'checkin'].includes(tabParam)) {
+            if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist'].includes(tabParam)) {
                 setCrmTab(tabParam);
             }
             if (customerId) {
@@ -1101,6 +1109,9 @@ const SalesPage = () => {
             } else {
                 setSelectedCustomerId(null);
                 setSelectedCustomerDetail(null);
+            }
+            if (viewParam && ['visits', 'resources', 'contacts'].includes(viewParam)) {
+                setActiveTab(viewParam);
             }
         };
 
@@ -1127,6 +1138,7 @@ const SalesPage = () => {
         const newUrl = new URL(window.location);
         newUrl.searchParams.set('tab', 'customers');
         newUrl.searchParams.set('customer', customer._id);
+        newUrl.searchParams.set('view', 'visits'); // Default to visits view on select
         window.history.pushState({}, '', newUrl);
         
         setCrmTab('customers');
@@ -2622,19 +2634,19 @@ const SalesPage = () => {
                                         <div className="header-tabs">
                                             <button
                                                 className={`header-tab ${activeTab === 'visits' ? 'active' : ''}`}
-                                                onClick={() => setActiveTab('visits')}
+                                                onClick={() => handleActiveTabChange('visits')}
                                             >
                                                 Visits
                                             </button>
                                             <button
                                                 className={`header-tab ${activeTab === 'resources' ? 'active' : ''}`}
-                                                onClick={() => setActiveTab('resources')}
+                                                onClick={() => handleActiveTabChange('resources')}
                                             >
                                                 Resources
                                             </button>
                                             <button
                                                 className={`header-tab ${activeTab === 'contacts' ? 'active' : ''}`}
-                                                onClick={() => setActiveTab('contacts')}
+                                                onClick={() => handleActiveTabChange('contacts')}
                                             >
                                                 Contacts
                                             </button>
@@ -3489,7 +3501,7 @@ const SalesPage = () => {
                                                                                 onClick={() => {
                                                                                     if (resource.customerId) {
                                                                                         handleSelectCustomer({ _id: resource.customerId });
-                                                                                        setActiveTab('resources');
+                                                                                        handleActiveTabChange('resources');
                                                                                         setShowDashboard(false);
                                                                                     }
                                                                                 }}

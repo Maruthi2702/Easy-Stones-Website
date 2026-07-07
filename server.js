@@ -220,6 +220,22 @@ async function startServer() {
     console.log('✅ Connected to MongoDB Atlas');
     console.log('Connection Ready State:', mongoose.connection.readyState);
 
+    // Ensure all database indexes are created/synced for performance scalability
+    try {
+      console.log('🔨 Syncing database indexes for scalability...');
+      await Promise.all([
+        Customer.createIndexes(),
+        Product.createIndexes(),
+        User.createIndexes(),
+        OfficeCheckIn.createIndexes(),
+        ActivityLog.createIndexes(),
+        Schedule.createIndexes()
+      ]);
+      console.log('✅ Database indexes synchronized successfully');
+    } catch (indexError) {
+      console.error('⚠️ Warning: Failed to sync database indexes:', indexError);
+    }
+
     // Database migration: Update status value from legacy "Working with other sales Rep" to "Different Sales Person"
     try {
       const updateResult = await Customer.updateMany(

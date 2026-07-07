@@ -143,6 +143,15 @@ const AdminPage = () => {
     fetchUsers();
   }, [fetchProducts, fetchCustomers, fetchUsers, refreshProducts]);
 
+  // Read initial tab parameter from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && ['products', 'customers', 'users', 'settings'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, []);
+
   // Handle tab specific refreshes if needed, but basic data is now prefetched
   useEffect(() => {
     if (activeTab === 'users' && users.length === 0) {
@@ -911,6 +920,9 @@ const AdminPage = () => {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
+    const newUrl = new URL(window.location);
+    newUrl.searchParams.set('tab', tab);
+    window.history.replaceState({}, '', newUrl);
     setIsMobileMenuOpen(false);
     setShowMobileDetail(false); // Reset to list view
     window.scrollTo(0, 0);
