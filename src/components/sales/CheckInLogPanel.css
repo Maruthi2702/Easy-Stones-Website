@@ -1581,7 +1581,7 @@ table.clp-table {
 @media (max-width: 1024px) {
   .selection-modal-overlay {
     top: 85px !important;
-    height: calc(100vh - 96px) !important;
+    height: calc(100vh - 85px) !important;
   }
 }
 
@@ -1601,14 +1601,14 @@ table.clp-table {
 @media (max-width: 576px) {
   .selection-modal-overlay {
     padding: 0 !important;
-    top: 96px !important;
-    height: calc(100vh - 96px) !important;
+    top: 85px !important;
+    height: calc(100vh - 85px) !important;
   }
 
   .selection-modal-container {
     width: 100% !important;
     height: 100% !important;
-    max-height: calc(100vh - 96px) !important;
+    max-height: calc(100vh - 85px) !important;
     border-radius: 0 !important;
   }
 
