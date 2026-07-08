@@ -216,13 +216,17 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             if (city)   url.searchParams.append('city', city);
             if (status) url.searchParams.append('status', status);
 
-            // If search or filter is active, fetch across all customers (Fabricators + Partners) globally
-            if (tab === 'fabricators') {
-                // Fabricators tab: only Fabricator type
-                url.searchParams.append('type', 'Fabricator');
-            } else {
-                // Partners tab: server-side exclude Fabricators so pagination is correct
-                url.searchParams.append('typeExclude', 'Fabricator');
+            // If search or any filter is active, fetch across all customers (Fabricators + Partners) globally.
+            // Otherwise, filter by tab type.
+            const isFilterActive = search || level || type || city || status;
+            if (!isFilterActive) {
+                if (tab === 'fabricators') {
+                    // Fabricators tab: only Fabricator type
+                    url.searchParams.append('type', 'Fabricator');
+                } else {
+                    // Partners tab: server-side exclude Fabricators so pagination is correct
+                    url.searchParams.append('typeExclude', 'Fabricator');
+                }
             }
 
             const response = await fetch(url, {

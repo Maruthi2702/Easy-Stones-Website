@@ -1095,7 +1095,7 @@ table.clp-table {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 2000 !important; /* CRITICAL: Must be higher than the main website header (z-index: 1100). Do not lower this value otherwise the close button and title will be covered by the header. */
   padding: 1rem;
 }
 
@@ -1578,17 +1578,10 @@ table.clp-table {
 }
 
 /* Responsive modal rules */
-@media (max-width: 1024px) {
-  .selection-modal-overlay {
-    top: 85px !important;
-    height: calc(100vh - 85px) !important;
-  }
-}
-
 @media (min-width: 577px) and (max-width: 1024px) {
   .selection-modal-container {
     width: 92% !important;
-    max-height: calc(100% - 2rem) !important;
+    max-height: 90vh !important;
     border-radius: 16px !important;
   }
 
@@ -1601,14 +1594,12 @@ table.clp-table {
 @media (max-width: 576px) {
   .selection-modal-overlay {
     padding: 0 !important;
-    top: 85px !important;
-    height: calc(100vh - 85px) !important;
   }
 
   .selection-modal-container {
     width: 100% !important;
     height: 100% !important;
-    max-height: calc(100vh - 85px) !important;
+    max-height: 100vh !important;
     border-radius: 0 !important;
   }
 

@@ -6,7 +6,7 @@
   background: var(--bg-primary);
   overflow: hidden;
   position: relative;
-  z-index: 1; /* Below header (z-index: 1100) so header nav links are always clickable */
+  z-index: auto !important; /* CRITICAL: Changing this from 'auto' (e.g. to a number) creates a limiting stacking context which causes nested full-screen modal overlays to hide behind the main website header. Keep as 'auto !important' so that modal overlays can stack globally on top of the site header (z-index: 1100). */
 }
 
 /* Sidebar */
