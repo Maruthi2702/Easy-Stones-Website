@@ -356,6 +356,73 @@ const SalesPage = () => {
     const [showAddFolderModal, setShowAddFolderModal] = useState(false);
     const [folderName, setFolderName] = useState('');
 
+    // Partner Network States
+    const [showLinkPartnerModal, setShowLinkPartnerModal] = useState(false);
+    const [linkingPartnerId, setLinkingPartnerId] = useState('');
+    const [isLinkingInProgress, setIsLinkingInProgress] = useState(false);
+
+    const handleLinkPartner = async (e) => {
+        if (e) e.preventDefault();
+        if (!linkingPartnerId) return;
+
+        setIsLinkingInProgress(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/api/customers/${selectedCustomer._id}/associations`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                credentials: 'include',
+                body: JSON.stringify({ partnerId: linkingPartnerId })
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to establish link');
+            }
+
+            // Re-fetch customer details to update state
+            await fetchSingleCustomer(selectedCustomer._id);
+            setShowLinkPartnerModal(false);
+            setLinkingPartnerId('');
+        } catch (err) {
+            console.error('Error linking partner:', err);
+            alert(err.message || 'Failed to link partner');
+        } finally {
+            setIsLinkingInProgress(false);
+        }
+    };
+
+    const handleUnlinkPartner = async (partnerId, partnerName) => {
+        if (!window.confirm(`Are you sure you want to remove the connection with "${partnerName}"?`)) {
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/api/customers/${selectedCustomer._id}/associations/${partnerId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                credentials: 'include'
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to remove link');
+            }
+
+            // Re-fetch customer details to update state
+            await fetchSingleCustomer(selectedCustomer._id);
+        } catch (err) {
+            console.error('Error unlinking partner:', err);
+            alert(err.message || 'Failed to remove partner connection');
+        }
+    };
+
     const customerOptions = React.useMemo(() => {
         const sourceData = allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || []);
         // Sort and map in one pass to avoid creating intermediate arrays
@@ -1072,6 +1139,18 @@ const SalesPage = () => {
 
     // Use selectedCustomerDetail for the main view, fallback to list item (which might be partial)
     const selectedCustomer = selectedCustomerDetail || customers.find(c => c._id === selectedCustomerId);
+
+    const linkableCustomerOptions = React.useMemo(() => {
+        const sourceData = allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || []);
+        const linkedIds = new Set((selectedCustomer?.associatedCustomers || []).map(p => p._id));
+        return sourceData
+            .filter(c => c._id !== selectedCustomer?._id && !linkedIds.has(c._id) && c.isActive !== false)
+            .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
+            .map(c => ({
+                value: c._id,
+                label: `${c.company || c.contactName} (${c.customerType || 'Fabricator'})`
+            }));
+    }, [allCustomersForSelection, customers, selectedCustomer]);
 
     // Filter resources (scoped to selected customer only)
     const customerResources = selectedCustomer ? (selectedCustomer.resources || []) : [];
@@ -2520,6 +2599,113 @@ const SalesPage = () => {
         );
     };
 
+    const renderNetworkTab = () => {
+        if (!selectedCustomer) return null;
+
+        const partners = selectedCustomer.associatedCustomers || [];
+        
+        // Group partners
+        const fabricators = partners.filter(p => p.customerType === 'Fabricator');
+        const otherPartners = partners.filter(p => p.customerType !== 'Fabricator');
+
+        const renderPartnerGrid = (list, title) => {
+            if (list.length === 0) return null;
+            return (
+                <div className="network-category-section">
+                    <h4 className="network-category-title">{title} ({list.length})</h4>
+                    <div className="network-grid">
+                        {list.map(partner => (
+                            <div className="partner-card" key={partner._id}>
+                                <div className="partner-card-header">
+                                    <div className="partner-avatar">
+                                        {partner.company ? partner.company[0].toUpperCase() : partner.contactName[0].toUpperCase()}
+                                    </div>
+                                    <div className="partner-info-meta">
+                                        <h5 className="partner-company" onClick={() => handleSelectCustomer(partner)}>
+                                            {partner.company || 'Private Contractor'}
+                                        </h5>
+                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '0.2rem' }}>
+                                            <span className={`partner-badge ${partner.status?.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}>
+                                                {partner.status || 'Active'}
+                                            </span>
+                                            <span className="partner-badge type-badge">
+                                                {partner.customerType || 'Fabricator'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="partner-card-body">
+                                    <div className="partner-field">
+                                        <span className="field-label">Contact</span>
+                                        <span className="field-value">{partner.contactName}</span>
+                                    </div>
+                                    {partner.phone && (
+                                        <div className="partner-field">
+                                            <span className="field-label">Phone</span>
+                                            <span className="field-value">{partner.phone}</span>
+                                        </div>
+                                    )}
+                                    <div className="partner-field">
+                                        <span className="field-label">Last Visited</span>
+                                        <span className="field-value highlight">
+                                            {partner.lastVisitDate ? formatDate(partner.lastVisitDate, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="partner-card-actions">
+                                    <button 
+                                        className="partner-action-btn view-btn"
+                                        onClick={() => handleSelectCustomer(partner)}
+                                    >
+                                        View Profile
+                                    </button>
+                                    <button 
+                                        className="partner-action-btn unlink-btn"
+                                        onClick={() => handleUnlinkPartner(partner._id, partner.company || partner.contactName)}
+                                    >
+                                        Unlink
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        return (
+            <div className="network-tab-container">
+                <div className="tab-header">
+                    <div className="tab-header-left">
+                        <h3>Partner Network</h3>
+                        <p className="network-subtitle">Track and link fabricators, designers, and builders associated with this customer.</p>
+                    </div>
+                    <button className="add-btn" onClick={() => setShowLinkPartnerModal(true)}>
+                        <Plus size={18} /> Link Partner
+                    </button>
+                </div>
+
+                {partners.length === 0 ? (
+                    <div className="network-empty-state">
+                        <div className="empty-icon-container">
+                            <Users size={32} className="empty-icon" />
+                        </div>
+                        <h4>No associated partners linked yet</h4>
+                        <p>Link this customer to fabricators, designers, or builders they work with to see mutual activity and share details.</p>
+                        <button className="link-action-btn" onClick={() => setShowLinkPartnerModal(true)}>
+                            <Plus size={16} /> Link Your First Partner
+                        </button>
+                    </div>
+                ) : (
+                    <div className="network-sections">
+                        {renderPartnerGrid(fabricators, "Associated Fabricators")}
+                        {renderPartnerGrid(otherPartners, "Associated Designers & Builders")}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const renderPriceListView = () => {
         const sidebarToggle = (!isSidebarOpen || isMobile) ? (
             <button
@@ -2649,6 +2835,12 @@ const SalesPage = () => {
                                                 onClick={() => handleActiveTabChange('contacts')}
                                             >
                                                 Contacts
+                                            </button>
+                                            <button
+                                                className={`header-tab ${activeTab === 'network' ? 'active' : ''}`}
+                                                onClick={() => handleActiveTabChange('network')}
+                                            >
+                                                Network
                                             </button>
                                         </div>
 
@@ -3012,6 +3204,11 @@ const SalesPage = () => {
                                         </div>
 
 
+                                    </div>
+                                )}
+                                {activeTab === 'network' && (
+                                    <div className="tab-section network-tab">
+                                        {renderNetworkTab()}
                                     </div>
                                 )}
                             </div>
@@ -3887,6 +4084,54 @@ const SalesPage = () => {
                     handleOpenGallery={handleOpenGallery}
                     onCreateNew={() => setShowAddCustomerModal(true)}
                 />
+
+                {/* Link Partner Modal */}
+                {showLinkPartnerModal && (
+                    <div className="selection-modal-overlay" style={{ zIndex: 2000 }}>
+                        <div className="selection-modal-container" style={{ maxWidth: '500px', maxHeight: '420px', minHeight: '300px' }}>
+                            <div className="selection-modal-header">
+                                <h2 className="selection-modal-header-title">LINK PARTNER</h2>
+                                <button 
+                                    type="button" 
+                                    className="selection-modal-close" 
+                                    onClick={() => { setShowLinkPartnerModal(false); setLinkingPartnerId(''); }}
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <form onSubmit={handleLinkPartner} className="selection-modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem', overflow: 'visible' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Select Partner to Link</label>
+                                    <SearchableSelect
+                                        options={linkableCustomerOptions}
+                                        value={linkingPartnerId}
+                                        onChange={(val) => setLinkingPartnerId(val)}
+                                        placeholder="Search by company or contact name..."
+                                        isLoading={isDropdownLoading}
+                                    />
+                                </div>
+                                <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+                                    <button 
+                                        type="button" 
+                                        className="cancel-btn" 
+                                        onClick={() => { setShowLinkPartnerModal(false); setLinkingPartnerId(''); }}
+                                        style={{ padding: '0.5rem 1rem', borderRadius: '6px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', cursor: 'pointer' }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        type="submit" 
+                                        className="save-btn" 
+                                        disabled={!linkingPartnerId || isLinkingInProgress}
+                                        style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', background: 'var(--accent-primary, #d4af37)', border: 'none', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}
+                                    >
+                                        {isLinkingInProgress ? 'Linking...' : 'Link Partner'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
 
                 <ResourceModal
                     showResourceModal={showResourceModal}

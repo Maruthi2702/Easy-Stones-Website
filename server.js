@@ -1218,7 +1218,7 @@ app.get('/api/customers', verifyAnyAuth, async (req, res) => {
 app.get('/api/customers/dropdown', verifyAnyAuth, async (req, res) => {
   try {
     const customers = await Customer.find({})
-      .select('_id company contactName firstName lastName email')
+      .select('_id company contactName firstName lastName email customerType')
       .sort({ company: 1, contactName: 1 })
       .lean();
 
@@ -1620,7 +1620,9 @@ app.get('/api/dashboard/resources', verifyAnyAuth, async (req, res) => {
 // Get single customer with full details (including images)
 app.get('/api/customers/:id', verifyAnyAuth, async (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id).select('-password');
+    const customer = await Customer.findById(req.params.id)
+      .populate('associatedCustomers', 'contactName company customerType status phone visits')
+      .select('-password');
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
@@ -1631,10 +1633,81 @@ app.get('/api/customers/:id', verifyAnyAuth, async (req, res) => {
       ? customer.visits.reduce((latest, v) => (v.date > latest ? v.date : latest), customer.visits[0].date)
       : null;
 
+    // Calculate lastVisitDate for each associated customer and strip visits payload
+    if (customerObj.associatedCustomers && customerObj.associatedCustomers.length > 0) {
+      customerObj.associatedCustomers = customerObj.associatedCustomers.map(partner => {
+        const lastVisit = partner.visits && partner.visits.length > 0
+          ? partner.visits.reduce((latest, v) => (v.date > latest ? v.date : latest), partner.visits[0].date)
+          : null;
+        const cleanPartner = { ...partner, lastVisitDate: lastVisit };
+        delete cleanPartner.visits; // Strip out visits list from partner objects to reduce network payload
+        return cleanPartner;
+      });
+    }
+
     res.json(customerObj);
   } catch (error) {
     console.error('Error fetching customer details:', error);
     res.status(500).json({ message: 'Failed to fetch customer details', error: error.message });
+  }
+});
+
+// ============================================
+// PARTNER ASSOCIATIONS ENDPOINTS
+// ============================================
+
+// Link customer to a partner (bi-directional association)
+app.post('/api/customers/:customerId/associations', verifyAnyAuth, async (req, res) => {
+  try {
+    const { partnerId } = req.body;
+    const { customerId } = req.params;
+
+    if (!partnerId) {
+      return res.status(400).json({ message: 'partnerId is required' });
+    }
+
+    if (customerId === partnerId) {
+      return res.status(400).json({ message: 'Cannot link a customer to themselves' });
+    }
+
+    // Check if both exist
+    const [customer, partner] = await Promise.all([
+      Customer.findById(customerId),
+      Customer.findById(partnerId)
+    ]);
+
+    if (!customer || !partner) {
+      return res.status(404).json({ message: 'One or both customers not found' });
+    }
+
+    // Bi-directional link using $addToSet to avoid duplicates
+    await Promise.all([
+      Customer.findByIdAndUpdate(customerId, { $addToSet: { associatedCustomers: partnerId } }),
+      Customer.findByIdAndUpdate(partnerId, { $addToSet: { associatedCustomers: customerId } })
+    ]);
+
+    res.json({ message: 'Association established successfully' });
+  } catch (error) {
+    console.error('Error establishing association:', error);
+    res.status(500).json({ message: 'Failed to establish association', error: error.message });
+  }
+});
+
+// Remove customer association (bi-directional unlinking)
+app.delete('/api/customers/:customerId/associations/:partnerId', verifyAnyAuth, async (req, res) => {
+  try {
+    const { customerId, partnerId } = req.params;
+
+    // Bi-directional unlink using $pull
+    await Promise.all([
+      Customer.findByIdAndUpdate(customerId, { $pull: { associatedCustomers: partnerId } }),
+      Customer.findByIdAndUpdate(partnerId, { $pull: { associatedCustomers: customerId } })
+    ]);
+
+    res.json({ message: 'Association removed successfully' });
+  } catch (error) {
+    console.error('Error removing association:', error);
+    res.status(500).json({ message: 'Failed to remove association', error: error.message });
   }
 });
 

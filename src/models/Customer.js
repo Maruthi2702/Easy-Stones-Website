@@ -107,7 +107,11 @@ const customerSchema = new mongoose.Schema({
     uploadedBy: String,
     createdAt: { type: String }
   }],
-  quickNote: { type: String, default: '' }
+  quickNote: { type: String, default: '' },
+  associatedCustomers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer'
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
