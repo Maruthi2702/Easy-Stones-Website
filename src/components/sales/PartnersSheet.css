@@ -497,7 +497,7 @@
 }
 /* Mobile: stack filter groups full-width */
 @media (max-width: 480px) {
-    .filter-group {
+    .partners-sheet-container .filter-group {
         min-width: 100%;
     }
 }
@@ -1020,20 +1020,20 @@
 
 /* Override vertical button stacking for mobile header controls */
 @media (max-width: 768px) {
-    .table-header-container {
+    .partners-sheet-container .table-header-container {
         flex-direction: column !important;
         gap: 0.85rem !important;
         padding: 1.25rem 1rem !important;
         align-items: stretch !important;
     }
     
-    .table-header-container .table-title {
+    .partners-sheet-container .table-header-container .table-title {
         justify-content: flex-start;
         align-items: center;
         gap: 0.5rem;
     }
 
-    .table-controls {
+    .partners-sheet-container .table-controls {
         display: grid !important;
         grid-template-columns: 1fr auto !important;
         grid-template-rows: auto auto !important;
@@ -1042,7 +1042,7 @@
         flex-direction: row !important; /* overrides global column styles */
     }
     
-    .table-search {
+    .partners-sheet-container .table-search {
         grid-column: 1 / 2 !important;
         grid-row: 1 !important;
         width: 100% !important;
@@ -1050,7 +1050,7 @@
         margin-bottom: 0 !important;
     }
     
-    .filter-toggle-btn {
+    .partners-sheet-container .filter-toggle-btn {
         grid-column: 2 / 3 !important;
         grid-row: 1 !important;
         height: 100% !important;
@@ -1062,7 +1062,7 @@
         margin: 0 !important;
     }
 
-    .partner-add-btn {
+    .partners-sheet-container .partner-add-btn {
         grid-column: 1 / 2 !important;
         grid-row: 2 !important;
         width: 100% !important;
@@ -1072,7 +1072,7 @@
         margin: 0 !important;
     }
     
-    .export-btn {
+    .partners-sheet-container .export-btn {
         grid-column: 2 / 3 !important;
         grid-row: 2 !important;
         width: 100% !important;

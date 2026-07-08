@@ -3116,9 +3116,10 @@ const SalesPage = () => {
                                                         <Download size={18} /> Excel
                                                     </button>
                                                     <div className="table-search">
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Search visits..."
+                                                         <Search className="search-icon" size={18} />
+                                                         <input
+                                                             type="text"
+                                                             placeholder="Search visits..."
                                                             value={dashboardSearchTerm}
                                                             onChange={(e) => setDashboardSearchTerm(e.target.value)}
                                                         />
@@ -3256,9 +3257,10 @@ const SalesPage = () => {
                                                         <Download size={18} /> Excel
                                                     </button>
                                                     <div className="table-search">
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Search follow-ups..."
+                                                         <Search className="search-icon" size={18} />
+                                                         <input
+                                                             type="text"
+                                                             placeholder="Search follow-ups..."
                                                             value={dashboardSearchTerm}
                                                             onChange={(e) => setDashboardSearchTerm(e.target.value)}
                                                         />
@@ -3391,6 +3393,7 @@ const SalesPage = () => {
                                                             <Download size={18} /> Excel
                                                         </button>
                                                         <div className="table-search">
+                                                            <Search className="search-icon" size={18} />
                                                             <input
                                                                 type="text"
                                                                 placeholder="Search resources..."
