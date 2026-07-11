@@ -368,6 +368,12 @@ app.get('/api/products', async (req, res) => {
     } else {
       // Fetch fresh and update cache
       products = await Product.find().sort({ id: -1 }).lean();
+      console.log('📦 GET /api/products fetched from DB. Count:', products.length);
+      const withBundles = products.filter(p => p.bundles && p.bundles.length > 0);
+      console.log('📦 Products with bundles:', withBundles.length);
+      if (withBundles.length > 0) {
+        console.log('📦 Sample products with bundles:', withBundles.slice(0, 3).map(p => ({ name: p.name, bundlesCount: p.bundles.length })));
+      }
       memoryCache.products.data = products;
       memoryCache.products.lastFetched = now;
       console.log('✅ Products Cache Refreshed');
@@ -1945,7 +1951,12 @@ app.put('/api/checkin/:id', async (req, res) => {
     if (fabricatorPhone !== undefined) checkIn.fabricatorPhone = fabricatorPhone;
     if (builderName !== undefined) checkIn.builderName = builderName;
     if (builderPhone !== undefined) checkIn.builderPhone = builderPhone;
-    if (selections !== undefined) checkIn.selections = selections;
+    if (selections !== undefined) {
+      checkIn.selections = selections.map(sel => ({
+        ...sel,
+        material: sel.material ? sel.material.toUpperCase() : ''
+      }));
+    }
     if (specialNotes !== undefined) checkIn.specialNotes = specialNotes;
     if (salesRep !== undefined) checkIn.salesRep = salesRep;
     if (salesRepEmail !== undefined) checkIn.salesRepEmail = salesRepEmail;

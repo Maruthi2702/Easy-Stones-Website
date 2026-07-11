@@ -2708,3 +2708,309 @@ table.clp-table {
   background: #e2e8f0 !important;
   color: #0f172a !important;
 }
+
+/* OCR Scan Tag Button styling */
+.scan-tag-btn {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.scan-tag-btn:hover {
+  transform: translateY(-1px) scale(1.06);
+  background-color: rgba(212, 175, 55, 0.18) !important;
+  border-color: rgba(212, 175, 55, 0.4) !important;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.15);
+}
+
+.scan-tag-btn:active {
+  transform: translateY(1px) scale(0.95);
+  background-color: rgba(212, 175, 55, 0.25) !important;
+}
+
+/* Light Theme overrides for the Scan button */
+.clp-root.light-theme .scan-tag-btn {
+  color: #b8901c !important;
+  background-color: rgba(212, 175, 55, 0.05) !important;
+  border: 1px solid rgba(212, 175, 55, 0.25) !important;
+}
+
+.clp-root.light-theme .scan-tag-btn:hover {
+  background-color: rgba(212, 175, 55, 0.12) !important;
+  border-color: #b8901c !important;
+  box-shadow: 0 4px 10px rgba(184, 144, 28, 0.12);
+}
+
+/* ==========================================================================
+   Tag Cropper Modal Styles
+   ========================================================================== */
+.tag-cropper-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 3000;
+  backdrop-filter: blur(8px);
+  padding: 20px;
+}
+
+.tag-cropper-modal-container {
+  background-color: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.tag-cropper-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tag-cropper-modal-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.btn-close-cropper-modal {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-close-cropper-modal:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+}
+
+.tag-cropper-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cropper-description {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.cropper-image-wrapper {
+  position: relative;
+  width: 100%;
+  max-height: 380px;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #0f172a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cropper-preview-img {
+  max-width: 100%;
+  max-height: 380px;
+  object-fit: contain;
+  display: block;
+}
+
+.cropper-overlay-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.cropper-box {
+  position: absolute;
+  border: 2.5px solid #ef4444;
+  border-radius: 4px;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.7);
+  transition: all 0.1s ease-out;
+}
+
+.cropper-box::before, .cropper-box::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #ffffff;
+}
+.cropper-box::before {
+  top: -2px;
+  left: -2px;
+  border-right: none;
+  border-bottom: none;
+}
+.cropper-box::after {
+  bottom: -2px;
+  right: -2px;
+  border-left: none;
+  border-top: none;
+}
+
+.cropper-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background-color: rgba(15, 23, 42, 0.4);
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control-group label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.control-group input[type="range"] {
+  width: 100%;
+  accent-color: #d4af37;
+  cursor: pointer;
+  height: 6px;
+  border-radius: 3px;
+  background: #334155;
+  outline: none;
+}
+
+.tag-cropper-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.btn-cropper-modal-cancel {
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cropper-modal-cancel:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+}
+
+.btn-cropper-modal-scan {
+  background-color: #d4af37;
+  border: none;
+  color: #1e293b;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+}
+
+.btn-cropper-modal-scan:hover {
+  background-color: #e5c158;
+  transform: translateY(-1px);
+}
+
+/* Light Theme overrides for Cropper */
+.clp-root.light-theme .tag-cropper-modal-container {
+  background-color: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.clp-root.light-theme .tag-cropper-modal-header {
+  border-bottom-color: #e2e8f0;
+}
+
+.clp-root.light-theme .tag-cropper-modal-header h4 {
+  color: #0f172a;
+}
+
+.clp-root.light-theme .btn-close-cropper-modal {
+  color: #64748b;
+}
+
+.clp-root.light-theme .btn-close-cropper-modal:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.clp-root.light-theme .cropper-description {
+  color: #64748b;
+}
+
+.clp-root.light-theme .cropper-image-wrapper {
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.clp-root.light-theme .cropper-overlay-mask {
+  background-color: transparent;
+}
+
+.clp-root.light-theme .cropper-box {
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.5);
+}
+
+.clp-root.light-theme .cropper-controls {
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.clp-root.light-theme .control-group label {
+  color: #64748b;
+}
+
+.clp-root.light-theme .control-group input[type="range"] {
+  background: #cbd5e1;
+}
+
+.clp-root.light-theme .btn-cropper-modal-cancel {
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+.clp-root.light-theme .btn-cropper-modal-cancel:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}

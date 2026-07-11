@@ -26,8 +26,9 @@ import {
   Clock, Search, Download, Loader2, Calendar,
   RefreshCw,
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
-  Save, AlertTriangle, Printer, Sun, Moon, Filter
+  Save, AlertTriangle, Printer, Sun, Moon, Filter, Scan
 } from 'lucide-react';
+import Tesseract from 'tesseract.js';
 import { API_URL } from '../../config/api';
 import Pagination from '../shared/Pagination';
 import './CheckInLogPanel.css';
@@ -72,6 +73,211 @@ const MONTH_SHORT_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
+
+const preprocessImage = (file, degrees = 0) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Resize: limit max size to 1200px to optimize performance and prevent crashes
+        const MAX_DIM = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+
+        // Adjust dimensions based on rotation angle
+        if (degrees === 90 || degrees === 270) {
+          canvas.width = height;
+          canvas.height = width;
+        } else {
+          canvas.width = width;
+          canvas.height = height;
+        }
+
+        // Apply rotation matrix
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((degrees * Math.PI) / 180);
+        ctx.drawImage(img, -width / 2, -height / 2, width, height);
+
+        canvas.toBlob((blob) => {
+          resolve(blob);
+        }, 'image/jpeg', 0.9);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+const getCroppedImageBlob = (file, cropXPercent, cropYPercent, cropWidthPercent, cropHeightPercent) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const origWidth = img.width;
+        const origHeight = img.height;
+
+        const left = Math.round((cropXPercent / 100) * origWidth);
+        const top = Math.round((cropYPercent / 100) * origHeight);
+        const width = Math.round((cropWidthPercent / 100) * origWidth);
+        const height = Math.round((cropHeightPercent / 100) * origHeight);
+
+        const safeLeft = Math.max(0, Math.min(left, origWidth - 1));
+        const safeTop = Math.max(0, Math.min(top, origHeight - 1));
+        const safeWidth = Math.max(1, Math.min(width, origWidth - safeLeft));
+        const safeHeight = Math.max(1, Math.min(height, origHeight - safeTop));
+
+        canvas.width = safeWidth;
+        canvas.height = safeHeight;
+
+        ctx.drawImage(img, safeLeft, safeTop, safeWidth, safeHeight, 0, 0, safeWidth, safeHeight);
+
+        canvas.toBlob((blob) => {
+          resolve(blob);
+        }, 'image/jpeg', 0.95);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+const getLevenshteinDistance = (a, b) => {
+  const matrix = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[a.length][b.length];
+};
+
+const findCloseInventoryLot = (parsedMaterial, parsedLot, productList) => {
+  if (!parsedLot) return parsedLot;
+  
+  const matchedProduct = productList.find(p => 
+    p.name.toLowerCase().includes(parsedMaterial.toLowerCase()) || 
+    parsedMaterial.toLowerCase().includes(p.name.toLowerCase())
+  );
+  
+  if (matchedProduct && matchedProduct.bundles && matchedProduct.bundles.length > 0) {
+    const candidateLots = matchedProduct.bundles
+      .map(b => b.bundleNumber || b.serial)
+      .filter(Boolean)
+      .map(l => l.replace(/\D/g, ''));
+      
+    const cleanParsedLot = parsedLot.replace(/\D/g, '');
+    
+    let bestCandidate = null;
+    let minDistance = 999;
+    
+    for (const candidate of candidateLots) {
+      if (candidate === cleanParsedLot) return candidate;
+      
+      const distance = getLevenshteinDistance(cleanParsedLot, candidate);
+      if (distance < minDistance) {
+        minDistance = distance;
+        bestCandidate = candidate;
+      }
+    }
+    
+    const maxLen = bestCandidate ? Math.max(cleanParsedLot.length, bestCandidate.length) : 0;
+    const threshold = maxLen >= 5 ? 2 : 1;
+    if (bestCandidate && minDistance <= threshold) {
+      console.log(`Auto-corrected OCR lot typo: ${parsedLot} -> ${bestCandidate} (distance: ${minDistance})`);
+      return bestCandidate;
+    }
+  }
+  
+  return parsedLot;
+};
+
+const correctLotUsingBundle = (lot, bundle) => {
+  if (!lot || !bundle) return lot;
+  
+  const cleanBundle = bundle.replace(/[\(\)\[\]\{\}]/g, '').trim();
+  const parts = cleanBundle.split(/[\/\\|I]/).map(p => p.trim()).filter(Boolean);
+  
+  if (parts.length >= 2) {
+    const bundleLotCandidate = parts[1]; // e.g. in "7/13845", this is "13845"
+    
+    if (/^\d+$/.test(bundleLotCandidate) && bundleLotCandidate.length >= 3) {
+      const distance = getLevenshteinDistance(lot, bundleLotCandidate);
+      if (distance > 0 && distance <= 2) {
+        console.log(`Auto-corrected OCR lot typo using bundle: ${lot} -> ${bundleLotCandidate} (distance: ${distance})`);
+        return bundleLotCandidate;
+      }
+    }
+  }
+  
+  return lot;
+};
+
+const findCloseInventorySize = (parsedMaterial, parsedSize, productList) => {
+  if (!parsedSize) return parsedSize;
+  
+  const matchedProduct = productList.find(p => 
+    p.name.toLowerCase().includes(parsedMaterial.toLowerCase()) || 
+    parsedMaterial.toLowerCase().includes(p.name.toLowerCase())
+  );
+  
+  if (matchedProduct && matchedProduct.sizes && matchedProduct.sizes.length > 0) {
+    const cleanParsedSize = parsedSize.replace(/\s+/g, '').toLowerCase();
+    
+    let bestCandidate = null;
+    let minDistance = 999;
+    
+    for (const sizeCandidate of matchedProduct.sizes) {
+      const cleanCandidate = sizeCandidate.replace(/\s+/g, '').toLowerCase();
+      if (cleanCandidate === cleanParsedSize) return sizeCandidate; // exact match
+      
+      const distance = getLevenshteinDistance(cleanParsedSize, cleanCandidate);
+      if (distance < minDistance) {
+        minDistance = distance;
+        bestCandidate = sizeCandidate;
+      }
+    }
+    
+    if (bestCandidate && minDistance <= 2) {
+      console.log(`Auto-corrected OCR size typo: ${parsedSize} -> ${bestCandidate} (distance: ${minDistance})`);
+      return bestCandidate;
+    }
+  }
+  
+  return parsedSize;
+};
 
 /* ── component ────────────────────────────────── */
 const CheckInLogPanel = ({
@@ -163,6 +369,17 @@ const CheckInLogPanel = ({
   const [emailSuccess, setEmailSuccess] = useState(false);
   const [salesReps, setSalesReps] = useState([]);
   const [salesRepEmail, setSalesRepEmail] = useState('');
+
+  // ── OCR Tag Scanning State ──
+  const [scanningIndex, setScanningIndex] = useState(null);
+  const [scanningProgress, setScanningProgress] = useState(0);
+
+  // ── Tag Cropper State ──
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState('');
+  const [cropBox, setCropBox] = useState({ x: 30, y: 10, width: 40, height: 80 });
+  const [cropTargetIndex, setCropTargetIndex] = useState(null);
+  const [cropFile, setCropFile] = useState(null);
 
   // Load active selection sheet state from localStorage on mount (if page was refreshed)
   useEffect(() => {
@@ -491,10 +708,283 @@ const CheckInLogPanel = ({
     }
   };
 
+  const parseStoneLabel = (text, productList = []) => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+    // 1. Try standard single-line parsing first
+    for (const line of lines) {
+      const sizeRegex = /(\d{2,4})\s*[xX×*%]\s*(\d{2,4})/;
+      const sizeMatch = line.match(sizeRegex);
+
+      if (sizeMatch) {
+        const sizeStr = sizeMatch[0];
+        const sizeIndex = line.indexOf(sizeStr);
+        
+        const beforeSize = line.substring(0, sizeIndex).trim();
+        const afterSize = line.substring(sizeIndex + sizeStr.length).trim();
+        
+        if (beforeSize.length > 5 && afterSize.length > 3) {
+          const material = afterSize.replace(/^[/\s|\\:\-—–]+|[/\s|\\:\-—–]+$/g, '').trim()
+                                    .replace(/^[iIl1|/\s\\:\-—–]+\s+/, '').trim();
+          
+          let bundle = '';
+          const bundleMatch = beforeSize.match(/[\(\[\{](.+?)[\)\}\]]/);
+          if (bundleMatch) bundle = bundleMatch[1].trim();
+          
+          const beforeWithoutBundle = beforeSize.replace(/[\(\[\{].+?[\)\}\]]/g, ' ');
+          const tokens = beforeWithoutBundle.match(/[a-zA-Z0-9]+/g) || [];
+          const numberMatches = tokens
+            .map(t => {
+              const cleaned = t
+                .replace(/[Ss]/g, '5')
+                .replace(/[Oo]/g, '0')
+                .replace(/[IiIl]/g, '1')
+                .replace(/[Bb]/g, '8')
+                .replace(/[Gg]/g, '6')
+                .replace(/[Zz]/g, '2')
+                .replace(/[Tt]/g, '7');
+              return /^\d+$/.test(cleaned) ? cleaned : null;
+            })
+            .filter(Boolean);
+
+          let lot = '';
+          let slab = '';
+          if (numberMatches && numberMatches.length >= 2) {
+            lot = numberMatches[0];
+            slab = numberMatches[1];
+          } else if (numberMatches && numberMatches.length === 1) {
+            lot = numberMatches[0];
+          }
+
+          return { lot, slab, bundle, size: sizeStr, material };
+        }
+      }
+    }
+
+    // 2. Multiline Fallback Parser
+    let sizeStr = '';
+    let lot = '';
+    let slab = '';
+    let material = '';
+    let bundle = '';
+
+    const sizeRegex = /(\d{2,4})\s*[xX×*%]\s*(\d{2,4})/;
+    const fullTextJoined = lines.join(' ');
+    const sizeMatch = fullTextJoined.match(sizeRegex);
+    
+    if (sizeMatch) {
+      sizeStr = sizeMatch[0];
+    }
+
+    const sizeNumbers = sizeMatch ? [sizeMatch[1], sizeMatch[2]] : [];
+    const allNumericTokens = [];
+
+    lines.forEach(line => {
+      const cleanLine = sizeMatch && line.includes(sizeStr) ? line.replace(sizeStr, ' ') : line;
+      const tokens = cleanLine.match(/[a-zA-Z0-9]+/g) || [];
+      tokens.forEach(t => {
+        const cleaned = t
+          .replace(/[Ss]/g, '5')
+          .replace(/[Oo]/g, '0')
+          .replace(/[IiIl]/g, '1')
+          .replace(/[Bb]/g, '8')
+          .replace(/[Gg]/g, '6')
+          .replace(/[Zz]/g, '2')
+          .replace(/[Tt]/g, '7');
+        
+        if (/^\d+$/.test(cleaned) && cleaned.length >= 2) {
+          if (!sizeNumbers.includes(cleaned)) {
+            allNumericTokens.push(cleaned);
+          }
+        }
+      });
+    });
+
+    if (allNumericTokens.length >= 2) {
+      lot = allNumericTokens[0];
+      slab = allNumericTokens[1];
+    } else if (allNumericTokens.length === 1) {
+      lot = allNumericTokens[0];
+    }
+
+    // Find the Material Name
+    // First, check if any line contains a substring of a product name from our database
+    let databaseMatchedMaterial = '';
+    for (const line of lines) {
+      const match = productList.find(p => 
+        line.toLowerCase().includes(p.name.toLowerCase())
+      );
+      if (match) {
+        databaseMatchedMaterial = line.trim();
+        break;
+      }
+    }
+
+    if (databaseMatchedMaterial) {
+      material = databaseMatchedMaterial;
+    } else {
+      // Fallback: line with the most alphabetical characters
+      let maxLetterCount = 0;
+      lines.forEach(line => {
+        if (/^\d+$/.test(line.replace(/[\s\-\/]/g, ''))) return;
+        if (sizeMatch && line.includes(sizeStr) && line.replace(sizeStr, '').trim().length < 3) return;
+        
+        const letterCount = (line.match(/[a-zA-Z]/g) || []).length;
+        if (letterCount > maxLetterCount) {
+          maxLetterCount = letterCount;
+          material = line.trim();
+        }
+      });
+    }
+
+    // Clean size and leading/trailing delimiters from the material name
+    if (sizeStr && material.includes(sizeStr)) {
+      material = material.replace(sizeStr, '');
+    }
+    material = material.replace(/^[/\s|\\:\-—–]+|[/\s|\\:\-—–]+$/g, '').trim()
+                       .replace(/^[iIl1|/\s\\:\-—–]+\s+/, '').trim();
+
+    const bundleMatch = fullTextJoined.match(/[\(\[\{](.+?)[\)\}\]]/);
+    if (bundleMatch) {
+      bundle = bundleMatch[1].trim();
+    }
+
+    if (lot || slab || sizeStr || material) {
+      return {
+        lot,
+        slab,
+        bundle,
+        size: sizeStr,
+        material
+      };
+    }
+
+    return null;
+  };
+
+  const handleTagImageUpload = (idx, event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setCropFile(file);
+    setCropTargetIndex(idx);
+    setCropBox({ x: 30, y: 10, width: 40, height: 80 });
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setCropImageSrc(e.target.result);
+      setCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
+
+    event.target.value = null;
+  };
+
+  const executeTagOcrScan = async (idx, croppedBlob) => {
+    setCropperOpen(false);
+    setScanningIndex(idx);
+    setScanningProgress(0);
+
+    try {
+      const orientations = [0, 90, 270];
+      let bestText = '';
+      let parsed = null;
+
+      for (let i = 0; i < orientations.length; i++) {
+        const degrees = orientations[i];
+        console.log(`Scanning orientation: ${degrees}°...`);
+
+        // Resize and rotate image
+        const processedBlob = await preprocessImage(croppedBlob, degrees);
+
+        const { data: { text } } = await Tesseract.recognize(
+          processedBlob,
+          'eng',
+          {
+            logger: m => {
+              if (m.status === 'recognizing text') {
+                const overallProgress = Math.floor(((i + m.progress) / orientations.length) * 100);
+                setScanningProgress(overallProgress);
+              }
+            }
+          }
+        );
+
+        if (text && text.trim().length > bestText.trim().length) {
+          bestText = text;
+        }
+
+        parsed = parseStoneLabel(text, productList);
+        if (parsed) {
+          console.log(`Successfully parsed at ${degrees}° rotation!`, parsed);
+          break; // Found a valid layout, exit rotation loop
+        }
+      }
+
+      if (parsed) {
+        let finalLot = parsed.lot;
+        
+        // 1. Cross-reference Lot using Bundle Number
+        if (parsed.bundle) {
+          finalLot = correctLotUsingBundle(parsed.lot, parsed.bundle);
+        }
+        
+        // 2. Cross-reference Lot using Database Product Inventory
+        finalLot = findCloseInventoryLot(
+          parsed.material || selections[idx]?.material || "",
+          finalLot,
+          productList
+        );
+
+        // 3. Cross-reference Size using Database Product Sizes
+        const finalSize = findCloseInventorySize(
+          parsed.material || selections[idx]?.material || "",
+          parsed.size,
+          productList
+        );
+
+        setSelections(prev => prev.map((sel, i) => {
+          if (i === idx) {
+            return {
+              material: (parsed.material || sel.material).toUpperCase(),
+              lot: finalLot || sel.lot,
+              details: parsed.slab || sel.details,
+              size: finalSize || sel.size
+            };
+          }
+          return sel;
+        }));
+      } else {
+        const firstLine = bestText.split('\n').map(l => l.trim()).find(l => l.length > 0);
+        if (firstLine) {
+          setSelections(prev => prev.map((sel, i) => {
+            if (i === idx) {
+              return {
+                ...sel,
+                material: firstLine.toUpperCase()
+              };
+            }
+            return sel;
+          }));
+          alert("We recognized some text, but could not parse the exact 'Lot - Slab / (Bundle) / Size / Material' tag structure. We have filled the raw text into the Material Name field.");
+        } else {
+          alert("Could not recognize any text on this image. Please try a clearer picture.");
+        }
+      }
+    } catch (err) {
+      console.error('OCR recognition error:', err);
+      alert('Failed to scan tag image: ' + err.message);
+    } finally {
+      setScanningIndex(null);
+      setScanningProgress(0);
+    }
+  };
+
   const handleSelectionChange = (idx, field, value) => {
     setSelections(prev => prev.map((sel, i) => {
       if (i === idx) {
-        return { ...sel, [field]: value };
+        const val = field === 'material' ? value.toUpperCase() : value;
+        return { ...sel, [field]: val };
       }
       return sel;
     }));
@@ -1086,14 +1576,70 @@ const CheckInLogPanel = ({
                       <tr key={idx} className="selection-row-item">
                         <td className="selection-row-num">{idx + 1}</td>
                         <td>
-                          <input
-                            type="text"
-                            value={sel.material}
-                            onChange={(e) => handleSelectionChange(idx, 'material', e.target.value)}
-                            placeholder="Type material name..."
-                            className="selection-grid-input"
-                            list="products-datalist"
-                          />
+                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+                            <input
+                              type="text"
+                              value={sel.material}
+                              onChange={(e) => handleSelectionChange(idx, 'material', e.target.value)}
+                              placeholder="Type material name..."
+                              className="selection-grid-input"
+                              list="products-datalist"
+                              style={{ paddingRight: '2.2rem' }}
+                            />
+                            {scanningIndex === idx ? (
+                              <div style={{
+                                position: 'absolute',
+                                right: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '0.65rem',
+                                color: '#d4af37',
+                                background: 'rgba(0, 0, 0, 0.65)',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                border: '1px solid rgba(212, 175, 55, 0.3)',
+                                zIndex: 5
+                              }}>
+                                <Loader2 size={12} className="animate-spin" />
+                                <span style={{ fontWeight: 'bold' }}>{scanningProgress}%</span>
+                              </div>
+                            ) : (
+                              <label
+                                htmlFor={`tag-upload-${idx}`}
+                                className="scan-tag-btn"
+                                title="Upload Slab Tag Photo"
+                                style={{
+                                  position: 'absolute',
+                                  right: '6px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                  color: '#d4af37',
+                                  backgroundColor: 'rgba(212, 175, 55, 0.08)',
+                                  border: '1px solid rgba(212, 175, 55, 0.15)',
+                                  pointerEvents: scanningIndex !== null ? 'none' : 'auto',
+                                  opacity: scanningIndex !== null ? 0.5 : 1,
+                                  zIndex: 5
+                                }}
+                              >
+                                <Scan size={12} />
+                                <input
+                                  id={`tag-upload-${idx}`}
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => handleTagImageUpload(idx, e)}
+                                  disabled={scanningIndex !== null}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                            )}
+                          </div>
                         </td>
                         <td>
                           <input
@@ -1264,6 +1810,111 @@ const CheckInLogPanel = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {cropperOpen && (
+        <div className="tag-cropper-modal-overlay">
+          <div className="tag-cropper-modal-container">
+            <div className="tag-cropper-modal-header">
+              <h4>Crop Label Tag</h4>
+              <button
+                type="button"
+                onClick={() => setCropperOpen(false)}
+                className="btn-close-cropper-modal"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="tag-cropper-modal-body">
+              <p className="cropper-description">
+                Position and size the crop frame around a single slab label text. This isolates the label from background noise.
+              </p>
+              
+              <div className="cropper-image-wrapper" style={{ display: 'flex', justifyContent: 'center' }}>
+                <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+                  <img src={cropImageSrc} alt="Tag preview" className="cropper-preview-img" style={{ display: 'block', maxWidth: '100%', maxHeight: '50vh', objectFit: 'contain' }} />
+                  <div className="cropper-overlay-mask">
+                    <div className="cropper-box" style={{
+                      left: `${cropBox.x}%`,
+                      top: `${cropBox.y}%`,
+                      width: `${cropBox.width}%`,
+                      height: `${cropBox.height}%`
+                    }} />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="cropper-controls">
+                <div className="control-group">
+                  <label>Position X: {cropBox.x}%</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max={100 - cropBox.width}
+                    value={cropBox.x}
+                    onChange={(e) => setCropBox(prev => ({ ...prev, x: parseInt(e.target.value) }))}
+                  />
+                </div>
+                <div className="control-group">
+                  <label>Position Y: {cropBox.y}%</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max={100 - cropBox.height}
+                    value={cropBox.y}
+                    onChange={(e) => setCropBox(prev => ({ ...prev, y: parseInt(e.target.value) }))}
+                  />
+                </div>
+                <div className="control-group">
+                  <label>Width: {cropBox.width}%</label>
+                  <input
+                    type="range"
+                    min="10"
+                    max={100 - cropBox.x}
+                    value={cropBox.width}
+                    onChange={(e) => setCropBox(prev => ({ ...prev, width: parseInt(e.target.value) }))}
+                  />
+                </div>
+                <div className="control-group">
+                  <label>Height: {cropBox.height}%</label>
+                  <input
+                    type="range"
+                    min="10"
+                    max={100 - cropBox.y}
+                    value={cropBox.height}
+                    onChange={(e) => setCropBox(prev => ({ ...prev, height: parseInt(e.target.value) }))}
+                  />
+                </div>
+              </div>
+              
+              <div className="tag-cropper-modal-actions">
+                <button
+                  type="button"
+                  onClick={() => setCropperOpen(false)}
+                  className="btn-cropper-modal-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const croppedBlob = await getCroppedImageBlob(cropFile, cropBox.x, cropBox.y, cropBox.width, cropBox.height);
+                      executeTagOcrScan(cropTargetIndex, croppedBlob);
+                    } catch (err) {
+                      console.error("Cropping failed:", err);
+                      alert("Failed to crop image. Please try again.");
+                    }
+                  }}
+                  className="btn-cropper-modal-scan"
+                >
+                  Scan Selected Area
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
