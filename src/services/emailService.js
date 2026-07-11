@@ -124,7 +124,7 @@ export async function sendCheckInAlertEmail(checkIn) {
 
   const subject = `🔔 Front Desk Check-In Alert: ${name}`;
 
-  // Priority routing: krish@easystones.com first, fallback to ponugupatimaruthi@gmail.com
+  // Priority routing: krish@easystones.com first, fallback to krisheasystones@gmail.com
   const sentToKrish = await sendEmail({
     to: 'krish@easystones.com',
     subject,
