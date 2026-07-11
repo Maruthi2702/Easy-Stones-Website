@@ -133,9 +133,9 @@ export async function sendCheckInAlertEmail(checkIn) {
   });
 
   if (!sentToKrish.success) {
-    console.log(`⚠️ Failed to send check-in alert to krish@easystones.com. Retrying fallback to ponugupatimaruthi@gmail.com...`);
+    console.log(`⚠️ Failed to send check-in alert to krish@easystones.com. Retrying fallback to krisheasystones@gmail.com...`);
     await sendEmail({
-      to: 'ponugupatimaruthi@gmail.com',
+      to: 'krisheasystones@gmail.com',
       subject,
       html: emailHtml,
       defaultSenderName: 'Easy Stones Check-In'
@@ -257,7 +257,7 @@ export async function sendSelectionSheetEmail(checkIn, recipientEmail) {
 export async function sendContactFormEmail(contactSubmission) {
   const { name, company, email, phone, message } = contactSubmission;
   
-  const rawRecipients = process.env.CONTACT_ALERT_EMAIL || process.env.CHECKIN_ALERT_EMAIL || 'krish@easystones.com, ponugupatimaruthi@gmail.com';
+  const rawRecipients = process.env.CONTACT_ALERT_EMAIL || process.env.CHECKIN_ALERT_EMAIL || 'krish@easystones.com, krisheasystones@gmail.com';
   const recipients = rawRecipients.split(',').map(e => e.trim()).filter(Boolean);
 
   const emailHtml = `
