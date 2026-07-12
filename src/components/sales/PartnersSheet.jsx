@@ -438,7 +438,6 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
 
     const emailAllContacts = async () => {
         try {
-            setLoading(true);
             const url = new URL(`${API_URL}/api/partners`, window.location.origin);
             url.searchParams.append('limit', -1);
             url.searchParams.append('sortBy', sortBy);
@@ -487,8 +486,6 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         } catch (error) {
             console.error('Error copying emails:', error);
             alert('Failed to copy emails');
-        } finally {
-            setLoading(false);
         }
     };
 
