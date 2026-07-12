@@ -223,7 +223,7 @@
 .letterhead-logo-box {
     padding: 0;
     width: 200px;
-    height: 105px; /* Crop to show only the MODA QUARTZ white portion */
+    height: 82px; /* Crop to show only the MODA QUARTZ white portion */
     min-width: 180px;
     flex-shrink: 0;
     display: flex;
@@ -273,15 +273,39 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    font-size: 0.78rem;
-    line-height: 1.4;
-    color: #000;
-    font-weight: 500;
+    gap: 3px;
     flex-grow: 1;
 }
 
-.contact-phone, .contact-email, .contact-address, .contact-city, .contact-website {
-    display: block;
+.contact-phone {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #111111;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+}
+
+.contact-email {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #4b5563;
+}
+
+.contact-address, .contact-city {
+    font-size: 0.76rem;
+    font-weight: 400;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.contact-website {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b45309; /* Elegant dark gold */
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+    text-transform: lowercase;
 }
 
 .letterhead-distribution {
