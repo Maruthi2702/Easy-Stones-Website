@@ -109,6 +109,19 @@ const CheckInPage = () => {
       setError('Your Name, Phone Number, Company/Contact Name, and Company Phone Number are mandatory');
       return;
     }
+
+    const cleanUserPhone = formData.phone.replace(/\D/g, '');
+    const cleanFabPhone = formData.fabricatorPhone.replace(/\D/g, '');
+
+    if (cleanUserPhone.length < 10) {
+      setError('Please enter a valid 10-digit Phone Number');
+      return;
+    }
+    if (cleanFabPhone.length < 10) {
+      setError('Please enter a valid 10-digit Company Phone Number');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
