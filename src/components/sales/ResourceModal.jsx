@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, Link, Download, Plus, FileText } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
 import CustomDatePicker from '../CustomDatePicker';
@@ -43,7 +44,7 @@ const ResourceModal = ({
         return [];
     };
 
-    return (
+    return createPortal(
         <div className="modal-overlay" onClick={() => setShowResourceModal(false)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
@@ -269,7 +270,8 @@ const ResourceModal = ({
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
