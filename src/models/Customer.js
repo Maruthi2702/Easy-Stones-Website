@@ -7,7 +7,7 @@ const visitSchema = new mongoose.Schema({
   notes: String,
   outcome: String,
   followUp: String,
-  followUpDate: Date,
+  followUpDate: String,
   managerComment: String,
   headquartersComment: String,
   image: mongoose.Schema.Types.Mixed,  // Use Mixed to support both legacy Strings and new Arrays
@@ -74,7 +74,7 @@ const customerSchema = new mongoose.Schema({
     type: String,
     default: '0'
   },
-  followUpDate: Date,
+  followUpDate: String,
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
