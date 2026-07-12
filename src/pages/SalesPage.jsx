@@ -113,6 +113,21 @@ const SalesPage = () => {
         fabricatorName: '',
         fabricatorPhone: ''
     });
+    const [checkInTodayCount, setCheckInTodayCount] = useState(0);
+    const [checkInMonthCount, setCheckInMonthCount] = useState(0);
+
+    const fetchCheckInStats = async () => {
+        try {
+            const res = await fetch(`${API_URL}/api/checkin/stats`, { credentials: 'include' });
+            if (res.ok) {
+                const data = await res.json();
+                setCheckInTodayCount(data.todayCount || 0);
+                setCheckInMonthCount(data.monthCount || 0);
+            }
+        } catch (err) {
+            console.error('Error fetching check-in stats:', err);
+        }
+    };
     
     const [showDashboard, setShowDashboard] = useState(true);
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
@@ -243,6 +258,7 @@ const SalesPage = () => {
     const fetchCheckIns = async () => {
         setCheckInsLoading(true);
         try {
+            fetchCheckInStats();
             const params = new URLSearchParams({
                 page: checkInPage,
                 limit: checkInLimit,
@@ -2581,6 +2597,8 @@ const SalesPage = () => {
                 onSearchChange={(val) => { setCheckInSearch(val); setCheckInPage(1); }}
                 lastUpdated={null}
                 totalCount={checkIns.length}
+                todayCount={checkInTodayCount}
+                monthCount={checkInMonthCount}
                 currentPage={checkInPage}
                 totalPages={checkInTotalPages}
                 onPageChange={setCheckInPage}
