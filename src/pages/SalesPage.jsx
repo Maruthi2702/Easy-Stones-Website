@@ -4376,7 +4376,7 @@ const SalesPage = () => {
                     const webcalFeedUrl = calendarFeedUrl.replace(/^https?:\/\//, 'webcal://').replace(/^http?:\/\//, 'webcal://');
 
                     return (
-                        <div className="modal-overlay" style={{ zIndex: 99999 }}>
+                        <div className="modal-overlay" style={{ zIndex: 2147483647 }}>
                             <div className="modal-content" style={{ maxWidth: '550px', minHeight: '350px' }}>
                                 <div className="modal-header">
                                     <h2>📅 SYNC CALENDAR</h2>
@@ -4646,7 +4646,7 @@ const SalesPage = () => {
 
                 {/* Link Partner Modal */}
                 {showLinkPartnerModal && (
-                    <div className="modal-overlay" style={{ zIndex: 99999 }}>
+                    <div className="modal-overlay" style={{ zIndex: 2147483647 }}>
                         <div className="modal-content" style={{ maxWidth: '500px', maxHeight: '420px', minHeight: '300px' }}>
                             <div className="modal-header">
                                 <h2>LINK PARTNER</h2>

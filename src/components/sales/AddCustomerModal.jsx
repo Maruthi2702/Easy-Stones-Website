@@ -206,7 +206,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
     const isEditMode = !!editingCustomer;
 
     return (
-        <div className="modal-overlay add-customer-modal-overlay" onClick={handleClose} style={{ zIndex: 99999 }}>
+        <div className="modal-overlay add-customer-modal-overlay" onClick={handleClose} style={{ zIndex: 2147483647 }}>
             <div className="modal-content add-customer-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
                 <div className="modal-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

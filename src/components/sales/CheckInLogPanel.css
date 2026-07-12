@@ -1095,7 +1095,7 @@ table.clp-table {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 99999 !important; /* CRITICAL: Must be higher than the main website header (z-index: 1100). Do not lower this value otherwise the close button and title will be covered by the header. */
+  z-index: 2147483647 !important; /* CRITICAL: Must be higher than the main website header (z-index: 1100). Do not lower this value otherwise the close button and title will be covered by the header. */
   padding: 1rem;
 }
 
@@ -1772,7 +1772,7 @@ table.clp-table {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 99999;
+  z-index: 2147483647;
   animation: fadeIn 0.25s ease;
 }
 
@@ -2752,7 +2752,7 @@ table.clp-table {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 99999;
+  z-index: 2147483647;
   backdrop-filter: blur(8px);
   padding: 20px;
 }
