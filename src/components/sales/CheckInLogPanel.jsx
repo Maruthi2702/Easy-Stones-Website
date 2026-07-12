@@ -24,7 +24,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Clock, Search, Download, Loader2, Calendar,
-  RefreshCw,
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
   Save, AlertTriangle, Printer, Sun, Moon, Filter, Scan
 } from 'lucide-react';
@@ -1219,14 +1218,6 @@ const CheckInLogPanel = ({
               Export
             </button>
           )}
-          <button
-            className="clp-refresh-btn"
-            onClick={onRefresh}
-            disabled={refreshing || loading}
-          >
-            <RefreshCw size={14} className={refreshing ? 'clp-spin' : ''} />
-            {refreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
           <button
             type="button"
             className="clp-theme-btn"
