@@ -4130,7 +4130,9 @@ const SalesPage = () => {
 
                 {/* Calendar Sync Modal */}
                 {showCalendarSyncModal && (() => {
-                    const calendarFeedUrl = `${API_URL || window.location.origin}/api/calendar/feed/${currentUserId}.ics`;
+                    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                    const baseDomain = isLocal ? 'http://localhost:3001' : (API_URL || window.location.origin);
+                    const calendarFeedUrl = `${baseDomain}/api/calendar/feed/${currentUserId}.ics`;
                     const webcalFeedUrl = calendarFeedUrl.replace(/^https?:\/\//, 'webcal://').replace(/^http?:\/\//, 'webcal://');
 
                     return (
