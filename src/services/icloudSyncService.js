@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import Schedule from '../models/Schedule.js';
 import Customer from '../models/Customer.js';
+import https from 'https';
 
 // Resolves relative CalDAV paths (like /123456/principal/) to full URLs
 const resolveUrl = (baseUrl, href) => {
@@ -10,27 +11,52 @@ const resolveUrl = (baseUrl, href) => {
   return origin + (href.startsWith('/') ? href : '/' + href);
 };
 
-// Helper: Make WebDAV/CalDAV HTTP Requests with Basic Authentication
-const makeDavRequest = async (url, method, xmlBody, username, password, depth = '0') => {
-  const auth = Buffer.from(`${username}:${password}`).toString('base64');
-  const headers = {
-    'Authorization': `Basic ${auth}`,
-    'Content-Type': 'application/xml; charset=utf-8',
-    'Depth': depth
-  };
+// Helper: Make WebDAV/CalDAV HTTP Requests with Basic Authentication via native https module
+const makeDavRequest = (url, method, body, username, password, depth = '0', contentType = 'application/xml; charset=utf-8') => {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const auth = Buffer.from(`${username}:${password}`).toString('base64');
+    
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port || 443,
+      path: urlObj.pathname + urlObj.search,
+      method: method,
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Content-Type': contentType,
+        'Depth': depth,
+        'User-Agent': 'EasyStonesCalDAVClient/1.0'
+      }
+    };
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: xmlBody
+    if (body) {
+      options.headers['Content-Length'] = Buffer.byteLength(body);
+    }
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(data);
+        } else {
+          reject(new Error(`iCloud CalDAV server returned status ${res.statusCode}: ${data}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    if (body) {
+      req.write(body);
+    }
+    req.end();
   });
-
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => '');
-    throw new Error(`iCloud CalDAV error: ${res.statusText} (${res.status}) - ${errBody}`);
-  }
-
-  return res.text();
 };
 
 // Discover principal and calendar-home-set URLs for an iCloud user
@@ -293,15 +319,7 @@ export const syncICloudCalendar = async (userId) => {
       const eventUrl = icloudCalendarUrl.endsWith('/') ? `${icloudCalendarUrl}${uid}.ics` : `${icloudCalendarUrl}/${uid}.ics`;
 
       // Upload/Sync event to iCloud server via PUT request
-      const auth = Buffer.from(`${icloudUsername}:${icloudPassword}`).toString('base64');
-      await fetch(eventUrl, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Basic ${auth}`,
-          'Content-Type': 'text/calendar; charset=utf-8'
-        },
-        body: icsEvent
-      });
+      await makeDavRequest(eventUrl, 'PUT', icsEvent, icloudUsername, icloudPassword, '0', 'text/calendar; charset=utf-8');
 
       if (!syncedMatch) {
         schedule.notes = `${schedule.notes || ''}\n\n[Synced to iCloud UID: ${uid}]`;
