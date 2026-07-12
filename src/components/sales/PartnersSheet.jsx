@@ -436,6 +436,55 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         }
     };
 
+    const emailAllContacts = async () => {
+        try {
+            setLoading(true);
+            const url = new URL(`${API_URL}/api/partners`, window.location.origin);
+            url.searchParams.append('limit', -1);
+            url.searchParams.append('sortBy', sortBy);
+            url.searchParams.append('sortOrder', sortOrder);
+            
+            const levelParam = filterLevels.join(',');
+            const typeParam = filterTypes.join(',');
+            const cityParam = filterCities.join(',');
+            const statusParam = filterStatuses.join(',');
+            
+            if (debouncedSearch) url.searchParams.append('search', debouncedSearch);
+            if (levelParam)     url.searchParams.append('level', levelParam);
+            if (typeParam)      url.searchParams.append('type', typeParam);
+            if (cityParam)      url.searchParams.append('city', cityParam);
+            if (statusParam)    url.searchParams.append('status', statusParam);
+
+            if (activeTab === 'fabricators') {
+                url.searchParams.append('type', 'Fabricator');
+            } else {
+                url.searchParams.append('typeExclude', 'Fabricator');
+            }
+
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const allPartners = data.partners || [];
+                const emails = allPartners.map(p => p.email).filter(Boolean);
+                if (emails.length === 0) {
+                    alert('No emails found for the current filter.');
+                    return;
+                }
+                // Open user's default email client (e.g. Outlook, Mail) with BCC line prefilled
+                window.location.href = `mailto:?bcc=${emails.join(',')}`;
+            }
+        } catch (error) {
+            console.error('Error fetching emails:', error);
+            alert('Failed to fetch emails');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const sortedPartners = [...partners].sort((a, b) => {
         const aLow = a.status === 'Different Sales Person' || a.status === 'Not Interested';
         const bLow = b.status === 'Different Sales Person' || b.status === 'Not Interested';
@@ -510,6 +559,10 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     <button className="export-btn" onClick={exportToExcel}>
                         <Download size={18} />
                         Export
+                    </button>
+                    <button className="export-btn" onClick={emailAllContacts} style={{ gap: '6px' }} title="Compose an email to all fabricators/partners matching current filters">
+                        <Mail size={18} />
+                        Email All
                     </button>
                     <div className="table-search">
                         <Search className="search-icon" size={18} />
