@@ -17,3 +17,7 @@ services:
         sync: false
       - key: FRONTEND_URL
         value: https://easystones.onrender.com
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
