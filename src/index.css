@@ -126,3 +126,8 @@ button {
   }
 }
 
+/* Global modal backdrop z-index override */
+.modal-overlay {
+  z-index: 2147483647 !important;
+}
+

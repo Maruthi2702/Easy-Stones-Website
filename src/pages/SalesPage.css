@@ -792,7 +792,6 @@
 
   .modal-overlay {
     padding-top: 96px; /* Leave room for site header if stacking context fails */
-    z-index: 2147483647;
   }
 
   /* Mobile Header Adjustments */
@@ -1347,7 +1346,6 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  z-index: 2147483647; /* Absolute highest possible z-index value */
   padding: 1.5rem 1rem;
   padding-top: calc(96px + 1.5rem); /* Push content below fixed site header */
   overflow-y: auto;
