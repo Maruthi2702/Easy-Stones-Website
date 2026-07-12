@@ -403,14 +403,29 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                             />
                         </div>
                         <div className="form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: isViewMode ? 'default' : 'pointer', marginTop: '1.25rem' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={form.receiveMarketing}
-                                    onChange={(e) => setForm({ ...form, receiveMarketing: e.target.checked })}
-                                    disabled={isViewMode}
-                                    style={{ width: '18px', height: '18px', cursor: isViewMode ? 'default' : 'pointer' }}
-                                />
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: isViewMode ? 'default' : 'pointer', marginTop: '1.25rem' }}>
+                                <div 
+                                    onClick={() => !isViewMode && setForm({ ...form, receiveMarketing: !form.receiveMarketing })}
+                                    style={{
+                                        width: '20px',
+                                        height: '20px',
+                                        borderRadius: '4px',
+                                        border: form.receiveMarketing ? '2px solid #10b981' : '2px solid #ef4444',
+                                        backgroundColor: form.receiveMarketing ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: isViewMode ? 'default' : 'pointer',
+                                        userSelect: 'none',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        color: form.receiveMarketing ? '#10b981' : '#ef4444',
+                                        transition: 'all 0.2s ease',
+                                        opacity: isViewMode ? 0.75 : 1
+                                    }}
+                                >
+                                    {form.receiveMarketing ? '✓' : '✕'}
+                                </div>
                                 <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Receive Marketing Emails</span>
                             </label>
                         </div>
