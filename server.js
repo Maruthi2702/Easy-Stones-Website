@@ -4254,7 +4254,7 @@ app.get('/api/admin/customers', verifyToken, async (req, res) => {
 // Admin: Create customer
 app.post('/api/admin/customers', verifyToken, async (req, res) => {
   try {
-    const { contactName, email, password, phone, company, address, priceLevel } = req.body;
+    const { contactName, email, password, phone, company, address, priceLevel, marketingEmail, receiveMarketing } = req.body;
 
     // Check if customer already exists
     const existingCustomer = await Customer.findOne({ email });
@@ -4271,7 +4271,9 @@ app.post('/api/admin/customers', verifyToken, async (req, res) => {
       company,
       address,
       priceLevel: priceLevel || 1,
-      isVerified: true // Admin created accounts are verified by default
+      isVerified: true, // Admin created accounts are verified by default
+      marketingEmail: marketingEmail || email,
+      receiveMarketing: receiveMarketing !== undefined ? receiveMarketing : true
     });
 
     await customer.save();
@@ -4294,7 +4296,7 @@ app.post('/api/admin/customers', verifyToken, async (req, res) => {
 // Admin: Update customer
 app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
   try {
-    const { contactName, email, password, phone, company, address, priceLevel } = req.body;
+    const { contactName, email, password, phone, company, address, priceLevel, marketingEmail, receiveMarketing } = req.body;
     const customerId = req.params.id;
 
     const customer = await Customer.findById(customerId);
@@ -4310,6 +4312,9 @@ app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
     customer.company = company || customer.company;
     customer.address = address || customer.address;
     customer.priceLevel = priceLevel || customer.priceLevel;
+
+    if (marketingEmail !== undefined) customer.marketingEmail = marketingEmail;
+    if (receiveMarketing !== undefined) customer.receiveMarketing = receiveMarketing;
 
     // Only update password if provided
     if (password && password.trim() !== '') {
