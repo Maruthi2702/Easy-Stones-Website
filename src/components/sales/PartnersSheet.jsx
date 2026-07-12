@@ -468,12 +468,22 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             if (response.ok) {
                 const data = await response.json();
                 const allPartners = data.partners || [];
-                // Filter out any contacts that are working with another sales rep
-                const filteredPartners = allPartners.filter(p => p.status !== 'Different Sales Person');
-                const emails = filteredPartners.map(p => p.email).filter(Boolean);
+                
+                // Filter eligible contacts:
+                // 1. Exclude working with another sales rep
+                // 2. Exclude opted-out of marketing
+                const filteredPartners = allPartners.filter(p => 
+                    p.status !== 'Different Sales Person' && 
+                    p.receiveMarketing !== false
+                );
+                
+                // Map to marketingEmail (fallback to normal email if blank)
+                const emails = filteredPartners
+                    .map(p => (p.marketingEmail && p.marketingEmail.trim() !== '' ? p.marketingEmail.trim() : p.email))
+                    .filter(Boolean);
                 
                 if (emails.length === 0) {
-                    alert('No eligible email addresses found for the current filters.');
+                    alert('No eligible marketing email addresses found for the current filters.');
                     return;
                 }
                 
@@ -481,7 +491,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 const emailList = emails.join('; ');
                 await navigator.clipboard.writeText(emailList);
                 
-                alert(`Successfully copied ${emails.length} email addresses to your clipboard!\n\nYou can now paste them directly into the To/Bcc field in Outlook.`);
+                alert(`Successfully copied ${emails.length} marketing email addresses to your clipboard!\n\nYou can now paste them directly into the To/Bcc field in Outlook.`);
             }
         } catch (error) {
             console.error('Error copying emails:', error);

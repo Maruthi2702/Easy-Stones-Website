@@ -274,6 +274,23 @@ async function startServer() {
       console.error('Error running status update migration:', migError);
     }
 
+    // Database migration: Copy legacy email to marketingEmail if not exists, and set receiveMarketing default to true
+    try {
+      const unmigratedCount = await Customer.countDocuments({ marketingEmail: { $exists: false } });
+      if (unmigratedCount > 0) {
+        console.log(`🔄 Migrating ${unmigratedCount} customers to initialize marketingEmail and receiveMarketing...`);
+        const result = await Customer.updateMany(
+          { marketingEmail: { $exists: false } },
+          [
+            { $set: { marketingEmail: "$email", receiveMarketing: true } }
+          ]
+        );
+        console.log(`✅ Successfully initialized marketing fields for ${result.modifiedCount} customers.`);
+      }
+    } catch (migError) {
+      console.error('Error running marketing email migration:', migError);
+    }
+
     httpServer.listen(PORT, () => {
       console.log(`🚀 Backend server running on port ${PORT}`);
 
@@ -2665,6 +2682,8 @@ app.post('/api/partners', verifyAnyAuth, async (req, res) => {
     const newCustomer = new Customer({
       ...req.body,
       contactName: req.body.contactName || req.body.name || 'Unknown', // Map contactName/name to contactName
+      marketingEmail: req.body.marketingEmail || req.body.email || '',
+      receiveMarketing: req.body.receiveMarketing !== undefined ? req.body.receiveMarketing : true,
       address: {
         street: req.body.address?.street || '',
         city: req.body.address?.city || req.body.city || '',

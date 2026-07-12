@@ -16,6 +16,8 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
         },
         phone: '',
         email: '',
+        marketingEmail: '',
+        receiveMarketing: true,
         notes: '',
         status: 'Onboarded',
         level: 'Level - 3',
@@ -45,6 +47,8 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                 },
                 phone: activeCustomer.phone || '',
                 email: activeCustomer.email || '',
+                marketingEmail: activeCustomer.marketingEmail || activeCustomer.email || '',
+                receiveMarketing: activeCustomer.receiveMarketing !== undefined ? activeCustomer.receiveMarketing : true,
                 notes: activeCustomer.notes || activeCustomer.quickNote || '',
                 status: activeCustomer.status || 'Onboarded',
                 level: activeCustomer.level || 'Level - 3',
@@ -64,6 +68,8 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                 },
                 phone: '',
                 email: '',
+                marketingEmail: '',
+                receiveMarketing: true,
                 notes: '',
                 status: 'Onboarded',
                 level: 'Level - 3',
@@ -141,7 +147,11 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
             if (parsedData.customerName) { updatedForm.customerName = parsedData.customerName; foundSomething = true; }
             if (parsedData.company) { updatedForm.company = parsedData.company; foundSomething = true; }
             if (parsedData.phone) { updatedForm.phone = parsedData.phone; foundSomething = true; }
-            if (parsedData.email) { updatedForm.email = parsedData.email; foundSomething = true; }
+            if (parsedData.email) { 
+                updatedForm.email = parsedData.email; 
+                updatedForm.marketingEmail = parsedData.email; 
+                foundSomething = true; 
+            }
 
             if (parsedData.address.street) { updatedForm.address.street = parsedData.address.street; foundSomething = true; }
             if (parsedData.address.city) { updatedForm.address.city = parsedData.address.city; foundSomething = true; }
@@ -378,6 +388,31 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                                 placeholder="Email address"
                                 disabled={isViewMode}
                             />
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                            <label>Marketing Email</label>
+                            <input
+                                type="email"
+                                value={form.marketingEmail}
+                                onChange={(e) => setForm({ ...form, marketingEmail: e.target.value })}
+                                placeholder={form.email || "Marketing Email address"}
+                                disabled={isViewMode}
+                            />
+                        </div>
+                        <div className="form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: isViewMode ? 'default' : 'pointer', marginTop: '1.25rem' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={form.receiveMarketing}
+                                    onChange={(e) => setForm({ ...form, receiveMarketing: e.target.checked })}
+                                    disabled={isViewMode}
+                                    style={{ width: '18px', height: '18px', cursor: isViewMode ? 'default' : 'pointer' }}
+                                />
+                                <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Receive Marketing Emails</span>
+                            </label>
                         </div>
                     </div>
 

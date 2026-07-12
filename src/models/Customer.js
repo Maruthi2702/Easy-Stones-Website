@@ -37,6 +37,15 @@ const customerSchema = new mongoose.Schema({
     unique: true,
     lowercase: true
   },
+  marketingEmail: {
+    type: String,
+    lowercase: true,
+    required: false
+  },
+  receiveMarketing: {
+    type: Boolean,
+    default: true
+  },
   password: {
     type: String,
     required: false
