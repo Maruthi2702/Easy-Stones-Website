@@ -444,9 +444,159 @@ const SalesPage = () => {
         }
     };
 
+    const [icloudSyncStatus, setIcloudSyncStatus] = useState({ connected: false, email: '', calendarName: '' });
+    const [isSyncingICloud, setIsSyncingICloud] = useState(false);
+    const [isConnectingICloud, setIsConnectingICloud] = useState(false);
+    const [icloudAppleId, setIcloudAppleId] = useState('');
+    const [icloudAppSpecificPassword, setIcloudAppSpecificPassword] = useState('');
+    const [discoveredCalendars, setDiscoveredCalendars] = useState([]);
+    const [selectedCalendarUrl, setSelectedCalendarUrl] = useState('');
+    const [icloudError, setIcloudError] = useState('');
+
+    const fetchICloudSyncStatus = async () => {
+        try {
+            const res = await fetch(`${API_URL}/api/auth/icloud/status`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include'
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setIcloudSyncStatus(data);
+            }
+        } catch (err) {
+            console.error('Error fetching iCloud status:', err);
+        }
+    };
+
+    const handleConnectICloudStep1 = async (e) => {
+        if (e) e.preventDefault();
+        if (!icloudAppleId || !icloudAppSpecificPassword) {
+            setIcloudError('Apple ID and App-Specific Password are required.');
+            return;
+        }
+        setIsConnectingICloud(true);
+        setIcloudError('');
+        try {
+            const res = await fetch(`${API_URL}/api/auth/icloud/connect`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    appleId: icloudAppleId,
+                    appSpecificPassword: icloudAppSpecificPassword
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                if (data.calendars && data.calendars.length > 0) {
+                    setDiscoveredCalendars(data.calendars);
+                    setSelectedCalendarUrl(data.calendars[0].url);
+                } else {
+                    setIcloudError('No writeable calendars found on this iCloud account.');
+                }
+            } else {
+                setIcloudError(data.message || 'Failed to authenticate with iCloud.');
+            }
+        } catch (err) {
+            console.error('iCloud discovery error:', err);
+            setIcloudError('Network error connecting to iCloud.');
+        } finally {
+            setIsConnectingICloud(false);
+        }
+    };
+
+    const handleConnectICloudStep2 = async () => {
+        const selectedCal = discoveredCalendars.find(c => c.url === selectedCalendarUrl);
+        if (!selectedCal) return;
+        
+        setIsConnectingICloud(true);
+        setIcloudError('');
+        try {
+            const res = await fetch(`${API_URL}/api/auth/icloud/connect`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    appleId: icloudAppleId,
+                    appSpecificPassword: icloudAppSpecificPassword,
+                    calendarUrl: selectedCal.url,
+                    calendarName: selectedCal.name
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setIcloudSyncStatus({
+                    connected: true,
+                    email: icloudAppleId,
+                    calendarName: data.calendarName
+                });
+                setDiscoveredCalendars([]);
+                setIcloudAppleId('');
+                setIcloudAppSpecificPassword('');
+                alert('iCloud Calendar linked successfully!');
+                if (fetchSchedules) fetchSchedules();
+            } else {
+                setIcloudError(data.message || 'Failed to save calendar configuration.');
+            }
+        } catch (err) {
+            console.error('iCloud save error:', err);
+            setIcloudError('Network error saving calendar.');
+        } finally {
+            setIsConnectingICloud(false);
+        }
+    };
+
+    const handleSyncICloudCalendar = async () => {
+        try {
+            setIsSyncingICloud(true);
+            const res = await fetch(`${API_URL}/api/auth/icloud/sync`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include'
+            });
+            if (res.ok) {
+                alert('iCloud Calendar synchronized successfully!');
+                if (fetchSchedules) fetchSchedules();
+            } else {
+                alert('Failed to sync iCloud Calendar.');
+            }
+        } catch (err) {
+            console.error('iCloud sync error:', err);
+            alert('Network error during synchronization.');
+        } finally {
+            setIsSyncingICloud(false);
+        }
+    };
+
+    const handleDisconnectICloudCalendar = async () => {
+        if (!window.confirm('Are you sure you want to disconnect iCloud Calendar? Your iPhone events will no longer sync.')) {
+            return;
+        }
+        try {
+            const res = await fetch(`${API_URL}/api/auth/icloud/disconnect`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include'
+            });
+            if (res.ok) {
+                setIcloudSyncStatus({ connected: false, email: '', calendarName: '' });
+                alert('iCloud Calendar disconnected.');
+            }
+        } catch (err) {
+            console.error('iCloud disconnect error:', err);
+        }
+    };
+
     useEffect(() => {
         if (showCalendarSyncModal) {
             fetchGoogleSyncStatus();
+            fetchICloudSyncStatus();
         }
     }, [showCalendarSyncModal]);
 
@@ -4271,6 +4421,136 @@ const SalesPage = () => {
                                             >
                                                 🔗 Link Google Calendar
                                             </button>
+                                        )}
+                                    </div>
+
+                                    {/* Apple iCloud Calendar Section */}
+                                    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '1rem', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                        <h3 style={{ margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
+                                            🍏 Two-Way Apple iCloud Sync
+                                        </h3>
+                                        <p style={{ fontSize: '0.85rem', margin: '0 0 1rem 0', opacity: 0.8, lineHeight: '1.4' }}>
+                                            Link your iPhone iCloud calendar directly. Syncs events both ways instantly without Google developer accounts!
+                                        </p>
+                                        
+                                        {icloudSyncStatus.connected ? (
+                                            <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', background: 'rgba(0,180,0,0.1)', padding: '8px 12px', borderRadius: '4px', border: '1px solid rgba(0,180,0,0.2)' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                        <span style={{ fontSize: '0.85rem', color: '#8cd48c', fontWeight: 'bold' }}>
+                                                            Linked: {icloudSyncStatus.email}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                                                            Calendar: {icloudSyncStatus.calendarName}
+                                                        </span>
+                                                    </div>
+                                                    <button 
+                                                        type="button" 
+                                                        className="btn-secondary" 
+                                                        onClick={handleDisconnectICloudCalendar}
+                                                        style={{ padding: '4px 10px', fontSize: '0.75rem', borderColor: '#ff6b6b', color: '#ff6b6b' }}
+                                                    >
+                                                        Disconnect
+                                                    </button>
+                                                </div>
+                                                <button 
+                                                    type="button" 
+                                                    className="btn-primary" 
+                                                    disabled={isSyncingICloud}
+                                                    onClick={handleSyncICloudCalendar}
+                                                    style={{ width: '100%', padding: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}
+                                                >
+                                                    {isSyncingICloud ? 'Syncing...' : '🔄 Sync Now'}
+                                                </button>
+                                            </div>
+                                        ) : discoveredCalendars.length > 0 ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Select Calendar to Sync:</label>
+                                                <select 
+                                                    value={selectedCalendarUrl} 
+                                                    onChange={(e) => setSelectedCalendarUrl(e.target.value)}
+                                                    style={{
+                                                        width: '100%',
+                                                        background: 'rgba(0,0,0,0.3)',
+                                                        border: '1px solid rgba(255,255,255,0.2)',
+                                                        borderRadius: '4px',
+                                                        padding: '8px',
+                                                        color: '#fff'
+                                                    }}
+                                                >
+                                                    {discoveredCalendars.map((cal, idx) => (
+                                                        <option key={idx} value={cal.url} style={{ background: '#222', color: '#fff' }}>
+                                                            {cal.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <button 
+                                                    type="button" 
+                                                    className="btn-primary" 
+                                                    disabled={isConnectingICloud}
+                                                    onClick={handleConnectICloudStep2}
+                                                    style={{ padding: '10px', fontWeight: 'bold' }}
+                                                >
+                                                    {isConnectingICloud ? 'Connecting...' : 'Link Selected Calendar'}
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <form onSubmit={handleConnectICloudStep1} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '4px', opacity: 0.9 }}>Apple ID (iCloud Email):</label>
+                                                    <input 
+                                                        type="email" 
+                                                        required
+                                                        placeholder="username@icloud.com" 
+                                                        value={icloudAppleId}
+                                                        onChange={(e) => setIcloudAppleId(e.target.value)}
+                                                        style={{
+                                                            width: '100%',
+                                                            background: 'rgba(0,0,0,0.2)',
+                                                            border: '1px solid rgba(255,255,255,0.15)',
+                                                            borderRadius: '4px',
+                                                            padding: '8px',
+                                                            color: '#fff',
+                                                            fontSize: '0.85rem'
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: '4px', opacity: 0.9 }}>iCloud App-Specific Password:</label>
+                                                    <input 
+                                                        type="password" 
+                                                        required
+                                                        placeholder="xxxx-xxxx-xxxx-xxxx" 
+                                                        value={icloudAppSpecificPassword}
+                                                        onChange={(e) => setIcloudAppSpecificPassword(e.target.value)}
+                                                        style={{
+                                                            width: '100%',
+                                                            background: 'rgba(0,0,0,0.2)',
+                                                            border: '1px solid rgba(255,255,255,0.15)',
+                                                            borderRadius: '4px',
+                                                            padding: '8px',
+                                                            color: '#fff',
+                                                            fontSize: '0.85rem'
+                                                        }}
+                                                    />
+                                                    <span style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '2px', display: 'block' }}>
+                                                        Generate this at <a href="https://appleid.apple.com" target="_blank" rel="noreferrer" style={{ color: 'var(--gold-color, #d4af37)' }}>appleid.apple.com</a>. Do not use your main iCloud login password.
+                                                    </span>
+                                                </div>
+                                                {icloudError && (
+                                                    <div style={{ color: '#ff6b6b', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                                        ⚠️ {icloudError}
+                                                    </div>
+                                                )}
+                                                <button 
+                                                    type="submit" 
+                                                    className="btn-primary" 
+                                                    disabled={isConnectingICloud}
+                                                    style={{ padding: '10px', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+                                                >
+                                                    {isConnectingICloud ? 'Verifying with Apple...' : '🍏 Link iCloud Calendar'}
+                                                </button>
+                                            </form>
                                         )}
                                     </div>
 

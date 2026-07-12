@@ -30,6 +30,7 @@ import Schedule from './src/models/Schedule.js';
 // Unified Model: Customer (now handles both Leads & Active Customers)
 import OfficeCheckIn from './src/models/OfficeCheckIn.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
+import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -3727,6 +3728,104 @@ app.post('/api/auth/google/calendar/disconnect', verifyAnyAuth, async (req, res)
   } catch (error) {
     console.error('Google calendar disconnect error:', error);
     res.status(500).json({ message: 'Failed to disconnect Google Calendar' });
+  }
+});
+
+// Route: Connect Apple iCloud Calendar (Discover or Save)
+app.post('/api/auth/icloud/connect', verifyAnyAuth, async (req, res) => {
+  try {
+    const userId = req.userId || req.customerId;
+    const { appleId, appSpecificPassword, calendarUrl, calendarName } = req.body;
+
+    if (!appleId || !appSpecificPassword) {
+      return res.status(400).json({ message: 'Apple ID and App-Specific Password are required' });
+    }
+
+    if (!calendarUrl) {
+      // Step 1: Discover available calendars
+      const calendars = await discoverICloudCalendars(appleId, appSpecificPassword);
+      return res.json({ success: true, calendars });
+    } else {
+      // Step 2: Save the user's selected calendar url & name
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      user.icloudUsername = appleId;
+      user.icloudPassword = appSpecificPassword;
+      user.icloudCalendarUrl = calendarUrl;
+      user.icloudCalendarName = calendarName || 'Primary Calendar';
+      user.icloudSyncEnabled = true;
+      await user.save();
+
+      // Trigger initial sync cycle
+      await syncICloudCalendar(userId);
+
+      return res.json({
+        success: true,
+        message: 'iCloud Calendar connected successfully',
+        calendarName: user.icloudCalendarName
+      });
+    }
+  } catch (error) {
+    console.error('iCloud calendar connection error:', error);
+    res.status(500).json({ message: error.message || 'Failed to connect to iCloud' });
+  }
+});
+
+// Route: Get iCloud Sync status
+app.get('/api/auth/icloud/status', verifyAnyAuth, async (req, res) => {
+  try {
+    const userId = req.userId || req.customerId;
+    const user = await User.findById(userId).select('icloudUsername icloudCalendarName icloudSyncEnabled').lean();
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      connected: !!user.icloudUsername && user.icloudSyncEnabled,
+      email: user.icloudUsername,
+      calendarName: user.icloudCalendarName
+    });
+  } catch (error) {
+    console.error('iCloud status error:', error);
+    res.status(500).json({ message: 'Failed to fetch iCloud status' });
+  }
+});
+
+// Route: Trigger manual iCloud Sync
+app.post('/api/auth/icloud/sync', verifyAnyAuth, async (req, res) => {
+  try {
+    const userId = req.userId || req.customerId;
+    await syncICloudCalendar(userId);
+    res.json({ success: true, message: 'iCloud Calendar synchronized successfully' });
+  } catch (error) {
+    console.error('iCloud sync trigger error:', error);
+    res.status(500).json({ message: 'Failed to synchronize iCloud Calendar' });
+  }
+});
+
+// Route: Disconnect iCloud Sync
+app.post('/api/auth/icloud/disconnect', verifyAnyAuth, async (req, res) => {
+  try {
+    const userId = req.userId || req.customerId;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.icloudUsername = null;
+    user.icloudPassword = null;
+    user.icloudCalendarUrl = null;
+    user.icloudCalendarName = null;
+    user.icloudSyncEnabled = false;
+    await user.save();
+
+    res.json({ success: true, message: 'iCloud Calendar disconnected successfully' });
+  } catch (error) {
+    console.error('iCloud disconnect error:', error);
+    res.status(500).json({ message: 'Failed to disconnect iCloud Calendar' });
   }
 });
 

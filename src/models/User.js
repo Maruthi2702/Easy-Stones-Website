@@ -50,6 +50,26 @@ const userSchema = new mongoose.Schema({
   googleCalendarSyncEnabled: {
     type: Boolean,
     default: false
+  },
+  icloudUsername: {
+    type: String,
+    default: null
+  },
+  icloudPassword: {
+    type: String,
+    default: null
+  },
+  icloudCalendarUrl: {
+    type: String,
+    default: null
+  },
+  icloudCalendarName: {
+    type: String,
+    default: null
+  },
+  icloudSyncEnabled: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
