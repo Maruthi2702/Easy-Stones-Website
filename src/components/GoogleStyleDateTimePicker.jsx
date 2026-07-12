@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Clock, ChevronDown } from 'lucide-react';
 import CustomDatePicker from './CustomDatePicker';
 
@@ -7,19 +7,25 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
     const dropdownRef = useRef(null);
 
     // Parse the incoming ISO string
-    // STRIP 'Z' to treat it as Local Time (Face Value)
     const dateObj = value
         ? (value.endsWith('Z') ? new Date(value.slice(0, -1)) : new Date(value))
         : new Date();
 
-    // Format Display Time: "10:30 AM" (Local Time)
+    // Format Display Time: "10:30 AM"
     const displayTime = dateObj.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
         hour12: true
     });
 
-    // Helper to get YYYY-MM-DD (Local) for CustomDatePicker
+    const currentHour24 = dateObj.getHours();
+    const currentMin = dateObj.getMinutes();
+    
+    const currentHour12 = currentHour24 % 12 === 0 ? 12 : currentHour24 % 12;
+    const currentPeriod = currentHour24 >= 12 ? 'PM' : 'AM';
+    const roundedMin = Math.round(currentMin / 5) * 5 % 60;
+
+    // Helper to get YYYY-MM-DD (Local)
     const getFormattedDateStr = (date) => {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -27,31 +33,35 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
         return `${year}-${month}-${day}`;
     };
 
-    // Generate 15-minute intervals for the dropdown
-    const timeSlots = React.useMemo(() => {
-        const slots = [];
-        for (let hour = 0; hour < 24; hour++) {
-            for (let min = 0; min < 60; min += 15) {
-                const d = new Date();
-                d.setHours(hour, min, 0, 0);
-                slots.push({
-                    label: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-                    hour,
-                    min
-                });
-            }
-        }
-        return slots;
-    }, []);
+    const hours = useMemo(() => Array.from({ length: 12 }, (_, i) => i + 1), []);
+    const minutes = useMemo(() => Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0')), []);
+    const periods = useMemo(() => ['AM', 'PM'], []);
 
-    const selectedTimeRef = useRef(null);
+    const hourRefs = useRef([]);
+    const minRefs = useRef([]);
+    const periodRefs = useRef([]);
 
-    // Auto-scroll to selected time when dropdown opens
+    // Auto-scroll selected values into view when dropdown opens
     useEffect(() => {
-        if (isOpen && selectedTimeRef.current) {
-            selectedTimeRef.current.scrollIntoView({ block: 'center' });
+        if (isOpen) {
+            setTimeout(() => {
+                const hourIdx = currentHour12 - 1;
+                if (hourRefs.current[hourIdx]) {
+                    hourRefs.current[hourIdx].scrollIntoView({ block: 'nearest', behavior: 'auto' });
+                }
+
+                const minIdx = Math.floor(roundedMin / 5);
+                if (minRefs.current[minIdx]) {
+                    minRefs.current[minIdx].scrollIntoView({ block: 'nearest', behavior: 'auto' });
+                }
+
+                const periodIdx = currentPeriod === 'AM' ? 0 : 1;
+                if (periodRefs.current[periodIdx]) {
+                    periodRefs.current[periodIdx].scrollIntoView({ block: 'nearest', behavior: 'auto' });
+                }
+            }, 50);
         }
-    }, [isOpen]);
+    }, [isOpen, currentHour12, roundedMin, currentPeriod]);
 
     // Handle Outside Click
     useEffect(() => {
@@ -64,39 +74,37 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleDateChange = (newDateStr) => {
-        // newDateStr is "YYYY-MM-DD" (Local intent)
-        if (!newDateStr) return;
+    const emitChange = (h12, minVal, pmAm) => {
+        let h24 = Number(h12) % 12;
+        if (pmAm === 'PM') {
+            h24 += 12;
+        }
 
-        const [year, month, day] = newDateStr.split('-').map(Number);
+        const newDate = new Date(dateObj);
+        newDate.setHours(h24);
+        newDate.setMinutes(Number(minVal));
+        newDate.setSeconds(0);
+        newDate.setMilliseconds(0);
 
-        // Create new date preserving current time (Local)
-        const newDate = new Date(dateObj); // Clone current
-        newDate.setFullYear(year);
-        newDate.setMonth(month - 1);
-        newDate.setDate(day);
-
-        // Emit as Local ISO string (YYYY-MM-DDTHH:mm:ss.sss)
         const pad = (n) => String(n).padStart(2, '0');
         const localISO = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}:${pad(newDate.getSeconds())}.000`;
 
         onChange(localISO);
     };
 
-    const handleTimeSelect = (slot) => {
-        const newDate = new Date(dateObj);
-        newDate.setHours(slot.hour);
-        newDate.setMinutes(slot.min);
-        // Reset seconds/ms for clean times
-        newDate.setSeconds(0);
-        newDate.setMilliseconds(0);
+    const handleDateChange = (newDateStr) => {
+        if (!newDateStr) return;
+        const [year, month, day] = newDateStr.split('-').map(Number);
 
-        // Emit as Local ISO string
+        const newDate = new Date(dateObj);
+        newDate.setFullYear(year);
+        newDate.setMonth(month - 1);
+        newDate.setDate(day);
+
         const pad = (n) => String(n).padStart(2, '0');
         const localISO = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}:${pad(newDate.getSeconds())}.000`;
 
         onChange(localISO);
-        setIsOpen(false);
     };
 
     return (
@@ -122,17 +130,54 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
                     </div>
 
                     {isOpen && (
-                        <div className="time-dropdown-portal">
-                            {timeSlots.map((slot, idx) => (
-                                <div
-                                    key={idx}
-                                    ref={displayTime === slot.label ? selectedTimeRef : null}
-                                    className={`time-slot ${displayTime === slot.label ? 'selected' : ''}`}
-                                    onClick={() => handleTimeSelect(slot)}
-                                >
-                                    {slot.label}
-                                </div>
-                            ))}
+                        <div className="time-dropdown-portal three-column">
+                            {/* Hours Column */}
+                            <div className="time-picker-column">
+                                <div className="time-picker-column-header">Hr</div>
+                                {hours.map((h, idx) => (
+                                    <div
+                                        key={h}
+                                        ref={el => hourRefs.current[idx] = el}
+                                        className={`time-picker-item ${currentHour12 === h ? 'selected' : ''}`}
+                                        onClick={() => emitChange(h, roundedMin, currentPeriod)}
+                                    >
+                                        {h}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Minutes Column */}
+                            <div className="time-picker-column">
+                                <div className="time-picker-column-header">Min</div>
+                                {minutes.map((m, idx) => {
+                                    const isSel = Number(m) === roundedMin;
+                                    return (
+                                        <div
+                                            key={m}
+                                            ref={el => minRefs.current[idx] = el}
+                                            className={`time-picker-item ${isSel ? 'selected' : ''}`}
+                                            onClick={() => emitChange(currentHour12, m, currentPeriod)}
+                                        >
+                                            {m}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* AM/PM Column */}
+                            <div className="time-picker-column">
+                                <div className="time-picker-column-header">AM/PM</div>
+                                {periods.map((p, idx) => (
+                                    <div
+                                        key={p}
+                                        ref={el => periodRefs.current[idx] = el}
+                                        className={`time-picker-item ${currentPeriod === p ? 'selected' : ''}`}
+                                        onClick={() => emitChange(currentHour12, roundedMin, p)}
+                                    >
+                                        {p}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>

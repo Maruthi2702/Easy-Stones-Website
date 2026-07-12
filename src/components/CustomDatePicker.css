@@ -299,3 +299,68 @@
         display: none;
     }
 }
+
+/* Custom 3-Column Time Picker */
+.time-dropdown-portal.three-column {
+    display: flex;
+    width: 230px;
+    height: 200px;
+    padding: 6px;
+    background: #1c1c1e;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    gap: 4px;
+}
+
+.time-picker-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    max-height: 100%;
+    scrollbar-width: none; /* Hide scrollbar Firefox */
+}
+
+.time-picker-column::-webkit-scrollbar {
+    display: none; /* Hide scrollbar Chrome/Safari */
+}
+
+.time-picker-column-header {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.4);
+    text-align: center;
+    padding: 4px 0;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    margin-bottom: 4px;
+    position: sticky;
+    top: 0;
+    background: #1c1c1e;
+    z-index: 5;
+}
+
+.time-picker-item {
+    padding: 6px 0;
+    text-align: center;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    border-radius: 6px;
+    margin: 1px 2px;
+    transition: all 0.15s ease;
+}
+
+.time-picker-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+}
+
+.time-picker-item.selected {
+    background: var(--gradient-primary, #FFD700);
+    color: #000000;
+    font-weight: bold;
+}
