@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { X, Loader, Scan } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import { formatPhoneInput } from '../../utils/phoneUtils';
@@ -206,7 +205,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
     const isViewMode = !!viewingCustomer;
     const isEditMode = !!editingCustomer;
 
-    return createPortal(
+    return (
         <div className="modal-overlay add-customer-modal-overlay" onClick={handleClose} style={{ zIndex: 2147483647 }}>
             <div className="modal-content add-customer-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
                 <div className="modal-header">
@@ -524,8 +523,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                     )}
                 </div>
             </div>
-        </div>,
-        document.body
+        </div>
     );
 };
 

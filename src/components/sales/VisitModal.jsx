@@ -1,5 +1,4 @@
 import React from 'react';
-import { createPortal } from 'react-dom';
 import { X, FileText, Loader, Plus } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
 import { API_URL } from '../../config/api';
@@ -69,136 +68,122 @@ const VisitModal = ({
                         </div>
                         <div className="form-group">
                             <label>Visit Type <span style={{ color: 'red' }}>*</span></label>
-                            <select
-                                value={visitForm.type}
-                                onChange={(e) => setVisitForm({ ...visitForm, type: e.target.value })}
-                                style={{
-                                    width: '100%',
-                                    padding: '0.5rem',
-                                    border: '1px solid rgba(255,255,255,0.2)',
-                                    borderRadius: '4px',
-                                    backgroundColor: 'rgba(255,255,255,0.05)',
-                                    color: '#FFF',
-                                    minHeight: '38px'
-                                }}
-                            >
-                                <option value="Scheduled In Person Sales Meeting" style={{ backgroundColor: '#1C1C1E' }}>Scheduled In Person Sales Meeting</option>
-                                <option value="Cold Call / Cold Visit" style={{ backgroundColor: '#1C1C1E' }}>Cold Call / Cold Visit</option>
-                                <option value="Binder / Swatch Dropoff" style={{ backgroundColor: '#1C1C1E' }}>Binder / Swatch Dropoff</option>
-                                <option value="Binder Update" style={{ backgroundColor: '#1C1C1E' }}>Binder Update</option>
-                                <option value="Showroom Display Install / Update" style={{ backgroundColor: '#1C1C1E' }}>Showroom Display Install / Update</option>
-                                <option value="Client Check-In / Relationship Visit" style={{ backgroundColor: '#1C1C1E' }}>Client Check-In / Relationship Visit</option>
-                                <option value="Issue Resolution" style={{ backgroundColor: '#1C1C1E' }}>Issue Resolution</option>
-                            </select>
+                            <SearchableSelect
+                                options={[
+                                    'Quick Note',
+                                    'Follow up Notes',
+                                    'Scheduled in Person Sales Meeting',
+                                    'Unscheduled in Person Sales Call',
+                                    'Resource Placement',
+                                    'Resource Update',
+                                    'Formal Presentation',
+                                    'Important Remote Meeting/Call',
+                                    'In Office Administration Day',
+                                    'Personal Time Off'
+                                ].map(type => ({ value: type, label: type }))}
+                                value={visitForm.purpose}
+                                onChange={(value) => setVisitForm({ ...visitForm, purpose: value })}
+                                placeholder="Please Select Visit Type"
+                            />
                         </div>
                     </div>
-                    <div className="form-group">
-                        <label>Notes</label>
-                        <textarea
-                            value={visitForm.notes}
-                            onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
-                            placeholder="Additional notes"
-                            style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                border: '1px solid rgba(255,255,255,0.2)',
-                                borderRadius: '4px',
-                                backgroundColor: 'rgba(255,255,255,0.05)',
-                                color: '#FFF',
-                                minHeight: '100px',
-                                resize: 'vertical'
-                            }}
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Outcome</label>
-                        <textarea
-                            value={visitForm.outcome}
-                            onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
-                            placeholder="Visit outcome"
-                            style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                border: '1px solid rgba(255,255,255,0.2)',
-                                borderRadius: '4px',
-                                backgroundColor: 'rgba(255,255,255,0.05)',
-                                color: '#FFF',
-                                minHeight: '100px',
-                                resize: 'vertical'
-                            }}
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Attachments (Images/PDFs)</label>
-                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginTop: '5px' }}>
-                            <label style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                padding: '0.5rem 1rem',
-                                border: '1px dashed rgba(255,255,255,0.3)',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '0.875rem'
-                            }}>
-                                <Plus size={16} /> Upload
-                                <input
-                                    type="file"
-                                    multiple
-                                    accept="image/*,application/pdf"
-                                    onChange={handleVisitImageUpload}
-                                    style={{ display: 'none' }}
+                    {visitForm.purpose !== 'Follow up Notes' && (
+                        <div className="form-group">
+                            <label>Notes</label>
+                            <textarea
+                                value={visitForm.notes}
+                                onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
+                                placeholder="Additional notes"
+                                rows="4"
+                            />
+                        </div>
+                    )}
+                    {!visitForm.purpose?.toLowerCase().includes('quick note') && (
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
+                            {visitForm.purpose !== 'Follow up Notes' && (
+                                <div className="form-group" style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
+                                    <label>Outcome</label>
+                                    <textarea
+                                        value={visitForm.outcome}
+                                        onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
+                                        placeholder="Visit outcome"
+                                        rows="3"
+                                    />
+                                </div>
+                            )}
+                            <div className="form-group">
+                                <label>Follow Up Date</label>
+                                <CustomDatePicker
+                                    value={visitForm.followUpDate}
+                                    onChange={(value) => setVisitForm({ ...visitForm, followUpDate: value })}
                                 />
-                            </label>
-                            {isSaving && <span style={{ fontSize: '0.85rem', color: '#9CA3AF' }}>Uploading...</span>}
+                            </div>
+                            <div className="form-group">
+                                <label>Follow Up Notes</label>
+                                <textarea
+                                    value={visitForm.followUp}
+                                    onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
+                                    placeholder="Followup Notes"
+                                    rows="3"
+                                />
+                            </div>
                         </div>
-                        {visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).filter(Boolean).length > 0 && (
-                            <div className="visit-images-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '10px', marginTop: '10px' }}>
-                                {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).filter(Boolean).map((img, idx) => (
-                                    <div key={idx} style={{ position: 'relative', aspectRatio: '1', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
-                                        {img.toLowerCase().endsWith('.pdf') ? (
-                                            <div
-                                                style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.05)', cursor: 'pointer' }}
-                                                onClick={() => handleDashboardDownload({ content: img, name: `Visit-Doc-${idx}.pdf`, type: 'file' })}
-                                            >
-                                                <FileText size={24} color="#EF4444" />
-                                                <span style={{ fontSize: '10px', color: '#9CA3AF', marginTop: '4px' }}>PDF</span>
+                    )}
+                    <div className="form-group">
+                        <label>Attachments</label>
+                        <div className="image-upload-container">
+                            <div className="image-upload-grid">
+                                {visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
+                                    <div key={idx} className="image-preview-wrapper">
+                                        {img.startsWith('data:application/pdf') ? (
+                                            <div className="pdf-preview-thumbnail">
+                                                <FileText size={24} />
+                                                <span>PDF Document</span>
                                             </div>
                                         ) : (
-                                            <img
-                                                src={resolveImageSrc(img)}
-                                                alt="Attachment"
-                                                style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
-                                                onClick={() => handleOpenGallery(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image], idx)}
-                                                loading="lazy"
-                                            />
+                                            <img src={resolveImageSrc(img)} alt="Preview" loading="lazy" />
                                         )}
-                                        <button
-                                            onClick={() => handleRemoveVisitImage(idx)}
-                                            style={{
-                                                position: 'absolute',
-                                                top: '2px',
-                                                right: '2px',
-                                                background: 'rgba(239, 68, 68, 0.9)',
-                                                border: 'none',
-                                                borderRadius: '50%',
-                                                width: '18px',
-                                                height: '18px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                color: '#FFF',
-                                                cursor: 'pointer',
-                                                padding: 0
-                                            }}
-                                        >
-                                            <X size={10} />
+                                        <button type="button" className="remove-image-btn" onClick={() => handleRemoveVisitImage(idx)}>
+                                            <X size={12} />
                                         </button>
                                     </div>
                                 ))}
+                                <label className="upload-placeholder">
+                                    <input
+                                        type="file"
+                                        accept="image/*,application/pdf"
+                                        multiple
+                                        onChange={handleVisitImageUpload}
+                                        hidden
+                                    />
+                                    <Plus size={20} />
+                                    <span>Add Files</span>
+                                </label>
                             </div>
-                        )}
+                        </div>
                     </div>
+                    {editingVisit && (
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
+                            <div className="form-group">
+                                <label>Manager Comment</label>
+                                <input
+                                    type="text"
+                                    value={visitForm.managerComment}
+                                    onChange={(e) => setVisitForm({ ...visitForm, managerComment: e.target.value })}
+                                    placeholder="Comment from Manager"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Headquarters Comment</label>
+                                <input
+                                    type="text"
+                                    value={visitForm.headquartersComment}
+                                    onChange={(e) => setVisitForm({ ...visitForm, headquartersComment: e.target.value })}
+                                    placeholder="Comment from HQ"
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className="modal-footer">
                     <button className="btn-secondary" onClick={handleCloseVisitModal} disabled={isSaving}>
@@ -221,39 +206,57 @@ const VisitModal = ({
                         <X size={20} />
                     </button>
                 </div>
-                <div className="modal-body visit-view-body" style={{ color: '#FFF' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.5rem' }}>
-                        <div>
+                <div className="modal-body">
+                    <div className="visit-details-grid">
+                        <div className="visit-detail-item">
                             <div className="visit-detail-label">Date</div>
                             <div className="visit-detail-value">{formatDate(visitForm.date)}</div>
                         </div>
-                        <div>
+                        <div className="visit-detail-item">
                             <div className="visit-detail-label">Customer</div>
                             <div className="visit-detail-value">
-                                {customers.find(c => c._id === visitForm.customerId)?.company || 'Unknown Customer'}
+                                {(() => {
+                                    if (selectedCustomer) return selectedCustomer.company || selectedCustomer.contactName;
+                                    const c = customers.find(c => c._id === (visitForm.customerId || editingVisit?.customerId));
+                                    return c ? (c.company || c.contactName) : (visitForm?.customerContactName || visitForm?.customerName || editingVisit?.customerName || '-');
+                                })()}
                             </div>
                         </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
-                        <div>
+                        <div className="visit-detail-item">
                             <div className="visit-detail-label">Visit Type</div>
-                            <div className="visit-detail-value">{visitForm.type}</div>
+                            <div className="visit-detail-value">{visitForm.purpose || '-'}</div>
                         </div>
-                        <div>
+                        <div className="visit-detail-item full-width">
                             <div className="visit-detail-label">Notes</div>
-                            <div className="visit-detail-value" style={{ whiteSpace: 'pre-wrap' }}>{visitForm.notes || 'No notes added'}</div>
+                            <div className="visit-detail-value" style={{ border: 'none', background: 'none', padding: 0, color: 'var(--text-primary)' }}>
+                                {visitForm.notes || 'No notes available.'}
+                            </div>
                         </div>
-                        <div>
-                            <div className="visit-detail-label">Outcome</div>
-                            <div className="visit-detail-value" style={{ whiteSpace: 'pre-wrap' }}>{visitForm.outcome || 'No outcome recorded'}</div>
-                        </div>
-                        <div>
+                        {!visitForm.purpose?.toLowerCase().includes('quick note') && (
+                            <>
+                                <div className="visit-detail-item">
+                                    <div className="visit-detail-label">Outcome</div>
+                                    <div className="visit-detail-value">{visitForm.outcome || '-'}</div>
+                                </div>
+                                <div className="visit-detail-item">
+                                    <div className="visit-detail-label">Follow Up</div>
+                                    <div className="visit-detail-value">{visitForm.followUp || visitForm.nextAction || '-'}</div>
+                                </div>
+                                {visitForm.followUpDate && (
+                                    <div className="visit-detail-item">
+                                        <div className="visit-detail-label">Follow Up Date</div>
+                                        <div className="visit-detail-value">{formatDate(visitForm.followUpDate)}</div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                        <div className="visit-detail-item full-width">
                             <div className="visit-detail-label">Attachments</div>
-                            {visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).filter(Boolean).length > 0 ? (
-                                <div className="visit-view-attachments" style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginTop: '5px' }}>
-                                    {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).filter(Boolean).map((img, idx) => (
-                                        <div key={idx} className="attachment-item">
-                                            {img.toLowerCase().endsWith('.pdf') ? (
+                            {(visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).length > 0) ? (
+                                <div className="visit-attachments-grid" style={{ marginTop: '0.5rem' }}>
+                                    {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
+                                        <div key={idx} className="attachment-preview-card">
+                                            {img.startsWith('data:application/pdf') ? (
                                                 <div
                                                     className="attachment-pdf"
                                                     onClick={() => handleDashboardDownload({ content: img, name: `Visit-Doc-${idx}.pdf`, type: 'file' })}
@@ -267,7 +270,7 @@ const VisitModal = ({
                                                     alt="Preview"
                                                     className="attachment-img"
                                                     onClick={() => handleOpenGallery(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image], idx)}
-                                                    style={{ borderRadius: '8px', cursor: 'pointer', width: '64px', height: '64px', objectFit: 'cover' }}
+                                                    style={{ borderRadius: '8px', cursor: 'pointer' }}
                                                     loading="lazy"
                                                 />
                                             )}
@@ -284,10 +287,7 @@ const VisitModal = ({
         </div>
     );
 
-    return createPortal(
-        isViewingVisit ? renderViewModal() : renderAddEditModal(),
-        document.body
-    );
+    return isViewingVisit ? renderViewModal() : renderAddEditModal();
 };
 
 export default VisitModal;
