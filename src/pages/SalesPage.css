@@ -5,8 +5,8 @@
   padding-top: 96px;
   background: var(--bg-primary);
   overflow: hidden;
-  position: relative;
-  z-index: auto !important; /* CRITICAL: Changing this from 'auto' (e.g. to a number) creates a limiting stacking context which causes nested full-screen modal overlays to hide behind the main website header. Keep as 'auto !important' so that modal overlays can stack globally on top of the site header (z-index: 1100). */
+  position: static !important; /* Reset position relative to allow modals to stack globally above fixed site header (z-index: 1100) */
+  z-index: auto !important;
 }
 
 /* Sidebar */
