@@ -1349,6 +1349,7 @@
   padding: 1.5rem 1rem;
   padding-top: calc(96px + 1.5rem); /* Push content below fixed site header */
   overflow-y: auto;
+  z-index: 2147483647; /* Ensure it stacks on top of header/sidebar globally */
 }
 
 .modal-content {
@@ -1558,7 +1559,9 @@
     padding-bottom: 0;
     padding-left: 0;
     padding-right: 0;
+    padding-top: 0 !important;
     align-items: flex-end; /* slide up from bottom on mobile */
+    z-index: 2147483647 !important; /* Force overlays everything on mobile */
   }
 
   .modal-content {
