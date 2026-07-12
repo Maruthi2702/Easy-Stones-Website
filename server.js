@@ -3256,6 +3256,110 @@ app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
   }
 });
 
+// Private, read-only calendar feed in iCalendar (.ics) format
+app.get('/api/calendar/feed/:userId.ics', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).send('Invalid user ID');
+    }
+
+    // Find all scheduled activities for this user (exclude cancelled ones)
+    const schedules = await Schedule.find({
+      userId,
+      status: { $ne: 'Cancelled' }
+    })
+      .populate('customerId', 'contactName company')
+      .lean();
+
+    // Helper to format Date objects / strings to iCal date format (YYYYMMDDTHHmmssZ)
+    const formatIcsDate = (dateVal) => {
+      if (!dateVal) return '';
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '';
+      
+      const pad = (n) => String(n).padStart(2, '0');
+      const year = d.getUTCFullYear();
+      const month = pad(d.getUTCMonth() + 1);
+      const day = pad(d.getUTCDate());
+      const hours = pad(d.getUTCHours());
+      const minutes = pad(d.getUTCMinutes());
+      const seconds = pad(d.getUTCSeconds());
+      
+      return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+    };
+
+    // Build iCalendar string
+    let icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//EasyStones//CalendarFeed//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'X-WR-CALNAME:Easy Stones Schedule',
+      'X-WR-TIMEZONE:UTC',
+      'X-WR-CALDESC:Meetings, calls, and visits scheduled in Easy Stones website.'
+    ];
+
+    schedules.forEach((item) => {
+      const clientName = item.customerId 
+        ? (item.customerId.company || item.customerId.contactName || 'Unnamed Customer') 
+        : 'Unknown Customer';
+      
+      const startStr = formatIcsDate(item.startTime);
+      // Default to 1 hour meeting if endTime is not set or invalid
+      let endStr = formatIcsDate(item.endTime);
+      if (!endStr && item.startTime) {
+        const startDateObj = new Date(item.startTime);
+        startDateObj.setHours(startDateObj.getHours() + 1);
+        endStr = formatIcsDate(startDateObj);
+      }
+
+      const uid = `${item._id}@easystones.com`;
+      const createdStr = formatIcsDate(item.createdAt || new Date());
+      const modifiedStr = formatIcsDate(item.updatedAt || new Date());
+
+      // Clean text fields of newlines and commas for ICS spec
+      const cleanText = (str) => {
+        if (!str) return '';
+        return str.replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/;/g, '\\;').replace(/\n/g, '\\n');
+      };
+
+      const summary = cleanText(`${item.activityType || 'Visit'} - ${clientName}`);
+      const notes = cleanText(item.notes || '');
+
+      icsContent.push('BEGIN:VEVENT');
+      icsContent.push(`UID:${uid}`);
+      icsContent.push(`DTSTAMP:${createdStr}`);
+      icsContent.push(`LAST-MODIFIED:${modifiedStr}`);
+      if (startStr) icsContent.push(`DTSTART:${startStr}`);
+      if (endStr) icsContent.push(`DTEND:${endStr}`);
+      icsContent.push(`SUMMARY:${summary}`);
+      if (notes) icsContent.push(`DESCRIPTION:${notes}`);
+      icsContent.push('STATUS:CONFIRMED');
+      icsContent.push('END:VEVENT');
+    });
+
+    icsContent.push('END:VCALENDAR');
+
+    // Join with CRLF lines according to iCal specifications
+    const responseText = icsContent.join('\r\n');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline; filename="calendar.ics"');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    res.send(responseText);
+  } catch (error) {
+    console.error('Error generating calendar feed:', error);
+    res.status(500).send('Error generating calendar feed');
+  }
+});
+
 // Toggle reaction on visit
 app.post('/api/customers/:customerId/visits/:visitId/react', verifyAnyAuth, async (req, res) => {
   try {

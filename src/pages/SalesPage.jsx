@@ -379,6 +379,7 @@ const SalesPage = () => {
     const [showContactModal, setShowContactModal] = useState(false);
     const [showVisitModal, setShowVisitModal] = useState(false);
     const [showResourceModal, setShowResourceModal] = useState(false);
+    const [showCalendarSyncModal, setShowCalendarSyncModal] = useState(false);
     const [editingContact, setEditingContact] = useState(null);
     const [editingVisit, setEditingVisit] = useState(null);
     const [editingResource, setEditingResource] = useState(null);
@@ -3299,6 +3300,16 @@ const SalesPage = () => {
                                                 </div>
                                             </div>
                                             <div className="dashboard-actions">
+                                                {activeDashboardTab === 'planner' && (
+                                                    <button 
+                                                        className="btn-secondary" 
+                                                        onClick={() => setShowCalendarSyncModal(true)} 
+                                                        title="Sync to Apple / Google Calendar"
+                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                                                    >
+                                                        📅 Sync Calendar
+                                                    </button>
+                                                )}
                                                 <button className="btn-secondary" onClick={handleQuickAddResource} title="Add Resource for any Client">
                                                     + Add Resource
                                                 </button>
@@ -4116,6 +4127,94 @@ const SalesPage = () => {
                     handleOpenGallery={handleOpenGallery}
                     onCreateNew={() => setShowAddCustomerModal(true)}
                 />
+
+                {/* Calendar Sync Modal */}
+                {showCalendarSyncModal && (() => {
+                    const calendarFeedUrl = `${API_URL || window.location.origin}/api/calendar/feed/${currentUserId}.ics`;
+                    const webcalFeedUrl = calendarFeedUrl.replace(/^https?:\/\//, 'webcal://').replace(/^http?:\/\//, 'webcal://');
+
+                    return (
+                        <div className="selection-modal-overlay" style={{ zIndex: 2000 }}>
+                            <div className="selection-modal-container" style={{ maxWidth: '550px', minHeight: '350px' }}>
+                                <div className="selection-modal-header">
+                                    <h2 className="selection-modal-header-title">📅 SYNC CALENDAR</h2>
+                                    <button 
+                                        type="button" 
+                                        className="selection-modal-close" 
+                                        onClick={() => setShowCalendarSyncModal(false)}
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="selection-modal-body" style={{ padding: '1.5rem', color: 'var(--text-primary)' }}>
+                                    <p style={{ fontSize: '0.95rem', marginBottom: '1.25rem', lineHeight: '1.5', opacity: 0.9 }}>
+                                        Subscribe to your Easy Stones scheduled visits and meetings directly on your iPhone, iPad, Mac, or Google account. Changes update automatically in the background!
+                                    </p>
+                                    
+                                    <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                        <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--gold-color, #d4af37)', fontSize: '0.9rem' }}>Your Secure Subscription Feed Link:</h4>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <input 
+                                                type="text" 
+                                                readOnly 
+                                                value={calendarFeedUrl} 
+                                                style={{
+                                                    flex: 1,
+                                                    background: 'rgba(0,0,0,0.3)',
+                                                    border: '1px solid rgba(255,255,255,0.2)',
+                                                    borderRadius: '4px',
+                                                    padding: '8px 12px',
+                                                    color: '#fff',
+                                                    fontSize: '0.85rem',
+                                                    fontFamily: 'monospace'
+                                                }}
+                                            />
+                                            <button 
+                                                type="button" 
+                                                className="btn-secondary" 
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(calendarFeedUrl);
+                                                    alert('Calendar link copied to clipboard!');
+                                                }}
+                                                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                                            >
+                                                Copy
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        <a 
+                                            href={webcalFeedUrl}
+                                            className="btn-primary" 
+                                            style={{ 
+                                                textAlign: 'center', 
+                                                textDecoration: 'none', 
+                                                padding: '10px', 
+                                                fontWeight: 'bold',
+                                                display: 'flex',
+                                                justifyContent: 'center',
+                                                alignItems: 'center',
+                                                gap: '8px'
+                                            }}
+                                        >
+                                            📲 Subscribe in Apple Calendar (Mac/iPhone)
+                                        </a>
+                                        
+                                        <div style={{ fontSize: '0.85rem', opacity: 0.8, lineHeight: '1.4' }}>
+                                            <strong>Google Calendar Instructions:</strong>
+                                            <ol style={{ margin: '4px 0 0 16px', paddingLeft: 0 }}>
+                                                <li>Open <a href="https://calendar.google.com" target="_blank" rel="noreferrer" style={{ color: 'var(--gold-color, #d4af37)' }}>Google Calendar</a> on a desktop browser.</li>
+                                                <li>On the left side next to "Other calendars", click <strong>+</strong> &rarr; <strong>From URL</strong>.</li>
+                                                <li>Paste the copied link above and click <strong>Add calendar</strong>.</li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* Link Partner Modal */}
                 {showLinkPartnerModal && (
