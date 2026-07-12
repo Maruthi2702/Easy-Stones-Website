@@ -131,3 +131,10 @@ button {
   z-index: 2147483647 !important;
 }
 
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding-top: 0 !important;
+    z-index: 2147483647 !important;
+  }
+}
+
