@@ -11,6 +11,26 @@ const GoogleStyleDateTimePicker = ({ value, onChange, required }) => {
         ? (value.endsWith('Z') ? new Date(value.slice(0, -1)) : new Date(value))
         : new Date();
 
+    // Auto-initialize empty value with current local time (rounded to 5 mins) on mount
+    useEffect(() => {
+        if (!value) {
+            const newDate = new Date();
+            let roundedMin = Math.round(newDate.getMinutes() / 5) * 5;
+            if (roundedMin >= 60) {
+                newDate.setHours(newDate.getHours() + 1);
+                roundedMin = 0;
+            }
+            newDate.setMinutes(roundedMin);
+            newDate.setSeconds(0);
+            newDate.setMilliseconds(0);
+            
+            const pad = (n) => String(n).padStart(2, '0');
+            const localISO = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}:${pad(newDate.getSeconds())}.000`;
+            
+            onChange(localISO);
+        }
+    }, [value, onChange]);
+
     // Format Display Time: "10:30 AM"
     const displayTime = dateObj.toLocaleTimeString('en-US', {
         hour: 'numeric',

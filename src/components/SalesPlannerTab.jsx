@@ -282,7 +282,16 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], current
                         {viewMode === 'day' && `, ${visibleDays[0].getFullYear()}`}
                     </h3>
                 </div>
-                <button className="planner-add-btn" onClick={() => setShowAddModal(true)}>
+                <button className="planner-add-btn" onClick={() => {
+                    setEditingItem(null);
+                    setForm({
+                        customerId: '',
+                        startTime: '',
+                        activityType: 'Visit',
+                        notes: ''
+                    });
+                    setShowAddModal(true);
+                }}>
                     <Plus size={18} /> Schedule Activity
                 </button>
             </div>
