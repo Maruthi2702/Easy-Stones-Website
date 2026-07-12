@@ -72,8 +72,7 @@ export const discoverICloudCalendars = async (username, password) => {
     </d:propfind>`;
   
   const principalRes = await makeDavRequest(baseUrl, 'PROPFIND', principalXml, username, password, '0');
-  const principalMatch = principalRes.match(/<d:current-user-principal>\s*<d:href>([^<]+)<\/d:href>/i) || 
-                         principalRes.match(/<current-user-principal>\s*<href>([^<]+)<\/href>/i);
+  const principalMatch = principalRes.match(/<(?:[a-zA-Z0-9_-]+:)?current-user-principal>\s*<(?:[a-zA-Z0-9_-]+:)?href>([^<]+)<\/(?:[a-zA-Z0-9_-]+:)?href>/i);
   
   if (!principalMatch) {
     throw new Error('Failed to find principal calendar set. Please verify your Apple ID and App-Specific Password.');
@@ -90,8 +89,7 @@ export const discoverICloudCalendars = async (username, password) => {
     </d:propfind>`;
   
   const homeRes = await makeDavRequest(principalUrl, 'PROPFIND', homeXml, username, password, '0');
-  const homeMatch = homeRes.match(/<c:calendar-home-set>\s*<d:href>([^<]+)<\/d:href>/i) || 
-                    homeRes.match(/<calendar-home-set>\s*<href>([^<]+)<\/href>/i);
+  const homeMatch = homeRes.match(/<(?:[a-zA-Z0-9_-]+:)?calendar-home-set>\s*<(?:[a-zA-Z0-9_-]+:)?href>([^<]+)<\/(?:[a-zA-Z0-9_-]+:)?href>/i);
                     
   if (!homeMatch) {
     throw new Error('Failed to find calendar home set.');
@@ -116,8 +114,8 @@ export const discoverICloudCalendars = async (username, password) => {
   responses.shift(); // remove header
   
   for (const resp of responses) {
-    const hrefMatch = resp.match(/<d:href>([^<]+)<\/d:href>/i) || resp.match(/<href>([^<]+)<\/href>/i);
-    const nameMatch = resp.match(/<d:displayname>([^<]+)<\/d:displayname>/i) || resp.match(/<displayname>([^<]+)<\/displayname>/i);
+    const hrefMatch = resp.match(/<(?:[a-zA-Z0-9_-]+:)?href>([^<]+)<\/(?:[a-zA-Z0-9_-]+:)?href>/i);
+    const nameMatch = resp.match(/<(?:[a-zA-Z0-9_-]+:)?displayname>([^<]+)<\/(?:[a-zA-Z0-9_-]+:)?displayname>/i);
     
     // Check if calendar supports VEVENT component
     const supportsVEvent = resp.includes('VEVENT');

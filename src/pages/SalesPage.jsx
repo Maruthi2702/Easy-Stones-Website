@@ -489,7 +489,13 @@ const SalesPage = () => {
                     appSpecificPassword: icloudAppSpecificPassword
                 })
             });
-            const data = await res.json();
+            let data = {};
+            try {
+                data = await res.json();
+            } catch (jsonErr) {
+                const txt = await res.text().catch(() => '');
+                data = { message: txt || `Server returned status ${res.status}` };
+            }
             if (res.ok) {
                 if (data.calendars && data.calendars.length > 0) {
                     setDiscoveredCalendars(data.calendars);
@@ -502,7 +508,7 @@ const SalesPage = () => {
             }
         } catch (err) {
             console.error('iCloud discovery error:', err);
-            setIcloudError('Network error connecting to iCloud.');
+            setIcloudError(`Connection error: ${err.message || 'Failed to communicate with backend'}`);
         } finally {
             setIsConnectingICloud(false);
         }
@@ -529,7 +535,13 @@ const SalesPage = () => {
                     calendarName: selectedCal.name
                 })
             });
-            const data = await res.json();
+            let data = {};
+            try {
+                data = await res.json();
+            } catch (jsonErr) {
+                const txt = await res.text().catch(() => '');
+                data = { message: txt || `Server returned status ${res.status}` };
+            }
             if (res.ok) {
                 setIcloudSyncStatus({
                     connected: true,
@@ -546,7 +558,7 @@ const SalesPage = () => {
             }
         } catch (err) {
             console.error('iCloud save error:', err);
-            setIcloudError('Network error saving calendar.');
+            setIcloudError(`Connection error: ${err.message || 'Failed to communicate with backend'}`);
         } finally {
             setIsConnectingICloud(false);
         }
