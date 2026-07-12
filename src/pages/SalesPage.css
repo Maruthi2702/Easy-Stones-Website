@@ -895,7 +895,6 @@
     pointer-events: none;
   }
 
-  /* Mobile: Main Content (Detail View) */
   .sales-main {
     margin-left: 0 !important;
     padding: 0;
@@ -903,7 +902,7 @@
     height: 100%; /* Fill remaining container height */
     display: flex;
     flex-direction: column;
-    position: relative;
+    position: static !important; /* Reset position relative to allow modals to stack globally above fixed site header (z-index: 1100) */
     overflow: hidden; /* Internal scrolling only */
     background: var(--bg-primary);
     z-index: auto;
