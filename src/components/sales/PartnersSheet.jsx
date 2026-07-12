@@ -876,8 +876,24 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                                 </div>
                                             </td>
                                             <td>
-                                                <div className="partner-email-cell" title={partner.email}>
-                                                    {partner.email || '-'}
+                                                <div className="partner-email-cell" title={partner.email} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                    <span>{partner.email || '-'}</span>
+                                                    {partner.receiveMarketing === false && (
+                                                        <span 
+                                                            style={{ 
+                                                                color: '#ef4444', 
+                                                                fontSize: '0.75rem', 
+                                                                fontWeight: 'bold', 
+                                                                backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                                                                borderRadius: '4px', 
+                                                                padding: '1px 6px',
+                                                                whiteSpace: 'nowrap'
+                                                            }} 
+                                                            title="Marketing Emails Turned Off"
+                                                        >
+                                                            ✕ No Marketing
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td>{formatPhoneForDisplay(partner.phone) || '-'}</td>
