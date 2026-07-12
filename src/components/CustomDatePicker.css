@@ -45,20 +45,20 @@
     position: absolute;
     top: calc(100% + 8px);
     left: 0;
-    width: 320px;
+    width: 230px;
     background: #1c1c1e;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     z-index: 1000;
-    padding: 1rem;
+    padding: 0.5rem 0.6rem;
 }
 
 .datepicker-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 1rem;
+    margin-bottom: 0.4rem;
 }
 
 .datepicker-header .nav-btn {
@@ -81,29 +81,29 @@
 .month-year {
     font-weight: 700;
     color: #fff;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
 }
 
 .datepicker-weekdays {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-    margin-bottom: 0.5rem;
+    gap: 2px;
+    margin-bottom: 0.25rem;
 }
 
 .weekday {
     text-align: center;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.5);
     text-transform: uppercase;
-    padding: 0.25rem;
+    padding: 0.15rem;
 }
 
 .datepicker-days {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
+    gap: 2px;
 }
 
 .day {
@@ -113,11 +113,11 @@
     justify-content: center;
     background: transparent;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     color: #fff;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
     font-weight: 500;
 }
 
@@ -145,8 +145,8 @@
 }
 
 .datepicker-footer {
-    margin-top: 1rem;
-    padding-top: 1rem;
+    margin-top: 0.4rem;
+    padding-top: 0.4rem;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     justify-content: center;
@@ -156,11 +156,11 @@
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.2);
     color: #fff;
-    padding: 0.5rem 1.25rem;
-    border-radius: 6px;
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
     cursor: pointer;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     transition: all 0.2s;
 }
 

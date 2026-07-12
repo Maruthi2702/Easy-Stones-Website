@@ -1414,10 +1414,6 @@
   flex: 1;
 }
 
-/* Allow scrolling down to see the full date/time picker dropdowns in scheduling modals */
-.modal-body:has(.google-style-picker) {
-  padding-bottom: 200px !important;
-}
 
 .modal-footer {
   display: flex;
