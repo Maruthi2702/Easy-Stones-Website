@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
+import { io } from 'socket.io-client';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import './SalesPage.css';
@@ -115,6 +116,7 @@ const SalesPage = () => {
     });
     const [checkInTodayCount, setCheckInTodayCount] = useState(0);
     const [checkInMonthCount, setCheckInMonthCount] = useState(0);
+    const [checkInRefreshTrigger, setCheckInRefreshTrigger] = useState(0);
 
     const fetchCheckInStats = async () => {
         try {
@@ -128,6 +130,20 @@ const SalesPage = () => {
             console.error('Error fetching check-in stats:', err);
         }
     };
+
+    useEffect(() => {
+        const socket = io(API_URL || window.location.origin, {
+            withCredentials: true
+        });
+
+        socket.on('checkin_update', () => {
+            setCheckInRefreshTrigger(prev => prev + 1);
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
     
     const [showDashboard, setShowDashboard] = useState(true);
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
@@ -356,10 +372,8 @@ const SalesPage = () => {
     useEffect(() => {
         if (crmTab === 'checkin') {
             fetchCheckIns();
-            const interval = setInterval(fetchCheckIns, 30000);
-            return () => clearInterval(interval);
         }
-    }, [crmTab, checkInPage, checkInLimit, checkInSearch, checkInFilterMonth, checkInFilterYear]);
+    }, [crmTab, checkInPage, checkInLimit, checkInSearch, checkInFilterMonth, checkInFilterYear, checkInRefreshTrigger]);
 
     // Modal states
     const [showContactModal, setShowContactModal] = useState(false);

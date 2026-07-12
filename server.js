@@ -3,6 +3,8 @@ dotenv.config();
 // Trigger restart for schema update (v2)
 
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import mongoose from 'mongoose';
 
@@ -168,6 +170,28 @@ const processBase64Image = async (base64String, subDir = 'Visits') => {
 };
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: (origin, callback) => {
+      callback(null, true);
+    },
+    credentials: true
+  }
+});
+app.set('io', io);
+
+io.on('connection', (socket) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`🔌 WebSockets: Client connected (${socket.id})`);
+  }
+  socket.on('disconnect', () => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔌 WebSockets: Client disconnected (${socket.id})`);
+    }
+  });
+});
+
 const PORT = process.env.PORT || 3001;
 
 // JWT Secret
@@ -249,7 +273,7 @@ async function startServer() {
       console.error('Error running status update migration:', migError);
     }
 
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
       console.log(`🚀 Backend server running on port ${PORT}`);
 
       // Keep-Alive Mechanism for Render Free Tier
@@ -1791,6 +1815,8 @@ app.post('/api/checkin', async (req, res) => {
       }
     })();
 
+    req.app.get('io').emit('checkin_update');
+
     res.status(201).json({
       success: true,
       message: 'Check-in successful! Welcome to Easy Stones.',
@@ -1976,6 +2002,8 @@ app.put('/api/checkin/:id', async (req, res) => {
       })();
     }
 
+    req.app.get('io').emit('checkin_update');
+
     res.json({ success: true, message: 'Check-in updated successfully', data: checkIn });
   } catch (error) {
     console.error('❌ Error updating check-in:', error);
@@ -2017,6 +2045,8 @@ app.delete('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
       return res.status(404).json({ message: 'Check-in not found' });
     }
     console.log(`🗑️ Office check-in deleted: ${checkIn.name}`);
+    req.app.get('io').emit('checkin_update');
+
     res.json({ success: true, message: 'Check-in deleted successfully' });
   } catch (error) {
     console.error('❌ Error deleting check-in:', error);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 import { API_URL } from '../config/api';
 import * as XLSX from 'xlsx';
 import { Sun, Moon } from 'lucide-react';
@@ -53,6 +54,7 @@ const CheckInLogPage = () => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [todayCount, setTodayCount] = useState(0);
   const [monthCount, setMonthCount] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Default to current month and year
   const currentDate = new Date();
@@ -62,9 +64,21 @@ const CheckInLogPage = () => {
   useEffect(() => {
     fetchCheckIns();
     fetchStats();
-    const interval = setInterval(() => { fetchCheckIns(true); fetchStats(); }, 30000);
-    return () => clearInterval(interval);
-  }, [currentPage, searchTerm, limit, filterMonth, filterYear]);
+  }, [currentPage, searchTerm, limit, filterMonth, filterYear, refreshTrigger]);
+
+  useEffect(() => {
+    const socket = io(API_URL || window.location.origin, {
+      withCredentials: true
+    });
+
+    socket.on('checkin_update', () => {
+      setRefreshTrigger(prev => prev + 1);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   const fetchStats = async () => {
     try {
