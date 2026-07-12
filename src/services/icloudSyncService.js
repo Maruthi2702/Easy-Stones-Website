@@ -11,11 +11,11 @@ const resolveUrl = (baseUrl, href) => {
   return origin + (href.startsWith('/') ? href : '/' + href);
 };
 
-// Helper: Make WebDAV/CalDAV HTTP Requests with Basic Authentication via native https module
 const makeDavRequest = (url, method, body, username, password, depth = '0', contentType = 'application/xml; charset=utf-8') => {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
-    const auth = Buffer.from(`${username}:${password}`).toString('base64');
+    const auth = Buffer.from(`${String(username).trim()}:${String(password).trim()}`).toString('base64');
+
     
     const options = {
       hostname: urlObj.hostname,
