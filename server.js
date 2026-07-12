@@ -276,16 +276,21 @@ async function startServer() {
 
     // Database migration: Copy legacy email to marketingEmail if not exists, and set receiveMarketing default to true
     try {
-      const unmigratedCount = await Customer.countDocuments({ marketingEmail: { $exists: false } });
-      if (unmigratedCount > 0) {
-        console.log(`🔄 Migrating ${unmigratedCount} customers to initialize marketingEmail and receiveMarketing...`);
-        const result = await Customer.updateMany(
-          { marketingEmail: { $exists: false } },
-          [
-            { $set: { marketingEmail: "$email", receiveMarketing: true } }
-          ]
-        );
-        console.log(`✅ Successfully initialized marketing fields for ${result.modifiedCount} customers.`);
+      const unmigrated = await Customer.find({ marketingEmail: { $exists: false } });
+      if (unmigrated.length > 0) {
+        console.log(`🔄 Migrating ${unmigrated.length} customers to initialize marketingEmail and receiveMarketing...`);
+        let count = 0;
+        for (const doc of unmigrated) {
+          doc.marketingEmail = doc.email;
+          doc.receiveMarketing = true;
+          // Use save() bypass validation for fast execution since they are existing records
+          await Customer.updateOne(
+            { _id: doc._id },
+            { $set: { marketingEmail: doc.email, receiveMarketing: true } }
+          );
+          count++;
+        }
+        console.log(`✅ Successfully initialized marketing fields for ${count} customers.`);
       }
     } catch (migError) {
       console.error('Error running marketing email migration:', migError);
