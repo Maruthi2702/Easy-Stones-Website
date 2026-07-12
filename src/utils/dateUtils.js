@@ -7,8 +7,16 @@
 const parseAsLocal = (date) => {
     if (!date) return null;
     if (date instanceof Date) return date;
-    if (typeof date === 'string' && date.endsWith('Z')) {
-        return new Date(date.slice(0, -1));
+    if (typeof date === 'string') {
+        if (date.endsWith('Z')) {
+            return new Date(date.slice(0, -1));
+        }
+        // If it's a plain YYYY-MM-DD date string, parse it using local timezone components
+        // to avoid UTC midnight shifting the day backwards in western timezones
+        if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            const [year, month, day] = date.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
     }
     return new Date(date);
 };
