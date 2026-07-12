@@ -4376,19 +4376,19 @@ const SalesPage = () => {
                     const webcalFeedUrl = calendarFeedUrl.replace(/^https?:\/\//, 'webcal://').replace(/^http?:\/\//, 'webcal://');
 
                     return (
-                        <div className="selection-modal-overlay" style={{ zIndex: 2000 }}>
-                            <div className="selection-modal-container" style={{ maxWidth: '550px', minHeight: '350px' }}>
-                                <div className="selection-modal-header">
-                                    <h2 className="selection-modal-header-title">📅 SYNC CALENDAR</h2>
+                        <div className="modal-overlay" style={{ zIndex: 99999 }}>
+                            <div className="modal-content" style={{ maxWidth: '550px', minHeight: '350px' }}>
+                                <div className="modal-header">
+                                    <h2>📅 SYNC CALENDAR</h2>
                                     <button 
                                         type="button" 
-                                        className="selection-modal-close" 
+                                        className="close-btn" 
                                         onClick={() => setShowCalendarSyncModal(false)}
                                     >
                                         <X size={20} />
                                     </button>
                                 </div>
-                                <div className="selection-modal-body" style={{ padding: '1.5rem', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '550px', overflowY: 'auto' }}>
+                                <div className="modal-body" style={{ padding: '1.5rem', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '550px', overflowY: 'auto' }}>
                                     
                                     {/* Google Calendar Section */}
                                     <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '1rem', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -4646,13 +4646,13 @@ const SalesPage = () => {
 
                 {/* Link Partner Modal */}
                 {showLinkPartnerModal && (
-                    <div className="selection-modal-overlay" style={{ zIndex: 2000 }}>
-                        <div className="selection-modal-container" style={{ maxWidth: '500px', maxHeight: '420px', minHeight: '300px' }}>
-                            <div className="selection-modal-header">
-                                <h2 className="selection-modal-header-title">LINK PARTNER</h2>
+                    <div className="modal-overlay" style={{ zIndex: 99999 }}>
+                        <div className="modal-content" style={{ maxWidth: '500px', maxHeight: '420px', minHeight: '300px' }}>
+                            <div className="modal-header">
+                                <h2>LINK PARTNER</h2>
                                 <button 
                                     type="button" 
-                                    className="selection-modal-close" 
+                                    className="close-btn" 
                                     onClick={() => { setShowLinkPartnerModal(false); setLinkingPartnerId(''); }}
                                 >
                                     <X size={20} />
