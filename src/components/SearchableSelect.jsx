@@ -57,7 +57,6 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
             <div
                 className="searchable-select-trigger"
                 onClick={() => setIsOpen(!isOpen)}
-                onTouchEnd={(e) => { e.preventDefault(); setIsOpen(!isOpen); }}
                 style={{
                     padding: '0.5rem',
                     border: '1px solid rgba(255, 255, 255, 0.2)',
@@ -118,7 +117,6 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         onClick={(e) => e.stopPropagation()}
-                                        onTouchEnd={(e) => e.stopPropagation()}
                                         style={{
                                             width: '100%',
                                             padding: '6px 8px 6px 28px',
@@ -137,7 +135,6 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                             {onCreateNew && (
                                 <div
                                     onClick={(e) => { e.stopPropagation(); setIsOpen(false); onCreateNew(); }}
-                                    onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); setIsOpen(false); onCreateNew(); }}
                                     style={{
                                         padding: '10px 12px',
                                         cursor: 'pointer',
@@ -169,7 +166,6 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                                             key={option.value}
                                             className="searchable-select-option"
                                             onClick={(e) => handleSelect(option.value, e)}
-                                            onTouchEnd={(e) => handleSelect(option.value, e)}
                                             style={{
                                                 padding: '10px 12px',
                                                 cursor: 'pointer',
