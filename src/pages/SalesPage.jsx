@@ -140,6 +140,10 @@ const SalesPage = () => {
             setCheckInRefreshTrigger(prev => prev + 1);
         });
 
+        socket.on('customer_update', () => {
+            setCustomerRefreshTrigger(prev => prev + 1);
+        });
+
         return () => {
             socket.disconnect();
         };
@@ -1109,6 +1113,7 @@ const SalesPage = () => {
 
     const [showDashboardUploadModal, setShowDashboardUploadModal] = useState(false);
     const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+    const [customerRefreshTrigger, setCustomerRefreshTrigger] = useState(0);
     const [loadingVisitId, setLoadingVisitId] = useState(null);
     const [loadingResourceId, setLoadingResourceId] = useState(null);
 
@@ -1370,7 +1375,7 @@ const SalesPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [currentPage, debouncedSearch]);
+    }, [currentPage, debouncedSearch, customerRefreshTrigger]);
 
     useEffect(() => {
         fetchCustomers();
@@ -3493,6 +3498,7 @@ const SalesPage = () => {
                                 onToggleSidebar={() => setIsSidebarOpen(true)}
                                 isSidebarOpen={isSidebarOpen}
                                 isPinned={isPinned}
+                                customerRefreshTrigger={customerRefreshTrigger}
                             />
                         </div>
                     )}
@@ -3859,6 +3865,7 @@ const SalesPage = () => {
                                             onToggleSidebar={() => setIsSidebarOpen(true)}
                                             isSidebarOpen={isSidebarOpen}
                                             isPinned={isPinned}
+                                            customerRefreshTrigger={customerRefreshTrigger}
                                          />
                                     )}
 

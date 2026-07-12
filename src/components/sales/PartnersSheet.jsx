@@ -98,7 +98,7 @@ const MultiSelect = ({ options, selectedValues = [], onChange, placeholder, show
     );
 };
 
-const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPinned }) => {
+const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPinned, customerRefreshTrigger }) => {
     const [activeTab, setActiveTab] = useState('fabricators');
 
     const [partners, setPartners] = useState([]);
@@ -259,7 +259,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             sortB: sortBy,
             sortO: sortOrder
         });
-    }, [currentPage, debouncedSearch, limit, filterLevels, filterTypes, filterCities, filterStatuses, activeTab, sortBy, sortOrder]);
+    }, [currentPage, debouncedSearch, limit, filterLevels, filterTypes, filterCities, filterStatuses, activeTab, sortBy, sortOrder, customerRefreshTrigger]);
 
     useEffect(() => {
         if (searchTerm === debouncedSearch) {

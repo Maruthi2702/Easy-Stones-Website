@@ -2700,6 +2700,7 @@ app.post('/api/partners', verifyAnyAuth, async (req, res) => {
       createdBy: req.userId
     });
     await newCustomer.save();
+    req.app.get('io').emit('customer_update');
     console.log(`✅ Unified Lead (Customer) created: ${req.body.company}`);
     res.status(201).json(newCustomer);
   } catch (error) {
@@ -2742,6 +2743,7 @@ app.put('/api/partners/:id', verifyAnyAuth, async (req, res) => {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
+    req.app.get('io').emit('customer_update');
     res.json(updatedCustomer);
   } catch (error) {
     console.error('Error updating unified lead:', error);
@@ -2758,6 +2760,7 @@ app.delete('/api/partners/:id', verifyAnyAuth, async (req, res) => {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
+    req.app.get('io').emit('customer_update');
     res.json({ message: 'Lead record removed successfully' });
   } catch (error) {
     console.error('Error deleting lead record:', error);
@@ -4282,6 +4285,7 @@ app.post('/api/admin/customers', verifyToken, async (req, res) => {
     });
 
     await customer.save();
+    req.app.get('io').emit('customer_update');
 
     res.status(201).json({
       success: true,
@@ -4327,6 +4331,7 @@ app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
     }
 
     await customer.save();
+    req.app.get('io').emit('customer_update');
 
     res.json({
       success: true,
@@ -4350,6 +4355,7 @@ app.delete('/api/admin/customers/:id', verifyToken, async (req, res) => {
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
+    req.app.get('io').emit('customer_update');
     res.json({ success: true, message: 'Customer deleted successfully' });
   } catch (error) {
     console.error('Delete customer error:', error);
@@ -4695,6 +4701,7 @@ app.post('/api/sales/customers', verifyAnyAuth, async (req, res) => {
     });
 
     await newCustomer.save();
+    req.app.get('io').emit('customer_update');
 
     // Return formatted to match what the frontend expects
     res.status(201).json(newCustomer);
