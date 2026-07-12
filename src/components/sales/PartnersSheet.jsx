@@ -469,17 +469,24 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             if (response.ok) {
                 const data = await response.json();
                 const allPartners = data.partners || [];
-                const emails = allPartners.map(p => p.email).filter(Boolean);
+                // Filter out any contacts that are working with another sales rep
+                const filteredPartners = allPartners.filter(p => p.status !== 'Different Sales Person');
+                const emails = filteredPartners.map(p => p.email).filter(Boolean);
+                
                 if (emails.length === 0) {
-                    alert('No emails found for the current filter.');
+                    alert('No eligible email addresses found for the current filters.');
                     return;
                 }
-                // Open user's default email client (e.g. Outlook, Mail) with BCC line prefilled
-                window.location.href = `mailto:?bcc=${emails.join(',')}`;
+                
+                // Format with semicolons for easy pasting into Outlook
+                const emailList = emails.join('; ');
+                await navigator.clipboard.writeText(emailList);
+                
+                alert(`Successfully copied ${emails.length} email addresses to your clipboard!\n\nYou can now paste them directly into the To/Bcc field in Outlook.`);
             }
         } catch (error) {
-            console.error('Error fetching emails:', error);
-            alert('Failed to fetch emails');
+            console.error('Error copying emails:', error);
+            alert('Failed to copy emails');
         } finally {
             setLoading(false);
         }
@@ -560,9 +567,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                         <Download size={18} />
                         Export
                     </button>
-                    <button className="export-btn" onClick={emailAllContacts} style={{ gap: '6px' }} title="Compose an email to all fabricators/partners matching current filters">
+                    <button className="export-btn" onClick={emailAllContacts} style={{ gap: '6px' }} title="Copy all emails matching filters (excluding other sales reps) to clipboard">
                         <Mail size={18} />
-                        Email All
+                        Copy Emails
                     </button>
                     <div className="table-search">
                         <Search className="search-icon" size={18} />
