@@ -1,5 +1,6 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { CheckCircle, AlertTriangle, Info } from 'lucide-react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
@@ -89,6 +90,45 @@ function App() {
   const isSalesPage = location.pathname.startsWith('/sales');
   const isAdminPage = location.pathname.startsWith('/admin');
 
+  // Custom Alert Modal State
+  const [customAlert, setCustomAlert] = useState(null);
+
+  useEffect(() => {
+    const originalAlert = window.alert;
+
+    window.alert = (message) => {
+      const msgStr = String(message);
+      const msgLower = msgStr.toLowerCase();
+      
+      let type = 'info';
+      let title = 'Notification';
+      
+      if (msgLower.includes('success') || msgLower.includes('completed') || msgLower.includes('saved') || msgLower.includes('linked')) {
+        type = 'success';
+        title = 'Success';
+      } else if (msgLower.includes('fail') || msgLower.includes('error') || msgLower.includes('invalid') || msgLower.includes('could not') || msgLower.includes('required') || msgLower.includes('mandatory')) {
+        type = 'error';
+        title = 'Alert';
+      }
+
+      return new Promise((resolve) => {
+        setCustomAlert({
+          message: msgStr,
+          type,
+          title,
+          resolve: () => {
+            setCustomAlert(null);
+            resolve();
+          }
+        });
+      });
+    };
+
+    return () => {
+      window.alert = originalAlert;
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <ProductProvider>
@@ -135,6 +175,29 @@ function App() {
           </main>
           {!isSalesPage && !isAdminPage && <Footer />}
         </div>
+        {/* Custom Alert Modal overlay outside normal layout */}
+        {customAlert && (
+          <div className="custom-alert-overlay" onClick={customAlert.resolve}>
+            <div className="custom-alert-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="custom-alert-header">
+                <div className={`custom-alert-icon-wrapper ${customAlert.type}`}>
+                  {customAlert.type === 'success' && <CheckCircle size={28} color="#10b981" />}
+                  {customAlert.type === 'error' && <AlertTriangle size={28} color="#ef4444" />}
+                  {customAlert.type === 'info' && <Info size={28} color="#d4af37" />}
+                </div>
+                <h3>{customAlert.title}</h3>
+              </div>
+              <div className="custom-alert-body">
+                <p>{customAlert.message}</p>
+              </div>
+              <div className="custom-alert-footer">
+                <button className="custom-alert-btn" onClick={customAlert.resolve}>
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </ProductProvider>
     </AuthProvider>
   );
