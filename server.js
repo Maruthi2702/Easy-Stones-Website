@@ -3360,6 +3360,376 @@ app.get('/api/calendar/feed/:userId.ics', async (req, res) => {
   }
 });
 
+// Helper to determine the standard OAuth callback redirect URI
+const getRedirectUri = (req) => {
+  const host = req.get('host');
+  const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+  const protocol = isLocal ? 'http' : 'https';
+  return `${protocol}://${host}/api/auth/google/calendar/callback`;
+};
+
+// Helper: Refresh expired Google Access Token using the user's Refresh Token
+const refreshGoogleAccessToken = async (user) => {
+  if (!user.googleRefreshToken) {
+    throw new Error('No refresh token available');
+  }
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      refresh_token: user.googleRefreshToken,
+      grant_type: 'refresh_token'
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error(`Token refresh failed for user ${user.username}:`, errText);
+    throw new Error('Failed to refresh Google access token');
+  }
+
+  const data = await response.json();
+  user.googleAccessToken = data.access_token;
+  await user.save();
+  return data.access_token;
+};
+
+// Core Helper: Perform Two-Way synchronization between MongoDB Schedules and Google Calendar
+const syncGoogleCalendar = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user || !user.googleCalendarSyncEnabled || !user.googleAccessToken) {
+      return;
+    }
+
+    let accessToken = user.googleAccessToken;
+
+    const fetchGoogleEvents = async (token) => {
+      const timeMin = new Date();
+      timeMin.setDate(timeMin.getDate() - 30);
+      const timeMax = new Date();
+      timeMax.setDate(timeMax.getDate() + 90);
+
+      const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+        `timeMin=${encodeURIComponent(timeMin.toISOString())}` +
+        `&timeMax=${encodeURIComponent(timeMax.toISOString())}` +
+        `&singleEvents=true`;
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.status === 401) {
+        const newToken = await refreshGoogleAccessToken(user);
+        return fetchGoogleEvents(newToken);
+      }
+
+      if (!res.ok) {
+        throw new Error(`Google Calendar API error: ${res.statusText}`);
+      }
+
+      return res.json();
+    };
+
+    const data = await fetchGoogleEvents(accessToken);
+    const googleEvents = data.items || [];
+
+    // 1. Google -> Sales Planner Sync
+    for (const gEvent of googleEvents) {
+      const isSyncedFromApp = gEvent.description && gEvent.description.includes('EasyStones ID:');
+      if (isSyncedFromApp) {
+        continue;
+      }
+
+      const existingImport = await Schedule.findOne({
+        userId,
+        notes: new RegExp(`Google ID: ${gEvent.id}`)
+      });
+
+      if (gEvent.status === 'cancelled') {
+        if (existingImport) {
+          await Schedule.deleteOne({ _id: existingImport._id });
+        }
+        continue;
+      }
+
+      const startTime = gEvent.start.dateTime || gEvent.start.date;
+      const endTime = gEvent.end.dateTime || gEvent.end.date;
+
+      if (!startTime) continue;
+
+      if (existingImport) {
+        existingImport.startTime = startTime;
+        existingImport.endTime = endTime;
+        existingImport.notes = `Google Calendar Event\n[Google ID: ${gEvent.id}]\n\n${gEvent.description || ''}`;
+        await existingImport.save();
+      } else {
+        let syncCustomer = await Customer.findOne({ company: 'Google Calendar Sync' });
+        if (!syncCustomer) {
+          syncCustomer = new Customer({
+            company: 'Google Calendar Sync',
+            contactName: 'Google Event Sync',
+            phone: '000-000-0000',
+            email: 'sync@easystones.com',
+            status: 'Lead'
+          });
+          await syncCustomer.save();
+        }
+
+        const newItem = new Schedule({
+          userId,
+          customerId: syncCustomer._id,
+          startTime,
+          endTime,
+          activityType: 'Other',
+          notes: `Google Calendar Event\n[Google ID: ${gEvent.id}]\n\n${gEvent.description || ''}`,
+          status: 'Scheduled'
+        });
+        await newItem.save();
+      }
+    }
+
+    // 2. Sales Planner -> Google Sync
+    const appSchedules = await Schedule.find({
+      userId,
+      notes: { $not: /Google ID:/ },
+      status: { $ne: 'Cancelled' }
+    }).populate('customerId', 'contactName company');
+
+    for (const schedule of appSchedules) {
+      const syncedMatch = schedule.notes && schedule.notes.match(/Synced to Google ID: ([a-zA-Z0-9_]+)/);
+      const clientName = schedule.customerId 
+        ? (schedule.customerId.company || schedule.customerId.contactName || 'Unnamed Customer') 
+        : 'Unknown Customer';
+      
+      const eventPayload = {
+        summary: `${schedule.activityType || 'Visit'} - ${clientName}`,
+        description: `${schedule.notes || ''}\n\n[EasyStones ID: ${schedule._id}]`,
+        start: { dateTime: new Date(schedule.startTime).toISOString() },
+        end: { dateTime: new Date(schedule.endTime || new Date(schedule.startTime).getTime() + 3600000).toISOString() }
+      };
+
+      if (syncedMatch) {
+        const googleEventId = syncedMatch[1];
+        const updateUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`;
+        await fetch(updateUrl, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(eventPayload)
+        });
+      } else {
+        const createUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
+        const createRes = await fetch(createUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(eventPayload)
+        });
+
+        if (createRes.ok) {
+          const createdEvent = await createRes.json();
+          schedule.notes = `${schedule.notes || ''}\n\n[Synced to Google ID: ${createdEvent.id}]`;
+          await schedule.save();
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`Error in syncGoogleCalendar for user ${userId}:`, err);
+  }
+};
+
+// Route: Initiate Google OAuth Redirection for Calendar Sync
+app.get('/api/auth/google/calendar', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(401).send('Authentication token is required');
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      return res.status(401).send('Invalid or expired authentication token');
+    }
+
+    const userId = decoded.id;
+    if (!userId) {
+      return res.status(401).send('Invalid token payload');
+    }
+
+    const client_id = process.env.GOOGLE_CLIENT_ID;
+    const client_secret = process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!client_id || !client_secret) {
+      return res.status(400).send('Google Client credentials are not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to your environment variables.');
+    }
+
+    const redirect_uri = getRedirectUri(req);
+    const scope = 'https://www.googleapis.com/auth/calendar';
+    const state = token;
+
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${encodeURIComponent(client_id)}` +
+      `&redirect_uri=${encodeURIComponent(redirect_uri)}` +
+      `&response_type=code` +
+      `&scope=${encodeURIComponent(scope)}` +
+      `&access_type=offline` +
+      `&prompt=consent` +
+      `&state=${encodeURIComponent(state)}`;
+
+    res.redirect(authUrl);
+  } catch (error) {
+    console.error('Google calendar auth redirect error:', error);
+    res.status(500).send('Error initiating Google Calendar authorization');
+  }
+});
+
+// Route: Google OAuth Redirect callback to parse code and save user tokens
+app.get('/api/auth/google/calendar/callback', async (req, res) => {
+  try {
+    const { code, state, error } = req.query;
+
+    if (error) {
+      console.error('Google OAuth callback error:', error);
+      return res.redirect('/sales?error=google_auth_failed');
+    }
+
+    if (!code || !state) {
+      return res.status(400).send('Missing authorization code or state');
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(state, JWT_SECRET);
+    } catch (err) {
+      return res.status(401).send('Invalid or expired state token');
+    }
+
+    const userId = decoded.id;
+    if (!userId) {
+      return res.status(401).send('Invalid state payload');
+    }
+
+    const client_id = process.env.GOOGLE_CLIENT_ID;
+    const client_secret = process.env.GOOGLE_CLIENT_SECRET;
+    const redirect_uri = getRedirectUri(req);
+
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id,
+        client_secret,
+        redirect_uri,
+        grant_type: 'authorization_code'
+      })
+    });
+
+    if (!tokenResponse.ok) {
+      const errText = await tokenResponse.text();
+      console.error('Google token exchange failed:', errText);
+      return res.status(500).send('Failed to exchange authorization code for tokens');
+    }
+
+    const tokens = await tokenResponse.json();
+    const { access_token, refresh_token } = tokens;
+
+    const profileResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` }
+    });
+    
+    let googleEmail = null;
+    if (profileResponse.ok) {
+      const profile = await profileResponse.json();
+      googleEmail = profile.email;
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+
+    user.googleAccessToken = access_token;
+    if (refresh_token) {
+      user.googleRefreshToken = refresh_token;
+    }
+    user.googleEmail = googleEmail;
+    user.googleCalendarSyncEnabled = true;
+    await user.save();
+
+    console.log(`✅ Google Calendar linked for user: ${user.username} (${googleEmail})`);
+
+    // Redirect to sales page with confirmation
+    res.redirect('/sales?google_sync=success');
+  } catch (error) {
+    console.error('Google calendar OAuth callback error:', error);
+    res.status(500).send('Error completing Google Calendar integration');
+  }
+});
+
+// Route: Get current user's Google Calendar integration status
+app.get('/api/auth/google/calendar/status', verifyAnyAuth, async (req, res) => {
+  try {
+    const userId = req.userId || req.customerId;
+    const user = await User.findById(userId).select('googleEmail googleCalendarSyncEnabled').lean();
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json({
+      connected: !!user.googleEmail && user.googleCalendarSyncEnabled,
+      email: user.googleEmail
+    });
+  } catch (error) {
+    console.error('Google calendar status error:', error);
+    res.status(500).json({ message: 'Failed to fetch status' });
+  }
+});
+
+// Route: Trigger manual synchronization cycle
+app.post('/api/auth/google/calendar/sync', verifyAnyAuth, async (req, res) => {
+  try {
+    const userId = req.userId || req.customerId;
+    await syncGoogleCalendar(userId);
+    res.json({ success: true, message: 'Google Calendar synchronized successfully' });
+  } catch (error) {
+    console.error('Google calendar sync trigger error:', error);
+    res.status(500).json({ message: 'Failed to synchronize Google Calendar' });
+  }
+});
+
+// Route: Disconnect calendar integration
+app.post('/api/auth/google/calendar/disconnect', verifyAnyAuth, async (req, res) => {
+  try {
+    const userId = req.userId || req.customerId;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.googleAccessToken = null;
+    user.googleRefreshToken = null;
+    user.googleEmail = null;
+    user.googleCalendarSyncEnabled = false;
+    await user.save();
+
+    res.json({ success: true, message: 'Google Calendar disconnected successfully' });
+  } catch (error) {
+    console.error('Google calendar disconnect error:', error);
+    res.status(500).json({ message: 'Failed to disconnect Google Calendar' });
+  }
+});
+
 // Toggle reaction on visit
 app.post('/api/customers/:customerId/visits/:visitId/react', verifyAnyAuth, async (req, res) => {
   try {

@@ -380,6 +380,84 @@ const SalesPage = () => {
     const [showVisitModal, setShowVisitModal] = useState(false);
     const [showResourceModal, setShowResourceModal] = useState(false);
     const [showCalendarSyncModal, setShowCalendarSyncModal] = useState(false);
+    const [googleSyncStatus, setGoogleSyncStatus] = useState({ connected: false, email: '' });
+    const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
+
+    const fetchGoogleSyncStatus = async () => {
+        try {
+            const res = await fetch(`${API_URL}/api/auth/google/calendar/status`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include'
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setGoogleSyncStatus(data);
+            }
+        } catch (err) {
+            console.error('Error fetching Google Sync status:', err);
+        }
+    };
+
+    const handleLinkGoogleCalendar = () => {
+        const token = localStorage.getItem('token');
+        window.location.href = `${API_URL || window.location.origin}/api/auth/google/calendar?token=${token}`;
+    };
+
+    const handleSyncGoogleCalendar = async () => {
+        try {
+            setIsSyncingGoogle(true);
+            const res = await fetch(`${API_URL}/api/auth/google/calendar/sync`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include'
+            });
+            if (res.ok) {
+                alert('Synchronization completed successfully!');
+                if (fetchSchedules) fetchSchedules();
+            } else {
+                alert('Failed to sync Google Calendar.');
+            }
+        } catch (err) {
+            console.error('Sync error:', err);
+            alert('Network error during synchronization.');
+        } finally {
+            setIsSyncingGoogle(false);
+        }
+    };
+
+    const handleDisconnectGoogleCalendar = async () => {
+        if (!window.confirm('Are you sure you want to disconnect Google Calendar? This will stop event syncing.')) {
+            return;
+        }
+        try {
+            const res = await fetch(`${API_URL}/api/auth/google/calendar/disconnect`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                credentials: 'include'
+            });
+            if (res.ok) {
+                setGoogleSyncStatus({ connected: false, email: '' });
+                alert('Google Calendar disconnected.');
+            }
+        } catch (err) {
+            console.error('Disconnect error:', err);
+        }
+    };
+
+    useEffect(() => {
+        if (showCalendarSyncModal) {
+            fetchGoogleSyncStatus();
+        }
+    }, [showCalendarSyncModal]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('google_sync') === 'success') {
+            alert('Google Calendar connected successfully!');
+            window.history.replaceState({}, document.title, window.location.pathname);
+            fetchGoogleSyncStatus();
+        }
+    }, []);
     const [editingContact, setEditingContact] = useState(null);
     const [editingVisit, setEditingVisit] = useState(null);
     const [editingResource, setEditingResource] = useState(null);
@@ -4148,70 +4226,126 @@ const SalesPage = () => {
                                         <X size={20} />
                                     </button>
                                 </div>
-                                <div className="selection-modal-body" style={{ padding: '1.5rem', color: 'var(--text-primary)' }}>
-                                    <p style={{ fontSize: '0.95rem', marginBottom: '1.25rem', lineHeight: '1.5', opacity: 0.9 }}>
-                                        Subscribe to your Easy Stones scheduled visits and meetings directly on your iPhone, iPad, Mac, or Google account. Changes update automatically in the background!
-                                    </p>
+                                <div className="selection-modal-body" style={{ padding: '1.5rem', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '550px', overflowY: 'auto' }}>
                                     
-                                    <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                        <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--gold-color, #d4af37)', fontSize: '0.9rem' }}>Your Secure Subscription Feed Link:</h4>
-                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                            <input 
-                                                type="text" 
-                                                readOnly 
-                                                value={calendarFeedUrl} 
-                                                style={{
-                                                    flex: 1,
-                                                    background: 'rgba(0,0,0,0.3)',
-                                                    border: '1px solid rgba(255,255,255,0.2)',
-                                                    borderRadius: '4px',
-                                                    padding: '8px 12px',
-                                                    color: '#fff',
-                                                    fontSize: '0.85rem',
-                                                    fontFamily: 'monospace'
-                                                }}
-                                            />
+                                    {/* Google Calendar Section */}
+                                    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '1rem', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                        <h3 style={{ margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
+                                            🔄 Two-Way Google Sync
+                                        </h3>
+                                        <p style={{ fontSize: '0.85rem', margin: '0 0 1rem 0', opacity: 0.8, lineHeight: '1.4' }}>
+                                            Link Google Calendar to sync events both ways: additions in either place automatically update in the other.
+                                        </p>
+                                        
+                                        {googleSyncStatus.connected ? (
+                                            <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', background: 'rgba(0,180,0,0.1)', padding: '8px 12px', borderRadius: '4px', border: '1px solid rgba(0,180,0,0.2)' }}>
+                                                    <span style={{ fontSize: '0.85rem', color: '#8cd48c', fontWeight: 'bold' }}>
+                                                        Connected: {googleSyncStatus.email}
+                                                    </span>
+                                                    <button 
+                                                        type="button" 
+                                                        className="btn-secondary" 
+                                                        onClick={handleDisconnectGoogleCalendar}
+                                                        style={{ padding: '4px 10px', fontSize: '0.75rem', borderColor: '#ff6b6b', color: '#ff6b6b' }}
+                                                    >
+                                                        Disconnect
+                                                    </button>
+                                                </div>
+                                                <button 
+                                                    type="button" 
+                                                    className="btn-primary" 
+                                                    disabled={isSyncingGoogle}
+                                                    onClick={handleSyncGoogleCalendar}
+                                                    style={{ width: '100%', padding: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}
+                                                >
+                                                    {isSyncingGoogle ? 'Syncing...' : '🔄 Sync Now'}
+                                                </button>
+                                            </div>
+                                        ) : (
                                             <button 
                                                 type="button" 
-                                                className="btn-secondary" 
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(calendarFeedUrl);
-                                                    alert('Calendar link copied to clipboard!');
-                                                }}
-                                                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                                                className="btn-primary" 
+                                                onClick={handleLinkGoogleCalendar}
+                                                style={{ width: '100%', padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}
                                             >
-                                                Copy
+                                                🔗 Link Google Calendar
                                             </button>
+                                        )}
+                                    </div>
+
+                                    <hr style={{ border: 'none', borderBottom: '1px solid rgba(255,255,255,0.1)', margin: '0' }} />
+
+                                    {/* One-Way Apple Calendar Section */}
+                                    <div>
+                                        <h3 style={{ margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
+                                            📲 Apple Calendar (One-Way Feed)
+                                        </h3>
+                                        <p style={{ fontSize: '0.85rem', margin: '0 0 1rem 0', opacity: 0.8, lineHeight: '1.4' }}>
+                                            Add read-only subscriptions directly to your iPhone/Mac calendar.
+                                        </p>
+                                        
+                                        <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--gold-color, #d4af37)', fontSize: '0.85rem' }}>Your Secure Subscription Link:</h4>
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                <input 
+                                                    type="text" 
+                                                    readOnly 
+                                                    value={calendarFeedUrl} 
+                                                    style={{
+                                                        flex: 1,
+                                                        background: 'rgba(0,0,0,0.3)',
+                                                        border: '1px solid rgba(255,255,255,0.2)',
+                                                        borderRadius: '4px',
+                                                        padding: '8px 12px',
+                                                        color: '#fff',
+                                                        fontSize: '0.8rem',
+                                                        fontFamily: 'monospace'
+                                                    }}
+                                                />
+                                                <button 
+                                                    type="button" 
+                                                    className="btn-secondary" 
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(calendarFeedUrl);
+                                                        alert('Calendar link copied to clipboard!');
+                                                    }}
+                                                    style={{ padding: '8px 16px', fontSize: '0.8rem' }}
+                                                >
+                                                    Copy
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                            <a 
+                                                href={webcalFeedUrl}
+                                                className="btn-primary" 
+                                                style={{ 
+                                                    textAlign: 'center', 
+                                                    textDecoration: 'none', 
+                                                    padding: '10px', 
+                                                    fontWeight: 'bold',
+                                                    display: 'flex',
+                                                    justifyContent: 'center',
+                                                    alignItems: 'center',
+                                                    gap: '8px'
+                                                }}
+                                            >
+                                                📲 Subscribe in Apple Calendar (Mac/iPhone)
+                                            </a>
+                                            
+                                            <div style={{ fontSize: '0.8rem', opacity: 0.8, lineHeight: '1.4' }}>
+                                                <strong>Google Calendar Instructions:</strong>
+                                                <ol style={{ margin: '4px 0 0 16px', paddingLeft: 0 }}>
+                                                    <li>Open <a href="https://calendar.google.com" target="_blank" rel="noreferrer" style={{ color: 'var(--gold-color, #d4af37)' }}>Google Calendar</a> on a desktop browser.</li>
+                                                    <li>On the left side next to "Other calendars", click <strong>+</strong> &rarr; <strong>From URL</strong>.</li>
+                                                    <li>Paste the copied link and click <strong>Add calendar</strong>.</li>
+                                                </ol>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                        <a 
-                                            href={webcalFeedUrl}
-                                            className="btn-primary" 
-                                            style={{ 
-                                                textAlign: 'center', 
-                                                textDecoration: 'none', 
-                                                padding: '10px', 
-                                                fontWeight: 'bold',
-                                                display: 'flex',
-                                                justifyContent: 'center',
-                                                alignItems: 'center',
-                                                gap: '8px'
-                                            }}
-                                        >
-                                            📲 Subscribe in Apple Calendar (Mac/iPhone)
-                                        </a>
-                                        
-                                        <div style={{ fontSize: '0.85rem', opacity: 0.8, lineHeight: '1.4' }}>
-                                            <strong>Google Calendar Instructions:</strong>
-                                            <ol style={{ margin: '4px 0 0 16px', paddingLeft: 0 }}>
-                                                <li>Open <a href="https://calendar.google.com" target="_blank" rel="noreferrer" style={{ color: 'var(--gold-color, #d4af37)' }}>Google Calendar</a> on a desktop browser.</li>
-                                                <li>On the left side next to "Other calendars", click <strong>+</strong> &rarr; <strong>From URL</strong>.</li>
-                                                <li>Paste the copied link above and click <strong>Add calendar</strong>.</li>
-                                            </ol>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>

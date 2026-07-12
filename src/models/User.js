@@ -34,6 +34,22 @@ const userSchema = new mongoose.Schema({
   location: {
     type: String,
     trim: true
+  },
+  googleAccessToken: {
+    type: String,
+    default: null
+  },
+  googleRefreshToken: {
+    type: String,
+    default: null
+  },
+  googleEmail: {
+    type: String,
+    default: null
+  },
+  googleCalendarSyncEnabled: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
