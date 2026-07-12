@@ -277,35 +277,42 @@
     flex-grow: 1;
 }
 
-.contact-phone {
+.letterhead-contact-info .contact-phone {
     font-size: 0.9rem;
     font-weight: 700;
-    color: #111111;
+    color: #111111 !important;
     letter-spacing: 0.05em;
-    margin-bottom: 2px;
+    margin: 0 0 2px 0 !important;
+    line-height: 1.2 !important;
 }
 
-.contact-email {
+.letterhead-contact-info .contact-email {
     font-size: 0.78rem;
     font-weight: 500;
-    color: #4b5563;
+    color: #4b5563 !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
 }
 
-.contact-address, .contact-city {
+.letterhead-contact-info .contact-address,
+.letterhead-contact-info .contact-city {
     font-size: 0.76rem;
     font-weight: 400;
-    color: #6b7280;
+    color: #6b7280 !important;
     text-transform: uppercase;
     letter-spacing: 0.02em;
+    margin: 0 !important; /* Reset margin from Footer.css */
+    line-height: 1.2 !important;
 }
 
-.contact-website {
+.letterhead-contact-info .contact-website {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #b45309; /* Elegant dark gold */
+    color: #b45309 !important; /* Elegant dark gold */
     letter-spacing: 0.04em;
-    margin-top: 2px;
+    margin: 2px 0 0 0 !important;
     text-transform: lowercase;
+    line-height: 1.2 !important;
 }
 
 .letterhead-distribution {
