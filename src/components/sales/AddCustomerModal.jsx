@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Loader, Scan } from 'lucide-react';
+import { X, Loader, Scan, Upload } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import { formatPhoneInput } from '../../utils/phoneUtils';
 import { parseBusinessCard } from '../../utils/cardParser';
@@ -176,6 +176,70 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
         }
     };
 
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const imageData = event.target.result;
+            setScanStatus('processing');
+            setScanProgress(0);
+
+            try {
+                const { data: { text } } = await Tesseract.recognize(
+                    imageData,
+                    'eng',
+                    {
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                setScanProgress(Math.floor(m.progress * 100));
+                            }
+                        }
+                    }
+                );
+
+                console.log('OCR Raw Text:', text);
+                const parsedData = parseBusinessCard(text);
+                console.log('Parsed Data:', parsedData);
+
+                let foundSomething = false;
+                const updatedForm = { ...form };
+
+                if (parsedData.customerName) { updatedForm.customerName = parsedData.customerName; foundSomething = true; }
+                if (parsedData.company) { updatedForm.company = parsedData.company; foundSomething = true; }
+                if (parsedData.phone) { updatedForm.phone = parsedData.phone; foundSomething = true; }
+                if (parsedData.email) { 
+                    updatedForm.email = parsedData.email; 
+                    updatedForm.marketingEmail = parsedData.email; 
+                    foundSomething = true; 
+                }
+
+                if (parsedData.address.street) { updatedForm.address.street = parsedData.address.street; foundSomething = true; }
+                if (parsedData.address.city) { updatedForm.address.city = parsedData.address.city; foundSomething = true; }
+                if (parsedData.address.state) { updatedForm.address.state = parsedData.address.state; foundSomething = true; }
+                if (parsedData.address.zipCode) { updatedForm.address.zipCode = parsedData.address.zipCode; foundSomething = true; }
+
+                if (foundSomething) {
+                    setForm(updatedForm);
+                } else {
+                    console.warn('Scanner: No recognizable data found in the text.');
+                    const showRaw = window.confirm('Scanning complete, but no specific contact details could be identified.\n\nWould you like to see the raw text found on the card? This helps us improve the scanner.');
+                    if (showRaw) {
+                        alert(`Raw Text Found:\n\n${text}`);
+                    }
+                }
+
+                setScanStatus('idle');
+            } catch (err) {
+                console.error('OCR Error:', err);
+                alert('Failed to scan card image. Please try again.');
+                setScanStatus('idle');
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
     useEffect(() => {
         return () => stopScanner();
     }, []);
@@ -222,28 +286,58 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <h2>{isViewMode ? 'View Customer' : (isEditMode ? 'Edit Customer' : 'Add New Customer')}</h2>
                         {!isViewMode && (
-                            <button
-                                className="scan-card-btn"
-                                onClick={startScanner}
-                                title="Scan Business Card"
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    padding: '0.4rem 0.8rem',
-                                    borderRadius: '20px',
-                                    border: '1px solid #3b82f6',
-                                    background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-                                    color: '#1d4ed8',
-                                    fontSize: '0.8rem',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                <Scan size={14} />
-                                Scan Document
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                <button
+                                    className="scan-card-btn"
+                                    onClick={startScanner}
+                                    title="Scan Business Card (Camera)"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem',
+                                        padding: '0.4rem 0.8rem',
+                                        borderRadius: '20px',
+                                        border: '1px solid #3b82f6',
+                                        background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                                        color: '#1d4ed8',
+                                        fontSize: '0.8rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                                    }}
+                                >
+                                    <Scan size={14} />
+                                    Scan Card
+                                </button>
+                                <label
+                                    className="scan-card-btn upload-card-btn"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem',
+                                        padding: '0.4rem 0.8rem',
+                                        borderRadius: '20px',
+                                        border: '1px solid #10b981',
+                                        background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+                                        color: '#047857',
+                                        fontSize: '0.8rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                                    }}
+                                >
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageUpload}
+                                        style={{ display: 'none' }}
+                                    />
+                                    <Upload size={14} />
+                                    Upload Contact Screenshot
+                                </label>
+                            </div>
                         )}
                     </div>
                     <button className="close-btn" onClick={handleClose}>

@@ -24,6 +24,18 @@ export const parseBusinessCard = (text) => {
         }
     };
 
+    // Heuristic: Check if any line looks like "Name @ Company" or "Name | Company" or "Name at Company"
+    for (const line of lines) {
+        if (line.includes('@') && !line.includes('.com') && !line.includes('.org') && !line.includes('.net') && !line.includes('.edu') && !line.includes('.gov')) {
+            const parts = line.split('@');
+            if (parts.length === 2) {
+                result.customerName = parts[0].trim();
+                result.company = parts[1].trim();
+                break;
+            }
+        }
+    }
+
     // Detection markers
     const isDL = text.toLowerCase().includes('driver license') || text.toLowerCase().includes('dl') || /\bLN\b|\bFN\b/.test(text) || /\b[128]\s[A-Z]/.test(text);
     const isSSN = text.toLowerCase().includes('social security') || /\b\d{3}-\d{2}-\d{4}\b/.test(text);
@@ -141,6 +153,44 @@ export const parseBusinessCard = (text) => {
     if (!result.address.street) {
         const streetLine = lines.find(l => /^\d+\s+[a-zA-Z]+/.test(l) && !l.includes(result.phone));
         if (streetLine) result.address.street = streetLine;
+    }
+
+    // Parse street address line if it contains city, state, zip details (e.g. "22230 84th Ave S, Kent, WA 98032")
+    if (result.address.street && result.address.street.includes(',')) {
+        const addressParts = result.address.street.split(',').map(p => p.trim());
+        if (addressParts.length >= 2) {
+            const streetVal = addressParts[0];
+            const secondPart = addressParts[1];
+            
+            if (addressParts.length === 3) {
+                result.address.street = streetVal;
+                result.address.city = secondPart;
+                const stateZipPart = addressParts[2];
+                const stateZipMatch = stateZipPart.match(/^([A-Za-z]{2})\s+(\d{5})/);
+                if (stateZipMatch) {
+                    result.address.state = stateZipMatch[1];
+                    result.address.zipCode = stateZipMatch[2];
+                } else {
+                    result.address.state = stateZipPart;
+                }
+            } else if (addressParts.length === 2) {
+                result.address.street = streetVal;
+                const stateZipMatch = secondPart.match(/^(.*?)\s+([A-Za-z]{2})\s+(\d{5})/);
+                if (stateZipMatch) {
+                    result.address.city = stateZipMatch[1].trim();
+                    result.address.state = stateZipMatch[2];
+                    result.address.zipCode = stateZipMatch[3];
+                } else {
+                    const cityStateMatch = secondPart.match(/^(.*?)\s+([A-Za-z]{2})/);
+                    if (cityStateMatch) {
+                        result.address.city = cityStateMatch[1].trim();
+                        result.address.state = cityStateMatch[2];
+                    } else {
+                        result.address.city = secondPart;
+                    }
+                }
+            }
+        }
     }
 
     return result;
