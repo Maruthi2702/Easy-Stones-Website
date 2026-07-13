@@ -280,8 +280,16 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
     };
 
     const handleSave = () => {
+        if (!form.company.trim() && !form.email.trim()) {
+            alert('Company name and email address are required');
+            return;
+        }
         if (!form.company.trim()) {
             alert('Company name is required');
+            return;
+        }
+        if (!form.email.trim()) {
+            alert('Email address is required');
             return;
         }
         onSave(form, handleClose);
@@ -430,7 +438,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                             />
                         </div>
                         <div className="form-group">
-                            <label>Email</label>
+                            <label>Email <span style={{ color: 'red' }}>*</span></label>
                             <input
                                 type="email"
                                 value={form.email}
