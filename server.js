@@ -1395,7 +1395,18 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
       {
         $match: {
           ...userMatchObj,
-          "visits.followUpDate": todayStr
+          $expr: {
+            $eq: [
+              {
+                $cond: [
+                  { $eq: [{ $type: "$visits.followUpDate" }, "date"] },
+                  { $dateToString: { format: "%Y-%m-%d", date: "$visits.followUpDate" } },
+                  "$visits.followUpDate"
+                ]
+              },
+              todayStr
+            ]
+          }
         }
       },
       { $count: "count" }
@@ -2922,10 +2933,19 @@ const getFollowUpRangeMatch = (start, end, additionalMatch = {}) => {
     }
   }
 
+  // Expression to normalize followUpDate to a YYYY-MM-DD string format on the fly
+  const followUpDateExpr = {
+    $cond: [
+      { $eq: [{ $type: "$visits.followUpDate" }, "date"] },
+      { $dateToString: { format: "%Y-%m-%d", date: "$visits.followUpDate" } },
+      { $ifNull: ["$visits.followUpDate", ""] }
+    ]
+  };
+
   // Include if follow-up date is set OR if follow-up notes exist
   conds.push({
     $or: [
-      { $and: [{ $ne: ["$visits.followUpDate", ""] }, { $ne: ["$visits.followUpDate", null] }] },
+      { $and: [{ $ne: [followUpDateExpr, ""] }, { $ne: [followUpDateExpr, null] }] },
       { $and: [{ $ne: ["$visits.followUp", ""] }, { $ne: ["$visits.followUp", null] }] },
       { $and: [{ $ne: ["$visits.nextAction", ""] }, { $ne: ["$visits.nextAction", null] }] }
     ]
@@ -2939,9 +2959,9 @@ const getFollowUpRangeMatch = (start, end, additionalMatch = {}) => {
       // This excludes past/overdue follow-ups to keep the "Today" view focused on current/upcoming work.
       conds.push({
         $and: [
-          { $ne: ["$visits.followUpDate", ""] },
-          { $ne: ["$visits.followUpDate", null] },
-          { $gte: ["$visits.followUpDate", startStr] }
+          { $ne: [followUpDateExpr, ""] },
+          { $ne: [followUpDateExpr, null] },
+          { $gte: [followUpDateExpr, startStr] }
         ]
       });
     } else {
@@ -2951,18 +2971,15 @@ const getFollowUpRangeMatch = (start, end, additionalMatch = {}) => {
 
       conds.push({
         $or: [
-          { $gte: ["$visits.followUpDate", startStr] },
-          { $lt: ["$visits.followUpDate", referenceToday] },
+          { $gte: [followUpDateExpr, startStr] },
+          { $lt: [followUpDateExpr, referenceToday] },
           // Items without a date (notes only) are included in the "All" or relative views
-          { $eq: ["$visits.followUpDate", ""] },
-          { $eq: ["$visits.followUpDate", null] }
+          { $eq: [followUpDateExpr, ""] },
+          { $eq: [followUpDateExpr, null] }
         ]
       });
     }
   }
-
-
-
 
   return { $expr: { $and: conds } };
 };
