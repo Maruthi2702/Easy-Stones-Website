@@ -10,36 +10,92 @@
     gap: 0.75rem;
 }
 
-.scan-card-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
+/* Dropdown Container */
+.scan-dropdown-container {
+    position: relative;
+    display: inline-block;
 }
 
-.scan-card-btn {
+/* Plus Toggle Button */
+.scan-dropdown-toggle-btn {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.4rem 0.8rem;
-    border-radius: 20px;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
     border: 1px solid #3b82f6;
     background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
     color: #1d4ed8;
-    font-size: 0.8rem;
-    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-.scan-card-btn:hover {
-    filter: brightness(0.97);
+.scan-dropdown-toggle-btn:hover {
+    background: #3b82f6;
+    color: white;
+    transform: scale(1.05);
 }
 
-.upload-card-btn {
-    border: 1px solid #10b981;
-    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-    color: #047857;
+/* Dropdown Menu */
+.scan-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 100;
+    min-width: 175px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 0.4rem 0;
+    display: flex;
+    flex-direction: column;
+    animation: fadeInDropdown 0.15s ease-out;
+}
+
+/* Dropdown Menu Item */
+.scan-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    box-sizing: border-box;
+}
+
+.scan-dropdown-item:hover {
+    background: #f8fafc;
+    color: #3b82f6;
+}
+
+.scan-dropdown-item svg {
+    color: #64748b;
+    transition: color 0.15s ease;
+}
+
+.scan-dropdown-item:hover svg {
+    color: #3b82f6;
+}
+
+@keyframes fadeInDropdown {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .add-customer-modal-overlay .modal-body {

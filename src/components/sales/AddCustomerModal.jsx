@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Loader, Scan, Upload } from 'lucide-react';
+import { X, Loader, Scan, Upload, Plus, Camera } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import { formatPhoneInput } from '../../utils/phoneUtils';
 import { parseBusinessCard } from '../../utils/cardParser';
@@ -29,8 +29,20 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
 
     const [scanProgress, setScanProgress] = useState(0);
     const [scanStatus, setScanStatus] = useState('idle'); // 'idle', 'camera', 'processing'
+    const [showScanDropdown, setShowScanDropdown] = useState(false);
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setShowScanDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const activeCustomer = viewingCustomer || editingCustomer;
 
@@ -287,25 +299,43 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                     <div className="add-customer-modal-header-actions">
                         <h2>{isViewMode ? 'View Customer' : (isEditMode ? 'Edit Customer' : 'Add New Customer')}</h2>
                         {!isViewMode && (
-                            <div className="scan-card-actions">
-                                <button
-                                    className="scan-card-btn"
-                                    onClick={startScanner}
-                                    title="Scan Business Card (Camera)"
+                            <div className="scan-dropdown-container" ref={dropdownRef}>
+                                <button 
+                                    className="scan-dropdown-toggle-btn"
+                                    onClick={() => setShowScanDropdown(!showScanDropdown)}
+                                    title="Import Contact Options"
                                 >
-                                    <Scan size={14} />
-                                    Scan Card
+                                    <Plus size={16} />
                                 </button>
-                                <label className="scan-card-btn upload-card-btn">
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleImageUpload}
-                                        style={{ display: 'none' }}
-                                    />
-                                    <Upload size={14} />
-                                    Upload Contact Screenshot
-                                </label>
+                                
+                                {showScanDropdown && (
+                                    <div className="scan-dropdown-menu">
+                                        <button 
+                                            className="scan-dropdown-item"
+                                            onClick={() => {
+                                                setShowScanDropdown(false);
+                                                startScanner();
+                                            }}
+                                        >
+                                            <Camera size={14} />
+                                            <span>Scan Card</span>
+                                        </button>
+                                        
+                                        <label className="scan-dropdown-item">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => {
+                                                    setShowScanDropdown(false);
+                                                    handleImageUpload(e);
+                                                }}
+                                                style={{ display: 'none' }}
+                                            />
+                                            <Upload size={14} />
+                                            <span>Upload Screenshot</span>
+                                        </label>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
