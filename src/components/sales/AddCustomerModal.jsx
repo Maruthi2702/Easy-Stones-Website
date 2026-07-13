@@ -3,6 +3,7 @@ import { X, Loader, Scan, Upload } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import { formatPhoneInput } from '../../utils/phoneUtils';
 import { parseBusinessCard } from '../../utils/cardParser';
+import './AddCustomerModal.css';
 
 const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, viewingCustomer }) => {
     const [form, setForm] = useState({
@@ -281,53 +282,21 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
 
     return (
         <div className="modal-overlay add-customer-modal-overlay" onClick={handleClose}>
-            <div className="modal-content add-customer-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+            <div className="modal-content add-customer-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div className="add-customer-modal-header-actions">
                         <h2>{isViewMode ? 'View Customer' : (isEditMode ? 'Edit Customer' : 'Add New Customer')}</h2>
                         {!isViewMode && (
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <div className="scan-card-actions">
                                 <button
                                     className="scan-card-btn"
                                     onClick={startScanner}
                                     title="Scan Business Card (Camera)"
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.4rem',
-                                        padding: '0.4rem 0.8rem',
-                                        borderRadius: '20px',
-                                        border: '1px solid #3b82f6',
-                                        background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-                                        color: '#1d4ed8',
-                                        fontSize: '0.8rem',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                                    }}
                                 >
                                     <Scan size={14} />
                                     Scan Card
                                 </button>
-                                <label
-                                    className="scan-card-btn upload-card-btn"
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.4rem',
-                                        padding: '0.4rem 0.8rem',
-                                        borderRadius: '20px',
-                                        border: '1px solid #10b981',
-                                        background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-                                        color: '#047857',
-                                        fontSize: '0.8rem',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                                    }}
-                                >
+                                <label className="scan-card-btn upload-card-btn">
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -344,92 +313,49 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                         <X size={20} />
                     </button>
                 </div>
-                <div className="modal-body" style={{ position: 'relative', maxHeight: '70vh', overflowY: 'auto' }}>
+                <div className="modal-body">
                     {scanStatus !== 'idle' && (
-                        <div style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            backgroundColor: 'rgba(0,0,0,0.9)',
-                            zIndex: 10,
-                            borderRadius: '0 0 12px 12px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'white',
-                            padding: '1rem'
-                        }}>
+                        <div className="scan-overlay">
                             {scanStatus === 'camera' ? (
                                 <>
-                                    <div style={{
-                                        width: '100%',
-                                        maxWidth: '400px',
-                                        aspectRatio: '1.6',
-                                        border: '2px dashed #3b82f6',
-                                        borderRadius: '8px',
-                                        position: 'relative',
-                                        overflow: 'hidden',
-                                        marginBottom: '1rem'
-                                    }}>
+                                    <div className="scan-frame">
                                         <video
                                             ref={videoRef}
                                             autoPlay
                                             playsInline
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                            className="scan-video"
                                         />
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: '50%',
-                                            left: '50%',
-                                            transform: 'translate(-50%, -50%)',
-                                            width: '80%',
-                                            height: '60%',
-                                            border: '2px solid rgba(255,255,255,0.3)',
-                                            pointerEvents: 'none'
-                                        }} />
+                                        <div className="scan-guideline" />
                                     </div>
-                                    <p style={{ fontSize: '0.85rem', marginBottom: '1.5rem', opacity: 0.8 }}>
+                                    <p className="scan-instruction">
                                         Align ID or business card within the frame
                                     </p>
-                                    <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <div className="scan-action-buttons">
                                         <button
-                                            className="btn-secondary"
+                                            className="btn-secondary scan-cancel-btn"
                                             onClick={() => { stopScanner(); setScanStatus('idle'); }}
-                                            style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none' }}
                                         >
                                             Cancel
                                         </button>
                                         <button
-                                            className="btn-primary"
+                                            className="btn-primary scan-capture-btn"
                                             onClick={captureAndScan}
-                                            style={{ background: '#3b82f6', border: 'none', padding: '0.75rem 2rem' }}
                                         >
                                             Capture
                                         </button>
                                     </div>
                                 </>
                             ) : (
-                                <div style={{ textAlign: 'center' }}>
-                                    <Loader size={40} className="animate-spin" style={{ marginBottom: '1rem', color: '#3b82f6' }} />
-                                    <h3 style={{ marginBottom: '0.5rem' }}>Processing Document...</h3>
-                                    <div style={{
-                                        width: '200px',
-                                        height: '6px',
-                                        backgroundColor: 'rgba(255,255,255,0.1)',
-                                        borderRadius: '3px',
-                                        overflow: 'hidden'
-                                    }}>
-                                        <div style={{
-                                            width: `${scanProgress}%`,
-                                            height: '100%',
-                                            backgroundColor: '#3b82f6',
-                                            transition: 'width 0.3s'
-                                        }} />
+                                <div className="scan-processing">
+                                    <Loader size={40} className="animate-spin scan-loader" />
+                                    <h3 className="scan-processing-title">Processing Document...</h3>
+                                    <div className="scan-progress-bar">
+                                        <div 
+                                            className="scan-progress-fill"
+                                            style={{ width: `${scanProgress}%` }}
+                                        />
                                     </div>
-                                    <p style={{ fontSize: '0.75rem', marginTop: '0.5rem', opacity: 0.6 }}>
+                                    <p className="scan-progress-text">
                                         {scanProgress}% Processed
                                     </p>
                                 </div>
@@ -438,7 +364,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                     )}
                     <canvas ref={canvasRef} style={{ display: 'none' }} />
                     
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-grid-2col">
                         <div className="form-group">
                             <label>Company Name <span style={{ color: 'red' }}>*</span></label>
                             <input
@@ -462,7 +388,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-grid-2col">
                         <div className="form-group">
                             <label>Phone</label>
                             <input
@@ -485,7 +411,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-grid-2col">
                         <div className="form-group">
                             <label>Marketing Email</label>
                             <input
@@ -496,36 +422,21 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                                 disabled={isViewMode}
                             />
                         </div>
-                        <div className="form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: isViewMode ? 'default' : 'pointer', marginTop: '1.25rem' }}>
+                        <div className="form-group marketing-optin-group">
+                            <label className="marketing-optin-label" style={{ cursor: isViewMode ? 'default' : 'pointer' }}>
                                 <div 
                                     onClick={() => !isViewMode && setForm({ ...form, receiveMarketing: !form.receiveMarketing })}
-                                    style={{
-                                        width: '20px',
-                                        height: '20px',
-                                        borderRadius: '4px',
-                                        border: form.receiveMarketing ? '2px solid #10b981' : '2px solid #ef4444',
-                                        backgroundColor: form.receiveMarketing ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        cursor: isViewMode ? 'default' : 'pointer',
-                                        userSelect: 'none',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 'bold',
-                                        color: form.receiveMarketing ? '#10b981' : '#ef4444',
-                                        transition: 'all 0.2s ease',
-                                        opacity: isViewMode ? 0.75 : 1
-                                    }}
+                                    className={`marketing-optin-checkbox ${form.receiveMarketing ? 'optin-active' : 'optin-inactive'}`}
+                                    style={{ cursor: isViewMode ? 'default' : 'pointer' }}
                                 >
                                     {form.receiveMarketing ? '✓' : '✕'}
                                 </div>
-                                <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Receive Marketing Emails</span>
+                                <span className="marketing-optin-text">Receive Marketing Emails</span>
                             </label>
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-grid-2col">
                         <div className="form-group">
                             <label>Status</label>
                             <select
@@ -559,7 +470,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                    <div className="form-grid-3col">
                         <div className="form-group">
                             <label>Customer Type</label>
                             <select
@@ -608,9 +519,9 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                             onChange={(e) => setForm({ ...form, address: { ...form.address, street: e.target.value } })}
                             placeholder="Street Address"
                             disabled={isViewMode}
-                            style={{ marginBottom: '0.5rem' }}
+                            className="margin-bottom-sm"
                         />
-                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '0.5rem' }}>
+                        <div className="address-row-grid">
                             <input
                                 type="text"
                                 value={form.address.city}
@@ -658,7 +569,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                             </button>
                             <button className="btn-primary" onClick={handleSave} disabled={isSaving}>
                                 {isSaving ? (
-                                    <><Loader size={14} className="animate-spin" style={{ marginRight: '0.5rem' }} /> Saving...</>
+                                    <><Loader size={14} className="animate-spin margin-right-sm" /> Saving...</>
                                 ) : (
                                     isEditMode ? 'Save Changes' : 'Add Customer'
                                 )}

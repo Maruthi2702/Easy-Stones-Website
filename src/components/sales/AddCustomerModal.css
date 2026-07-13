@@ -1,0 +1,220 @@
+/* AddCustomerModal Stylesheet */
+
+.add-customer-modal-overlay .add-customer-modal {
+    max-width: 650px;
+}
+
+.add-customer-modal-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.scan-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.scan-card-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    border: 1px solid #3b82f6;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    color: #1d4ed8;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.scan-card-btn:hover {
+    filter: brightness(0.97);
+}
+
+.upload-card-btn {
+    border: 1px solid #10b981;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    color: #047857;
+}
+
+.add-customer-modal-overlay .modal-body {
+    position: relative;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.scan-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0,0,0,0.9);
+    z-index: 10;
+    border-radius: 0 0 12px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    padding: 1rem;
+}
+
+.scan-frame {
+    width: 100%;
+    max-width: 400px;
+    aspect-ratio: 1.6;
+    border: 2px dashed #3b82f6;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.scan-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.scan-guideline {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    height: 60%;
+    border: 2px solid rgba(255,255,255,0.3);
+    pointer-events: none;
+}
+
+.scan-instruction {
+    font-size: 0.85rem;
+    margin-bottom: 1.5rem;
+    opacity: 0.8;
+}
+
+.scan-action-buttons {
+    display: flex;
+    gap: 1rem;
+}
+
+.scan-cancel-btn {
+    background: rgba(255,255,255,0.1);
+    color: white;
+    border: none;
+}
+
+.scan-capture-btn {
+    background: #3b82f6;
+    border: none;
+    padding: 0.75rem 2rem;
+}
+
+.scan-processing {
+    text-align: center;
+}
+
+.scan-loader {
+    margin-bottom: 1rem;
+    color: #3b82f6;
+}
+
+.scan-processing-title {
+    margin-bottom: 0.5rem;
+}
+
+.scan-progress-bar {
+    width: 200px;
+    height: 6px;
+    background-color: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.scan-progress-fill {
+    height: 100%;
+    background-color: #3b82f6;
+    transition: width 0.3s;
+}
+
+.scan-progress-text {
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+    opacity: 0.6;
+}
+
+/* Grids and general layouts */
+.form-grid-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-grid-3col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+}
+
+.address-row-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.marketing-optin-group {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.marketing-optin-label {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 1.25rem;
+}
+
+.marketing-optin-checkbox {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    font-size: 0.75rem;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+.marketing-optin-checkbox.optin-active {
+    border: 2px solid #10b981;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.marketing-optin-checkbox.optin-inactive {
+    border: 2px solid #ef4444;
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.marketing-optin-text {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+}
+
+.margin-bottom-sm {
+    margin-bottom: 0.5rem;
+}
+
+.margin-right-sm {
+    margin-right: 0.5rem;
+}
