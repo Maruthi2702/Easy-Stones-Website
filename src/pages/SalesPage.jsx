@@ -1175,12 +1175,10 @@ const SalesPage = () => {
 
     useEffect(() => {
         fetchCurrentUser();
-        fetchCustomers();
-        fetchAllCustomersForDropdown();
         // fetchDashboardResources will be called by its own useEffect when tab is active
     }, []);
 
-    const fetchAllCustomersForDropdown = async () => {
+    const fetchAllCustomersForDropdown = useCallback(async () => {
         setIsDropdownLoading(true);
         try {
             const response = await fetch(`${API_URL}/api/customers/dropdown`, {
@@ -1197,7 +1195,11 @@ const SalesPage = () => {
         } finally {
             setIsDropdownLoading(false);
         }
-    };
+    }, [customerRefreshTrigger]);
+
+    useEffect(() => {
+        fetchAllCustomersForDropdown();
+    }, [fetchAllCustomersForDropdown]);
 
     // Auto-select first customer only if dashboard is not active
     useEffect(() => {
