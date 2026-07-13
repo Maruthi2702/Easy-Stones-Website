@@ -135,12 +135,22 @@ export const parseBusinessCard = (text) => {
         }
     }
 
-    // Strip out generic "Contact Photo & Poster" iOS system labels
+    // Strip out generic "Contact Photo & Poster" iOS system labels and single letter profile icons
+    const cleanField = (val) => {
+        if (!val) return '';
+        return val
+            .replace(/Contact Photo.*/i, '')
+            .replace(/Poster.*/i, '')
+            .replace(/\b[A-Za-z]\)?$/, '') // Remove trailing single letter icons like D) or D
+            .replace(/\s*[-|@]\s*$/, '')    // Remove trailing delimiters
+            .trim();
+    };
+
     if (result.customerName) {
-        result.customerName = result.customerName.replace(/Contact Photo.*/i, '').replace(/Poster.*/i, '').trim();
+        result.customerName = cleanField(result.customerName);
     }
     if (result.company) {
-        result.company = result.company.replace(/Contact Photo.*/i, '').replace(/Poster.*/i, '').trim();
+        result.company = cleanField(result.company);
     }
 
     // General Regex fallbacks if structured parsing missed it
