@@ -434,7 +434,17 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                             <input
                                 type="email"
                                 value={form.email}
-                                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                onChange={(e) => {
+                                    const newEmail = e.target.value;
+                                    setForm(prev => {
+                                        const syncMarketing = prev.marketingEmail === prev.email;
+                                        return {
+                                            ...prev,
+                                            email: newEmail,
+                                            marketingEmail: syncMarketing ? newEmail : prev.marketingEmail
+                                        };
+                                    });
+                                }}
                                 placeholder="Email address"
                                 disabled={isViewMode}
                             />
