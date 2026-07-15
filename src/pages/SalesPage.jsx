@@ -3157,12 +3157,11 @@ const SalesPage = () => {
                                             </button>
                                         </div>
 
-                                        <div className="header-right" style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+                                        <div className="header-right">
                                             <button
                                                 className="info-toggle-btn"
                                                 onClick={handleGoHome}
                                                 title="Sales Dashboard"
-                                                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', padding: '6px' }}
                                             >
                                                 <LayoutDashboard size={18} />
                                             </button>
@@ -3170,7 +3169,6 @@ const SalesPage = () => {
                                                 className={`info-toggle-btn ${showCustomerInfo ? 'active' : ''}`}
                                                 onClick={() => setShowCustomerInfo(!showCustomerInfo)}
                                                 title={showCustomerInfo ? 'Hide Info' : 'Show Info'}
-                                                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', padding: '6px' }}
                                             >
                                                 {showCustomerInfo ? <X size={18} /> : <Info size={18} />}
                                             </button>
