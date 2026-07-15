@@ -28,9 +28,24 @@ const UsersRolesTab = () => {
             credentials: 'include',
             headers: {
                 ...options.headers,
-                'Authorization': `Bearer ${token}`
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             }
         });
+    };
+
+    // Ensure we have a token in localStorage - exchanges cookie for JWT if needed
+    // This supports existing sessions that pre-date the localStorage token storage
+    const ensureToken = async () => {
+        if (localStorage.getItem('token')) return; // already have it
+        try {
+            const res = await fetch(`${API_URL}/api/auth/token`, { credentials: 'include' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.token) localStorage.setItem('token', data.token);
+            }
+        } catch (e) {
+            // If this fails, fetchWithAuth will fall back to cookie-based auth
+        }
     };
 
     const [users, setUsers] = useState([]);
@@ -69,13 +84,18 @@ const UsersRolesTab = () => {
         setLoading(true);
         setError(null);
         try {
+            // Ensure we have a token for Authorization header (supports existing sessions)
+            await ensureToken();
+
             const [usersRes, rolesRes] = await Promise.all([
                 fetchWithAuth(`${API_URL}/api/admin/users`),
                 fetchWithAuth(`${API_URL}/api/admin/roles`)
             ]);
 
             if (!usersRes.ok || !rolesRes.ok) {
-                throw new Error('Failed to fetch users or roles details. Make sure you have Administrator access.');
+                // Get the actual error from the server for better debugging
+                const errBody = !usersRes.ok ? await usersRes.json().catch(() => ({})) : await rolesRes.json().catch(() => ({}));
+                throw new Error(errBody.error || errBody.message || 'Failed to fetch users or roles. Check your access permissions.');
             }
 
             const usersData = await usersRes.json();

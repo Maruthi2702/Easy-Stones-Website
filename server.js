@@ -732,6 +732,21 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   }
 });
 
+// Token exchange - returns the token from the cookie so the frontend can use it in Authorization headers
+// This allows existing sessions to work without re-login
+app.get('/api/auth/token', (req, res) => {
+  const token = req.cookies.adminToken;
+  if (!token) {
+    return res.status(401).json({ error: 'No active session' });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.json({ token, role: decoded.role, username: decoded.username });
+  } catch (err) {
+    res.status(401).json({ error: 'Session expired' });
+  }
+});
+
 // ============================================
 // USER MANAGEMENT ENDPOINTS
 // ============================================
