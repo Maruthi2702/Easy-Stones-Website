@@ -1238,10 +1238,10 @@ const AdminPage = () => {
                           value={customerFormData.priceLevel || 1}
                           onChange={(e) => setCustomerFormData(prev => ({ ...prev, priceLevel: parseInt(e.target.value) }))}
                         >
-                          <option value={1}>Level 1 (40% Margin)</option>
-                          <option value={2}>Level 2 (30% Margin)</option>
-                          <option value={3}>Level 3 (20% Margin)</option>
-                          <option value={4}>Level 4 (10% Margin)</option>
+                          <option value={1}>Level 1 (10% Margin)</option>
+                          <option value={2}>Level 2 (20% Margin)</option>
+                          <option value={3}>Level 3 (30% Margin)</option>
+                          <option value={4}>Level 4 (40% Margin)</option>
                         </select>
                       </div>
                     </div>
@@ -1789,10 +1789,10 @@ const AdminPage = () => {
 
                           // Gross Margin Formula: Price = Cost / (1 - Margin%)
                           updates.priceLevels = {
-                            level1: roundToHalf(cost / 0.6), // 40% margin
-                            level2: roundToHalf(cost / 0.7), // 30% margin
-                            level3: roundToHalf(cost / 0.8), // 20% margin
-                            level4: roundToHalf(cost / 0.9)  // 10% margin
+                            level1: roundToHalf(cost / 0.9), // 10% margin
+                            level2: roundToHalf(cost / 0.8), // 20% margin
+                            level3: roundToHalf(cost / 0.7), // 30% margin
+                            level4: roundToHalf(cost / 0.6)  // 40% margin
                           };
                         }
 
@@ -1807,19 +1807,19 @@ const AdminPage = () => {
               {(selectedProduct.landingCost || selectedProduct.priceLevels) && (
                 <div className="price-levels-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginTop: '1rem' }}>
                   <div className="price-card" style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 1 (40%)</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 1 (10%)</label>
                     <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>${selectedProduct.priceLevels?.level1 || 0}</div>
                   </div>
                   <div className="price-card" style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 2 (30%)</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 2 (20%)</label>
                     <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>${selectedProduct.priceLevels?.level2 || 0}</div>
                   </div>
                   <div className="price-card" style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 3 (20%)</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 3 (30%)</label>
                     <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>${selectedProduct.priceLevels?.level3 || 0}</div>
                   </div>
                   <div className="price-card" style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 4 (10%)</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem' }}>Level 4 (40%)</label>
                     <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>${selectedProduct.priceLevels?.level4 || 0}</div>
                   </div>
                 </div>

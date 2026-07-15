@@ -8,7 +8,8 @@ import {
     Edit, Trash2, Download, Share2, Pin, PinOff, ChevronLeft, ChevronRight,
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
     CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus, Folder, Link,
-    LayoutDashboard, Pencil, FileImage, File, MoreVertical, RefreshCw, FileSearch, ExternalLink
+    LayoutDashboard, Pencil, FileImage, File, MoreVertical, RefreshCw, FileSearch, ExternalLink,
+    Monitor, BookOpen
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -1416,7 +1417,7 @@ const SalesPage = () => {
     };
 
     // Use selectedCustomerDetail for the main view, fallback to list item (which might be partial)
-    const selectedCustomer = selectedCustomerDetail || customers.find(c => c._id === selectedCustomerId);
+    const selectedCustomer = selectedCustomerDetail || customers.find(c => c._id === selectedCustomerId) || (selectedCustomerId ? { _id: selectedCustomerId } : null);
 
     const linkableCustomerOptions = React.useMemo(() => {
         const sourceData = allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || []);
@@ -1486,27 +1487,34 @@ const SalesPage = () => {
     }, [selectedCustomerId]);
 
     const handleSelectCustomer = (customer) => {
-        // Only clear previous details if selecting a DIFFERENT customer
-        if (selectedCustomerId !== customer._id) {
-            setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
-        }
-        setSelectedCustomerId(customer._id);
-        
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.set('tab', 'customers');
-        newUrl.searchParams.set('customer', customer._id);
-        newUrl.searchParams.set('view', 'visits'); // Default to visits view on select
-        window.history.pushState({}, '', newUrl);
-        
-        setCrmTab('customers');
+        if (customer) {
+            const isShell = !customer.company && !customer.contactName && !customer.email && !customer.name;
+            if (isShell) {
+                if (selectedCustomerId !== customer._id) {
+                    setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
+                }
+            } else {
+                // Populate selected customer details immediately to transition instantly without list flashes/reloads
+                setSelectedCustomerDetail(customer);
+            }
+            setSelectedCustomerId(customer._id);
+            
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('tab', 'customers');
+            newUrl.searchParams.set('customer', customer._id);
+            newUrl.searchParams.set('view', 'visits'); // Default to visits view on select
+            window.history.pushState({}, '', newUrl);
+            
+            setCrmTab('customers');
 
-        // On mobile, close sidebar (list view) to show details
-        if (isMobile) {
-            setIsSidebarOpen(false);
+            // On mobile, close sidebar (list view) to show details
+            if (isMobile) {
+                setIsSidebarOpen(false);
+            }
+            // fetchSingleCustomer is triggered by useEffect
+            setActiveTab('visits');
+            window.scrollTo(0, 0);
         }
-        // fetchSingleCustomer is triggered by useEffect
-        setActiveTab('visits');
-        window.scrollTo(0, 0);
     };
 
     const handleBackToCustomersList = () => {
@@ -1519,12 +1527,38 @@ const SalesPage = () => {
 
     const getPriceLevelLabel = (level) => {
         const labels = {
-            1: 'Level 1 (40% Margin)',
-            2: 'Level 2 (30% Margin)',
-            3: 'Level 3 (20% Margin)',
-            4: 'Level 4 (10% Margin)'
+            1: 'Level 1 (10% Margin)',
+            2: 'Level 2 (20% Margin)',
+            3: 'Level 3 (30% Margin)',
+            4: 'Level 4 (40% Margin)'
         };
-        return labels[level] || 'Level 1 (40% Margin)';
+        return labels[level] || 'Level 1 (10% Margin)';
+    };
+
+    const getCustomerLevelLabel = (customer) => {
+        if (!customer) return 'Level 1 (10% Margin)';
+        if (customer.level) {
+            const match = customer.level.match(/\d+/);
+            if (match) {
+                const val = parseInt(match[0], 10);
+                const labels = {
+                    1: 'Level 1 (10% Margin)',
+                    2: 'Level 2 (20% Margin)',
+                    3: 'Level 3 (30% Margin)',
+                    4: 'Level 4 (40% Margin)'
+                };
+                return labels[val] || customer.level;
+            }
+            return customer.level;
+        }
+        return getPriceLevelLabel(customer.priceLevel);
+    };
+
+    const getStatusClass = (status) => {
+        const s = (status || '').toLowerCase();
+        if (s === 'onboarded' || s === 'active') return 'status-active';
+        if (s === 'different sales person' || s === 'not interested' || s === 'inactive') return 'status-inactive';
+        return 'status-pending'; // Default gold or yellow for leads
     };
 
     // Contact CRUD operations
@@ -3156,22 +3190,22 @@ const SalesPage = () => {
                                                 <DollarSign size={16} />
                                                 <label>Price Level</label>
                                             </div>
-                                            <p>{getPriceLevelLabel(selectedCustomer.priceLevel)}</p>
+                                            <p>{getCustomerLevelLabel(selectedCustomer)}</p>
                                         </div>
                                         <div className="info-box">
                                             <div className="info-box-header">
                                                 <User size={16} />
                                                 <label>Type</label>
                                             </div>
-                                            <p>Customer</p>
+                                            <p>{selectedCustomer.customerType || 'Fabricator'}</p>
                                         </div>
                                         <div className="info-box">
                                             <div className="info-box-header">
                                                 <ShieldCheck size={16} />
                                                 <label>Status</label>
                                             </div>
-                                            <p className={selectedCustomer.isActive !== false ? 'status-active' : 'status-inactive'}>
-                                                {selectedCustomer.isActive !== false ? 'Active' : 'Inactive'}
+                                            <p className={getStatusClass(selectedCustomer.status || (selectedCustomer.isActive !== false ? 'Active' : 'Inactive'))}>
+                                                {selectedCustomer.status || (selectedCustomer.isActive !== false ? 'Active' : 'Inactive')}
                                             </p>
                                         </div>
                                         <div className="info-box">
@@ -3181,10 +3215,24 @@ const SalesPage = () => {
                                             </div>
                                             <p>{formatDate(selectedCustomer.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                                         </div>
+                                        <div className="info-box">
+                                            <div className="info-box-header">
+                                                <Monitor size={16} />
+                                                <label>Moda Display</label>
+                                            </div>
+                                            <p>{selectedCustomer.modaDisplay || 'No'}</p>
+                                        </div>
+                                        <div className="info-box">
+                                            <div className="info-box-header">
+                                                <BookOpen size={16} />
+                                                <label>Moda Binder</label>
+                                            </div>
+                                            <p>{selectedCustomer.modaBinder || '0'}</p>
+                                        </div>
                                     </div>
 
-                                    {/* Two Column Layout for Address/Contact */}
-                                    <div className="detail-columns simplified">
+                                    {/* Three Column Layout for Address/Contact/Marketing */}
+                                    <div className="detail-columns">
                                         <div className="detail-column">
                                             <h3><MapPin size={14} style={{ marginRight: '8px' }} />Address</h3>
                                             <div className="column-content">
@@ -3201,16 +3249,44 @@ const SalesPage = () => {
                                         </div>
 
                                         <div className="detail-column">
-                                            <h3><User size={14} style={{ marginRight: '8px' }} />Contact</h3>
+                                            <h3><User size={14} style={{ marginRight: '8px' }} />Primary Contact</h3>
                                             <div className="column-content">
-                                                <div className="contact-item">
+                                                {selectedCustomer.contactName && (
+                                                    <div className="contact-item" style={{ marginBottom: '0.4rem' }}>
+                                                        <UserCheck size={16} style={{ color: 'var(--gold-color, #d4af37)' }} />
+                                                        <span>{selectedCustomer.contactName}</span>
+                                                    </div>
+                                                )}
+                                                <div className="contact-item" style={{ marginBottom: '0.4rem' }}>
                                                     <Mail size={16} />
                                                     <span>{selectedCustomer.email}</span>
                                                 </div>
-                                                <div className="contact-item">
-                                                    <Phone size={16} />
-                                                    <span>{formatPhoneForDisplay(selectedCustomer.phone) || 'N/A'}</span>
+                                                {selectedCustomer.phone && (
+                                                    <div className="contact-item">
+                                                        <Phone size={16} />
+                                                        <span>{formatPhoneForDisplay(selectedCustomer.phone)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="detail-column">
+                                            <h3><Mail size={14} style={{ marginRight: '8px' }} />Marketing</h3>
+                                            <div className="column-content">
+                                                <div className="contact-item" style={{ marginBottom: '0.4rem' }}>
+                                                    <Mail size={16} style={{ color: selectedCustomer.receiveMarketing !== false ? '#10b981' : '#ef4444' }} />
+                                                    <span style={{ fontWeight: '500', color: selectedCustomer.receiveMarketing !== false ? '#10b981' : '#ef4444' }}>
+                                                        {selectedCustomer.receiveMarketing !== false ? 'Subscribed to Marketing' : 'Unsubscribed'}
+                                                    </span>
                                                 </div>
+                                                {selectedCustomer.marketingEmail && (
+                                                    <div className="contact-item" style={{ marginTop: '0.4rem' }}>
+                                                        <Info size={16} style={{ opacity: 0.7 }} />
+                                                        <span style={{ fontSize: '0.85rem', color: '#9CA3AF' }}>
+                                                            Email: {selectedCustomer.marketingEmail}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

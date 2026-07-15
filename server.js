@@ -2695,8 +2695,17 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
 // Create a new lead (as a Customer)
 app.post('/api/partners', verifyAnyAuth, async (req, res) => {
   try {
+    let priceLevel = req.body.priceLevel;
+    if (req.body.level) {
+      const match = req.body.level.match(/\d+/);
+      if (match) {
+        priceLevel = parseInt(match[0], 10);
+      }
+    }
+
     const newCustomer = new Customer({
       ...req.body,
+      priceLevel: priceLevel || req.body.priceLevel || 1,
       contactName: req.body.contactName || req.body.name || 'Unknown', // Map contactName/name to contactName
       marketingEmail: req.body.marketingEmail || req.body.email || '',
       receiveMarketing: req.body.receiveMarketing !== undefined ? req.body.receiveMarketing : true,
@@ -2724,6 +2733,13 @@ app.post('/api/partners', verifyAnyAuth, async (req, res) => {
 app.put('/api/partners/:id', verifyAnyAuth, async (req, res) => {
   try {
     const updateData = { ...req.body };
+    if (req.body.level) {
+      const match = req.body.level.match(/\d+/);
+      if (match) {
+        updateData.priceLevel = parseInt(match[0], 10);
+      }
+    }
+
     if (req.body.contactName) {
       updateData.contactName = req.body.contactName;
     } else if (req.body.name) {

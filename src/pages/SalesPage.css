@@ -536,6 +536,7 @@
 
 .status-active { color: #10b981; }
 .status-inactive { color: #ef4444; }
+.status-pending { color: #f59e0b; }
 
 .detail-columns {
     display: grid;

@@ -34,10 +34,10 @@ const productSchema = new mongoose.Schema({
   bookMatch: { type: String, default: 'N/A', enum: ['N/A', 'Yes', 'No'] },
   landingCost: { type: Number },
   priceLevels: {
-    level1: { type: Number }, // 40% margin
-    level2: { type: Number }, // 30% margin
-    level3: { type: Number }, // 20% margin
-    level4: { type: Number }  // 10% margin
+    level1: { type: Number }, // 10% margin
+    level2: { type: Number }, // 20% margin
+    level3: { type: Number }, // 30% margin
+    level4: { type: Number }  // 40% margin
   }
 }, {
   timestamps: true,
