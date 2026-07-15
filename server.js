@@ -752,7 +752,7 @@ app.get('/api/auth/token', (req, res) => {
 // ============================================
 
 // Get all users (manage_users permission needed)
-app.get('/api/admin/users', verifyToken, checkPermission('manage_users'), async (req, res) => {
+app.get('/api/admin/users', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     res.json(users);
@@ -762,7 +762,7 @@ app.get('/api/admin/users', verifyToken, checkPermission('manage_users'), async 
 });
 
 // Create new user (manage_users permission needed)
-app.post('/api/admin/users', verifyToken, checkPermission('manage_users'), async (req, res) => {
+app.post('/api/admin/users', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
     const { username, password, email, role, location } = req.body;
 
@@ -798,7 +798,7 @@ app.post('/api/admin/users', verifyToken, checkPermission('manage_users'), async
 });
 
 // Update user (manage_users permission needed)
-app.put('/api/admin/users/:id', verifyToken, checkPermission('manage_users'), async (req, res) => {
+app.put('/api/admin/users/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
     const { username, email, role, password, location } = req.body;
     const userId = req.params.id;
@@ -840,7 +840,7 @@ app.put('/api/admin/users/:id', verifyToken, checkPermission('manage_users'), as
 });
 
 // Delete user (manage_users permission needed)
-app.delete('/api/admin/users/:id', verifyToken, checkPermission('manage_users'), async (req, res) => {
+app.delete('/api/admin/users/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'User deleted successfully' });
@@ -854,7 +854,7 @@ app.delete('/api/admin/users/:id', verifyToken, checkPermission('manage_users'),
 // ============================================
 
 // Get all roles (manage_users permission needed)
-app.get('/api/admin/roles', verifyToken, checkPermission('manage_users'), async (req, res) => {
+app.get('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
     const roles = await Role.find().sort({ name: 1 });
     res.json(roles);
@@ -864,7 +864,7 @@ app.get('/api/admin/roles', verifyToken, checkPermission('manage_users'), async 
 });
 
 // Create a new custom role (manage_users permission needed)
-app.post('/api/admin/roles', verifyToken, checkPermission('manage_users'), async (req, res) => {
+app.post('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
     const { name, displayName, permissions } = req.body;
     if (!name || !displayName) {
@@ -892,7 +892,7 @@ app.post('/api/admin/roles', verifyToken, checkPermission('manage_users'), async
 });
 
 // Update role permissions (manage_users permission needed)
-app.put('/api/admin/roles/:id', verifyToken, checkPermission('manage_users'), async (req, res) => {
+app.put('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
     const { permissions, displayName } = req.body;
     const roleId = req.params.id;
@@ -913,7 +913,7 @@ app.put('/api/admin/roles/:id', verifyToken, checkPermission('manage_users'), as
 });
 
 // Delete custom role (manage_users permission needed)
-app.delete('/api/admin/roles/:id', verifyToken, checkPermission('manage_users'), async (req, res) => {
+app.delete('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
     const roleId = req.params.id;
     const role = await Role.findById(roleId);
