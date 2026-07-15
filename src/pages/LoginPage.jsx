@@ -29,6 +29,11 @@ const LoginPage = () => {
             const data = await response.json();
 
             if (data.success) {
+                // Store token in localStorage for API Authorization headers
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                }
+
                 // Normalize user data for AuthContext
                 const userData = {
                     ...data.admin,

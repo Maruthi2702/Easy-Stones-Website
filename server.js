@@ -718,6 +718,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     res.json({
       success: true,
       message: 'Login successful',
+      token,
       admin: {
         username: user.username,
         email: user.email,
