@@ -3084,6 +3084,7 @@ const SalesPage = () => {
                 className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isPinned || !isSidebarOpen ? 'full-width' : ''}`}
                 style={{
                     marginLeft: isMobile || !isSidebarOpen || !isPinned ? 0 : `${sidebarWidth}px`,
+                    width: isMobile || !isSidebarOpen || !isPinned ? '100%' : `calc(100% - ${sidebarWidth}px)`,
                     position: 'relative'
                 }}
             >
