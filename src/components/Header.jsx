@@ -96,7 +96,7 @@ const Header = () => {
             </div>
           ) : (
             <Link to="/login" className="login-btn">
-              Customer Login
+              Login
             </Link>
           )}
           <button
@@ -180,7 +180,7 @@ const Header = () => {
               className="mobile-login-btn"
               onClick={closeMobileMenu}
             >
-              Customer Login
+              Login
             </Link>
           )}
         </nav>
