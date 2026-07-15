@@ -322,6 +322,10 @@ async function startServer() {
         if (!existing) {
           await Role.create(roleDef);
           console.log(`🌱 Seeded standard role: ${roleDef.name}`);
+        } else if (existing.isSystem) {
+          // Always keep system role permissions in sync with code definitions
+          await Role.updateOne({ name: roleDef.name }, { $set: { permissions: roleDef.permissions, displayName: roleDef.displayName } });
+          console.log(`🔄 Synced system role permissions: ${roleDef.name}`);
         }
       }
     } catch (seedRoleErr) {
