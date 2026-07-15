@@ -1059,7 +1059,7 @@
         margin-bottom: 0 !important;
     }
     
-    .partners-sheet-container .icon-actions-group {
+    .partners-sheet-container .sheet-actions-group {
         grid-column: 2 / 3 !important;
         grid-row: 1 !important;
         display: flex !important;
@@ -1078,14 +1078,14 @@
     }
 }
 
-/* Unified Icon Actions Group */
-.icon-actions-group {
+/* Unified Sheet Actions Group */
+.sheet-actions-group {
     display: flex;
     gap: 0.5rem;
     align-items: center;
 }
 
-.icon-action-btn {
+.sheet-action-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1101,19 +1101,19 @@
     position: relative;
 }
 
-.icon-action-btn:hover {
+.sheet-action-btn:hover {
     background: rgba(212, 175, 55, 0.12);
     border-color: rgba(212, 175, 55, 0.35);
     color: var(--accent-primary, #d4af37);
 }
 
-.icon-action-btn.active {
+.sheet-action-btn.active {
     background: rgba(212, 175, 55, 0.16);
     border-color: rgba(212, 175, 55, 0.45);
     color: var(--accent-primary, #d4af37);
 }
 
-.icon-action-btn .filter-badge {
+.sheet-action-btn .filter-badge {
     position: absolute;
     top: -5px;
     right: -5px;

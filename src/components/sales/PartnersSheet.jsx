@@ -579,15 +579,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div className="icon-actions-group">
-                        <button className="icon-action-btn" onClick={exportToExcel} title="Export to Excel">
+                    <div className="sheet-actions-group">
+                        <button className="sheet-action-btn" onClick={exportToExcel} title="Export to Excel">
                             <Download size={18} />
                         </button>
-                        <button className="icon-action-btn" onClick={emailAllContacts} title="Copy all customer emails matching filters to clipboard">
+                        <button className="sheet-action-btn" onClick={emailAllContacts} title="Copy all customer emails matching filters to clipboard">
                             <Mail size={18} />
                         </button>
                         <button
-                            className={`icon-action-btn filter-toggle-btn${activeFilterCount > 0 ? ' active' : ''}`}
+                            className={`sheet-action-btn filter-toggle-btn${activeFilterCount > 0 ? ' active' : ''}`}
                             onClick={() => setShowFilters(f => !f)}
                             title="Toggle Filters"
                         >
