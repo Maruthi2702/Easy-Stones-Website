@@ -81,7 +81,7 @@
     background: rgba(255, 255, 255, 0.1);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .fancy-mobile-menu-btn {
         display: flex;
     }
@@ -785,7 +785,7 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .sales-container {
     flex-direction: column;
     padding-top: 96px; 
@@ -1331,7 +1331,7 @@
     background-color: rgba(255, 255, 255, 0.1);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .fullscreen-close-btn {
         top: -40px;
         right: 0;
@@ -1552,7 +1552,7 @@
   transform: translateY(-1px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .form-row {
     grid-template-columns: 1fr;
   }
@@ -1892,7 +1892,7 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .filter-row {
     grid-template-columns: 1fr;
   }
@@ -3441,7 +3441,7 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .view-mode.has-image {
         display: flex !important;
         flex-direction: column !important;
@@ -3757,7 +3757,7 @@
     box-shadow: 0 8px 20px rgba(229, 192, 74, 0.2);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .sales-dashboard {
         padding: 1.5rem;
         background: radial-gradient(circle at top, rgba(229, 192, 74, 0.08), transparent 300px),
@@ -3947,7 +3947,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .delete-confirmation-modal {
         padding: 1.5rem;
         max-width: 340px;
@@ -3977,7 +3977,7 @@
         width: 100%;
     }
 }
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .customer-info-section {
         padding: 1rem 1.25rem;
         max-height: 60vh;
@@ -4601,7 +4601,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .planner-container {
         padding: 1rem;
     }

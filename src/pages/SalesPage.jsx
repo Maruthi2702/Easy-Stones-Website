@@ -1001,13 +1001,13 @@ const SalesPage = () => {
         return Math.min(Math.max(parsed, 200), 320); // Clamp between 200px and 320px for compact side nav bar
     });
     const [isResizing, setIsResizing] = useState(false);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
-    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
 
     useEffect(() => {
         const handleResize = () => {
-            setIsMobile(window.innerWidth <= 768);
-            if (window.innerWidth > 768) {
+            setIsMobile(window.innerWidth <= 1024);
+            if (window.innerWidth > 1024) {
                 setIsSidebarOpen(true);
             }
         };

@@ -734,7 +734,7 @@
 }
 
 /* Mobile Responsiveness Updates */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .sales-dashboard-v2 {
         padding: 1rem;
         padding-bottom: 100px;
@@ -1008,7 +1008,7 @@
     font-weight: 500;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .pagination-controls {
         gap: 0.75rem;
     }
@@ -1035,7 +1035,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .visit-details-grid {
         grid-template-columns: 1fr;
         gap: 1.5rem;
@@ -1090,7 +1090,7 @@
     transform: translateY(0);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .mobile-hide-text {
         display: none;
     }
@@ -1244,7 +1244,7 @@
     background: rgba(239, 68, 68, 0.1);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     /* Convert table to flex list for mobile */
     .resources-table, .resources-table tbody {
         display: block;
@@ -1739,7 +1739,7 @@
 
 
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .crm-sub-navbar {
         padding: 0.5rem 1rem;
     }
