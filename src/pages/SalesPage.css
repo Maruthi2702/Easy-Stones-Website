@@ -11,9 +11,9 @@
 
 /* Sidebar */
 .sales-sidebar {
-  width: clamp(220px, 18%, 320px) !important;
-  min-width: 220px !important;
-  max-width: 320px !important;
+  width: clamp(220px, 18%, 320px);
+  min-width: 200px;
+  max-width: 450px;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
