@@ -4,8 +4,12 @@
     padding: 2rem;
     height: 100%;
     overflow-y: auto;
+    overflow-x: hidden;
     background: var(--bg-primary); 
     color: var(--text-primary);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .dashboard-header-v2 {

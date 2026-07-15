@@ -219,11 +219,20 @@
     padding: 1.5rem;
 }
 
+.partners-sheet-container {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
 .partners-sheet-container .dashboard-table-wrapper {
+    width: 100%;
+    max-width: 100%;
     overflow-x: auto;
     background: rgba(255, 255, 255, 0.02);
     border-radius: 12px;
     border: 1px solid var(--border-color);
+    box-sizing: border-box;
 }
 
 .partners-sheet-container .dashboard-table {
