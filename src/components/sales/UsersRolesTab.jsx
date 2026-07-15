@@ -19,6 +19,20 @@ const PERMISSION_LABELS = {
 
 const UsersRolesTab = () => {
     const [subTab, setSubTab] = useState('users'); // 'users' or 'roles'
+
+    // Auth-aware fetch helper that passes credentials/cookies correctly
+    const fetchWithAuth = (url, options = {}) => {
+        const token = localStorage.getItem('token');
+        return fetch(url, {
+            ...options,
+            credentials: 'include',
+            headers: {
+                ...options.headers,
+                'Authorization': `Bearer ${token}`
+            }
+        });
+    };
+
     const [users, setUsers] = useState([]);
     const [roles, setRoles] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -55,14 +69,9 @@ const UsersRolesTab = () => {
         setLoading(true);
         setError(null);
         try {
-            const token = localStorage.getItem('token');
             const [usersRes, rolesRes] = await Promise.all([
-                fetch(`${API_URL}/api/admin/users`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                }),
-                fetch(`${API_URL}/api/admin/roles`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                })
+                fetchWithAuth(`${API_URL}/api/admin/users`),
+                fetchWithAuth(`${API_URL}/api/admin/roles`)
             ]);
 
             if (!usersRes.ok || !rolesRes.ok) {
@@ -114,12 +123,10 @@ const UsersRolesTab = () => {
         if (!selectedRole) return;
         setSavingPermissions(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/admin/roles/${selectedRole._id}`, {
+            const res = await fetchWithAuth(`${API_URL}/api/admin/roles/${selectedRole._id}`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ permissions: editedPermissions })
             });
@@ -148,12 +155,10 @@ const UsersRolesTab = () => {
             return;
         }
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/admin/roles`, {
+            const res = await fetchWithAuth(`${API_URL}/api/admin/roles`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     name: roleForm.displayName.toLowerCase().replace(/\s+/g, '_'),
@@ -188,10 +193,8 @@ const UsersRolesTab = () => {
             return;
         }
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/admin/roles/${role._id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
+            const res = await fetchWithAuth(`${API_URL}/api/admin/roles/${role._id}`, {
+                method: 'DELETE'
             });
 
             if (!res.ok) {
@@ -249,7 +252,6 @@ const UsersRolesTab = () => {
         }
 
         try {
-            const token = localStorage.getItem('token');
             const url = modalMode === 'add' 
                 ? `${API_URL}/api/admin/users`
                 : `${API_URL}/api/admin/users/${editingUser._id}`;
@@ -261,11 +263,10 @@ const UsersRolesTab = () => {
                 delete payload.password;
             }
 
-            const res = await fetch(url, {
+            const res = await fetchWithAuth(url, {
                 method,
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
             });
@@ -288,10 +289,8 @@ const UsersRolesTab = () => {
             return;
         }
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/admin/users/${user._id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
+            const res = await fetchWithAuth(`${API_URL}/api/admin/users/${user._id}`, {
+                method: 'DELETE'
             });
 
             if (!res.ok) {
