@@ -570,14 +570,6 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     {!loading && <span className="customer-count">{totalCount}</span>}
                 </div>
                 <div className="table-controls">
-                    <button className="export-btn" onClick={exportToExcel}>
-                        <Download size={18} />
-                        Export
-                    </button>
-                    <button className="export-btn" onClick={emailAllContacts} style={{ gap: '6px' }} title="Copy all emails matching filters (excluding other sales reps) to clipboard">
-                        <Mail size={18} />
-                        Copy Emails
-                    </button>
                     <div className="table-search">
                         <Search className="search-icon" size={18} />
                         <input
@@ -587,24 +579,31 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <button
-                        className={`filter-toggle-btn${activeFilterCount > 0 ? ' active' : ''}`}
-                        onClick={() => setShowFilters(f => !f)}
-                        title="Filter"
-                    >
-                        <Filter size={16} />
-                        {!isMobile && 'Filter'}
-                        {activeFilterCount > 0 && (
-                            <span className="filter-badge">{activeFilterCount}</span>
-                        )}
-                    </button>
+                    <div className="icon-actions-group">
+                        <button className="icon-action-btn" onClick={exportToExcel} title="Export to Excel">
+                            <Download size={18} />
+                        </button>
+                        <button className="icon-action-btn" onClick={emailAllContacts} title="Copy all customer emails matching filters to clipboard">
+                            <Mail size={18} />
+                        </button>
+                        <button
+                            className={`icon-action-btn filter-toggle-btn${activeFilterCount > 0 ? ' active' : ''}`}
+                            onClick={() => setShowFilters(f => !f)}
+                            title="Toggle Filters"
+                        >
+                            <Filter size={16} />
+                            {activeFilterCount > 0 && (
+                                <span className="filter-badge">{activeFilterCount}</span>
+                            )}
+                        </button>
+                    </div>
                     <button className="partner-add-btn pulse" onClick={() => {
                         setEditingPartner(null);
                         setViewingPartner(null);
                         setShowAddModal(true);
                     }}>
                         <Plus size={18} />
-                        Add Customer
+                        {!isMobile && 'Add Customer'}
                     </button>
                 </div>
             </div>
