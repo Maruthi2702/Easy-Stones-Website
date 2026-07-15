@@ -21,7 +21,6 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['sales_rep', 'manager', 'director', 'admin'],
     default: 'sales_rep'
   },
   loginAttempts: {

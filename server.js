@@ -21,6 +21,7 @@ import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import Product from './src/models/Product.js';
 import User from './src/models/User.js';
+import Role from './src/models/Role.js';
 import ContactSubmission from './src/models/ContactSubmission.js';
 import Customer from './src/models/Customer.js';
 import SalesResource from './src/models/SalesResource.js';
@@ -272,6 +273,59 @@ async function startServer() {
       }
     } catch (migError) {
       console.error('Error running status update migration:', migError);
+    }
+    // Seed standard Roles & Permissions
+    try {
+      const defaultRoles = [
+        {
+          name: 'admin',
+          displayName: 'Administrator',
+          permissions: [
+            'view_dashboard', 'view_customers', 'manage_customers',
+            'view_checkins', 'manage_checkins', 'view_pricelist',
+            'manage_pricelist', 'manage_users'
+          ],
+          isSystem: true
+        },
+        {
+          name: 'director',
+          displayName: 'Director',
+          permissions: [
+            'view_dashboard', 'view_customers', 'manage_customers',
+            'view_checkins', 'manage_checkins', 'view_pricelist',
+            'manage_pricelist', 'manage_users'
+          ],
+          isSystem: true
+        },
+        {
+          name: 'manager',
+          displayName: 'Manager',
+          permissions: [
+            'view_dashboard', 'view_customers', 'manage_customers',
+            'view_checkins', 'manage_checkins', 'view_pricelist'
+          ],
+          isSystem: true
+        },
+        {
+          name: 'sales_rep',
+          displayName: 'Sales Representative',
+          permissions: [
+            'view_dashboard', 'view_customers', 'manage_customers',
+            'view_checkins', 'manage_checkins', 'view_pricelist'
+          ],
+          isSystem: true
+        }
+      ];
+
+      for (const roleDef of defaultRoles) {
+        const existing = await Role.findOne({ name: roleDef.name });
+        if (!existing) {
+          await Role.create(roleDef);
+          console.log(`🌱 Seeded standard role: ${roleDef.name}`);
+        }
+      }
+    } catch (seedRoleErr) {
+      console.error('Error seeding roles:', seedRoleErr);
     }
 
     // Database migration: Copy legacy email to marketingEmail if not exists, and set receiveMarketing default to true
@@ -556,6 +610,38 @@ const authorize = (...roles) => {
   };
 };
 
+// Dynamic Permission check middleware
+const checkPermission = (permission) => {
+  return async (req, res, next) => {
+    try {
+      const userRole = req.userRole || 'sales_rep';
+      const role = await Role.findOne({ name: userRole });
+      if (!role) {
+        // Fallback for default permissions if role doesn't exist in DB
+        const defaultRolePermissions = {
+          admin: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
+          director: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
+          manager: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist'],
+          sales_rep: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist']
+        };
+        const permissions = defaultRolePermissions[userRole] || [];
+        if (permissions.includes(permission)) {
+          return next();
+        }
+        return res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
+      }
+
+      if (role.permissions.includes(permission)) {
+        return next();
+      }
+      res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
+    } catch (error) {
+      console.error('Error in checkPermission middleware:', error);
+      res.status(500).json({ error: 'Authorization check failed' });
+    }
+  };
+};
+
 // Enhanced authentication endpoint with bcrypt and JWT
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
   try {
@@ -645,8 +731,8 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 // USER MANAGEMENT ENDPOINTS
 // ============================================
 
-// Get all users (Admin/Director only)
-app.get('/api/admin/users', verifyToken, authorize('admin', 'director'), async (req, res) => {
+// Get all users (manage_users permission needed)
+app.get('/api/admin/users', verifyToken, checkPermission('manage_users'), async (req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     res.json(users);
@@ -655,8 +741,8 @@ app.get('/api/admin/users', verifyToken, authorize('admin', 'director'), async (
   }
 });
 
-// Create new user (Admin/Director only)
-app.post('/api/admin/users', verifyToken, authorize('admin', 'director'), async (req, res) => {
+// Create new user (manage_users permission needed)
+app.post('/api/admin/users', verifyToken, checkPermission('manage_users'), async (req, res) => {
   try {
     const { username, password, email, role, location } = req.body;
 
@@ -691,8 +777,8 @@ app.post('/api/admin/users', verifyToken, authorize('admin', 'director'), async 
   }
 });
 
-// Update user (Admin/Director only)
-app.put('/api/admin/users/:id', verifyToken, authorize('admin', 'director'), async (req, res) => {
+// Update user (manage_users permission needed)
+app.put('/api/admin/users/:id', verifyToken, checkPermission('manage_users'), async (req, res) => {
   try {
     const { username, email, role, password, location } = req.body;
     const userId = req.params.id;
@@ -733,13 +819,96 @@ app.put('/api/admin/users/:id', verifyToken, authorize('admin', 'director'), asy
   }
 });
 
-// Delete user (Admin/Director only)
-app.delete('/api/admin/users/:id', verifyToken, authorize('admin', 'director'), async (req, res) => {
+// Delete user (manage_users permission needed)
+app.delete('/api/admin/users/:id', verifyToken, checkPermission('manage_users'), async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete user' });
+  }
+});
+
+// ============================================
+// ROLE & PERMISSION MANAGEMENT ENDPOINTS
+// ============================================
+
+// Get all roles (manage_users permission needed)
+app.get('/api/admin/roles', verifyToken, checkPermission('manage_users'), async (req, res) => {
+  try {
+    const roles = await Role.find().sort({ name: 1 });
+    res.json(roles);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch roles', error: error.message });
+  }
+});
+
+// Create a new custom role (manage_users permission needed)
+app.post('/api/admin/roles', verifyToken, checkPermission('manage_users'), async (req, res) => {
+  try {
+    const { name, displayName, permissions } = req.body;
+    if (!name || !displayName) {
+      return res.status(400).json({ message: 'Role name and display name are required' });
+    }
+
+    const cleanName = name.trim().toLowerCase().replace(/\s+/g, '_');
+    const existing = await Role.findOne({ name: cleanName });
+    if (existing) {
+      return res.status(400).json({ message: 'Role name already exists' });
+    }
+
+    const newRole = new Role({
+      name: cleanName,
+      displayName,
+      permissions: permissions || [],
+      isSystem: false
+    });
+
+    await newRole.save();
+    res.status(201).json({ message: 'Role created successfully', role: newRole });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create role', error: error.message });
+  }
+});
+
+// Update role permissions (manage_users permission needed)
+app.put('/api/admin/roles/:id', verifyToken, checkPermission('manage_users'), async (req, res) => {
+  try {
+    const { permissions, displayName } = req.body;
+    const roleId = req.params.id;
+
+    const role = await Role.findById(roleId);
+    if (!role) {
+      return res.status(404).json({ message: 'Role not found' });
+    }
+
+    if (permissions !== undefined) role.permissions = permissions;
+    if (displayName !== undefined) role.displayName = displayName;
+
+    await role.save();
+    res.json({ message: 'Role updated successfully', role });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update role', error: error.message });
+  }
+});
+
+// Delete custom role (manage_users permission needed)
+app.delete('/api/admin/roles/:id', verifyToken, checkPermission('manage_users'), async (req, res) => {
+  try {
+    const roleId = req.params.id;
+    const role = await Role.findById(roleId);
+    if (!role) {
+      return res.status(404).json({ message: 'Role not found' });
+    }
+
+    if (role.isSystem) {
+      return res.status(400).json({ message: 'Cannot delete system roles' });
+    }
+
+    await Role.findByIdAndDelete(roleId);
+    res.json({ message: 'Role deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete role', error: error.message });
   }
 });
 
@@ -844,11 +1013,22 @@ app.get('/api/user/me', verifyAnyAuth, async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+
+    const role = await Role.findOne({ name: user.role });
+    const defaultRolePermissions = {
+      admin: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
+      director: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
+      manager: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist'],
+      sales_rep: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist']
+    };
+    const permissions = role ? role.permissions : (defaultRolePermissions[user.role] || []);
+
     res.json({
       id: user._id,
       username: user.username,
       email: user.email,
-      role: user.role
+      role: user.role,
+      permissions: permissions
     });
   } catch (error) {
     console.error('Get user error:', error);

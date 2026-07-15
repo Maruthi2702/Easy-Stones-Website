@@ -33,6 +33,7 @@ import AddCustomerModal from '../components/sales/AddCustomerModal';
 import PartnersSheet from '../components/sales/PartnersSheet';
 import CheckInLogPanel from '../components/sales/CheckInLogPanel';
 import PriceListPanel from '../components/sales/PriceListPanel';
+import UsersRolesTab from '../components/sales/UsersRolesTab';
 import Pagination from '../components/shared/Pagination';
 import SalesMapPage from './SalesMapPage';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
@@ -3096,6 +3097,12 @@ const SalesPage = () => {
                 {crmTab === 'pricelist' && (
                     <ErrorBoundary key="price-list-view">
                         {renderPriceListView()}
+                    </ErrorBoundary>
+                )}
+
+                {crmTab === 'users' && (
+                    <ErrorBoundary key="users-roles-view">
+                        <UsersRolesTab />
                     </ErrorBoundary>
                 )}
 

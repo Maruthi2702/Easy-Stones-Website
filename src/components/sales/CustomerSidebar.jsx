@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Pin, PinOff,
-    ChevronLeft, User, Clock, LogOut, Tag
+    ChevronLeft, User, Clock, LogOut, Tag, Users
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -94,6 +94,15 @@ const CustomerSidebar = ({
                     <Tag size={18} />
                     <span>Price List</span>
                 </button>
+                {(user?.permissions?.includes('manage_users') || ['admin', 'director'].includes(user?.role)) && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'users' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('users')}
+                    >
+                        <Users size={18} />
+                        <span>Users & Roles</span>
+                    </button>
+                )}
             </div>
 
             {/* Spacer */}
