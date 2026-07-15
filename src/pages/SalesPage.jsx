@@ -997,8 +997,8 @@ const SalesPage = () => {
     });
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const saved = localStorage.getItem('sidebarWidth');
-        const width = saved ? parseInt(saved, 10) : 252;
-        return (width === 325 || width === 250 || width === 200) ? 252 : width;
+        const parsed = saved ? parseInt(saved, 10) : 240;
+        return Math.min(Math.max(parsed, 200), 320); // Clamp between 200px and 320px for compact side nav bar
     });
     const [isResizing, setIsResizing] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
@@ -1028,7 +1028,7 @@ const SalesPage = () => {
         (mouseMoveEvent) => {
             if (isResizing) {
                 const newWidth = mouseMoveEvent.clientX;
-                if (newWidth >= 220 && newWidth <= 600) {
+                if (newWidth >= 200 && newWidth <= 320) {
                     setSidebarWidth(newWidth);
                 }
             }
