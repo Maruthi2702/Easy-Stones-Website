@@ -251,7 +251,7 @@
   display: none !important; /* Force hide on desktop */
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .menu-btn {
     display: block !important; /* Force show on mobile */
   }
@@ -261,13 +261,13 @@
   }
 }
 
-@media (min-width: 1025px) {
+@media (min-width: 1201px) {
   .nav-desktop {
     display: flex;
   }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .header-content {
     justify-content: space-between;
     gap: 1rem;
@@ -343,7 +343,7 @@
   transform: translateY(-2px);
 }
 
-@media (min-width: 1025px) {
+@media (min-width: 1201px) {
   .login-btn {
     display: inline-block;
   }
@@ -425,7 +425,7 @@
   }
 }
 
-@media (min-width: 1025px) {
+@media (min-width: 1201px) {
   .nav-mobile {
     display: none;
   }
