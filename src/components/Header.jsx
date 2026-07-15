@@ -171,7 +171,8 @@ const Header = () => {
               }}
               className="nav-link mobile-logout"
             >
-              Logout ({user.contactName})
+              <LogOut size={18} />
+              <span>Logout ({user.contactName})</span>
             </button>
           ) : (
             <Link

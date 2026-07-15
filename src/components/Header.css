@@ -388,11 +388,15 @@
   color: #b0b0b0;
   font-size: 1rem;
   font-weight: 500;
-  transition: color var(--transition-base);
+  transition: all var(--transition-base);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .mobile-logout:hover {
-  color: #d4af37;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .mobile-login-btn {
