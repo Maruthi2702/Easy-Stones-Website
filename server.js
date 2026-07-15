@@ -302,7 +302,7 @@ async function startServer() {
           displayName: 'Manager',
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers',
-            'view_checkins', 'manage_checkins', 'view_pricelist'
+            'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users'
           ],
           isSystem: true
         },
@@ -311,7 +311,7 @@ async function startServer() {
           displayName: 'Sales Representative',
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers',
-            'view_checkins', 'manage_checkins', 'view_pricelist'
+            'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users'
           ],
           isSystem: true
         }
@@ -621,8 +621,8 @@ const checkPermission = (permission) => {
         const defaultRolePermissions = {
           admin: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
           director: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
-          manager: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist'],
-          sales_rep: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist']
+          manager: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users'],
+          sales_rep: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users']
         };
         const permissions = defaultRolePermissions[userRole] || [];
         if (permissions.includes(permission)) {
@@ -1018,8 +1018,8 @@ app.get('/api/user/me', verifyAnyAuth, async (req, res) => {
     const defaultRolePermissions = {
       admin: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
       director: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
-      manager: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist'],
-      sales_rep: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist']
+      manager: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users'],
+      sales_rep: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users']
     };
     const permissions = role ? role.permissions : (defaultRolePermissions[user.role] || []);
 
