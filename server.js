@@ -328,14 +328,16 @@ async function startServer() {
       ];
 
       for (const roleDef of defaultRoles) {
-        // Always upsert by name — ensures permissions stay in sync even if the
-        // role was originally created manually (isSystem: false) via the UI
-        const result = await Role.findOneAndUpdate(
-          { name: roleDef.name },
-          { $set: { permissions: roleDef.permissions, displayName: roleDef.displayName, isSystem: true } },
-          { upsert: true, new: true }
-        );
-        console.log(`🔄 Synced system role: ${roleDef.name} → [${result.permissions.join(', ')}]`);
+        // Only seed/create the role if it doesn't already exist.
+        // This allows administrators to customize and edit system roles through the UI
+        // without their modifications being overwritten on every server restart.
+        const existing = await Role.findOne({ name: roleDef.name });
+        if (!existing) {
+          const created = await Role.create(roleDef);
+          console.log(`🌱 Seeded standard role: ${created.name} → [${created.permissions.join(', ')}]`);
+        } else {
+          console.log(`ℹ️ System role '${roleDef.name}' already exists, skipping seed override to preserve custom permissions`);
+        }
       }
     } catch (seedRoleErr) {
       console.error('Error seeding roles:', seedRoleErr);
