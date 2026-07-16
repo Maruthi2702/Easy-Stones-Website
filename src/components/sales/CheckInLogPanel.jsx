@@ -30,6 +30,7 @@ import {
 import Tesseract from 'tesseract.js';
 import { API_URL } from '../../config/api';
 import Pagination from '../shared/Pagination';
+import { useAuth } from '../../context/AuthContext';
 import './CheckInLogPanel.css';
 
 /* ── helpers ──────────────────────────────────── */
@@ -308,6 +309,11 @@ const CheckInLogPanel = ({
   theme: themeProp = null,
   onToggleTheme = null,
 }) => {
+  const { user } = useAuth();
+  const hasEditPermission = !user || user.permissions?.includes('manage_checkins');
+  const hasDeletePermission = !user || user.permissions?.includes('delete_checkins');
+  const hasSendEmailPermission = !user || user.permissions?.includes('send_checkin_email');
+
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [internalTheme, setInternalTheme] = useState(() => {
     try {
