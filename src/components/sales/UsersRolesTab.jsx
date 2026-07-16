@@ -1,21 +1,77 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Users, ShieldAlert, Plus, Edit2, Trash2, Search, 
-    Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info
+    Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
+    LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
+    FileCog, Mail as MailIcon
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import './UsersRolesTab.css';
 
-const PERMISSION_LABELS = {
-    view_dashboard: { title: 'View Dashboard', desc: 'Allows viewing general CRM charts and sales statistics' },
-    view_customers: { title: 'View Customer List', desc: 'Allows viewing the customer database and spreadsheet views' },
-    manage_customers: { title: 'Manage Customers', desc: 'Allows adding, editing, or deleting customer details and contacts' },
-    view_checkins: { title: 'View Check-Ins', desc: 'Allows viewing office check-in log details' },
-    manage_checkins: { title: 'Manage Check-Ins', desc: 'Allows logging new visits, sending checklist emails, and editing logs' },
-    view_pricelist: { title: 'View Price List', desc: 'Allows viewing price lists and margins' },
-    manage_pricelist: { title: 'Manage Price List', desc: 'Allows editing margin levels and downloading Excel lists' },
-    manage_users: { title: 'Manage Users & Permissions', desc: 'Full access to add/edit users, customize role permissions, and add new roles' }
-};
+// Granular per-page permission definitions.
+// Each page has a set of "actions" that map to backend permission keys.
+const PAGE_PERMISSIONS = [
+    {
+        id: 'dashboard',
+        page: 'Dashboard',
+        icon: LayoutDashboard,
+        description: 'CRM overview: charts, stats, calendar',
+        color: '#6c8ebf',
+        actions: [
+            { key: 'view_dashboard', label: 'View', icon: Eye, desc: 'View dashboard charts and sales statistics' }
+        ]
+    },
+    {
+        id: 'customers',
+        page: 'Customers',
+        icon: User,
+        description: 'Customer database, visits, contacts',
+        color: '#82b366',
+        actions: [
+            { key: 'view_customers',   label: 'View',   icon: Eye,    desc: 'View customer list and details' },
+            { key: 'manage_customers', label: 'Edit / Add', icon: Pencil, desc: 'Add and edit customers, visits, contacts' },
+            { key: 'delete_customers', label: 'Delete', icon: Trash2, desc: 'Delete customer records and visits' }
+        ]
+    },
+    {
+        id: 'checkins',
+        page: 'Check-In Log',
+        icon: Clock,
+        description: 'Office check-ins and selection sheets',
+        color: '#d79b00',
+        actions: [
+            { key: 'view_checkins',     label: 'View',             icon: Eye,      desc: 'View check-in log records' },
+            { key: 'send_checkin_email',label: 'Selection Sheet',  icon: MailIcon, desc: 'Send selection sheet emails to customers' },
+            { key: 'manage_checkins',   label: 'Edit',             icon: Pencil,   desc: 'Edit check-in records' },
+            { key: 'delete_checkins',   label: 'Delete',           icon: Trash2,   desc: 'Delete check-in records' }
+        ]
+    },
+    {
+        id: 'pricelist',
+        page: 'Price List',
+        icon: Tag,
+        description: 'Price levels, margins, Excel download',
+        color: '#9673a6',
+        actions: [
+            { key: 'view_pricelist',   label: 'View',            icon: Eye,    desc: 'View price lists and margins' },
+            { key: 'manage_pricelist', label: 'Edit / Download', icon: FileCog, desc: 'Edit margin levels and download Excel' }
+        ]
+    },
+    {
+        id: 'users',
+        page: 'Users & Roles',
+        icon: Users,
+        description: 'User accounts, roles, permissions',
+        color: '#ae4132',
+        actions: [
+            { key: 'manage_users', label: 'Manage', icon: ShieldCheck, desc: 'Add/edit users and customize role permissions' }
+        ]
+    }
+];
+
+// Flat lookup for all permission keys (used for labels elsewhere)
+const ALL_PERMISSION_KEYS = PAGE_PERMISSIONS.flatMap(p => p.actions.map(a => a.key));
+
 
 const UsersRolesTab = () => {
     const [subTab, setSubTab] = useState('users'); // 'users' or 'roles'
@@ -60,6 +116,9 @@ const UsersRolesTab = () => {
     const [selectedRole, setSelectedRole] = useState(null);
     const [editedPermissions, setEditedPermissions] = useState([]);
     const [savingPermissions, setSavingPermissions] = useState(false);
+
+    // Page permission popup state
+    const [pagePopup, setPagePopup] = useState(null); // the PAGE_PERMISSIONS entry being edited
 
     // Modal state
     const [showUserModal, setShowUserModal] = useState(false);
@@ -488,51 +547,114 @@ const UsersRolesTab = () => {
                                     ))}
                                 </div>
                             </div>
-
-                            {/* Right Permissions Configuration Grid */}
-                            {selectedRole && (
-                                <div className="permissions-config-panel">
-                                    <div className="permissions-panel-header">
-                                        <div>
-                                            <h3>{selectedRole.displayName} Access Permissions</h3>
-                                            <p className="subtitle">Configure what users with the role <code>{selectedRole.name}</code> can see and edit across the CRM.</p>
-                                        </div>
-                                        <button 
-                                            className="save-permissions-btn" 
-                                            onClick={handleSavePermissions}
-                                            disabled={savingPermissions}
-                                        >
-                                            <Save size={16} />
-                                            {savingPermissions ? 'Saving...' : 'Save Permissions'}
-                                        </button>
-                                    </div>
-
-                                    <div className="permissions-checklist">
-                                        {Object.keys(PERMISSION_LABELS).map(key => {
-                                            const isChecked = editedPermissions.includes(key);
-                                            return (
-                                                <div 
-                                                    key={key} 
-                                                    className={`permission-item-card ${isChecked ? 'selected' : ''}`}
-                                                    onClick={() => handlePermissionToggle(key)}
+                                                        {/* ── RIGHT: Page-based permission cards grid ── */}
+                                    {selectedRole && (
+                                        <div className="permissions-config-panel">
+                                            <div className="permissions-panel-header">
+                                                <div>
+                                                    <h3>{selectedRole.displayName} Access Permissions</h3>
+                                                    <p className="subtitle">Click a page card to configure which actions this role can perform.</p>
+                                                </div>
+                                                <button 
+                                                    className="save-permissions-btn" 
+                                                    onClick={handleSavePermissions}
+                                                    disabled={savingPermissions}
                                                 >
-                                                    <div className="permission-checkbox-col">
-                                                        <div className={`custom-checkbox ${isChecked ? 'checked' : ''}`}>
-                                                            {isChecked && <ShieldCheck size={16} />}
+                                                    <Save size={16} />
+                                                    {savingPermissions ? 'Saving...' : 'Save Permissions'}
+                                                </button>
+                                            </div>
+
+                                            <div className="page-permissions-grid">
+                                                {PAGE_PERMISSIONS.map(pageDef => {
+                                                    const PageIcon = pageDef.icon;
+                                                    const enabledActions = pageDef.actions.filter(a => editedPermissions.includes(a.key));
+                                                    const hasAny = enabledActions.length > 0;
+
+                                                    return (
+                                                        <div
+                                                            key={pageDef.id}
+                                                            className={`page-perm-card ${hasAny ? 'has-access' : ''}`}
+                                                            onClick={() => setPagePopup(pageDef)}
+                                                            style={{ '--page-color': pageDef.color }}
+                                                        >
+                                                            <div className="page-perm-card-header">
+                                                                <div className="page-icon-wrap" style={{ background: hasAny ? pageDef.color + '22' : undefined }}>
+                                                                    <PageIcon size={20} style={{ color: hasAny ? pageDef.color : undefined }} />
+                                                                </div>
+                                                                <div className="page-access-badge">
+                                                                    {hasAny ? `${enabledActions.length} action${enabledActions.length > 1 ? 's' : ''}` : 'No access'}
+                                                                </div>
+                                                            </div>
+                                                            <div className="page-perm-card-title">{pageDef.page}</div>
+                                                            <div className="page-perm-card-desc">{pageDef.description}</div>
+                                                            {hasAny && (
+                                                                <div className="page-perm-action-pills">
+                                                                    {enabledActions.map(a => (
+                                                                        <span key={a.key} className="action-pill" style={{ background: pageDef.color + '33', color: pageDef.color }}>
+                                                                            {a.label}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            <div className="page-perm-edit-hint">Click to edit →</div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ── PAGE PERMISSION POPUP ── */}
+                                    {pagePopup && (
+                                        <div className="perm-popup-overlay" onClick={() => setPagePopup(null)}>
+                                            <div className="perm-popup-card" onClick={e => e.stopPropagation()}>
+                                                <div className="perm-popup-header" style={{ borderColor: pagePopup.color }}>
+                                                    <div className="perm-popup-title-row">
+                                                        <div className="page-icon-wrap" style={{ background: pagePopup.color + '22' }}>
+                                                            {React.createElement(pagePopup.icon, { size: 22, style: { color: pagePopup.color } })}
+                                                        </div>
+                                                        <div>
+                                                            <h3>{pagePopup.page}</h3>
+                                                            <p>{pagePopup.description}</p>
                                                         </div>
                                                     </div>
-                                                    <div className="permission-text-col">
-                                                        <span className="permission-title">{PERMISSION_LABELS[key].title}</span>
-                                                        <span className="permission-desc">{PERMISSION_LABELS[key].desc}</span>
-                                                    </div>
+                                                    <button className="popup-close-btn" onClick={() => setPagePopup(null)}>
+                                                        <X size={18} />
+                                                    </button>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
+
+                                                <div className="perm-popup-actions">
+                                                    {pagePopup.actions.map(action => {
+                                                        const ActionIcon = action.icon;
+                                                        const isEnabled = editedPermissions.includes(action.key);
+                                                        return (
+                                                            <div
+                                                                key={action.key}
+                                                                className={`perm-action-row ${isEnabled ? 'enabled' : ''}`}
+                                                                onClick={() => handlePermissionToggle(action.key)}
+                                                            >
+                                                                <div className="perm-action-icon" style={{ color: isEnabled ? pagePopup.color : undefined }}>
+                                                                    <ActionIcon size={18} />
+                                                                </div>
+                                                                <div className="perm-action-text">
+                                                                    <span className="perm-action-label">{action.label}</span>
+                                                                    <span className="perm-action-desc">{action.desc}</span>
+                                                                </div>
+                                                                <div className={`perm-toggle ${isEnabled ? 'on' : 'off'}`} style={isEnabled ? { background: pagePopup.color } : {}}>
+                                                                    <div className="perm-toggle-knob" />
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                <div className="perm-popup-footer">
+                                                    <button className="btn-secondary" onClick={() => setPagePopup(null)}>Done</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                 </div>
             )}
 

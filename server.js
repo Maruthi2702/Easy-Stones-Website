@@ -281,9 +281,9 @@ async function startServer() {
           name: 'admin',
           displayName: 'Administrator',
           permissions: [
-            'view_dashboard', 'view_customers', 'manage_customers',
-            'view_checkins', 'manage_checkins', 'view_pricelist',
-            'manage_pricelist', 'manage_users'
+            'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
+            'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
+            'view_pricelist', 'manage_pricelist', 'manage_users'
           ],
           isSystem: true
         },
@@ -291,9 +291,9 @@ async function startServer() {
           name: 'director',
           displayName: 'Director',
           permissions: [
-            'view_dashboard', 'view_customers', 'manage_customers',
-            'view_checkins', 'manage_checkins', 'view_pricelist',
-            'manage_pricelist', 'manage_users'
+            'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
+            'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
+            'view_pricelist', 'manage_pricelist', 'manage_users'
           ],
           isSystem: true
         },
@@ -302,7 +302,8 @@ async function startServer() {
           displayName: 'Manager',
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers',
-            'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users'
+            'view_checkins', 'manage_checkins', 'send_checkin_email', 'delete_checkins',
+            'view_pricelist', 'manage_users'
           ],
           isSystem: true
         },
@@ -311,7 +312,8 @@ async function startServer() {
           displayName: 'Sales Representative',
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers',
-            'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users'
+            'view_checkins', 'manage_checkins', 'send_checkin_email',
+            'view_pricelist', 'manage_users'
           ],
           isSystem: true
         },
@@ -319,7 +321,7 @@ async function startServer() {
           name: 'csr',
           displayName: 'CSR',
           permissions: [
-            'view_checkins', 'view_pricelist'
+            'view_checkins', 'send_checkin_email', 'view_pricelist'
           ],
           isSystem: true
         }
@@ -2269,7 +2271,7 @@ app.put('/api/checkin/:id', async (req, res) => {
 });
 
 // Send selection sheet email
-app.post('/api/checkin/:id/send-email', async (req, res) => {
+app.post('/api/checkin/:id/send-email', authenticate, requirePermission('send_checkin_email'), async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -2295,7 +2297,7 @@ app.post('/api/checkin/:id/send-email', async (req, res) => {
 });
 
 // Delete specific check-in
-app.delete('/api/checkin/:id', authenticate, requirePermission('manage_checkins'), async (req, res) => {
+app.delete('/api/checkin/:id', authenticate, requirePermission('delete_checkins'), async (req, res) => {
   try {
     const checkIn = await OfficeCheckIn.findByIdAndDelete(req.params.id);
     if (!checkIn) {
@@ -4281,7 +4283,7 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
 });
 
 // Delete resource
-app.delete('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async (req, res) => {
+app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, requirePermission('delete_customers'), async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
 
@@ -4605,7 +4607,7 @@ app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
 });
 
 // Admin: Delete customer
-app.delete('/api/admin/customers/:id', verifyToken, async (req, res) => {
+app.delete('/api/admin/customers/:id', authenticate, requirePermission('delete_customers'), async (req, res) => {
   try {
     const customer = await Customer.findByIdAndDelete(req.params.id);
     if (!customer) {
