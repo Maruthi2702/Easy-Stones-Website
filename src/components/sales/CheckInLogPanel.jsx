@@ -1357,7 +1357,7 @@ const CheckInLogPanel = ({
                               <Eye size={15} />
                             </button>
                           )}
-                          {onEdit && (
+                          {onEdit && hasEditPermission && (
                             <button
                               onClick={() => onEdit(c)}
                               title="Edit check-in"
@@ -1366,7 +1366,7 @@ const CheckInLogPanel = ({
                               <Edit2 size={15} />
                             </button>
                           )}
-                          {onDelete && (
+                          {onDelete && hasDeletePermission && (
                             <button
                               onClick={() => onDelete(c)}
                               title="Delete check-in"
@@ -1409,7 +1409,7 @@ const CheckInLogPanel = ({
                           <Eye size={15} />
                         </button>
                       )}
-                      {onEdit && (
+                      {onEdit && hasEditPermission && (
                         <button
                           onClick={() => onEdit(c)}
                           title="Edit check-in"
@@ -1418,7 +1418,7 @@ const CheckInLogPanel = ({
                           <Edit2 size={15} />
                         </button>
                       )}
-                      {onDelete && (
+                      {onDelete && hasDeletePermission && (
                         <button
                           onClick={() => onDelete(c)}
                           title="Delete check-in"
@@ -1701,14 +1701,16 @@ const CheckInLogPanel = ({
               {/* Actions */}
               <div className="selection-modal-actions">
                 <div className="selection-modal-actions-left">
-                  <button
-                    type="button"
-                    onClick={() => setShowEmailModal(true)}
-                    className="btn-email-trigger"
-                    disabled={isSaving}
-                  >
-                    <Mail size={15} /> Send Email
-                  </button>
+                  {hasSendEmailPermission && (
+                    <button
+                      type="button"
+                      onClick={() => setShowEmailModal(true)}
+                      className="btn-email-trigger"
+                      disabled={isSaving}
+                    >
+                      <Mail size={15} /> Send Email
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handlePrintPDF}
