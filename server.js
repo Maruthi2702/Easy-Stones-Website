@@ -527,136 +527,141 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// JWT Verification Middleware
-// JWT Verification Middleware
-const verifyToken = (req, res, next) => {
-  let token = req.cookies.adminToken;
+// =============================================================================
+// AUTHENTICATION & AUTHORIZATION MIDDLEWARE
+// DB-first design: JWT proves identity only. Role + permissions always fetched
+// live from MongoDB, so changes take effect immediately without re-login.
+// =============================================================================
 
-  // Fallback to Authorization header
-  if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-    token = req.headers.authorization.split(' ')[1];
-  }
+/**
+ * authenticate — unified middleware for all protected routes.
+ *
+ * Accepts tokens from:
+ *   - Cookie: adminToken (staff via /api/auth/login)
+ *   - Cookie: customerToken (customer/internal via unified login)
+ *   - Header: Authorization: Bearer <token>
+ *
+ * Sets on req:
+ *   req.user      = { id, username, email, role, permissions[], type }
+ *   req.userId    = user._id          (legacy compat)
+ *   req.userRole  = user.role         (legacy compat)
+ *   req.authType  = 'admin'|'customer'(legacy compat)
+ *   req.customerId = id               (for customer routes)
+ */
+const authenticate = async (req, res, next) => {
+  // 1. Extract token — accept any source
+  const token = req.cookies.adminToken
+    || req.cookies.customerToken
+    || (req.headers.authorization?.startsWith('Bearer ') && req.headers.authorization !== 'Bearer null'
+        ? req.headers.authorization.slice(7) : null);
 
   if (!token) {
-    return res.status(401).json({ error: 'Access denied. No token provided.' });
+    return res.status(401).json({ error: 'Authentication required. Please log in.' });
+  }
+
+  // 2. Verify JWT signature and expiry ONLY — do NOT trust any payload fields for authorisation
+  let decoded;
+  try {
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
+  }
+
+  // 3. Determine user type from token payload
+  const tokenType = decoded.type || (decoded.userId ? 'admin' : null);
+  const userId = decoded.userId || decoded.id || decoded.sub;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Malformed token. Please log in again.' });
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.userId;
-    req.userRole = decoded.role;
+    if (tokenType === 'customer') {
+      // ── Customer access ─────────────────────────────────────────────────────
+      // Customers have no CRM permissions — just identify them
+      req.user = { id: userId, type: 'customer', role: 'customer', permissions: [] };
+      req.customerId = userId;
+      req.authType = 'customer';
+      return next();
+    }
+
+    // ── Staff / internal access ──────────────────────────────────────────────
+    // ALWAYS look up the user in the DB — never trust role from JWT
+    const dbUser = await User.findById(userId).select('-password');
+    if (!dbUser) {
+      return res.status(401).json({ error: 'User account not found or has been removed.' });
+    }
+
+    // ALWAYS look up the role's permissions in the DB — never use cached/JWT values
+    const dbRole = await Role.findOne({ name: dbUser.role });
+    const permissions = dbRole?.permissions || [];
+
+    // Populate req.user with fresh data
+    req.user = {
+      id: dbUser._id,
+      username: dbUser.username,
+      email: dbUser.email,
+      role: dbUser.role,
+      permissions,          // always fresh from DB
+      type: 'staff'
+    };
+
+    // Legacy compatibility fields used by existing route handlers
+    req.userId   = dbUser._id;
+    req.userRole = dbUser.role;
+    req.authType = 'admin';
+
+    // Also set customerId for routes that check both (e.g. visit reactions)
+    if (tokenType === 'internal') {
+      req.customerId = userId;
+      req.accountType = 'internal';
+    }
+
     next();
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid token.' });
+  } catch (err) {
+    console.error('❌ authenticate DB lookup failed:', err);
+    res.status(500).json({ error: 'Authentication check failed. Please try again.' });
   }
 };
 
-// Dual Authentication Middleware - accepts both admin and customer tokens
-const verifyAnyAuth = (req, res, next) => {
-  const adminToken = req.cookies.adminToken;
-  const customerToken = req.cookies.customerToken;
-  let authHeaderToken = null;
-
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-    authHeaderToken = req.headers.authorization.split(' ')[1];
+/**
+ * requirePermission — authorisation guard for protected routes.
+ *
+ * Must run AFTER authenticate (relies on req.user.permissions).
+ * Accepts one or more permission strings — user must have ALL of them.
+ *
+ * Usage:
+ *   app.get('/api/admin/users', authenticate, requirePermission('manage_users'), handler)
+ *   app.post('/api/admin/data', authenticate, requirePermission('manage_customers', 'view_dashboard'), handler)
+ */
+const requirePermission = (...permissions) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Not authenticated. Please log in.' });
   }
 
-  // 1. Try admin token (Cookie or Header)
-  const effectiveAdminToken = adminToken || authHeaderToken;
-  if (effectiveAdminToken) {
-    try {
-      const decoded = jwt.verify(effectiveAdminToken, JWT_SECRET);
-      // For verifyToken equivalent (admin routes)
-      if (decoded.userId) {
-        req.userId = decoded.userId;
-        req.userRole = decoded.role;
-        req.authType = 'admin';
-        return next();
-      }
-    } catch (error) {
-      // Admin token invalid, continue to customer/internal
-    }
+  const missing = permissions.find(p => !req.user.permissions.includes(p));
+  if (missing) {
+    return res.status(403).json({
+      error: `Access denied. Your role ("${req.user.role}") does not have the "${missing}" permission.`
+    });
   }
 
-  // 2. Try customer/internal token (Cookie or Header)
-  const effectiveCustomerToken = customerToken || authHeaderToken;
-  if (effectiveCustomerToken) {
-    try {
-      const decoded = jwt.verify(effectiveCustomerToken, JWT_SECRET);
-      if (decoded.type === 'customer' || decoded.type === 'internal') {
-        req.customerId = decoded.id;
+  next();
+};
 
-        // Internal users are staff — set userId AND userRole so admin permission checks work
-        if (decoded.type === 'internal') {
-          req.userId = decoded.id;
-          req.userRole = decoded.role || 'sales_rep'; // ← THE CRITICAL FIX: copy role to req.userRole
-        }
-
-        req.accountType = decoded.type;
-        req.authType = decoded.type === 'customer' ? 'customer' : 'admin';
-        return next();
-      }
-    } catch (error) {
-      // Customer token invalid
-    }
+// Legacy aliases — kept so any remaining code using old names still works
+// during the transition. These will be removed in a future cleanup.
+const verifyToken    = authenticate;
+const verifyAnyAuth  = authenticate;
+const checkPermission = (permission) => requirePermission(permission);
+const authorize = (...roles) => (req, res, next) => {
+  if (!req.user || !roles.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Access denied. Insufficient role.' });
   }
-
-  // No valid token found
-  return res.status(401).json({ error: 'Access denied. No valid token provided.' });
+  next();
 };
 
-// Role Authorization Middleware
-const authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.userRole)) {
-      return res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
-    }
-    next();
-  };
-};
 
-// Dynamic Permission check middleware
-const checkPermission = (permission) => {
-  return async (req, res, next) => {
-    try {
-      // Determine role: prefer req.userRole from token, fallback to DB lookup by userId
-      let userRole = req.userRole;
-
-      if (!userRole && req.userId) {
-        // Role not in token — look up the user's role from DB directly
-        const dbUser = await User.findById(req.userId).select('role');
-        userRole = dbUser?.role || 'sales_rep';
-        req.userRole = userRole; // cache it
-      }
-
-      userRole = userRole || 'sales_rep';
-
-      const role = await Role.findOne({ name: userRole });
-      if (!role) {
-        // Fallback hardcoded permissions if role not in DB yet
-        const defaultRolePermissions = {
-          admin: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
-          director: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
-          manager: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users'],
-          sales_rep: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users']
-        };
-        const permissions = defaultRolePermissions[userRole] || [];
-        if (permissions.includes(permission)) {
-          return next();
-        }
-        return res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
-      }
-
-      if (role.permissions.includes(permission)) {
-        return next();
-      }
-      res.status(403).json({ error: `Access denied. Role "${userRole}" lacks "${permission}" permission.` });
-    } catch (error) {
-      console.error('Error in checkPermission middleware:', error);
-      res.status(500).json({ error: 'Authorization check failed' });
-    }
-  };
-};
 
 // Enhanced authentication endpoint with bcrypt and JWT
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
@@ -708,12 +713,13 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       await user.resetLoginAttempts();
     }
 
-    // Generate JWT
+    // Generate JWT — identity only, NO role stored in token
+    // Role is always fetched live from DB by the authenticate middleware
     const token = jwt.sign(
       {
         userId: user._id,
-        username: user.username,
-        role: user.role
+        username: user.username
+        // role intentionally omitted — DB is the source of truth
       },
       JWT_SECRET,
       { expiresIn: '6h' }
@@ -1271,13 +1277,14 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       });
     }
 
-    // Generate JWT token
+    // Generate JWT token — identity only, NO role stored in token
+    // Role is always fetched live from DB by the authenticate middleware
     console.log(`🔑 Generating JWT for ${email} (Type: ${accountType})`);
     const token = jwt.sign(
       {
         id: account._id,
-        type: accountType,
-        role: account.role || 'customer'
+        type: accountType
+        // role intentionally omitted — DB is the source of truth
       },
       JWT_SECRET,
       { expiresIn: '6h' }
