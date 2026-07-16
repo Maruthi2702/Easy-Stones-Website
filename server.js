@@ -586,9 +586,10 @@ const verifyAnyAuth = (req, res, next) => {
       if (decoded.type === 'customer' || decoded.type === 'internal') {
         req.customerId = decoded.id;
 
-        // If internal user, also set userId so admin routes work
+        // Internal users are staff — set userId AND userRole so admin permission checks work
         if (decoded.type === 'internal') {
           req.userId = decoded.id;
+          req.userRole = decoded.role || 'sales_rep'; // ← THE CRITICAL FIX: copy role to req.userRole
         }
 
         req.accountType = decoded.type;
@@ -618,10 +619,21 @@ const authorize = (...roles) => {
 const checkPermission = (permission) => {
   return async (req, res, next) => {
     try {
-      const userRole = req.userRole || 'sales_rep';
+      // Determine role: prefer req.userRole from token, fallback to DB lookup by userId
+      let userRole = req.userRole;
+
+      if (!userRole && req.userId) {
+        // Role not in token — look up the user's role from DB directly
+        const dbUser = await User.findById(req.userId).select('role');
+        userRole = dbUser?.role || 'sales_rep';
+        req.userRole = userRole; // cache it
+      }
+
+      userRole = userRole || 'sales_rep';
+
       const role = await Role.findOne({ name: userRole });
       if (!role) {
-        // Fallback for default permissions if role doesn't exist in DB
+        // Fallback hardcoded permissions if role not in DB yet
         const defaultRolePermissions = {
           admin: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
           director: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
@@ -638,7 +650,7 @@ const checkPermission = (permission) => {
       if (role.permissions.includes(permission)) {
         return next();
       }
-      res.status(403).json({ error: 'Access denied. Insufficient permissions.' });
+      res.status(403).json({ error: `Access denied. Role "${userRole}" lacks "${permission}" permission.` });
     } catch (error) {
       console.error('Error in checkPermission middleware:', error);
       res.status(500).json({ error: 'Authorization check failed' });
