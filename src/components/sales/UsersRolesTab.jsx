@@ -657,6 +657,8 @@ const UsersRolesTab = () => {
                                     )}
                 </div>
             )}
+                </div>
+            )}
 
             {/* ── MODAL: ADD/EDIT USER ── */}
             {showUserModal && (
