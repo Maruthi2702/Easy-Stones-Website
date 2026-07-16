@@ -314,6 +314,14 @@ async function startServer() {
             'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users'
           ],
           isSystem: true
+        },
+        {
+          name: 'csr',
+          displayName: 'CSR',
+          permissions: [
+            'view_checkins', 'view_pricelist'
+          ],
+          isSystem: true
         }
       ];
 
@@ -1045,28 +1053,25 @@ app.get('/api/auth/verify', (req, res) => {
 });
 
 // Get current user info (for admin/internal users)
-app.get('/api/user/me', verifyAnyAuth, async (req, res) => {
+app.get('/api/user/me', authenticate, async (req, res) => {
   try {
+    if (!req.userId) {
+      return res.status(403).json({ message: 'Staff access required' });
+    }
     const user = await User.findById(req.userId).select('-password');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const role = await Role.findOne({ name: user.role });
-    const defaultRolePermissions = {
-      admin: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
-      director: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_pricelist', 'manage_users'],
-      manager: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users'],
-      sales_rep: ['view_dashboard', 'view_customers', 'manage_customers', 'view_checkins', 'manage_checkins', 'view_pricelist', 'manage_users']
-    };
-    const permissions = role ? role.permissions : (defaultRolePermissions[user.role] || []);
+    // Always fetch permissions fresh from DB (authenticate already did this, use req.user if available)
+    const permissions = req.user?.permissions || [];
 
     res.json({
       id: user._id,
       username: user.username,
       email: user.email,
       role: user.role,
-      permissions: permissions
+      permissions
     });
   } catch (error) {
     console.error('Get user error:', error);
@@ -1434,7 +1439,7 @@ const getPerformerInfo = async (req) => {
 
 // Customer-accessible endpoint: Get all customers (for sales page)
 // Customer-accessible endpoint: Get all customers (for sales page) - Optimized (No images)
-app.get('/api/customers', verifyAnyAuth, async (req, res) => {
+app.get('/api/customers', authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
@@ -1487,7 +1492,7 @@ app.get('/api/customers', verifyAnyAuth, async (req, res) => {
 });
 
 // Get ALL customers for dropdown selection (minimal fields)
-app.get('/api/customers/dropdown', verifyAnyAuth, async (req, res) => {
+app.get('/api/customers/dropdown', authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const customers = await Customer.find({})
       .select('_id company contactName firstName lastName email customerType')
@@ -1502,7 +1507,7 @@ app.get('/api/customers/dropdown', verifyAnyAuth, async (req, res) => {
 });
 
 // Get dashboard statistics (optimized aggregation)
-app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
+app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'), async (req, res) => {
   try {
     const { timeRange = '7days', localDate } = req.query;
     const now = new Date();
@@ -1685,7 +1690,7 @@ app.get('/api/dashboard/stats', verifyAnyAuth, async (req, res) => {
 });
 
 // Get dashboard visits (returns a flat list for all customers in range)
-app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
+app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard'), async (req, res) => {
   try {
     const { timeRange = 'all', localDate, filterType } = req.query;
     const now = new Date();
@@ -1785,7 +1790,7 @@ app.get('/api/dashboard/visits', verifyAnyAuth, async (req, res) => {
 });
 
 // Get dashboard resources (returns a flat list for all customers in range)
-app.get('/api/dashboard/resources', verifyAnyAuth, async (req, res) => {
+app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashboard'), async (req, res) => {
   try {
     const { timeRange = 'all', localDate } = req.query;
     const now = new Date();
@@ -1901,7 +1906,7 @@ app.get('/api/dashboard/resources', verifyAnyAuth, async (req, res) => {
 });
 
 // Get single customer with full details (including images)
-app.get('/api/customers/:id', verifyAnyAuth, async (req, res) => {
+app.get('/api/customers/:id', authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id)
       .populate('associatedCustomers', 'contactName company customerType status phone visits')
@@ -1940,7 +1945,7 @@ app.get('/api/customers/:id', verifyAnyAuth, async (req, res) => {
 // ============================================
 
 // Link customer to a partner (bi-directional association)
-app.post('/api/customers/:customerId/associations', verifyAnyAuth, async (req, res) => {
+app.post('/api/customers/:customerId/associations', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { partnerId } = req.body;
     const { customerId } = req.params;
@@ -1977,7 +1982,7 @@ app.post('/api/customers/:customerId/associations', verifyAnyAuth, async (req, r
 });
 
 // Remove customer association (bi-directional unlinking)
-app.delete('/api/customers/:customerId/associations/:partnerId', verifyAnyAuth, async (req, res) => {
+app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { customerId, partnerId } = req.params;
 
@@ -1999,7 +2004,7 @@ app.delete('/api/customers/:customerId/associations/:partnerId', verifyAnyAuth, 
 // ============================================
 
 // Add contact to customer
-app.post('/api/customers/:customerId/contacts', verifyAnyAuth, async (req, res) => {
+app.post('/api/customers/:customerId/contacts', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { customerId } = req.params;
     const { name, phone, email, role, notes } = req.body;
@@ -2169,7 +2174,7 @@ app.get('/api/checkin/stats', async (req, res) => {
 });
 
 // Get specific check-in
-app.get('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
+app.get('/api/checkin/:id', authenticate, requirePermission('view_checkins'), async (req, res) => {
   try {
     const checkIn = await OfficeCheckIn.findById(req.params.id);
     if (!checkIn) {
@@ -2291,7 +2296,7 @@ app.post('/api/checkin/:id/send-email', async (req, res) => {
 });
 
 // Delete specific check-in
-app.delete('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
+app.delete('/api/checkin/:id', authenticate, requirePermission('manage_checkins'), async (req, res) => {
   try {
     const checkIn = await OfficeCheckIn.findByIdAndDelete(req.params.id);
     if (!checkIn) {
@@ -2310,7 +2315,7 @@ app.delete('/api/checkin/:id', verifyAnyAuth, async (req, res) => {
 
 
 // Update contact
-app.put('/api/customers/:customerId/contacts/:contactId', verifyAnyAuth, async (req, res) => {
+app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { customerId, contactId } = req.params;
     const fields = req.body;
@@ -2651,7 +2656,7 @@ app.get('/api/unified-merge', verifyAnyAuth, async (req, res) => {
 });
 
 // GET DISTINCT CITIES (For dropdown checklists)
-app.get('/api/partners/cities', verifyAnyAuth, async (req, res) => {
+app.get('/api/partners/cities', authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const cities1 = await Customer.distinct('city');
     const cities2 = await Customer.distinct('address.city');
@@ -2667,7 +2672,7 @@ app.get('/api/partners/cities', verifyAnyAuth, async (req, res) => {
 });
 
 // CUSTOMER LIST (Spreadsheet Data Source with Pagination & Search)
-app.get('/api/partners', verifyAnyAuth, async (req, res) => {
+app.get('/api/partners', authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limitInput = parseInt(req.query.limit);
@@ -2912,7 +2917,7 @@ app.get('/api/partners', verifyAnyAuth, async (req, res) => {
 });
 
 // Create a new lead (as a Customer)
-app.post('/api/partners', verifyAnyAuth, async (req, res) => {
+app.post('/api/partners', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     let priceLevel = req.body.priceLevel;
     if (req.body.level) {
@@ -2949,7 +2954,7 @@ app.post('/api/partners', verifyAnyAuth, async (req, res) => {
 });
 
 // Update a lead (Customer)
-app.put('/api/partners/:id', verifyAnyAuth, async (req, res) => {
+app.put('/api/partners/:id', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const updateData = { ...req.body };
     if (req.body.level) {
@@ -2998,7 +3003,7 @@ app.put('/api/partners/:id', verifyAnyAuth, async (req, res) => {
 });
 
 // Delete a lead (Customer)
-app.delete('/api/partners/:id', verifyAnyAuth, async (req, res) => {
+app.delete('/api/partners/:id', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const customer = await Customer.findByIdAndDelete(req.params.id);
 
@@ -3019,7 +3024,7 @@ app.delete('/api/partners/:id', verifyAnyAuth, async (req, res) => {
 // ============================================
 
 // Get single visit detail
-app.get('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
+app.get('/api/customers/:customerId/visits/:visitId', authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
 
@@ -3046,7 +3051,7 @@ app.get('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
 });
 
 // Get single resource detail
-app.get('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async (req, res) => {
+app.get('/api/customers/:customerId/resources/:resourceId', authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
 
@@ -3228,7 +3233,7 @@ const getFaceValueRangeMatch = (start, end) => {
 };
 
 // Add visit
-app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) => {
+app.post('/api/customers/:customerId/visits', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { customerId } = req.params;
     const { date, purpose, notes, outcome, followUp, followUpDate, managerComment, headquartersComment, image } = req.body;
@@ -3322,7 +3327,7 @@ app.post('/api/customers/:customerId/visits', verifyAnyAuth, async (req, res) =>
 
 // Update visit
 // Update visit
-app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
+app.put('/api/customers/:customerId/visits/:visitId', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
     const { date, purpose, notes, outcome, followUp, followUpDate, managerComment, headquartersComment, image } = req.body;
@@ -3390,7 +3395,7 @@ app.put('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req,
 
 // Delete visit
 // Delete visit
-app.delete('/api/customers/:customerId/visits/:visitId', verifyAnyAuth, async (req, res) => {
+app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
 
@@ -4109,7 +4114,7 @@ app.post('/api/auth/icloud/disconnect', verifyAnyAuth, async (req, res) => {
 });
 
 // Toggle reaction on visit
-app.post('/api/customers/:customerId/visits/:visitId/react', verifyAnyAuth, async (req, res) => {
+app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
     const { type } = req.body;
@@ -4189,7 +4194,7 @@ app.post('/api/customers/:customerId/visits/:visitId/react', verifyAnyAuth, asyn
 // ============================================
 
 // Add resource
-app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res) => {
+app.post('/api/customers/:customerId/resources', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { customerId } = req.params;
     const { title, date, customer, location, resourceType, image, description, notes, status, url, uploadedBy } = req.body;
@@ -4236,7 +4241,7 @@ app.post('/api/customers/:customerId/resources', verifyAnyAuth, async (req, res)
 });
 
 // Update resource
-app.put('/api/customers/:customerId/resources/:resourceId', verifyAnyAuth, async (req, res) => {
+app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
     const updateData = {};

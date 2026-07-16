@@ -64,37 +64,54 @@ const CustomerSidebar = ({
                 )}
             </div>
 
-            {/* Top Navigation Links */}
+            {/* Top Navigation Links — shown only if user has the permission */}
             <div className="sidebar-nav-links">
-                <button
-                    className={`sidebar-nav-link ${crmTab === 'dashboard' ? 'active' : ''}`}
-                    onClick={() => handleLinkClick('dashboard')}
-                >
-                    <LayoutDashboard size={18} />
-                    <span>Dashboard</span>
-                </button>
-                <button
-                    className={`sidebar-nav-link ${crmTab === 'customers' ? 'active' : ''}`}
-                    onClick={() => handleLinkClick('customers')}
-                >
-                    <User size={18} />
-                    <span>Customers</span>
-                </button>
-                <button
-                    className={`sidebar-nav-link ${crmTab === 'checkin' ? 'active' : ''}`}
-                    onClick={() => handleLinkClick('checkin')}
-                >
-                    <Clock size={18} />
-                    <span>Check-In Log</span>
-                </button>
-                <button
-                    className={`sidebar-nav-link ${crmTab === 'pricelist' ? 'active' : ''}`}
-                    onClick={() => handleLinkClick('pricelist')}
-                >
-                    <Tag size={18} />
-                    <span>Price List</span>
-                </button>
-                {(user?.permissions?.includes('manage_users') || ['admin', 'director'].includes(user?.role)) && (
+                {/* Dashboard — requires view_dashboard */}
+                {user?.permissions?.includes('view_dashboard') && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'dashboard' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('dashboard')}
+                    >
+                        <LayoutDashboard size={18} />
+                        <span>Dashboard</span>
+                    </button>
+                )}
+
+                {/* Customers — requires view_customers */}
+                {user?.permissions?.includes('view_customers') && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'customers' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('customers')}
+                    >
+                        <User size={18} />
+                        <span>Customers</span>
+                    </button>
+                )}
+
+                {/* Check-In Log — requires view_checkins */}
+                {user?.permissions?.includes('view_checkins') && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'checkin' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('checkin')}
+                    >
+                        <Clock size={18} />
+                        <span>Check-In Log</span>
+                    </button>
+                )}
+
+                {/* Price List / Selection Sheet — requires view_pricelist */}
+                {user?.permissions?.includes('view_pricelist') && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'pricelist' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('pricelist')}
+                    >
+                        <Tag size={18} />
+                        <span>Price List</span>
+                    </button>
+                )}
+
+                {/* Users & Roles — requires manage_users */}
+                {user?.permissions?.includes('manage_users') && (
                     <button
                         className={`sidebar-nav-link ${crmTab === 'users' ? 'active' : ''}`}
                         onClick={() => handleLinkClick('users')}
