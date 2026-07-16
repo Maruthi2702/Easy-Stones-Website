@@ -2008,11 +2008,9 @@
 
 /* ── LIGHT MODE SIDE NAV STYLES ── */
 body.light-theme-active .sales-sidebar {
-    background: rgba(255, 255, 255, 0.75) !important;
-    backdrop-filter: blur(20px) !important;
-    -webkit-backdrop-filter: blur(20px) !important;
+    background: #f8fafc !important;
     border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.05) !important;
+    box-shadow: none !important;
 }
 
 body.light-theme-active .sidebar-brand-header {
