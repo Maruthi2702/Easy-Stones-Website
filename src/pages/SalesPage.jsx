@@ -96,7 +96,17 @@ const SalesPage = () => {
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
     
-    const [crmTab, setCrmTab] = useState('dashboard'); // 'dashboard', 'customers', 'checkin', 'map'
+    // Compute the default tab based on what the user actually has access to.
+    // CSR users only have view_checkins — they land on Check-In Log, not Dashboard.
+    const getDefaultTab = () => {
+        const perms = currentUser?.permissions || [];
+        if (perms.includes('view_dashboard')) return 'dashboard';
+        if (perms.includes('view_checkins')) return 'checkin';
+        if (perms.includes('view_pricelist')) return 'pricelist';
+        if (perms.includes('view_customers')) return 'customers';
+        return 'checkin'; // safe fallback
+    };
+    const [crmTab, setCrmTab] = useState(getDefaultTab); // 'dashboard', 'customers', 'checkin', 'pricelist'
     const [checkIns, setCheckIns] = useState([]);
     const [checkInsLoading, setCheckInsLoading] = useState(false);
     const [checkInSearch, setCheckInSearch] = useState('');
@@ -1460,7 +1470,17 @@ const SalesPage = () => {
             const viewParam = params.get('view');
             
             if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist'].includes(tabParam)) {
-                setCrmTab(tabParam);
+                // Only switch to the tab if the user has permission for it
+                const perms = currentUser?.permissions || [];
+                const tabPermMap = {
+                    dashboard: 'view_dashboard',
+                    customers: 'view_customers',
+                    checkin: 'view_checkins',
+                    pricelist: 'view_pricelist'
+                };
+                if (!tabPermMap[tabParam] || perms.includes(tabPermMap[tabParam])) {
+                    setCrmTab(tabParam);
+                }
             }
             if (customerId) {
                 setSelectedCustomerId(customerId);
