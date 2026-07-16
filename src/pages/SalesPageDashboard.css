@@ -2005,3 +2005,80 @@
     font-size: 0.78rem;
     font-weight: 500;
 }
+
+/* ── LIGHT MODE SIDE NAV STYLES ── */
+body.light-theme-active .sales-sidebar {
+    background: rgba(255, 255, 255, 0.75) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-theme-active .sidebar-brand-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-theme-active .brand-logo-text h3 {
+    color: #aa841e !important;
+}
+
+body.light-theme-active .brand-logo-text span {
+    color: #64748b !important;
+}
+
+body.light-theme-active .sidebar-pin-btn {
+    color: #64748b !important;
+}
+
+body.light-theme-active .sidebar-pin-btn:hover {
+    color: #0f172a !important;
+    background: rgba(0, 0, 0, 0.04) !important;
+}
+
+body.light-theme-active .sidebar-nav-link {
+    color: #475569 !important;
+}
+
+body.light-theme-active .sidebar-nav-link:hover {
+    color: #0f172a !important;
+    background: rgba(0, 0, 0, 0.03) !important;
+}
+
+body.light-theme-active .sidebar-nav-link.active {
+    color: #aa841e !important;
+    background: rgba(212, 175, 55, 0.12) !important;
+    box-shadow: inset 4px 0 10px rgba(212, 175, 55, 0.02) !important;
+}
+
+body.light-theme-active .sidebar-nav-link.active::before {
+    background-color: #aa841e !important;
+}
+
+body.light-theme-active .sidebar-user-footer {
+    background: rgba(0, 0, 0, 0.02) !important;
+    border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-theme-active .user-avatar-pill {
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.15) !important;
+}
+
+body.light-theme-active .user-name {
+    color: #1e293b !important;
+}
+
+body.light-theme-active .user-role {
+    color: #64748b !important;
+}
+
+body.light-theme-active .sidebar-logout-btn {
+    color: #64748b !important;
+}
+
+body.light-theme-active .sidebar-logout-btn:hover {
+    color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.08) !important;
+}
+

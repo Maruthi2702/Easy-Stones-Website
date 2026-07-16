@@ -74,6 +74,41 @@ class ErrorBoundary extends React.Component {
 const SalesPage = () => {
     const { user: currentUser } = useAuth();
     const navigate = useNavigate();
+    const [theme, setTheme] = useState(() => {
+        try {
+            const saved = localStorage.getItem('checkin_theme');
+            return saved === 'light' ? 'light' : 'dark';
+        } catch (e) {
+            return 'dark';
+        }
+    });
+
+    useEffect(() => {
+        const handleThemeChange = () => {
+            try {
+                const saved = localStorage.getItem('checkin_theme');
+                setTheme(saved === 'light' ? 'light' : 'dark');
+            } catch (e) {}
+        };
+        window.addEventListener('storage', handleThemeChange);
+        window.addEventListener('checkin_theme_changed', handleThemeChange);
+        return () => {
+            window.removeEventListener('storage', handleThemeChange);
+            window.removeEventListener('checkin_theme_changed', handleThemeChange);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (theme === 'light') {
+            document.body.classList.add('light-theme-active');
+        } else {
+            document.body.classList.remove('light-theme-active');
+        }
+        return () => {
+            document.body.classList.remove('light-theme-active');
+        };
+    }, [theme]);
+
     const [customers, setCustomers] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
