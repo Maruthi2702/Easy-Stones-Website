@@ -291,6 +291,14 @@
         gap: 0.5rem;
         min-width: 0;
         flex-grow: 1;
+        width: auto !important;
+    }
+    
+    .user-profile-page-container.clp-root .clp-header-actions {
+        display: flex !important;
+        width: auto !important;
+        margin-top: 0 !important;
+        flex-shrink: 0;
     }
     
     .user-profile-page-container.clp-root .clp-icon-wrap {
