@@ -3,6 +3,7 @@ import { User, Lock, Shield, MapPin, Eye, EyeOff, Loader2, LayoutDashboard } fro
 import { API_URL } from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
 import './UserProfileTab.css';
+import Footer from '../Footer';
 
 const UserProfileTab = ({ sidebarToggle, handleGoHome }) => {
     const { user } = useAuth();
@@ -235,15 +236,8 @@ const UserProfileTab = ({ sidebarToggle, handleGoHome }) => {
                 </div>
             </div>
 
-            {/* Profile Page Footer */}
-            <footer className="profile-page-footer">
-                <p>© 2025 Easy Stones. All rights reserved.</p>
-                <div className="footer-links">
-                    <a href="mailto:krish@easystones.com">Support Support</a>
-                    <span>•</span>
-                    <a href="/warranty">Warranty Policy</a>
-                </div>
-            </footer>
+            {/* Global Site Footer */}
+            <Footer />
         </div>
     );
 };
