@@ -217,6 +217,7 @@
 .profile-dashboard-btn {
     display: flex;
     align-items: center;
+    justify-content: center;
     background: transparent;
     border: 1px solid rgba(212, 175, 55, 0.4);
     border-radius: 6px;
@@ -226,6 +227,11 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
+}
+
+.profile-dashboard-btn svg {
+    margin-right: 6px;
+    flex-shrink: 0;
 }
 
 .profile-dashboard-btn:hover {
@@ -305,8 +311,12 @@
     }
     
     .user-profile-page-container.clp-root .profile-dashboard-btn {
-        padding: 6px 10px;
-        font-size: 0.75rem;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         flex-shrink: 0;
     }
     
@@ -315,7 +325,7 @@
     }
     
     .user-profile-page-container.clp-root .profile-dashboard-btn svg {
-        margin: 0 !important;
+        margin-right: 0 !important;
     }
 }
 

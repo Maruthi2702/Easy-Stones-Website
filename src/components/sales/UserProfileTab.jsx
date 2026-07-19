@@ -103,7 +103,7 @@ const UserProfileTab = ({ sidebarToggle, handleGoHome, theme }) => {
                         onClick={handleGoHome}
                         title="Back to Sales Dashboard"
                     >
-                        <LayoutDashboard size={16} style={{ marginRight: '6px' }} />
+                        <LayoutDashboard size={16} />
                         <span>Dashboard</span>
                     </button>
                 </div>
