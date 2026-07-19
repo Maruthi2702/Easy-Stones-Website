@@ -11,7 +11,6 @@ import {
     LayoutDashboard, Pencil, FileImage, File, MoreVertical, RefreshCw, FileSearch, ExternalLink,
     Monitor, BookOpen
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 
 import { io } from 'socket.io-client';
 import { API_URL } from '../config/api';
@@ -35,7 +34,6 @@ import CheckInLogPanel from '../components/sales/CheckInLogPanel';
 import PriceListPanel from '../components/sales/PriceListPanel';
 import UsersRolesTab from '../components/sales/UsersRolesTab';
 import Pagination from '../components/shared/Pagination';
-import SalesMapPage from './SalesMapPage';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 
 class ErrorBoundary extends React.Component {
@@ -2933,7 +2931,8 @@ const SalesPage = () => {
     // Dashboard Helpers
 
 
-    const handleExportVisits = (customVisits) => {
+    const handleExportVisits = async (customVisits) => {
+        const XLSX = await import('xlsx');
         const visits = customVisits || memoizedFilteredVisits;
         const data = visits.map(v => ({
             Date: formatDate(v.date),
@@ -2950,7 +2949,8 @@ const SalesPage = () => {
         XLSX.writeFile(wb, "Sales_Visits.xlsx");
     };
 
-    const handleExportResources = () => {
+    const handleExportResources = async () => {
+        const XLSX = await import('xlsx');
         const resources = memoizedFilteredResources;
         const data = resources.map(r => ({
             Date: formatDate(r.date || r.createdAt),

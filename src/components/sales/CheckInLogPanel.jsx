@@ -27,7 +27,6 @@ import {
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
   Save, AlertTriangle, Printer, Sun, Moon, Filter, Scan
 } from 'lucide-react';
-import Tesseract from 'tesseract.js';
 import { API_URL } from '../../config/api';
 import Pagination from '../shared/Pagination';
 import { useAuth } from '../../context/AuthContext';
@@ -923,6 +922,7 @@ const CheckInLogPanel = ({
   };
 
   const executeTagOcrScan = async (idx, croppedBlob) => {
+    const Tesseract = (await import('tesseract.js')).default;
     setCropperOpen(false);
     setScanningIndex(idx);
     setScanningProgress(0);
