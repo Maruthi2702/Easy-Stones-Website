@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Pin, PinOff, Sun, Moon,
-    ChevronLeft, User, Clock, LogOut, Tag, Users
+    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -131,6 +131,15 @@ const CustomerSidebar = ({
                         <span>Users & Roles</span>
                     </button>
                 )}
+
+                {/* My Profile */}
+                <button
+                    className={`sidebar-nav-link ${crmTab === 'profile' ? 'active' : ''}`}
+                    onClick={() => handleLinkClick('profile')}
+                >
+                    <UserCheck size={18} />
+                    <span>My Profile</span>
+                </button>
             </div>
 
             {/* Spacer */}
@@ -139,12 +148,19 @@ const CustomerSidebar = ({
             {/* User Profile / Logout Footer */}
             {user && (
                 <div className="sidebar-user-footer">
-                    <div className="user-avatar-pill">
-                        {getInitials(user.contactName)}
-                    </div>
-                    <div className="user-details-text">
-                        <span className="user-name">{user.contactName}</span>
-                        <span className="user-role">{user.role || 'Sales Rep'}</span>
+                    <div 
+                        className="user-profile-trigger" 
+                        onClick={() => handleLinkClick('profile')}
+                        title="View My Profile"
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flexGrow: 1 }}
+                    >
+                        <div className="user-avatar-pill">
+                            {getInitials(user.contactName)}
+                        </div>
+                        <div className="user-details-text">
+                            <span className="user-name">{user.contactName}</span>
+                            <span className="user-role">{user.role || 'Sales Rep'}</span>
+                        </div>
                     </div>
                     <button
                         className="sidebar-logout-btn"

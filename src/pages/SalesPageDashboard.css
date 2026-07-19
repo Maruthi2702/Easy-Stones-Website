@@ -1370,6 +1370,15 @@
     border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.user-profile-trigger {
+    transition: all 0.2s ease;
+}
+
+.user-profile-trigger:hover {
+    transform: translateX(2px);
+    opacity: 0.95;
+}
+
 .user-avatar-pill {
     width: 36px;
     height: 36px;

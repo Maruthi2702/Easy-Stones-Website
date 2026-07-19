@@ -33,6 +33,7 @@ import PartnersSheet from '../components/sales/PartnersSheet';
 import CheckInLogPanel from '../components/sales/CheckInLogPanel';
 import PriceListPanel from '../components/sales/PriceListPanel';
 import UsersRolesTab from '../components/sales/UsersRolesTab';
+import UserProfileTab from '../components/sales/UserProfileTab';
 import Pagination from '../components/shared/Pagination';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 
@@ -1545,7 +1546,7 @@ const SalesPage = () => {
                 users: 'manage_users'
             };
 
-            if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist', 'users'].includes(tabParam)) {
+            if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist', 'users', 'profile'].includes(tabParam)) {
                 // Only switch to the tab if the user has permission for it
                 if (!tabPermMap[tabParam] || perms.includes(tabPermMap[tabParam])) {
                     setCrmTab(tabParam);
@@ -3253,6 +3254,12 @@ const SalesPage = () => {
                 {!authLoading && currentUser?.permissions && crmTab === 'users' && currentUser.permissions.includes('manage_users') && (
                     <ErrorBoundary key="users-roles-view">
                         {renderUsersRolesView()}
+                    </ErrorBoundary>
+                )}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'profile' && (
+                    <ErrorBoundary key="user-profile-view">
+                        <UserProfileTab />
                     </ErrorBoundary>
                 )}
 
