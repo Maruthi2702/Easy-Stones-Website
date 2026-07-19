@@ -1362,6 +1362,12 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       maxAge: 6 * 60 * 60 * 1000 // 6 hours
     });
 
+    let permissions = [];
+    if (accountType === 'internal') {
+      const dbRole = await Role.findOne({ name: account.role });
+      permissions = dbRole?.permissions || [];
+    }
+
     console.log(`✅ Login successful for ${email} as ${accountType}`);
     res.json({
       success: true,
@@ -1372,7 +1378,8 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
         email: account.email,
         company: account.company || 'Easy Stones Internal',
         role: account.role || 'customer',
-        type: accountType
+        type: accountType,
+        permissions
       }
     });
   } catch (error) {
@@ -1417,13 +1424,20 @@ app.get('/api/customer/me', verifyCustomer, async (req, res) => {
       return res.status(404).json({ message: 'Account not found' });
     }
 
+    let permissions = [];
+    if (req.accountType === 'internal') {
+      const dbRole = await Role.findOne({ name: account.role });
+      permissions = dbRole?.permissions || [];
+    }
+
     res.json({
       id: account._id,
       contactName: req.accountType === 'customer' ? account.contactName : (account.username || account.email),
       email: account.email,
       company: account.company || (req.accountType === 'internal' ? 'Easy Stones Internal' : ''),
       role: account.role || 'customer',
-      type: req.accountType
+      type: req.accountType,
+      permissions
     });
   } catch (error) {
     console.error('Get account error:', error);

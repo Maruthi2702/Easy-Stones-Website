@@ -7,7 +7,7 @@ import './CustomerLoginPage.css';
 
 const CustomerLoginPage = () => {
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, checkAuth } = useAuth();
     const [formData, setFormData] = useState({
         email: '',
         password: ''
@@ -89,6 +89,7 @@ const CustomerLoginPage = () => {
             if (response.ok) {
                 // Update auth context with user data
                 login(data.user);
+                await checkAuth();
                 // Redirect based on user type
                 const urlParams = new URLSearchParams(window.location.search);
                 const redirectUrl = urlParams.get('redirect');
