@@ -3201,12 +3201,11 @@ const SalesPage = () => {
         ) : null;
 
         return (
-            <div className="sales-dashboard-v2">
-                <UserProfileTab 
-                    sidebarToggle={sidebarToggle} 
-                    handleGoHome={handleGoHome} 
-                />
-            </div>
+            <UserProfileTab 
+                sidebarToggle={sidebarToggle} 
+                handleGoHome={handleGoHome} 
+                theme={theme}
+            />
         );
     };
 

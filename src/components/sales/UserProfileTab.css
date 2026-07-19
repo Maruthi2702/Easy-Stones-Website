@@ -1,7 +1,7 @@
-.user-profile-container {
-    padding: 24px;
-    max-width: 1200px;
-    margin: 0 auto;
+.user-profile-page-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     animation: fadeIn 0.3s ease;
 }
 
@@ -213,93 +213,117 @@
     color: #ef4444;
 }
 
-/* Profile Header Styles */
-.profile-page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 28px;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 16px;
-}
-
-.header-left-group {
-    display: flex;
-    align-items: center;
-}
-
-.profile-page-title {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin: 0;
-}
-
+/* Profile Dashboard Action Button */
 .profile-dashboard-btn {
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 8px 16px;
-    color: var(--accent-primary);
-    font-size: 0.9rem;
+    background: transparent;
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #d4af37;
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .profile-dashboard-btn:hover {
-    background: var(--accent-primary);
-    color: #111;
-    border-color: var(--accent-primary);
-    box-shadow: var(--shadow-glow);
+    background: #d4af37;
+    color: #111111;
+    border-color: #d4af37;
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.3);
 }
 
-/* Profile Footer Styles */
-.profile-page-footer {
-    margin-top: 48px;
-    border-top: 1px solid var(--border-color);
-    padding-top: 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.85rem;
-    color: var(--text-muted);
+/* Light Theme overrides for Profile Dashboard Button */
+.light-theme .profile-dashboard-btn {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(212, 175, 55, 0.5);
+    color: #b58d16;
 }
 
-.profile-page-footer p {
-    margin: 0;
+.light-theme .profile-dashboard-btn:hover {
+    background: #d4af37;
+    color: #ffffff;
+    border-color: #d4af37;
 }
 
-.footer-links {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+/* Responsive Content Spacing */
+.profile-content-scroll {
+    padding: 2rem;
 }
 
-.footer-links a {
-    color: var(--text-muted);
-    text-decoration: none;
-    transition: color 0.2s;
+@media (max-width: 768px) {
+    .profile-content-scroll {
+        padding: 1.25rem;
+    }
 }
 
-.footer-links a:hover {
-    color: var(--accent-primary);
-}
-
-@media (max-width: 640px) {
-    .profile-page-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
+@media (max-width: 480px) {
+    .profile-content-scroll {
+        padding: 0.75rem;
     }
     
-    .profile-page-footer {
-        flex-direction: column;
-        gap: 12px;
-        text-align: center;
+    .profile-card {
+        padding: 20px 16px;
+        border-radius: 12px;
     }
 }
+
+/* Mobile & Tablet Header Styling to Prevent Wrapping */
+@media (max-width: 768px) {
+    .user-profile-page-container.clp-root .clp-panel-header {
+        padding: 0.75rem 1rem;
+        flex-wrap: nowrap;
+        gap: 0.5rem;
+        align-items: center;
+        background: #ffffff;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    
+    .user-profile-page-container.clp-root .clp-header-left {
+        gap: 0.5rem;
+        min-width: 0;
+        flex-grow: 1;
+    }
+    
+    .user-profile-page-container.clp-root .clp-icon-wrap {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+    }
+    
+    .user-profile-page-container.clp-root .clp-title {
+        font-size: 1.1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .user-profile-page-container.clp-root .clp-subtitle {
+        display: none; /* Hide verbose subtitle to prevent wrapping down */
+    }
+    
+    .user-profile-page-container.clp-root .profile-dashboard-btn {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+    }
+    
+    .user-profile-page-container.clp-root .profile-dashboard-btn span {
+        display: none; /* Hide "Dashboard" text, show only icon on smaller viewports */
+    }
+    
+    .user-profile-page-container.clp-root .profile-dashboard-btn svg {
+        margin: 0 !important;
+    }
+}
+
+/* Dark theme header bg override for user profile page header */
+.dark-theme.user-profile-page-container.clp-root .clp-panel-header {
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+
 
