@@ -2121,4 +2121,145 @@ body.light-theme-active .dashboard-table tr {
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
+/* ─── COMMON MODAL LIGHT THEME DESIGN SYSTEM ─── */
+body.light-theme-active .modal-overlay,
+body.light-theme-active .selection-modal-overlay,
+body.light-theme-active .tag-cropper-modal-overlay,
+body.light-theme-active .selection-email-modal-overlay {
+    background: rgba(15, 23, 42, 0.4) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+}
+
+body.light-theme-active .modal-content,
+body.light-theme-active .selection-modal-container,
+body.light-theme-active .tag-cropper-modal-container,
+body.light-theme-active .selection-email-modal-container {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+    border-radius: 12px !important;
+    color: #1e293b !important;
+}
+
+body.light-theme-active .modal-header,
+body.light-theme-active .selection-modal-header,
+body.light-theme-active .selection-email-modal-header,
+body.light-theme-active .tag-cropper-modal-header {
+    background: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding: 1.25rem 1.5rem !important;
+}
+
+body.light-theme-active .modal-header h2,
+body.light-theme-active .selection-modal-header-title,
+body.light-theme-active .selection-email-modal-header h2,
+body.light-theme-active .tag-cropper-modal-header h2 {
+    color: #0f172a !important;
+    font-size: 1.2rem !important;
+    font-weight: 700 !important;
+}
+
+body.light-theme-active .modal-body,
+body.light-theme-active .selection-modal-form,
+body.light-theme-active .selection-email-modal-body,
+body.light-theme-active .tag-cropper-modal-body {
+    background: #ffffff !important;
+    color: #334155 !important;
+}
+
+body.light-theme-active .modal-footer,
+body.light-theme-active .selection-modal-actions,
+body.light-theme-active .selection-email-modal-footer,
+body.light-theme-active .tag-cropper-modal-footer {
+    background: #f8fafc !important;
+    border-top: 1px solid #e2e8f0 !important;
+    padding: 1.25rem 1.5rem !important;
+}
+
+/* Close Button Overrides */
+body.light-theme-active .close-btn,
+body.light-theme-active .selection-modal-close,
+body.light-theme-active .selection-email-modal-close {
+    background: #f1f5f9 !important;
+    color: #475569 !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+body.light-theme-active .close-btn:hover,
+body.light-theme-active .selection-modal-close:hover,
+body.light-theme-active .selection-email-modal-close:hover {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+}
+
+/* Fields (Inputs, Selects, Textareas) inside Modals in Light Theme */
+body.light-theme-active .modal-content input[type="text"],
+body.light-theme-active .modal-content input[type="email"],
+body.light-theme-active .modal-content input[type="tel"],
+body.light-theme-active .modal-content input[type="date"],
+body.light-theme-active .modal-content select,
+body.light-theme-active .modal-content textarea,
+body.light-theme-active .selection-modal-container input,
+body.light-theme-active .selection-modal-container select,
+body.light-theme-active .selection-modal-container textarea,
+body.light-theme-active .selection-email-modal-container input,
+body.light-theme-active .selection-email-modal-container select,
+body.light-theme-active .selection-email-modal-container textarea {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #1e293b !important;
+    font-size: 0.9rem !important;
+    border-radius: 6px !important;
+    padding: 0.65rem 0.75rem !important;
+}
+
+body.light-theme-active .modal-content input:focus,
+body.light-theme-active .modal-content select:focus,
+body.light-theme-active .modal-content textarea:focus,
+body.light-theme-active .selection-modal-container input:focus,
+body.light-theme-active .selection-modal-container select:focus,
+body.light-theme-active .selection-modal-container textarea:focus {
+    outline: none !important;
+    border-color: #d4af37 !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15) !important;
+}
+
+body.light-theme-active .modal-content label,
+body.light-theme-active .selection-modal-container label,
+body.light-theme-active .selection-email-modal-container label {
+    color: #475569 !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+}
+
+/* Disabled and View Details Fields */
+body.light-theme-active .modal-content input:disabled,
+body.light-theme-active .modal-content select:disabled,
+body.light-theme-active .modal-content textarea:disabled,
+body.light-theme-active .selection-modal-container input:disabled,
+body.light-theme-active .selection-modal-container select:disabled,
+body.light-theme-active .selection-modal-container textarea:disabled {
+    background: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #64748b !important;
+    cursor: not-allowed !important;
+}
+
+/* Detail displays & text styling in View Modals */
+body.light-theme-active .modal-content h3,
+body.light-theme-active .selection-modal-container h3 {
+    color: #0f172a !important;
+}
+
+body.light-theme-active .modal-content p,
+body.light-theme-active .modal-content span,
+body.light-theme-active .modal-content div,
+body.light-theme-active .selection-modal-container p,
+body.light-theme-active .selection-modal-container span {
+    color: #334155 !important;
+}
+
+
 
