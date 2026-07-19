@@ -158,8 +158,14 @@ const CustomerSidebar = ({
                             {getInitials(user.contactName)}
                         </div>
                         <div className="user-details-text">
-                            <span className="user-name">{user.contactName}</span>
-                            <span className="user-role">{user.role || 'Sales Rep'}</span>
+                            <span className="user-name" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <User size={12} style={{ opacity: 0.8 }} />
+                                {user.contactName}
+                            </span>
+                            <span className="user-role" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Users size={12} style={{ opacity: 0.8 }} />
+                                {user.role || 'Sales Rep'}
+                            </span>
                         </div>
                     </div>
                     <button

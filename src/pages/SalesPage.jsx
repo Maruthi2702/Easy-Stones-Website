@@ -3297,24 +3297,28 @@ const SalesPage = () => {
                                                 className={`header-tab ${activeTab === 'visits' ? 'active' : ''}`}
                                                 onClick={() => handleActiveTabChange('visits')}
                                             >
+                                                <Clock size={14} style={{ marginRight: '6px' }} />
                                                 Visits
                                             </button>
                                             <button
                                                 className={`header-tab ${activeTab === 'resources' ? 'active' : ''}`}
                                                 onClick={() => handleActiveTabChange('resources')}
                                             >
+                                                <Folder size={14} style={{ marginRight: '6px' }} />
                                                 Resources
                                             </button>
                                             <button
                                                 className={`header-tab ${activeTab === 'contacts' ? 'active' : ''}`}
                                                 onClick={() => handleActiveTabChange('contacts')}
                                             >
+                                                <Users size={14} style={{ marginRight: '6px' }} />
                                                 Contacts
                                             </button>
                                             <button
                                                 className={`header-tab ${activeTab === 'network' ? 'active' : ''}`}
                                                 onClick={() => handleActiveTabChange('network')}
                                             >
+                                                <Share2 size={14} style={{ marginRight: '6px' }} />
                                                 Network
                                             </button>
                                         </div>
