@@ -353,9 +353,9 @@ const CheckInLogPanel = ({
   const [internalTheme, setInternalTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_theme');
-      return saved === 'light' ? 'light' : 'dark';
+      return saved === 'dark' ? 'dark' : 'light';
     } catch (e) {
-      return 'dark';
+      return 'light';
     }
   });
 
@@ -380,7 +380,7 @@ const CheckInLogPanel = ({
     const handleStorageChange = () => {
       try {
         const saved = localStorage.getItem('checkin_theme');
-        setInternalTheme(saved === 'light' ? 'light' : 'dark');
+        setInternalTheme(saved === 'dark' ? 'dark' : 'light');
       } catch (e) {}
     };
     window.addEventListener('storage', handleStorageChange);

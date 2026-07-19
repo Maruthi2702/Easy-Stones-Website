@@ -7,9 +7,9 @@ const Footer = () => {
     const [theme, setTheme] = useState(() => {
         try {
             const saved = localStorage.getItem('checkin_theme');
-            return saved === 'light' ? 'light' : 'dark';
+            return saved === 'dark' ? 'dark' : 'light';
         } catch (e) {
-            return 'dark';
+            return 'light';
         }
     });
 
@@ -17,7 +17,7 @@ const Footer = () => {
         const handleStorageChange = () => {
             try {
                 const saved = localStorage.getItem('checkin_theme');
-                setTheme(saved === 'light' ? 'light' : 'dark');
+                setTheme(saved === 'dark' ? 'dark' : 'light');
             } catch (e) {}
         };
         window.addEventListener('storage', handleStorageChange);
