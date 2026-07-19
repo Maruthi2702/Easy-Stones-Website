@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { User, Lock, Shield, MapPin, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { User, Lock, Shield, MapPin, Eye, EyeOff, Loader2, LayoutDashboard } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
 import './UserProfileTab.css';
 
-const UserProfileTab = () => {
+const UserProfileTab = ({ sidebarToggle, handleGoHome }) => {
     const { user } = useAuth();
     const [formData, setFormData] = useState({
         currentPassword: '',
@@ -85,12 +85,30 @@ const UserProfileTab = () => {
 
     return (
         <div className="user-profile-container">
+            {/* Profile Page Header */}
+            <div className="profile-page-header">
+                <div className="header-left-group">
+                    {sidebarToggle}
+                    <h1 className="profile-page-title">My Profile</h1>
+                </div>
+                <div className="header-right-group">
+                    <button 
+                        className="profile-dashboard-btn" 
+                        onClick={handleGoHome}
+                        title="Back to Sales Dashboard"
+                    >
+                        <LayoutDashboard size={16} />
+                        <span>Dashboard</span>
+                    </button>
+                </div>
+            </div>
+
             <div className="profile-grid">
                 {/* Information Card */}
                 <div className="profile-card info-card">
                     <div className="card-header">
                         <User className="card-icon" />
-                        <h2>My Profile</h2>
+                        <h2>Profile Information</h2>
                     </div>
                     <div className="profile-details">
                         <div className="detail-row">
@@ -216,6 +234,16 @@ const UserProfileTab = () => {
                     </form>
                 </div>
             </div>
+
+            {/* Profile Page Footer */}
+            <footer className="profile-page-footer">
+                <p>© 2025 Easy Stones. All rights reserved.</p>
+                <div className="footer-links">
+                    <a href="mailto:krish@easystones.com">Support Support</a>
+                    <span>•</span>
+                    <a href="/warranty">Warranty Policy</a>
+                </div>
+            </footer>
         </div>
     );
 };

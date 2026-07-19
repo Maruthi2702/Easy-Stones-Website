@@ -3183,6 +3183,31 @@ const SalesPage = () => {
         );
     };
 
+    const renderUserProfileView = () => {
+        const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+            <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="dashboard-sidebar-toggle"
+                title="Open Sidebar"
+                style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: '6px', padding: '6px', color: 'var(--gold-color, #d4af37)', cursor: 'pointer',
+                    marginRight: '12px'
+                }}
+            >
+                <Menu size={20} />
+            </button>
+        ) : null;
+
+        return (
+            <UserProfileTab 
+                sidebarToggle={sidebarToggle} 
+                handleGoHome={handleGoHome} 
+            />
+        );
+    };
+
     return (
         <div className="sales-container">
             {/* Sidebar Overlay */}
@@ -3259,7 +3284,7 @@ const SalesPage = () => {
 
                 {!authLoading && currentUser?.permissions && crmTab === 'profile' && (
                     <ErrorBoundary key="user-profile-view">
-                        <UserProfileTab />
+                        {renderUserProfileView()}
                     </ErrorBoundary>
                 )}
 
