@@ -2318,6 +2318,10 @@ app.get('/api/checkin/:id', authenticate, requirePermission('view_checkins'), as
     if (!checkIn) {
       return res.status(404).json({ message: 'Check-in not found' });
     }
+    const userLocations = req.user.assignedLocations || [];
+    if (!userLocations.includes('*') && !userLocations.includes(checkIn.location)) {
+      return res.status(403).json({ message: 'Access denied to this check-in' });
+    }
     res.json(checkIn);
   } catch (error) {
     console.error('❌ Error fetching check-in details:', error);
@@ -2440,10 +2444,15 @@ app.post('/api/checkin/:id/send-email', authenticate, requirePermission('send_ch
 // Delete specific check-in
 app.delete('/api/checkin/:id', authenticate, requirePermission('delete_checkins'), async (req, res) => {
   try {
-    const checkIn = await OfficeCheckIn.findByIdAndDelete(req.params.id);
+    const checkIn = await OfficeCheckIn.findById(req.params.id);
     if (!checkIn) {
       return res.status(404).json({ message: 'Check-in not found' });
     }
+    const userLocations = req.user.assignedLocations || [];
+    if (!userLocations.includes('*') && !userLocations.includes(checkIn.location)) {
+      return res.status(403).json({ message: 'Access denied to delete this check-in' });
+    }
+    await OfficeCheckIn.findByIdAndDelete(req.params.id);
     console.log(`🗑️ Office check-in deleted: ${checkIn.name}`);
     req.app.get('io').emit('checkin_update');
 
