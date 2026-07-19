@@ -37,13 +37,13 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { read, utils } from 'xlsx';
 import bcrypt from 'bcryptjs';
-import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Mockup Generation Utility
 const generateMockups = async (slabImageBuffer, baseFilename) => {
+  const sharp = (await import('sharp')).default;
   const templatesDir = path.join(__dirname, 'public', 'images', 'templates');
 
   const templates = [
@@ -96,6 +96,7 @@ const generateMockups = async (slabImageBuffer, baseFilename) => {
 // Image Optimization Utility
 const optimizeImage = async (buffer) => {
   try {
+    const sharp = (await import('sharp')).default;
     return await sharp(buffer)
       .resize(1200, 1200, {
         fit: 'inside',
@@ -128,6 +129,7 @@ const processBase64Image = async (base64String, subDir = 'Visits') => {
   if (!base64String || !base64String.startsWith('data:image/')) return base64String;
 
   try {
+    const sharp = (await import('sharp')).default;
     const base64Data = base64String.split(';base64,').pop();
     const buffer = Buffer.from(base64Data, 'base64');
 
