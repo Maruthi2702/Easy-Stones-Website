@@ -2,13 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { 
   User, Phone, Mail, MapPin, Building, 
   UserCheck, Send, Loader2, CheckCircle2, AlertTriangle,
-  Sun, Moon
+  Sun, Moon, ChevronDown
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { formatPhoneInput } from '../utils/phoneUtils';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import './CheckInPage.css';
 
 const CheckInPage = () => {
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/login?redirect=/checkin');
+    }
+  }, [user, authLoading, navigate]);
+
   const [theme, setTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_theme');
@@ -78,11 +89,59 @@ const CheckInPage = () => {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
 
+  const AVAILABLE_LOCATIONS = ['Seattle', 'Spokane', 'Salt Lake City'];
+  
+  const hasMultipleLocations = user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1);
+  
+  const allowedLocations = user?.assignedLocations?.includes('*')
+    ? AVAILABLE_LOCATIONS
+    : AVAILABLE_LOCATIONS.filter(loc => user?.assignedLocations?.includes(loc));
+
+  const [selectedLocation, setSelectedLocation] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kiosk_location');
+      if (saved && AVAILABLE_LOCATIONS.includes(saved)) {
+        return saved;
+      }
+    } catch (e) {}
+    
+    if (user?.assignedLocations) {
+      const primaryLoc = user.assignedLocations.find(l => l !== '*');
+      if (primaryLoc && AVAILABLE_LOCATIONS.includes(primaryLoc)) {
+        return primaryLoc;
+      }
+    }
+    
+    return 'Seattle';
+  });
+
+  useEffect(() => {
+    if (selectedLocation) {
+      try {
+        localStorage.setItem('kiosk_location', selectedLocation);
+      } catch (e) {}
+    }
+  }, [selectedLocation]);
+
   // Background warm-up ping to wake up Render server
   useEffect(() => {
     fetch(`${API_URL}/api/salesreps`)
       .then(() => console.log('⚡ Render backend warmed up successfully.'))
       .catch(err => console.warn('Backend warm-up ping failed:', err));
+  }, []);
+
+  // Parse location parameter on mount and save to localStorage
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const locParam = urlParams.get('location');
+      if (locParam) {
+        localStorage.setItem('kiosk_location', locParam);
+        console.log(`📍 Kiosk location configured: ${locParam}`);
+      }
+    } catch (e) {
+      console.error('Error reading location parameter:', e);
+    }
   }, []);
 
   const handleChange = (e) => {
@@ -128,8 +187,15 @@ const CheckInPage = () => {
     try {
       const response = await fetch(`${API_URL}/api/checkin`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          ...formData,
+          location: selectedLocation
+        }),
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -181,16 +247,81 @@ const CheckInPage = () => {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  if (authLoading || !user) {
+    return (
+      <div className="checkin-loading" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a' }}>
+        <Loader2 className="animate-spin" size={48} style={{ color: '#d4af37' }} />
+      </div>
+    );
+  }
+
   return (
     <div className={`checkin-container ${theme}-theme`}>
-      <button type="button" onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle Theme">
-        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        <span>{theme === 'dark' ? 'Light Theme' : 'Dark Theme'}</span>
-      </button>
 
       <div className="checkin-header">
         <div className="logo-section">
           <h1>Visitor Check-in</h1>
+          {hasMultipleLocations ? (
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <span style={{ 
+                fontSize: '0.8rem', 
+                color: 'var(--text-secondary)', 
+                fontWeight: '600', 
+                textTransform: 'uppercase', 
+                letterSpacing: '0.08em' 
+              }}>
+                Select Active Branch Office
+              </span>
+              
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <select
+                  value={selectedLocation}
+                  onChange={(e) => setSelectedLocation(e.target.value)}
+                  style={{
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)',
+                    border: '1.5px solid var(--accent-primary)',
+                    padding: '12px 40px 12px 20px',
+                    borderRadius: '14px',
+                    fontSize: '1rem',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    fontWeight: '700',
+                    boxShadow: 'var(--shadow-glow)',
+                    minWidth: '240px',
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'none',
+                    transition: 'all 0.2s',
+                    textAlign: 'left'
+                  }}
+                  className="kiosk-location-dropdown"
+                >
+                  {allowedLocations.map(loc => (
+                    <option key={loc} value={loc} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                      📍 {loc} Office
+                    </option>
+                  ))}
+                </select>
+                <div style={{
+                  position: 'absolute',
+                  right: '16px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  color: 'var(--accent-primary)',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  <ChevronDown size={18} />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="kiosk-branch-indicator" style={{ color: '#d4af37', fontSize: '1.1rem', marginTop: '6px', fontWeight: '600', letterSpacing: '0.05em' }}>
+              📍 {selectedLocation} Branch
+            </p>
+          )}
         </div>
       </div>
 

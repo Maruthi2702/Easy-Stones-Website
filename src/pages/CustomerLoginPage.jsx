@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Sun, Moon } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import './CustomerLoginPage.css';
@@ -15,6 +15,37 @@ const CustomerLoginPage = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const [theme, setTheme] = useState(() => {
+        try {
+            const saved = localStorage.getItem('checkin_theme');
+            return saved === 'light' ? 'light' : 'dark';
+        } catch (e) {
+            return 'dark';
+        }
+    });
+
+    const toggleTheme = () => {
+        const newTheme = theme === 'dark' ? 'light' : 'dark';
+        try {
+            localStorage.setItem('checkin_theme', newTheme);
+            setTheme(newTheme);
+            window.dispatchEvent(new Event('checkin_theme_changed'));
+        } catch (e) {
+            console.error('Failed to save theme setting', e);
+        }
+    };
+
+    useEffect(() => {
+        if (theme === 'light') {
+            document.body.classList.add('light-theme-active');
+        } else {
+            document.body.classList.remove('light-theme-active');
+        }
+        return () => {
+            document.body.classList.remove('light-theme-active');
+        };
+    }, [theme]);
 
     const handleChange = (e) => {
         setFormData({
@@ -59,7 +90,11 @@ const CustomerLoginPage = () => {
                 // Update auth context with user data
                 login(data.user);
                 // Redirect based on user type
-                if (data.user.type === 'internal') {
+                const urlParams = new URLSearchParams(window.location.search);
+                const redirectUrl = urlParams.get('redirect');
+                if (redirectUrl) {
+                    navigate(redirectUrl);
+                } else if (data.user.type === 'internal') {
                     navigate('/sales');
                 } else {
                     navigate('/');
@@ -76,6 +111,31 @@ const CustomerLoginPage = () => {
 
     return (
         <div className="customer-login-page">
+            <button 
+                type="button" 
+                onClick={toggleTheme} 
+                style={{
+                    position: 'fixed',
+                    top: '2rem',
+                    right: '2rem',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: 'var(--shadow-md)',
+                    zIndex: 1000,
+                    transition: 'all 0.2s'
+                }}
+                title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            >
+                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
             <div className="login-container">
                 <div className="login-card">
                     <div className="login-header">

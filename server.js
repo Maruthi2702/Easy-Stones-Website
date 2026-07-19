@@ -274,6 +274,50 @@ async function startServer() {
     } catch (migError) {
       console.error('Error running status update migration:', migError);
     }
+    // Database migration: Initialize assignedLocations for existing users & upgrade admins to global
+    try {
+      const updateUsersResult = await User.updateMany(
+        { assignedLocations: { $exists: false } },
+        { $set: { assignedLocations: ['Seattle'] } }
+      );
+      if (updateUsersResult.modifiedCount > 0) {
+        console.log(`🔄 Initialized assignedLocations for ${updateUsersResult.modifiedCount} users`);
+      }
+      const updateAdminsResult = await User.updateMany(
+        { role: 'admin', assignedLocations: { $ne: '*' } },
+        { $set: { assignedLocations: ['*'] } }
+      );
+      if (updateAdminsResult.modifiedCount > 0) {
+        console.log(`🔄 Upgraded ${updateAdminsResult.modifiedCount} administrators to global location access`);
+      }
+    } catch (migError) {
+      console.error('Error running user locations migration:', migError);
+    }
+    // Database migration: Initialize location for existing check-in records
+    try {
+      const updateCheckinsResult = await OfficeCheckIn.updateMany(
+        { location: { $exists: false } },
+        { $set: { location: 'Seattle' } }
+      );
+      if (updateCheckinsResult.modifiedCount > 0) {
+        console.log(`🔄 Migrated ${updateCheckinsResult.modifiedCount} check-in records with default location 'Seattle'`);
+      }
+    } catch (migError) {
+      console.error('Error running check-in location migration:', migError);
+    }
+    // Database migration: Initialize view_product_prices permission for all existing roles
+    try {
+      const updateRolesResult = await Role.updateMany(
+        { permissions: { $ne: 'view_product_prices' } },
+        { $addToSet: { permissions: 'view_product_prices' } }
+      );
+      if (updateRolesResult.modifiedCount > 0) {
+        console.log(`🔄 Added default "view_product_prices" permission to ${updateRolesResult.modifiedCount} roles`);
+      }
+    } catch (migError) {
+      console.error('Error running roles permissions migration:', migError);
+    }
+    // Kiosk users are managed dynamically by the administrator via the dashboard, no auto-seeding required.
     // Seed standard Roles & Permissions
     try {
       const defaultRoles = [
@@ -283,7 +327,7 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
             'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
-            'view_pricelist', 'manage_pricelist', 'manage_users'
+            'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices'
           ],
           isSystem: true
         },
@@ -293,7 +337,7 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
             'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
-            'view_pricelist', 'manage_pricelist', 'manage_users'
+            'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices'
           ],
           isSystem: true
         },
@@ -303,7 +347,7 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers',
             'view_checkins', 'manage_checkins', 'send_checkin_email', 'delete_checkins',
-            'view_pricelist', 'manage_users'
+            'view_pricelist', 'manage_users', 'view_product_prices'
           ],
           isSystem: true
         },
@@ -313,7 +357,7 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers',
             'view_checkins', 'manage_checkins', 'send_checkin_email',
-            'view_pricelist', 'manage_users'
+            'view_pricelist', 'manage_users', 'view_product_prices'
           ],
           isSystem: true
         },
@@ -321,7 +365,7 @@ async function startServer() {
           name: 'csr',
           displayName: 'CSR',
           permissions: [
-            'view_checkins', 'send_checkin_email', 'view_pricelist'
+            'view_checkins', 'send_checkin_email', 'view_pricelist', 'view_product_prices'
           ],
           isSystem: true
         }
@@ -614,6 +658,7 @@ const authenticate = async (req, res, next) => {
       email: dbUser.email,
       role: dbUser.role,
       permissions,          // always fresh from DB
+      assignedLocations: dbUser.assignedLocations || ['Seattle'],
       type: 'staff'
     };
 
@@ -744,6 +789,9 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       maxAge: 6 * 60 * 60 * 1000 // 6 hours
     });
 
+    const dbRole = await Role.findOne({ name: user.role });
+    const permissions = dbRole?.permissions || [];
+
     res.json({
       success: true,
       message: 'Login successful',
@@ -751,7 +799,8 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       admin: {
         username: user.username,
         email: user.email,
-        role: user.role
+        role: user.role,
+        permissions
       }
     });
 
@@ -781,7 +830,7 @@ app.get('/api/auth/token', (req, res) => {
 // ============================================
 
 // Get all users (manage_users permission needed)
-app.get('/api/admin/users', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.get('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     res.json(users);
@@ -791,9 +840,9 @@ app.get('/api/admin/users', verifyAnyAuth, checkPermission('manage_users'), asyn
 });
 
 // Create new user (manage_users permission needed)
-app.post('/api/admin/users', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.post('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
-    const { username, password, email, role, location } = req.body;
+    const { username, password, email, role, location, assignedLocations } = req.body;
 
     // Check if user exists
     const existingUser = await User.findOne({ username });
@@ -806,7 +855,8 @@ app.post('/api/admin/users', verifyAnyAuth, checkPermission('manage_users'), asy
       password,
       email,
       role: role || 'sales_rep',
-      location
+      location,
+      assignedLocations: assignedLocations || ['Seattle']
     });
 
     await newUser.save();
@@ -818,7 +868,8 @@ app.post('/api/admin/users', verifyAnyAuth, checkPermission('manage_users'), asy
         username: newUser.username,
         email: newUser.email,
         role: newUser.role,
-        location: newUser.location
+        location: newUser.location,
+        assignedLocations: newUser.assignedLocations
       }
     });
   } catch (error) {
@@ -827,9 +878,9 @@ app.post('/api/admin/users', verifyAnyAuth, checkPermission('manage_users'), asy
 });
 
 // Update user (manage_users permission needed)
-app.put('/api/admin/users/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
-    const { username, email, role, password, location } = req.body;
+    const { username, email, role, password, location, assignedLocations } = req.body;
     const userId = req.params.id;
 
     const user = await User.findById(userId);
@@ -849,6 +900,7 @@ app.put('/api/admin/users/:id', verifyAnyAuth, checkPermission('manage_users'), 
     if (email !== undefined) user.email = email;
     if (role !== undefined) user.role = role;
     if (location !== undefined) user.location = location;
+    if (assignedLocations !== undefined) user.assignedLocations = assignedLocations;
     if (password) user.password = password; // Will be hashed by pre-save hook
 
     await user.save();
@@ -860,7 +912,8 @@ app.put('/api/admin/users/:id', verifyAnyAuth, checkPermission('manage_users'), 
         username: user.username,
         email: user.email,
         role: user.role,
-        location: user.location
+        location: user.location,
+        assignedLocations: user.assignedLocations
       }
     });
   } catch (error) {
@@ -869,7 +922,7 @@ app.put('/api/admin/users/:id', verifyAnyAuth, checkPermission('manage_users'), 
 });
 
 // Delete user (manage_users permission needed)
-app.delete('/api/admin/users/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.delete('/api/admin/users/:id', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'User deleted successfully' });
@@ -1074,7 +1127,8 @@ app.get('/api/user/me', authenticate, async (req, res) => {
       username: user.username,
       email: user.email,
       role: user.role,
-      permissions
+      permissions,
+      assignedLocations: user.assignedLocations || ['Seattle']
     });
   } catch (error) {
     console.error('Get user error:', error);
@@ -2039,8 +2093,8 @@ app.post('/api/customers/:customerId/contacts', authenticate, requirePermission(
 });
 
 
-// Submit public check-in
-app.post('/api/checkin', async (req, res) => {
+// Submit check-in (requires authenticated kiosk/staff session)
+app.post('/api/checkin', authenticate, async (req, res) => {
   try {
     const { 
       name, 
@@ -2048,11 +2102,23 @@ app.post('/api/checkin', async (req, res) => {
       email, 
       fabricatorCompany, 
       fabricatorName, 
-      fabricatorPhone
+      fabricatorPhone,
+      location: bodyLocation
     } = req.body;
 
     if (!name || !phone) {
       return res.status(400).json({ message: 'Name and phone number are required' });
+    }
+
+    let kioskLocation = 'Seattle';
+    const userLocations = req.user?.assignedLocations || [];
+    if (bodyLocation && (userLocations.includes('*') || userLocations.includes(bodyLocation))) {
+      kioskLocation = bodyLocation;
+    } else if (userLocations.length > 0) {
+      const validLoc = userLocations.find(l => l !== '*');
+      if (validLoc) {
+        kioskLocation = validLoc;
+      }
     }
 
     const checkIn = new OfficeCheckIn({
@@ -2061,11 +2127,16 @@ app.post('/api/checkin', async (req, res) => {
       email,
       fabricatorCompany,
       fabricatorName,
-      fabricatorPhone
+      fabricatorPhone,
+      location: kioskLocation,
+      loggedBy: {
+        userId: req.user?.id,
+        username: req.user?.username
+      }
     });
 
     await checkIn.save();
-    console.log(`✅ New office check-in: ${name} (${phone})`);
+    console.log(`✅ New office check-in at ${checkIn.location} (logged by ${req.user?.username}): ${name} (${phone})`);
 
     // Send email alert to staff with priority fallback logic
     (async () => {
@@ -2089,13 +2160,33 @@ app.post('/api/checkin', async (req, res) => {
   }
 });
 
-app.get('/api/checkin', async (req, res) => {
+app.get('/api/checkin', authenticate, requirePermission('view_checkins'), async (req, res) => {
   try {
-    const { page, limit, search, month, year } = req.query;
+    const { page, limit, search, month, year, location } = req.query;
+
+    const userLocations = req.user.assignedLocations || [];
+    const query = {};
+
+    // Apply location filtering
+    if (userLocations.includes('*')) {
+      if (location) {
+        query.location = location;
+      }
+    } else {
+      if (location) {
+        if (userLocations.includes(location)) {
+          query.location = location;
+        } else {
+          return res.status(403).json({ message: 'Access denied to this location' });
+        }
+      } else {
+        query.location = { $in: userLocations };
+      }
+    }
 
     // If query parameters are not supplied, return standard raw array for backward compatibility
     if (!page && !limit && !search && !month && !year) {
-      const checkIns = await OfficeCheckIn.find()
+      const checkIns = await OfficeCheckIn.find(query)
         .sort({ createdAt: -1 })
         .limit(50);
       return res.json(checkIns);
@@ -2104,7 +2195,6 @@ app.get('/api/checkin', async (req, res) => {
     // Otherwise, support full pagination, search, and date filters
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 20;
-    const query = {};
 
     if (month && year) {
       const m = parseInt(month);
@@ -2146,7 +2236,7 @@ app.get('/api/checkin', async (req, res) => {
 
 
 // Check-in stats: today count + this month count (Pacific timezone aware)
-app.get('/api/checkin/stats', async (req, res) => {
+app.get('/api/checkin/stats', authenticate, requirePermission('view_checkins'), async (req, res) => {
   try {
     const now = new Date();
 
@@ -2164,12 +2254,41 @@ app.get('/api/checkin/stats', async (req, res) => {
     const pacificMonthStart = new Date(pacificNow.getFullYear(), pacificNow.getMonth(), 1, 0, 0, 0, 0);
     const startOfMonth = new Date(pacificMonthStart.getTime() + tzOffsetMs);
 
-    const [todayCount, monthCount] = await Promise.all([
-      OfficeCheckIn.countDocuments({ createdAt: { $gte: startOfToday } }),
-      OfficeCheckIn.countDocuments({ createdAt: { $gte: startOfMonth } }),
+    const queryToday = { createdAt: { $gte: startOfToday } };
+    const queryMonth = { createdAt: { $gte: startOfMonth } };
+    const queryAllTime = {};
+    const userLocations = req.user.assignedLocations || [];
+    const { location } = req.query;
+
+    if (userLocations.includes('*')) {
+      if (location) {
+        queryToday.location = location;
+        queryMonth.location = location;
+        queryAllTime.location = location;
+      }
+    } else {
+      if (location) {
+        if (userLocations.includes(location)) {
+          queryToday.location = location;
+          queryMonth.location = location;
+          queryAllTime.location = location;
+        } else {
+          return res.status(403).json({ message: 'Access denied to this location' });
+        }
+      } else {
+        queryToday.location = { $in: userLocations };
+        queryMonth.location = { $in: userLocations };
+        queryAllTime.location = { $in: userLocations };
+      }
+    }
+
+    const [todayCount, monthCount, allTimeCount] = await Promise.all([
+      OfficeCheckIn.countDocuments(queryToday),
+      OfficeCheckIn.countDocuments(queryMonth),
+      OfficeCheckIn.countDocuments(queryAllTime)
     ]);
 
-    res.json({ todayCount, monthCount });
+    res.json({ todayCount, monthCount, allTimeCount });
   } catch (error) {
     console.error('❌ Error fetching check-in stats:', error);
     res.status(500).json({ message: 'Failed to fetch stats' });
@@ -2193,12 +2312,14 @@ app.get('/api/checkin/:id', authenticate, requirePermission('view_checkins'), as
 // Get list of sales reps (all users for autocomplete/suggestions)
 app.get('/api/salesreps', async (req, res) => {
   try {
-    const users = await User.find({}, 'username email role');
+    const users = await User.find({}, 'username email role location assignedLocations');
     const formattedUsers = users.map(user => ({
       username: user.username,
       name: user.username.split(/[._-]/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '), // Capitalize username neatly
       email: user.email,
-      role: user.role
+      role: user.role,
+      location: user.location,
+      assignedLocations: user.assignedLocations || []
     }));
     res.json({ success: true, data: formattedUsers });
   } catch (error) {
@@ -2223,7 +2344,8 @@ app.put('/api/checkin/:id', async (req, res) => {
       selections,
       specialNotes,
       salesRep,
-      salesRepEmail
+      salesRepEmail,
+      location
     } = req.body;
     const checkIn = await OfficeCheckIn.findById(req.params.id);
     if (!checkIn) {
@@ -2232,6 +2354,7 @@ app.put('/api/checkin/:id', async (req, res) => {
 
     if (name) checkIn.name = name;
     if (phone) checkIn.phone = phone;
+    if (location !== undefined) checkIn.location = location;
     if (email !== undefined) checkIn.email = email;
     if (fabricatorCompany !== undefined) checkIn.fabricatorCompany = fabricatorCompany;
     if (fabricatorName !== undefined) checkIn.fabricatorName = fabricatorName;

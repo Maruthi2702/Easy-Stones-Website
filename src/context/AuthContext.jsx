@@ -21,9 +21,17 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const checkAuth = async () => {
+        setLoading(true);
         try {
+            const token = localStorage.getItem('token');
+            const headers = {};
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
             // First verify token and get basic info (works for both admin/customer)
             const verifyRes = await fetch(`${API_URL}/api/auth/verify`, {
+                headers,
                 credentials: 'include'
             });
 
@@ -48,6 +56,7 @@ export const AuthProvider = ({ children }) => {
                 : `${API_URL}/api/customer/me`;
 
             const profileRes = await fetch(profileUrl, {
+                headers,
                 credentials: 'include'
             });
 

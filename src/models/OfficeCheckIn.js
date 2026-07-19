@@ -6,6 +6,13 @@ const officeCheckInSchema = new mongoose.Schema({
     required: [true, 'Name is required'],
     trim: true
   },
+  location: {
+    type: String,
+    required: [true, 'Location is required'],
+    default: 'Seattle',
+    trim: true,
+    index: true
+  },
   phone: {
     type: String,
     required: [true, 'Phone number is required'],
@@ -68,6 +75,16 @@ const officeCheckInSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: ''
+  },
+  loggedBy: {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    username: {
+      type: String,
+      trim: true
+    }
   }
 }, {
   timestamps: true

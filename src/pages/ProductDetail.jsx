@@ -205,7 +205,7 @@ const ProductDetail = () => {
                     <h3>Specs</h3>
                   </div>
                   <div className="specs-table">
-                    {user && product.price && (
+                    {user && product.price && (user.type === 'customer' || user.permissions?.includes('view_product_prices') || user.role === 'admin') && (
                       <div className="spec-row">
                         <span className="spec-label">Price</span>
                         <span className="spec-value highlight">{product.price}</span>

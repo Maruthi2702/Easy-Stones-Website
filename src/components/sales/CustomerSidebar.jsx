@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    LayoutDashboard, Pin, PinOff,
+    LayoutDashboard, Pin, PinOff, Sun, Moon,
     ChevronLeft, User, Clock, LogOut, Tag, Users
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -15,7 +15,9 @@ const CustomerSidebar = ({
     sidebarWidth,
     startResizing,
     togglePin,
-    setIsSidebarOpen
+    setIsSidebarOpen,
+    theme,
+    toggleTheme
 }) => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
@@ -53,15 +55,24 @@ const CustomerSidebar = ({
                     <h3>EASY STONES</h3>
                     <span>SALES CRM</span>
                 </div>
-                {!isMobile && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <button
                         className="sidebar-pin-btn"
-                        onClick={togglePin}
-                        title={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}
+                        onClick={toggleTheme}
+                        title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
                     >
-                        {isPinned ? <PinOff size={16} /> : <Pin size={16} />}
+                        {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
-                )}
+                    {!isMobile && (
+                        <button
+                            className="sidebar-pin-btn"
+                            onClick={togglePin}
+                            title={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}
+                        >
+                            {isPinned ? <PinOff size={16} /> : <Pin size={16} />}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Top Navigation Links — shown only if user has the permission */}

@@ -229,9 +229,11 @@
     width: 100%;
     max-width: 100%;
     overflow-x: auto;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.25) 0%, rgba(15, 23, 42, 0.35) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(12px);
     box-sizing: border-box;
 }
 
@@ -243,22 +245,37 @@
 
 .partners-sheet-container .dashboard-table th, 
 .partners-sheet-container .dashboard-table td {
-    padding: 1rem;
+    padding: 1.2rem 1.1rem;
     text-align: left;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .partners-sheet-container .dashboard-table th {
     font-weight: 600;
-    color: var(--text-secondary);
+    color: #94a3b8;
     font-size: 0.85rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    background: rgba(255, 255, 255, 0.03);
+    letter-spacing: 0.08em;
+    background: rgba(15, 23, 42, 0.6);
+    border-bottom: 2px solid rgba(212, 175, 55, 0.12);
+}
+
+.partners-sheet-container .dashboard-table tbody tr {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.partners-sheet-container .dashboard-table tbody tr td {
+    color: #cbd5e1;
+    transition: color 0.25s ease;
+}
+
+.partners-sheet-container .dashboard-table tbody tr:hover td {
+    color: #ffffff;
 }
 
 .partners-sheet-container .dashboard-table tr:hover {
-    background: rgba(212, 175, 55, 0.03);
+    background: linear-gradient(90deg, rgba(212, 175, 55, 0.04) 0%, rgba(15, 23, 42, 0.2) 100%);
 }
 
 .partners-sheet-container .dashboard-table tr.partner-row-low-priority td {

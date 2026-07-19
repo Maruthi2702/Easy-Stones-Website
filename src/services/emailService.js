@@ -113,8 +113,8 @@ export async function sendCheckInAlertEmail(checkIn) {
           <td style="padding: 8px 0; color: #222;">${fabricatorPhone || 'N/A'}</td>
         </tr>
         <tr>
-          <td style="padding: 8px 0; font-weight: bold; color: #555;">Contact Name:</td>
-          <td style="padding: 8px 0; color: #222;">${fabricatorName || 'N/A'}</td>
+          <td style="padding: 8px 0; font-weight: bold; color: #555;">Branch Location:</td>
+          <td style="padding: 8px 0; color: #d4af37; font-weight: bold;">${checkIn.location || 'Seattle'}</td>
         </tr>
       </table>
       <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />

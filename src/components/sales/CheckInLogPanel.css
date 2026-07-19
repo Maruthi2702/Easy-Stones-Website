@@ -323,11 +323,13 @@
   flex: 1;
   position: relative;
   z-index: 1;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.25) 0%, rgba(15, 23, 42, 0.35) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
   overflow: hidden;
   margin: 0.5rem 2rem 1rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
 }
 
 .clp-embedded .clp-table-card {
@@ -383,35 +385,36 @@
 }
 
 .clp-table thead tr {
-  background: rgba(255, 255, 255, 0.04);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(15, 23, 42, 0.6);
+  border-bottom: 2px solid rgba(212, 175, 55, 0.12);
 }
 
 .clp-table thead th {
-  padding: 0.8rem 1.1rem;
+  padding: 1.2rem 1.1rem;
   text-align: left;
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--text-secondary, #b0b0b0);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #94a3b8;
   letter-spacing: 0.08em;
   white-space: nowrap;
+  text-transform: uppercase;
 }
 
 .clp-table tbody tr {
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  transition: background 0.15s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .clp-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.04) 0%, rgba(15, 23, 42, 0.2) 100%);
 }
 
 .clp-table tbody tr.clp-row-today {
-  background: rgba(212, 175, 55, 0.03);
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.08) 0%, rgba(212, 175, 55, 0.02) 100%);
 }
 
 .clp-table tbody tr.clp-row-today:hover {
-  background: rgba(212, 175, 55, 0.06);
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.12) 0%, rgba(212, 175, 55, 0.04) 100%);
 }
 
 .clp-table tbody tr:last-child {
@@ -419,8 +422,14 @@
 }
 
 .clp-table tbody td {
-  padding: 0.85rem 1.1rem;
+  padding: 1.2rem 1.1rem;
   vertical-align: middle;
+  transition: color 0.25s ease;
+  color: #cbd5e1;
+}
+
+.clp-table tbody tr:hover td {
+  color: #ffffff;
 }
 
 /* ── Cells ── */
@@ -1910,34 +1919,42 @@ table.clp-table {
 
 /* Root and main background wrapper */
 .clp-root.light-theme {
-  background-color: #f8fafc !important;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 40%, #e8edf5 100%) !important;
   color: #0f172a !important;
 }
 
 /* Header Text elements */
 .clp-root.light-theme .clp-title {
-  background: none !important;
-  -webkit-text-fill-color: #0f172a !important;
-  color: #0f172a !important;
+  background: linear-gradient(135deg, #1e293b 60%, #92742a) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
 }
 
 .clp-root.light-theme .clp-subtitle {
-  color: #475569 !important;
+  color: #64748b !important;
 }
 
 .clp-root.light-theme .clp-updated {
-  color: #64748b !important;
+  color: #b8961f !important;
 }
 
 /* Header Search */
 .clp-root.light-theme .clp-search-wrap {
-  border-color: #cbd5e1 !important;
+  border-color: transparent !important;
 }
 
 .clp-root.light-theme .clp-search {
   background: #ffffff !important;
-  border: 1px solid #cbd5e1 !important;
+  border: 1.5px solid #e2e8f0 !important;
   color: #0f172a !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04) !important;
+  transition: all 0.25s ease !important;
+}
+
+.clp-root.light-theme .clp-search:focus {
+  border-color: #d4af37 !important;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06) !important;
 }
 
 .clp-root.light-theme .clp-search::placeholder {
@@ -1945,7 +1962,7 @@ table.clp-table {
 }
 
 .clp-root.light-theme .clp-search-icon {
-  color: #64748b !important;
+  color: #94a3b8 !important;
 }
 
 /* Header Buttons */
@@ -1953,21 +1970,61 @@ table.clp-table {
 .clp-root.light-theme .clp-refresh-btn,
 .clp-root.light-theme .clp-theme-btn {
   background: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
+  border: 1.5px solid #e2e8f0 !important;
+  color: #334155 !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+  transition: all 0.25s ease !important;
 }
 
 .clp-root.light-theme .clp-export-btn:hover,
 .clp-root.light-theme .clp-refresh-btn:hover,
 .clp-root.light-theme .clp-theme-btn:hover {
-  background: #f1f5f9 !important;
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+  transform: translateY(-1px) !important;
+}
+
+.clp-root.light-theme .clp-export-btn {
+  background: linear-gradient(135deg, #d4af37, #c9a022) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  font-weight: 700 !important;
+  box-shadow: 0 3px 12px rgba(212, 175, 55, 0.2) !important;
+}
+
+.clp-root.light-theme .clp-export-btn:hover {
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.35) !important;
+  transform: translateY(-2px) !important;
 }
 
 /* Stats Row */
 .clp-root.light-theme .clp-stat {
   background: #ffffff !important;
-  border-color: #e2e8f0 !important;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.02) !important;
+  border: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.clp-root.light-theme .clp-stat:hover {
+  border-color: rgba(212, 175, 55, 0.3) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(212, 175, 55, 0.08) !important;
+  transform: translateY(-2px) !important;
+}
+
+.clp-root.light-theme .clp-stat-icon.clp-stat-gold {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(212, 175, 55, 0.06)) !important;
+  color: #b8961f !important;
+}
+
+.clp-root.light-theme .clp-stat-icon.clp-stat-green {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.06)) !important;
+  color: #059669 !important;
+}
+
+.clp-root.light-theme .clp-stat-icon.clp-stat-blue {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.06)) !important;
+  color: #2563eb !important;
 }
 
 .clp-root.light-theme .clp-stat-val {
@@ -1975,41 +2032,72 @@ table.clp-table {
 }
 
 .clp-root.light-theme .clp-stat-lbl {
-  color: #475569 !important;
+  color: #64748b !important;
 }
 
 /* Main Table */
 .clp-root.light-theme .clp-table-container {
   background: #ffffff !important;
-  border-color: #e2e8f0 !important;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.03) !important;
+  border: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03) !important;
+  border-radius: 16px !important;
+}
+
+.clp-root.light-theme .clp-table-card {
+  background: #ffffff !important;
+  border: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03) !important;
 }
 
 .clp-root.light-theme .clp-table th {
-  background: #f1f5f9 !important;
-  color: #334155 !important;
-  border-bottom-color: #cbd5e1 !important;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9) !important;
+  color: #475569 !important;
+  border-bottom: 2px solid rgba(212, 175, 55, 0.15) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
 }
 
 .clp-root.light-theme .clp-table td {
-  border-bottom-color: #e2e8f0 !important;
-  color: #334155 !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #475569 !important;
 }
 
 .clp-root.light-theme .clp-table tr:hover td {
-  background: #f8fafc !important;
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.04), transparent) !important;
+  color: #1e293b !important;
+}
+
+.clp-root.light-theme .clp-table tbody tr {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.clp-root.light-theme .clp-table tbody tr.clp-row-today {
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.06), rgba(212, 175, 55, 0.01)) !important;
+}
+
+.clp-root.light-theme .clp-table tbody tr.clp-row-today:hover {
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.1), rgba(212, 175, 55, 0.03)) !important;
 }
 
 .clp-root.light-theme .clp-visitor-name {
   color: #0f172a !important;
+  font-weight: 600 !important;
 }
 
 .clp-root.light-theme .clp-date {
-  color: #0f172a !important;
+  color: #1e293b !important;
+}
+
+.clp-root.light-theme .clp-time {
+  color: #b8961f !important;
 }
 
 .clp-root.light-theme .clp-icon-text {
-  color: #475569 !important;
+  color: #64748b !important;
+}
+
+.clp-root.light-theme .clp-icon-text svg {
+  color: #94a3b8 !important;
 }
 
 .clp-root.light-theme .clp-company-name {
@@ -2017,8 +2105,41 @@ table.clp-table {
 }
 
 .clp-root.light-theme .clp-company-icon {
-  background: #f1f5f9 !important;
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0) !important;
   color: #64748b !important;
+}
+
+.clp-root.light-theme .clp-dash {
+  color: #cbd5e1 !important;
+}
+
+/* Action buttons */
+.clp-root.light-theme .clp-action-btn {
+  transition: all 0.25s ease !important;
+}
+
+.clp-root.light-theme .clp-action-btn:hover {
+  transform: scale(1.15) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Badge Today */
+.clp-root.light-theme .clp-badge-today {
+  color: #92742a !important;
+}
+
+/* Icon wrap */
+.clp-root.light-theme .clp-icon-wrap {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.12), rgba(212, 175, 55, 0.04)) !important;
+  border: 1.5px solid rgba(212, 175, 55, 0.2) !important;
+  color: #b8961f !important;
+}
+
+/* Hero gradient for light */
+.clp-root.light-theme .clp-hero-bg {
+  background:
+    radial-gradient(ellipse 60% 50% at 10% 0%, rgba(212, 175, 55, 0.04), transparent 60%),
+    radial-gradient(ellipse 40% 40% at 90% 100%, rgba(59, 130, 246, 0.03), transparent 60%) !important;
 }
 
 /* Selections Modal Overlay */
@@ -2323,47 +2444,61 @@ table.clp-table {
 
 /* Light theme panel header override */
 .clp-root.light-theme .clp-panel-header {
-  background: #f1f5f9 !important;
-  border-bottom: 1.5px solid #cbd5e1 !important;
+  background: linear-gradient(180deg, #ffffff, #f8fafc) !important;
+  border-bottom: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03) !important;
 }
 
 /* Pagination */
 .clp-root.light-theme .clp-pagination,
 .clp-root.light-theme .clp-pag-bar {
-  border-top: 1.5px solid #cbd5e1 !important;
+  border-top: 1.5px solid #e2e8f0 !important;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9) !important;
 }
 
 .clp-root.light-theme .clp-rows-label {
-  color: #475569 !important;
+  color: #64748b !important;
 }
 
 .clp-root.light-theme .clp-rows-select {
   background: #ffffff !important;
-  border-color: #cbd5e1 !important;
+  border: 1.5px solid #e2e8f0 !important;
   color: #0f172a !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+  transition: all 0.2s ease !important;
 }
 
 .clp-root.light-theme .clp-rows-select:hover {
-  background: #f1f5f9 !important;
-  border-color: #94a3b8 !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06) !important;
 }
 
 .clp-root.light-theme .clp-page-info {
-  color: #475569 !important;
+  color: #64748b !important;
 }
 
 .clp-root.light-theme .clp-page-info strong {
   color: #0f172a !important;
+  font-weight: 700 !important;
 }
 
 .clp-root.light-theme .clp-page-btn {
   background: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #0f172a !important;
+  border: 1.5px solid #e2e8f0 !important;
+  color: #334155 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+  transition: all 0.2s ease !important;
 }
 
 .clp-root.light-theme .clp-page-btn:hover:not(:disabled) {
-  background: #f1f5f9 !important;
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.06) !important;
+  transform: translateY(-1px) !important;
+}
+
+.clp-root.light-theme .clp-page-btn:disabled {
+  opacity: 0.4 !important;
 }
 
 /* --- Theme Toggle Button --- */
@@ -3013,4 +3148,155 @@ table.clp-table {
 .clp-root.light-theme .btn-cropper-modal-cancel:hover {
   background-color: #f1f5f9;
   color: #0f172a;
+}
+
+/* Location Selector Dropdown Styles */
+.clp-location-filter-wrap {
+  margin-right: 0.75rem;
+}
+
+.clp-location-select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.6rem 1.15rem;
+  border-radius: 10px;
+  color: #e5e7eb;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  font-family: inherit;
+  outline: none;
+  height: 38px;
+}
+
+.clp-location-select:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.clp-location-select option {
+  background: #111827;
+  color: #e5e7eb;
+}
+
+/* Light Theme overrides */
+.clp-root.light-theme .clp-location-select {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  height: 38px;
+}
+
+.clp-root.light-theme .clp-location-select:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+}
+
+.clp-root.light-theme .clp-location-select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+/* ── Custom Autocomplete Dropdown ── */
+.custom-autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  margin-top: 4px;
+}
+
+/* Custom scrollbar for autocomplete dropdown */
+.custom-autocomplete-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-autocomplete-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-autocomplete-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+.custom-autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.autocomplete-option {
+  padding: 0.65rem 1rem;
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.autocomplete-option:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-option:hover {
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.12), transparent);
+  color: #ffffff;
+}
+
+.autocomplete-no-options {
+  padding: 1rem;
+  color: #64748b;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* Light Theme overrides for Autocomplete Dropdown */
+.clp-root.light-theme .custom-autocomplete-dropdown {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15) !important;
+}
+
+.clp-root.light-theme .custom-autocomplete-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15) !important;
+}
+.clp-root.light-theme .custom-autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25) !important;
+}
+
+.clp-root.light-theme .autocomplete-option {
+  color: #334155 !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.clp-root.light-theme .autocomplete-option:hover {
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.08), transparent) !important;
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .autocomplete-no-options {
+  color: #94a3b8 !important;
+}
+
+/* Positioning overrides for dropdowns that open upward */
+.custom-autocomplete-dropdown.open-upward {
+  top: auto !important;
+  bottom: 100% !important;
+  margin-top: 0 !important;
+  margin-bottom: 6px !important;
+  box-shadow: 0 -10px 25px rgba(0, 0, 0, 0.5) !important;
+}
+
+.clp-root.light-theme .custom-autocomplete-dropdown.open-upward {
+  box-shadow: 0 -10px 25px rgba(15, 23, 42, 0.15) !important;
 }

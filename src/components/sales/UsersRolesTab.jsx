@@ -54,7 +54,8 @@ const PAGE_PERMISSIONS = [
         color: '#9673a6',
         actions: [
             { key: 'view_pricelist',   label: 'View',            icon: Eye,    desc: 'View price lists and margins' },
-            { key: 'manage_pricelist', label: 'Edit / Download', icon: FileCog, desc: 'Edit margin levels and download Excel' }
+            { key: 'manage_pricelist', label: 'Edit / Download', icon: FileCog, desc: 'Edit margin levels and download Excel' },
+            { key: 'view_product_prices', label: 'View Product Prices', icon: Eye, desc: 'Allow viewing prices on product detail pages' }
         ]
     },
     {
@@ -73,7 +74,7 @@ const PAGE_PERMISSIONS = [
 const ALL_PERMISSION_KEYS = PAGE_PERMISSIONS.flatMap(p => p.actions.map(a => a.key));
 
 
-const UsersRolesTab = () => {
+const UsersRolesTab = ({ sidebarToggle }) => {
     const [subTab, setSubTab] = useState('users'); // 'users' or 'roles'
 
     // Auth-aware fetch helper that passes credentials/cookies correctly
@@ -129,10 +130,12 @@ const UsersRolesTab = () => {
         email: '',
         role: 'sales_rep',
         location: '',
+        assignedLocations: ['Seattle'],
         password: ''
     });
 
     const [showRoleModal, setShowRoleModal] = useState(false);
+    const [showLocationDropdown, setShowLocationDropdown] = useState(false);
     const [roleForm, setRoleForm] = useState({
         name: '',
         displayName: ''
@@ -300,9 +303,11 @@ const UsersRolesTab = () => {
             email: '',
             role: roles[0]?.name || 'sales_rep',
             location: '',
+            assignedLocations: ['Seattle'],
             password: ''
         });
         setEditingUser(null);
+        setShowLocationDropdown(false);
         setShowUserModal(true);
     };
 
@@ -313,9 +318,11 @@ const UsersRolesTab = () => {
             email: user.email || '',
             role: user.role || 'sales_rep',
             location: user.location || '',
+            assignedLocations: user.assignedLocations || ['Seattle'],
             password: '' // Keep password empty unless changing
         });
         setEditingUser(user);
+        setShowLocationDropdown(false);
         setShowUserModal(true);
     };
 
@@ -402,7 +409,8 @@ const UsersRolesTab = () => {
     return (
         <div className="users-roles-container">
             {/* Header tab switcher */}
-            <div className="users-roles-header">
+            <div className="users-roles-header" style={{ gap: '1.25rem' }}>
+                {sidebarToggle}
                 <div className="tabs-capsule">
                     <button 
                         className={`sub-tab-btn ${subTab === 'users' ? 'active' : ''}`}
@@ -703,14 +711,89 @@ const UsersRolesTab = () => {
                                 </select>
                             </div>
 
-                            <div className="form-group">
-                                <label><MapPin size={16} /> Location / Branch</label>
-                                <input 
-                                    type="text" 
-                                    value={userForm.location}
-                                    onChange={(e) => setUserForm(prev => ({ ...prev, location: e.target.value }))}
-                                    placeholder="e.g. Seattle, WA"
-                                />
+                            <div className="form-group relative">
+                                <label><MapPin size={16} /> Assigned Locations (for Check-Ins)</label>
+                                <div className="multi-select-container">
+                                    <div 
+                                        className="multi-select-trigger" 
+                                        onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                                    >
+                                        <div className="multi-select-tags">
+                                            {(!userForm.assignedLocations || userForm.assignedLocations.length === 0) && (
+                                                <span className="placeholder">Select locations...</span>
+                                            )}
+                                            {userForm.assignedLocations?.includes('*') ? (
+                                                <span className="multi-select-tag-pill">All Locations</span>
+                                            ) : (
+                                                userForm.assignedLocations?.map(loc => (
+                                                    <span key={loc} className="multi-select-tag-pill">
+                                                        {loc}
+                                                        <button 
+                                                            type="button" 
+                                                            className="remove-tag-btn"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setUserForm(prev => {
+                                                                    const list = (prev.assignedLocations || []).filter(k => k !== loc);
+                                                                    return {
+                                                                        ...prev,
+                                                                        assignedLocations: list,
+                                                                        location: list[0] || ''
+                                                                    };
+                                                                });
+                                                            }}
+                                                        >
+                                                            &times;
+                                                        </button>
+                                                    </span>
+                                                ))
+                                            )}
+                                        </div>
+                                        <span className="dropdown-arrow-icon">▼</span>
+                                    </div>
+                                    
+                                    {showLocationDropdown && (
+                                        <div className="multi-select-dropdown-list">
+                                            {[
+                                                { key: 'Seattle', label: 'Seattle' },
+                                                { key: 'Spokane', label: 'Spokane' },
+                                                { key: 'Salt Lake City', label: 'Salt Lake City' },
+                                                { key: '*', label: 'All Locations' }
+                                            ].map(loc => {
+                                                const isChecked = userForm.assignedLocations?.includes(loc.key);
+                                                return (
+                                                    <div 
+                                                        key={loc.key} 
+                                                        className={`multi-select-dropdown-option ${isChecked ? 'selected' : ''}`}
+                                                        onClick={() => {
+                                                            setUserForm(prev => {
+                                                                let list = prev.assignedLocations || [];
+                                                                if (loc.key === '*') {
+                                                                    list = isChecked ? [] : ['*'];
+                                                                } else {
+                                                                    list = list.filter(k => k !== '*');
+                                                                    if (isChecked) {
+                                                                        list = list.filter(k => k !== loc.key);
+                                                                    } else {
+                                                                        if (!list.includes(loc.key)) list = [...list, loc.key];
+                                                                    }
+                                                                }
+                                                                return { ...prev, assignedLocations: list, location: list[0] || '' };
+                                                            });
+                                                        }}
+                                                    >
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={isChecked} 
+                                                            onChange={() => {}} 
+                                                        />
+                                                        <span>{loc.label}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="form-group">

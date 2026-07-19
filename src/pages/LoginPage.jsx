@@ -1,17 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, User } from 'lucide-react';
+import { Lock, User, Sun, Moon } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import './LoginPage.css';
 
 const LoginPage = () => {
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, checkAuth } = useAuth();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    const [theme, setTheme] = useState(() => {
+        try {
+            const saved = localStorage.getItem('checkin_theme');
+            return saved === 'light' ? 'light' : 'dark';
+        } catch (e) {
+            return 'dark';
+        }
+    });
+
+    const toggleTheme = () => {
+        const newTheme = theme === 'dark' ? 'light' : 'dark';
+        try {
+            localStorage.setItem('checkin_theme', newTheme);
+            setTheme(newTheme);
+            window.dispatchEvent(new Event('checkin_theme_changed'));
+        } catch (e) {
+            console.error('Failed to save theme setting', e);
+        }
+    };
+
+    useEffect(() => {
+        if (theme === 'light') {
+            document.body.classList.add('light-theme-active');
+        } else {
+            document.body.classList.remove('light-theme-active');
+        }
+        return () => {
+            document.body.classList.remove('light-theme-active');
+        };
+    }, [theme]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -41,11 +72,17 @@ const LoginPage = () => {
                     contactName: data.admin.username
                 };
 
-                // Update global auth state
+                // Update global auth state — set basic info immediately,
+                // then re-fetch the full profile (with permissions) before navigating.
                 login(userData);
+                await checkAuth();
+
+                // Check for redirect query param
+                const urlParams = new URLSearchParams(window.location.search);
+                const redirectUrl = urlParams.get('redirect') || '/admin';
 
                 // JWT is stored in httpOnly cookie automatically
-                navigate('/admin');
+                navigate(redirectUrl);
             } else {
                 setError(data.message || 'Invalid credentials');
             }
@@ -58,6 +95,31 @@ const LoginPage = () => {
 
     return (
         <div className="login-container">
+            <button 
+                type="button" 
+                onClick={toggleTheme} 
+                style={{
+                    position: 'fixed',
+                    top: '2rem',
+                    right: '2rem',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: 'var(--shadow-md)',
+                    zIndex: 1000,
+                    transition: 'all 0.2s'
+                }}
+                title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            >
+                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
             <div className="login-card">
                 <div className="login-header">
                     <h1>User Login</h1>

@@ -72,7 +72,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const SalesPage = () => {
-    const { user: currentUser } = useAuth();
+    const { user: currentUser, loading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [theme, setTheme] = useState(() => {
         try {
@@ -97,6 +97,17 @@ const SalesPage = () => {
             window.removeEventListener('checkin_theme_changed', handleThemeChange);
         };
     }, []);
+
+    const toggleTheme = () => {
+        const newTheme = theme === 'dark' ? 'light' : 'dark';
+        try {
+            localStorage.setItem('checkin_theme', newTheme);
+            setTheme(newTheme);
+            window.dispatchEvent(new Event('checkin_theme_changed'));
+        } catch (e) {
+            console.error('Failed to save theme setting', e);
+        }
+    };
 
     useEffect(() => {
         if (theme === 'light') {
@@ -147,10 +158,12 @@ const SalesPage = () => {
     const [checkInSearch, setCheckInSearch] = useState('');
     const [checkInPage, setCheckInPage] = useState(1);
     const [checkInTotalPages, setCheckInTotalPages] = useState(1);
+    const [checkInTotalCount, setCheckInTotalCount] = useState(0);
     const [checkInLimit, setCheckInLimit] = useState(20);
     const currentSalesDate = new Date();
     const [checkInFilterMonth, setCheckInFilterMonth] = useState(currentSalesDate.getMonth() + 1);
     const [checkInFilterYear, setCheckInFilterYear] = useState(currentSalesDate.getFullYear());
+    const [checkInFilterLocation, setCheckInFilterLocation] = useState(null);
     const [selectedCheckIn, setSelectedCheckIn] = useState(null);
     const [checkInModalMode, setCheckInModalMode] = useState(null); // 'view' | 'edit'
     const [checkInForm, setCheckInForm] = useState({
@@ -159,19 +172,29 @@ const SalesPage = () => {
         email: '',
         fabricatorCompany: '',
         fabricatorName: '',
-        fabricatorPhone: ''
+        fabricatorPhone: '',
+        location: 'Seattle'
     });
     const [checkInTodayCount, setCheckInTodayCount] = useState(0);
     const [checkInMonthCount, setCheckInMonthCount] = useState(0);
+    const [checkInAllTimeCount, setCheckInAllTimeCount] = useState(0);
     const [checkInRefreshTrigger, setCheckInRefreshTrigger] = useState(0);
 
     const fetchCheckInStats = async () => {
         try {
-            const res = await fetch(`${API_URL}/api/checkin/stats`, { credentials: 'include' });
+            const params = new URLSearchParams({
+                ...(checkInFilterLocation && { location: checkInFilterLocation })
+            });
+            const res = await fetch(`${API_URL}/api/checkin/stats?${params}`, { credentials: 'include' });
+            if (res.status === 401) {
+                logout();
+                return;
+            }
             if (res.ok) {
                 const data = await res.json();
                 setCheckInTodayCount(data.todayCount || 0);
                 setCheckInMonthCount(data.monthCount || 0);
+                setCheckInAllTimeCount(data.allTimeCount || 0);
             }
         } catch (err) {
             console.error('Error fetching check-in stats:', err);
@@ -332,16 +355,23 @@ const SalesPage = () => {
                 ...(checkInSearch && { search: checkInSearch }),
                 ...(checkInFilterMonth && { month: checkInFilterMonth }),
                 ...(checkInFilterYear && { year: checkInFilterYear }),
+                ...(checkInFilterLocation && { location: checkInFilterLocation }),
             });
             const response = await fetch(`${API_URL}/api/checkin?${params}`, { credentials: 'include' });
+            if (response.status === 401) {
+                logout();
+                return;
+            }
             if (response.ok) {
                 const data = await response.json();
                 if (Array.isArray(data)) {
                     setCheckIns(data);
                     setCheckInTotalPages(1);
+                    setCheckInTotalCount(data.length);
                 } else {
                     setCheckIns(data.checkIns || data.data || []);
                     setCheckInTotalPages(data.totalPages || 1);
+                    setCheckInTotalCount(data.total || 0);
                 }
             }
         } catch (error) {
@@ -365,7 +395,8 @@ const SalesPage = () => {
             email: checkIn.email || '',
             fabricatorCompany: checkIn.fabricatorCompany || '',
             fabricatorName: checkIn.fabricatorName || '',
-            fabricatorPhone: checkIn.fabricatorPhone || ''
+            fabricatorPhone: checkIn.fabricatorPhone || '',
+            location: checkIn.location || 'Seattle'
         });
     };
 
@@ -424,7 +455,7 @@ const SalesPage = () => {
         if (crmTab === 'checkin') {
             fetchCheckIns();
         }
-    }, [crmTab, checkInPage, checkInLimit, checkInSearch, checkInFilterMonth, checkInFilterYear, checkInRefreshTrigger]);
+    }, [crmTab, checkInPage, checkInLimit, checkInSearch, checkInFilterMonth, checkInFilterYear, checkInFilterLocation, checkInRefreshTrigger]);
 
     // Modal states
     const [showContactModal, setShowContactModal] = useState(false);
@@ -1504,22 +1535,36 @@ const SalesPage = () => {
             const customerId = params.get('customer');
             const viewParam = params.get('view');
             
-            if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist'].includes(tabParam)) {
+            const perms = currentUser?.permissions || [];
+            const tabPermMap = {
+                dashboard: 'view_dashboard',
+                customers: 'view_customers',
+                checkin: 'view_checkins',
+                pricelist: 'view_pricelist',
+                users: 'manage_users'
+            };
+
+            if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist', 'users'].includes(tabParam)) {
                 // Only switch to the tab if the user has permission for it
-                const perms = currentUser?.permissions || [];
-                const tabPermMap = {
-                    dashboard: 'view_dashboard',
-                    customers: 'view_customers',
-                    checkin: 'view_checkins',
-                    pricelist: 'view_pricelist'
-                };
                 if (!tabPermMap[tabParam] || perms.includes(tabPermMap[tabParam])) {
                     setCrmTab(tabParam);
+                } else {
+                    // Force fallback if user doesn't have permission for the requested tab
+                    setCrmTab(getDefaultTab());
                 }
+            } else if (!tabParam && currentUser) {
+                // Land on their default tab if no tab parameter is supplied in the URL
+                setCrmTab(getDefaultTab());
             }
+
             if (customerId) {
-                setSelectedCustomerId(customerId);
-                setCrmTab('customers');
+                if (perms.includes('view_customers')) {
+                    setSelectedCustomerId(customerId);
+                    setCrmTab('customers');
+                } else {
+                    setSelectedCustomerId(null);
+                    setSelectedCustomerDetail(null);
+                }
             } else {
                 setSelectedCustomerId(null);
                 setSelectedCustomerDetail(null);
@@ -1529,12 +1574,12 @@ const SalesPage = () => {
             }
         };
 
-        // Run once on mount
+        // Run once on mount / when currentUser loads
         handlePopState();
 
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
-    }, []);
+    }, [currentUser]);
 
     useEffect(() => {
         if (selectedCustomerId) {
@@ -2948,9 +2993,10 @@ const SalesPage = () => {
                 searchTerm={checkInSearch}
                 onSearchChange={(val) => { setCheckInSearch(val); setCheckInPage(1); }}
                 lastUpdated={null}
-                totalCount={checkIns.length}
+                totalCount={checkInTotalCount}
                 todayCount={checkInTodayCount}
                 monthCount={checkInMonthCount}
+                allTimeCount={checkInAllTimeCount}
                 currentPage={checkInPage}
                 totalPages={checkInTotalPages}
                 onPageChange={setCheckInPage}
@@ -2960,6 +3006,8 @@ const SalesPage = () => {
                 filterYear={checkInFilterYear}
                 onFilterMonthChange={(val) => { setCheckInFilterMonth(val); setCheckInPage(1); }}
                 onFilterYearChange={(val) => { setCheckInFilterYear(val); setCheckInPage(1); }}
+                filterLocation={checkInFilterLocation}
+                onFilterLocationChange={(val) => { setCheckInFilterLocation(val); setCheckInPage(1); }}
                 embedded={true}
                 sidebarToggle={sidebarToggle}
                 onView={handleViewCheckIn}
@@ -3097,6 +3145,27 @@ const SalesPage = () => {
         );
     };
 
+    const renderUsersRolesView = () => {
+        const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+            <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="dashboard-sidebar-toggle"
+                title="Open Sidebar"
+                style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: '6px', padding: '6px', color: 'var(--gold-color, #d4af37)', cursor: 'pointer'
+                }}
+            >
+                <Menu size={20} />
+            </button>
+        ) : null;
+
+        return (
+            <UsersRolesTab sidebarToggle={sidebarToggle} />
+        );
+    };
+
     return (
         <div className="sales-container">
             {/* Sidebar Overlay */}
@@ -3133,6 +3202,8 @@ const SalesPage = () => {
                 totalPages={totalPages}
                 totalCustomers={totalCustomers}
                 onAddCustomer={() => setShowAddCustomerModal(true)}
+                theme={theme}
+                toggleTheme={toggleTheme}
             />
 
             {/* Main Content */}
@@ -3143,27 +3214,33 @@ const SalesPage = () => {
                 }}
             >
 
-                {crmTab === 'checkin' && (
+                {/* Show a loading spinner while permissions are being fetched */}
+                {(authLoading || !currentUser?.permissions) && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: '1rem' }}>
+                        <Loader size={32} className="animate-spin" style={{ color: '#d4af37' }} />
+                        <span style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 500 }}>Loading your workspace...</span>
+                    </div>
+                )}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'checkin' && currentUser.permissions.includes('view_checkins') && (
                     <ErrorBoundary key="checkin-log-view">
                         {renderCheckInLogView()}
                     </ErrorBoundary>
                 )}
 
-                {crmTab === 'pricelist' && (
+                {!authLoading && currentUser?.permissions && crmTab === 'pricelist' && currentUser.permissions.includes('view_pricelist') && (
                     <ErrorBoundary key="price-list-view">
                         {renderPriceListView()}
                     </ErrorBoundary>
                 )}
 
-                {crmTab === 'users' && (
+                {!authLoading && currentUser?.permissions && crmTab === 'users' && currentUser.permissions.includes('manage_users') && (
                     <ErrorBoundary key="users-roles-view">
-                        <UsersRolesTab />
+                        {renderUsersRolesView()}
                     </ErrorBoundary>
                 )}
 
-
-
-                {crmTab === 'customers' && (
+                {!authLoading && currentUser?.permissions && crmTab === 'customers' && currentUser.permissions.includes('view_customers') && (
                     <ErrorBoundary key={selectedCustomerId || 'no-customer'}>
                         {selectedCustomer ? (
                         <>
@@ -3642,7 +3719,7 @@ const SalesPage = () => {
                 </ErrorBoundary>
             )}
 
-            {crmTab === 'dashboard' && (
+            {!authLoading && currentUser?.permissions && crmTab === 'dashboard' && currentUser.permissions.includes('view_dashboard') && (
                 <ErrorBoundary key="dashboard-view">
                     <div className="sales-dashboard-v2">
                             {loading ? (
@@ -5096,6 +5173,38 @@ const SalesPage = () => {
                                             style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: checkInModalMode === 'view' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: checkInModalMode === 'view' ? 'rgba(255,255,255,0.7)' : '#fff', fontSize: '0.9rem', outline: 'none' }}
                                         />
                                     </div>
+                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Branch Location <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
+                                        {checkInModalMode === 'view' ? (
+                                            <input
+                                                type="text"
+                                                value={selectedCheckIn.location || 'Seattle'}
+                                                readOnly
+                                                style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', outline: 'none' }}
+                                            />
+                                        ) : (
+                                            <select
+                                                value={checkInForm.location}
+                                                onChange={(e) => setCheckInForm({ ...checkInForm, location: e.target.value })}
+                                                style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', outline: 'none' }}
+                                            >
+                                                <option value="Seattle">Seattle</option>
+                                                <option value="Spokane">Spokane</option>
+                                                <option value="Salt Lake City">Salt Lake City</option>
+                                            </select>
+                                        )}
+                                    </div>
+                                    {checkInModalMode === 'view' && selectedCheckIn.loggedBy?.username && (
+                                        <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Logged By</label>
+                                            <input
+                                                type="text"
+                                                value={selectedCheckIn.loggedBy.username}
+                                                readOnly
+                                                style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', outline: 'none' }}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="modal-footer" style={{ padding: '1.25rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                                     <button

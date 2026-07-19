@@ -80,7 +80,7 @@ const ProtectedRoute = ({ children }) => {
   }
 
   // Check if we have a user and they are from the admin database
-  const isAuthorized = user && (user.type === 'internal' || ['admin', 'director', 'manager', 'sales_rep'].includes(user.role));
+  const isAuthorized = user && (user.type === 'internal' || ['admin', 'director', 'manager', 'sales_rep', 'csr', 'kiosk'].includes(user.role));
 
   return isAuthorized ? children : <Navigate to="/login" replace />;
 };
@@ -151,8 +151,8 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="/checkin" element={<CheckInPage />} />
-                  <Route path="/checkin-log" element={<CheckInLogPage />} />
+                  <Route path="/checkin" element={<ProtectedRoute><CheckInPage /></ProtectedRoute>} />
+                  <Route path="/checkin-log" element={<ProtectedRoute><CheckInLogPage /></ProtectedRoute>} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                   <Route path="/product/:productId" element={<ProductDetail />} />
                   <Route path="/contact" element={<ContactPage />} />

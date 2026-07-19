@@ -4,10 +4,12 @@ import { API_URL } from '../config/api';
 import * as XLSX from 'xlsx';
 import { Sun, Moon } from 'lucide-react';
 import CheckInLogPanel from '../components/sales/CheckInLogPanel';
+import { useAuth } from '../context/AuthContext';
 
 const LIMIT = 20;
 
 const CheckInLogPage = () => {
+  const { logout } = useAuth();
   const [theme, setTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_theme');
@@ -54,17 +56,19 @@ const CheckInLogPage = () => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [todayCount, setTodayCount] = useState(0);
   const [monthCount, setMonthCount] = useState(0);
+  const [allTimeCount, setAllTimeCount] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Default to current month and year
   const currentDate = new Date();
   const [filterMonth, setFilterMonth] = useState(currentDate.getMonth() + 1); // 1-12, null = All Months
   const [filterYear, setFilterYear] = useState(currentDate.getFullYear()); // null = All Years
+  const [filterLocation, setFilterLocation] = useState(null);
 
   useEffect(() => {
     fetchCheckIns();
     fetchStats();
-  }, [currentPage, searchTerm, limit, filterMonth, filterYear, refreshTrigger]);
+  }, [currentPage, searchTerm, limit, filterMonth, filterYear, filterLocation, refreshTrigger]);
 
   useEffect(() => {
     const socket = io(API_URL || window.location.origin, {
@@ -82,11 +86,19 @@ const CheckInLogPage = () => {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/checkin/stats`);
+      const params = new URLSearchParams({
+        ...(filterLocation && { location: filterLocation })
+      });
+      const res = await fetch(`${API_URL}/api/checkin/stats?${params}`, { credentials: 'include' });
+      if (res.status === 401) {
+        logout();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setTodayCount(data.todayCount || 0);
         setMonthCount(data.monthCount || 0);
+        setAllTimeCount(data.allTimeCount || 0);
       }
     } catch (err) {
       console.error('Error fetching stats:', err);
@@ -103,8 +115,13 @@ const CheckInLogPage = () => {
         ...(searchTerm && { search: searchTerm }),
         ...(filterMonth && { month: filterMonth }),
         ...(filterYear && { year: filterYear }),
+        ...(filterLocation && { location: filterLocation }),
       });
-      const response = await fetch(`${API_URL}/api/checkin?${params}`);
+      const response = await fetch(`${API_URL}/api/checkin?${params}`, { credentials: 'include' });
+      if (response.status === 401) {
+        logout();
+        return;
+      }
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data)) {
@@ -154,6 +171,7 @@ const CheckInLogPage = () => {
           totalCount={totalCount}
           todayCount={todayCount}
           monthCount={monthCount}
+          allTimeCount={allTimeCount}
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
@@ -163,6 +181,8 @@ const CheckInLogPage = () => {
           filterYear={filterYear}
           onFilterMonthChange={(val) => { setFilterMonth(val); setCurrentPage(1); }}
           onFilterYearChange={(val) => { setFilterYear(val); setCurrentPage(1); }}
+          filterLocation={filterLocation}
+          onFilterLocationChange={(val) => { setFilterLocation(val); setCurrentPage(1); }}
           onExport={handleExport}
           embedded={false}
           theme={theme}

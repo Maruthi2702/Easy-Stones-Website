@@ -74,6 +74,38 @@ const MONTH_SHORT_NAMES = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
 
+const getLocationBadgeStyle = (location, theme) => {
+  const loc = (location || '').toLowerCase();
+  const isDark = theme === 'dark';
+  
+  if (loc.includes('seattle')) {
+    return {
+      color: isDark ? '#2dd4bf' : '#0f766e',
+      border: `1px solid ${isDark ? 'rgba(45, 212, 191, 0.25)' : 'rgba(15, 118, 110, 0.3)'}`,
+      background: isDark ? 'rgba(45, 212, 191, 0.08)' : 'rgba(15, 118, 110, 0.06)'
+    };
+  }
+  if (loc.includes('spokane')) {
+    return {
+      color: isDark ? '#a78bfa' : '#6d28d9',
+      border: `1px solid ${isDark ? 'rgba(167, 139, 250, 0.25)' : 'rgba(109, 40, 217, 0.3)'}`,
+      background: isDark ? 'rgba(167, 139, 250, 0.08)' : 'rgba(109, 40, 217, 0.06)'
+    };
+  }
+  if (loc.includes('salt lake') || loc.includes('slc') || loc.includes('lake')) {
+    return {
+      color: isDark ? '#fbbf24' : '#b45309',
+      border: `1px solid ${isDark ? 'rgba(251, 191, 36, 0.25)' : 'rgba(180, 83, 9, 0.3)'}`,
+      background: isDark ? 'rgba(251, 191, 36, 0.08)' : 'rgba(180, 83, 9, 0.06)'
+    };
+  }
+  return {
+    color: isDark ? '#94a3b8' : '#475569',
+    border: `1px solid ${isDark ? 'rgba(148, 163, 184, 0.25)' : 'rgba(71, 85, 105, 0.3)'}`,
+    background: isDark ? 'rgba(148, 163, 184, 0.08)' : 'rgba(71, 85, 105, 0.06)'
+  };
+};
+
 const preprocessImage = (file, degrees = 0) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -291,6 +323,7 @@ const CheckInLogPanel = ({
   totalCount = 0,
   todayCount: todayCountProp = null,
   monthCount = 0,
+  allTimeCount = 0,
   currentPage = 1,
   totalPages = 1,
   onPageChange,
@@ -308,11 +341,14 @@ const CheckInLogPanel = ({
   onDelete = null,
   theme: themeProp = null,
   onToggleTheme = null,
+  filterLocation = null,
+  onFilterLocationChange = null,
 }) => {
   const { user } = useAuth();
   const hasEditPermission = !user || user.permissions?.includes('manage_checkins');
   const hasDeletePermission = !user || user.permissions?.includes('delete_checkins');
   const hasSendEmailPermission = !user || user.permissions?.includes('send_checkin_email');
+  const hasMultipleLocations = user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1);
 
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [internalTheme, setInternalTheme] = useState(() => {
@@ -374,6 +410,7 @@ const CheckInLogPanel = ({
   const [emailSuccess, setEmailSuccess] = useState(false);
   const [salesReps, setSalesReps] = useState([]);
   const [salesRepEmail, setSalesRepEmail] = useState('');
+  const [activeDropdownIndex, setActiveDropdownIndex] = useState(null);
 
   // ── OCR Tag Scanning State ──
   const [scanningIndex, setScanningIndex] = useState(null);
@@ -1121,6 +1158,33 @@ const CheckInLogPanel = ({
             )}
           </div>
 
+          {/* Location Filter for managers/admins */}
+          {user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1) && onFilterLocationChange && (
+            <div className="clp-location-filter-wrap" style={{ display: 'inline-block', position: 'relative' }}>
+              <select
+                value={filterLocation || ''}
+                onChange={(e) => onFilterLocationChange(e.target.value || null)}
+                className="clp-location-select"
+              >
+                {user.assignedLocations?.includes('*') ? (
+                  <>
+                    <option value="">All Locations</option>
+                    <option value="Seattle">Seattle</option>
+                    <option value="Spokane">Spokane</option>
+                    <option value="Salt Lake City">Salt Lake City</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="">All My Locations</option>
+                    {user.assignedLocations?.map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </>
+                )}
+              </select>
+            </div>
+          )}
+
           {/* Date Filter */}
           {onFilterMonthChange && onFilterYearChange && (
             <div className="clp-filter-container">
@@ -1224,14 +1288,6 @@ const CheckInLogPanel = ({
               Export
             </button>
           )}
-          <button
-            type="button"
-            className="clp-theme-btn"
-            onClick={handleToggleTheme}
-            title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
-          >
-            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
         </div>
       </div>
 
@@ -1260,7 +1316,7 @@ const CheckInLogPanel = ({
             <Users size={16} />
           </div>
           <div>
-            <div className="clp-stat-val">{embedded ? checkIns.length : totalCount}</div>
+            <div className="clp-stat-val">{allTimeCount}</div>
             <div className="clp-stat-lbl">All-Time Visitors</div>
           </div>
         </div>
@@ -1290,6 +1346,7 @@ const CheckInLogPanel = ({
                     <th>PHONE NUMBER</th>
                     <th>COMPANY/CONTACT NAME</th>
                     <th>PHONE NUMBER</th>
+                    {hasMultipleLocations && <th>LOCATION</th>}
                     <th style={{ textAlign: 'center' }}>ACTIONS</th>
                   </tr>
                 </thead>
@@ -1344,6 +1401,29 @@ const CheckInLogPanel = ({
                           <span className="clp-dash">—</span>
                         )}
                       </td>
+                      {hasMultipleLocations && (
+                        <td>
+                          {c.location ? (
+                            <span style={{
+                              ...getLocationBadgeStyle(c.location, internalTheme || themeProp),
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              fontSize: '0.72rem',
+                              fontWeight: '600',
+                              letterSpacing: '0.02em',
+                              textTransform: 'uppercase'
+                            }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
+                              {c.location}
+                            </span>
+                          ) : (
+                            <span className="clp-dash">—</span>
+                          )}
+                        </td>
+                      )}
 
                       <td>
                         <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', justifyContent: 'center' }}>
@@ -1456,7 +1536,7 @@ const CheckInLogPanel = ({
                       </div>
                     </div>
 
-                    {(c.fabricatorCompany || c.fabricatorPhone) && (
+                    {(c.fabricatorCompany || c.fabricatorPhone || (hasMultipleLocations && c.location)) && (
                       <div className="clp-card-fabricator-details">
                         {c.fabricatorCompany && (
                           <div className="clp-card-detail-item">
@@ -1468,6 +1548,25 @@ const CheckInLogPanel = ({
                           <div className="clp-card-detail-item">
                             <Phone size={11} className="clp-detail-icon" />
                             <a href={`tel:${c.fabricatorPhone}`} className="clp-phone-link">{c.fabricatorPhone}</a>
+                          </div>
+                        )}
+                        {hasMultipleLocations && c.location && (
+                          <div className="clp-card-detail-item" style={{ marginTop: '6px' }}>
+                            <span style={{
+                              ...getLocationBadgeStyle(c.location, internalTheme || themeProp),
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '0.68rem',
+                              fontWeight: '600',
+                              letterSpacing: '0.02em',
+                              textTransform: 'uppercase'
+                            }}>
+                              <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
+                              {c.location}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -1554,6 +1653,14 @@ const CheckInLogPanel = ({
                     list="salesreps-datalist"
                   />
                 </div>
+                {selectedCheckIn.loggedBy?.username && (
+                  <div className="detail-item">
+                    <span className="detail-label">
+                      <UserCheck size={12} className="detail-icon" /> Logged By:
+                    </span>
+                    <span className="detail-value" style={{ fontStyle: 'italic', color: '#a0aec0' }}>{selectedCheckIn.loggedBy.username}</span>
+                  </div>
+                )}
               </div>
 
               {/* Selections Grid Table */}
@@ -1572,69 +1679,111 @@ const CheckInLogPanel = ({
                     {selections.map((sel, idx) => (
                       <tr key={idx} className="selection-row-item">
                         <td className="selection-row-num">{idx + 1}</td>
-                        <td>
-                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
-                            <input
-                              type="text"
-                              value={sel.material}
-                              onChange={(e) => handleSelectionChange(idx, 'material', e.target.value)}
-                              placeholder="Type material name..."
-                              className="selection-grid-input"
-                              list="products-datalist"
-                              style={{ paddingRight: '2.2rem' }}
-                            />
-                            {scanningIndex === idx ? (
-                              <div style={{
-                                position: 'absolute',
-                                right: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontSize: '0.65rem',
-                                color: '#d4af37',
-                                background: 'rgba(0, 0, 0, 0.65)',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                border: '1px solid rgba(212, 175, 55, 0.3)',
-                                zIndex: 5
-                              }}>
-                                <Loader2 size={12} className="animate-spin" />
-                                <span style={{ fontWeight: 'bold' }}>{scanningProgress}%</span>
-                              </div>
-                            ) : (
-                              <label
-                                htmlFor={`tag-upload-${idx}`}
-                                className="scan-tag-btn"
-                                title="Upload Slab Tag Photo"
-                                style={{
+                        <td style={{ position: 'relative', zIndex: activeDropdownIndex === idx ? 100 : 1 }}>
+                          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', width: '100%' }}>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+                              <input
+                                type="text"
+                                value={sel.material}
+                                onChange={(e) => {
+                                  handleSelectionChange(idx, 'material', e.target.value);
+                                  setActiveDropdownIndex(idx);
+                                }}
+                                onFocus={() => setActiveDropdownIndex(idx)}
+                                onBlur={() => {
+                                  // Small delay to allow onMouseDown on suggestions to fire first
+                                  setTimeout(() => {
+                                    setActiveDropdownIndex(null);
+                                  }, 200);
+                                }}
+                                placeholder="Type material name..."
+                                className="selection-grid-input"
+                                style={{ paddingRight: '2.2rem' }}
+                              />
+                              {scanningIndex === idx ? (
+                                <div style={{
                                   position: 'absolute',
                                   right: '6px',
                                   display: 'flex',
                                   alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '24px',
-                                  height: '24px',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s',
+                                  gap: '4px',
+                                  fontSize: '0.65rem',
                                   color: '#d4af37',
-                                  backgroundColor: 'rgba(212, 175, 55, 0.08)',
-                                  border: '1px solid rgba(212, 175, 55, 0.15)',
-                                  pointerEvents: scanningIndex !== null ? 'none' : 'auto',
-                                  opacity: scanningIndex !== null ? 0.5 : 1,
+                                  background: 'rgba(0, 0, 0, 0.65)',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  border: '1px solid rgba(212, 175, 55, 0.3)',
                                   zIndex: 5
-                                }}
-                              >
-                                <Scan size={12} />
-                                <input
-                                  id={`tag-upload-${idx}`}
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => handleTagImageUpload(idx, e)}
-                                  disabled={scanningIndex !== null}
-                                  style={{ display: 'none' }}
-                                />
-                              </label>
+                                }}>
+                                  <Loader2 size={12} className="animate-spin" />
+                                  <span style={{ fontWeight: 'bold' }}>{scanningProgress}%</span>
+                                </div>
+                              ) : (
+                                <label
+                                  htmlFor={`tag-upload-${idx}`}
+                                  className="scan-tag-btn"
+                                  title="Upload Slab Tag Photo"
+                                  style={{
+                                    position: 'absolute',
+                                    right: '6px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    color: '#d4af37',
+                                    backgroundColor: 'rgba(212, 175, 55, 0.08)',
+                                    border: '1px solid rgba(212, 175, 55, 0.15)',
+                                    pointerEvents: scanningIndex !== null ? 'none' : 'auto',
+                                    opacity: scanningIndex !== null ? 0.5 : 1,
+                                    zIndex: 5
+                                  }}
+                                >
+                                  <Scan size={12} />
+                                  <input
+                                    id={`tag-upload-${idx}`}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => handleTagImageUpload(idx, e)}
+                                    disabled={scanningIndex !== null}
+                                    style={{ display: 'none' }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                            {activeDropdownIndex === idx && (
+                              <div className={`custom-autocomplete-dropdown ${idx >= 3 ? 'open-upward' : ''}`}>
+                                {productList
+                                  .filter(p => {
+                                    if (!sel.material.trim()) return true;
+                                    return p.name.toLowerCase().includes(sel.material.toLowerCase());
+                                  })
+                                  .slice(0, 15)
+                                  .map((prod) => (
+                                    <div
+                                      key={prod._id || prod.id}
+                                      className="autocomplete-option"
+                                      onMouseDown={() => {
+                                        handleSelectionChange(idx, 'material', prod.name);
+                                        setActiveDropdownIndex(null);
+                                      }}
+                                    >
+                                      {prod.name}
+                                    </div>
+                                  ))
+                                }
+                                {productList.filter(p => {
+                                  if (!sel.material.trim()) return true;
+                                  return p.name.toLowerCase().includes(sel.material.toLowerCase());
+                                }).length === 0 && (
+                                  <div className="autocomplete-no-options">
+                                    No matching materials found
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         </td>
@@ -1679,9 +1828,17 @@ const CheckInLogPanel = ({
               </datalist>
 
               <datalist id="salesreps-datalist">
-                {salesReps.map((rep, idx) => (
-                  <option key={rep.username || idx} value={rep.name} />
-                ))}
+                {salesReps
+                  .filter(rep => {
+                    if (!selectedCheckIn?.location) return true;
+                    if (rep.location === selectedCheckIn.location) return true;
+                    if (rep.assignedLocations?.includes(selectedCheckIn.location)) return true;
+                    if (rep.assignedLocations?.includes('*')) return true;
+                    return false;
+                  })
+                  .map((rep, idx) => (
+                    <option key={rep.username || idx} value={rep.name} />
+                  ))}
               </datalist>
 
               {/* Special Notes */}

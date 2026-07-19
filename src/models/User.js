@@ -34,6 +34,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  assignedLocations: {
+    type: [String],
+    default: ['Seattle']
+  },
   googleAccessToken: {
     type: String,
     default: null
