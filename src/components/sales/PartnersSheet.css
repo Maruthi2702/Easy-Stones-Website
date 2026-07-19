@@ -1136,3 +1136,36 @@
     right: -5px;
     box-shadow: 0 0 0 2px #1C1C1E; /* matches panel bg */
 }
+
+/* Light Theme overrides for Customer List Dashboard Table */
+body.light-theme-active .partners-sheet-container .dashboard-table-wrapper {
+    background: #ffffff !important;
+    border: 1.5px solid #e2e8f0 !important;
+    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03) !important;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+body.light-theme-active .partners-sheet-container .dashboard-table th {
+    background: linear-gradient(180deg, #f8fafc, #f1f5f9) !important;
+    color: #475569 !important;
+    border-bottom: 2px solid rgba(212, 175, 55, 0.15) !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.06em !important;
+}
+
+body.light-theme-active .partners-sheet-container .dashboard-table td {
+    border-bottom: 1px solid #f1f5f9 !important;
+    color: #475569 !important;
+}
+
+body.light-theme-active .partners-sheet-container .dashboard-table tr:hover td {
+    background: linear-gradient(90deg, rgba(212, 175, 55, 0.04), transparent) !important;
+    color: #1e293b !important;
+}
+
+body.light-theme-active .partners-sheet-container .dashboard-table tr {
+    background: #ffffff !important;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
