@@ -327,6 +327,9 @@ const SalesPage = () => {
 
     const handleCrmTabChange = (tabName) => {
         setCrmTab(tabName);
+        if (tabName === 'dashboard') {
+            setShowDashboard(true);
+        }
         const newUrl = new URL(window.location);
         newUrl.searchParams.set('tab', tabName);
         if (tabName !== 'customers') {
@@ -1546,6 +1549,9 @@ const SalesPage = () => {
                 // Only switch to the tab if the user has permission for it
                 if (!tabPermMap[tabParam] || perms.includes(tabPermMap[tabParam])) {
                     setCrmTab(tabParam);
+                    if (tabParam === 'dashboard') {
+                        setShowDashboard(true);
+                    }
                 } else {
                     // Force fallback if user doesn't have permission for the requested tab
                     setCrmTab(getDefaultTab());
@@ -1602,7 +1608,7 @@ const SalesPage = () => {
             newUrl.searchParams.set('tab', 'customers');
             newUrl.searchParams.set('customer', customer._id);
             newUrl.searchParams.set('view', 'visits'); // Default to visits view on select
-            window.history.pushState({}, '', newUrl);
+            window.history.pushState({ fromDashboard: crmTab === 'dashboard' }, '', newUrl);
             
             setCrmTab('customers');
 
@@ -1617,11 +1623,21 @@ const SalesPage = () => {
     };
 
     const handleBackToCustomersList = () => {
+        const state = window.history.state;
         setSelectedCustomerId(null);
         setSelectedCustomerDetail(null);
         const newUrl = new URL(window.location);
         newUrl.searchParams.delete('customer');
-        window.history.pushState({}, '', newUrl);
+        newUrl.searchParams.delete('view');
+
+        if (state && state.fromDashboard) {
+            newUrl.searchParams.set('tab', 'dashboard');
+            window.history.pushState({}, '', newUrl);
+            setCrmTab('dashboard');
+            setShowDashboard(true);
+        } else {
+            window.history.pushState({}, '', newUrl);
+        }
     };
 
     const getPriceLevelLabel = (level) => {
