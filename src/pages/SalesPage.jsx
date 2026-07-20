@@ -89,6 +89,8 @@ const SalesPage = () => {
     }, [theme]);
 
     const [customers, setCustomers] = useState([]);
+    const [customerRefreshTrigger, setCustomerRefreshTrigger] = useState(0);
+    const [resourceRefreshTrigger, setResourceRefreshTrigger] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -182,6 +184,10 @@ const SalesPage = () => {
             setCustomerRefreshTrigger(prev => prev + 1);
         });
 
+        socket.on('resource_update', () => {
+            setResourceRefreshTrigger(prev => prev + 1);
+        });
+
         return () => {
             socket.disconnect();
         };
@@ -251,10 +257,10 @@ const SalesPage = () => {
         }
     }, [dashboardTimeRange]);
 
-    // Single effect: fire BOTH dashboard fetches in parallel when dashboardTimeRange changes
+    // Single effect: fire BOTH dashboard fetches in parallel when dashboardTimeRange or refresh triggers change
     useEffect(() => {
         Promise.all([fetchDashboardStats(), fetchDashboardData()]);
-    }, [fetchDashboardStats, fetchDashboardData]);
+    }, [fetchDashboardStats, fetchDashboardData, customerRefreshTrigger, resourceRefreshTrigger]);
 
     // Fetch schedules for the dashboard
     const fetchSchedules = useCallback(async () => {
@@ -1162,7 +1168,6 @@ const SalesPage = () => {
 
     const [showDashboardUploadModal, setShowDashboardUploadModal] = useState(false);
     const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
-    const [customerRefreshTrigger, setCustomerRefreshTrigger] = useState(0);
     const [loadingVisitId, setLoadingVisitId] = useState(null);
     const [loadingResourceId, setLoadingResourceId] = useState(null);
 
@@ -1311,7 +1316,7 @@ const SalesPage = () => {
         if (showDashboard && activeResourceSubTab === 'team') {
             fetchDashboardResources();
         }
-    }, [showDashboard, currentFolderId, activeResourceSubTab]);
+    }, [showDashboard, currentFolderId, activeResourceSubTab, resourceRefreshTrigger]);
 
 
 

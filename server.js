@@ -2621,8 +2621,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
 
     // Populate before returning
     await newResource.populate('uploadedBy', 'username');
-
-
+    req.app.get('io').emit('resource_update');
     res.status(201).json(newResource);
   } catch (error) {
     console.error('Error uploading dashboard resource:', error);
@@ -2688,6 +2687,7 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, uploadResources.sin
     if (thumbnail) resource.thumbnail = thumbnail;
 
     await resource.save();
+    req.app.get('io').emit('resource_update');
     res.json(resource);
   } catch (error) {
     console.error('Error updating dashboard resource:', error);
@@ -2735,6 +2735,7 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res)
     }
 
     await SalesDashboardResource.findByIdAndDelete(resourceId);
+    req.app.get('io').emit('resource_update');
     res.json({ message: 'Resource deleted successfully' });
   } catch (error) {
     console.error('Error deleting resource:', error);
@@ -5151,6 +5152,7 @@ app.post('/api/sales-resources', verifyToken, authorize('admin'), async (req, re
     });
 
     await resource.save();
+    req.app.get('io').emit('resource_update');
     res.status(201).json(resource);
   } catch (error) {
     console.error('Error creating sales resource:', error);
@@ -5163,6 +5165,7 @@ app.delete('/api/sales-resources/:id', verifyToken, authorize('admin'), async (r
   try {
     const { id } = req.params;
     await SalesResource.findByIdAndDelete(id);
+    req.app.get('io').emit('resource_update');
     res.json({ message: 'Resource deleted successfully' });
   } catch (error) {
     console.error('Error deleting sales resource:', error);
