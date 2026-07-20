@@ -101,7 +101,9 @@ const CheckInPage = () => {
     try {
       const saved = localStorage.getItem('kiosk_location');
       if (saved && AVAILABLE_LOCATIONS.includes(saved)) {
-        return saved;
+        if (!user || user.assignedLocations?.includes('*') || user.assignedLocations?.includes(saved)) {
+          return saved;
+        }
       }
     } catch (e) {}
     
@@ -135,14 +137,17 @@ const CheckInPage = () => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const locParam = urlParams.get('location');
-      if (locParam) {
-        localStorage.setItem('kiosk_location', locParam);
-        console.log(`📍 Kiosk location configured: ${locParam}`);
+      if (locParam && AVAILABLE_LOCATIONS.includes(locParam)) {
+        if (!user || user.assignedLocations?.includes('*') || user.assignedLocations?.includes(locParam)) {
+          localStorage.setItem('kiosk_location', locParam);
+          setSelectedLocation(locParam);
+          console.log(`📍 Kiosk location configured: ${locParam}`);
+        }
       }
     } catch (e) {
       console.error('Error reading location parameter:', e);
     }
-  }, []);
+  }, [user]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
