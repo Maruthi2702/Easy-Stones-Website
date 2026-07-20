@@ -1284,7 +1284,13 @@ const CheckInLogPanel = ({
           )}
 
           <a
-            href="/checkin"
+            href={
+              filterLocation 
+                ? `/checkin?location=${encodeURIComponent(filterLocation)}`
+                : user?.assignedLocations?.find(l => l !== '*')
+                  ? `/checkin?location=${encodeURIComponent(user.assignedLocations.find(l => l !== '*'))}`
+                  : '/checkin'
+            }
             target="_blank"
             rel="noopener noreferrer"
             className="clp-checkin-btn"
