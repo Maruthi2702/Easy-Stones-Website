@@ -37,38 +37,7 @@ import UserProfileTab from '../components/sales/UserProfileTab';
 import Pagination from '../components/shared/Pagination';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 
-class ErrorBoundary extends React.Component {
-    constructor(props) {
-        super(props);
-        this.state = { hasError: false, error: null, errorInfo: null };
-    }
-
-    static getDerivedStateFromError(error) {
-        return { hasError: true };
-    }
-
-    componentDidCatch(error, errorInfo) {
-        this.setState({ error, errorInfo });
-        console.error("SalesPage Error:", error, errorInfo);
-    }
-
-    render() {
-        if (this.state.hasError) {
-            return (
-                <div style={{ padding: '2rem', color: 'red' }}>
-                    <h2>Something went wrong.</h2>
-                    <details style={{ whiteSpace: 'pre-wrap' }}>
-                        {this.state.error && this.state.error.toString()}
-                        <br />
-                        {this.state.errorInfo && this.state.errorInfo.componentStack}
-                    </details>
-                </div>
-            );
-        }
-
-        return this.props.children;
-    }
-}
+import ErrorBoundary from '../components/shared/ErrorBoundary';
 
 const SalesPage = () => {
     const { user: currentUser, loading: authLoading } = useAuth();
