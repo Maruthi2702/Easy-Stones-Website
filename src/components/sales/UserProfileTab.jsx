@@ -98,14 +98,6 @@ const UserProfileTab = ({ sidebarToggle, handleGoHome, theme }) => {
                     </div>
                 </div>
                 <div className="clp-header-actions">
-                    <button 
-                        className="profile-dashboard-btn" 
-                        onClick={handleGoHome}
-                        title="Back to Sales Dashboard"
-                    >
-                        <LayoutDashboard size={16} />
-                        <span>Dashboard</span>
-                    </button>
                 </div>
             </div>
 
