@@ -2177,20 +2177,31 @@ body.light-theme-active .tag-cropper-modal-footer {
     padding: 1.25rem 1.5rem !important;
 }
 
-/* Close Button Overrides */
-body.light-theme-active .close-btn,
-body.light-theme-active .selection-modal-close,
-body.light-theme-active .selection-email-modal-close {
-    background: #f1f5f9 !important;
-    color: #475569 !important;
-    border: 1px solid #e2e8f0 !important;
+/* Red Close Button Overrides for all themes (X icon) */
+.close-btn,
+.selection-modal-close,
+.selection-email-modal-close {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    border: 1px solid #dc2626 !important;
+    border-radius: 6px !important;
+    width: 32px !important;
+    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
 }
 
-body.light-theme-active .close-btn:hover,
-body.light-theme-active .selection-modal-close:hover,
-body.light-theme-active .selection-email-modal-close:hover {
-    background: #e2e8f0 !important;
-    color: #0f172a !important;
+.close-btn:hover,
+.selection-modal-close:hover,
+.selection-email-modal-close:hover {
+    background: #dc2626 !important;
+    color: #ffffff !important;
+    transform: scale(1.05) !important;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.4) !important;
 }
 
 /* Fields (Inputs, Selects, Textareas) inside Modals in Light Theme */
@@ -2234,17 +2245,18 @@ body.light-theme-active .selection-email-modal-container label {
     font-size: 0.85rem !important;
 }
 
-/* Disabled and View Details Fields */
+/* Disabled and View Details Fields (charcoal color for maximum readability) */
 body.light-theme-active .modal-content input:disabled,
 body.light-theme-active .modal-content select:disabled,
 body.light-theme-active .modal-content textarea:disabled,
 body.light-theme-active .selection-modal-container input:disabled,
 body.light-theme-active .selection-modal-container select:disabled,
 body.light-theme-active .selection-modal-container textarea:disabled {
-    background: #f1f5f9 !important;
+    background: #f8fafc !important;
     border-color: #cbd5e1 !important;
-    color: #64748b !important;
+    color: #1e293b !important;
     cursor: not-allowed !important;
+    opacity: 0.95 !important;
 }
 
 /* Detail displays & text styling in View Modals */
@@ -2260,6 +2272,7 @@ body.light-theme-active .selection-modal-container p,
 body.light-theme-active .selection-modal-container span {
     color: #334155 !important;
 }
+
 
 
 
