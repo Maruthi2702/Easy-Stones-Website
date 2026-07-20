@@ -25,7 +25,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Clock, Search, Download, Loader2, Calendar,
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
-  Save, AlertTriangle, Printer, Sun, Moon, Filter, Scan
+  Save, AlertTriangle, Printer, Sun, Moon, Filter, Scan, Plus
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import Pagination from '../shared/Pagination';
@@ -1158,47 +1158,20 @@ const CheckInLogPanel = ({
             )}
           </div>
 
-          {/* Location Filter for managers/admins */}
-          {user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1) && onFilterLocationChange && (
-            <div className="clp-location-filter-wrap" style={{ display: 'inline-block', position: 'relative' }}>
-              <select
-                value={filterLocation || ''}
-                onChange={(e) => onFilterLocationChange(e.target.value || null)}
-                className="clp-location-select"
-              >
-                {user.assignedLocations?.includes('*') ? (
-                  <>
-                    <option value="">All Locations</option>
-                    <option value="Seattle">Seattle</option>
-                    <option value="Spokane">Spokane</option>
-                    <option value="Salt Lake City">Salt Lake City</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="">All My Locations</option>
-                    {user.assignedLocations?.map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </>
-                )}
-              </select>
-            </div>
-          )}
-
-          {/* Date Filter */}
+          {/* Date & Location Filters */}
           {onFilterMonthChange && onFilterYearChange && (
             <div className="clp-filter-container">
               <button
                 type="button"
-                className={`clp-filter-btn ${(filterMonth || filterYear) ? 'clp-filter-active' : ''}`}
+                className={`clp-filter-btn ${(filterMonth || filterYear || filterLocation) ? 'clp-filter-active' : ''}`}
                 onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                title="Filter by Month & Year"
+                title="Filter Check-ins"
               >
                 <Filter size={14} />
                 <span>
                   {filterMonth && filterYear
                     ? `${MONTH_NAMES[filterMonth - 1]} ${filterYear}`
-                    : 'All Time'}
+                    : 'Filters'}
                 </span>
               </button>
 
@@ -1215,6 +1188,33 @@ const CheckInLogPanel = ({
                     </button>
                   </div>
                   <div className="clp-filter-popover-body">
+                    {user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1) && onFilterLocationChange && (
+                      <div className="filter-select-group" style={{ marginBottom: '1rem' }}>
+                        <label>Location</label>
+                        <select
+                          value={filterLocation || ''}
+                          onChange={(e) => onFilterLocationChange(e.target.value || null)}
+                          className="filter-dropdown-select"
+                        >
+                          {user.assignedLocations?.includes('*') ? (
+                            <>
+                              <option value="">All Locations</option>
+                              <option value="Seattle">Seattle</option>
+                              <option value="Spokane">Spokane</option>
+                              <option value="Salt Lake City">Salt Lake City</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="">All My Locations</option>
+                              {user.assignedLocations?.map(loc => (
+                                <option key={loc} value={loc}>{loc}</option>
+                              ))}
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    )}
+
                     <div className="filter-select-group">
                       <label>Year</label>
                       <select
@@ -1263,11 +1263,12 @@ const CheckInLogPanel = ({
                       onClick={() => {
                         onFilterMonthChange(null);
                         onFilterYearChange(null);
+                        if (onFilterLocationChange) onFilterLocationChange(null);
                         setShowFilterDropdown(false);
                       }}
                       className="filter-btn-clear"
                     >
-                      Clear Filter (All Time)
+                      Clear Filter
                     </button>
                     <button
                       type="button"
@@ -1281,6 +1282,16 @@ const CheckInLogPanel = ({
               )}
             </div>
           )}
+
+          <a
+            href="/checkin"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="clp-checkin-btn"
+          >
+            <Plus size={14} />
+            <span>Check-In</span>
+          </a>
 
           {onExport && (
             <button className="clp-export-btn" onClick={onExport}>

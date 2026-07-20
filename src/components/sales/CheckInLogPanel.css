@@ -174,17 +174,31 @@
   color: #d4af37;
 }
 
-.clp-export-btn {
+.clp-export-btn,
+.clp-checkin-btn {
   background: linear-gradient(135deg, #d4af37, #b8961f);
   color: #000;
   border-color: transparent;
   font-weight: 700;
   box-shadow: 0 3px 12px rgba(212, 175, 55, 0.22);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 9px;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
 }
 
-.clp-export-btn:hover {
+.clp-export-btn:hover,
+.clp-checkin-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 5px 18px rgba(212, 175, 55, 0.32);
+  color: #000;
 }
 
 /* ── Stats ── */
@@ -1985,7 +1999,8 @@ table.clp-table {
   transform: translateY(-1px) !important;
 }
 
-.clp-root.light-theme .clp-export-btn {
+.clp-root.light-theme .clp-export-btn,
+.clp-root.light-theme .clp-checkin-btn {
   background: linear-gradient(135deg, #d4af37, #c9a022) !important;
   color: #ffffff !important;
   border-color: transparent !important;
@@ -1993,9 +2008,11 @@ table.clp-table {
   box-shadow: 0 3px 12px rgba(212, 175, 55, 0.2) !important;
 }
 
-.clp-root.light-theme .clp-export-btn:hover {
+.clp-root.light-theme .clp-export-btn:hover,
+.clp-root.light-theme .clp-checkin-btn:hover {
   box-shadow: 0 6px 20px rgba(212, 175, 55, 0.35) !important;
   transform: translateY(-2px) !important;
+  color: #ffffff !important;
 }
 
 /* Stats Row */
