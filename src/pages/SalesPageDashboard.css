@@ -2273,6 +2273,78 @@ body.light-theme-active .selection-modal-container span {
     color: #334155 !important;
 }
 
+/* ── Custom DatePicker & Searchable Select Light Theme overrides ── */
+body.light-theme-active .searchable-select-trigger,
+body.light-theme-active .datepicker-input {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #1e293b !important;
+}
+
+body.light-theme-active .searchable-select-trigger span,
+body.light-theme-active .datepicker-input .has-value {
+    color: #1e293b !important;
+}
+
+body.light-theme-active .searchable-select-trigger .placeholder,
+body.light-theme-active .datepicker-input .placeholder {
+    color: #94a3b8 !important;
+}
+
+body.light-theme-active .searchable-select-trigger:hover,
+body.light-theme-active .datepicker-input:hover {
+    border-color: #94a3b8 !important;
+    background-color: #f8fafc !important;
+}
+
+body.light-theme-active .searchable-select-dropdown {
+    background-color: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-theme-active .searchable-select-search {
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+body.light-theme-active .searchable-select-search input {
+    background-color: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #1e293b !important;
+}
+
+body.light-theme-active .searchable-select-search input:focus {
+    border-color: #d4af37 !important;
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15) !important;
+}
+
+body.light-theme-active .searchable-select-dropdown [style*="color: #E5C04A"] {
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    color: #b48a1c !important;
+}
+
+body.light-theme-active .searchable-select-dropdown [style*="color: #E5C04A"]:hover {
+    background-color: rgba(212, 175, 55, 0.1) !important;
+}
+
+body.light-theme-active .searchable-select-option {
+    color: #334155 !important;
+}
+
+body.light-theme-active .searchable-select-option:hover {
+    background-color: #f1f5f9 !important;
+}
+
+body.light-theme-active .searchable-select-option[style*="background-color: rgba(255, 255, 255, 0.1)"],
+body.light-theme-active .searchable-select-option[style*="rgba(255, 255, 255, 0.1)"] {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-weight: 600 !important;
+}
+
+
 
 
 
