@@ -786,24 +786,24 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                         )}
                                     </div>
 
-                                    {/* 2-Column Contact Info Grid */}
-                                    <div className="mcc-grid-2col">
-                                        <div className="mcc-grid-col">
-                                            <span className="mcc-col-label">Contact Name</span>
-                                            <span className="mcc-col-val">{contactName || partner.name || partner.contactName || 'N/A'}</span>
+                                    {/* Contact & Phone 2-Row Section */}
+                                    <div className="mcc-contact-section">
+                                        <div className="mcc-contact-row">
+                                            <span className="mcc-contact-label">Contact:</span>
+                                            <span className="mcc-contact-val">{contactName || partner.name || partner.contactName || 'N/A'}</span>
                                         </div>
-                                        <div className="mcc-grid-col">
-                                            <span className="mcc-col-label">Phone</span>
+                                        <div className="mcc-contact-row">
+                                            <span className="mcc-contact-label">Phone:</span>
                                             {phone ? (
                                                 <a 
                                                     href={`tel:${phone}`} 
-                                                    className="mcc-col-val mcc-phone-link"
+                                                    className="mcc-contact-val mcc-phone-link"
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
                                                     {formatPhoneForDisplay(phone)}
                                                 </a>
                                             ) : (
-                                                <span className="mcc-col-val text-muted">N/A</span>
+                                                <span className="mcc-contact-val text-muted">N/A</span>
                                             )}
                                         </div>
                                     </div>

@@ -981,37 +981,45 @@
     box-shadow: 0 4px 12px rgba(212, 175, 55, 0.35);
 }
 
-/* ── Contact Details (2 Distinct Rows) ── */
-.mcc-contact-details {
+/* ── Contact & Phone 2-Row Section ── */
+.mcc-contact-section {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.4rem 0 0.1rem;
-    margin-top: 0.15rem;
-    border-top: 1px dashed rgba(255, 255, 255, 0.07);
+    gap: 0.45rem;
+    padding: 0.55rem 0;
+    margin-top: 0.25rem;
+    margin-bottom: 0.15rem;
+    border-top: 1px dashed rgba(255, 255, 255, 0.1);
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
 }
 
-.mcc-detail-row {
+.mcc-contact-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 0.82rem;
+    font-size: 0.88rem;
 }
 
-.mcc-label {
+.mcc-contact-label {
     color: var(--text-secondary, #9ca3af);
     font-weight: 500;
 }
 
-.mcc-val {
+.mcc-contact-val {
     color: #ffffff;
     font-weight: 600;
+    text-align: right;
 }
 
-.mcc-val.mcc-phone-link {
+.mcc-contact-val.mcc-phone-link {
     color: #d4af37;
+    font-weight: 600;
     text-decoration: underline;
     text-decoration-style: dashed;
+}
+
+.mcc-contact-val.mcc-phone-link:hover {
+    color: #ffd700;
 }
 
 /* ── Footer Action Bar ── */
@@ -1453,18 +1461,19 @@ body.light-theme-active .mcc-btn-icon,
     color: #64748b !important;
 }
 
-body.light-theme-active .mcc-contact-details,
-.light-theme .mcc-contact-details {
+body.light-theme-active .mcc-contact-section,
+.light-theme .mcc-contact-section {
     border-top-color: #e2e8f0 !important;
+    border-bottom-color: #e2e8f0 !important;
 }
 
-body.light-theme-active .mcc-label,
-.light-theme .mcc-label {
+body.light-theme-active .mcc-contact-label,
+.light-theme .mcc-contact-label {
     color: #64748b !important;
 }
 
-body.light-theme-active .mcc-val,
-.light-theme .mcc-val {
+body.light-theme-active .mcc-contact-val,
+.light-theme .mcc-contact-val {
     color: #1e293b !important;
 }
 
