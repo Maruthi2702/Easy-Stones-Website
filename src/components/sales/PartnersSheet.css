@@ -860,86 +860,22 @@
     border-color: rgba(239, 68, 68, 0.2);
 }
 
-/* ── Top Header Row with Avatar ── */
-.mcc-header-row {
+/* ── Top Title & Status Row (Non-truncating multi-line title) ── */
+.mcc-top-row {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.mcc-avatar {
-    width: 38px;
-    height: 38px;
-    min-width: 38px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(212, 175, 55, 0.05) 100%);
-    border: 1.5px solid rgba(212, 175, 55, 0.35);
-    color: #d4af37;
-    font-size: 0.85rem;
-    font-weight: 750;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    letter-spacing: 0.02em;
-    box-shadow: 0 0 12px rgba(212, 175, 55, 0.15);
-    flex-shrink: 0;
-}
-
-.mcc-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-}
-
-.mcc-title-bar {
-    display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: 0.65rem;
 }
 
-.mcc-company-name {
-    font-size: 0.98rem;
+.mcc-company-name-full {
+    font-size: 1.02rem;
     font-weight: 750;
-    color: #ffffff;
+    color: var(--accent-primary, #d4af37);
     margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    letter-spacing: -0.01em;
-}
-
-.mcc-sub-info {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.78rem;
-    color: var(--text-secondary, #a1a1aa);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.mcc-contact-name {
-    color: #e4e4e7;
-    font-weight: 500;
-}
-
-.mcc-dot {
-    color: rgba(255, 255, 255, 0.25);
-    font-size: 0.65rem;
-}
-
-.mcc-phone-link {
-    color: #d4af37;
-    font-weight: 600;
-    text-decoration: none;
-}
-
-.mcc-phone-link:hover {
-    text-decoration: underline;
+    line-height: 1.35;
+    word-break: break-word;
+    flex: 1;
 }
 
 /* ── Meta Pills Row ── */
@@ -948,7 +884,7 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 0.4rem;
-    margin-top: 0.15rem;
+    margin-top: 0.1rem;
 }
 
 .mcc-meta-pills .card-meta-badge,
@@ -976,6 +912,73 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: #a1a1aa;
     font-weight: 500;
+}
+
+/* ── 2-Column Contact Info Grid (Concept B) ── */
+.mcc-grid-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    padding: 0.55rem 0.65rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    margin-top: 0.2rem;
+}
+
+.mcc-grid-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.mcc-col-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary, #9ca3af);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.mcc-col-val {
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mcc-col-val.mcc-phone-link {
+    color: #d4af37;
+    text-decoration: none;
+}
+
+.mcc-col-val.mcc-phone-link:hover {
+    text-decoration: underline;
+}
+
+.mcc-btn-view-details {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    background: linear-gradient(135deg, #d4af37, #b8961f);
+    color: #000000;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.2);
+}
+
+.mcc-btn-view-details:hover {
+    background: linear-gradient(135deg, #e6c25e, #c5a028);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.35);
 }
 
 /* ── Contact Details (2 Distinct Rows) ── */

@@ -754,67 +754,61 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                             return (
                                 <div 
                                     key={partner._id} 
-                                    className={`mobile-customer-card ${
+                                    className={`mobile-customer-card concept-b ${
                                         partner.status === 'Different Sales Person' || partner.status === 'Not Interested'
                                             ? 'low-priority'
                                             : ''
                                     }`} 
                                     onClick={() => onSelectCustomer && onSelectCustomer(partner)}
                                 >
-                                    {/* Top Header Row with Avatar, Title & Level/City Badges */}
-                                    <div className="mcc-header-row">
-                                        <div className="mcc-avatar">
-                                            {initials}
-                                        </div>
-                                        <div className="mcc-info">
-                                            <div className="mcc-title-bar">
-                                                <h3 className="mcc-company-name">{companyName}</h3>
-                                                <span className={`status-badge-pill ${partner.status?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
-                                                    {partner.status || 'Active'}
-                                                </span>
-                                            </div>
-                                            {/* Meta Pills (Level, Segment, Location) beside/under Company Name */}
-                                            <div className="mcc-meta-pills">
-                                                <span className="card-meta-badge level-badge">
-                                                    {partner.level || partner.segment || 'Level - 1'}
-                                                </span>
-                                                {showTypeColumn && (
-                                                    <span className={`card-meta-badge type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
-                                                        {partner.customerType || 'Fabricator'}
-                                                    </span>
-                                                )}
-                                                {city && (
-                                                    <span className="mcc-location-pill">
-                                                        <MapPin size={11} /> {city}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
+                                    {/* Top Title & Status Row (Non-truncating multi-line company name) */}
+                                    <div className="mcc-top-row">
+                                        <h3 className="mcc-company-name-full">{companyName}</h3>
+                                        <span className={`status-badge-pill ${partner.status?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+                                            {partner.status || 'Active'}
+                                        </span>
                                     </div>
 
-                                    {/* 2 Distinct Rows for Contact Name and Phone Number */}
-                                    <div className="mcc-contact-details">
-                                        <div className="mcc-detail-row">
-                                            <span className="mcc-label">Contact:</span>
-                                            <span className="mcc-val">{contactName || partner.name || partner.contactName || 'N/A'}</span>
+                                    {/* Meta Pills (Level, Segment, Location) */}
+                                    <div className="mcc-meta-pills">
+                                        <span className="card-meta-badge level-badge">
+                                            {partner.level || partner.segment || 'Level - 1'}
+                                        </span>
+                                        {showTypeColumn && (
+                                            <span className={`card-meta-badge type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
+                                                {partner.customerType || 'Fabricator'}
+                                            </span>
+                                        )}
+                                        {city && (
+                                            <span className="mcc-location-pill">
+                                                <MapPin size={11} /> {city}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* 2-Column Contact Info Grid */}
+                                    <div className="mcc-grid-2col">
+                                        <div className="mcc-grid-col">
+                                            <span className="mcc-col-label">Contact Name</span>
+                                            <span className="mcc-col-val">{contactName || partner.name || partner.contactName || 'N/A'}</span>
                                         </div>
-                                        <div className="mcc-detail-row">
-                                            <span className="mcc-label">Phone:</span>
+                                        <div className="mcc-grid-col">
+                                            <span className="mcc-col-label">Phone</span>
                                             {phone ? (
                                                 <a 
                                                     href={`tel:${phone}`} 
-                                                    className="mcc-val mcc-phone-link"
+                                                    className="mcc-col-val mcc-phone-link"
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
                                                     {formatPhoneForDisplay(phone)}
                                                 </a>
                                             ) : (
-                                                <span className="mcc-val text-muted">N/A</span>
+                                                <span className="mcc-col-val text-muted">N/A</span>
                                             )}
                                         </div>
                                     </div>
 
-                                    {/* Footer Quick Action Toolbar */}
+                                    {/* Action Bar with Direct Call, Email, View details & Tool Icons */}
                                     <div className="mcc-action-bar" onClick={(e) => e.stopPropagation()}>
                                         <div className="mcc-direct-actions">
                                             {phone && (
@@ -840,10 +834,11 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                         </div>
                                         <div className="mcc-tool-actions">
                                             <button 
-                                                className="mcc-btn-view"
+                                                className="mcc-btn-view-details"
                                                 onClick={() => { setViewingPartner(partner); setShowAddModal(true); }}
                                             >
-                                                <Eye size={13} /> View
+                                                <FileText size={13} />
+                                                <span>View details</span>
                                             </button>
                                             <button 
                                                 className="mcc-btn-icon edit"
