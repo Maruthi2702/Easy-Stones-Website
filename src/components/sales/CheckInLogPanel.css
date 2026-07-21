@@ -730,119 +730,92 @@ table.clp-table {
   }
 }
 
-@media (min-width: 769px) and (max-width: 1024px) {
-  .clp-header-actions {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 0.5rem !important;
-    justify-content: flex-end !important;
-  }
-
-  .clp-search-wrap {
-    width: 200px !important;
-  }
-}
-
-@media (max-width: 768px) {
-  .clp-mobile-only {
-    display: flex !important;
-  }
-
-  .clp-desktop-only {
-    display: none !important;
-  }
-
-  .clp-page-header {
-    padding: 1.5rem 1rem 0.75rem !important;
-  }
-
+@media (max-width: 1024px) {
   .clp-header-left {
     width: 100%;
     justify-content: flex-start;
+    align-items: center;
+    gap: 0.6rem;
   }
 
   .clp-title {
-    font-size: 1.25rem !important;
+    font-size: 1.2rem !important;
   }
 
   .clp-header-actions {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr 38px !important;
-    grid-template-rows: auto auto !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
     gap: 0.5rem !important;
     width: 100% !important;
     margin-top: 0.75rem !important;
-    align-items: stretch !important;
+    justify-content: flex-start !important;
   }
 
   .clp-search-wrap {
-    grid-column: 1 / 3 !important;
-    grid-row: 1 !important;
     width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+    order: 1 !important;
   }
 
-  .clp-theme-btn {
-    grid-column: 3 / 4 !important;
-    grid-row: 1 !important;
-    width: 100% !important;
+  .clp-checkin-btn {
+    order: 2 !important;
+    flex: 1 1 auto !important;
     height: 38px !important;
-    border-radius: 9px !important;
-    display: flex !important;
-    align-items: center !important;
     justify-content: center !important;
+    font-size: 0.8rem !important;
+    padding: 0 0.85rem !important;
+    margin: 0 !important;
   }
 
   .clp-filter-container {
-    grid-column: 1 / 2 !important;
-    grid-row: 2 !important;
-    width: 100% !important;
+    order: 3 !important;
+    flex: 1 1 auto !important;
   }
 
   .clp-filter-btn {
     width: 100% !important;
     height: 38px !important;
     justify-content: center !important;
-    padding: 0 0.5rem !important;
-    font-size: 0.78rem !important;
+    padding: 0 0.75rem !important;
+    font-size: 0.8rem !important;
   }
 
   .clp-export-btn {
-    grid-column: 2 / 3 !important;
-    grid-row: 2 !important;
-    width: 100% !important;
+    order: 4 !important;
+    flex: 1 1 auto !important;
     height: 38px !important;
     justify-content: center !important;
     margin: 0 !important;
-    font-size: 0.78rem !important;
+    font-size: 0.8rem !important;
   }
 
-  .clp-refresh-btn {
-    grid-column: 3 / 4 !important;
-    grid-row: 2 !important;
-    width: 100% !important;
+  .clp-refresh-btn,
+  .clp-theme-btn {
+    order: 5 !important;
     height: 38px !important;
+    width: 38px !important;
+    min-width: 38px !important;
     justify-content: center !important;
     padding: 0 !important;
     margin: 0 !important;
   }
 
-  .clp-refresh-btn svg {
-    margin: 0 !important;
-  }
-
-  /* Hide the Refresh button text to make it a compact square icon button on mobile */
   .clp-refresh-btn {
     color: transparent !important;
     overflow: hidden;
   }
 
   .clp-refresh-btn svg {
+    margin: 0 !important;
     color: var(--text-primary, #fff) !important;
   }
 
   .clp-root.light-theme .clp-refresh-btn svg {
     color: #475569 !important;
   }
+}
 
   /* Compact Stats Cards displayed side-by-side on mobile */
   .clp-stats {
