@@ -15,11 +15,12 @@ class ErrorBoundary extends React.Component {
         // You can also log the error to an error reporting service
         console.error("Uncaught error:", error, errorInfo);
 
-        // Handle chunk load failures (common after new deployments)
+        // Handle chunk/assets load failures (common after new deployments)
         const errorMessage = error && error.message ? error.message : '';
         if (errorMessage.includes('Failed to fetch dynamically imported module') ||
-            errorMessage.includes('Importing a dynamically imported module failed')) {
-            console.log("Chunk load failure detected, reloading page...");
+            errorMessage.includes('Importing a dynamically imported module failed') ||
+            errorMessage.includes('Unable to preload CSS')) {
+            console.log("Assets preload/chunk load failure detected, reloading page...");
             window.location.reload();
             return;
         }
