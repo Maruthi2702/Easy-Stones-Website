@@ -4523,6 +4523,14 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
     const updateData = {};
     const fields = { ...req.body };
 
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    const existingResource = customer.resources ? customer.resources.id(resourceId) : null;
+    const oldTitle = existingResource ? (existingResource.title || existingResource.resourceType) : '';
+
     // Process images if they are being updated
     if (fields.image) {
       fields.image = await processBase64Images(fields.image, 'Resources');
@@ -4548,6 +4556,35 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'Customer or resource not found' });
+    }
+
+    // Synchronize: Also update the associated Visit entry if found
+    if (customer.visits && customer.visits.length > 0 && oldTitle) {
+      const matchingVisit = customer.visits.find(v => 
+        v.purpose && (
+          v.purpose.includes(oldTitle) || 
+          (existingResource && existingResource.resourceType && v.purpose.includes(existingResource.resourceType))
+        )
+      );
+
+      if (matchingVisit) {
+        const newTitle = fields.title || fields.resourceType || oldTitle;
+        const newPurpose = `Resource Placement: ${newTitle}`;
+        const visitUpdateData = {
+          'visits.$.purpose': newPurpose
+        };
+
+        if (fields.date) visitUpdateData['visits.$.date'] = ensureDateString(fields.date);
+        if (fields.notes !== undefined || fields.description !== undefined) {
+          visitUpdateData['visits.$.notes'] = fields.notes || fields.description || `Added resource: ${newTitle}`;
+        }
+        if (fields.image) visitUpdateData['visits.$.image'] = fields.image;
+
+        await Customer.updateOne(
+          { _id: customerId, 'visits._id': matchingVisit._id },
+          { $set: visitUpdateData }
+        );
+      }
     }
 
     res.json({ success: true, message: 'Resource updated successfully' });
