@@ -603,7 +603,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                         setShowAddModal(true);
                     }}>
                         <Plus size={18} />
-                        {!isMobile && 'Add Customer'}
+                        <span>Add {isFabTab ? 'Fabricator' : 'Customer'}</span>
                     </button>
                 </div>
             </div>

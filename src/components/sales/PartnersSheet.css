@@ -1169,3 +1169,33 @@ body.light-theme-active .partners-sheet-container .dashboard-table tr {
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
+/* Light Theme Mobile Card Overrides */
+body.light-theme-active .mobile-customer-card {
+    background: #ffffff !important;
+    border: 1.5px solid #e2e8f0 !important;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05) !important;
+}
+
+body.light-theme-active .mobile-customer-card .card-company-name {
+    color: #1e293b !important;
+}
+
+body.light-theme-active .mobile-customer-card .card-body {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+body.light-theme-active .mobile-customer-card .info-value {
+    color: #334155 !important;
+}
+
+body.light-theme-active .mobile-customer-card .phone-link {
+    color: #b89324 !important;
+}
+
+body.light-theme-active .mobile-customer-card .card-action-btn {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #475569 !important;
+}
+
