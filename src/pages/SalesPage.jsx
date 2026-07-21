@@ -732,8 +732,8 @@ const SalesPage = () => {
             });
 
             if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Failed to establish link');
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.message || data.error || `Failed to establish link (Status ${res.status})`);
             }
 
             // Re-fetch customer details to update state
@@ -764,8 +764,8 @@ const SalesPage = () => {
             });
 
             if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Failed to remove link');
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.message || data.error || `Failed to remove link (Status ${res.status})`);
             }
 
             // Re-fetch customer details to update state

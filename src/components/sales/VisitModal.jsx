@@ -232,7 +232,7 @@ const VisitModal = ({
                                 {visitForm.notes || 'No notes available.'}
                             </div>
                         </div>
-                        {!visitForm.purpose?.toLowerCase().includes('quick note') && (
+                        {!visitForm.purpose?.toLowerCase().match(/quick note|resource placement|resource update/i) && (
                             <>
                                 <div className="visit-detail-item">
                                     <div className="visit-detail-label">Outcome</div>

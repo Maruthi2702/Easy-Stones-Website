@@ -3632,18 +3632,30 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requirePe
     // Get performer information
     const { id: performedBy, name: performedByName } = await getPerformerInfo(req);
 
-    // Find the visit before deleting to get its details if needed (optional)
-    const customer = await Customer.findById(customerId).select('visits');
-    const visit = customer ? customer.visits.id(visitId) : null;
-
-    const result = await Customer.updateOne(
-      { _id: customerId },
-      { $pull: { visits: { _id: visitId } } }
-    );
-
-    if (result.matchedCount === 0) {
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
+
+    const visit = customer.visits ? customer.visits.id(visitId) : null;
+    const isResourcePlacement = visit && visit.purpose && visit.purpose.toLowerCase().includes('resource placement');
+    const purposeText = visit ? visit.purpose.replace(/^Resource Placement:\s*/i, '').trim() : '';
+
+    // Remove the visit
+    customer.visits.pull({ _id: visitId });
+
+    // If deleting a Resource Placement visit, also clean up the corresponding resource entry
+    if (isResourcePlacement && purposeText && customer.resources && customer.resources.length > 0) {
+      const matchingResourceIndex = customer.resources.findIndex(r => 
+        (r.title && r.title.toLowerCase() === purposeText.toLowerCase()) ||
+        (r.resourceType && r.resourceType.toLowerCase() === purposeText.toLowerCase())
+      );
+      if (matchingResourceIndex > -1) {
+        customer.resources.splice(matchingResourceIndex, 1);
+      }
+    }
+
+    await customer.save();
 
     res.json({ success: true, message: 'Visit deleted successfully' });
 
@@ -4435,13 +4447,23 @@ app.post('/api/customers/:customerId/resources', authenticate, requirePermission
       return res.status(400).json({ message: 'Resource title or type is required' });
     }
 
+    // Get performer and customer info for both resource and visit posting
+    const performer = await getPerformerInfo(req);
+    const customerDoc = await Customer.findById(customerId).select('contactName company').lean();
+
+    if (!customerDoc) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
     // Process images (convert base64 to Cloudinary URLs)
     const processedImages = await processBase64Images(image, 'Resources');
 
+    const resourceDateStr = ensureDateString(date || new Date());
+
     const newResource = {
       title: finalTitle,
-      date: ensureDateString(date || new Date()),
-      customer: customer || '',
+      date: resourceDateStr,
+      customer: customer || customerDoc.company || customerDoc.contactName || '',
       location: location || '',
       resourceType: resourceType || '',
       image: processedImages,
@@ -4449,20 +4471,45 @@ app.post('/api/customers/:customerId/resources', authenticate, requirePermission
       notes: notes || '',
       status: status || 'Active',
       url: url || '',
-      uploadedBy: uploadedBy || (await getPerformerInfo(req)).id,
+      uploadedBy: uploadedBy || performer.id,
+      createdAt: getNowLocalISO()
+    };
+
+    // Auto-generate a corresponding Visit entry for customer history
+    const visitPurpose = resourceType ? `Resource Placement: ${resourceType}` : `Resource Placement: ${finalTitle}`;
+    const visitNotes = notes || description || `Added resource: ${finalTitle}`;
+    const customerContactName = customerDoc.company || customerDoc.contactName || '';
+
+    const newVisit = {
+      _id: new mongoose.Types.ObjectId(),
+      date: resourceDateStr,
+      purpose: visitPurpose,
+      notes: visitNotes,
+      outcome: '',
+      followUp: false,
+      followUpDate: null,
+      image: processedImages,
+      createdBy: performer.id,
+      createdByName: performer.name,
+      customerContactName: customerContactName,
       createdAt: getNowLocalISO()
     };
 
     const result = await Customer.updateOne(
       { _id: customerId },
-      { $push: { resources: newResource } }
+      { 
+        $push: { 
+          resources: newResource,
+          visits: newVisit
+        } 
+      }
     );
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
-    res.status(201).json({ success: true, resource: newResource });
+    res.status(201).json({ success: true, resource: newResource, visit: newVisit });
   } catch (error) {
     console.error('Add resource error:', error);
     res.status(500).json({ message: `Failed to add resource: ${error.message}` });
@@ -4511,18 +4558,35 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
 });
 
 // Delete resource
-app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, requirePermission('delete_customers'), async (req, res) => {
+app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
 
-    const result = await Customer.updateOne(
-      { _id: customerId },
-      { $pull: { resources: { _id: resourceId } } }
-    );
-
-    if (result.matchedCount === 0) {
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
+
+    const resource = customer.resources ? customer.resources.id(resourceId) : null;
+    const titleToMatch = resource ? (resource.title || resource.resourceType) : '';
+
+    // Remove the resource
+    customer.resources.pull({ _id: resourceId });
+
+    // Synchronize: Also remove the linked auto-generated Visit entry if it exists
+    if (titleToMatch && customer.visits && customer.visits.length > 0) {
+      const matchingVisitIndex = customer.visits.findIndex(v => 
+        v.purpose && (
+          v.purpose.includes(titleToMatch) || 
+          (resource.resourceType && v.purpose.includes(resource.resourceType))
+        )
+      );
+      if (matchingVisitIndex > -1) {
+        customer.visits.splice(matchingVisitIndex, 1);
+      }
+    }
+
+    await customer.save();
 
     res.json({ success: true, message: 'Resource deleted successfully' });
   } catch (error) {

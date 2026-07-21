@@ -158,13 +158,13 @@ const VisitPostCard = ({
 
                     {(visit.outcome || visit.followUp || visit.nextAction || visit.managerComment || visit.headquartersComment) && (
                         <div className="post-details-ext">
-                            {visit.outcome && !visit.purpose?.toLowerCase().includes('quick note') && (
+                            {visit.outcome && !visit.purpose?.toLowerCase().match(/quick note|resource placement|resource update/i) && (
                                 <div className="post-detail-row outcome">
                                     <span className="detail-label">Outcome:</span>
                                     <span className="detail-value">{visit.outcome}</span>
                                 </div>
                             )}
-                            {visit.followUp && !visit.purpose?.toLowerCase().includes('quick note') && (
+                            {visit.followUp && !visit.purpose?.toLowerCase().match(/quick note|resource placement|resource update/i) && (
                                 <div className="post-detail-row follow-up">
                                     <span className="detail-label">Follow Up:</span>
                                     <span className="detail-value">{visit.followUp}</span>
