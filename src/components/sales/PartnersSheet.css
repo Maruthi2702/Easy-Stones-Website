@@ -834,48 +834,236 @@
 }
 
 .mobile-customer-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
+    background: linear-gradient(145deg, rgba(28, 28, 30, 0.75) 0%, rgba(18, 18, 20, 0.85) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
     padding: 0.85rem 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem !important;
-    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    gap: 0.65rem !important;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    position: relative;
+    overflow: hidden;
 }
 
 .mobile-customer-card:hover {
-    border-color: rgba(212, 175, 55, 0.3);
+    border-color: rgba(212, 175, 55, 0.4);
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 25px rgba(212, 175, 55, 0.12);
 }
 
 .mobile-customer-card.low-priority {
-    background: rgba(239, 68, 68, 0.04);
-    border-color: rgba(239, 68, 68, 0.15);
+    background: linear-gradient(145deg, rgba(35, 20, 20, 0.75) 0%, rgba(22, 14, 14, 0.85) 100%);
+    border-color: rgba(239, 68, 68, 0.2);
 }
 
-.mobile-customer-card.low-priority:hover {
-    border-color: rgba(239, 68, 68, 0.35);
-}
-
-.mobile-customer-card .card-header {
+/* ── Top Header Row with Avatar ── */
+.mcc-header-row {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.5rem;
-    padding-bottom: 0 !important;
-    margin-bottom: 0 !important;
-    border-bottom: none !important;
+    align-items: center;
+    gap: 0.75rem;
 }
 
-.mobile-customer-card .card-company-name {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--accent-primary, #d4af37);
+.mcc-avatar {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(212, 175, 55, 0.05) 100%);
+    border: 1.5px solid rgba(212, 175, 55, 0.35);
+    color: #d4af37;
+    font-size: 0.85rem;
+    font-weight: 750;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 0.02em;
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.15);
+    flex-shrink: 0;
+}
+
+.mcc-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.mcc-title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.mcc-company-name {
+    font-size: 0.98rem;
+    font-weight: 750;
+    color: #ffffff;
     margin: 0;
-    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+}
+
+.mcc-sub-info {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--text-secondary, #a1a1aa);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mcc-contact-name {
+    color: #e4e4e7;
+    font-weight: 500;
+}
+
+.mcc-dot {
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 0.65rem;
+}
+
+.mcc-phone-link {
+    color: #d4af37;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.mcc-phone-link:hover {
+    text-decoration: underline;
+}
+
+/* ── Meta Pills Row ── */
+.mcc-meta-pills {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.mcc-location-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #a1a1aa;
+    font-size: 0.72rem;
+    font-weight: 500;
+}
+
+/* ── Footer Action Bar ── */
+.mcc-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 0.1rem;
+}
+
+.mcc-direct-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.mcc-quick-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: 7px;
+    font-size: 0.73rem;
+    font-weight: 650;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.mcc-quick-btn.call {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #10b981;
+}
+
+.mcc-quick-btn.call:hover {
+    background: rgba(16, 185, 129, 0.22);
+}
+
+.mcc-quick-btn.email {
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #3b82f6;
+}
+
+.mcc-quick-btn.email:hover {
+    background: rgba(59, 130, 246, 0.22);
+}
+
+.mcc-tool-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.mcc-btn-view {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.75rem;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(212, 175, 55, 0.06));
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    color: #d4af37;
+    border-radius: 7px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mcc-btn-view:hover {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.3), rgba(212, 175, 55, 0.12));
+    border-color: rgba(212, 175, 55, 0.5);
+    color: #ffd700;
+}
+
+.mcc-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #a1a1aa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.mcc-btn-icon.edit:hover {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.4);
+    color: #3b82f6;
+}
+
+.mcc-btn-icon.delete:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #ef4444;
 }
 
 /* Light Theme overrides for mobile cards */
@@ -1173,32 +1361,44 @@ body.light-theme-active .partners-sheet-container .dashboard-table tr {
 }
 
 /* Light Theme Mobile Card Overrides */
-body.light-theme-active .mobile-customer-card {
+body.light-theme-active .mobile-customer-card,
+.light-theme .mobile-customer-card {
     background: #ffffff !important;
     border: 1.5px solid #e2e8f0 !important;
     box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05) !important;
 }
 
-body.light-theme-active .mobile-customer-card .card-company-name {
+body.light-theme-active .mcc-company-name,
+.light-theme .mcc-company-name {
     color: #1e293b !important;
 }
 
-body.light-theme-active .mobile-customer-card .card-body {
-    background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
+body.light-theme-active .mcc-sub-info,
+.light-theme .mcc-sub-info {
+    color: #64748b !important;
 }
 
-body.light-theme-active .mobile-customer-card .info-value {
+body.light-theme-active .mcc-contact-name,
+.light-theme .mcc-contact-name {
     color: #334155 !important;
 }
 
-body.light-theme-active .mobile-customer-card .phone-link {
-    color: #b89324 !important;
+body.light-theme-active .mcc-location-pill,
+.light-theme .mcc-location-pill {
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+    color: #64748b !important;
 }
 
-body.light-theme-active .mobile-customer-card .card-action-btn {
-    background: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    color: #475569 !important;
+body.light-theme-active .mcc-action-bar,
+.light-theme .mcc-action-bar {
+    border-top-color: #f1f5f9 !important;
+}
+
+body.light-theme-active .mcc-btn-icon,
+.light-theme .mcc-btn-icon {
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+    color: #64748b !important;
 }
 

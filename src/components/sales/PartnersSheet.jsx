@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Search, Plus, Download, Edit2, Trash2, FileText, Menu,
-    X, Mail, Phone, Eye, Filter, MoreVertical, Loader, Wrench, Users
+    X, Mail, Phone, Eye, Filter, MoreVertical, Loader, Wrench, Users, PhoneCall, MapPin
 } from 'lucide-react';
 import Pagination from '../shared/Pagination';
 import AddCustomerModal from './AddCustomerModal';
@@ -9,6 +9,14 @@ import { API_URL } from '../../config/api';
 import * as XLSX from 'xlsx';
 import { formatPhoneInput, formatPhoneForDisplay } from '../../utils/phoneUtils';
 import './PartnersSheet.css';
+
+// Helper for initials badge
+const getCompanyInitials = (name) => {
+    if (!name) return 'ES';
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+};
 
 // Tabs definition
 const TABS = [
@@ -735,81 +743,121 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     </div>
                 ) : (
                     <div className="mobile-customer-cards">
-                        {sortedPartners.map(partner => (
-                            <div 
-                                key={partner._id} 
-                                className={`mobile-customer-card ${
-                                    partner.status === 'Different Sales Person' || partner.status === 'Not Interested'
-                                        ? 'low-priority'
-                                        : ''
-                                }`} 
-                                onClick={() => onSelectCustomer && onSelectCustomer(partner)}
-                            >
-                                <div className="card-header">
-                                    <h3 className="card-company-name">
-                                        {partner.company || partner.name || partner.contactName || '-'}
-                                    </h3>
-                                    <span className={`status-badge-pill ${partner.status?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
-                                        {partner.status || 'Active'}
-                                    </span>
-                                </div>
-                                <div className="card-meta-row">
-                                    <span className="card-meta-badge level-badge">
-                                        {partner.level || partner.segment || 'Level - 3'}
-                                    </span>
-                                    {showTypeColumn && (
-                                        <span className={`card-meta-badge type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
-                                            {partner.customerType || 'Fabricator'}
-                                        </span>
-                                    )}
-                                    {(partner.city || partner.address?.city) && (
-                                        <span className="card-meta-location">
-                                            📍 {partner.city || partner.address?.city}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="card-body">
-                                    {(partner.name || partner.contactName) && (
-                                        <div className="card-info-item">
-                                            <span className="info-label">Contact:</span>
-                                            <span className="info-value">{partner.name || partner.contactName}</span>
+                        {sortedPartners.map(partner => {
+                            const companyName = partner.company || partner.name || partner.contactName || 'Customer';
+                            const initials = getCompanyInitials(companyName);
+                            const contactName = (partner.name || partner.contactName) && (partner.name || partner.contactName) !== companyName ? (partner.name || partner.contactName) : null;
+                            const phone = partner.phone;
+                            const email = partner.email;
+                            const city = partner.city || partner.address?.city;
+
+                            return (
+                                <div 
+                                    key={partner._id} 
+                                    className={`mobile-customer-card ${
+                                        partner.status === 'Different Sales Person' || partner.status === 'Not Interested'
+                                            ? 'low-priority'
+                                            : ''
+                                    }`} 
+                                    onClick={() => onSelectCustomer && onSelectCustomer(partner)}
+                                >
+                                    {/* Top Header Row with Avatar & Company Info */}
+                                    <div className="mcc-header-row">
+                                        <div className="mcc-avatar">
+                                            {initials}
                                         </div>
-                                    )}
-                                    {partner.phone && (
-                                        <div className="card-info-item">
-                                            <span className="info-label">Phone:</span>
-                                            <a 
-                                                href={`tel:${partner.phone}`} 
-                                                className="info-value phone-link" 
-                                                onClick={(e) => e.stopPropagation()}
+                                        <div className="mcc-info">
+                                            <div className="mcc-title-bar">
+                                                <h3 className="mcc-company-name">{companyName}</h3>
+                                                <span className={`status-badge-pill ${partner.status?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+                                                    {partner.status || 'Active'}
+                                                </span>
+                                            </div>
+                                            {(contactName || phone) && (
+                                                <div className="mcc-sub-info">
+                                                    {contactName && <span className="mcc-contact-name">{contactName}</span>}
+                                                    {contactName && phone && <span className="mcc-dot">•</span>}
+                                                    {phone && (
+                                                        <a 
+                                                            href={`tel:${phone}`} 
+                                                            className="mcc-phone-link"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            {formatPhoneForDisplay(phone)}
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Meta Pills Row (Level, Location, Segment) */}
+                                    <div className="mcc-meta-pills">
+                                        <span className="card-meta-badge level-badge">
+                                            {partner.level || partner.segment || 'Level - 1'}
+                                        </span>
+                                        {showTypeColumn && (
+                                            <span className={`card-meta-badge type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
+                                                {partner.customerType || 'Fabricator'}
+                                            </span>
+                                        )}
+                                        {city && (
+                                            <span className="mcc-location-pill">
+                                                <MapPin size={11} /> {city}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Footer Quick Action Toolbar */}
+                                    <div className="mcc-action-bar" onClick={(e) => e.stopPropagation()}>
+                                        <div className="mcc-direct-actions">
+                                            {phone && (
+                                                <a 
+                                                    href={`tel:${phone}`} 
+                                                    className="mcc-quick-btn call"
+                                                    title={`Call ${companyName}`}
+                                                >
+                                                    <PhoneCall size={13} />
+                                                    <span>Call</span>
+                                                </a>
+                                            )}
+                                            {email && (
+                                                <a 
+                                                    href={`mailto:${email}`} 
+                                                    className="mcc-quick-btn email"
+                                                    title={`Email ${companyName}`}
+                                                >
+                                                    <Mail size={13} />
+                                                    <span>Email</span>
+                                                </a>
+                                            )}
+                                        </div>
+                                        <div className="mcc-tool-actions">
+                                            <button 
+                                                className="mcc-btn-view"
+                                                onClick={() => { setViewingPartner(partner); setShowAddModal(true); }}
                                             >
-                                                {formatPhoneForDisplay(partner.phone)}
-                                            </a>
+                                                <Eye size={13} /> View
+                                            </button>
+                                            <button 
+                                                className="mcc-btn-icon edit"
+                                                onClick={() => { setEditingPartner(partner); setShowAddModal(true); }}
+                                                title="Edit"
+                                            >
+                                                <Edit2 size={13} />
+                                            </button>
+                                            <button 
+                                                className="mcc-btn-icon delete"
+                                                onClick={() => handleDeletePartner(partner._id)}
+                                                title="Delete"
+                                            >
+                                                <Trash2 size={13} />
+                                            </button>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
-                                <div className="card-actions" onClick={(e) => e.stopPropagation()}>
-                                    <button 
-                                        className="card-action-btn view" 
-                                        onClick={() => { setViewingPartner(partner); setShowAddModal(true); }}
-                                    >
-                                        <Eye size={14} /> View
-                                    </button>
-                                    <button 
-                                        className="card-action-btn edit" 
-                                        onClick={() => { setEditingPartner(partner); setShowAddModal(true); }}
-                                    >
-                                        <Edit2 size={14} /> Edit
-                                    </button>
-                                    <button 
-                                        className="card-action-btn delete" 
-                                        onClick={() => handleDeletePartner(partner._id)}
-                                    >
-                                        <Trash2 size={14} /> Delete
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )
             ) : (
