@@ -13,7 +13,8 @@ export default defineConfig({
         name: 'Easy Stones Seattle',
         short_name: 'Easy Stones',
         description: 'Premium Stone Inventory & Sales',
-        theme_color: '#ffffff',
+        theme_color: '#000000',
+        background_color: '#000000',
         icons: [
           {
             src: 'logo.png',

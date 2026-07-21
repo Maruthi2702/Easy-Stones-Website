@@ -173,12 +173,28 @@ const PriceListPanel = ({ sidebarToggle }) => {
     // Handle editing cell values dynamically
     const handleCellChange = (colIdx, subIdx, itemIdx, field, value) => {
         setSheetData(prevData => {
-            const newData = JSON.parse(JSON.stringify(prevData));
-            if (field === 'price3cm' || field === 'price2cm') {
-                newData[colIdx].subgroups[subIdx][field] = value;
-            } else if (itemIdx !== null) {
-                newData[colIdx].subgroups[subIdx].items[itemIdx][field] = value;
-            }
+            const newData = prevData.map((col, cIdx) => {
+                if (cIdx !== colIdx) return col;
+                return {
+                    ...col,
+                    subgroups: col.subgroups.map((sub, sIdx) => {
+                        if (sIdx !== subIdx) return sub;
+                        if (field === 'price3cm' || field === 'price2cm') {
+                            return { ...sub, [field]: value };
+                        }
+                        if (itemIdx !== null) {
+                            return {
+                                ...sub,
+                                items: sub.items.map((item, iIdx) => {
+                                    if (iIdx !== itemIdx) return item;
+                                    return { ...item, [field]: value };
+                                })
+                            };
+                        }
+                        return sub;
+                    })
+                };
+            });
             try {
                 localStorage.setItem('cached_editable_pricelist', JSON.stringify(newData));
             } catch (e) {
@@ -191,8 +207,10 @@ const PriceListPanel = ({ sidebarToggle }) => {
     // Handle collection name editing
     const handleCollectionNameChange = (colIdx, value) => {
         setSheetData(prevData => {
-            const newData = JSON.parse(JSON.stringify(prevData));
-            newData[colIdx].collection = value;
+            const newData = prevData.map((col, cIdx) => {
+                if (cIdx !== colIdx) return col;
+                return { ...col, collection: value };
+            });
             try {
                 localStorage.setItem('cached_editable_pricelist', JSON.stringify(newData));
             } catch (e) {
