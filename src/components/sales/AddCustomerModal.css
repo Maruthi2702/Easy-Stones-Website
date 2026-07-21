@@ -274,3 +274,131 @@
 .margin-right-sm {
     margin-right: 0.5rem;
 }
+
+/* Premium Form Elements styling inside AddCustomerModal */
+.add-customer-modal input[type="text"],
+.add-customer-modal input[type="email"],
+.add-customer-modal input[type="tel"],
+.add-customer-modal select,
+.add-customer-modal textarea {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 0.7rem 0.85rem !important;
+    font-size: 0.9rem !important;
+    transition: all 0.25s ease !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.add-customer-modal select {
+    background-color: #1e1e1e !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23a1a1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E") !important;
+    background-position: right 0.75rem center !important;
+    background-repeat: no-repeat !important;
+    background-size: 1.25rem !important;
+    padding-right: 2.5rem !important;
+}
+
+.add-customer-modal input[type="text"]:focus,
+.add-customer-modal input[type="email"]:focus,
+.add-customer-modal input[type="tel"]:focus,
+.add-customer-modal select:focus,
+.add-customer-modal textarea:focus {
+    outline: none !important;
+    border-color: var(--accent-primary, #d4af37) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15) !important;
+}
+
+.add-customer-modal label {
+    font-size: 0.75rem !important;
+    font-weight: 650 !important;
+    color: #a1a1aa !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    margin-bottom: 0.4rem !important;
+    display: block !important;
+}
+
+/* Responsive adjustments for Mobile screens */
+@media (max-width: 768px) {
+    .add-customer-modal-overlay .add-customer-modal {
+        width: 95% !important;
+        max-width: 95% !important;
+        max-height: 90vh !important;
+        margin: auto !important;
+    }
+
+    .form-grid-2col {
+        grid-template-columns: 1fr !important;
+        gap: 0.75rem !important;
+    }
+
+    .form-grid-3col {
+        grid-template-columns: 1fr !important;
+        gap: 0.75rem !important;
+    }
+
+    .address-row-grid {
+        grid-template-columns: 1fr !important;
+        gap: 0.5rem !important;
+    }
+
+    .marketing-optin-label {
+        margin-top: 0.25rem !important;
+    }
+
+    .add-customer-modal-overlay .modal-body {
+        max-height: 60vh !important;
+        padding: 1.25rem 1rem !important;
+    }
+}
+
+/* Light theme overrides for AddCustomerModal */
+body.light-theme-active .add-customer-modal {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+}
+
+body.light-theme-active .add-customer-modal-overlay .modal-header,
+body.light-theme-active .add-customer-modal-overlay .modal-footer {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+}
+
+body.light-theme-active .add-customer-modal h2 {
+    color: #1e293b !important;
+}
+
+body.light-theme-active .add-customer-modal label {
+    color: #64748b !important;
+}
+
+body.light-theme-active .add-customer-modal input[type="text"],
+body.light-theme-active .add-customer-modal input[type="email"],
+body.light-theme-active .add-customer-modal input[type="tel"],
+body.light-theme-active .add-customer-modal select,
+body.light-theme-active .add-customer-modal textarea {
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    color: #1e293b !important;
+}
+
+body.light-theme-active .add-customer-modal select {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E") !important;
+}
+
+body.light-theme-active .add-customer-modal input[type="text"]:focus,
+body.light-theme-active .add-customer-modal input[type="email"]:focus,
+body.light-theme-active .add-customer-modal input[type="tel"]:focus,
+body.light-theme-active .add-customer-modal select:focus,
+body.light-theme-active .add-customer-modal textarea:focus {
+    border-color: #b89324 !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1) !important;
+}
