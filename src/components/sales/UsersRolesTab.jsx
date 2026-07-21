@@ -74,8 +74,75 @@ const PAGE_PERMISSIONS = [
 const ALL_PERMISSION_KEYS = PAGE_PERMISSIONS.flatMap(p => p.actions.map(a => a.key));
 
 
-const UsersRolesTab = ({ sidebarToggle }) => {
-    const [subTab, setSubTab] = useState('users'); // 'users' or 'roles'
+const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
+    const [subTab, setSubTab] = useState('users'); // 'users', 'roles', 'locations'
+    const [newLocationName, setNewLocationName] = useState('');
+    const [isAddingLocation, setIsAddingLocation] = useState(false);
+    const [locationError, setLocationError] = useState('');
+    const [locationSuccess, setLocationSuccess] = useState('');
+
+    useEffect(() => {
+        if (locationSuccess || locationError) {
+            const t = setTimeout(() => {
+                setLocationSuccess('');
+                setLocationError('');
+            }, 5000);
+            return () => clearTimeout(t);
+        }
+    }, [locationSuccess, locationError]);
+
+    const handleAddLocation = async (e) => {
+        e.preventDefault();
+        if (!newLocationName.trim()) return;
+
+        setIsAddingLocation(true);
+        setLocationError('');
+        setLocationSuccess('');
+
+        try {
+            const res = await fetchWithAuth(`${API_URL}/api/admin/locations`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newLocationName.trim() })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setLocationSuccess(`Location "${data.name}" added successfully!`);
+                setNewLocationName('');
+                if (fetchLocations) fetchLocations();
+            } else {
+                const data = await res.json();
+                setLocationError(data.message || 'Failed to add location');
+            }
+        } catch (err) {
+            console.error('Error adding location:', err);
+            setLocationError('Network error. Failed to add location.');
+        } finally {
+            setIsAddingLocation(false);
+        }
+    };
+
+    const handleDeleteLocation = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this location? Users assigned to this location might lose access.')) return;
+
+        try {
+            const res = await fetchWithAuth(`${API_URL}/api/admin/locations/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                setLocationSuccess('Location deleted successfully!');
+                if (fetchLocations) fetchLocations();
+            } else {
+                const data = await res.json();
+                setLocationError(data.message || 'Failed to delete location');
+            }
+        } catch (err) {
+            console.error('Error deleting location:', err);
+            setLocationError('Network error. Failed to delete location.');
+        }
+    };
 
     // Auth-aware fetch helper that passes credentials/cookies correctly
     const fetchWithAuth = (url, options = {}) => {
@@ -130,7 +197,7 @@ const UsersRolesTab = ({ sidebarToggle }) => {
         email: '',
         role: 'sales_rep',
         location: '',
-        assignedLocations: ['Seattle'],
+        assignedLocations: locations[0] ? [locations[0].name] : ['Seattle'],
         password: ''
     });
 
@@ -303,7 +370,7 @@ const UsersRolesTab = ({ sidebarToggle }) => {
             email: '',
             role: roles[0]?.name || 'sales_rep',
             location: '',
-            assignedLocations: ['Seattle'],
+            assignedLocations: locations[0] ? [locations[0].name] : ['Seattle'],
             password: ''
         });
         setEditingUser(null);
@@ -318,7 +385,7 @@ const UsersRolesTab = ({ sidebarToggle }) => {
             email: user.email || '',
             role: user.role || 'sales_rep',
             location: user.location || '',
-            assignedLocations: user.assignedLocations || ['Seattle'],
+            assignedLocations: user.assignedLocations || (locations[0] ? [locations[0].name] : ['Seattle']),
             password: '' // Keep password empty unless changing
         });
         setEditingUser(user);
@@ -425,6 +492,13 @@ const UsersRolesTab = ({ sidebarToggle }) => {
                     >
                         <ShieldAlert size={16} />
                         Roles & Permissions
+                    </button>
+                    <button 
+                        className={`sub-tab-btn ${subTab === 'locations' ? 'active' : ''}`}
+                        onClick={() => setSubTab('locations')}
+                    >
+                        <MapPin size={16} />
+                        Locations
                     </button>
                 </div>
             </div>
@@ -665,6 +739,89 @@ const UsersRolesTab = ({ sidebarToggle }) => {
                                     )}
                 </div>
             )}
+
+                    {/* ── SUB TAB 3: LOCATIONS MANAGEMENT ── */}
+                    {subTab === 'locations' && (
+                        <div className="locations-panel-layout">
+                            <div className="panel-actions-toolbar">
+                                <form onSubmit={handleAddLocation} className="add-location-form" style={{ display: 'flex', gap: '0.75rem', width: '100%', maxWidth: '500px' }}>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Add new location name (e.g. Portland)..." 
+                                        value={newLocationName}
+                                        onChange={(e) => setNewLocationName(e.target.value)}
+                                        required
+                                        style={{ flex: 1, padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-color, #cbd5e1)', background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #1e293b)' }}
+                                    />
+                                    <button type="submit" className="btn-primary" disabled={isAddingLocation} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '0.65rem 1.25rem', whiteSpace: 'nowrap' }}>
+                                        {isAddingLocation ? (
+                                            <div className="loader-spinner" style={{ width: '14px', height: '14px', border: '2px solid transparent', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                                        ) : (
+                                            <Plus size={16} />
+                                        )}
+                                        <span>Add Location</span>
+                                    </button>
+                                </form>
+                            </div>
+
+                            {locationError && (
+                                <div className="profile-message-banner error" style={{ margin: '1rem 0' }}>
+                                    <ShieldAlert size={16} />
+                                    <span>{locationError}</span>
+                                </div>
+                            )}
+
+                            {locationSuccess && (
+                                <div className="profile-message-banner success" style={{ margin: '1rem 0' }}>
+                                    <UserCheck size={16} />
+                                    <span>{locationSuccess}</span>
+                                </div>
+                            )}
+
+                            <div className="table-responsive-wrapper">
+                                <table className="crm-data-table unified-theme-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Location Name</th>
+                                            <th>Date Created</th>
+                                            <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {locations.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="3" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+                                                    No locations found. Add one above!
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            locations.map(loc => (
+                                                <tr key={loc._id}>
+                                                    <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{loc.name}</td>
+                                                    <td style={{ color: 'var(--text-secondary)' }}>
+                                                        {loc.createdAt ? new Date(loc.createdAt).toLocaleDateString() : 'System Seeded'}
+                                                    </td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                                                            <button 
+                                                                type="button"
+                                                                className="icon-action-btn delete"
+                                                                onClick={() => handleDeleteLocation(loc._id)}
+                                                                title="Delete Location"
+                                                                style={{ color: '#ef4444', padding: '6px', borderRadius: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                            >
+                                                                <Trash2 size={15} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -755,9 +912,7 @@ const UsersRolesTab = ({ sidebarToggle }) => {
                                     {showLocationDropdown && (
                                         <div className="multi-select-dropdown-list">
                                             {[
-                                                { key: 'Seattle', label: 'Seattle' },
-                                                { key: 'Spokane', label: 'Spokane' },
-                                                { key: 'Salt Lake City', label: 'Salt Lake City' },
+                                                ...locations.map(loc => ({ key: loc.name, label: loc.name })),
                                                 { key: '*', label: 'All Locations' }
                                             ].map(loc => {
                                                 const isChecked = userForm.assignedLocations?.includes(loc.key);
