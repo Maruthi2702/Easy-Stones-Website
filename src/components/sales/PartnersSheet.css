@@ -1028,9 +1028,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    margin-top: 0.1rem;
+    padding-top: 0.4rem;
+    margin-top: 0;
 }
 
 .mcc-direct-actions {
@@ -1445,11 +1444,6 @@ body.light-theme-active .mcc-location-pill,
     background: #f8fafc !important;
     border-color: #e2e8f0 !important;
     color: #64748b !important;
-}
-
-body.light-theme-active .mcc-action-bar,
-.light-theme .mcc-action-bar {
-    border-top-color: #f1f5f9 !important;
 }
 
 body.light-theme-active .mcc-btn-icon,
