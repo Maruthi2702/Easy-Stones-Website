@@ -499,6 +499,11 @@
   justify-content: center;
 }
 
+.header-tab svg {
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
 .header-tab:hover {
   color: #FFFFFF;
   background: rgba(255, 255, 255, 0.05);
@@ -900,16 +905,39 @@
   .header-tabs {
     width: 100%;
     justify-content: space-between;
-    gap: 0;
-    margin-top: 0.5rem;
-    border-bottom: none;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .header-tab {
     flex: 1;
-    text-align: center;
-    padding: 0.75rem 0;
-    font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 2px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 8px;
+    color: #9CA3AF;
+  }
+
+  .header-tab svg {
+    margin-right: 0 !important;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+  }
+
+  .header-tab.active {
+    color: #000000 !important;
+    background: #E5C04A !important;
+    font-weight: 600;
   }
 
   /* Visit Post Card mobile overrides */
