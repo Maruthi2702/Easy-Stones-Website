@@ -848,8 +848,7 @@
   }
 
   .modal-overlay {
-    padding-top: 96px;
-    /* Leave room for site header if stacking context fails */
+    padding-top: 0;
   }
 
   /* Mobile Header Adjustments */
@@ -4796,8 +4795,7 @@
 /* Modal Styles */
 .planner-modal-overlay {
   position: fixed;
-  top: 96px;
-  /* Position below main website header */
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;

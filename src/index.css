@@ -126,13 +126,28 @@ button {
   }
 }
 
-/* Global modal backdrop z-index override */
-.modal-overlay {
+/* Global modal backdrop z-index and centering override */
+.modal-overlay,
+.user-modal-overlay,
+.planner-modal-overlay,
+.selection-modal-overlay,
+.selection-email-modal-overlay,
+.tag-cropper-modal-overlay,
+.add-customer-modal-overlay {
+  top: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
   z-index: 2147483647 !important;
 }
 
 @media (max-width: 768px) {
-  .modal-overlay {
+  .modal-overlay,
+  .user-modal-overlay,
+  .planner-modal-overlay,
+  .selection-modal-overlay,
+  .selection-email-modal-overlay,
+  .tag-cropper-modal-overlay,
+  .add-customer-modal-overlay {
     padding-top: 0 !important;
     z-index: 2147483647 !important;
   }
