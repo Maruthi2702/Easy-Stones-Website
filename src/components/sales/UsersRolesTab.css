@@ -24,6 +24,14 @@
     padding: 0.25rem;
     border-radius: 30px;
     border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    scrollbar-width: none;
+}
+
+.tabs-capsule::-webkit-scrollbar {
+    display: none;
 }
 
 .sub-tab-btn {
@@ -39,6 +47,8 @@
     font-weight: 550;
     cursor: pointer;
     transition: all var(--transition-base, 0.2s ease);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .sub-tab-btn:hover {
@@ -800,26 +810,173 @@
 /* ── RESPONSIVE OVERRIDES ── */
 @media (max-width: 1024px) {
     .roles-panel-layout {
-        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .roles-sidebar-list {
+        width: 100%;
+    }
+
+    .roles-scroll-container {
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+        gap: 0.5rem;
+        padding-bottom: 0.5rem;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .roles-scroll-container::-webkit-scrollbar {
+        display: none;
+    }
+
+    .role-list-item {
+        flex-shrink: 0;
+        white-space: nowrap;
+        padding: 0.6rem 1rem;
+        border-radius: 20px;
     }
 }
 
 @media (max-width: 768px) {
+    .users-roles-header {
+        padding: 0.85rem 1rem;
+        gap: 0.75rem !important;
+    }
+
+    .sub-tab-content {
+        padding: 1rem;
+    }
+
     .panel-actions-toolbar {
         flex-direction: column;
         align-items: stretch;
+        gap: 0.75rem;
     }
     
     .search-input-wrapper {
+        width: 100%;
         max-width: 100%;
     }
-    
-    .sub-tab-content {
-        padding: 1.25rem;
+
+    .add-user-btn {
+        width: 100%;
+        justify-content: center;
     }
     
-    .users-roles-header {
-        padding: 1rem;
+    /* Mobile Responsive Card Table for Users */
+    .users-table-wrapper {
+        border-radius: 12px;
+        overflow: hidden;
+        border: none;
+        background: transparent;
+    }
+
+    .users-table thead {
+        display: none;
+    }
+
+    .users-table, 
+    .users-table tbody, 
+    .users-table tr, 
+    .users-table td {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .users-table tr {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        margin-bottom: 0.85rem;
+        padding: 0.85rem 1rem;
+    }
+
+    .users-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        text-align: right;
+        font-size: 0.875rem;
+    }
+
+    .users-table td:last-child {
+        border-bottom: none !important;
+    }
+
+    .users-table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: #94a3b8;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        text-align: left;
+    }
+
+    .users-table td.username-cell {
+        justify-content: flex-start;
+        gap: 0.75rem;
+        border-bottom: 1.5px solid rgba(255, 255, 255, 0.08);
+        padding-bottom: 0.75rem !important;
+        margin-bottom: 0.25rem;
+    }
+
+    .users-table td.username-cell::before {
+        display: none;
+    }
+
+    .action-buttons-cell {
+        justify-content: flex-end;
+        width: 100%;
+    }
+
+    .permissions-panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .save-permissions-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 500px) {
+    .page-permissions-grid {
+        grid-template-columns: 1fr;
+        padding: 0.75rem;
+        gap: 0.75rem;
+    }
+
+    .perm-popup-card {
+        width: 95% !important;
+        max-width: 95% !important;
+        max-height: 90vh !important;
+        border-radius: 16px;
+    }
+
+    .user-modal-card {
+        width: 95% !important;
+        max-width: 95% !important;
+        margin: auto !important;
+    }
+
+    .add-location-form {
+        flex-direction: column !important;
+        width: 100% !important;
+    }
+
+    .add-location-form input,
+    .add-location-form button {
+        width: 100% !important;
     }
 }
 

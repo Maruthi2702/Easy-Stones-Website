@@ -557,20 +557,20 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                         ) : (
                                             filteredUsers.map(u => (
                                                 <tr key={u._id}>
-                                                    <td className="username-cell">
+                                                    <td className="username-cell" data-label="Username">
                                                         <div className="avatar-small">
                                                             {u.username.substring(0, 2).toUpperCase()}
                                                         </div>
                                                         <span>{u.username}</span>
                                                     </td>
-                                                    <td>{u.email || '-'}</td>
-                                                    <td>
+                                                    <td data-label="Email">{u.email || '-'}</td>
+                                                    <td data-label="Role">
                                                         <span className={`role-badge ${u.role}`}>
                                                             {getRoleDisplayName(u.role)}
                                                         </span>
                                                     </td>
-                                                    <td>{u.location || '-'}</td>
-                                                    <td>
+                                                    <td data-label="Location">{u.location || '-'}</td>
+                                                    <td data-label="Actions">
                                                         <div className="action-buttons-cell">
                                                             <button 
                                                                 className="action-icon-btn edit" 

@@ -133,7 +133,8 @@ button {
 .selection-modal-overlay,
 .selection-email-modal-overlay,
 .tag-cropper-modal-overlay,
-.add-customer-modal-overlay {
+.add-customer-modal-overlay,
+.perm-popup-overlay {
   top: 0 !important;
   align-items: center !important;
   justify-content: center !important;
@@ -147,7 +148,8 @@ button {
   .selection-modal-overlay,
   .selection-email-modal-overlay,
   .tag-cropper-modal-overlay,
-  .add-customer-modal-overlay {
+  .add-customer-modal-overlay,
+  .perm-popup-overlay {
     padding-top: 0 !important;
     z-index: 2147483647 !important;
   }
