@@ -948,18 +948,33 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 0.4rem;
+    margin-top: 0.15rem;
 }
 
-.mcc-location-pill {
+.mcc-meta-pills .card-meta-badge,
+.mcc-meta-pills .mcc-location-pill {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.2rem 0.55rem;
+    padding: 0.18rem 0.5rem;
     border-radius: 6px;
+    font-size: 0.72rem !important;
+    font-weight: 600;
+    line-height: 1.2;
+    height: 22px;
+    box-sizing: border-box;
+}
+
+.mcc-meta-pills .level-badge {
+    background: rgba(212, 175, 55, 0.12);
+    color: #d4af37;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.mcc-meta-pills .mcc-location-pill {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: #a1a1aa;
-    font-size: 0.72rem;
     font-weight: 500;
 }
 
