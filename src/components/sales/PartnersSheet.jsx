@@ -834,11 +834,11 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                         </div>
                                         <div className="mcc-tool-actions">
                                             <button 
-                                                className="mcc-btn-view-details"
+                                                className="mcc-btn-view"
                                                 onClick={() => { setViewingPartner(partner); setShowAddModal(true); }}
                                             >
-                                                <FileText size={13} />
-                                                <span>View details</span>
+                                                <Eye size={14} />
+                                                <span>View</span>
                                             </button>
                                             <button 
                                                 className="mcc-btn-icon edit"
