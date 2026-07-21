@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Users, ShieldAlert, Plus, Edit2, Trash2, Search, 
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
@@ -458,15 +458,18 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     };
 
     // Filtered users
-    const filteredUsers = users.filter(user => {
-        const query = userSearch.toLowerCase();
-        return (
-            user.username.toLowerCase().includes(query) ||
-            (user.email && user.email.toLowerCase().includes(query)) ||
-            user.role.toLowerCase().includes(query) ||
-            (user.location && user.location.toLowerCase().includes(query))
-        );
-    });
+    const filteredUsers = useMemo(() => {
+        const query = (userSearch || '').trim().toLowerCase();
+        if (!query) return users;
+        return users.filter(user => {
+            return (
+                user.username.toLowerCase().includes(query) ||
+                (user.email && user.email.toLowerCase().includes(query)) ||
+                user.role.toLowerCase().includes(query) ||
+                (user.location && user.location.toLowerCase().includes(query))
+            );
+        });
+    }, [users, userSearch]);
 
     const getRoleDisplayName = (roleName) => {
         const role = roles.find(r => r.name === roleName);

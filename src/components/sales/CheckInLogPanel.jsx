@@ -21,7 +21,7 @@
  *  sidebarToggle   – ReactNode | null  (sidebar menu button for CRM mode)
  *  embedded        – bool  (true = CRM panel mode, false = full-page mode)
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Clock, Search, Download, Loader2, Calendar,
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
@@ -1105,19 +1105,23 @@ const CheckInLogPanel = ({
   };
 
   // Use prop if provided (accurate from DB), else compute from loaded page
-  const todayCount = todayCountProp !== null
-    ? todayCountProp
-    : checkIns.filter((c) => isToday(c.createdAt)).length;
+  const todayCount = useMemo(() => {
+    if (todayCountProp !== null) return todayCountProp;
+    return checkIns.filter((c) => isToday(c.createdAt)).length;
+  }, [checkIns, todayCountProp]);
 
-  const filtered = checkIns.filter((c) => {
-    const s = searchTerm.toLowerCase();
-    return (
-      (c.name || '').toLowerCase().includes(s) ||
-      (c.phone || '').toLowerCase().includes(s) ||
-      (c.fabricatorCompany || '').toLowerCase().includes(s) ||
-      (c.fabricatorName || '').toLowerCase().includes(s)
-    );
-  });
+  const filtered = useMemo(() => {
+    const s = (searchTerm || '').trim().toLowerCase();
+    if (!s) return checkIns;
+    return checkIns.filter((c) => {
+      return (
+        (c.name || '').toLowerCase().includes(s) ||
+        (c.phone || '').toLowerCase().includes(s) ||
+        (c.fabricatorCompany || '').toLowerCase().includes(s) ||
+        (c.fabricatorName || '').toLowerCase().includes(s)
+      );
+    });
+  }, [checkIns, searchTerm]);
 
   return (
     <div className={`clp-root ${embedded ? 'clp-embedded' : 'clp-page'} ${theme}-theme`}>
