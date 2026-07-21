@@ -963,6 +963,39 @@
     font-weight: 500;
 }
 
+/* ── Contact Details (2 Distinct Rows) ── */
+.mcc-contact-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.4rem 0 0.1rem;
+    margin-top: 0.15rem;
+    border-top: 1px dashed rgba(255, 255, 255, 0.07);
+}
+
+.mcc-detail-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.82rem;
+}
+
+.mcc-label {
+    color: var(--text-secondary, #9ca3af);
+    font-weight: 500;
+}
+
+.mcc-val {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.mcc-val.mcc-phone-link {
+    color: #d4af37;
+    text-decoration: underline;
+    text-decoration-style: dashed;
+}
+
 /* ── Footer Action Bar ── */
 .mcc-action-bar {
     display: flex;
@@ -1400,5 +1433,20 @@ body.light-theme-active .mcc-btn-icon,
     background: #f8fafc !important;
     border-color: #e2e8f0 !important;
     color: #64748b !important;
+}
+
+body.light-theme-active .mcc-contact-details,
+.light-theme .mcc-contact-details {
+    border-top-color: #e2e8f0 !important;
+}
+
+body.light-theme-active .mcc-label,
+.light-theme .mcc-label {
+    color: #64748b !important;
+}
+
+body.light-theme-active .mcc-val,
+.light-theme .mcc-val {
+    color: #1e293b !important;
 }
 

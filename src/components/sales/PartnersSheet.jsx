@@ -761,7 +761,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                     }`} 
                                     onClick={() => onSelectCustomer && onSelectCustomer(partner)}
                                 >
-                                    {/* Top Header Row with Avatar & Company Info */}
+                                    {/* Top Header Row with Avatar, Title & Level/City Badges */}
                                     <div className="mcc-header-row">
                                         <div className="mcc-avatar">
                                             {initials}
@@ -773,39 +773,45 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                                     {partner.status || 'Active'}
                                                 </span>
                                             </div>
-                                            {(contactName || phone) && (
-                                                <div className="mcc-sub-info">
-                                                    {contactName && <span className="mcc-contact-name">{contactName}</span>}
-                                                    {contactName && phone && <span className="mcc-dot">•</span>}
-                                                    {phone && (
-                                                        <a 
-                                                            href={`tel:${phone}`} 
-                                                            className="mcc-phone-link"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        >
-                                                            {formatPhoneForDisplay(phone)}
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            )}
+                                            {/* Meta Pills (Level, Segment, Location) beside/under Company Name */}
+                                            <div className="mcc-meta-pills">
+                                                <span className="card-meta-badge level-badge">
+                                                    {partner.level || partner.segment || 'Level - 1'}
+                                                </span>
+                                                {showTypeColumn && (
+                                                    <span className={`card-meta-badge type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
+                                                        {partner.customerType || 'Fabricator'}
+                                                    </span>
+                                                )}
+                                                {city && (
+                                                    <span className="mcc-location-pill">
+                                                        <MapPin size={11} /> {city}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* Meta Pills Row (Level, Location, Segment) */}
-                                    <div className="mcc-meta-pills">
-                                        <span className="card-meta-badge level-badge">
-                                            {partner.level || partner.segment || 'Level - 1'}
-                                        </span>
-                                        {showTypeColumn && (
-                                            <span className={`card-meta-badge type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
-                                                {partner.customerType || 'Fabricator'}
-                                            </span>
-                                        )}
-                                        {city && (
-                                            <span className="mcc-location-pill">
-                                                <MapPin size={11} /> {city}
-                                            </span>
-                                        )}
+                                    {/* 2 Distinct Rows for Contact Name and Phone Number */}
+                                    <div className="mcc-contact-details">
+                                        <div className="mcc-detail-row">
+                                            <span className="mcc-label">Contact:</span>
+                                            <span className="mcc-val">{contactName || partner.name || partner.contactName || 'N/A'}</span>
+                                        </div>
+                                        <div className="mcc-detail-row">
+                                            <span className="mcc-label">Phone:</span>
+                                            {phone ? (
+                                                <a 
+                                                    href={`tel:${phone}`} 
+                                                    className="mcc-val mcc-phone-link"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    {formatPhoneForDisplay(phone)}
+                                                </a>
+                                            ) : (
+                                                <span className="mcc-val text-muted">N/A</span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Footer Quick Action Toolbar */}
