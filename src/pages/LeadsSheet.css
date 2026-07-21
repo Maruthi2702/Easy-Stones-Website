@@ -182,7 +182,7 @@
     border-radius: 12px;
 }
 
-.form-group label {
+.leads-sheet-container .form-group label {
     display: block;
     font-size: 0.75rem;
     font-weight: 700;
@@ -192,9 +192,9 @@
     letter-spacing: 0.5px;
 }
 
-.form-group input, 
-.form-group select, 
-.form-group textarea {
+.leads-sheet-container .form-group input, 
+.leads-sheet-container .form-group select, 
+.leads-sheet-container .form-group textarea {
     width: 100%;
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -204,9 +204,9 @@
     font-size: 0.95rem;
 }
 
-.form-group input:focus, 
-.form-group select:focus, 
-.form-group textarea:focus {
+.leads-sheet-container .form-group input:focus, 
+.leads-sheet-container .form-group select:focus, 
+.leads-sheet-container .form-group textarea:focus {
     outline: none;
     border-color: var(--accent-primary);
     background: rgba(0, 0, 0, 0.3);

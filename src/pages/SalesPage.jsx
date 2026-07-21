@@ -1069,8 +1069,12 @@ const SalesPage = () => {
 
     // Sidebar State
     const [isPinned, setIsPinned] = useState(() => {
-        const saved = localStorage.getItem('sidebarPinned');
-        return saved !== null ? JSON.parse(saved) : true;
+        try {
+            const saved = localStorage.getItem('sidebarPinned');
+            return saved !== null ? JSON.parse(saved) : true;
+        } catch (e) {
+            return true;
+        }
     });
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const saved = localStorage.getItem('sidebarWidth');
