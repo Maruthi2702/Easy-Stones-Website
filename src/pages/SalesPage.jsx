@@ -91,6 +91,7 @@ const SalesPage = () => {
     const [customers, setCustomers] = useState([]);
     const [customerRefreshTrigger, setCustomerRefreshTrigger] = useState(0);
     const [resourceRefreshTrigger, setResourceRefreshTrigger] = useState(0);
+    const [locations, setLocations] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -171,6 +172,22 @@ const SalesPage = () => {
         }
     };
 
+    async function fetchLocations() {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/api/admin/locations`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setLocations(data);
+            }
+        } catch (error) {
+            console.error('❌ [FETCH] Error fetching locations:', error);
+        }
+    }
+
     useEffect(() => {
         const socket = io(API_URL || window.location.origin, {
             withCredentials: true
@@ -187,6 +204,12 @@ const SalesPage = () => {
         socket.on('resource_update', () => {
             setResourceRefreshTrigger(prev => prev + 1);
         });
+
+        socket.on('location_update', () => {
+            fetchLocations();
+        });
+
+        fetchLocations();
 
         return () => {
             socket.disconnect();
@@ -3004,6 +3027,7 @@ const SalesPage = () => {
                 onView={handleViewCheckIn}
                 onEdit={handleEditCheckIn}
                 onDelete={handleDeleteCheckIn}
+                locations={locations}
             />
         );
     };
@@ -3153,7 +3177,11 @@ const SalesPage = () => {
         ) : null;
 
         return (
-            <UsersRolesTab sidebarToggle={sidebarToggle} />
+            <UsersRolesTab 
+                sidebarToggle={sidebarToggle} 
+                locations={locations}
+                fetchLocations={fetchLocations}
+            />
         );
     };
 
@@ -5215,9 +5243,17 @@ const SalesPage = () => {
                                                 onChange={(e) => setCheckInForm({ ...checkInForm, location: e.target.value })}
                                                 style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', outline: 'none' }}
                                             >
-                                                <option value="Seattle">Seattle</option>
-                                                <option value="Spokane">Spokane</option>
-                                                <option value="Salt Lake City">Salt Lake City</option>
+                                                {locations.length > 0 ? (
+                                                    locations.map(loc => (
+                                                        <option key={loc._id || loc.name} value={loc.name}>{loc.name}</option>
+                                                    ))
+                                                ) : (
+                                                    <>
+                                                        <option value="Seattle">Seattle</option>
+                                                        <option value="Spokane">Spokane</option>
+                                                        <option value="Salt Lake City">Salt Lake City</option>
+                                                    </>
+                                                )}
                                             </select>
                                         )}
                                     </div>

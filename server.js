@@ -22,6 +22,7 @@ import compression from 'compression';
 import Product from './src/models/Product.js';
 import User from './src/models/User.js';
 import Role from './src/models/Role.js';
+import Location from './src/models/Location.js';
 import ContactSubmission from './src/models/ContactSubmission.js';
 import Customer from './src/models/Customer.js';
 import SalesResource from './src/models/SalesResource.js';
@@ -318,6 +319,21 @@ async function startServer() {
       }
     } catch (migError) {
       console.error('Error running roles permissions migration:', migError);
+    }
+    // Database seeding: Default Locations
+    try {
+      const locationCount = await Location.countDocuments();
+      if (locationCount === 0) {
+        const defaultLocs = [
+          { name: 'Seattle' },
+          { name: 'Spokane' },
+          { name: 'Salt Lake City' }
+        ];
+        await Location.insertMany(defaultLocs);
+        console.log('✅ Default locations seeded successfully');
+      }
+    } catch (locError) {
+      console.error('Error seeding default locations:', locError);
     }
     // Kiosk users are managed dynamically by the administrator via the dashboard, no auto-seeding required.
     // Seed standard Roles & Permissions
@@ -1013,6 +1029,67 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'
     res.json({ message: 'Role deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete role', error: error.message });
+  }
+});
+
+// ============================================
+// DYNAMIC LOCATION MANAGEMENT ENDPOINTS
+// ============================================
+
+// Get all locations (authenticated staff or kiosks can view)
+app.get('/api/admin/locations', verifyAnyAuth, async (req, res) => {
+  try {
+    const locations = await Location.find().sort({ name: 1 });
+    res.json(locations);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch locations', error: error.message });
+  }
+});
+
+// Create a new location (manage_users permission needed)
+app.post('/api/admin/locations', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Location name is required' });
+    }
+
+    const cleanName = name.trim();
+    // Case-insensitive duplicate check
+    const existing = await Location.findOne({ name: { $regex: new RegExp(`^${cleanName}$`, 'i') } });
+    if (existing) {
+      return res.status(400).json({ message: 'Location already exists' });
+    }
+
+    const location = new Location({ name: cleanName });
+    await location.save();
+    
+    // Emit websocket update so frontend updates dynamically
+    req.app.get('io').emit('location_update');
+    
+    res.status(201).json(location);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to create location', error: error.message });
+  }
+});
+
+// Delete a location (manage_users permission needed)
+app.delete('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+  try {
+    const locationId = req.params.id;
+    const location = await Location.findById(locationId);
+    if (!location) {
+      return res.status(404).json({ message: 'Location not found' });
+    }
+
+    await Location.findByIdAndDelete(locationId);
+    
+    // Emit websocket update so frontend updates dynamically
+    req.app.get('io').emit('location_update');
+    
+    res.json({ message: 'Location deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete location', error: error.message });
   }
 });
 

@@ -36,7 +36,7 @@ const VisitModal = ({
     };
 
     const renderAddEditModal = () => (
-        <div className="modal-overlay" onClick={handleCloseVisitModal}>
+        <div className="modal-overlay visit-modal-overlay" onClick={handleCloseVisitModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                     <h2>{editingVisit ? 'Edit Visit' : 'Add Visit'}</h2>
@@ -198,7 +198,7 @@ const VisitModal = ({
     );
 
     const renderViewModal = () => (
-        <div className="modal-overlay" onClick={handleCloseVisitModal}>
+        <div className="modal-overlay visit-modal-overlay" onClick={handleCloseVisitModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                     <h2>Visit Details</h2>

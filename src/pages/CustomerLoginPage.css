@@ -4,6 +4,8 @@
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  padding-top: calc(96px + 2rem);
+  box-sizing: border-box;
   background: var(--bg-primary);
 }
 

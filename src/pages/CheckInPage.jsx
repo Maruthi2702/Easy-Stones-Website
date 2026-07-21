@@ -89,18 +89,18 @@ const CheckInPage = () => {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
 
-  const AVAILABLE_LOCATIONS = ['Seattle', 'Spokane', 'Salt Lake City'];
+  const [availableLocations, setAvailableLocations] = useState(['Seattle', 'Spokane', 'Salt Lake City']);
   
   const hasMultipleLocations = user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1);
   
   const allowedLocations = user?.assignedLocations?.includes('*')
-    ? AVAILABLE_LOCATIONS
-    : AVAILABLE_LOCATIONS.filter(loc => user?.assignedLocations?.includes(loc));
+    ? availableLocations
+    : availableLocations.filter(loc => user?.assignedLocations?.includes(loc));
 
   const [selectedLocation, setSelectedLocation] = useState(() => {
     try {
       const saved = localStorage.getItem('kiosk_location');
-      if (saved && AVAILABLE_LOCATIONS.includes(saved)) {
+      if (saved && ['Seattle', 'Spokane', 'Salt Lake City'].includes(saved)) {
         if (!user || user.assignedLocations?.includes('*') || user.assignedLocations?.includes(saved)) {
           return saved;
         }
@@ -109,13 +109,46 @@ const CheckInPage = () => {
     
     if (user?.assignedLocations) {
       const primaryLoc = user.assignedLocations.find(l => l !== '*');
-      if (primaryLoc && AVAILABLE_LOCATIONS.includes(primaryLoc)) {
+      if (primaryLoc && ['Seattle', 'Spokane', 'Salt Lake City'].includes(primaryLoc)) {
         return primaryLoc;
       }
     }
     
     return 'Seattle';
   });
+
+  useEffect(() => {
+    const loadLocations = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/admin/locations`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) {
+            const locNames = data.map(l => l.name);
+            setAvailableLocations(locNames);
+            
+            setSelectedLocation(prev => {
+              if (locNames.includes(prev)) {
+                if (!user || user.assignedLocations?.includes('*') || user.assignedLocations?.includes(prev)) {
+                  return prev;
+                }
+              }
+              if (user?.assignedLocations) {
+                const primaryLoc = user.assignedLocations.find(l => l !== '*');
+                if (primaryLoc && locNames.includes(primaryLoc)) {
+                  return primaryLoc;
+                }
+              }
+              return locNames[0] || 'Seattle';
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load locations, using defaults:', err);
+      }
+    };
+    loadLocations();
+  }, [user]);
 
   useEffect(() => {
     if (selectedLocation) {
@@ -137,7 +170,7 @@ const CheckInPage = () => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const locParam = urlParams.get('location');
-      if (locParam && AVAILABLE_LOCATIONS.includes(locParam)) {
+      if (locParam && availableLocations.includes(locParam)) {
         if (!user || user.assignedLocations?.includes('*') || user.assignedLocations?.includes(locParam)) {
           localStorage.setItem('kiosk_location', locParam);
           setSelectedLocation(locParam);

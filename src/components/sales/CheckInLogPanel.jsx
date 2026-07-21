@@ -342,6 +342,7 @@ const CheckInLogPanel = ({
   onToggleTheme = null,
   filterLocation = null,
   onFilterLocationChange = null,
+  locations = [],
 }) => {
   const { user } = useAuth();
   const hasEditPermission = !user || user.permissions?.includes('manage_checkins');
@@ -1199,9 +1200,17 @@ const CheckInLogPanel = ({
                           {user.assignedLocations?.includes('*') ? (
                             <>
                               <option value="">All Locations</option>
-                              <option value="Seattle">Seattle</option>
-                              <option value="Spokane">Spokane</option>
-                              <option value="Salt Lake City">Salt Lake City</option>
+                              {locations.length > 0 ? (
+                                locations.map(loc => (
+                                  <option key={loc._id || loc.name} value={loc.name}>{loc.name}</option>
+                                ))
+                              ) : (
+                                <>
+                                  <option value="Seattle">Seattle</option>
+                                  <option value="Spokane">Spokane</option>
+                                  <option value="Salt Lake City">Salt Lake City</option>
+                                </>
+                              )}
                             </>
                           ) : (
                             <>
