@@ -126,7 +126,7 @@ button {
   }
 }
 
-/* Global modal backdrop z-index and centering override */
+/* Global modal backdrop z-index, fixed positioning, and centering override */
 .modal-overlay,
 .user-modal-overlay,
 .planner-modal-overlay,
@@ -135,10 +135,18 @@ button {
 .tag-cropper-modal-overlay,
 .add-customer-modal-overlay,
 .perm-popup-overlay {
+  position: fixed !important;
   top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   z-index: 2147483647 !important;
+  box-sizing: border-box !important;
 }
 
 @media (max-width: 768px) {
@@ -150,6 +158,13 @@ button {
   .tag-cropper-modal-overlay,
   .add-customer-modal-overlay,
   .perm-popup-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
     padding-top: 0 !important;
     z-index: 2147483647 !important;
   }
