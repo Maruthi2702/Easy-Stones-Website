@@ -837,10 +837,10 @@
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 0.9rem 1rem;
+    padding: 0.85rem 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.35rem !important;
     transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
     cursor: pointer;
 }
@@ -865,8 +865,9 @@
     justify-content: space-between;
     align-items: flex-start;
     gap: 0.5rem;
-    padding-bottom: 0.35rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
+    border-bottom: none !important;
 }
 
 .mobile-customer-card .card-company-name {

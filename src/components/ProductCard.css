@@ -156,7 +156,7 @@
   background: linear-gradient(180deg, rgba(4, 6, 17, 0.85) 0%, rgba(4, 6, 17, 0.6) 100%);
 }
 
-.card-header {
+.product-card .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
