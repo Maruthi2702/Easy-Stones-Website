@@ -744,20 +744,22 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                     {subTab === 'locations' && (
                         <div className="locations-panel-layout">
                             <div className="panel-actions-toolbar">
-                                <form onSubmit={handleAddLocation} className="add-location-form" style={{ display: 'flex', gap: '0.75rem', width: '100%', maxWidth: '500px' }}>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Add new location name (e.g. Portland)..." 
-                                        value={newLocationName}
-                                        onChange={(e) => setNewLocationName(e.target.value)}
-                                        required
-                                        style={{ flex: 1, padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-color, #cbd5e1)', background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #1e293b)' }}
-                                    />
-                                    <button type="submit" className="btn-primary" disabled={isAddingLocation} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '0.65rem 1.25rem', whiteSpace: 'nowrap' }}>
+                                <form onSubmit={handleAddLocation} className="add-location-form" style={{ display: 'flex', gap: '1rem', width: '100%', maxWidth: '560px' }}>
+                                    <div className="search-input-wrapper" style={{ flex: 1, maxWidth: 'none' }}>
+                                        <MapPin className="search-icon" size={18} />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Add new location name (e.g. Portland, Salt Lake City)..." 
+                                            value={newLocationName}
+                                            onChange={(e) => setNewLocationName(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <button type="submit" className="add-user-btn" disabled={isAddingLocation} style={{ whiteSpace: 'nowrap' }}>
                                         {isAddingLocation ? (
-                                            <div className="loader-spinner" style={{ width: '14px', height: '14px', border: '2px solid transparent', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                                            <div className="loader-spinner" style={{ width: '16px', height: '16px', border: '2px solid transparent', borderTopColor: '#0f172a', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
                                         ) : (
-                                            <Plus size={16} />
+                                            <Plus size={18} />
                                         )}
                                         <span>Add Location</span>
                                     </button>
@@ -765,21 +767,21 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                             </div>
 
                             {locationError && (
-                                <div className="profile-message-banner error" style={{ margin: '1rem 0' }}>
+                                <div className="profile-message-banner error">
                                     <ShieldAlert size={16} />
                                     <span>{locationError}</span>
                                 </div>
                             )}
 
                             {locationSuccess && (
-                                <div className="profile-message-banner success" style={{ margin: '1rem 0' }}>
+                                <div className="profile-message-banner success">
                                     <UserCheck size={16} />
                                     <span>{locationSuccess}</span>
                                 </div>
                             )}
 
-                            <div className="table-responsive-wrapper">
-                                <table className="crm-data-table unified-theme-table">
+                            <div className="users-table-wrapper">
+                                <table className="users-table">
                                     <thead>
                                         <tr>
                                             <th>Location Name</th>
@@ -790,27 +792,36 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                     <tbody>
                                         {locations.length === 0 ? (
                                             <tr>
-                                                <td colSpan="3" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+                                                <td colSpan="3" className="empty-table-row">
                                                     No locations found. Add one above!
                                                 </td>
                                             </tr>
                                         ) : (
                                             locations.map(loc => (
                                                 <tr key={loc._id}>
-                                                    <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{loc.name}</td>
-                                                    <td style={{ color: 'var(--text-secondary)' }}>
-                                                        {loc.createdAt ? new Date(loc.createdAt).toLocaleDateString() : 'System Seeded'}
+                                                    <td>
+                                                        <div className="username-cell">
+                                                            <div className="avatar-small location-avatar">
+                                                                <MapPin size={16} />
+                                                            </div>
+                                                            <span style={{ fontWeight: 650, color: '#ffffff', fontSize: '0.98rem' }}>{loc.name}</span>
+                                                        </div>
                                                     </td>
                                                     <td>
-                                                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '0.88rem' }}>
+                                                            <Clock size={14} style={{ opacity: 0.7 }} />
+                                                            <span>{loc.createdAt ? new Date(loc.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'System Seeded'}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="action-buttons-cell" style={{ justifyContent: 'center' }}>
                                                             <button 
                                                                 type="button"
-                                                                className="icon-action-btn delete"
+                                                                className="action-icon-btn delete"
                                                                 onClick={() => handleDeleteLocation(loc._id)}
                                                                 title="Delete Location"
-                                                                style={{ color: '#ef4444', padding: '6px', borderRadius: '6px', background: 'transparent', border: 'none', cursor: 'pointer' }}
                                                             >
-                                                                <Trash2 size={15} />
+                                                                <Trash2 size={16} />
                                                             </button>
                                                         </div>
                                                     </td>

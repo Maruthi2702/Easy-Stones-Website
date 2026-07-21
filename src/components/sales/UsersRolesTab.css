@@ -267,6 +267,12 @@
     background: linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(212, 175, 55, 0.08) 100%);
 }
 
+.avatar-small.location-avatar {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(59, 130, 246, 0.15) 100%);
+    border-color: rgba(212, 175, 55, 0.4);
+    color: #e5c04a;
+}
+
 .role-badge {
     padding: 0.35rem 0.85rem;
     border-radius: 30px;
