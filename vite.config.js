@@ -10,7 +10,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'logo.png'],
       manifest: {
-        name: 'Easy Stones Seattle',
+        name: 'Easy Stones',
         short_name: 'Easy Stones',
         description: 'Premium Stone Inventory & Sales',
         theme_color: '#000000',
