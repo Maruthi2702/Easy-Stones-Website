@@ -2,7 +2,7 @@
   display: flex;
   height: 100vh;
   width: 100%;
-  padding-top: 96px;
+  padding-top: 82px;
   background: var(--bg-primary);
   overflow: hidden;
   position: static !important;
@@ -23,7 +23,7 @@
   flex-direction: column;
   position: fixed;
   left: 0;
-  top: 96px;
+  top: 82px;
   bottom: 0;
   z-index: 95;
   /* Keep above overlay backdrop (90) */
@@ -51,7 +51,7 @@
 
 .sidebar-overlay-backdrop {
   position: fixed;
-  top: 96px;
+  top: 82px;
   left: 0;
   right: 0;
   bottom: 0;
@@ -401,7 +401,7 @@
   padding: 0;
   overflow: hidden;
   /* Changed from auto to prevent double scrollbars */
-  height: calc(100vh - 96px);
+  height: calc(100vh - 82px);
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -845,7 +845,7 @@
 @media (max-width: 1024px) {
   .sales-container {
     flex-direction: column;
-    padding-top: 96px;
+    padding-top: 82px;
     height: 100vh;
     /* Fill viewport */
     overflow: hidden;
@@ -968,10 +968,10 @@
   /* Mobile: Sidebar (Master View) */
   .sales-sidebar {
     position: fixed;
-    top: 96px;
+    top: 82px;
     left: 0;
     width: 100%;
-    height: calc(100vh - 96px);
+    height: calc(100vh - 82px);
     z-index: 100;
     background: var(--bg-primary);
     /* Solid bg */
