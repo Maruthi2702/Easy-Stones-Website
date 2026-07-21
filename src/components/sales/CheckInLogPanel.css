@@ -71,6 +71,8 @@
 .clp-header-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.65rem;
 }
 
@@ -176,6 +178,7 @@
 
 .clp-export-btn,
 .clp-checkin-btn {
+  flex-shrink: 0;
   background: linear-gradient(135deg, #d4af37, #b8961f);
   color: #000;
   border-color: transparent;
@@ -278,7 +281,8 @@
 /* ── Search ── */
 .clp-search-wrap {
   position: relative;
-  width: 240px;
+  width: clamp(160px, 20vw, 240px);
+  flex-shrink: 1;
 }
 
 .clp-search-icon {
@@ -1932,20 +1936,23 @@ table.clp-table {
    ========================================================================== */
 
 /* Root and main background wrapper */
-.clp-root.light-theme {
+.clp-root.light-theme,
+body.light-theme-active .clp-root {
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 40%, #e8edf5 100%) !important;
   color: #0f172a !important;
 }
 
 /* Header Text elements */
-.clp-root.light-theme .clp-title {
+.clp-root.light-theme .clp-title,
+body.light-theme-active .clp-root .clp-title {
   background: linear-gradient(135deg, #1e293b 60%, #92742a) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   background-clip: text !important;
 }
 
-.clp-root.light-theme .clp-subtitle {
+.clp-root.light-theme .clp-subtitle,
+body.light-theme-active .clp-root .clp-subtitle {
   color: #64748b !important;
 }
 
