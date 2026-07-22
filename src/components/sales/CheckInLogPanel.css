@@ -777,22 +777,15 @@ table.clp-table {
     gap: 0.5rem !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
-  }
-
-  .clp-header-top-row {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    width: 100% !important;
-    gap: 0.5rem !important;
+    position: relative !important;
   }
 
   .clp-header-left {
     display: flex !important;
     align-items: center !important;
     gap: 0.5rem !important;
+    width: calc(100% - 110px) !important;
     min-width: 0 !important;
-    flex: 1 !important;
   }
 
   .clp-title {
@@ -807,8 +800,20 @@ table.clp-table {
     display: none !important;
   }
 
-  .clp-header-top-row .clp-checkin-btn {
-    flex-shrink: 0 !important;
+  .clp-header-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+    margin-top: 0 !important;
+    justify-content: space-between !important;
+  }
+
+  .clp-header-actions .clp-checkin-btn {
+    position: absolute !important;
+    top: 1rem !important;
+    right: 1rem !important;
     height: 34px !important;
     padding: 0 0.85rem !important;
     font-size: 0.78rem !important;
@@ -819,22 +824,13 @@ table.clp-table {
     font-weight: 700 !important;
     border: none !important;
     box-shadow: 0 3px 12px rgba(212, 175, 55, 0.25) !important;
+    flex-shrink: 0 !important;
   }
 
-  .clp-header-top-row .clp-checkin-btn:hover {
+  .clp-header-actions .clp-checkin-btn:hover {
     background: linear-gradient(135deg, #fbbf24 0%, #d4af37 100%) !important;
     transform: translateY(-1px) !important;
     box-shadow: 0 5px 16px rgba(212, 175, 55, 0.35) !important;
-  }
-
-  .clp-header-actions {
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    gap: 0.5rem !important;
-    width: 100% !important;
-    margin-top: 0 !important;
-    justify-content: space-between !important;
   }
 
   .clp-search-wrap {

@@ -1130,38 +1130,20 @@ const CheckInLogPanel = ({
       {!embedded && <div className="clp-hero-bg" />}
 
       <div className={embedded ? 'clp-panel-header' : 'clp-page-header'}>
-        <div className="clp-header-top-row">
-          <div className="clp-header-left">
-            {sidebarToggle}
-            <div className="clp-icon-wrap">
-              <Clock size={embedded ? 18 : 22} />
-            </div>
-            <div>
-              <h1 className="clp-title">Visitor Check-In Log</h1>
-              <p className="clp-subtitle">
-                Live tracking of clients and fabricators visiting the office
-                {lastUpdated && (
-                  <span className="clp-updated"> · Updated {formatLastUpdated(lastUpdated)}</span>
-                )}
-              </p>
-            </div>
+        <div className="clp-header-left">
+          {sidebarToggle}
+          <div className="clp-icon-wrap">
+            <Clock size={embedded ? 18 : 22} />
           </div>
-
-          <a
-            href={
-              filterLocation 
-                ? `/checkin?location=${encodeURIComponent(filterLocation)}`
-                : user?.assignedLocations?.find(l => l !== '*')
-                  ? `/checkin?location=${encodeURIComponent(user.assignedLocations.find(l => l !== '*'))}`
-                  : '/checkin'
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-            className="clp-checkin-btn"
-          >
-            <Plus size={14} />
-            <span>Check-In</span>
-          </a>
+          <div>
+            <h1 className="clp-title">Visitor Check-In Log</h1>
+            <p className="clp-subtitle">
+              Live tracking of clients and fabricators visiting the office
+              {lastUpdated && (
+                <span className="clp-updated"> · Updated {formatLastUpdated(lastUpdated)}</span>
+              )}
+            </p>
+          </div>
         </div>
 
         <div className="clp-header-actions">
@@ -1313,6 +1295,22 @@ const CheckInLogPanel = ({
               )}
             </div>
           )}
+
+          <a
+            href={
+              filterLocation 
+                ? `/checkin?location=${encodeURIComponent(filterLocation)}`
+                : user?.assignedLocations?.find(l => l !== '*')
+                  ? `/checkin?location=${encodeURIComponent(user.assignedLocations.find(l => l !== '*'))}`
+                  : '/checkin'
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            className="clp-checkin-btn"
+          >
+            <Plus size={14} />
+            <span>Check-In</span>
+          </a>
 
           {onExport && (
             <button className="clp-export-btn" onClick={onExport}>
