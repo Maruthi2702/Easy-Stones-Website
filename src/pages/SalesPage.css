@@ -3022,9 +3022,10 @@
   flex-direction: column !important;
   align-items: flex-start !important;
   gap: 6px !important;
-  padding: 0.9rem 1.15rem !important;
+  padding: 0.95rem 1.25rem !important;
   border-radius: 12px !important;
   box-sizing: border-box !important;
+  transition: all 0.2s ease !important;
 }
 
 .post-detail-row .detail-label {
@@ -3032,54 +3033,63 @@
   letter-spacing: 0.08em !important;
   font-size: 0.8rem !important;
   text-transform: uppercase !important;
+  margin-bottom: 2px !important;
 }
 
 .post-detail-row .detail-value {
-  color: #f8fafc !important;
+  color: #ffffff !important;
   font-size: 0.95rem !important;
   line-height: 1.6 !important;
-  font-weight: 450 !important;
+  font-weight: 400 !important;
+  border-bottom: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
 }
 
-/* 1. OUTCOME (Emerald Green) */
+/* 1. OUTCOME (Emerald Green with Left Accent Bar) */
 .post-detail-row.outcome {
-  background: rgba(16, 185, 129, 0.06) !important;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.09) 0%, rgba(16, 185, 129, 0.03) 100%) !important;
   border: 1px solid rgba(16, 185, 129, 0.28) !important;
-  box-shadow: inset 0 0 15px rgba(16, 185, 129, 0.02) !important;
+  border-left: 4px solid #10b981 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), inset 0 0 15px rgba(16, 185, 129, 0.03) !important;
 }
 
 .post-detail-row.outcome .detail-label {
   color: #10b981 !important;
 }
 
-/* 2. FOLLOW UP (Royal Blue) */
+/* 2. FOLLOW UP (Royal Blue with Left Accent Bar) */
 .post-detail-row.follow-up {
-  background: rgba(59, 130, 246, 0.06) !important;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.09) 0%, rgba(59, 130, 246, 0.03) 100%) !important;
   border: 1px solid rgba(59, 130, 246, 0.28) !important;
-  box-shadow: inset 0 0 15px rgba(59, 130, 246, 0.02) !important;
+  border-left: 4px solid #3b82f6 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), inset 0 0 15px rgba(59, 130, 246, 0.03) !important;
 }
 
 .post-detail-row.follow-up .detail-label {
   color: #60a5fa !important;
 }
 
-/* 3. NEXT STEPS (Sky Blue) */
+/* 3. NEXT STEPS (Sky Blue with Left Accent Bar) */
 .post-detail-row.next-action {
-  background: rgba(14, 165, 233, 0.06) !important;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.09) 0%, rgba(14, 165, 233, 0.03) 100%) !important;
   border: 1px solid rgba(14, 165, 233, 0.28) !important;
-  box-shadow: inset 0 0 15px rgba(14, 165, 233, 0.02) !important;
+  border-left: 4px solid #0ea5e9 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), inset 0 0 15px rgba(14, 165, 233, 0.03) !important;
 }
 
 .post-detail-row.next-action .detail-label {
   color: #38bdf8 !important;
 }
 
-/* 4. MANAGER & HQ COMMENTS (Rose Red) */
+/* 4. MANAGER & HQ COMMENTS (Rose Red with Left Accent Bar) */
 .post-detail-row.manager-comment,
 .post-detail-row.hq-comment {
-  background: rgba(239, 68, 68, 0.06) !important;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.09) 0%, rgba(239, 68, 68, 0.03) 100%) !important;
   border: 1px solid rgba(239, 68, 68, 0.28) !important;
-  box-shadow: inset 0 0 15px rgba(239, 68, 68, 0.02) !important;
+  border-left: 4px solid #ef4444 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), inset 0 0 15px rgba(239, 68, 68, 0.03) !important;
 }
 
 .post-detail-row.manager-comment .detail-label,
