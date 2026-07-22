@@ -1133,9 +1133,6 @@ const CheckInLogPanel = ({
         <div className="clp-header-left">
           <div className="clp-header-brand">
             {sidebarToggle}
-            <div className="clp-icon-wrap">
-              <Clock size={embedded ? 18 : 22} />
-            </div>
             <div className="clp-title-wrap">
               <h1 className="clp-title">Visitor Check-In Log</h1>
               <p className="clp-subtitle">

@@ -90,7 +90,7 @@
 }
 
 .clp-title {
-  font-size: 1.35rem;
+  font-size: 1.6rem;
   font-weight: 800;
   margin: 0 0 0.2rem;
   letter-spacing: -0.02em;
@@ -867,7 +867,7 @@ table.clp-table {
   }
 
   .clp-title {
-    font-size: 1.25rem !important;
+    font-size: 1.4rem !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
@@ -932,7 +932,7 @@ table.clp-table {
   }
 
   .clp-title {
-    font-size: 0.95rem !important;
+    font-size: 1.15rem !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
