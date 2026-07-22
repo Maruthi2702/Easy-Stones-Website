@@ -2835,191 +2835,182 @@
   padding-bottom: 50px;
 }
 
-/* Visit Card - Premium Visual Design */
+/* Visit Card - Executive Feed & Reaction Bar Style (Concept B) */
 .visit-post-card {
-  padding: 1.5rem;
-  background: #1E1E22;
-  /* Elevated dark grey background */
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  /* Clear border separation */
-  border-radius: 12px;
+  padding: 1.35rem 1.5rem;
+  background: linear-gradient(145deg, #13151f 0%, #0d0e17 100%);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  border-radius: 16px;
   margin-bottom: 1.25rem;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .visit-post-card:hover {
-  background: #252528;
-  /* Slightly lighter grey on hover */
-  border-color: rgba(229, 192, 74, 0.35);
-  /* Elegant gold highlight on hover */
+  background: linear-gradient(145deg, #181b26 0%, #10121c 100%);
+  border-color: rgba(212, 175, 55, 0.45);
   transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.65), 0 0 15px rgba(212, 175, 55, 0.08);
 }
 
-/* Distinctive Type Tints - Quick Notes (Cool slate-blue tint) */
+/* Distinctive Type Tints - Quick Notes */
 .visit-post-card.quick-note-card {
-  background: #181D26;
-  /* Dark steel-blue background */
-  border-color: rgba(147, 197, 253, 0.12);
-  /* Subtle blue boundary */
+  background: linear-gradient(145deg, #121824 0%, #0b0f19 100%);
+  border-color: rgba(147, 197, 253, 0.2);
 }
 
 .visit-post-card.quick-note-card:hover {
-  background: #1F2733;
-  /* Brighter steel-blue on hover */
-  border-color: rgba(147, 197, 253, 0.3);
+  background: linear-gradient(145deg, #161e2e 0%, #0f1422 100%);
+  border-color: rgba(147, 197, 253, 0.4);
 }
 
-.visit-post-card.quick-note-card .author-avatar {
-  background: rgba(147, 197, 253, 0.1);
-  color: #93c5fd;
-  /* Soft blue initials */
-  border-color: rgba(147, 197, 253, 0.25);
-}
-
-/* Distinctive Type Tints - Meetings & Visits (Warm amber tint) */
+/* Meetings & Visits */
 .visit-post-card.meeting-card {
-  background: #211D16;
-  /* Dark amber background */
-  border-color: rgba(229, 192, 74, 0.12);
-  /* Subtle gold boundary */
+  background: linear-gradient(145deg, #191610 0%, #100e0a 100%);
+  border-color: rgba(212, 175, 55, 0.3);
 }
 
 .visit-post-card.meeting-card:hover {
-  background: #2B251B;
-  /* Brighter amber on hover */
-  border-color: rgba(229, 192, 74, 0.35);
+  background: linear-gradient(145deg, #221d15 0%, #15120d 100%);
+  border-color: rgba(212, 175, 55, 0.55);
 }
 
-.visit-post-card.meeting-card .author-avatar {
-  background: rgba(229, 192, 74, 0.1);
-  color: #E5C04A;
-  /* Soft gold initials */
-  border-color: rgba(229, 192, 74, 0.25);
-}
-
-.post-content-area {
-  flex: 1;
-  min-width: 0;
-}
-
-.post-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  padding-bottom: 0.85rem;
-}
-
-.post-header-main-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.author-avatar {
-  width: 36px;
-  height: 36px;
+.author-avatar-gold-ring {
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(229, 192, 74, 0.2) 0%, rgba(229, 192, 74, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.3) 0%, rgba(212, 175, 55, 0.1) 100%);
   color: #E5C04A;
-  /* Gold initials */
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  border: 1px solid rgba(229, 192, 74, 0.25);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 2px solid #d4af37;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.25);
+  flex-shrink: 0;
 }
 
-.author-details-wrapper {
+.author-name-row {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
 }
 
-.post-author {
-  color: #f3f4f6;
-  font-weight: 600;
-  font-size: 0.95rem;
+.verified-author-badge {
+  color: #10b981;
+  flex-shrink: 0;
 }
 
-.post-time {
-  font-size: 0.72rem;
-  color: #9ca3af;
-}
-
-/* Post Content - Upgraded Legibility & Contrast */
-.post-body {
-  color: #F9FAFB;
-  /* High-contrast bright off-white */
-  font-size: 0.98rem;
-  /* Slightly larger text */
-  font-weight: 400;
-  line-height: 1.65;
-  margin-bottom: 8px;
-}
-
-.post-text {
-  margin: 0;
-  white-space: pre-wrap;
-  color: #FFFFFF !important;
-  /* Pure white text for note contents */
-  font-weight: 450;
-  /* Slightly thicker glyphs for better text definition */
-  letter-spacing: 0.01em;
-}
-
-/* Custom Purpose Badges */
 .post-purpose-badge {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
   margin: 0 0 1rem 0;
   font-family: 'Inter', sans-serif;
-}
-
-.post-purpose-badge.quick-note {
-  background: rgba(156, 163, 175, 0.1);
-  color: #d1d5db;
-  border: 1px solid rgba(156, 163, 175, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .post-purpose-badge.meeting {
-  background: rgba(229, 192, 74, 0.08);
+  background: rgba(212, 175, 55, 0.1);
   color: #E5C04A;
-  border: 1px solid rgba(229, 192, 74, 0.18);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.1);
 }
 
-.post-details-ext {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.post-purpose-badge.quick-note {
+  background: rgba(147, 197, 253, 0.1);
+  color: #93c5fd;
+  border: 1px solid rgba(147, 197, 253, 0.3);
 }
 
-.post-detail-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 0.9rem;
+.post-purpose-badge.resource {
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.post-purpose-badge .badge-icon {
+  flex-shrink: 0;
+}
+
+/* Outcome Card - Concept B */
+.executive-outcome-card {
+  background: rgba(16, 185, 129, 0.06) !important;
+  border: 1px solid rgba(16, 185, 129, 0.28) !important;
+  border-radius: 14px !important;
+  padding: 1rem 1.25rem !important;
+  margin-top: 1rem !important;
+  box-shadow: inset 0 0 15px rgba(16, 185, 129, 0.03);
 }
 
 .post-detail-row.outcome {
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.2);
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 6px !important;
+}
+
+.post-detail-row.outcome .detail-label {
+  color: #10b981 !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  font-size: 0.82rem !important;
+  text-transform: uppercase !important;
+}
+
+.post-detail-row.outcome .detail-value {
+  color: #f8fafc !important;
+  font-size: 0.95rem !important;
+  line-height: 1.6 !important;
+  font-weight: 450 !important;
+}
+
+/* Executive Reaction Bar */
+.executive-reaction-bar {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.existing-reactions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.add-reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-reaction-chip:hover {
+  background: rgba(212, 175, 55, 0.15);
+  border-color: #d4af37;
+  color: #fff;
+  transform: translateY(-1px);
 }
 
 .post-detail-row.outcome .detail-label {

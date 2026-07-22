@@ -1,5 +1,5 @@
 import React from 'react';
-import { Smile, Edit2, Trash2, FileText, X } from 'lucide-react';
+import { Smile, Edit2, Trash2, FileText, X, CheckCircle2, Handshake, Calendar, StickyNote } from 'lucide-react';
 import { API_URL } from '../../config/api';
 
 const getInitials = (name) => {
@@ -25,18 +25,22 @@ const VisitPostCard = ({
 }) => {
     const isQuickNote = visit.purpose?.toLowerCase().includes('quick note');
     const isMeeting = visit.purpose?.toLowerCase().includes('meeting') || visit.purpose?.toLowerCase().includes('visit');
-    const cardClass = isQuickNote ? 'quick-note-card' : (isMeeting ? 'meeting-card' : '');
+    const isResource = visit.purpose?.toLowerCase().includes('resource');
+    const cardClass = isQuickNote ? 'quick-note-card' : (isMeeting ? 'meeting-card' : (isResource ? 'resource-card' : ''));
 
     return (
         <div className={`visit-post-card ${cardClass}`}>
             <div className="post-content-area">
                 <div className="post-header">
                     <div className="post-header-main-info">
-                        <div className="author-avatar">
+                        <div className="author-avatar-gold-ring">
                             {getInitials(visit.createdByName || visit.creatorName)}
                         </div>
                         <div className="author-details-wrapper">
-                            <span className="post-author">{visit.createdByName || visit.creatorName || 'Unknown User'}</span>
+                            <div className="author-name-row">
+                                <span className="post-author">{visit.createdByName || visit.creatorName || 'Unknown User'}</span>
+                                <CheckCircle2 size={15} className="verified-author-badge" title="Verified User" />
+                            </div>
                             <span className="post-time">
                                 {(() => {
                                     const dateVal = visit.date;
@@ -108,8 +112,9 @@ const VisitPostCard = ({
 
                 <div className="post-body">
                     {visit.purpose && (
-                        <div className={`post-purpose-badge ${visit.purpose.toLowerCase().includes('quick note') ? 'quick-note' : 'meeting'}`}>
-                            {visit.purpose}
+                        <div className={`post-purpose-badge ${isQuickNote ? 'quick-note' : (isResource ? 'resource' : 'meeting')}`}>
+                            {isMeeting ? <Handshake size={14} className="badge-icon" /> : (isQuickNote ? <StickyNote size={14} className="badge-icon" /> : <Calendar size={14} className="badge-icon" />)}
+                            <span>{visit.purpose}</span>
                         </div>
                     )}
 
@@ -157,34 +162,34 @@ const VisitPostCard = ({
                     {visit.notes && <p className="post-text">{visit.notes}</p>}
 
                     {(visit.outcome || visit.followUp || visit.nextAction || visit.managerComment || visit.headquartersComment) && (
-                        <div className="post-details-ext">
+                        <div className="post-details-ext executive-outcome-card">
                             {visit.outcome && !visit.purpose?.toLowerCase().match(/quick note|resource placement|resource update/i) && (
                                 <div className="post-detail-row outcome">
-                                    <span className="detail-label">Outcome:</span>
+                                    <span className="detail-label">OUTCOME:</span>
                                     <span className="detail-value">{visit.outcome}</span>
                                 </div>
                             )}
                             {visit.followUp && !visit.purpose?.toLowerCase().match(/quick note|resource placement|resource update/i) && (
                                 <div className="post-detail-row follow-up">
-                                    <span className="detail-label">Follow Up:</span>
+                                    <span className="detail-label">FOLLOW UP:</span>
                                     <span className="detail-value">{visit.followUp}</span>
                                 </div>
                             )}
                             {visit.managerComment && (
                                 <div className="post-detail-row manager-comment">
-                                    <span className="detail-label">Manager Comment:</span>
+                                    <span className="detail-label">MANAGER COMMENT:</span>
                                     <span className="detail-value">{visit.managerComment}</span>
                                 </div>
                             )}
                             {visit.headquartersComment && (
                                 <div className="post-detail-row hq-comment">
-                                    <span className="detail-label">HQ Comment:</span>
+                                    <span className="detail-label">HQ COMMENT:</span>
                                     <span className="detail-value">{visit.headquartersComment}</span>
                                 </div>
                             )}
                             {visit.nextAction && (
                                 <div className="post-detail-row next-action">
-                                    <span className="detail-label">Next Steps:</span>
+                                    <span className="detail-label">NEXT STEPS:</span>
                                     <span className="detail-value">{visit.nextAction}</span>
                                 </div>
                             )}
@@ -192,11 +197,11 @@ const VisitPostCard = ({
                     )}
                 </div>
 
-                {/* Reactions Bar */}
-                <div className="post-reactions">
-                    {visit.reactions && visit.reactions.length > 0 && (
-                        <div className="existing-reactions">
-                            {Object.entries(
+                {/* Executive Reaction Bar */}
+                <div className="post-reactions executive-reaction-bar">
+                    <div className="existing-reactions">
+                        {visit.reactions && visit.reactions.length > 0 && (
+                            Object.entries(
                                 visit.reactions.reduce((acc, r) => {
                                     if (!r || !r.type) return acc;
                                     if (!acc[r.type]) acc[r.type] = { count: 0, userIds: [] };
@@ -222,9 +227,24 @@ const VisitPostCard = ({
                                         )}
                                     </span>
                                 );
-                            })}
-                        </div>
-                    )}
+                            })
+                        )}
+                        <button
+                            type="button"
+                            className="add-reaction-chip"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (activeReactionMessageId === visit._id) {
+                                    setActiveReactionMessageId(null);
+                                } else {
+                                    setActiveReactionMessageId(visit._id);
+                                }
+                            }}
+                        >
+                            <Smile size={13} />
+                            <span>+ React</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
