@@ -3297,3 +3297,215 @@ body.light-theme-active .clp-root .clp-subtitle {
 .clp-root.light-theme .custom-autocomplete-dropdown.open-upward {
   box-shadow: 0 -10px 25px rgba(15, 23, 42, 0.15) !important;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Customer List Style Cards for Check-In Log
+   ───────────────────────────────────────────────────────────── */
+.clp-customer-style-card {
+  background: rgba(18, 24, 39, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 14px !important;
+  padding: 16px 18px !important;
+  margin-bottom: 14px !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(12px) !important;
+  transition: all 0.25s ease !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+
+.clp-customer-style-card.clp-row-today {
+  border-left: 3.5px solid #10b981 !important;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(18, 24, 39, 0.85)) !important;
+}
+
+.clp-customer-style-card:hover {
+  border-color: rgba(212, 175, 55, 0.35) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Top Row */
+.clp-csc-top-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.clp-csc-title {
+  margin: 0 !important;
+  font-size: 1.12rem !important;
+  font-weight: 700 !important;
+  color: #d4af37 !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1.25 !important;
+}
+
+.clp-csc-status-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 4px 10px !important;
+  border-radius: 12px !important;
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.03em !important;
+  background: rgba(148, 163, 184, 0.12) !important;
+  color: #94a3b8 !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  white-space: nowrap !important;
+}
+
+.clp-csc-status-badge.today {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #10b981 !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+/* Sub-Badges Row */
+.clp-csc-sub-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+.clp-csc-badge-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 4px 10px !important;
+  border-radius: 10px !important;
+  font-size: 0.76rem !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  transition: all 0.2s ease !important;
+}
+
+.clp-csc-badge-pill.gold-outline {
+  background: rgba(212, 175, 55, 0.08) !important;
+  color: #d4af37 !important;
+  border: 1px solid rgba(212, 175, 55, 0.25) !important;
+}
+
+.clp-csc-badge-pill.gold-outline:hover {
+  background: rgba(212, 175, 55, 0.18) !important;
+  border-color: #d4af37 !important;
+}
+
+/* Dashed Separator */
+.clp-csc-dashed-divider {
+  width: 100% !important;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12) !important;
+  margin: 4px 0 !important;
+}
+
+/* Key-Value Details Grid */
+.clp-csc-details-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+.clp-csc-detail-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  font-size: 0.84rem !important;
+  gap: 12px !important;
+}
+
+.clp-csc-label {
+  color: #94a3b8 !important;
+  font-weight: 400 !important;
+}
+
+.clp-csc-value {
+  color: #e2e8f0 !important;
+  font-weight: 500 !important;
+  text-align: right !important;
+}
+
+.clp-csc-value.bold-white {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.clp-csc-phone-link {
+  color: #d4af37 !important;
+  text-decoration: underline !important;
+  text-decoration-style: dashed !important;
+  font-weight: 600 !important;
+}
+
+/* Bottom Action Row */
+.clp-csc-actions-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 6px !important;
+  flex-wrap: wrap !important;
+}
+
+.clp-csc-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 7px 14px !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  border: 1px solid transparent !important;
+  transition: all 0.2s ease !important;
+}
+
+.clp-csc-btn.btn-selection {
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #10b981 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.clp-csc-btn.btn-selection:hover {
+  background: #10b981 !important;
+  color: #ffffff !important;
+}
+
+.clp-csc-btn.btn-view {
+  background: rgba(212, 175, 55, 0.12) !important;
+  color: #d4af37 !important;
+  border-color: rgba(212, 175, 55, 0.35) !important;
+}
+
+.clp-csc-btn.btn-view:hover {
+  background: #d4af37 !important;
+  color: #0b0f19 !important;
+}
+
+.clp-csc-btn.icon-only {
+  padding: 7px 10px !important;
+}
+
+.clp-csc-btn.btn-edit {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.clp-csc-btn.btn-edit:hover {
+  background: rgba(212, 175, 55, 0.2) !important;
+  color: #d4af37 !important;
+  border-color: #d4af37 !important;
+}
+
+.clp-csc-btn.btn-delete {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+.clp-csc-btn.btn-delete:hover {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+}

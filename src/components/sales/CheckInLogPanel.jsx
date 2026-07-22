@@ -1501,105 +1501,85 @@ const CheckInLogPanel = ({
 
             <div className="clp-mobile-list clp-mobile-only">
               {filtered.map((c) => (
-                <div key={c._id} className={`clp-mobile-card ${isToday(c.createdAt) ? 'clp-row-today' : ''}`}>
-                  <div className="clp-card-header">
-                    <div className="clp-card-time-wrap">
-                      <span className="clp-date">{formatDate(c.createdAt)}</span>
-                      <span className="clp-time">{formatTime(c.createdAt)}</span>
-                      {isToday(c.createdAt) && <span className="clp-badge clp-badge-today">Today</span>}
+                <div key={c._id} className={`clp-customer-style-card ${isToday(c.createdAt) ? 'clp-row-today' : ''}`}>
+                  {/* Top Row: Visitor Name (Gold Title) + Status Date Pill */}
+                  <div className="clp-csc-top-row">
+                    <h3 className="clp-csc-title">{c.name}</h3>
+                    <span className={`clp-csc-status-badge ${isToday(c.createdAt) ? 'today' : ''}`}>
+                      {isToday(c.createdAt) ? 'TODAY • ' : ''}{formatTime(c.createdAt)}
+                    </span>
+                  </div>
+
+                  {/* Sub-Badges: Visitor Phone + Location Pin */}
+                  <div className="clp-csc-sub-row">
+                    {c.phone && (
+                      <a href={`tel:${c.phone}`} className="clp-csc-badge-pill gold-outline">
+                        <Phone size={11} /> {c.phone}
+                      </a>
+                    )}
+                    {hasMultipleLocations && c.location && (
+                      <span className="clp-csc-badge-pill location-pill" style={getLocationBadgeStyle(c.location, internalTheme || themeProp)}>
+                        <MapPin size={11} /> {c.location}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Dashed Separator */}
+                  <div className="clp-csc-dashed-divider" />
+
+                  {/* Key-Value Details Block */}
+                  <div className="clp-csc-details-grid">
+                    <div className="clp-csc-detail-row">
+                      <span className="clp-csc-label">Contact / Company:</span>
+                      <span className="clp-csc-value bold-white">{c.fabricatorCompany || '—'}</span>
                     </div>
-                    <div className="clp-card-actions">
-                      <button
-                        onClick={() => handleOpenSelectionModal(c)}
-                        title="Selection sheet"
-                        className="clp-card-action-btn selection"
-                      >
-                        <ClipboardList size={15} />
-                      </button>
-                      {onView && (
-                        <button
-                          onClick={() => onView(c)}
-                          title="View details"
-                          className="clp-card-action-btn view"
-                        >
-                          <Eye size={15} />
-                        </button>
-                      )}
-                      {onEdit && hasEditPermission && (
-                        <button
-                          onClick={() => onEdit(c)}
-                          title="Edit check-in"
-                          className="clp-card-action-btn edit"
-                        >
-                          <Edit2 size={15} />
-                        </button>
-                      )}
-                      {onDelete && hasDeletePermission && (
-                        <button
-                          onClick={() => onDelete(c)}
-                          title="Delete check-in"
-                          className="clp-card-action-btn delete"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      )}
+                    <div className="clp-csc-detail-row">
+                      <span className="clp-csc-label">Customer Phone:</span>
+                      <span className="clp-csc-value">
+                        {c.fabricatorPhone ? (
+                          <a href={`tel:${c.fabricatorPhone}`} className="clp-csc-phone-link">
+                            {c.fabricatorPhone}
+                          </a>
+                        ) : '—'}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="clp-card-body">
-                    <div className="clp-card-row">
-                      <div
-                        className="clp-avatar"
-                        style={{
-                          background: `linear-gradient(135deg, ${getAvatarColor(c.name)}, ${getAvatarColor(c.name)}99)`,
-                        }}
+                  {/* Bottom Action Row */}
+                  <div className="clp-csc-actions-row">
+                    <button
+                      onClick={() => handleOpenSelectionModal(c)}
+                      className="clp-csc-btn btn-selection"
+                      title="Selection sheet"
+                    >
+                      <ClipboardList size={14} /> <span>Selection Sheet</span>
+                    </button>
+                    {onView && (
+                      <button
+                        onClick={() => onView(c)}
+                        className="clp-csc-btn btn-view"
+                        title="View details"
                       >
-                        {getInitials(c.name)}
-                      </div>
-                      <div className="clp-card-visitor-info">
-                        <span className="clp-visitor-name">{c.name}</span>
-                        {c.phone && (
-                          <a href={`tel:${c.phone}`} className="clp-phone-link">
-                            <Phone size={11} /> {c.phone}
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    {(c.fabricatorCompany || c.fabricatorPhone || (hasMultipleLocations && c.location)) && (
-                      <div className="clp-card-fabricator-details">
-                        {c.fabricatorCompany && (
-                          <div className="clp-card-detail-item">
-                            <Building2 size={12} className="clp-detail-icon" />
-                            <span className="clp-company-name">{c.fabricatorCompany}</span>
-                          </div>
-                        )}
-                        {c.fabricatorPhone && (
-                          <div className="clp-card-detail-item">
-                            <Phone size={11} className="clp-detail-icon" />
-                            <a href={`tel:${c.fabricatorPhone}`} className="clp-phone-link">{c.fabricatorPhone}</a>
-                          </div>
-                        )}
-                        {hasMultipleLocations && c.location && (
-                          <div className="clp-card-detail-item" style={{ marginTop: '6px' }}>
-                            <span style={{
-                              ...getLocationBadgeStyle(c.location, internalTheme || themeProp),
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              fontSize: '0.68rem',
-                              fontWeight: '600',
-                              letterSpacing: '0.02em',
-                              textTransform: 'uppercase'
-                            }}>
-                              <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
-                              {c.location}
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                        <Eye size={14} /> <span>View</span>
+                      </button>
+                    )}
+                    {onEdit && hasEditPermission && (
+                      <button
+                        onClick={() => onEdit(c)}
+                        className="clp-csc-btn icon-only btn-edit"
+                        title="Edit check-in"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    )}
+                    {onDelete && hasDeletePermission && (
+                      <button
+                        onClick={() => onDelete(c)}
+                        className="clp-csc-btn icon-only btn-delete"
+                        title="Delete check-in"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     )}
                   </div>
                 </div>
