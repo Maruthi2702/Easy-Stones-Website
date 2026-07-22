@@ -72,6 +72,7 @@ const CheckInLogPage = () => {
 
   useEffect(() => {
     const socket = io(API_URL || window.location.origin, {
+      transports: ['websocket', 'polling'],
       withCredentials: true
     });
 
