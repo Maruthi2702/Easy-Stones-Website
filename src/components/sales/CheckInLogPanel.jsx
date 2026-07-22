@@ -1374,7 +1374,7 @@ const CheckInLogPanel = ({
                   <div className="clp-csc-top-row">
                     <h3 className="clp-csc-title">{c.name}</h3>
                     <span className={`clp-csc-status-badge ${isToday(c.createdAt) ? 'today' : ''}`}>
-                      {isToday(c.createdAt) ? 'TODAY • ' : ''}{formatTime(c.createdAt)}
+                      {isToday(c.createdAt) ? `TODAY • ${formatTime(c.createdAt)}` : formatDate(c.createdAt)}
                     </span>
                   </div>
 
