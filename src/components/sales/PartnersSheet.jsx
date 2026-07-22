@@ -106,6 +106,9 @@ const MultiSelect = ({ options, selectedValues = [], onChange, placeholder, show
     );
 };
 
+// Global in-memory cache to prevent re-fetching on tab switches & re-mounts (Top-level module scope)
+const globalPartnersCache = {};
+
 const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPinned, customerRefreshTrigger }) => {
     const [activeTab, setActiveTab] = useState('fabricators');
 
@@ -196,10 +199,6 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         fetchCities();
     }, []);
 
-    // Derive the type filter from the active tab
-// Global in-memory cache to prevent re-fetching on tab switches & re-mounts
-const globalPartnersCache = {};
-
     const activeTabDef = TABS.find(t => t.key === activeTab);
     // For the Partners tab we want everyone EXCEPT Fabricators
     const fetchPartners = async ({
@@ -217,13 +216,14 @@ const globalPartnersCache = {};
     } = {}) => {
         const cacheKey = JSON.stringify({ page, search, level, type, city, status, lim, tab, sortB, sortO });
 
-        // Serve instantly from cache if available
-        if (!skipCache && globalPartnersCache[cacheKey]) {
+        // Serve instantly from cache if available (0ms load!)
+        if (globalPartnersCache[cacheKey]) {
             const cached = globalPartnersCache[cacheKey];
             setPartners(cached.partners || []);
             setTotalPages(cached.totalPages || 1);
             setTotalCount(cached.totalCount || 0);
             setLoading(false);
+            if (!skipCache) return;
         } else {
             setLoading(true);
         }
