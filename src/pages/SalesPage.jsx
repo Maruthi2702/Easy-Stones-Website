@@ -1283,13 +1283,6 @@ const SalesPage = () => {
         fetchAllCustomersForDropdown();
     }, [fetchAllCustomersForDropdown]);
 
-    // Auto-select first customer only if dashboard is not active
-    useEffect(() => {
-        if (!showDashboard && customers.length > 0 && !selectedCustomerId) {
-            setSelectedCustomerId(customers[0]._id);
-        }
-    }, [customers, selectedCustomerId, showDashboard]);
-
     const fetchCurrentUser = async () => {
         try {
             // Try to get admin/user info first
