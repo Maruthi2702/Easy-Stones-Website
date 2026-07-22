@@ -197,6 +197,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     }, []);
 
     // Derive the type filter from the active tab
+// Global in-memory cache to prevent re-fetching on tab switches & re-mounts
+const globalPartnersCache = {};
+
     const activeTabDef = TABS.find(t => t.key === activeTab);
     // For the Partners tab we want everyone EXCEPT Fabricators
     const fetchPartners = async ({
@@ -210,8 +213,21 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         tab = activeTab,
         sortB = sortBy,
         sortO = sortOrder,
+        skipCache = false
     } = {}) => {
-        setLoading(true);
+        const cacheKey = JSON.stringify({ page, search, level, type, city, status, lim, tab, sortB, sortO });
+
+        // Serve instantly from cache if available
+        if (!skipCache && globalPartnersCache[cacheKey]) {
+            const cached = globalPartnersCache[cacheKey];
+            setPartners(cached.partners || []);
+            setTotalPages(cached.totalPages || 1);
+            setTotalCount(cached.totalCount || 0);
+            setLoading(false);
+        } else {
+            setLoading(true);
+        }
+
         try {
             const url = new URL(`${API_URL}/api/partners`, window.location.origin);
             url.searchParams.append('page', page);
@@ -243,6 +259,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             });
             if (response.ok) {
                 const data = await response.json();
+                globalPartnersCache[cacheKey] = data; // Update in-memory cache
                 setPartners(data.partners || []);
                 setTotalPages(data.totalPages || 1);
                 setTotalCount(data.totalCount || 0);
