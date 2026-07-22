@@ -3342,9 +3342,16 @@ body.light-theme-active .clp-root .clp-subtitle {
 /* Top Row */
 .clp-csc-top-row {
   display: flex !important;
-  align-items: center !important;
+  align-items: flex-start !important;
   justify-content: space-between !important;
   gap: 12px !important;
+}
+
+.clp-csc-right-meta {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  gap: 4px !important;
 }
 
 .clp-csc-title {

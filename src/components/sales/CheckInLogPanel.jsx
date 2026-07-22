@@ -1370,25 +1370,27 @@ const CheckInLogPanel = ({
             <div className="clp-cards-grid">
               {filtered.map((c) => (
                 <div key={c._id} className={`clp-customer-style-card ${isToday(c.createdAt) ? 'clp-row-today' : ''}`}>
-                  {/* Top Row: Visitor Name (Gold Title) + Status Date Pill */}
+                  {/* Top Row: Visitor Name (Gold Title) + Status Date Pill & Location below date */}
                   <div className="clp-csc-top-row">
                     <h3 className="clp-csc-title">{c.name}</h3>
-                    <span className={`clp-csc-status-badge ${isToday(c.createdAt) ? 'today' : ''}`}>
-                      {isToday(c.createdAt) ? `TODAY • ${formatTime(c.createdAt)}` : formatDate(c.createdAt)}
-                    </span>
+                    <div className="clp-csc-right-meta">
+                      <span className={`clp-csc-status-badge ${isToday(c.createdAt) ? 'today' : ''}`}>
+                        {isToday(c.createdAt) ? `TODAY • ${formatTime(c.createdAt)}` : formatDate(c.createdAt)}
+                      </span>
+                      {hasMultipleLocations && c.location && (
+                        <span className="clp-csc-badge-pill location-pill" style={getLocationBadgeStyle(c.location, internalTheme || themeProp)}>
+                          <MapPin size={11} /> {c.location}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Sub-Badges: Visitor Phone + Location Pin */}
+                  {/* Sub-Badges: Visitor Phone */}
                   <div className="clp-csc-sub-row">
                     {c.phone && (
                       <a href={`tel:${c.phone}`} className="clp-csc-badge-pill gold-outline">
                         <Phone size={11} /> {c.phone}
                       </a>
-                    )}
-                    {hasMultipleLocations && c.location && (
-                      <span className="clp-csc-badge-pill location-pill" style={getLocationBadgeStyle(c.location, internalTheme || themeProp)}>
-                        <MapPin size={11} /> {c.location}
-                      </span>
                     )}
                   </div>
 
