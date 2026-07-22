@@ -841,7 +841,7 @@ table.clp-table {
   .clp-panel-header {
     display: flex !important;
     flex-direction: column !important;
-    gap: 0.75rem !important;
+    gap: 1rem !important;
     padding: 1.25rem 1.5rem !important;
   }
 
@@ -879,6 +879,7 @@ table.clp-table {
     align-items: center !important;
     gap: 0.65rem !important;
     width: 100% !important;
+    margin-top: 0.65rem !important;
   }
 
   .clp-search-wrap {
@@ -906,7 +907,7 @@ table.clp-table {
   .clp-panel-header {
     display: flex !important;
     flex-direction: column !important;
-    gap: 0.5rem !important;
+    gap: 0.85rem !important;
     padding: 0.85rem 1rem !important;
   }
 
@@ -960,7 +961,7 @@ table.clp-table {
     align-items: center !important;
     gap: 0.4rem !important;
     width: 100% !important;
-    margin: 0 !important;
+    margin-top: 0.65rem !important;
   }
 
   .clp-search-wrap {
