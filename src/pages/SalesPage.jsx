@@ -3468,20 +3468,16 @@ const SalesPage = () => {
                                         <div className="detail-column">
                                             <h3><Mail size={14} style={{ marginRight: '8px' }} />Marketing</h3>
                                             <div className="column-content">
-                                                <div className="contact-item" style={{ marginBottom: '0.4rem' }}>
-                                                    <Mail size={16} style={{ color: selectedCustomer.receiveMarketing !== false ? '#10b981' : '#ef4444' }} />
-                                                    <span style={{ fontWeight: '500', color: selectedCustomer.receiveMarketing !== false ? '#10b981' : '#ef4444' }}>
-                                                        {selectedCustomer.receiveMarketing !== false ? 'Subscribed to Marketing' : 'Unsubscribed'}
-                                                    </span>
-                                                </div>
-                                                {selectedCustomer.marketingEmail && (
-                                                    <div className="contact-item" style={{ marginTop: '0.4rem' }}>
-                                                        <Info size={16} style={{ opacity: 0.7 }} />
-                                                        <span style={{ fontSize: '0.85rem', color: '#9CA3AF' }}>
-                                                            Email: {selectedCustomer.marketingEmail}
-                                                        </span>
+                                                <div className="marketing-single-line-wrapper">
+                                                    <div className={`marketing-status-pill ${selectedCustomer.receiveMarketing !== false ? 'subscribed' : 'unsubscribed'}`}>
+                                                        <Mail size={13} />
+                                                        <span>{selectedCustomer.receiveMarketing !== false ? 'Subscribed' : 'Unsubscribed'}</span>
                                                     </div>
-                                                )}
+                                                    <div className="marketing-email-chip" title={selectedCustomer.marketingEmail || selectedCustomer.email || 'No email'}>
+                                                        <Mail size={13} className="email-icon" />
+                                                        <span>{selectedCustomer.marketingEmail || selectedCustomer.email || 'No email provided'}</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
