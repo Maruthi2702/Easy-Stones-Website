@@ -96,6 +96,7 @@ const SalesPage = () => {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
     const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
+    const [customerOriginTab, setCustomerOriginTab] = useState(null);
     const [allCustomersForSelection, setAllCustomersForSelection] = useState([]);
 
     const [loading, setLoading] = useState(true);
@@ -326,19 +327,19 @@ const SalesPage = () => {
 
     const handleCrmTabChange = (tabName) => {
         setCrmTab(tabName);
+        setCustomerOriginTab(null);
+        setSelectedCustomerId(null);
+        setSelectedCustomerDetail(null);
         if (tabName === 'dashboard') {
             setShowDashboard(true);
+        } else {
+            setShowDashboard(false);
         }
         const newUrl = new URL(window.location);
         newUrl.searchParams.set('tab', tabName);
-        if (tabName !== 'customers') {
-            newUrl.searchParams.delete('customer');
-            setSelectedCustomerId(null);
-        } else {
-            setSelectedCustomerId(null);
-            newUrl.searchParams.delete('customer');
-        }
-        window.history.pushState({}, '', newUrl);
+        newUrl.searchParams.delete('customer');
+        newUrl.searchParams.delete('view');
+        window.history.pushState({ tab: tabName }, '', newUrl);
 
         if (isMobile) {
             setIsSidebarOpen(false);
@@ -1547,12 +1548,19 @@ const SalesPage = () => {
                 users: 'manage_users'
             };
 
+            const state = window.history.state;
+            if (state && state.originTab) {
+                setCustomerOriginTab(state.originTab);
+            }
+
             if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist', 'users', 'profile'].includes(tabParam)) {
                 // Only switch to the tab if the user has permission for it
                 if (!tabPermMap[tabParam] || perms.includes(tabPermMap[tabParam])) {
                     setCrmTab(tabParam);
                     if (tabParam === 'dashboard') {
                         setShowDashboard(true);
+                    } else {
+                        setShowDashboard(false);
                     }
                 } else {
                     // Force fallback if user doesn't have permission for the requested tab
@@ -1570,10 +1578,12 @@ const SalesPage = () => {
                 } else {
                     setSelectedCustomerId(null);
                     setSelectedCustomerDetail(null);
+                    setCustomerOriginTab(null);
                 }
             } else {
                 setSelectedCustomerId(null);
                 setSelectedCustomerDetail(null);
+                setCustomerOriginTab(null);
             }
             if (viewParam && ['visits', 'resources', 'contacts'].includes(viewParam)) {
                 setActiveTab(viewParam);
@@ -1593,8 +1603,13 @@ const SalesPage = () => {
         }
     }, [selectedCustomerId]);
 
-    const handleSelectCustomer = (customer) => {
+    const handleSelectCustomer = (customer, explicitOrigin) => {
         if (customer) {
+            // Track origin tab from which customer was opened
+            const currentTab = crmTab;
+            const origin = customerOriginTab || explicitOrigin || (currentTab !== 'customers' ? currentTab : 'customers');
+            setCustomerOriginTab(origin);
+
             const isShell = !customer.company && !customer.contactName && !customer.email && !customer.name;
             if (isShell) {
                 if (selectedCustomerId !== customer._id) {
@@ -1610,7 +1625,7 @@ const SalesPage = () => {
             newUrl.searchParams.set('tab', 'customers');
             newUrl.searchParams.set('customer', customer._id);
             newUrl.searchParams.set('view', 'visits'); // Default to visits view on select
-            window.history.pushState({ fromDashboard: crmTab === 'dashboard' }, '', newUrl);
+            window.history.pushState({ originTab: origin, fromDashboard: origin === 'dashboard' }, '', newUrl);
             
             setCrmTab('customers');
 
@@ -1626,19 +1641,29 @@ const SalesPage = () => {
 
     const handleBackToCustomersList = () => {
         const state = window.history.state;
+        const targetTab = customerOriginTab || (state && state.originTab) || (state && state.fromDashboard ? 'dashboard' : 'customers');
+
         setSelectedCustomerId(null);
         setSelectedCustomerDetail(null);
+        setCustomerOriginTab(null);
+
         const newUrl = new URL(window.location);
         newUrl.searchParams.delete('customer');
         newUrl.searchParams.delete('view');
+        newUrl.searchParams.set('tab', targetTab);
 
-        if (state && state.fromDashboard) {
-            newUrl.searchParams.set('tab', 'dashboard');
-            window.history.pushState({}, '', newUrl);
-            setCrmTab('dashboard');
+        // Replace history entry to prevent back button loops between opened customer cards
+        window.history.replaceState({ tab: targetTab }, '', newUrl);
+
+        setCrmTab(targetTab);
+        if (targetTab === 'dashboard') {
             setShowDashboard(true);
         } else {
-            window.history.pushState({}, '', newUrl);
+            setShowDashboard(false);
+        }
+
+        if (isMobile) {
+            setIsSidebarOpen(true);
         }
     };
 
