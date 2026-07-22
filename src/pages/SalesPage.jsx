@@ -3426,23 +3426,8 @@ const SalesPage = () => {
                                         </div>
                                     </div>
 
-                                    {/* Three Column Layout for Address/Contact/Marketing */}
-                                    <div className="detail-columns">
-                                        <div className="detail-column">
-                                            <h3><MapPin size={14} style={{ marginRight: '8px' }} />Address</h3>
-                                            <div className="column-content">
-                                                <p className="address-line">
-                                                    {selectedCustomer.address?.street || 'No street address'}
-                                                </p>
-                                                <p className="address-line">
-                                                    {selectedCustomer.address?.city || ''}{selectedCustomer.address?.city && selectedCustomer.address?.state ? ', ' : ''}{selectedCustomer.address?.state || ''} {selectedCustomer.address?.zipCode || ''}
-                                                </p>
-                                                {!selectedCustomer.address?.city && !selectedCustomer.address?.state && (
-                                                    <p className="text-muted">No address provided</p>
-                                                )}
-                                            </div>
-                                        </div>
-
+                                    {/* Two Column Side-by-Side Layout: Primary Contact (Left) and Address (Right) */}
+                                    <div className="detail-columns side-by-side">
                                         <div className="detail-column">
                                             <h3><User size={14} style={{ marginRight: '8px' }} />Primary Contact</h3>
                                             <div className="column-content">
@@ -3461,6 +3446,21 @@ const SalesPage = () => {
                                                         <Phone size={16} />
                                                         <span>{formatPhoneForDisplay(selectedCustomer.phone)}</span>
                                                     </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="detail-column">
+                                            <h3><MapPin size={14} style={{ marginRight: '8px' }} />Address</h3>
+                                            <div className="column-content">
+                                                <p className="address-line">
+                                                    {selectedCustomer.address?.street || 'No street address'}
+                                                </p>
+                                                <p className="address-line">
+                                                    {selectedCustomer.address?.city || ''}{selectedCustomer.address?.city && selectedCustomer.address?.state ? ', ' : ''}{selectedCustomer.address?.state || ''} {selectedCustomer.address?.zipCode || ''}
+                                                </p>
+                                                {!selectedCustomer.address?.city && !selectedCustomer.address?.state && (
+                                                    <p className="text-muted">No address provided</p>
                                                 )}
                                             </div>
                                         </div>
