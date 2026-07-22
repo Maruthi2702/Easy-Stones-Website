@@ -3456,22 +3456,38 @@ body.light-theme-active .clp-root .clp-subtitle {
 .clp-csc-actions-row {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
   margin-top: 6px !important;
-  flex-wrap: wrap !important;
+  flex-wrap: nowrap !important;
+  width: 100% !important;
+}
+
+.clp-csc-actions-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.clp-csc-actions-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-left: auto !important;
 }
 
 .clp-csc-btn {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 6px !important;
-  padding: 7px 14px !important;
+  gap: 5px !important;
+  padding: 6px 12px !important;
   border-radius: 8px !important;
-  font-size: 0.8rem !important;
+  font-size: 0.78rem !important;
   font-weight: 600 !important;
   cursor: pointer !important;
   border: 1px solid transparent !important;
   transition: all 0.2s ease !important;
+  white-space: nowrap !important;
 }
 
 .clp-csc-btn.btn-selection {

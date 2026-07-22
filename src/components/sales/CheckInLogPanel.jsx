@@ -1415,40 +1415,44 @@ const CheckInLogPanel = ({
 
                   {/* Bottom Action Row */}
                   <div className="clp-csc-actions-row">
-                    <button
-                      onClick={() => handleOpenSelectionModal(c)}
-                      className="clp-csc-btn btn-selection"
-                      title="Selection sheet"
-                    >
-                      <ClipboardList size={14} /> <span>Selection Sheet</span>
-                    </button>
-                    {onView && (
+                    <div className="clp-csc-actions-left">
                       <button
-                        onClick={() => onView(c)}
-                        className="clp-csc-btn btn-view"
-                        title="View details"
+                        onClick={() => handleOpenSelectionModal(c)}
+                        className="clp-csc-btn btn-selection"
+                        title="Selection sheet"
                       >
-                        <Eye size={14} /> <span>View</span>
+                        <ClipboardList size={14} /> <span>Selection Sheet</span>
                       </button>
-                    )}
-                    {onEdit && hasEditPermission && (
-                      <button
-                        onClick={() => onEdit(c)}
-                        className="clp-csc-btn icon-only btn-edit"
-                        title="Edit check-in"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                    )}
-                    {onDelete && hasDeletePermission && (
-                      <button
-                        onClick={() => onDelete(c)}
-                        className="clp-csc-btn icon-only btn-delete"
-                        title="Delete check-in"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                    </div>
+                    <div className="clp-csc-actions-right">
+                      {onView && (
+                        <button
+                          onClick={() => onView(c)}
+                          className="clp-csc-btn btn-view"
+                          title="View details"
+                        >
+                          <Eye size={14} /> <span>View</span>
+                        </button>
+                      )}
+                      {onEdit && hasEditPermission && (
+                        <button
+                          onClick={() => onEdit(c)}
+                          className="clp-csc-btn icon-only btn-edit"
+                          title="Edit check-in"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                      )}
+                      {onDelete && hasDeletePermission && (
+                        <button
+                          onClick={() => onDelete(c)}
+                          className="clp-csc-btn icon-only btn-delete"
+                          title="Delete check-in"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
