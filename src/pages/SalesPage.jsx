@@ -1663,7 +1663,7 @@ const SalesPage = () => {
         }
 
         if (isMobile) {
-            setIsSidebarOpen(true);
+            setIsSidebarOpen(false);
         }
     };
 
