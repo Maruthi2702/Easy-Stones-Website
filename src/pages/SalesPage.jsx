@@ -3481,11 +3481,11 @@ const SalesPage = () => {
                                         </div>
                                     </div>
 
-                                    {/* Quick Notes Row */}
+                                    {/* Quick Notes Row with Gold Theme & Meta Footer */}
                                     <div className="quick-notes-row">
                                         <div className="quick-notes-header">
                                             <div className="header-label">
-                                                <MessageSquare size={14} style={{ marginRight: '8px' }} />
+                                                <MessageSquare size={15} style={{ color: '#d4af37', marginRight: '8px' }} />
                                                 <h3>Quick Notes</h3>
                                             </div>
                                             <button
@@ -3496,12 +3496,25 @@ const SalesPage = () => {
                                                 {isSavingNote ? 'Saving...' : (selectedCustomerDetail?.quickNote ? 'Edit Quick Note' : 'Save Quick Note')}
                                             </button>
                                         </div>
-                                        <textarea
-                                            className="quick-notes-textarea"
-                                            placeholder="Write a quick note or follow-up note for this customer..."
-                                            value={quickNote}
-                                            onChange={(e) => setQuickNote(e.target.value)}
-                                        />
+                                        <div className="quick-notes-container">
+                                            <textarea
+                                                className="quick-notes-textarea"
+                                                placeholder="Write a quick note or follow-up note for this customer..."
+                                                value={quickNote}
+                                                onChange={(e) => setQuickNote(e.target.value)}
+                                            />
+                                            <div className="quick-notes-footer">
+                                                <span className="quick-notes-meta">
+                                                    <span className="meta-dot"></span>
+                                                    {quickNote.length} characters
+                                                </span>
+                                                {selectedCustomerDetail?.quickNote && (
+                                                    <span className="quick-notes-saved-status">
+                                                        Saved
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}

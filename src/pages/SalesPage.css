@@ -702,74 +702,118 @@
 }
 
 .quick-notes-row {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  margin-top: 1.5rem !important;
+  padding-top: 1.25rem !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.85rem !important;
 }
 
 .quick-notes-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
 }
 
 .quick-notes-header .header-label {
-  display: flex;
-  align-items: center;
-  color: #9CA3AF;
+  display: flex !important;
+  align-items: center !important;
 }
 
 .quick-notes-header h3 {
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0;
-}
-
-.quick-notes-textarea {
-  width: 100%;
-  min-height: 100px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 1rem;
-  color: #FFFFFF;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  resize: vertical;
-  transition: all 0.2s ease;
-}
-
-.quick-notes-textarea:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  color: #94a3b8 !important;
+  margin: 0 !important;
 }
 
 .save-note-btn {
-  padding: 0.5rem 1rem;
-  background: rgba(229, 192, 74, 0.1);
-  border: 1px solid rgba(229, 192, 74, 0.3);
-  border-radius: 8px;
-  color: var(--accent-color);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  padding: 0.45rem 1rem !important;
+  background: linear-gradient(135deg, #d4af37 0%, #b89628 100%) !important;
+  border: 1px solid rgba(212, 175, 55, 0.4) !important;
+  border-radius: 8px !important;
+  color: #0f172a !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.25) !important;
+  transition: all 0.2s ease !important;
 }
 
 .save-note-btn:hover:not(:disabled) {
-  background: rgba(229, 192, 74, 0.2);
-  border-color: var(--accent-color);
+  background: linear-gradient(135deg, #e5c04a 0%, #c4a130 100%) !important;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.4) !important;
+  transform: translateY(-1px) !important;
 }
 
 .save-note-btn.saving {
-  opacity: 0.7;
-  cursor: wait;
+  opacity: 0.7 !important;
+  cursor: wait !important;
+}
+
+.quick-notes-container {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-left: 3.5px solid #d4af37 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  transition: all 0.2s ease !important;
+}
+
+.quick-notes-container:focus-within {
+  border-color: rgba(212, 175, 55, 0.4) !important;
+  border-left-color: #e5c04a !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), 0 0 12px rgba(212, 175, 55, 0.1) !important;
+}
+
+.quick-notes-textarea {
+  width: 100% !important;
+  min-height: 95px !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0.85rem 1rem !important;
+  color: #ffffff !important;
+  font-size: 0.92rem !important;
+  line-height: 1.55 !important;
+  resize: vertical !important;
+  box-sizing: border-box !important;
+}
+
+.quick-notes-textarea:focus {
+  outline: none !important;
+}
+
+.quick-notes-footer {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 0.4rem 1rem 0.5rem 1rem !important;
+  background: rgba(0, 0, 0, 0.15) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.04) !important;
+  font-size: 0.75rem !important;
+  color: #64748b !important;
+}
+
+.quick-notes-meta {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.quick-notes-meta .meta-dot {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background: #d4af37 !important;
+}
+
+.quick-notes-saved-status {
+  color: #10b981 !important;
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
 }
 
 
