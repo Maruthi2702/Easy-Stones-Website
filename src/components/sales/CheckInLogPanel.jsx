@@ -33,17 +33,33 @@ import { useAuth } from '../../context/AuthContext';
 import './CheckInLogPanel.css';
 
 /* ── helpers ──────────────────────────────────── */
-const formatDate = (ts) =>
-  new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+const parseLocalDate = (ts) => {
+  if (!ts) return new Date();
+  if (ts instanceof Date) return ts;
+  if (typeof ts === 'string' && ts.includes('T')) return new Date(ts);
+  if (typeof ts === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ts)) {
+    const [y, m, d] = ts.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  return new Date(ts);
+};
 
-const formatTime = (ts) =>
-  new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const formatDate = (ts) => {
+  const d = parseLocalDate(ts);
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatTime = (ts) => {
+  const d = parseLocalDate(ts);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 const formatLastUpdated = (d) =>
   d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
 
 const isToday = (ts) => {
-  const d = new Date(ts);
+  if (!ts) return false;
+  const d = parseLocalDate(ts);
   const now = new Date();
   return (
     d.getDate() === now.getDate() &&
@@ -1368,22 +1384,25 @@ const CheckInLogPanel = ({
         ) : (
           <>
             <div className="clp-cards-grid">
-              {filtered.map((c) => (
-                <div key={c._id} className={`clp-customer-style-card ${isToday(c.createdAt) ? 'clp-row-today' : ''}`}>
-                  {/* Top Row: Visitor Name (Gold Title) + Status Date Pill & Location below date */}
-                  <div className="clp-csc-top-row">
-                    <h3 className="clp-csc-title">{c.name}</h3>
-                    <div className="clp-csc-right-meta">
-                      <span className={`clp-csc-status-badge ${isToday(c.createdAt) ? 'today' : ''}`}>
-                        {isToday(c.createdAt) ? `TODAY • ${formatTime(c.createdAt)}` : formatDate(c.createdAt)}
-                      </span>
-                      {hasMultipleLocations && c.location && (
-                        <span className="clp-csc-badge-pill location-pill" style={getLocationBadgeStyle(c.location, internalTheme || themeProp)}>
-                          <MapPin size={11} /> {c.location}
+              {filtered.map((c) => {
+                const entryDate = c.createdAt || c.date;
+                const entryIsToday = isToday(entryDate);
+                return (
+                  <div key={c._id} className={`clp-customer-style-card ${entryIsToday ? 'clp-row-today' : ''}`}>
+                    {/* Top Row: Visitor Name (Gold Title) + Status Date Pill & Location below date */}
+                    <div className="clp-csc-top-row">
+                      <h3 className="clp-csc-title">{c.name}</h3>
+                      <div className="clp-csc-right-meta">
+                        <span className={`clp-csc-status-badge ${entryIsToday ? 'today' : ''}`}>
+                          {entryIsToday ? `TODAY • ${formatTime(entryDate)}` : formatDate(entryDate)}
                         </span>
-                      )}
+                        {hasMultipleLocations && c.location && (
+                          <span className="clp-csc-badge-pill location-pill" style={getLocationBadgeStyle(c.location, internalTheme || themeProp)}>
+                            <MapPin size={11} /> {c.location}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
                   {/* Sub-Badges: Visitor Phone */}
                   <div className="clp-csc-sub-row">
@@ -1457,7 +1476,8 @@ const CheckInLogPanel = ({
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           </>
         )}
