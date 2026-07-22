@@ -41,7 +41,7 @@ import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 
 const SalesPage = () => {
-    const { user: currentUser, loading: authLoading } = useAuth();
+    const { user: currentUser, loading: authLoading, logout } = useAuth();
     const navigate = useNavigate();
     const [theme, setTheme] = useState(() => {
         try {
