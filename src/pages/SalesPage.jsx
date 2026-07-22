@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { io } from 'socket.io-client';
+import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import './SalesPage.css';
@@ -196,11 +197,11 @@ const SalesPage = () => {
         });
 
         socket.on('checkin_update', () => {
-            setCheckInRefreshTrigger(prev => prev + 1);
+            fetchCheckIns(true);
         });
 
         socket.on('customer_update', () => {
-            setCustomerRefreshTrigger(prev => prev + 1);
+            fetchCustomers(true);
         });
 
         socket.on('resource_update', () => {
@@ -347,8 +348,20 @@ const SalesPage = () => {
         }
     };
 
-    const fetchCheckIns = async () => {
-        setCheckInsLoading(true);
+    const fetchCheckIns = useCallback(async (silent = false) => {
+        const cacheKey = `checkins_${checkInPage}_${checkInLimit}_${checkInSearch}_${checkInFilterMonth}_${checkInFilterYear}_${checkInFilterLocation}`;
+        const cached = getCachedData(cacheKey);
+
+        if (cached && !silent) {
+            setCheckIns(cached.checkIns);
+            setCheckInTotalPages(cached.totalPages);
+            setCheckInTotalCount(cached.totalCount);
+            setCheckInsLoading(false);
+            if (isCacheValid(cacheKey, 120000)) return;
+        } else if (!cached && !silent) {
+            setCheckInsLoading(true);
+        }
+
         try {
             fetchCheckInStats();
             const params = new URLSearchParams({
@@ -366,22 +379,28 @@ const SalesPage = () => {
             }
             if (response.ok) {
                 const data = await response.json();
+                let list = [];
+                let totalPages = 1;
+                let totalCount = 0;
                 if (Array.isArray(data)) {
-                    setCheckIns(data);
-                    setCheckInTotalPages(1);
-                    setCheckInTotalCount(data.length);
+                    list = data;
+                    totalCount = data.length;
                 } else {
-                    setCheckIns(data.checkIns || data.data || []);
-                    setCheckInTotalPages(data.totalPages || 1);
-                    setCheckInTotalCount(data.total || 0);
+                    list = data.checkIns || data.data || [];
+                    totalPages = data.totalPages || 1;
+                    totalCount = data.total || 0;
                 }
+                setCheckIns(list);
+                setCheckInTotalPages(totalPages);
+                setCheckInTotalCount(totalCount);
+                setCachedData(cacheKey, { checkIns: list, totalPages, totalCount });
             }
         } catch (error) {
             console.error('Error fetching check-ins:', error);
         } finally {
             setCheckInsLoading(false);
         }
-    };
+    }, [checkInPage, checkInLimit, checkInSearch, checkInFilterMonth, checkInFilterYear, checkInFilterLocation, logout]);
 
     const handleViewCheckIn = (checkIn) => {
         setSelectedCheckIn(checkIn);
@@ -1427,7 +1446,20 @@ const SalesPage = () => {
         return () => clearTimeout(timer);
     }, [searchTerm, debouncedSearch]);
 
-    const fetchCustomers = useCallback(async () => {
+    const fetchCustomers = useCallback(async (silent = false) => {
+        const cacheKey = `customers_${currentPage}_${customersPerPage}_${debouncedSearch}`;
+        const cached = getCachedData(cacheKey);
+
+        if (cached && !silent) {
+            setCustomers(cached.customers);
+            setTotalPages(cached.totalPages);
+            setTotalCustomers(cached.totalCustomers);
+            setLoading(false);
+            if (isCacheValid(cacheKey, 120000)) return;
+        } else if (!cached && !silent) {
+            setLoading(true);
+        }
+
         try {
             const response = await fetch(`${API_URL}/api/customers?page=${currentPage}&limit=${customersPerPage}&search=${encodeURIComponent(debouncedSearch)}`, {
                 headers: { 'Content-Type': 'application/json' },
@@ -1436,9 +1468,15 @@ const SalesPage = () => {
 
             if (response.ok) {
                 const data = await response.json();
-                setCustomers(data.customers || []);
-                setTotalPages(data.pages || 1);
-                setTotalCustomers(data.total || 0);
+                const custList = data.customers || [];
+                const pages = data.pages || 1;
+                const total = data.total || 0;
+
+                setCustomers(custList);
+                setTotalPages(pages);
+                setTotalCustomers(total);
+
+                setCachedData(cacheKey, { customers: custList, totalPages: pages, totalCustomers: total });
             } else {
                 if (response.status === 401) {
                     window.location.href = '/login';
@@ -1453,7 +1491,7 @@ const SalesPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [currentPage, debouncedSearch, customerRefreshTrigger]);
+    }, [currentPage, customersPerPage, debouncedSearch]);
 
     useEffect(() => {
         fetchCustomers();

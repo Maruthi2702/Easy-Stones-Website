@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
+import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
 import { API_URL } from '../config/api';
 import * as XLSX from 'xlsx';
 import { Sun, Moon } from 'lucide-react';
@@ -77,7 +78,8 @@ const CheckInLogPage = () => {
     });
 
     socket.on('checkin_update', () => {
-      setRefreshTrigger(prev => prev + 1);
+      fetchCheckIns(true);
+      fetchStats();
     });
 
     return () => {
@@ -107,8 +109,21 @@ const CheckInLogPage = () => {
   };
 
   const fetchCheckIns = async (silent = false) => {
-    if (silent) setRefreshing(true);
-    else setLoading(true);
+    const cacheKey = `page_checkins_${currentPage}_${limit}_${searchTerm}_${filterMonth}_${filterYear}_${filterLocation}`;
+    const cached = getCachedData(cacheKey);
+
+    if (cached && !silent) {
+      setCheckIns(cached.checkIns);
+      setTotalPages(cached.totalPages);
+      setTotalCount(cached.totalCount);
+      setLoading(false);
+      if (isCacheValid(cacheKey, 120000)) return;
+    } else if (!cached && !silent) {
+      setLoading(true);
+    } else if (silent) {
+      setRefreshing(true);
+    }
+
     try {
       const params = new URLSearchParams({
         page: currentPage,
@@ -125,16 +140,22 @@ const CheckInLogPage = () => {
       }
       if (response.ok) {
         const data = await response.json();
+        let list = [];
+        let tPages = 1;
+        let tCount = 0;
         if (Array.isArray(data)) {
-          setCheckIns(data);
-          setTotalPages(1);
-          setTotalCount(data.length);
+          list = data;
+          tCount = data.length;
         } else {
-          setCheckIns(data.checkIns || data.data || []);
-          setTotalPages(data.totalPages || 1);
-          setTotalCount(data.total || 0);
+          list = data.checkIns || data.data || [];
+          tPages = data.totalPages || 1;
+          tCount = data.total || 0;
         }
+        setCheckIns(list);
+        setTotalPages(tPages);
+        setTotalCount(tCount);
         setLastUpdated(new Date());
+        setCachedData(cacheKey, { checkIns: list, totalPages: tPages, totalCount: tCount });
       }
     } catch (err) {
       console.error('Error fetching check-ins:', err);
