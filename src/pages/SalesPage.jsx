@@ -3426,7 +3426,7 @@ const SalesPage = () => {
                                         </div>
                                     </div>
 
-                                    {/* Two Column Side-by-Side Layout: Primary Contact (Left) and Address (Right) */}
+                                    {/* Primary Contact (Left) & Address (Right) Side-by-Side Grid */}
                                     <div className="detail-columns side-by-side">
                                         <div className="detail-column">
                                             <h3><User size={14} style={{ marginRight: '8px' }} />Primary Contact</h3>
@@ -3464,20 +3464,19 @@ const SalesPage = () => {
                                                 )}
                                             </div>
                                         </div>
+                                    </div>
 
-                                        <div className="detail-column">
-                                            <h3><Mail size={14} style={{ marginRight: '8px' }} />Marketing</h3>
-                                            <div className="column-content">
-                                                <div className="marketing-single-line-wrapper">
-                                                    <div className={`marketing-status-pill ${selectedCustomer.receiveMarketing !== false ? 'subscribed' : 'unsubscribed'}`}>
-                                                        <Mail size={13} />
-                                                        <span>{selectedCustomer.receiveMarketing !== false ? 'Subscribed' : 'Unsubscribed'}</span>
-                                                    </div>
-                                                    <div className="marketing-email-chip" title={selectedCustomer.marketingEmail || selectedCustomer.email || 'No email'}>
-                                                        <Mail size={13} className="email-icon" />
-                                                        <span>{selectedCustomer.marketingEmail || selectedCustomer.email || 'No email provided'}</span>
-                                                    </div>
-                                                </div>
+                                    {/* Marketing Section Row */}
+                                    <div className="marketing-section-row">
+                                        <h3><Mail size={14} style={{ marginRight: '8px' }} />Marketing</h3>
+                                        <div className="marketing-single-line-wrapper">
+                                            <div className={`marketing-status-pill ${selectedCustomer.receiveMarketing !== false ? 'subscribed' : 'unsubscribed'}`}>
+                                                <Mail size={13} />
+                                                <span>{selectedCustomer.receiveMarketing !== false ? 'Subscribed' : 'Unsubscribed'}</span>
+                                            </div>
+                                            <div className="marketing-email-chip" title={selectedCustomer.marketingEmail || selectedCustomer.email || 'No email'}>
+                                                <Mail size={13} className="email-icon" />
+                                                <span>{selectedCustomer.marketingEmail || selectedCustomer.email || 'No email provided'}</span>
                                             </div>
                                         </div>
                                     </div>
