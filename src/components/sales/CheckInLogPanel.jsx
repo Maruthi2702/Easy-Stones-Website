@@ -94,31 +94,15 @@ const getLocationBadgeStyle = (location, theme) => {
   const isDark = theme === 'dark';
   
   if (loc.includes('seattle')) {
-    return {
-      color: isDark ? '#2dd4bf' : '#0f766e',
-      border: `1px solid ${isDark ? 'rgba(45, 212, 191, 0.25)' : 'rgba(15, 118, 110, 0.3)'}`,
-      background: isDark ? 'rgba(45, 212, 191, 0.08)' : 'rgba(15, 118, 110, 0.06)'
-    };
+    return { color: isDark ? '#2dd4bf' : '#0f766e' };
   }
   if (loc.includes('spokane')) {
-    return {
-      color: isDark ? '#a78bfa' : '#6d28d9',
-      border: `1px solid ${isDark ? 'rgba(167, 139, 250, 0.25)' : 'rgba(109, 40, 217, 0.3)'}`,
-      background: isDark ? 'rgba(167, 139, 250, 0.08)' : 'rgba(109, 40, 217, 0.06)'
-    };
+    return { color: isDark ? '#a78bfa' : '#6d28d9' };
   }
   if (loc.includes('salt lake') || loc.includes('slc') || loc.includes('lake')) {
-    return {
-      color: isDark ? '#fbbf24' : '#b45309',
-      border: `1px solid ${isDark ? 'rgba(251, 191, 36, 0.25)' : 'rgba(180, 83, 9, 0.3)'}`,
-      background: isDark ? 'rgba(251, 191, 36, 0.08)' : 'rgba(180, 83, 9, 0.06)'
-    };
+    return { color: isDark ? '#fbbf24' : '#b45309' };
   }
-  return {
-    color: isDark ? '#94a3b8' : '#475569',
-    border: `1px solid ${isDark ? 'rgba(148, 163, 184, 0.25)' : 'rgba(71, 85, 105, 0.3)'}`,
-    background: isDark ? 'rgba(148, 163, 184, 0.08)' : 'rgba(71, 85, 105, 0.06)'
-  };
+  return { color: isDark ? '#94a3b8' : '#475569' };
 };
 
 const preprocessImage = (file, degrees = 0) => {
@@ -1383,17 +1367,166 @@ const CheckInLogPanel = ({
           </div>
         ) : (
           <>
-            <div className="clp-cards-grid">
+            {/* ── Laptop / Desktop View: Table ── */}
+            <div className="clp-table-scroll clp-desktop-only">
+              <table className="clp-table">
+                <thead>
+                  <tr>
+                    <th>CHECK-IN TIME</th>
+                    <th>VISITOR NAME</th>
+                    <th>PHONE NUMBER</th>
+                    <th>COMPANY/CONTACT NAME</th>
+                    <th>CUSTOMER PHONE</th>
+                    {hasMultipleLocations && <th>LOCATION</th>}
+                    <th style={{ textAlign: 'center' }}>ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((c) => {
+                    const entryDate = c.createdAt || c.date;
+                    const entryIsToday = isToday(entryDate);
+                    return (
+                      <tr key={c._id} className={entryIsToday ? 'clp-row-today' : ''}>
+                        <td className="clp-td-time">
+                          <div className="clp-date">{formatDate(entryDate)}</div>
+                          <div className="clp-time">{formatTime(entryDate)}</div>
+                          {entryIsToday && <span className="clp-badge clp-badge-today">Today</span>}
+                        </td>
+                        <td>
+                          <div className="clp-visitor-row">
+                            <div
+                              className="clp-avatar"
+                              style={{
+                                background: `linear-gradient(135deg, ${getAvatarColor(c.name)}, ${getAvatarColor(c.name)}99)`,
+                              }}
+                            >
+                              {getInitials(c.name)}
+                            </div>
+                            <span className="clp-visitor-name">{c.name}</span>
+                          </div>
+                        </td>
+                        <td>
+                          {c.phone ? (
+                            <a href={`tel:${c.phone}`} className="clp-icon-text clp-phone-link">
+                              <Phone size={12} /> {c.phone}
+                            </a>
+                          ) : (
+                            <span className="clp-dash">—</span>
+                          )}
+                        </td>
+                        <td>
+                          {c.fabricatorCompany ? (
+                            <div className="clp-company-row">
+                              <div className="clp-company-icon">
+                                <Building2 size={13} />
+                              </div>
+                              <span className="clp-company-name">{c.fabricatorCompany}</span>
+                            </div>
+                          ) : (
+                            <span className="clp-dash">—</span>
+                          )}
+                        </td>
+                        <td>
+                          {c.fabricatorPhone ? (
+                            <a href={`tel:${c.fabricatorPhone}`} className="clp-icon-text clp-phone-link">
+                              <Phone size={12} /> {c.fabricatorPhone}
+                            </a>
+                          ) : (
+                            <span className="clp-dash">—</span>
+                          )}
+                        </td>
+                        {hasMultipleLocations && (
+                          <td>
+                            {c.location ? (
+                              <span style={{
+                                ...getLocationBadgeStyle(c.location, internalTheme || themeProp),
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '4px 10px',
+                                borderRadius: '12px',
+                                fontSize: '0.72rem',
+                                fontWeight: '600',
+                                letterSpacing: '0.02em',
+                                textTransform: 'uppercase'
+                              }}>
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
+                                {c.location}
+                              </span>
+                            ) : (
+                              <span className="clp-dash">—</span>
+                            )}
+                          </td>
+                        )}
+
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => handleOpenSelectionModal(c)}
+                              title="Selection sheet"
+                              style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                            >
+                              <ClipboardList size={15} />
+                              {c.selections && c.selections.length > 0 && (
+                                <span className="clp-csc-count-chip">{c.selections.length}</span>
+                              )}
+                            </button>
+                            {onView && (
+                              <button
+                                onClick={() => onView(c)}
+                                title="View details"
+                                style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                              >
+                                <Eye size={15} />
+                              </button>
+                            )}
+                            {onEdit && hasEditPermission && (
+                              <button
+                                onClick={() => onEdit(c)}
+                                title="Edit check-in"
+                                style={{ background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                              >
+                                <Edit2 size={15} />
+                              </button>
+                            )}
+                            {onDelete && hasDeletePermission && (
+                              <button
+                                onClick={() => onDelete(c)}
+                                title="Delete check-in"
+                                style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Mobile & iPad View: Cards Grid ── */}
+            <div className="clp-cards-grid clp-mobile-only">
               {filtered.map((c) => {
                 const entryDate = c.createdAt || c.date;
                 const entryIsToday = isToday(entryDate);
                 return (
                   <div key={c._id} className={`clp-customer-style-card ${entryIsToday ? 'clp-row-today' : ''}`}>
-                    {/* Top Row: Visitor Name (Gold Title) + Status Date Pill & Location below date */}
+                    {/* Top Row: Visitor Name & Phone (Left) + Status Date Pill & Location (Right) */}
                     <div className="clp-csc-top-row">
-                      <h3 className="clp-csc-title">{c.name}</h3>
+                      <div className="clp-csc-left-info">
+                        <h3 className="clp-csc-title">{c.name}</h3>
+                        {c.phone && (
+                          <a href={`tel:${c.phone}`} className="clp-csc-badge-pill gold-outline">
+                            <Phone size={11} /> {c.phone}
+                          </a>
+                        )}
+                      </div>
                       <div className="clp-csc-right-meta">
                         <span className={`clp-csc-status-badge ${entryIsToday ? 'today' : ''}`}>
+                          {entryIsToday && <span className="clp-live-pulse-dot" />}
                           {entryIsToday ? `TODAY • ${formatTime(entryDate)}` : formatDate(entryDate)}
                         </span>
                         {hasMultipleLocations && c.location && (
@@ -1403,15 +1536,6 @@ const CheckInLogPanel = ({
                         )}
                       </div>
                     </div>
-
-                  {/* Sub-Badges: Visitor Phone */}
-                  <div className="clp-csc-sub-row">
-                    {c.phone && (
-                      <a href={`tel:${c.phone}`} className="clp-csc-badge-pill gold-outline">
-                        <Phone size={11} /> {c.phone}
-                      </a>
-                    )}
-                  </div>
 
                   {/* Dashed Separator */}
                   <div className="clp-csc-dashed-divider" />
@@ -1434,6 +1558,9 @@ const CheckInLogPanel = ({
                     </div>
                   </div>
 
+                  {/* Solid Separator */}
+                  <div className="clp-csc-solid-divider" />
+
                   {/* Bottom Action Row */}
                   <div className="clp-csc-actions-row">
                     <div className="clp-csc-actions-left">
@@ -1442,17 +1569,21 @@ const CheckInLogPanel = ({
                         className="clp-csc-btn btn-selection"
                         title="Selection sheet"
                       >
-                        <ClipboardList size={14} /> <span>Selection Sheet</span>
+                        <ClipboardList size={14} />
+                        <span>Selection Sheet</span>
+                        {c.selections && c.selections.length > 0 && (
+                          <span className="clp-csc-count-chip">{c.selections.length}</span>
+                        )}
                       </button>
                     </div>
                     <div className="clp-csc-actions-right">
                       {onView && (
                         <button
                           onClick={() => onView(c)}
-                          className="clp-csc-btn btn-view"
+                          className="clp-csc-btn icon-only btn-view"
                           title="View details"
                         >
-                          <Eye size={14} /> <span>View</span>
+                          <Eye size={14} />
                         </button>
                       )}
                       {onEdit && hasEditPermission && (

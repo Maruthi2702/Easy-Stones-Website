@@ -68,7 +68,10 @@ const Pagination = ({
         <div className={`spag-root ${hasRowsSelect ? 'has-rows-select' : ''}`}>
             {hasRowsSelect && (
                 <div className="spag-rows-select-wrapper">
-                    <span className="spag-rows-label">Rows per page:</span>
+                    <span className="spag-rows-label">
+                        <span className="spag-label-full">Rows per page:</span>
+                        <span className="spag-label-short">Rows:</span>
+                    </span>
                     <select
                         className="spag-rows-select"
                         value={rowsPerPage}
