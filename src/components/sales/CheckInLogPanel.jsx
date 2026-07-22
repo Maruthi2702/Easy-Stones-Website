@@ -1196,6 +1196,9 @@ const CheckInLogPanel = ({
                     ? `${MONTH_NAMES[filterMonth - 1]} ${filterYear}`
                     : 'Filters'}
                 </span>
+                {(filterMonth || filterYear || filterLocation) && (
+                  <span className="clp-filter-dot" />
+                )}
               </button>
 
               {showFilterDropdown && (

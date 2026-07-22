@@ -227,11 +227,25 @@
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 11px;
   padding: 0.875rem 1.1rem;
-  transition: border-color 0.2s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
 }
 
 .clp-stat:hover {
-  border-color: rgba(212, 175, 55, 0.22);
+  border-color: rgba(212, 175, 55, 0.28);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.clp-filter-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d4af37;
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.8);
+  margin-left: 2px;
+  flex-shrink: 0;
 }
 
 .clp-stat-icon {
