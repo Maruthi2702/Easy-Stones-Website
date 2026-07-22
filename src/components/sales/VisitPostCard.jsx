@@ -39,75 +39,82 @@ const VisitPostCard = ({
                         <div className="author-details-wrapper">
                             <div className="author-name-row">
                                 <span className="post-author">{visit.createdByName || visit.creatorName || 'Unknown User'}</span>
-                                <CheckCircle2 size={15} className="verified-author-badge" title="Verified User" />
+                                <CheckCircle2 size={16} className="verified-author-badge" title="Verified User" />
                             </div>
-                            <span className="post-time">
-                                {(() => {
-                                    const dateVal = visit.date;
-                                    if (!dateVal) return '-';
-                                    const dateObj = (typeof dateVal === 'string' && dateVal.endsWith('Z'))
-                                        ? new Date(dateVal.slice(0, -1))
-                                        : new Date(dateVal);
-
-                                    return dateObj.toLocaleDateString('en-US', {
-                                        month: '2-digit',
-                                        day: '2-digit',
-                                        year: 'numeric'
-                                    });
-                                })()}
-                            </span>
                         </div>
                     </div>
 
-                    {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager' || currentUserId === visit.createdBy) && (
-                        <div className="post-header-actions">
-                            <button
-                                className="icon-action-small reaction-trigger"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (activeReactionMessageId === visit._id) {
-                                        setActiveReactionMessageId(null);
-                                    } else {
-                                        setActiveReactionMessageId(visit._id);
-                                    }
-                                }}
-                                title="Add Reaction"
-                            >
-                                <Smile size={14} />
-                            </button>
-                            {activeReactionMessageId === visit._id && (
-                                <div className="reaction-picker-floating">
-                                    {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
-                                        <button
-                                            key={emoji}
-                                            className="reaction-option"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleReaction(visit._id, emoji);
-                                                setActiveReactionMessageId(null);
-                                            }}
-                                        >
-                                            {emoji}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                            <button
-                                className="icon-action-small edit"
-                                onClick={(e) => { e.stopPropagation(); handleEditVisit(visit); }}
-                                title="Edit"
-                            >
-                                <Edit2 size={14} />
-                            </button>
-                            <button
-                                className="icon-action-small delete"
-                                onClick={(e) => { e.stopPropagation(); handleDeleteVisit(visit._id); }}
-                                title="Delete"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                    )}
+                    <div className="post-header-right-meta">
+                        <span className="post-time">
+                            {(() => {
+                                const dateVal = visit.date;
+                                if (!dateVal) return '-';
+                                const dateObj = (typeof dateVal === 'string' && dateVal.endsWith('Z'))
+                                    ? new Date(dateVal.slice(0, -1))
+                                    : new Date(dateVal);
+
+                                return dateObj.toLocaleDateString('en-US', {
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    year: 'numeric'
+                                });
+                            })()}
+                        </span>
+
+                        {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager' || currentUserId === visit.createdBy) && (
+                            <div className="post-header-actions">
+                                <button
+                                    type="button"
+                                    className="icon-action-small reaction-trigger"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (activeReactionMessageId === visit._id) {
+                                            setActiveReactionMessageId(null);
+                                        } else {
+                                            setActiveReactionMessageId(visit._id);
+                                        }
+                                    }}
+                                    title="Add Reaction"
+                                >
+                                    <Smile size={14} />
+                                </button>
+                                {activeReactionMessageId === visit._id && (
+                                    <div className="reaction-picker-floating">
+                                        {['👍', '❤️', '😂', '😮', '👏'].map(emoji => (
+                                            <button
+                                                key={emoji}
+                                                type="button"
+                                                className="reaction-option"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleReaction(visit._id, emoji);
+                                                    setActiveReactionMessageId(null);
+                                                }}
+                                            >
+                                                {emoji}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                <button
+                                    type="button"
+                                    className="icon-action-small edit"
+                                    onClick={(e) => { e.stopPropagation(); handleEditVisit(visit); }}
+                                    title="Edit"
+                                >
+                                    <Edit2 size={14} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="icon-action-small delete"
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteVisit(visit._id); }}
+                                    title="Delete"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="post-body">
