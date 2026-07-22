@@ -169,7 +169,7 @@ const VisitPostCard = ({
                     {visit.notes && <p className="post-text">{visit.notes}</p>}
 
                     {(visit.outcome || visit.followUp || visit.nextAction || visit.managerComment || visit.headquartersComment) && (
-                        <div className="post-details-ext executive-outcome-card">
+                        <div className="post-details-ext">
                             {visit.outcome && !visit.purpose?.toLowerCase().match(/quick note|resource placement|resource update/i) && (
                                 <div className="post-detail-row outcome">
                                     <span className="detail-label">OUTCOME:</span>

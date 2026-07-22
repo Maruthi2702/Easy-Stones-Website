@@ -3009,39 +3009,82 @@
   flex-shrink: 0;
 }
 
-/* Outcome Card - Concept B */
-.executive-outcome-card {
-  background: rgba(16, 185, 129, 0.06) !important;
-  border: 1px solid rgba(16, 185, 129, 0.28) !important;
-  border-radius: 14px !important;
-  padding: 1rem 1.25rem !important;
-  margin-top: 1rem !important;
-  box-shadow: inset 0 0 15px rgba(16, 185, 129, 0.03);
+/* Executive Details Container */
+.post-details-ext {
+  margin-top: 1.1rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.85rem !important;
 }
 
-.post-detail-row.outcome {
-  background: transparent !important;
-  border: none !important;
-  padding: 0 !important;
+.post-detail-row {
   display: flex !important;
   flex-direction: column !important;
   align-items: flex-start !important;
   gap: 6px !important;
+  padding: 0.9rem 1.15rem !important;
+  border-radius: 12px !important;
+  box-sizing: border-box !important;
 }
 
-.post-detail-row.outcome .detail-label {
-  color: #10b981 !important;
+.post-detail-row .detail-label {
   font-weight: 800 !important;
   letter-spacing: 0.08em !important;
-  font-size: 0.82rem !important;
+  font-size: 0.8rem !important;
   text-transform: uppercase !important;
 }
 
-.post-detail-row.outcome .detail-value {
+.post-detail-row .detail-value {
   color: #f8fafc !important;
   font-size: 0.95rem !important;
   line-height: 1.6 !important;
   font-weight: 450 !important;
+}
+
+/* 1. OUTCOME (Emerald Green) */
+.post-detail-row.outcome {
+  background: rgba(16, 185, 129, 0.06) !important;
+  border: 1px solid rgba(16, 185, 129, 0.28) !important;
+  box-shadow: inset 0 0 15px rgba(16, 185, 129, 0.02) !important;
+}
+
+.post-detail-row.outcome .detail-label {
+  color: #10b981 !important;
+}
+
+/* 2. FOLLOW UP (Royal Blue) */
+.post-detail-row.follow-up {
+  background: rgba(59, 130, 246, 0.06) !important;
+  border: 1px solid rgba(59, 130, 246, 0.28) !important;
+  box-shadow: inset 0 0 15px rgba(59, 130, 246, 0.02) !important;
+}
+
+.post-detail-row.follow-up .detail-label {
+  color: #60a5fa !important;
+}
+
+/* 3. NEXT STEPS (Sky Blue) */
+.post-detail-row.next-action {
+  background: rgba(14, 165, 233, 0.06) !important;
+  border: 1px solid rgba(14, 165, 233, 0.28) !important;
+  box-shadow: inset 0 0 15px rgba(14, 165, 233, 0.02) !important;
+}
+
+.post-detail-row.next-action .detail-label {
+  color: #38bdf8 !important;
+}
+
+/* 4. MANAGER & HQ COMMENTS (Rose Red) */
+.post-detail-row.manager-comment,
+.post-detail-row.hq-comment {
+  background: rgba(239, 68, 68, 0.06) !important;
+  border: 1px solid rgba(239, 68, 68, 0.28) !important;
+  box-shadow: inset 0 0 15px rgba(239, 68, 68, 0.02) !important;
+}
+
+.post-detail-row.manager-comment .detail-label,
+.post-detail-row.hq-comment .detail-label {
+  color: #f87171 !important;
 }
 
 /* Executive Reaction Bar */
