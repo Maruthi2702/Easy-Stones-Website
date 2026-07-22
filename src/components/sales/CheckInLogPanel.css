@@ -3301,6 +3301,19 @@ body.light-theme-active .clp-root .clp-subtitle {
 /* ─────────────────────────────────────────────────────────────
    Customer List Style Cards for Check-In Log
    ───────────────────────────────────────────────────────────── */
+.clp-cards-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)) !important;
+  gap: 16px !important;
+  padding: 4px 0 !important;
+}
+
+@media (max-width: 640px) {
+  .clp-cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 .clp-customer-style-card {
   background: rgba(18, 24, 39, 0.75) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
