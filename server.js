@@ -2058,17 +2058,17 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
 // Get single customer with full details (including images)
 app.get('/api/customers/:id', authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id)
+    const customerObj = await Customer.findById(req.params.id)
       .populate('associatedCustomers', 'contactName company customerType status phone visits')
-      .select('-password');
-    if (!customer) {
+      .select('-password')
+      .lean();
+    if (!customerObj) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
     // Add calculated fields for dormancy alerts
-    const customerObj = customer.toObject();
-    customerObj.lastVisitDate = customer.visits && customer.visits.length > 0
-      ? customer.visits.reduce((latest, v) => (v.date > latest ? v.date : latest), customer.visits[0].date)
+    customerObj.lastVisitDate = customerObj.visits && customerObj.visits.length > 0
+      ? customerObj.visits.reduce((latest, v) => (v.date > latest ? v.date : latest), customerObj.visits[0].date)
       : null;
 
     // Calculate lastVisitDate for each associated customer and strip visits payload
@@ -3530,6 +3530,7 @@ app.post('/api/customers/:customerId/visits', authenticate, requirePermission('m
     }
 
     console.log(`[Add Visit] Success in ${Date.now() - updateStart}ms for customer ${customerId}`);
+    req.app.get('io').emit('visit_updated', { customerId });
     res.status(201).json({ success: true, visit: visitData });
 
     // Background: Log the activity

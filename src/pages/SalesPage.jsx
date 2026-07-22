@@ -1458,12 +1458,24 @@ const SalesPage = () => {
         fetchCustomers();
     }, [fetchCustomers]);
 
-    // Optimized function to fetch only the selected customer
-    const fetchSingleCustomer = async (customerId) => {
+    // In-memory customer cache for instant rendering
+    const customerCacheRef = React.useRef({});
+
+    // Optimized function to fetch only the selected customer with instant cache hydration
+    const fetchSingleCustomer = async (customerId, skipCache = false) => {
         if (!customerId) return;
 
-        try {
+        // 1. Instant Cache Hydration: Serve cached data in 0ms if available
+        if (!skipCache && customerCacheRef.current[customerId]) {
+            const cachedData = customerCacheRef.current[customerId];
+            setSelectedCustomerDetail(cachedData);
+            setQuickNote(cachedData.quickNote || '');
+            setVisitsLoading(false);
+        } else if (!selectedCustomerDetail || selectedCustomerDetail._id !== customerId) {
             setVisitsLoading(true);
+        }
+
+        try {
             const response = await fetch(`${API_URL}/api/customers/${customerId}`, {
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include'
@@ -1471,17 +1483,10 @@ const SalesPage = () => {
 
             if (response.ok) {
                 const data = await response.json();
+                customerCacheRef.current[customerId] = data; // Update memory cache
                 setSelectedCustomerDetail(data);
                 setQuickNote(data.quickNote || '');
-
-                // Return data for callers
                 return data;
-
-                // Also update the lightweight list entry if needed (e.g. name/company changed)
-                // distinct from the full detail view
-                setCustomers(prevCustomers =>
-                    prevCustomers.map(c => c._id === customerId ? { ...c, ...data } : c)
-                );
             }
         } catch (error) {
             console.error('Error fetching customer details:', error);
