@@ -3826,3 +3826,155 @@ body.light-theme-active .clp-root .clp-subtitle {
   color: #f87171 !important;
   border-color: #ef4444 !important;
 }
+
+/* ── Light Theme Overrides for Mobile Customer-Style Cards (.clp-customer-style-card) ── */
+.clp-root.light-theme .clp-customer-style-card,
+body.light-theme-active .clp-root .clp-customer-style-card,
+body.light-theme-active .clp-customer-style-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+}
+
+.clp-root.light-theme .clp-customer-style-card.clp-row-today,
+body.light-theme-active .clp-root .clp-customer-style-card.clp-row-today,
+body.light-theme-active .clp-customer-style-card.clp-row-today {
+  border-left: 3.5px solid #10b981 !important;
+  background: linear-gradient(145deg, rgba(16, 185, 129, 0.05) 0%, #ffffff 100%) !important;
+}
+
+.clp-root.light-theme .clp-customer-style-card:hover,
+body.light-theme-active .clp-root .clp-customer-style-card:hover,
+body.light-theme-active .clp-customer-style-card:hover {
+  border-color: rgba(212, 175, 55, 0.45) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(212, 175, 55, 0.12) !important;
+}
+
+.clp-root.light-theme .clp-csc-avatar,
+body.light-theme-active .clp-root .clp-csc-avatar,
+body.light-theme-active .clp-csc-avatar {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(212, 175, 55, 0.05)) !important;
+  border: 1.5px solid rgba(212, 175, 55, 0.35) !important;
+  color: #b48a1c !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05) !important;
+}
+
+.clp-root.light-theme .clp-csc-title,
+body.light-theme-active .clp-root .clp-csc-title,
+body.light-theme-active .clp-csc-title {
+  color: #b48a1c !important;
+}
+
+.clp-root.light-theme .clp-csc-badge-pill.gold-outline,
+body.light-theme-active .clp-root .clp-csc-badge-pill.gold-outline,
+body.light-theme-active .clp-csc-badge-pill.gold-outline {
+  color: #b48a1c !important;
+}
+
+.clp-root.light-theme .clp-csc-badge-pill.gold-outline:hover,
+body.light-theme-active .clp-root .clp-csc-badge-pill.gold-outline:hover,
+body.light-theme-active .clp-csc-badge-pill.gold-outline:hover {
+  color: #9a7412 !important;
+}
+
+.clp-root.light-theme .clp-csc-status-badge,
+body.light-theme-active .clp-root .clp-csc-status-badge,
+body.light-theme-active .clp-csc-status-badge {
+  color: #64748b !important;
+}
+
+.clp-root.light-theme .clp-csc-status-badge.today,
+body.light-theme-active .clp-root .clp-csc-status-badge.today,
+body.light-theme-active .clp-csc-status-badge.today {
+  color: #059669 !important;
+}
+
+.clp-root.light-theme .clp-csc-dashed-divider,
+body.light-theme-active .clp-root .clp-csc-dashed-divider,
+body.light-theme-active .clp-csc-dashed-divider {
+  border-top-color: #cbd5e1 !important;
+}
+
+.clp-root.light-theme .clp-csc-solid-divider,
+body.light-theme-active .clp-root .clp-csc-solid-divider,
+body.light-theme-active .clp-csc-solid-divider {
+  border-top-color: #e2e8f0 !important;
+}
+
+.clp-root.light-theme .clp-csc-label,
+body.light-theme-active .clp-root .clp-csc-label,
+body.light-theme-active .clp-csc-label {
+  color: #64748b !important;
+}
+
+.clp-root.light-theme .clp-csc-value,
+body.light-theme-active .clp-root .clp-csc-value,
+body.light-theme-active .clp-csc-value {
+  color: #334155 !important;
+}
+
+.clp-root.light-theme .clp-csc-value.bold-white,
+body.light-theme-active .clp-root .clp-csc-value.bold-white,
+body.light-theme-active .clp-csc-value.bold-white {
+  color: #0f172a !important;
+}
+
+.clp-root.light-theme .clp-csc-phone-link,
+body.light-theme-active .clp-root .clp-csc-phone-link,
+body.light-theme-active .clp-csc-phone-link {
+  color: #b48a1c !important;
+}
+
+.clp-root.light-theme .clp-csc-phone-link:hover,
+body.light-theme-active .clp-root .clp-csc-phone-link:hover,
+body.light-theme-active .clp-csc-phone-link:hover {
+  color: #9a7412 !important;
+}
+
+.clp-root.light-theme .clp-csc-btn.btn-view,
+body.light-theme-active .clp-root .clp-csc-btn.btn-view,
+body.light-theme-active .clp-csc-btn.btn-view {
+  background: #fef3c7 !important;
+  color: #b48a1c !important;
+  border: 1px solid #fde68a !important;
+}
+
+.clp-root.light-theme .clp-csc-btn.btn-view:hover,
+body.light-theme-active .clp-root .clp-csc-btn.btn-view:hover,
+body.light-theme-active .clp-csc-btn.btn-view:hover {
+  background: #fde68a !important;
+  color: #9a7412 !important;
+  border-color: #f59e0b !important;
+}
+
+.clp-root.light-theme .clp-csc-btn.btn-edit,
+body.light-theme-active .clp-root .clp-csc-btn.btn-edit,
+body.light-theme-active .clp-csc-btn.btn-edit {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.clp-root.light-theme .clp-csc-btn.btn-edit:hover,
+body.light-theme-active .clp-root .clp-csc-btn.btn-edit:hover,
+body.light-theme-active .clp-csc-btn.btn-edit:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+.clp-root.light-theme .clp-csc-btn.btn-delete,
+body.light-theme-active .clp-root .clp-csc-btn.btn-delete,
+body.light-theme-active .clp-csc-btn.btn-delete {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border: 1px solid #fecaca !important;
+}
+
+.clp-root.light-theme .clp-csc-btn.btn-delete:hover,
+body.light-theme-active .clp-root .clp-csc-btn.btn-delete:hover,
+body.light-theme-active .clp-csc-btn.btn-delete:hover {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+  border-color: #f87171 !important;
+}
