@@ -25,7 +25,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Clock, Search, Download, Loader2, Calendar,
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
-  Save, AlertTriangle, Printer, Sun, Moon, Filter, Scan, Plus, MapPin
+  Save, AlertTriangle, Printer, Sun, Moon, Filter, Scan, Plus, MapPin,
+  QrCode, Copy, Check, Smartphone
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import Pagination from '../shared/Pagination';
@@ -349,8 +350,13 @@ const CheckInLogPanel = ({
   const hasDeletePermission = !user || user.permissions?.includes('delete_checkins');
   const hasSendEmailPermission = !user || user.permissions?.includes('send_checkin_email');
   const hasMultipleLocations = user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1);
+  const isAdmin = !user || user.role === 'admin' || user.role === 'Admin' || user.permissions?.includes('*') || user.permissions?.includes('admin');
 
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrLocation, setQrLocation] = useState(filterLocation || 'Seattle');
+  const [copiedNfcUrl, setCopiedNfcUrl] = useState(false);
+  const [qrDomain, setQrDomain] = useState(() => (typeof window !== 'undefined' ? window.location.origin : ''));
   const [internalTheme, setInternalTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_theme');
@@ -1314,6 +1320,16 @@ const CheckInLogPanel = ({
             </div>
           )}
 
+          <button
+            type="button"
+            className="clp-qr-btn clp-desktop-checkin"
+            onClick={() => setShowQrModal(true)}
+            title="QR Code & NFC Self Check-In"
+          >
+            <QrCode size={14} />
+            <span>QR / NFC Code</span>
+          </button>
+
           <a
             href={
               filterLocation 
@@ -1706,14 +1722,16 @@ const CheckInLogPanel = ({
                     list="salesreps-datalist"
                   />
                 </div>
-                {selectedCheckIn.loggedBy?.username && (
-                  <div className="detail-item">
-                    <span className="detail-label">
-                      <UserCheck size={12} className="detail-icon" /> Logged By:
-                    </span>
-                    <span className="detail-value" style={{ fontStyle: 'italic', color: '#a0aec0' }}>{selectedCheckIn.loggedBy.username}</span>
-                  </div>
-                )}
+                <div className="detail-item">
+                  <span className="detail-label">
+                    <UserCheck size={12} className="detail-icon" /> Logged By:
+                  </span>
+                  <span className="detail-value clp-loggedby-pill">
+                    {typeof selectedCheckIn.loggedBy === 'string'
+                      ? selectedCheckIn.loggedBy
+                      : selectedCheckIn.loggedBy?.username || (selectedCheckIn.source === 'self' || selectedCheckIn.isSelfCheckIn || selectedCheckIn.loggedBy === 'Self Check-In (QR/NFC)' ? '📱 Self Check-In (QR/NFC)' : 'Staff')}
+                  </span>
+                </div>
               </div>
 
               {/* Selections Grid Table */}
@@ -2123,6 +2141,167 @@ const CheckInLogPanel = ({
                   Scan Selected Area
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── QR Code & NFC Generator Modal ── */}
+      {showQrModal && (
+        <div className="selection-modal-overlay" onClick={() => setShowQrModal(false)}>
+          <div className="selection-modal-container clp-qr-modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="selection-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <QrCode size={20} style={{ color: '#d4af37' }} />
+                <h2 className="selection-modal-header-title">QR Code & NFC Showroom Check-In</h2>
+              </div>
+              <button className="selection-modal-close" onClick={() => setShowQrModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="selection-modal-form clp-qr-modal-body">
+              {/* Branch Office Location & Domain Selector */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="clp-qr-location-selector">
+                  <label className="clp-qr-label">
+                    Showroom Branch Location:
+                  </label>
+                  <select
+                    value={qrLocation}
+                    onChange={(e) => setQrLocation(e.target.value)}
+                    className="clp-qr-select"
+                  >
+                    <option value="Seattle">📍 Seattle Office</option>
+                    <option value="Spokane">📍 Spokane Office</option>
+                    <option value="Salt Lake City">📍 Salt Lake City Office</option>
+                  </select>
+                </div>
+
+                <div className="clp-qr-location-selector">
+                  <label className="clp-qr-label">
+                    Target Domain URL {!isAdmin && <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>(Admin only)</span>}:
+                  </label>
+                  <input
+                    type="text"
+                    value={qrDomain}
+                    onChange={(e) => isAdmin && setQrDomain(e.target.value)}
+                    readOnly={!isAdmin}
+                    disabled={!isAdmin}
+                    placeholder={window.location.origin}
+                    className="clp-qr-select"
+                    style={!isAdmin ? { opacity: 0.75, cursor: 'not-allowed' } : {}}
+                  />
+                </div>
+              </div>
+
+              {/* Dynamic QR Code Display */}
+              <div className="clp-qr-preview-card">
+                <a
+                  href={`/self-checkin?location=${encodeURIComponent(qrLocation)}&mode=qr`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="clp-qr-code-wrapper"
+                  title="Click to open and test self check-in for this location"
+                >
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(`${qrDomain.replace(/\/$/, '')}/self-checkin?location=${encodeURIComponent(qrLocation)}&mode=qr`)}`}
+                    alt={`QR Code for ${qrLocation}`}
+                    className="clp-qr-image"
+                  />
+                </a>
+                <div className="clp-qr-info">
+                  <h4>{qrLocation} Showroom Self Check-In</h4>
+                  <p>Customers can scan this QR code or tap an NFC tag to open the check-in form directly on their mobile phones.</p>
+                  <p style={{ marginTop: '8px', fontSize: '0.78rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span>🔗 URL: <code>{`${qrDomain.replace(/\/$/, '')}/self-checkin?location=${encodeURIComponent(qrLocation)}`}</code></span>
+                    <a
+                      href={`/self-checkin?location=${encodeURIComponent(qrLocation)}&mode=qr`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ textDecoration: 'underline', color: '#d4af37', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                      [ Test Link ↗ ]
+                    </a>
+                  </p>
+                </div>
+              </div>
+
+              {/* NFC Link Section */}
+              <div className="clp-nfc-card">
+                <div className="clp-nfc-header">
+                  <Smartphone size={16} style={{ color: '#10b981' }} />
+                  <strong>NFC Tag URL (1-Click Copy for Tag Writer):</strong>
+                </div>
+                <div className="clp-nfc-url-row">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${qrDomain.replace(/\/$/, '')}/self-checkin?location=${encodeURIComponent(qrLocation)}&mode=nfc`}
+                    className="clp-nfc-input"
+                  />
+                  <button
+                    type="button"
+                    className="clp-nfc-copy-btn"
+                    onClick={() => {
+                      const url = `${qrDomain.replace(/\/$/, '')}/self-checkin?location=${encodeURIComponent(qrLocation)}&mode=nfc`;
+                      navigator.clipboard.writeText(url);
+                      setCopiedNfcUrl(true);
+                      setTimeout(() => setCopiedNfcUrl(false), 2000);
+                    }}
+                  >
+                    {copiedNfcUrl ? <Check size={14} /> : <Copy size={14} />}
+                    <span>{copiedNfcUrl ? 'Copied!' : 'Copy'}</span>
+                  </button>
+                </div>
+                <p className="clp-nfc-hint">
+                  💡 Tip: Use any free app like <strong>NFC Tools</strong> on iPhone/Android to write this URL to a $0.50 NFC NTAG215 sticker for instant tap-to-check-in on front desk counters.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="selection-modal-actions" style={{ justifyContent: 'space-between' }}>
+              <button
+                type="button"
+                className="clp-qr-btn-print"
+                onClick={() => {
+                  const printUrl = `${qrDomain.replace(/\/$/, '')}/self-checkin?location=${encodeURIComponent(qrLocation)}&mode=qr`;
+                  const printWin = window.open('', '_blank');
+                  printWin.document.write(`
+                    <html>
+                      <head>
+                        <title>Easy Stones Check-In Poster - ${qrLocation}</title>
+                        <style>
+                          body { font-family: system-ui, sans-serif; text-align: center; padding: 40px; color: #0f172a; }
+                          .poster { max-width: 500px; margin: 0 auto; border: 2px solid #d4af37; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+                          h1 { color: #b48a1c; font-size: 28px; margin-bottom: 5px; }
+                          h2 { color: #334155; font-size: 20px; font-weight: 500; margin-top: 0; }
+                          .qr-img { width: 220px; height: 220px; margin: 20px 0; border: 4px solid #f1f5f9; padding: 10px; border-radius: 12px; }
+                          .instructions { font-size: 16px; color: #475569; margin-top: 15px; }
+                          .badge { display: inline-block; background: #fef3c7; color: #b48a1c; padding: 6px 16px; border-radius: 20px; font-weight: 700; margin-bottom: 20px; }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="poster">
+                          <div class="badge">EASY STONES • ${qrLocation.toUpperCase()} SHOWROOM</div>
+                          <h1>Welcome! Visitor Check-In</h1>
+                          <h2>Please Scan QR Code or Tap NFC to Check In</h2>
+                          <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(printUrl)}" class="qr-img" />
+                          <p class="instructions">📱 Open Phone Camera to Scan<br>⚡ Or Tap Phone Here for NFC Check-In</p>
+                        </div>
+                        <script>window.onload = () => { window.print(); };</script>
+                      </body>
+                    </html>
+                  `);
+                  printWin.document.close();
+                }}
+              >
+                <Printer size={15} /> Print Showroom Poster
+              </button>
+              <button type="button" className="clp-qr-btn-close" onClick={() => setShowQrModal(false)}>
+                Close
+              </button>
             </div>
           </div>
         </div>

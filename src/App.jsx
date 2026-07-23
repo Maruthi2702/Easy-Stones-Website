@@ -152,6 +152,7 @@ function App() {
                     }
                   />
                   <Route path="/checkin" element={<ProtectedRoute><CheckInPage /></ProtectedRoute>} />
+                  <Route path="/self-checkin" element={<CheckInPage isSelfCheckIn={true} />} />
                   <Route path="/checkin-log" element={<ProtectedRoute><CheckInLogPage /></ProtectedRoute>} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                   <Route path="/product/:productId" element={<ProductDetail />} />

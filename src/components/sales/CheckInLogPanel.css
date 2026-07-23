@@ -751,8 +751,7 @@ table.clp-table {
 }
 
 .clp-icon-wrap,
-.clp-header-left .dashboard-sidebar-toggle,
-.clp-header-left button {
+.clp-header-left .dashboard-sidebar-toggle {
   width: 38px !important;
   height: 38px !important;
   border-radius: 10px !important;
@@ -768,8 +767,7 @@ table.clp-table {
 }
 
 .clp-icon-wrap:hover,
-.clp-header-left .dashboard-sidebar-toggle:hover,
-.clp-header-left button:hover {
+.clp-header-left .dashboard-sidebar-toggle:hover {
   background: rgba(212, 175, 55, 0.15) !important;
   border-color: rgba(212, 175, 55, 0.4) !important;
   color: #fbbf24 !important;
@@ -917,6 +915,23 @@ table.clp-table {
     justify-content: space-between !important;
     width: 100% !important;
     gap: 0.4rem !important;
+  }
+
+  .clp-header-btn-group {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.65rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  .clp-header-btn-group .clp-checkin-btn,
+  .clp-header-btn-group .clp-qr-btn {
+    height: 34px !important;
+    padding: 0 0.75rem !important;
+    font-size: 0.78rem !important;
+    border-radius: 17px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
   }
 
   .clp-header-brand {
@@ -3991,4 +4006,339 @@ body.light-theme-active .clp-csc-btn.btn-delete:hover {
   background: #fee2e2 !important;
   color: #b91c1c !important;
   border-color: #f87171 !important;
+}
+
+/* ── QR Code & NFC Feature Styling ── */
+.clp-header-btn-group {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.65rem !important;
+  flex-shrink: 0 !important;
+}
+
+.clp-qr-btn {
+  display: inline-flex;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.45rem !important;
+  padding: 0 0.9rem !important;
+  height: 36px !important;
+  width: auto !important;
+  border-radius: 20px !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  cursor: pointer !important;
+  background: rgba(11, 15, 25, 0.4) !important;
+  color: #d4af37 !important;
+  border: 1.5px solid #d4af37 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+  transition: all 0.2s ease !important;
+}
+
+.clp-qr-btn:hover {
+  background: rgba(212, 175, 55, 0.2) !important;
+  color: #fbbf24 !important;
+  border-color: #fbbf24 !important;
+  transform: translateY(-1px) !important;
+}
+
+.clp-root.light-theme .clp-qr-btn,
+body.light-theme-active .clp-qr-btn {
+  background: #ffffff !important;
+  color: #b48a1c !important;
+  border: 1.5px solid #d4af37 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+
+.clp-root.light-theme .clp-qr-btn:hover,
+body.light-theme-active .clp-qr-btn:hover {
+  background: #fef3c7 !important;
+  color: #9a7412 !important;
+  border-color: #f59e0b !important;
+}
+
+/* Logged By Badge */
+.clp-loggedby-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 2px 8px !important;
+  border-radius: 12px !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #10b981 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.clp-root.light-theme .clp-loggedby-pill,
+body.light-theme-active .clp-loggedby-pill {
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+
+/* QR Modal Layout */
+.clp-qr-modal-container {
+  max-width: 520px !important;
+  width: 92% !important;
+}
+
+.clp-qr-modal-body {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+  padding: 20px !important;
+}
+
+.clp-qr-location-selector {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+.clp-qr-label {
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  color: #94a3b8 !important;
+}
+
+.clp-root.light-theme .clp-qr-label,
+body.light-theme-active .clp-qr-label {
+  color: #475569 !important;
+}
+
+.clp-qr-select {
+  width: 100% !important;
+  height: 40px !important;
+  padding: 0 14px !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  outline: none !important;
+}
+
+.clp-root.light-theme .clp-qr-select,
+body.light-theme-active .clp-qr-select {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.clp-qr-preview-card {
+  display: flex !important;
+  align-items: center !important;
+  gap: 20px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 14px !important;
+  padding: 16px !important;
+}
+
+.clp-root.light-theme .clp-qr-preview-card,
+body.light-theme-active .clp-qr-preview-card {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.clp-qr-code-wrapper {
+  background: #ffffff !important;
+  padding: 8px !important;
+  border-radius: 12px !important;
+  border: 1px solid #e2e8f0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.clp-qr-image {
+  width: 160px !important;
+  height: 160px !important;
+  display: block !important;
+}
+
+.clp-qr-info h4 {
+  margin: 0 0 6px !important;
+  font-size: 1.05rem !important;
+  color: #d4af37 !important;
+}
+
+.clp-root.light-theme .clp-qr-info h4,
+body.light-theme-active .clp-qr-info h4 {
+  color: #b48a1c !important;
+}
+
+.clp-qr-info p {
+  margin: 0 !important;
+  font-size: 0.83rem !important;
+  color: #94a3b8 !important;
+  line-height: 1.45 !important;
+}
+
+.clp-root.light-theme .clp-qr-info p,
+body.light-theme-active .clp-qr-info p {
+  color: #64748b !important;
+}
+
+.clp-nfc-card {
+  background: rgba(16, 185, 129, 0.06) !important;
+  border: 1px solid rgba(16, 185, 129, 0.2) !important;
+  border-radius: 12px !important;
+  padding: 14px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+
+.clp-root.light-theme .clp-nfc-card,
+body.light-theme-active .clp-nfc-card {
+  background: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.clp-nfc-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 0.84rem !important;
+  color: #f8fafc !important;
+}
+
+.clp-root.light-theme .clp-nfc-header,
+body.light-theme-active .clp-nfc-header {
+  color: #065f46 !important;
+}
+
+.clp-nfc-url-row {
+  display: flex !important;
+  gap: 8px !important;
+}
+
+.clp-nfc-input {
+  flex: 1 !important;
+  height: 36px !important;
+  padding: 0 10px !important;
+  border-radius: 8px !important;
+  background: rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #10b981 !important;
+  font-size: 0.8rem !important;
+  font-family: monospace !important;
+}
+
+.clp-root.light-theme .clp-nfc-input,
+body.light-theme-active .clp-nfc-input {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #047857 !important;
+}
+
+.clp-nfc-copy-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 0 12px !important;
+  height: 36px !important;
+  border-radius: 8px !important;
+  background: #10b981 !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.clp-nfc-copy-btn:hover {
+  background: #059669 !important;
+}
+
+.clp-nfc-hint {
+  margin: 0 !important;
+  font-size: 0.77rem !important;
+  color: #94a3b8 !important;
+  line-height: 1.4 !important;
+}
+
+.clp-root.light-theme .clp-nfc-hint,
+body.light-theme-active .clp-nfc-hint {
+  color: #047857 !important;
+}
+
+/* QR Modal Footer Buttons */
+.clp-qr-btn-print {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0.65rem 1.25rem !important;
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+  font-size: 0.88rem !important;
+  cursor: pointer !important;
+  background: rgba(212, 175, 55, 0.15) !important;
+  color: #d4af37 !important;
+  border: 1.5px solid #d4af37 !important;
+  transition: all 0.2s ease !important;
+}
+
+.clp-qr-btn-print:hover {
+  background: rgba(212, 175, 55, 0.25) !important;
+  color: #fbbf24 !important;
+  border-color: #fbbf24 !important;
+  transform: translateY(-1px) !important;
+}
+
+.clp-root.light-theme .clp-qr-btn-print,
+body.light-theme-active .clp-qr-btn-print {
+  background: #fef3c7 !important;
+  color: #b48a1c !important;
+  border: 1.5px solid #f59e0b !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15) !important;
+}
+
+.clp-root.light-theme .clp-qr-btn-print:hover,
+body.light-theme-active .clp-qr-btn-print:hover {
+  background: #fde68a !important;
+  color: #9a7412 !important;
+  border-color: #d97706 !important;
+}
+
+.clp-qr-btn-close {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.65rem 1.4rem !important;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  font-size: 0.88rem !important;
+  cursor: pointer !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  transition: all 0.2s ease !important;
+}
+
+.clp-qr-btn-close:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+}
+
+.clp-root.light-theme .clp-qr-btn-close,
+body.light-theme-active .clp-qr-btn-close {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.clp-root.light-theme .clp-qr-btn-close:hover,
+body.light-theme-active .clp-qr-btn-close:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
 }

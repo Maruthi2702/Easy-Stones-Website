@@ -10,15 +10,18 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './CheckInPage.css';
 
-const CheckInPage = () => {
+const CheckInPage = ({ isSelfCheckIn = false }) => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
+  const urlParams = new URLSearchParams(window.location.search);
+  const isSelf = isSelfCheckIn || urlParams.get('mode') === 'self' || urlParams.get('mode') === 'qr' || urlParams.get('mode') === 'nfc' || window.location.pathname === '/self-checkin';
+
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && !user && !isSelf) {
       navigate('/login?redirect=/checkin');
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, isSelf]);
 
   const [theme, setTheme] = useState(() => {
     try {
@@ -28,6 +31,10 @@ const CheckInPage = () => {
       return 'light';
     }
   });
+
+  // Anti-Bot Silent Verification States
+  const [honeypot, setHoneypot] = useState('');
+  const [formLoadTime] = useState(Date.now());
 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
@@ -91,25 +98,27 @@ const CheckInPage = () => {
 
   const [availableLocations, setAvailableLocations] = useState(['Seattle', 'Spokane', 'Salt Lake City']);
   
-  const hasMultipleLocations = user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1);
+  const hasMultipleLocations = (user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1)) || isSelf;
   
-  const allowedLocations = user?.assignedLocations?.includes('*')
+  const allowedLocations = (user?.assignedLocations?.includes('*') || isSelf)
     ? availableLocations
     : availableLocations.filter(loc => user?.assignedLocations?.includes(loc));
 
   const [selectedLocation, setSelectedLocation] = useState(() => {
     try {
+      const locParam = new URLSearchParams(window.location.search).get('location');
+      if (locParam) {
+        return locParam;
+      }
       const saved = localStorage.getItem('kiosk_location');
-      if (saved && ['Seattle', 'Spokane', 'Salt Lake City'].includes(saved)) {
-        if (!user || user.assignedLocations?.includes('*') || user.assignedLocations?.includes(saved)) {
-          return saved;
-        }
+      if (saved) {
+        return saved;
       }
     } catch (e) {}
     
     if (user?.assignedLocations) {
       const primaryLoc = user.assignedLocations.find(l => l !== '*');
-      if (primaryLoc && ['Seattle', 'Spokane', 'Salt Lake City'].includes(primaryLoc)) {
+      if (primaryLoc) {
         return primaryLoc;
       }
     }
@@ -127,20 +136,17 @@ const CheckInPage = () => {
             const locNames = data.map(l => l.name);
             setAvailableLocations(locNames);
             
-            setSelectedLocation(prev => {
-              if (locNames.includes(prev)) {
-                if (!user || user.assignedLocations?.includes('*') || user.assignedLocations?.includes(prev)) {
+            const urlLoc = new URLSearchParams(window.location.search).get('location');
+            if (urlLoc) {
+              setSelectedLocation(urlLoc);
+            } else {
+              setSelectedLocation(prev => {
+                if (locNames.includes(prev)) {
                   return prev;
                 }
-              }
-              if (user?.assignedLocations) {
-                const primaryLoc = user.assignedLocations.find(l => l !== '*');
-                if (primaryLoc && locNames.includes(primaryLoc)) {
-                  return primaryLoc;
-                }
-              }
-              return locNames[0] || 'Seattle';
-            });
+                return locNames[0] || 'Seattle';
+              });
+            }
           }
         }
       } catch (err) {
@@ -148,7 +154,7 @@ const CheckInPage = () => {
       }
     };
     loadLocations();
-  }, [user]);
+  }, [user, isSelf]);
 
   useEffect(() => {
     if (selectedLocation) {
@@ -171,7 +177,7 @@ const CheckInPage = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const locParam = urlParams.get('location');
       if (locParam && availableLocations.includes(locParam)) {
-        if (!user || user.assignedLocations?.includes('*') || user.assignedLocations?.includes(locParam)) {
+        if (!user || user.assignedLocations?.includes('*') || user.assignedLocations?.includes(locParam) || isSelf) {
           localStorage.setItem('kiosk_location', locParam);
           setSelectedLocation(locParam);
           console.log(`📍 Kiosk location configured: ${locParam}`);
@@ -180,7 +186,7 @@ const CheckInPage = () => {
     } catch (e) {
       console.error('Error reading location parameter:', e);
     }
-  }, [user]);
+  }, [user, isSelf, availableLocations]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -202,6 +208,21 @@ const CheckInPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 🛡️ Silent Anti-Bot Verification 1: Honeypot check
+    if (honeypot) {
+      console.warn('🤖 Bot submission detected via honeypot.');
+      setSubmitted(true);
+      return;
+    }
+
+    // 🛡️ Silent Anti-Bot Verification 2: Velocity check (< 1.2s is bot)
+    if (Date.now() - formLoadTime < 1200) {
+      console.warn('🤖 Bot submission detected via fast velocity.');
+      setError('Please take a moment before submitting.');
+      return;
+    }
+
     if (!formData.name || !formData.phone || !formData.fabricatorCompany || !formData.fabricatorPhone) {
       setError('Your Name, Phone Number, Company/Contact Name, and Company Phone Number are mandatory');
       return;
@@ -223,15 +244,19 @@ const CheckInPage = () => {
     setError(null);
 
     try {
+      const authHeader = localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {};
       const response = await fetch(`${API_URL}/api/checkin`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          ...authHeader
         },
         body: JSON.stringify({
           ...formData,
-          location: selectedLocation
+          location: selectedLocation,
+          loggedBy: isSelf ? 'Self Check-In (QR/NFC)' : (user?.username || 'Staff'),
+          source: isSelf ? 'Self Check-In (QR/NFC)' : 'Staff',
+          isSelfCheckIn: isSelf
         }),
         credentials: 'include'
       });
@@ -285,12 +310,16 @@ const CheckInPage = () => {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  if (authLoading || !user) {
+  if (authLoading && !isSelf) {
     return (
       <div className="checkin-loading" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a' }}>
         <Loader2 className="animate-spin" size={48} style={{ color: '#d4af37' }} />
       </div>
     );
+  }
+
+  if (!user && !isSelf) {
+    return null;
   }
 
   return (
@@ -373,6 +402,16 @@ const CheckInPage = () => {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="checkin-form">
+            {/* 🛡️ Silent Anti-Bot Honeypot Field */}
+            <input
+              type="text"
+              name="website_hp"
+              value={honeypot}
+              onChange={(e) => setHoneypot(e.target.value)}
+              style={{ display: 'none' }}
+              tabIndex={-1}
+              autoComplete="off"
+            />
             <div className="form-sections-container">
               <div className="form-section">
                 <h3>Customer Information</h3>
