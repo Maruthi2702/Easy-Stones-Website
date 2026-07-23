@@ -98,7 +98,9 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
 
   const [availableLocations, setAvailableLocations] = useState(['Seattle', 'Spokane', 'Salt Lake City']);
   
-  const hasMultipleLocations = (user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1)) || isSelf;
+  const urlLocationParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('location') : null;
+  const isLockedLocation = isSelf || Boolean(urlLocationParam);
+  const hasMultipleLocations = !isLockedLocation && (user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1));
   
   const allowedLocations = (user?.assignedLocations?.includes('*') || isSelf)
     ? availableLocations
@@ -111,7 +113,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
         return locParam;
       }
       const saved = localStorage.getItem('kiosk_location');
-      if (saved) {
+      if (saved && !isSelf) {
         return saved;
       }
     } catch (e) {}
@@ -385,8 +387,8 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
               </div>
             </div>
           ) : (
-            <p className="kiosk-branch-indicator" style={{ color: '#d4af37', fontSize: '1.1rem', marginTop: '6px', fontWeight: '600', letterSpacing: '0.05em' }}>
-              📍 {selectedLocation} Branch
+            <p className="kiosk-branch-indicator" style={{ color: '#d4af37', fontSize: '1.15rem', marginTop: '10px', fontWeight: '700', letterSpacing: '0.05em' }}>
+              📍 {selectedLocation.includes('Showroom') || selectedLocation.includes('Branch') || selectedLocation.includes('Office') ? selectedLocation : `${selectedLocation} Showroom`}
             </p>
           )}
         </div>
