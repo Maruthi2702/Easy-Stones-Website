@@ -1722,16 +1722,6 @@ const CheckInLogPanel = ({
                     list="salesreps-datalist"
                   />
                 </div>
-                <div className="detail-item">
-                  <span className="detail-label">
-                    <UserCheck size={12} className="detail-icon" /> Logged By:
-                  </span>
-                  <span className="detail-value clp-loggedby-pill">
-                    {typeof selectedCheckIn.loggedBy === 'string'
-                      ? selectedCheckIn.loggedBy
-                      : selectedCheckIn.loggedBy?.username || (selectedCheckIn.source === 'self' || selectedCheckIn.isSelfCheckIn || selectedCheckIn.loggedBy === 'Self Check-In (QR/NFC)' ? '📱 Self Check-In (QR/NFC)' : 'Staff')}
-                  </span>
-                </div>
               </div>
 
               {/* Selections Grid Table */}
