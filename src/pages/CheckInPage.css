@@ -35,11 +35,11 @@
   padding: 1.35rem 2rem;
   box-sizing: border-box;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(212, 175, 55, 0.08);
+  border-bottom: none;
 }
 
 .kiosk-fullscreen.light-theme .kiosk-topbar {
-  border-bottom-color: rgba(212, 175, 55, 0.1);
+  border-bottom: none;
 }
 
 .kiosk-topbar-location {
@@ -64,6 +64,86 @@
 
 .kiosk-fullscreen.light-theme .kiosk-topbar-brand {
   color: #94a3b8;
+}
+
+.kiosk-topbar-logo-img {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(212, 175, 55, 0.15));
+}
+
+.kiosk-topbar-glacier-nav {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 640px;
+}
+
+.kiosk-topbar-arrow-btn {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.kiosk-topbar-arrow-btn:hover:not(:disabled) {
+  background: rgba(212, 175, 55, 0.18);
+  border-color: #d4af37;
+  color: #d4af37;
+  transform: scale(1.06);
+  box-shadow: 0 6px 18px rgba(212, 175, 55, 0.25);
+}
+
+.kiosk-topbar-arrow-btn.next {
+  background: rgba(212, 175, 55, 0.22);
+  border-color: rgba(212, 175, 55, 0.6);
+  color: #d4af37;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.25);
+}
+
+.kiosk-topbar-arrow-btn.next:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d4af37 0%, #c5a028 100%);
+  color: #000000;
+  border-color: #d4af37;
+  box-shadow: 0 6px 22px rgba(212, 175, 55, 0.45);
+  transform: scale(1.06);
+}
+
+.kiosk-topbar-arrow-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.kiosk-fullscreen.light-theme .kiosk-topbar-arrow-btn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.kiosk-fullscreen.light-theme .kiosk-topbar-arrow-btn.next {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #b48a1c;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.2);
+}
+
+.kiosk-fullscreen.light-theme .kiosk-topbar-arrow-btn.next:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d4af37 0%, #c5a028 100%);
+  color: #000000;
+  border-color: #d4af37;
 }
 
 .kiosk-topbar-actions {
@@ -109,10 +189,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 0 2rem;
+  justify-content: flex-start;
+  padding: max(8vh, 3.5rem) 2.5rem 2rem;
   box-sizing: border-box;
   position: relative;
+  overflow-y: auto;
 }
 
 /* ── Bottom Action Bar ── */
@@ -252,6 +333,8 @@
   justify-content: center;
   text-align: center;
   width: 100%;
+  margin: auto 0;
+  flex: 1;
 }
 
 .kiosk-logo-display {
@@ -310,6 +393,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
+  margin: 0 auto;
 }
 
 .kiosk-step-indicator {
@@ -355,43 +439,152 @@
   color: #64748b;
 }
 
+.kiosk-required-star {
+  color: #ef4444;
+  margin-right: 6px;
+  font-weight: 800;
+  font-size: 1.15em;
+  display: inline;
+  vertical-align: baseline;
+}
+
+/* ── Glacier Style Underline Input ── */
+.kiosk-glacier-field-container {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 1.5rem;
+}
+
+.kiosk-glacier-label {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 1.1rem;
+  display: flex;
+  align-items: center;
+  letter-spacing: -0.01em;
+}
+
+.kiosk-fullscreen.light-theme .kiosk-glacier-label {
+  color: #1e293b;
+}
+
+.kiosk-input-line {
+  width: 100%;
+  height: 56px;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2.5px solid rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+  font-size: clamp(1.4rem, 3.5vw, 1.85rem);
+  font-weight: 600;
+  font-family: inherit;
+  outline: none !important;
+  border-radius: 0 !important;
+  padding: 0 0 0.6rem 0;
+  text-transform: capitalize;
+  transition: border-color 0.25s ease, color 0.25s ease;
+  box-sizing: border-box;
+  box-shadow: none !important;
+}
+
+.kiosk-input-line[type="tel"] {
+  text-transform: none;
+}
+
+.kiosk-input-line::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 400;
+  text-transform: none;
+}
+
+.kiosk-input-line:focus {
+  border-bottom: 2.5px solid #d4af37 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.kiosk-fullscreen.light-theme .kiosk-input-line {
+  border-bottom: 2.5px solid rgba(15, 23, 42, 0.2) !important;
+  color: #0f172a !important;
+}
+
+.kiosk-fullscreen.light-theme .kiosk-input-line::placeholder {
+  color: #94a3b8;
+}
+
+.kiosk-fullscreen.light-theme .kiosk-input-line:focus {
+  border-bottom: 2.5px solid #d4af37 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Prevent WebKit Autofill rectangular background box */
+.kiosk-input-line:-webkit-autofill,
+.kiosk-input-line:-webkit-autofill:hover, 
+.kiosk-input-line:-webkit-autofill:focus {
+  -webkit-text-fill-color: #0f172a !important;
+  -webkit-box-shadow: 0 0 0px 1000px transparent inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.kiosk-fullscreen:not(.light-theme) .kiosk-input-line:-webkit-autofill,
+.kiosk-fullscreen:not(.light-theme) .kiosk-input-line:-webkit-autofill:hover,
+.kiosk-fullscreen:not(.light-theme) .kiosk-input-line:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff !important;
+}
+
 /* ── Large Input Field ── */
 .kiosk-input-wrap {
   width: 100%;
+  position: relative;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .kiosk-input-big {
   width: 100%;
   height: 72px;
-  padding: 0 1.75rem;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  padding: 0 1.85rem;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  border: 2px solid rgba(255, 255, 255, 0.12);
   color: #ffffff;
   font-size: 1.35rem;
   font-weight: 600;
   font-family: inherit;
   outline: none;
+  text-transform: capitalize;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-sizing: border-box;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.kiosk-input-big[type="tel"] {
+  text-transform: none;
 }
 
 .kiosk-input-big::placeholder {
-  color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.25);
   font-weight: 400;
+  text-transform: none;
 }
 
 .kiosk-input-big:focus {
   border-color: #d4af37;
-  background: rgba(212, 175, 55, 0.04);
-  box-shadow: 0 0 0 5px rgba(212, 175, 55, 0.1), 0 8px 24px rgba(212, 175, 55, 0.08);
-  transform: translateY(-1px);
+  background: rgba(212, 175, 55, 0.06);
+  box-shadow: 0 0 0 5px rgba(212, 175, 55, 0.18), 0 10px 30px rgba(212, 175, 55, 0.15);
+  transform: translateY(-2px);
 }
 
 .kiosk-fullscreen.light-theme .kiosk-input-big {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
+  background: #ffffff;
+  border-color: #cbd5e1;
   color: #0f172a;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
 }
 
 .kiosk-fullscreen.light-theme .kiosk-input-big::placeholder {
@@ -401,15 +594,15 @@
 .kiosk-fullscreen.light-theme .kiosk-input-big:focus {
   border-color: #d4af37;
   background: #ffffff;
-  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
+  box-shadow: 0 0 0 5px rgba(212, 175, 55, 0.18), 0 10px 30px rgba(212, 175, 55, 0.12);
 }
 
 .kiosk-input-medium {
   width: 100%;
-  height: 56px;
+  height: 60px;
   padding: 0 1.5rem;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
   border: 1.5px solid rgba(255, 255, 255, 0.12);
   color: #ffffff;
   font-size: 1.05rem;
@@ -417,6 +610,10 @@
   outline: none;
   transition: all 0.2s ease;
   box-sizing: border-box;
+}
+
+.kiosk-input-medium[type="tel"] {
+  text-transform: none;
 }
 
 .kiosk-fullscreen.light-theme .kiosk-input-medium {

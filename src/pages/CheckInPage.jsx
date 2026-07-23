@@ -19,6 +19,13 @@ const VISITOR_TYPES = [
   { id: 'Dealer', label: 'Dealer', icon: Store, desc: 'Retail stone or tile dealer' }
 ];
 
+const formatTitleCaseInput = (value) => {
+  if (!value) return '';
+  return value.replace(/\b([a-zA-Z])([a-zA-Z]*)/g, (match, firstLetter, rest) => {
+    return firstLetter.toUpperCase() + rest.toLowerCase();
+  });
+};
+
 const CheckInPage = ({ isSelfCheckIn = false }) => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -262,7 +269,25 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
       <div className={`kiosk-fullscreen ${theme}-theme`}>
         {/* ── Top Bar ── */}
         <div className="kiosk-topbar">
-          <span className="kiosk-topbar-brand">Easy Stones — {locationDisplay}</span>
+          {step === 1 ? (
+            <span className="kiosk-topbar-brand">Easy Stones — {locationDisplay}</span>
+          ) : (
+            <div className="kiosk-topbar-glacier-nav">
+              <button type="button" className="kiosk-topbar-arrow-btn" onClick={handlePrevStep} title="Back">
+                <ChevronLeft size={28} />
+              </button>
+              <img src="/logo.png" alt="Easy Stones" className="kiosk-topbar-logo-img" />
+              <button 
+                type="button" 
+                className="kiosk-topbar-arrow-btn next" 
+                onClick={step === 7 ? handleSelfSubmit : handleNextStep} 
+                disabled={(step === 2 && !name.trim()) || (step === 3 && phone.replace(/\D/g, '').length < 10) || (step === 4 && !visitorType) || (step === 5 && !companyName.trim()) || (step === 7 && (!ndaAccepted || loading))}
+                title="Next"
+              >
+                <ChevronRight size={28} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Center Stage ── */}
@@ -284,12 +309,12 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
           {/* STEP 2: Name */}
           {step === 2 && (
             <div className="kiosk-form-step anim-slide-up" key="step-2">
-              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
               <div className="kiosk-step-indicator">Step 1 of 6</div>
-              <h2 className="kiosk-step-question">What is your full name?</h2>
-              <p className="kiosk-step-hint">Please enter your first and last name</p>
-              <div className="kiosk-input-wrap">
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="First and last name" className="kiosk-input-big" autoFocus onKeyDown={(e) => e.key === 'Enter' && name.trim() && handleNextStep()} />
+              <div className="kiosk-glacier-field-container">
+                <div className="kiosk-glacier-label">
+                  <span className="kiosk-required-star">*</span> Full name
+                </div>
+                <input type="text" value={name} onChange={(e) => setName(formatTitleCaseInput(e.target.value))} placeholder="First and last name" className="kiosk-input-line" autoFocus onKeyDown={(e) => e.key === 'Enter' && name.trim() && handleNextStep()} />
               </div>
             </div>
           )}
@@ -297,12 +322,12 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
           {/* STEP 3: Phone */}
           {step === 3 && (
             <div className="kiosk-form-step anim-slide-up" key="step-3">
-              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
               <div className="kiosk-step-indicator">Step 2 of 6</div>
-              <h2 className="kiosk-step-question">What is your phone number?</h2>
-              <p className="kiosk-step-hint">We'll use this to notify your sales specialist</p>
-              <div className="kiosk-input-wrap">
-                <input type="tel" value={phone} onChange={(e) => setPhone(formatPhoneInput(e.target.value))} placeholder="(555) 000-0000" className="kiosk-input-big" autoFocus onKeyDown={(e) => e.key === 'Enter' && phone.replace(/\D/g, '').length >= 10 && handleNextStep()} />
+              <div className="kiosk-glacier-field-container">
+                <div className="kiosk-glacier-label">
+                  <span className="kiosk-required-star">*</span> Phone number
+                </div>
+                <input type="tel" value={phone} onChange={(e) => setPhone(formatPhoneInput(e.target.value))} placeholder="(555) 000-0000" className="kiosk-input-line" autoFocus onKeyDown={(e) => e.key === 'Enter' && phone.replace(/\D/g, '').length >= 10 && handleNextStep()} />
               </div>
             </div>
           )}
@@ -310,10 +335,10 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
           {/* STEP 4: Visitor Type */}
           {step === 4 && (
             <div className="kiosk-form-step anim-slide-up" key="step-4" style={{ maxWidth: '640px' }}>
-              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
               <div className="kiosk-step-indicator">Step 3 of 6</div>
-              <h2 className="kiosk-step-question">What type of visitor are you?</h2>
-              <p className="kiosk-step-hint">Select the option that best describes you</p>
+              <div className="kiosk-glacier-label" style={{ marginBottom: '1.25rem', justifyContent: 'center' }}>
+                <span className="kiosk-required-star">*</span> What type of visitor are you?
+              </div>
               <div className="kiosk-type-grid">
                 {VISITOR_TYPES.map(type => {
                   const Icon = type.icon;
@@ -334,16 +359,12 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
           {/* STEP 5: Company */}
           {step === 5 && (
             <div className="kiosk-form-step anim-slide-up" key="step-5">
-              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
               <div className="kiosk-step-indicator">Step 4 of 6</div>
-              <h2 className="kiosk-step-question">
-                {visitorType === 'Homeowner' ? 'Who is your Fabricator or Contractor?' : visitorType === 'Fabricator' ? 'What is your Company Name?' : 'What is your Business Name?'}
-              </h2>
-              <p className="kiosk-step-hint">
-                {visitorType === 'Homeowner' ? 'Enter the company or person installing your stone' : `Enter your ${visitorType.toLowerCase()} business name`}
-              </p>
-              <div className="kiosk-input-wrap">
-                <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder={visitorType === 'Homeowner' ? 'e.g. Apex Granite / John Smith' : 'e.g. Premier Stone Works'} className="kiosk-input-big" autoFocus onKeyDown={(e) => e.key === 'Enter' && companyName.trim() && handleNextStep()} />
+              <div className="kiosk-glacier-field-container">
+                <div className="kiosk-glacier-label">
+                  <span className="kiosk-required-star">*</span> {visitorType === 'Homeowner' ? 'Fabricator or Contractor' : visitorType === 'Fabricator' ? 'Company Name' : 'Business Name'}
+                </div>
+                <input type="text" value={companyName} onChange={(e) => setCompanyName(formatTitleCaseInput(e.target.value))} placeholder={visitorType === 'Homeowner' ? 'e.g. Apex Granite / John Smith' : 'e.g. Premier Stone Works'} className="kiosk-input-line" autoFocus onKeyDown={(e) => e.key === 'Enter' && companyName.trim() && handleNextStep()} />
               </div>
             </div>
           )}
@@ -351,37 +372,36 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
           {/* STEP 6: Phone / Partners */}
           {step === 6 && (
             <div className="kiosk-form-step anim-slide-up" key="step-6">
-              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
               <div className="kiosk-step-indicator">Step 5 of 6</div>
-              {['Homeowner', 'Fabricator'].includes(visitorType) ? (
-                <>
-                  <h2 className="kiosk-step-question">Company Phone Number?</h2>
-                  <p className="kiosk-step-hint">Enter phone for {companyName || 'your company'}</p>
-                  <div className="kiosk-input-wrap">
-                    <input type="tel" value={fabricatorPhone} onChange={(e) => setFabricatorPhone(formatPhoneInput(e.target.value))} placeholder="(555) 000-0000" className="kiosk-input-big" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleNextStep()} />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <h2 className="kiosk-step-question">Fabricator Partners</h2>
-                  <p className="kiosk-step-hint">Which stone fabricator(s) do you work with?</p>
-                  <div className="kiosk-input-wrap">
-                    <input type="text" value={preferredFabricators} onChange={(e) => setPreferredFabricators(e.target.value)} placeholder="e.g. Olympic Marble, NW Granite" className="kiosk-input-big" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleNextStep()} />
-                  </div>
-                  <div className="kiosk-input-wrap" style={{ marginTop: '1rem' }}>
-                    <input type="tel" value={fabricatorPhone} onChange={(e) => setFabricatorPhone(formatPhoneInput(e.target.value))} placeholder="Company Phone (Optional)" className="kiosk-input-medium" />
-                  </div>
-                </>
-              )}
+              <div className="kiosk-glacier-field-container">
+                {['Homeowner', 'Fabricator'].includes(visitorType) ? (
+                  <>
+                    <div className="kiosk-glacier-label">
+                      <span className="kiosk-required-star">*</span> Company Phone Number
+                    </div>
+                    <input type="tel" value={fabricatorPhone} onChange={(e) => setFabricatorPhone(formatPhoneInput(e.target.value))} placeholder="(555) 000-0000" className="kiosk-input-line" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleNextStep()} />
+                  </>
+                ) : (
+                  <>
+                    <div className="kiosk-glacier-label">
+                      <span className="kiosk-required-star">*</span> Fabricator Partners
+                    </div>
+                    <input type="text" value={preferredFabricators} onChange={(e) => setPreferredFabricators(formatTitleCaseInput(e.target.value))} placeholder="e.g. Olympic Marble, NW Granite" className="kiosk-input-line" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleNextStep()} />
+                    <div style={{ width: '100%', marginTop: '1.75rem' }}>
+                      <div className="kiosk-glacier-label" style={{ fontSize: '1rem', opacity: 0.7 }}>Company Phone (Optional)</div>
+                      <input type="tel" value={fabricatorPhone} onChange={(e) => setFabricatorPhone(formatPhoneInput(e.target.value))} placeholder="(555) 000-0000" className="kiosk-input-line" style={{ fontSize: '1.15rem' }} />
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
           {/* STEP 7: NDA */}
           {step === 7 && (
             <div className="kiosk-form-step anim-slide-up" key="step-7" style={{ maxWidth: '600px' }}>
-              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
               <div className="kiosk-step-indicator">Step 6 of 6</div>
-              <h2 className="kiosk-step-question">Safety & NDA</h2>
+              <h2 className="kiosk-step-question"><span className="kiosk-required-star">*</span> Safety & NDA</h2>
               <p className="kiosk-step-hint">Please review before entry</p>
 
               <div className="kiosk-nda-box">
@@ -393,7 +413,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
 
               <label className="kiosk-nda-agree">
                 <input type="checkbox" checked={ndaAccepted} onChange={(e) => setNdaAccepted(e.target.checked)} className="kiosk-nda-checkbox" />
-                <span>I agree to the <strong>Safety Rules & NDA Terms</strong></span>
+                <span><span className="kiosk-required-star">*</span> I agree to the <strong>Safety Rules & NDA Terms</strong></span>
               </label>
             </div>
           )}
@@ -410,34 +430,21 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
         </div>
 
         {/* ── Bottom Action Bar ── */}
-        <div className="kiosk-bottom-bar">
-          {step === 1 ? (
-            <div className="kiosk-bottom-actions centered">
-              <button type="button" className="kiosk-btn-primary" onClick={() => setStep(2)}>
-                <span>Check In</span><ChevronRight size={20} />
-              </button>
-            </div>
-          ) : step === 8 ? (
-            <div className="kiosk-bottom-actions centered">
-              <button type="button" className="kiosk-btn-primary" onClick={resetSelfForm}>Done</button>
-            </div>
-          ) : (
-            <div className="kiosk-bottom-actions spread">
-              <button type="button" className="kiosk-btn-secondary" onClick={handlePrevStep}>
-                <ChevronLeft size={18} /><span>Back</span>
-              </button>
-              {step === 7 ? (
-                <button type="button" className={`kiosk-btn-primary gold`} disabled={!ndaAccepted || loading} onClick={handleSelfSubmit}>
-                  <span>{loading ? 'Submitting...' : 'Complete Check-In'}</span><ChevronRight size={20} />
+        {(step === 1 || step === 8) && (
+          <div className="kiosk-bottom-bar">
+            {step === 1 ? (
+              <div className="kiosk-bottom-actions centered">
+                <button type="button" className="kiosk-btn-primary" onClick={() => setStep(2)}>
+                  <span>Check In</span><ChevronRight size={20} />
                 </button>
-              ) : (
-                <button type="button" className="kiosk-btn-primary" disabled={(step === 2 && !name.trim()) || (step === 3 && phone.replace(/\D/g, '').length < 10) || (step === 4 && !visitorType) || (step === 5 && !companyName.trim())} onClick={handleNextStep}>
-                  <span>Next</span><ChevronRight size={20} />
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            ) : (
+              <div className="kiosk-bottom-actions centered">
+                <button type="button" className="kiosk-btn-primary" onClick={resetSelfForm}>Done</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
