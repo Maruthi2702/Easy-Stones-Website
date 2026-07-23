@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  User, Phone, Mail, MapPin, Building, 
-  UserCheck, Send, Loader2, CheckCircle2, AlertTriangle,
-  Sun, Moon, ChevronDown
+  User, Phone, Building, CheckCircle2, ShieldCheck,
+  Sun, Moon, ChevronRight, ChevronLeft, Home, Hammer, Palette, HardHat, Wrench, Store,
+  Send, Loader2, AlertTriangle, ChevronDown, UserCheck
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { formatPhoneInput } from '../utils/phoneUtils';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './CheckInPage.css';
+
+const VISITOR_TYPES = [
+  { id: 'Homeowner', label: 'Homeowner', icon: Home, desc: 'Selecting stone for your home' },
+  { id: 'Fabricator', label: 'Fabricator', icon: Hammer, desc: 'Countertop fabrication partner' },
+  { id: 'Designer', label: 'Designer', icon: Palette, desc: 'Interior designer or architect' },
+  { id: 'Contractor', label: 'Contractor', icon: HardHat, desc: 'General contractor or remodeler' },
+  { id: 'Builder', label: 'Builder', icon: Wrench, desc: 'Custom home builder or developer' },
+  { id: 'Dealer', label: 'Dealer', icon: Store, desc: 'Retail stone or tile dealer' }
+];
 
 const CheckInPage = ({ isSelfCheckIn = false }) => {
   const { user, loading: authLoading } = useAuth();
@@ -32,65 +41,26 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     }
   });
 
-  // Anti-Bot Silent Verification States
   const [honeypot, setHoneypot] = useState('');
   const [formLoadTime] = useState(Date.now());
+  const [step, setStep] = useState(1);
 
-  const toggleTheme = () => {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(nextTheme);
-    try {
-      localStorage.setItem('checkin_theme', nextTheme);
-      window.dispatchEvent(new Event('checkin_theme_changed'));
-    } catch (err) {
-      console.error('Failed to save check-in theme:', err);
-    }
-  };
-
-  useEffect(() => {
-    const handleStorageChange = () => {
-      try {
-        const saved = localStorage.getItem('checkin_theme');
-        setTheme(saved === 'dark' ? 'dark' : 'light');
-      } catch (e) {}
-    };
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('checkin_theme_changed', handleStorageChange);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('checkin_theme_changed', handleStorageChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (theme === 'light') {
-      document.body.classList.add('light-theme-active');
-    } else {
-      document.body.classList.remove('light-theme-active');
-    }
-    return () => {
-      document.body.classList.remove('light-theme-active');
-    };
-  }, [theme]);
-
-  const [formData, setFormData] = useState(() => {
+  const [staffFormData, setStaffFormData] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_draft');
-      return saved ? JSON.parse(saved) : {
-        name: '',
-        phone: '',
-        fabricatorCompany: '',
-        fabricatorPhone: ''
-      };
+      return saved ? JSON.parse(saved) : { name: '', phone: '', fabricatorCompany: '', fabricatorPhone: '' };
     } catch (e) {
-      return {
-        name: '',
-        phone: '',
-        fabricatorCompany: '',
-        fabricatorPhone: ''
-      };
+      return { name: '', phone: '', fabricatorCompany: '', fabricatorPhone: '' };
     }
   });
+
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [visitorType, setVisitorType] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [fabricatorPhone, setFabricatorPhone] = useState('');
+  const [preferredFabricators, setPreferredFabricators] = useState('');
+  const [ndaAccepted, setNdaAccepted] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -109,24 +79,49 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
   const [selectedLocation, setSelectedLocation] = useState(() => {
     try {
       const locParam = new URLSearchParams(window.location.search).get('location');
-      if (locParam) {
-        return locParam;
-      }
+      if (locParam) return locParam;
       const saved = localStorage.getItem('kiosk_location');
-      if (saved && !isSelf) {
-        return saved;
-      }
+      if (saved && !isSelf) return saved;
     } catch (e) {}
-    
     if (user?.assignedLocations) {
       const primaryLoc = user.assignedLocations.find(l => l !== '*');
-      if (primaryLoc) {
-        return primaryLoc;
-      }
+      if (primaryLoc) return primaryLoc;
     }
-    
     return 'Seattle';
   });
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem('checkin_theme', nextTheme);
+      window.dispatchEvent(new Event('checkin_theme_changed'));
+    } catch (err) {}
+  };
+
+  useEffect(() => {
+    const sync = () => {
+      try {
+        const saved = localStorage.getItem('checkin_theme');
+        setTheme(saved === 'dark' ? 'dark' : 'light');
+      } catch (e) {}
+    };
+    window.addEventListener('storage', sync);
+    window.addEventListener('checkin_theme_changed', sync);
+    return () => {
+      window.removeEventListener('storage', sync);
+      window.removeEventListener('checkin_theme_changed', sync);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme-active');
+    } else {
+      document.body.classList.remove('light-theme-active');
+    }
+    return () => document.body.classList.remove('light-theme-active');
+  }, [theme]);
 
   useEffect(() => {
     const loadLocations = async () => {
@@ -134,264 +129,338 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
         const res = await fetch(`${API_URL}/api/admin/locations`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
-          if (data && data.length > 0) {
-            const locNames = data.map(l => l.name);
-            setAvailableLocations(locNames);
-            
+          if (data?.length > 0) {
+            setAvailableLocations(data.map(l => l.name));
             const urlLoc = new URLSearchParams(window.location.search).get('location');
-            if (urlLoc) {
-              setSelectedLocation(urlLoc);
-            } else {
-              setSelectedLocation(prev => {
-                if (locNames.includes(prev)) {
-                  return prev;
-                }
-                return locNames[0] || 'Seattle';
-              });
-            }
+            if (urlLoc) setSelectedLocation(urlLoc);
           }
         }
-      } catch (err) {
-        console.error('Failed to load locations, using defaults:', err);
-      }
+      } catch (err) {}
     };
     loadLocations();
   }, [user, isSelf]);
 
+  useEffect(() => { fetch(`${API_URL}/api/salesreps`).catch(() => {}); }, []);
+
+  // Auto-reset for success
+  const [resetTimer, setResetTimer] = useState(6);
   useEffect(() => {
-    if (selectedLocation) {
-      try {
-        localStorage.setItem('kiosk_location', selectedLocation);
-      } catch (e) {}
+    let interval = null;
+    if (isSelf && step === 8) {
+      setResetTimer(6);
+      interval = setInterval(() => {
+        setResetTimer(prev => {
+          if (prev <= 1) { clearInterval(interval); resetSelfForm(); return 6; }
+          return prev - 1;
+        });
+      }, 1000);
     }
-  }, [selectedLocation]);
+    return () => { if (interval) clearInterval(interval); };
+  }, [isSelf, step]);
 
-  // Background warm-up ping to wake up Render server
-  useEffect(() => {
-    fetch(`${API_URL}/api/salesreps`)
-      .then(() => console.log('⚡ Render backend warmed up successfully.'))
-      .catch(err => console.warn('Backend warm-up ping failed:', err));
-  }, []);
+  const resetSelfForm = () => {
+    setName(''); setPhone(''); setVisitorType('');
+    setCompanyName(''); setFabricatorPhone('');
+    setPreferredFabricators(''); setNdaAccepted(false);
+    setError(null); setStep(1);
+  };
 
-  // Parse location parameter on mount and save to localStorage
-  useEffect(() => {
+  const handleNextStep = () => {
+    setError(null);
+    if (step === 2 && !name.trim()) { setError('Please enter your full name'); return; }
+    if (step === 3) {
+      const clean = phone.replace(/\D/g, '');
+      if (clean.length < 10) { setError('Please enter a valid 10-digit phone number'); return; }
+    }
+    if (step === 4 && !visitorType) { setError('Please select your visitor type'); return; }
+    setStep(prev => prev + 1);
+  };
+
+  const handlePrevStep = () => { setError(null); if (step > 1) setStep(prev => prev - 1); };
+
+  const handleSelfSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (honeypot) { setStep(8); return; }
+    if (Date.now() - formLoadTime < 1200) { setError('Please take a moment before submitting.'); return; }
+    if (!ndaAccepted) { setError('Please accept the Safety Rules & NDA terms.'); return; }
+
+    setLoading(true); setError(null);
+    let finalFabCompany = companyName.trim();
+    let finalFabPhone = fabricatorPhone.trim();
+
+    if (['Designer', 'Contractor', 'Builder', 'Dealer'].includes(visitorType)) {
+      if (preferredFabricators.trim()) {
+        finalFabPhone = `Preferred: ${preferredFabricators.trim()}${fabricatorPhone ? ` | ${fabricatorPhone}` : ''}`;
+      }
+    }
+
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const locParam = urlParams.get('location');
-      if (locParam && availableLocations.includes(locParam)) {
-        if (!user || user.assignedLocations?.includes('*') || user.assignedLocations?.includes(locParam) || isSelf) {
-          localStorage.setItem('kiosk_location', locParam);
-          setSelectedLocation(locParam);
-          console.log(`📍 Kiosk location configured: ${locParam}`);
-        }
-      }
-    } catch (e) {
-      console.error('Error reading location parameter:', e);
-    }
-  }, [user, isSelf, availableLocations]);
+      const response = await fetch(`${API_URL}/api/checkin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(), phone: phone.trim(),
+          fabricatorCompany: finalFabCompany || `${visitorType} Visit`,
+          fabricatorPhone: finalFabPhone || 'N/A',
+          location: selectedLocation,
+          loggedBy: 'Self Check-In (QR/NFC)', source: 'Self Check-In (QR/NFC)',
+          visitorType, isSelfCheckIn: true
+        })
+      });
+      if (response.ok) { setStep(8); }
+      else { const data = await response.json(); setError(data.message || 'Check-in failed. Please try again.'); }
+    } catch (err) { setError('Network error. Please check your connection.'); }
+    finally { setLoading(false); }
+  };
 
-  const handleChange = (e) => {
+  const handleStaffChange = (e) => {
     const { name, value } = e.target;
-    let formattedVal = value;
-    if (name === 'phone' || name === 'fabricatorPhone') {
-      formattedVal = formatPhoneInput(value);
-    }
-    
-    setFormData(prev => {
-      const next = { ...prev, [name]: formattedVal };
-      try {
-        localStorage.setItem('checkin_draft', JSON.stringify(next));
-      } catch (err) {
-        console.error('Failed to save check-in draft:', err);
-      }
+    let v = (name === 'phone' || name === 'fabricatorPhone') ? formatPhoneInput(value) : value;
+    setStaffFormData(prev => {
+      const next = { ...prev, [name]: v };
+      try { localStorage.setItem('checkin_draft', JSON.stringify(next)); } catch (e) {}
       return next;
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleStaffSubmit = async (e) => {
     e.preventDefault();
-
-    // 🛡️ Silent Anti-Bot Verification 1: Honeypot check
-    if (honeypot) {
-      console.warn('🤖 Bot submission detected via honeypot.');
-      setSubmitted(true);
-      return;
+    if (!staffFormData.name || !staffFormData.phone || !staffFormData.fabricatorCompany || !staffFormData.fabricatorPhone) {
+      setError('All fields are required'); return;
     }
+    if (staffFormData.phone.replace(/\D/g, '').length < 10) { setError('Enter a valid 10-digit phone number'); return; }
+    if (staffFormData.fabricatorPhone.replace(/\D/g, '').length < 10) { setError('Enter a valid company phone number'); return; }
 
-    // 🛡️ Silent Anti-Bot Verification 2: Velocity check (< 1.2s is bot)
-    if (Date.now() - formLoadTime < 1200) {
-      console.warn('🤖 Bot submission detected via fast velocity.');
-      setError('Please take a moment before submitting.');
-      return;
-    }
-
-    if (!formData.name || !formData.phone || !formData.fabricatorCompany || !formData.fabricatorPhone) {
-      setError('Your Name, Phone Number, Company/Contact Name, and Company Phone Number are mandatory');
-      return;
-    }
-
-    const cleanUserPhone = formData.phone.replace(/\D/g, '');
-    const cleanFabPhone = formData.fabricatorPhone.replace(/\D/g, '');
-
-    if (cleanUserPhone.length < 10) {
-      setError('Please enter a valid 10-digit Phone Number');
-      return;
-    }
-    if (cleanFabPhone.length < 10) {
-      setError('Please enter a valid 10-digit Company Phone Number');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
+    setLoading(true); setError(null);
     try {
       const authHeader = localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {};
       const response = await fetch(`${API_URL}/api/checkin`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...authHeader
-        },
-        body: JSON.stringify({
-          ...formData,
-          location: selectedLocation,
-          loggedBy: isSelf ? 'Self Check-In (QR/NFC)' : (user?.username || 'Staff'),
-          source: isSelf ? 'Self Check-In (QR/NFC)' : 'Staff',
-          isSelfCheckIn: isSelf
-        }),
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ ...staffFormData, location: selectedLocation, loggedBy: user?.username || user?.name || 'Staff' }),
         credentials: 'include'
       });
-
       if (response.ok) {
         setSubmitted(true);
-        try {
-          localStorage.removeItem('checkin_draft');
-        } catch (err) {
-          console.error('Failed to clear check-in draft:', err);
-        }
-        // Scroll to top immediately to bypass iOS virtual keyboard dismissal conflict
-        window.scrollTo(0, 0);
-        document.body.scrollTop = 0;
-        document.documentElement.scrollTop = 0;
-
-        // Delayed fallback scroll to ensure page goes to top after keyboard fully retracts
-        setTimeout(() => {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          document.body.scrollTop = 0;
-          document.documentElement.scrollTop = 0;
-        }, 300);
-        // Reset form after success message
-        setTimeout(() => {
-          setSubmitted(false);
-          setFormData({
-            name: '',
-            phone: '',
-            fabricatorCompany: '',
-            fabricatorPhone: ''
-          });
-        }, 5000);
-      } else {
-        const data = await response.json();
-        setError(data.message || 'Check-in failed');
-      }
-    } catch (err) {
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+        setStaffFormData({ name: '', phone: '', fabricatorCompany: '', fabricatorPhone: '' });
+        try { localStorage.removeItem('checkin_draft'); } catch (e) {}
+      } else { const data = await response.json(); setError(data.message || 'Check-in failed'); }
+    } catch (err) { setError('Network error. Please try again.'); }
+    finally { setLoading(false); }
   };
 
-  const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  if (!user && !isSelf) return null;
 
-  const formatDate = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-  };
+  const locationDisplay = selectedLocation.includes('Showroom') || selectedLocation.includes('Branch') || selectedLocation.includes('Office')
+    ? selectedLocation : `${selectedLocation} Showroom`;
 
-  if (authLoading && !isSelf) {
+  // ═══════════════════════════════════════════════════════
+  // RENDER 1: SELF CHECK-IN KIOSK (Full-Screen)
+  // ═══════════════════════════════════════════════════════
+  if (isSelf) {
     return (
-      <div className="checkin-loading" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a' }}>
-        <Loader2 className="animate-spin" size={48} style={{ color: '#d4af37' }} />
+      <div className={`kiosk-fullscreen ${theme}-theme`}>
+        {/* ── Top Bar ── */}
+        <div className="kiosk-topbar">
+          <span className="kiosk-topbar-brand">Easy Stones — {locationDisplay}</span>
+        </div>
+
+        {/* ── Center Stage ── */}
+        <div className="kiosk-center-stage">
+          {/* Honeypot */}
+          <input type="text" name="website_hp" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} style={{ display: 'none' }} tabIndex={-1} autoComplete="off" />
+          
+          {error && <div className="kiosk-error-msg anim-slide-up">⚠️ {error}</div>}
+
+          {/* STEP 1: Logo Welcome (logo in center, company name at top) */}
+          {step === 1 && (
+            <div className="kiosk-welcome-stage anim-fade-in">
+              <div className="kiosk-logo-display">
+                <img src="/logo.png" alt="Easy Stones" />
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: Name */}
+          {step === 2 && (
+            <div className="kiosk-form-step anim-slide-up" key="step-2">
+              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
+              <div className="kiosk-step-indicator">Step 1 of 6</div>
+              <h2 className="kiosk-step-question">What is your full name?</h2>
+              <p className="kiosk-step-hint">Please enter your first and last name</p>
+              <div className="kiosk-input-wrap">
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="First and last name" className="kiosk-input-big" autoFocus onKeyDown={(e) => e.key === 'Enter' && name.trim() && handleNextStep()} />
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: Phone */}
+          {step === 3 && (
+            <div className="kiosk-form-step anim-slide-up" key="step-3">
+              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
+              <div className="kiosk-step-indicator">Step 2 of 6</div>
+              <h2 className="kiosk-step-question">What is your phone number?</h2>
+              <p className="kiosk-step-hint">We'll use this to notify your sales specialist</p>
+              <div className="kiosk-input-wrap">
+                <input type="tel" value={phone} onChange={(e) => setPhone(formatPhoneInput(e.target.value))} placeholder="(555) 000-0000" className="kiosk-input-big" autoFocus onKeyDown={(e) => e.key === 'Enter' && phone.replace(/\D/g, '').length >= 10 && handleNextStep()} />
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: Visitor Type */}
+          {step === 4 && (
+            <div className="kiosk-form-step anim-slide-up" key="step-4" style={{ maxWidth: '640px' }}>
+              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
+              <div className="kiosk-step-indicator">Step 3 of 6</div>
+              <h2 className="kiosk-step-question">What type of visitor are you?</h2>
+              <p className="kiosk-step-hint">Select the option that best describes you</p>
+              <div className="kiosk-type-grid">
+                {VISITOR_TYPES.map(type => {
+                  const Icon = type.icon;
+                  return (
+                    <button key={type.id} type="button" className={`kiosk-type-card ${visitorType === type.id ? 'selected' : ''}`} onClick={() => { setVisitorType(type.id); setError(null); }}>
+                      <div className="kiosk-type-icon"><Icon size={21} /></div>
+                      <div className="kiosk-type-info">
+                        <span className="kiosk-type-name">{type.label}</span>
+                        <span className="kiosk-type-sub">{type.desc}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 5: Company */}
+          {step === 5 && (
+            <div className="kiosk-form-step anim-slide-up" key="step-5">
+              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
+              <div className="kiosk-step-indicator">Step 4 of 6</div>
+              <h2 className="kiosk-step-question">
+                {visitorType === 'Homeowner' ? 'Who is your Fabricator or Contractor?' : visitorType === 'Fabricator' ? 'What is your Company Name?' : 'What is your Business Name?'}
+              </h2>
+              <p className="kiosk-step-hint">
+                {visitorType === 'Homeowner' ? 'Enter the company or person installing your stone' : `Enter your ${visitorType.toLowerCase()} business name`}
+              </p>
+              <div className="kiosk-input-wrap">
+                <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder={visitorType === 'Homeowner' ? 'e.g. Apex Granite / John Smith' : 'e.g. Premier Stone Works'} className="kiosk-input-big" autoFocus onKeyDown={(e) => e.key === 'Enter' && companyName.trim() && handleNextStep()} />
+              </div>
+            </div>
+          )}
+
+          {/* STEP 6: Phone / Partners */}
+          {step === 6 && (
+            <div className="kiosk-form-step anim-slide-up" key="step-6">
+              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
+              <div className="kiosk-step-indicator">Step 5 of 6</div>
+              {['Homeowner', 'Fabricator'].includes(visitorType) ? (
+                <>
+                  <h2 className="kiosk-step-question">Company Phone Number?</h2>
+                  <p className="kiosk-step-hint">Enter phone for {companyName || 'your company'}</p>
+                  <div className="kiosk-input-wrap">
+                    <input type="tel" value={fabricatorPhone} onChange={(e) => setFabricatorPhone(formatPhoneInput(e.target.value))} placeholder="(555) 000-0000" className="kiosk-input-big" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleNextStep()} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className="kiosk-step-question">Fabricator Partners</h2>
+                  <p className="kiosk-step-hint">Which stone fabricator(s) do you work with?</p>
+                  <div className="kiosk-input-wrap">
+                    <input type="text" value={preferredFabricators} onChange={(e) => setPreferredFabricators(e.target.value)} placeholder="e.g. Olympic Marble, NW Granite" className="kiosk-input-big" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleNextStep()} />
+                  </div>
+                  <div className="kiosk-input-wrap" style={{ marginTop: '1rem' }}>
+                    <input type="tel" value={fabricatorPhone} onChange={(e) => setFabricatorPhone(formatPhoneInput(e.target.value))} placeholder="Company Phone (Optional)" className="kiosk-input-medium" />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* STEP 7: NDA */}
+          {step === 7 && (
+            <div className="kiosk-form-step anim-slide-up" key="step-7" style={{ maxWidth: '600px' }}>
+              <img src="/logo.png" alt="Easy Stones" className="kiosk-step-logo" />
+              <div className="kiosk-step-indicator">Step 6 of 6</div>
+              <h2 className="kiosk-step-question">Safety & NDA</h2>
+              <p className="kiosk-step-hint">Please review before entry</p>
+
+              <div className="kiosk-nda-box">
+                <h4>⚠️ Warehouse Safety Policy</h4>
+                <p>Easy Stones operates a working stone warehouse with heavy slab machinery. Visitors must remain within marked walkways and keep children supervised at all times.</p>
+                <h4>📜 Confidentiality Agreement</h4>
+                <p>Wholesale pricing schedules and inventory logs remain strictly confidential to Easy Stones.</p>
+              </div>
+
+              <label className="kiosk-nda-agree">
+                <input type="checkbox" checked={ndaAccepted} onChange={(e) => setNdaAccepted(e.target.checked)} className="kiosk-nda-checkbox" />
+                <span>I agree to the <strong>Safety Rules & NDA Terms</strong></span>
+              </label>
+            </div>
+          )}
+
+          {/* STEP 8: Success */}
+          {step === 8 && (
+            <div className="kiosk-success-stage anim-scale-in" key="step-8">
+              <div className="kiosk-success-icon"><CheckCircle2 size={72} /></div>
+              <h1 className="kiosk-success-title">Welcome, {name}!</h1>
+              <p className="kiosk-success-body">Our team at <strong>Easy Stones {selectedLocation}</strong> has been notified. A sales specialist will be with you shortly.</p>
+              <div className="kiosk-countdown-pill">Resetting in <strong>{resetTimer}s</strong></div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Bottom Action Bar ── */}
+        <div className="kiosk-bottom-bar">
+          {step === 1 ? (
+            <div className="kiosk-bottom-actions centered">
+              <button type="button" className="kiosk-btn-primary" onClick={() => setStep(2)}>
+                <span>Check In</span><ChevronRight size={20} />
+              </button>
+            </div>
+          ) : step === 8 ? (
+            <div className="kiosk-bottom-actions centered">
+              <button type="button" className="kiosk-btn-primary" onClick={resetSelfForm}>Done</button>
+            </div>
+          ) : (
+            <div className="kiosk-bottom-actions spread">
+              <button type="button" className="kiosk-btn-secondary" onClick={handlePrevStep}>
+                <ChevronLeft size={18} /><span>Back</span>
+              </button>
+              {step === 7 ? (
+                <button type="button" className={`kiosk-btn-primary gold`} disabled={!ndaAccepted || loading} onClick={handleSelfSubmit}>
+                  <span>{loading ? 'Submitting...' : 'Complete Check-In'}</span><ChevronRight size={20} />
+                </button>
+              ) : (
+                <button type="button" className="kiosk-btn-primary" disabled={(step === 2 && !name.trim()) || (step === 3 && phone.replace(/\D/g, '').length < 10) || (step === 4 && !visitorType) || (step === 5 && !companyName.trim())} onClick={handleNextStep}>
+                  <span>Next</span><ChevronRight size={20} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
-  if (!user && !isSelf) {
-    return null;
-  }
-
+  // ═══════════════════════════════════════════════════════
+  // RENDER 2: STAFF CHECK-IN FORM (/checkin)
+  // ═══════════════════════════════════════════════════════
   return (
     <div className={`checkin-container ${theme}-theme`}>
-
-      <div className="checkin-header">
-        <div className="logo-section">
-          <h1>Visitor Check-in</h1>
-          {hasMultipleLocations ? (
-            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-              <span style={{ 
-                fontSize: '0.8rem', 
-                color: 'var(--text-secondary)', 
-                fontWeight: '600', 
-                textTransform: 'uppercase', 
-                letterSpacing: '0.08em' 
-              }}>
-                Select Active Branch Office
-              </span>
-              
-              <div style={{ position: 'relative', display: 'inline-block' }}>
-                <select
-                  value={selectedLocation}
-                  onChange={(e) => setSelectedLocation(e.target.value)}
-                  style={{
-                    background: 'var(--bg-card)',
-                    color: 'var(--text-primary)',
-                    border: '1.5px solid var(--accent-primary)',
-                    padding: '12px 40px 12px 20px',
-                    borderRadius: '14px',
-                    fontSize: '1rem',
-                    cursor: 'pointer',
-                    outline: 'none',
-                    fontWeight: '700',
-                    boxShadow: 'var(--shadow-glow)',
-                    minWidth: '240px',
-                    appearance: 'none',
-                    WebkitAppearance: 'none',
-                    MozAppearance: 'none',
-                    transition: 'all 0.2s',
-                    textAlign: 'left'
-                  }}
-                  className="kiosk-location-dropdown"
-                >
-                  {allowedLocations.map(loc => (
-                    <option key={loc} value={loc} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-                      📍 {loc} Office
-                    </option>
-                  ))}
-                </select>
-                <div style={{
-                  position: 'absolute',
-                  right: '16px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  pointerEvents: 'none',
-                  color: 'var(--accent-primary)',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}>
-                  <ChevronDown size={18} />
-                </div>
-              </div>
-            </div>
-          ) : (
-            <p className="kiosk-branch-indicator" style={{ color: '#d4af37', fontSize: '1.15rem', marginTop: '10px', fontWeight: '700', letterSpacing: '0.05em' }}>
-              📍 {selectedLocation.includes('Showroom') || selectedLocation.includes('Branch') || selectedLocation.includes('Office') ? selectedLocation : `${selectedLocation} Showroom`}
-            </p>
-          )}
-        </div>
+      <div className="checkin-simple-header">
+        <h1 className="checkin-title-text">Visitor Check-In</h1>
+        {hasMultipleLocations ? (
+          <div className="checkin-select-container">
+            <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} className="checkin-branch-select-input">
+              {allowedLocations.map(loc => (
+                <option key={loc} value={loc} style={{ background: '#0f172a', color: '#ffffff' }}>📍 {loc} Office</option>
+              ))}
+            </select>
+            <div className="checkin-select-arrow"><ChevronDown size={16} /></div>
+          </div>
+        ) : (
+          <span className="checkin-branch-pill-badge">📍 {locationDisplay}</span>
+        )}
       </div>
 
       <div className="checkin-card">
@@ -399,71 +468,34 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
           <div className="success-message">
             <CheckCircle2 size={64} className="success-icon" />
             <h2>Welcome!</h2>
-            <p>Thank you for checking in, <strong>{formData.name}</strong>.</p>
-            <p>Someone will be with you shortly.</p>
+            <p>Thank you for checking in!</p>
+            <button type="button" className="submit-btn" onClick={() => setSubmitted(false)} style={{ marginTop: '1.5rem', width: 'auto', padding: '0.8rem 2rem' }}>
+              Check In Another Visitor
+            </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="checkin-form">
-            {/* 🛡️ Silent Anti-Bot Honeypot Field */}
-            <input
-              type="text"
-              name="website_hp"
-              value={honeypot}
-              onChange={(e) => setHoneypot(e.target.value)}
-              style={{ display: 'none' }}
-              tabIndex={-1}
-              autoComplete="off"
-            />
+          <form onSubmit={handleStaffSubmit} className="checkin-form">
             <div className="form-sections-container">
               <div className="form-section">
                 <h3>Customer Information</h3>
                 <div className="input-field">
                   <label><User size={16} /> Name <span className="required">*</span></label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Enter your full name"
-                    required
-                  />
+                  <input type="text" name="name" value={staffFormData.name} onChange={handleStaffChange} placeholder="Enter your full name" required />
                 </div>
                 <div className="input-field">
                   <label><Phone size={16} /> Phone Number <span className="required">*</span></label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="(555) 000-0000"
-                    required
-                  />
+                  <input type="tel" name="phone" value={staffFormData.phone} onChange={handleStaffChange} placeholder="(555) 000-0000" required />
                 </div>
               </div>
-
               <div className="form-section">
-                <h3>Fabricator / Contractor Information</h3>
+                <h3>Fabricator / Contractor Info</h3>
                 <div className="input-field">
                   <label><Building size={16} /> Company/Contact Name <span className="required">*</span></label>
-                  <input
-                    type="text"
-                    name="fabricatorCompany"
-                    value={formData.fabricatorCompany}
-                    onChange={handleChange}
-                    placeholder="Enter company/contact name"
-                    required
-                  />
+                  <input type="text" name="fabricatorCompany" value={staffFormData.fabricatorCompany} onChange={handleStaffChange} placeholder="Enter company/contact name" required />
                 </div>
                 <div className="input-field">
                   <label><Phone size={16} /> Company Phone Number <span className="required">*</span></label>
-                  <input
-                    type="tel"
-                    name="fabricatorPhone"
-                    value={formData.fabricatorPhone}
-                    onChange={handleChange}
-                    placeholder="Enter phone number"
-                    required
-                  />
+                  <input type="tel" name="fabricatorPhone" value={staffFormData.fabricatorPhone} onChange={handleStaffChange} placeholder="(555) 000-0000" required />
                 </div>
               </div>
             </div>

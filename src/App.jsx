@@ -89,6 +89,7 @@ function App() {
   const location = useLocation();
   const isSalesPage = location.pathname.startsWith('/sales');
   const isAdminPage = location.pathname.startsWith('/admin');
+  const isSelfCheckInPage = location.pathname.startsWith('/self-checkin') || location.search.includes('mode=qr') || location.search.includes('mode=nfc') || location.search.includes('mode=self');
 
   // Custom Alert Modal State
   const [customAlert, setCustomAlert] = useState(null);
@@ -135,8 +136,8 @@ function App() {
         <div className="app">
           <ScrollToTop />
           <div className="bg-gradient"></div>
-          <Header />
-          <main className={isSalesPage || isAdminPage ? 'main-dashboard' : 'main-site'}>
+          {!isSelfCheckInPage && <Header />}
+          <main className={isSalesPage || isAdminPage || isSelfCheckInPage ? 'main-dashboard' : 'main-site'}>
             <ErrorBoundary>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
@@ -174,7 +175,7 @@ function App() {
               </Suspense>
             </ErrorBoundary>
           </main>
-          {!isSalesPage && !isAdminPage && <Footer />}
+          {!isSalesPage && !isAdminPage && !isSelfCheckInPage && <Footer />}
         </div>
         {/* Custom Alert Modal overlay outside normal layout */}
         {customAlert && (
