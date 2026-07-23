@@ -5331,17 +5331,20 @@ const SalesPage = () => {
                                             </select>
                                         )}
                                     </div>
-                                    {checkInModalMode === 'view' && selectedCheckIn.loggedBy?.username && (
-                                        <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Logged By</label>
-                                            <input
-                                                type="text"
-                                                value={selectedCheckIn.loggedBy.username}
-                                                readOnly
-                                                style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', outline: 'none' }}
-                                            />
-                                        </div>
-                                    )}
+                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Logged By</label>
+                                        <input
+                                            type="text"
+                                            value={
+                                                typeof selectedCheckIn.loggedBy === 'string' && selectedCheckIn.loggedBy.trim()
+                                                    ? selectedCheckIn.loggedBy
+                                                    : selectedCheckIn.loggedBy?.username || (selectedCheckIn.isSelfCheckIn || selectedCheckIn.source === 'self' || selectedCheckIn.loggedBy === 'Self Check-In (QR/NFC)' ? '📱 Self Check-In (QR/NFC)' : 'Staff')
+                                            }
+                                            readOnly
+                                            disabled
+                                            style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', outline: 'none', cursor: 'not-allowed' }}
+                                        />
+                                    </div>
                                 </div>
                                 <div className="modal-footer" style={{ padding: '1.25rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                                     <button
