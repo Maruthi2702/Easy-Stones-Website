@@ -3,7 +3,7 @@ import {
     Users, ShieldAlert, Plus, Edit2, Trash2, Search, 
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
-    FileCog, Mail as MailIcon
+    FileCog, Mail as MailIcon, TrendingDown
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import './UsersRolesTab.css';
@@ -56,6 +56,17 @@ const PAGE_PERMISSIONS = [
             { key: 'view_pricelist',   label: 'View',            icon: Eye,    desc: 'View price lists and margins' },
             { key: 'manage_pricelist', label: 'Edit / Download', icon: FileCog, desc: 'Edit margin levels and download Excel' },
             { key: 'view_product_prices', label: 'View Product Prices', icon: Eye, desc: 'Allow viewing prices on product detail pages' }
+        ]
+    },
+    {
+        id: 'lost_sales',
+        page: 'Lost Sales',
+        icon: TrendingDown,
+        description: 'Track lost revenue, competitor pricing & stock friction',
+        color: '#ef4444',
+        actions: [
+            { key: 'view_lost_sales', label: 'View', icon: Eye, desc: 'View lost sales records and metrics' },
+            { key: 'manage_lost_sales', label: 'Manage', icon: Pencil, desc: 'Record, edit and delete lost sale opportunities' }
         ]
     },
     {

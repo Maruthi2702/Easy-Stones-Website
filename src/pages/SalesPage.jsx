@@ -35,6 +35,7 @@ import CheckInLogPanel from '../components/sales/CheckInLogPanel';
 import PriceListPanel from '../components/sales/PriceListPanel';
 import UsersRolesTab from '../components/sales/UsersRolesTab';
 import UserProfileTab from '../components/sales/UserProfileTab';
+import LostSalesTab from '../components/sales/LostSalesTab';
 import Pagination from '../components/shared/Pagination';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 
@@ -3354,6 +3355,20 @@ const SalesPage = () => {
                 {!authLoading && currentUser?.permissions && crmTab === 'profile' && (
                     <ErrorBoundary key="user-profile-view">
                         {renderUserProfileView()}
+                    </ErrorBoundary>
+                )}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'lost_sales' && (
+                    <ErrorBoundary key="lost-sales-view">
+                        <LostSalesTab
+                            currentUser={currentUser}
+                            customersList={allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || [])}
+                            customerOptions={customerOptions}
+                            locationsList={locations || ['Seattle', 'Spokane', 'Salt Lake City']}
+                            theme={theme}
+                            onCreateNew={() => setShowAddCustomerModal(true)}
+                            isDropdownLoading={isDropdownLoading}
+                        />
                     </ErrorBoundary>
                 )}
 

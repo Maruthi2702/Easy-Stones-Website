@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Pin, PinOff, Sun, Moon,
-    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck
+    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -120,6 +120,16 @@ const CustomerSidebar = ({
                         <span>Price List</span>
                     </button>
                 )}
+
+                {/* Lost Sales */}
+                <button
+                    className={`sidebar-nav-link ${crmTab === 'lost_sales' ? 'active' : ''}`}
+                    onClick={() => handleLinkClick('lost_sales')}
+                    title="Lost Sales Tracker"
+                >
+                    <TrendingDown size={18} />
+                    <span>Lost Sales</span>
+                </button>
 
                 {/* Users & Roles — requires manage_users */}
                 {user?.permissions?.includes('manage_users') && (

@@ -3017,6 +3017,150 @@
   border-color: rgba(212, 175, 55, 0.55);
 }
 
+/* ── LIGHT THEME STYLES FOR VISIT / CUSTOMER POST CARDS ── */
+body.light-theme-active .visit-post-card,
+.light-theme-active .visit-post-card,
+body.light-theme .visit-post-card,
+.sales-container.light-theme .visit-post-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03) !important;
+}
+
+body.light-theme-active .visit-post-card:hover,
+.light-theme-active .visit-post-card:hover,
+body.light-theme .visit-post-card:hover,
+.sales-container.light-theme .visit-post-card:hover {
+  background: #ffffff !important;
+  border-color: #d4af37 !important;
+  box-shadow: 0 10px 28px rgba(212, 175, 55, 0.18), 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  transform: translateY(-2px);
+}
+
+body.light-theme-active .visit-post-card.quick-note-card,
+.light-theme-active .visit-post-card.quick-note-card {
+  background: linear-gradient(145deg, #f0f7ff 0%, #ffffff 100%) !important;
+  border-color: #bfdbfe !important;
+}
+
+body.light-theme-active .visit-post-card.quick-note-card:hover,
+.light-theme-active .visit-post-card.quick-note-card:hover {
+  background: #ebf5ff !important;
+  border-color: #3b82f6 !important;
+}
+
+body.light-theme-active .visit-post-card.meeting-card,
+.light-theme-active .visit-post-card.meeting-card {
+  background: linear-gradient(145deg, #fffdf5 0%, #ffffff 100%) !important;
+  border-color: #fde68a !important;
+}
+
+body.light-theme-active .visit-post-card.meeting-card:hover,
+.light-theme-active .visit-post-card.meeting-card:hover {
+  background: #fef3c7 !important;
+  border-color: #d4af37 !important;
+}
+
+body.light-theme-active .author-avatar-gold-ring,
+.light-theme-active .author-avatar-gold-ring {
+  background: #fef3c7 !important;
+  color: #b48a1c !important;
+  border: 2px solid #d4af37 !important;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.2) !important;
+}
+
+body.light-theme-active .post-header,
+.light-theme-active .post-header {
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+body.light-theme-active .post-author,
+.light-theme-active .post-author {
+  color: #0f172a !important;
+}
+
+body.light-theme-active .post-time,
+.light-theme-active .post-time {
+  color: #64748b !important;
+}
+
+.post-text {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0.6rem 0;
+  color: #e2e8f0;
+}
+
+.detail-value {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+body.light-theme-active .post-text,
+.light-theme-active .post-text {
+  color: #1e293b !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+body.light-theme-active .icon-action-small,
+.light-theme-active .icon-action-small {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #64748b !important;
+}
+
+body.light-theme-active .icon-action-small:hover,
+.light-theme-active .icon-action-small:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+body.light-theme-active .icon-action-small.delete:hover,
+.light-theme-active .icon-action-small.delete:hover {
+  background: #fef2f2 !important;
+  color: #ef4444 !important;
+  border-color: #fecaca !important;
+}
+
+body.light-theme-active .icon-action-small.edit:hover,
+.light-theme-active .icon-action-small.edit:hover {
+  background: #f0fdf4 !important;
+  color: #16a34a !important;
+  border-color: #bbf7d0 !important;
+}
+
+body.light-theme-active .post-details-ext,
+.light-theme-active .post-details-ext {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+body.light-theme-active .detail-label,
+.light-theme-active .detail-label {
+  color: #64748b !important;
+}
+
+body.light-theme-active .detail-value,
+.light-theme-active .detail-value {
+  color: #0f172a !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+body.light-theme-active .reaction-picker-floating,
+.light-theme-active .reaction-picker-floating {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12) !important;
+}
+
 .author-avatar-gold-ring {
   width: 42px;
   height: 42px;
