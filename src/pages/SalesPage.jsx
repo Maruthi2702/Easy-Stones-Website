@@ -1277,10 +1277,7 @@ const SalesPage = () => {
         "2025V3 Moda Tower"
     ];
 
-    useEffect(() => {
-        fetchCurrentUser();
-        // fetchDashboardResources will be called by its own useEffect when tab is active
-    }, []);
+    // Current user ID is managed directly via AuthContext (currentUser)
 
     const fetchAllCustomersForDropdown = useCallback(async () => {
         setIsDropdownLoading(true);
