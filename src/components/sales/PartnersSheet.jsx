@@ -4,6 +4,7 @@ import {
     X, Mail, Phone, Eye, Filter, MoreVertical, Loader, Wrench, Users, PhoneCall, MapPin
 } from 'lucide-react';
 import Pagination from '../shared/Pagination';
+import SidebarToggleButton from '../shared/SidebarToggleButton';
 import AddCustomerModal from './AddCustomerModal';
 import { API_URL } from '../../config/api';
 import * as XLSX from 'xlsx';
@@ -570,26 +571,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             <div className="section-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
                     {(!isSidebarOpen || !isPinned || isMobile) && onToggleSidebar && (
-                        <button
-                            onClick={onToggleSidebar}
-                            className="dashboard-sidebar-toggle"
-                            title="Open Sidebar"
-                            style={{
-                                background: 'rgba(255, 255, 255, 0.08)',
-                                border: '1px solid rgba(255, 255, 255, 0.15)',
-                                borderRadius: '6px',
-                                padding: '6px',
-                                color: 'var(--gold-color, #d4af37)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                marginRight: '0.25rem'
-                            }}
-                        >
-                            <Menu size={20} />
-                        </button>
+                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={onToggleSidebar} />
                     )}
                     <h2>Customer List</h2>
                     {!loading && <span className="customer-count">{totalCount}</span>}

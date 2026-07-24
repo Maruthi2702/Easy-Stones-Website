@@ -37,6 +37,7 @@ import UsersRolesTab from '../components/sales/UsersRolesTab';
 import UserProfileTab from '../components/sales/UserProfileTab';
 import LostSalesTab from '../components/sales/LostSalesTab';
 import Pagination from '../components/shared/Pagination';
+import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 
 import ErrorBoundary from '../components/shared/ErrorBoundary';
@@ -3051,18 +3052,7 @@ const SalesPage = () => {
 
     const renderCheckInLogView = () => {
         const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-            <button
-                onClick={() => setIsSidebarOpen(true)}
-                className="dashboard-sidebar-toggle"
-                title="Open Sidebar"
-                style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: '6px', padding: '6px', color: 'var(--gold-color, #d4af37)', cursor: 'pointer'
-                }}
-            >
-                <Menu size={20} />
-            </button>
+            <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
         ) : null;
 
         return (
@@ -3208,18 +3198,7 @@ const SalesPage = () => {
 
     const renderPriceListView = () => {
         const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-            <button
-                onClick={() => setIsSidebarOpen(true)}
-                className="dashboard-sidebar-toggle"
-                title="Open Sidebar"
-                style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: '6px', padding: '6px', color: 'var(--gold-color, #d4af37)', cursor: 'pointer'
-                }}
-            >
-                <Menu size={20} />
-            </button>
+            <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
         ) : null;
 
         return (
@@ -3229,18 +3208,7 @@ const SalesPage = () => {
 
     const renderUsersRolesView = () => {
         const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-            <button
-                onClick={() => setIsSidebarOpen(true)}
-                className="dashboard-sidebar-toggle"
-                title="Open Sidebar"
-                style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: '6px', padding: '6px', color: 'var(--gold-color, #d4af37)', cursor: 'pointer'
-                }}
-            >
-                <Menu size={20} />
-            </button>
+            <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
         ) : null;
 
         return (
@@ -3254,19 +3222,7 @@ const SalesPage = () => {
 
     const renderUserProfileView = () => {
         const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-            <button
-                onClick={() => setIsSidebarOpen(true)}
-                className="dashboard-sidebar-toggle"
-                title="Open Sidebar"
-                style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: '6px', padding: '6px', color: 'var(--gold-color, #d4af37)', cursor: 'pointer',
-                    marginRight: '12px'
-                }}
-            >
-                <Menu size={20} />
-            </button>
+            <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
         ) : null;
 
         return (
@@ -3360,13 +3316,7 @@ const SalesPage = () => {
 
                 {!authLoading && currentUser?.permissions && crmTab === 'lost_sales' && (() => {
                     const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-                        <button
-                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                            className="mobile-sidebar-toggle-btn"
-                            title="Open navigation menu"
-                        >
-                            <Menu size={20} />
-                        </button>
+                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
                     ) : null;
 
                     return (
