@@ -121,15 +121,17 @@ const CustomerSidebar = ({
                     </button>
                 )}
 
-                {/* Lost Sales */}
-                <button
-                    className={`sidebar-nav-link ${crmTab === 'lost_sales' ? 'active' : ''}`}
-                    onClick={() => handleLinkClick('lost_sales')}
-                    title="Lost Sales Tracker"
-                >
-                    <TrendingDown size={18} />
-                    <span>Lost Sales</span>
-                </button>
+                {/* Lost Sales — requires view_lost_sales */}
+                {(user?.permissions?.includes('view_lost_sales') || user?.permissions?.includes('manage_lost_sales') || user?.role === 'admin' || !user) && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'lost_sales' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('lost_sales')}
+                        title="Lost Sales Tracker"
+                    >
+                        <TrendingDown size={18} />
+                        <span>Lost Sales</span>
+                    </button>
+                )}
 
                 {/* Users & Roles — requires manage_users */}
                 {user?.permissions?.includes('manage_users') && (

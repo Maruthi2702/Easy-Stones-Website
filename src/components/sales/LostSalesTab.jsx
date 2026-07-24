@@ -100,6 +100,12 @@ const LostSalesTab = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
+  // Permission Checks: View, Edit, Delete
+  const userPermissions = currentUser?.permissions || [];
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'director' || !currentUser;
+  const canEdit = isAdmin || userPermissions.includes('edit_lost_sales') || userPermissions.includes('manage_lost_sales');
+  const canDelete = isAdmin || userPermissions.includes('delete_lost_sales') || userPermissions.includes('manage_lost_sales');
+
   // Sync with LocalStorage and Backend API
   const fetchLostSalesFromApi = async () => {
     try {
@@ -322,10 +328,12 @@ const LostSalesTab = ({
             <span>{showStatsPanel ? 'Hide Cards' : 'Show Cards'}</span>
           </button>
 
-          <button type="button" className="btn-add-lost-sale" onClick={handleOpenAddModal}>
-            <Plus size={16} />
-            <span>Record Lost Sale</span>
-          </button>
+          {canEdit && (
+            <button type="button" className="btn-add-lost-sale" onClick={handleOpenAddModal}>
+              <Plus size={16} />
+              <span>Record Lost Sale</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -497,22 +505,26 @@ const LostSalesTab = ({
                       <td className="col-location">{locName}</td>
                       <td className="col-rep">{repName}</td>
                       <td className="col-actions" style={{ textAlign: 'right' }}>
-                        <button
-                          type="button"
-                          className="lost-sales-action-btn edit-btn"
-                          onClick={(e) => handleOpenEditModal(item, e)}
-                          title="Edit Opportunity"
-                        >
-                          <Edit3 size={16} color="#d4af37" />
-                        </button>
-                        <button
-                          type="button"
-                          className="lost-sales-action-btn delete-btn"
-                          onClick={(e) => handleDeleteRecord(item._id, e)}
-                          title="Delete Opportunity"
-                        >
-                          <Trash2 size={16} color="#ef4444" />
-                        </button>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            className="lost-sales-action-btn edit-btn"
+                            onClick={(e) => handleOpenEditModal(item, e)}
+                            title="Edit Opportunity"
+                          >
+                            <Edit3 size={16} color="#d4af37" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            type="button"
+                            className="lost-sales-action-btn delete-btn"
+                            onClick={(e) => handleDeleteRecord(item._id, e)}
+                            title="Delete Opportunity"
+                          >
+                            <Trash2 size={16} color="#ef4444" />
+                          </button>
+                        )}
                       </td>
                     </tr>
 
@@ -583,12 +595,16 @@ const LostSalesTab = ({
                     <span className="val">{formatCurrency(item.totalLostValue)}</span>
                   </div>
                   <div className="card-action-btns">
-                    <button className="mobile-action-btn" onClick={(e) => handleOpenEditModal(item, e)}>
-                      <Edit3 size={15} /> Edit
-                    </button>
-                    <button className="mobile-action-btn delete" onClick={(e) => handleDeleteRecord(item._id, e)} title="Delete">
-                      <Trash2 size={15} />
-                    </button>
+                    {canEdit && (
+                      <button className="mobile-action-btn" onClick={(e) => handleOpenEditModal(item, e)}>
+                        <Edit3 size={15} /> Edit
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button className="mobile-action-btn delete" onClick={(e) => handleDeleteRecord(item._id, e)} title="Delete">
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

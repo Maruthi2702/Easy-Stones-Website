@@ -66,7 +66,8 @@ const PAGE_PERMISSIONS = [
         color: '#ef4444',
         actions: [
             { key: 'view_lost_sales', label: 'View', icon: Eye, desc: 'View lost sales records and metrics' },
-            { key: 'manage_lost_sales', label: 'Manage', icon: Pencil, desc: 'Record, edit and delete lost sale opportunities' }
+            { key: 'edit_lost_sales', label: 'Edit', icon: Pencil, desc: 'Record new lost sales and edit existing records' },
+            { key: 'delete_lost_sales', label: 'Delete', icon: Trash2, desc: 'Delete lost sale records' }
         ]
     },
     {

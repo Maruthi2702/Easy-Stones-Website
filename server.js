@@ -345,7 +345,8 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
             'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
-            'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices'
+            'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
+            'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales'
           ],
           isSystem: true
         },
@@ -355,7 +356,8 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
             'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
-            'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices'
+            'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
+            'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales'
           ],
           isSystem: true
         },
@@ -365,7 +367,8 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers',
             'view_checkins', 'manage_checkins', 'send_checkin_email', 'delete_checkins',
-            'view_pricelist', 'manage_users', 'view_product_prices'
+            'view_pricelist', 'manage_users', 'view_product_prices',
+            'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales'
           ],
           isSystem: true
         },
@@ -375,7 +378,8 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers',
             'view_checkins', 'manage_checkins', 'send_checkin_email',
-            'view_pricelist', 'manage_users', 'view_product_prices'
+            'view_pricelist', 'manage_users', 'view_product_prices',
+            'view_lost_sales', 'edit_lost_sales'
           ],
           isSystem: true
         },
@@ -383,7 +387,8 @@ async function startServer() {
           name: 'csr',
           displayName: 'CSR',
           permissions: [
-            'view_checkins', 'send_checkin_email', 'view_pricelist', 'view_product_prices'
+            'view_checkins', 'send_checkin_email', 'view_pricelist', 'view_product_prices',
+            'view_lost_sales'
           ],
           isSystem: true
         }
