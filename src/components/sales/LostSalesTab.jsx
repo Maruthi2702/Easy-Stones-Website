@@ -73,7 +73,8 @@ const LostSalesTab = ({
   locationsList = ['Seattle', 'Spokane', 'Salt Lake City'],
   theme = 'dark',
   onCreateNew = null,
-  isDropdownLoading = false
+  isDropdownLoading = false,
+  sidebarToggle = null
 }) => {
   const [lostSales, setLostSales] = useState(() => {
     try {
@@ -295,6 +296,7 @@ const LostSalesTab = ({
       {/* Compact Single-Row Header Bar */}
       <div className="lost-sales-header compact-header">
         <div className="header-left-title">
+          {sidebarToggle}
           <div className="header-icon-ring compact">
             <TrendingDown size={18} />
           </div>

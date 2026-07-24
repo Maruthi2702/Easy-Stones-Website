@@ -3358,19 +3358,32 @@ const SalesPage = () => {
                     </ErrorBoundary>
                 )}
 
-                {!authLoading && currentUser?.permissions && crmTab === 'lost_sales' && (
-                    <ErrorBoundary key="lost-sales-view">
-                        <LostSalesTab
-                            currentUser={currentUser}
-                            customersList={allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || [])}
-                            customerOptions={customerOptions}
-                            locationsList={locations || ['Seattle', 'Spokane', 'Salt Lake City']}
-                            theme={theme}
-                            onCreateNew={() => setShowAddCustomerModal(true)}
-                            isDropdownLoading={isDropdownLoading}
-                        />
-                    </ErrorBoundary>
-                )}
+                {!authLoading && currentUser?.permissions && crmTab === 'lost_sales' && (() => {
+                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+                        <button
+                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                            className="mobile-sidebar-toggle-btn"
+                            title="Open navigation menu"
+                        >
+                            <Menu size={20} />
+                        </button>
+                    ) : null;
+
+                    return (
+                        <ErrorBoundary key="lost-sales-view">
+                            <LostSalesTab
+                                currentUser={currentUser}
+                                customersList={allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || [])}
+                                customerOptions={customerOptions}
+                                locationsList={locations || ['Seattle', 'Spokane', 'Salt Lake City']}
+                                theme={theme}
+                                onCreateNew={() => setShowAddCustomerModal(true)}
+                                isDropdownLoading={isDropdownLoading}
+                                sidebarToggle={sidebarToggle}
+                            />
+                        </ErrorBoundary>
+                    );
+                })()}
 
                 {!authLoading && currentUser?.permissions && crmTab === 'customers' && currentUser.permissions.includes('view_customers') && (
                     <ErrorBoundary key={selectedCustomerId || 'no-customer'}>
