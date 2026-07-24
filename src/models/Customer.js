@@ -128,17 +128,18 @@ const customerSchema = new mongoose.Schema({
   autoIndex: false
 });
 
-// Indexes for performance optimization
-customerSchema.index({ contactName: 'text', company: 'text', email: 'text' }); // Text search index
-customerSchema.index({ 'visits.date': -1 }); // Index for dashboard max visit calculation
-customerSchema.index({ isActive: 1, createdAt: -1 }); // Index for listing all active customers
-customerSchema.index({ priceLevel: 1, isActive: 1 }); // Index for price level filtering
-customerSchema.index({ level: 1 }); // Index for level-based sorting
-customerSchema.index({ customerType: 1 }); // Index for type-based filtering
-customerSchema.index({ city: 1 }); // Index for city filtering
-customerSchema.index({ 'address.city': 1 }); // Index for address city filtering
-customerSchema.index({ status: 1 }); // Index for status filtering
-customerSchema.index({ company: 1, contactName: 1 }); // Compound index to speed up selection dropdown API sorts
+// ── MONGOOSE INDEXES FOR HIGH PERFORMANCE & SCALABILITY ──
+customerSchema.index({ company: 1, contactName: 1 }); // Pre-sorted dropdowns & selection API
+customerSchema.index({ status: 1, createdBy: 1 }); // Status & rep ownership filter
+customerSchema.index({ customerType: 1, level: 1 }); // Type & Level filter
+customerSchema.index({ isActive: 1, createdAt: -1 }); // Active customer lists
+customerSchema.index({ priceLevel: 1, isActive: 1 }); // Price level filter
+customerSchema.index({ 'visits.date': -1 }); // Visit logs & dashboard max visit calculation
+customerSchema.index({ 'address.city': 1 }); // City filter
+customerSchema.index(
+  { company: 'text', contactName: 'text', email: 'text', phone: 'text' },
+  { weights: { company: 10, contactName: 5, email: 2, phone: 1 }, name: 'CustomerTextIndex' }
+);
 
 // Hash password before saving
 // Hash password before saving
