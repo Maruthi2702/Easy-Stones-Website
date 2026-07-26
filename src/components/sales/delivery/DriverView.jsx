@@ -61,28 +61,60 @@ const DriverView = ({
 
   const currentTruck = trucks.find(t => t.id === selectedTruckId) || trucks[0];
 
-  // Robust delivery matching by truckId, truck name, or driver name
-  const driverDeliveries = deliveries.filter(d => {
-    const matchesDate = d.date === selectedDate;
-    if (!matchesDate) return false;
+  // Robust delivery matching helper (handles YYYY-MM-DD vs ISO timestamps, truckId, driver name, salesRep)
+  const isDeliveryMatchingTruck = (d, trk) => {
+    if (!d) return false;
+    const dTruckId = String(d.truckId || '');
+    const trkId = String(trk?.id || '');
+    const trkDriver = String(trk?.driver || '').toLowerCase();
+    const trkName = String(trk?.name || '').toLowerCase();
+    const dDriver = String(d.driver || '').toLowerCase();
+    const dTruckName = String(d.truckName || '').toLowerCase();
+    const uName = String(currentUser?.name || '').toLowerCase();
+    const uUsername = String(currentUser?.username || '').toLowerCase();
 
-    const matchesTruckId = d.truckId === selectedTruckId || (currentTruck && d.truckId === currentTruck.id);
-    const matchesDriverName = currentTruck && (
-      (d.driver && d.driver.toLowerCase() === (currentTruck.driver || '').toLowerCase()) ||
-      (d.truckName && d.truckName.toLowerCase() === (currentTruck.name || '').toLowerCase())
+    return (
+      (trkId && dTruckId === trkId) ||
+      (dDriver && trkDriver && dDriver === trkDriver) ||
+      (dTruckName && trkName && dTruckName === trkName) ||
+      (dDriver && uName && dDriver === uName) ||
+      (dDriver && uUsername && dDriver === uUsername)
     );
+  };
 
-    return matchesTruckId || matchesDriverName;
-  });
+  const isDeliveryMatchingDate = (d, targetDate) => {
+    if (!d || !d.date) return false;
+    const delDateStr = String(d.date).slice(0, 10);
+    const targetDateStr = String(targetDate).slice(0, 10);
+    return delDateStr === targetDateStr;
+  };
+
+  const driverDeliveries = deliveries.filter(d =>
+    isDeliveryMatchingTruck(d, currentTruck) && isDeliveryMatchingDate(d, selectedDate)
+  );
+
+  const getStopsCountForDay = (dateStr) => {
+    return deliveries.filter(d =>
+      isDeliveryMatchingTruck(d, currentTruck) && isDeliveryMatchingDate(d, dateStr)
+    ).length;
+  };
+
+  // Check if driver has scheduled stops on ANY other day this week
+  const findOtherDaysWithStops = () => {
+    return weekDates.filter(dStr => dStr !== selectedDate && getStopsCountForDay(dStr) > 0);
+  };
+
+  const otherDaysWithStops = findOtherDaysWithStops();
 
   return (
     <div className="driver-view-container mobile-first">
-      {/* Row 1: Day Selector Tabs (Mon-Fri) */}
+      {/* Row 1: Day Selector Tabs (Mon-Fri) with Stop Counts */}
       <div className="driver-day-tabs">
         {DAYS_OF_WEEK.map((day, idx) => {
           const dateStr = weekDates[idx] || '';
           const isSelected = selectedDate === dateStr;
           const isToday = dateStr === todayStr;
+          const count = getStopsCountForDay(dateStr);
 
           return (
             <button
@@ -91,7 +123,9 @@ const DriverView = ({
               className={`driver-tab-btn ${isSelected ? 'active' : ''} ${isToday ? 'today' : ''}`}
               onClick={() => setSelectedDate(dateStr)}
             >
-              <span className="tab-day-name">{day.name}</span>
+              <span className="tab-day-name">
+                {day.name} {count > 0 ? `(${count})` : ''}
+              </span>
               <span className="tab-day-date">{dateStr ? dateStr.slice(5) : ''}</span>
             </button>
           );
@@ -108,6 +142,10 @@ const DriverView = ({
           <div className="driver-pills-row">
             {trucks.map(trk => {
               const isSelected = trk.id === selectedTruckId;
+              const trkStops = deliveries.filter(d =>
+                isDeliveryMatchingTruck(d, trk) && isDeliveryMatchingDate(d, selectedDate)
+              ).length;
+
               return (
                 <button
                   key={trk.id}
@@ -119,7 +157,7 @@ const DriverView = ({
                   <div className="pill-color-dot" style={{ background: trk.color || '#D4AF37' }} />
                   <div className="pill-text-wrap">
                     <span className="pill-driver-name">{trk.driver}</span>
-                    <span className="pill-truck-name">{trk.name}</span>
+                    <span className="pill-truck-name">{trk.name} {trkStops > 0 ? `• ${trkStops} stops` : ''}</span>
                   </div>
                 </button>
               );
@@ -141,6 +179,34 @@ const DriverView = ({
           <div className="empty-stops-placeholder">
             <Truck size={36} className="empty-truck-icon" />
             <p>No delivery stops scheduled for this day ({selectedDate}).</p>
+            {otherDaysWithStops.length > 0 && (
+              <div className="other-days-notice" style={{ marginTop: '0.85rem' }}>
+                <span style={{ fontSize: '0.85rem', color: '#d4af37' }}>
+                  Stops scheduled on other days this week:
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'center' }}>
+                  {otherDaysWithStops.map(dStr => (
+                    <button
+                      key={dStr}
+                      type="button"
+                      onClick={() => setSelectedDate(dStr)}
+                      style={{
+                        background: '#d4af37',
+                        color: '#000000',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '0.35rem 0.75rem',
+                        fontSize: '0.8rem',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {dStr} ({getStopsCountForDay(dStr)} stops)
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="driver-cards-grid">
