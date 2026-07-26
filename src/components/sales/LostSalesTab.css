@@ -38,21 +38,20 @@ body.light-theme-active .lost-sales-tab-container,
   color: #0f172a;
 }
 
-/* ── COMPACT SINGLE-ROW HEADER ── */
+/* ── ROW 1: TOP HEADER BAR (TITLE + RECORD BUTTON) ── */
 .lost-sales-header.compact-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
   gap: 1rem;
-  flex-wrap: wrap;
+  width: 100%;
 }
 
 .header-left-title {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .header-icon-ring.compact {
@@ -76,13 +75,16 @@ body.light-theme-active .lost-sales-tab-container,
   white-space: nowrap;
 }
 
-/* Inline KPI Metric Pills Bar (Saves 160px vertical height!) */
+/* ── ROW 2: INLINE KPI METRIC PILLS BAR ── */
 .inline-kpi-pills-bar {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin-left: 0.5rem;
-  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
 }
 
 .kpi-pill {
@@ -150,12 +152,15 @@ body.light-theme-active .kpi-pill.red,
   color: #cbd5e1;
   font-weight: 600;
   font-size: 0.85rem;
-  padding: 0.6rem 1rem;
+  padding: 0 1rem;
+  height: 40px;
   border-radius: 10px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  white-space: nowrap;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 

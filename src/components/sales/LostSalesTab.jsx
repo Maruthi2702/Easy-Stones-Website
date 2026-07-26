@@ -293,7 +293,7 @@ const LostSalesTab = ({
 
   return (
     <div className={`lost-sales-tab-container high-density ${theme}-theme-active`}>
-      {/* Compact Single-Row Header Bar */}
+      {/* ── ROW 1: Top Header (Title + Record Lost Sale Button) ── */}
       <div className="lost-sales-header compact-header">
         <div className="header-left-title">
           {sidebarToggle}
@@ -301,41 +301,29 @@ const LostSalesTab = ({
             <TrendingDown size={18} />
           </div>
           <h2 className="title-text-compact">Lost Sales Tracker</h2>
-
-          {/* High-Density Inline KPI Metric Pills */}
-          <div className="inline-kpi-pills-bar">
-            <div className="kpi-pill gold" title="Total Lost Revenue">
-              <DollarSign size={13} />
-              <span>{formatCurrency(totalLostRevenue)}</span>
-            </div>
-            <div className="kpi-pill blue" title="Total Lost Slabs & Square Feet">
-              <Layers size={13} />
-              <span>{totalLostSlabs} Slabs ({totalLostSf.toLocaleString('en-US', { maximumFractionDigits: 0 })} SF)</span>
-            </div>
-            <div className="kpi-pill red" title="Top Friction Factor">
-              <AlertCircle size={13} />
-              <span>{topReasonText}</span>
-            </div>
-          </div>
         </div>
 
-        <div className="header-right-actions">
-          <button
-            type="button"
-            className={`btn-toggle-stats ${showStatsPanel ? 'active' : ''}`}
-            onClick={() => setShowStatsPanel(!showStatsPanel)}
-            title="Toggle Detailed Analytics Cards"
-          >
-            <BarChart2 size={16} />
-            <span>{showStatsPanel ? 'Hide Cards' : 'Show Cards'}</span>
+        {canEdit && (
+          <button type="button" className="btn-add-lost-sale" onClick={handleOpenAddModal}>
+            <Plus size={16} />
+            <span>Record Lost Sale</span>
           </button>
+        )}
+      </div>
 
-          {canEdit && (
-            <button type="button" className="btn-add-lost-sale" onClick={handleOpenAddModal}>
-              <Plus size={16} />
-              <span>Record Lost Sale</span>
-            </button>
-          )}
+      {/* ── ROW 2: High-Density Inline KPI Metric Pills Bar ── */}
+      <div className="inline-kpi-pills-bar">
+        <div className="kpi-pill gold" title="Total Lost Revenue">
+          <DollarSign size={13} />
+          <span>{formatCurrency(totalLostRevenue)}</span>
+        </div>
+        <div className="kpi-pill blue" title="Total Lost Slabs & Square Feet">
+          <Layers size={13} />
+          <span>{totalLostSlabs} Slabs ({totalLostSf.toLocaleString('en-US', { maximumFractionDigits: 0 })} SF)</span>
+        </div>
+        <div className="kpi-pill red" title="Top Friction Factor">
+          <AlertCircle size={13} />
+          <span>{topReasonText}</span>
         </div>
       </div>
 
@@ -377,7 +365,7 @@ const LostSalesTab = ({
         </div>
       )}
 
-      {/* Filter & Search Bar */}
+      {/* ── ROW 3: Unified Filter & Search Bar (Search + Show Cards + Filters) ── */}
       <div className="lost-sales-filter-bar compact">
         <div className="search-input-box">
           <Search size={16} className="search-icon" />
@@ -391,6 +379,16 @@ const LostSalesTab = ({
             <button className="clear-search-btn" onClick={() => setSearchQuery('')}>×</button>
           )}
         </div>
+
+        <button
+          type="button"
+          className={`btn-toggle-stats ${showStatsPanel ? 'active' : ''}`}
+          onClick={() => setShowStatsPanel(!showStatsPanel)}
+          title="Toggle Detailed Analytics Cards"
+        >
+          <BarChart2 size={16} />
+          <span>{showStatsPanel ? 'Hide Cards' : 'Show Cards'}</span>
+        </button>
 
         <div className="filter-dropdowns">
           <div className="select-filter-wrap">
