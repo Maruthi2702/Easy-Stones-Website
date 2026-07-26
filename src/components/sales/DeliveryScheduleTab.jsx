@@ -174,30 +174,19 @@ const DeliveryScheduleTab = ({
 
   return (
     <div className={`delivery-schedule-container high-density ${theme}-theme-active`}>
-      {/* Top Header Bar */}
-      <div className="delivery-schedule-header compact-header">
-        <div className="header-left-title">
+      {/* Single Unified Header Bar */}
+      <div className="delivery-schedule-header compact-header single-row-header">
+        {/* Left: Sidebar Toggle & Title */}
+        <div className="header-left-group">
           {sidebarToggle}
-          <div>
+          <div className="header-title-wrap">
             <h2 className="title-text-compact">Manifest</h2>
             <span className="subtitle-manifest">Shared weekly dispatch</span>
           </div>
         </div>
 
-        {/* Action Button (Office Mode Only) */}
-        {role === 'office' && (
-          <div className="header-right-actions">
-            <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
-              <Plus size={16} />
-              <span>New ticket</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Control Bar (Week Nav & Search) */}
-      <div className="manifest-sub-control-bar">
-        <div className="control-bar-left">
+        {/* Center: Week Navigator & Date Range */}
+        <div className="header-center-group">
           <div className="week-navigator-controls">
             <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
               <ChevronLeft size={16} />
@@ -212,17 +201,25 @@ const DeliveryScheduleTab = ({
           <span className="week-range-label-text">{weekRangeText}</span>
         </div>
 
-        <div className="control-bar-right">
-          <div className="search-box-wrap-top">
+        {/* Right: Search Box & New Ticket Button */}
+        <div className="header-right-group">
+          <div className="search-box-wrap-header">
             <Search size={15} className="search-icon" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search customer or address"
-              className="board-search-input-top"
+              className="board-search-input-header"
             />
           </div>
+
+          {role === 'office' && (
+            <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
+              <Plus size={16} />
+              <span>New ticket</span>
+            </button>
+          )}
         </div>
       </div>
 
