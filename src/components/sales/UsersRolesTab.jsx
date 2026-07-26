@@ -3,7 +3,7 @@ import {
     Users, ShieldAlert, Plus, Edit2, Trash2, Search, 
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
-    FileCog, Mail as MailIcon, TrendingDown
+    FileCog, Mail as MailIcon, TrendingDown, Truck
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import './UsersRolesTab.css';
@@ -68,6 +68,18 @@ const PAGE_PERMISSIONS = [
             { key: 'view_lost_sales', label: 'View', icon: Eye, desc: 'View lost sales records and metrics' },
             { key: 'edit_lost_sales', label: 'Edit', icon: Pencil, desc: 'Record new lost sales and edit existing records' },
             { key: 'delete_lost_sales', label: 'Delete', icon: Trash2, desc: 'Delete lost sale records' }
+        ]
+    },
+    {
+        id: 'delivery_schedule',
+        page: 'Delivery Schedule',
+        icon: Truck,
+        description: 'Schedule, track, and dispatch slab deliveries',
+        color: '#3b82f6',
+        actions: [
+            { key: 'view_delivery_schedule', label: 'View', icon: Eye, desc: 'View delivery schedules and routes' },
+            { key: 'edit_delivery_schedule', label: 'Edit', icon: Pencil, desc: 'Schedule and edit delivery jobs' },
+            { key: 'delete_delivery_schedule', label: 'Delete', icon: Trash2, desc: 'Cancel or delete delivery jobs' }
         ]
     },
     {

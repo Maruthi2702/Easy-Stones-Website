@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Pin, PinOff, Sun, Moon,
-    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown
+    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown, Truck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -130,6 +130,18 @@ const CustomerSidebar = ({
                     >
                         <TrendingDown size={18} />
                         <span>Lost Sales</span>
+                    </button>
+                )}
+
+                {/* Delivery Schedule — requires view_delivery_schedule */}
+                {(user?.permissions?.includes('view_delivery_schedule') || user?.permissions?.includes('manage_delivery_schedule') || user?.role === 'admin' || !user) && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'delivery_schedule' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('delivery_schedule')}
+                        title="Delivery Schedule"
+                    >
+                        <Truck size={18} />
+                        <span>Delivery Schedule</span>
                     </button>
                 )}
 

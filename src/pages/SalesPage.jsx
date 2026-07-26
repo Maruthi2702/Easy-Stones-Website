@@ -36,6 +36,7 @@ import PriceListPanel from '../components/sales/PriceListPanel';
 import UsersRolesTab from '../components/sales/UsersRolesTab';
 import UserProfileTab from '../components/sales/UserProfileTab';
 import LostSalesTab from '../components/sales/LostSalesTab';
+import DeliveryScheduleTab from '../components/sales/DeliveryScheduleTab';
 import Pagination from '../components/shared/Pagination';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
@@ -3326,6 +3327,23 @@ const SalesPage = () => {
                                 theme={theme}
                                 onCreateNew={() => setShowAddCustomerModal(true)}
                                 isDropdownLoading={isDropdownLoading}
+                                sidebarToggle={sidebarToggle}
+                            />
+                        </ErrorBoundary>
+                    );
+                })()}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'delivery_schedule' && (() => {
+                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+                    ) : null;
+
+                    return (
+                        <ErrorBoundary key="delivery-schedule-view">
+                            <DeliveryScheduleTab
+                                currentUser={currentUser}
+                                locationsList={locations || ['Seattle', 'Spokane', 'Salt Lake City']}
+                                theme={theme}
                                 sidebarToggle={sidebarToggle}
                             />
                         </ErrorBoundary>
