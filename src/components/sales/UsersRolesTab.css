@@ -694,7 +694,7 @@
 }
 
 .user-modal-card {
-    background: #0f172a;
+    background: #1c1c1e;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     width: 100%;
@@ -1164,7 +1164,7 @@
 }
 
 .perm-popup-card {
-    background: #111827;
+    background: #1c1c1e;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 20px;
     width: 420px;
