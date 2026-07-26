@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, Trash2, Calendar, Clock, MapPin, User, Truck, FileText, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Save, Trash2, Calendar, Clock, MapPin, User, Truck, FileText, AlertCircle, AlertTriangle } from 'lucide-react';
 import SearchableSelect from '../../SearchableSelect';
+import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 
 const TIME_SLOTS = [
   '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM',
@@ -17,6 +18,7 @@ const DeliveryModal = ({
   onDelete,
   initialData = null,
   trucks = [],
+  deliveries = [],      // ← used to compute capacity per driver/date
   customerOptions = [],
   currentUser = null
 }) => {
@@ -25,27 +27,39 @@ const DeliveryModal = ({
   const [address, setAddress] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState('09:00 AM');
-  const [truckId, setTruckId] = useState(trucks[0]?.id || 'trk_1');
-  const [salesRepName, setSalesRepName] = useState(currentUser?.name || 'Krish Manager');
+  const [truckId, setTruckId] = useState(trucks[0]?.id || '');
+  const [salesRepName, setSalesRepName] = useState(currentUser?.name || '');
   const [status, setStatus] = useState('scheduled');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Track if form has been changed from initialData
+  const initialSnapshot = useRef(null);
 
   useEffect(() => {
-    if (initialData) {
-      setCustomerName(initialData.customerName || '');
-      setSelectedCustomerId(initialData.customerId || '');
-      setAddress(initialData.address || '');
-      setDate(initialData.date || new Date().toISOString().split('T')[0]);
-      setTime(initialData.time || '09:00 AM');
-      setTruckId(initialData.truckId || trucks[0]?.id || 'trk_1');
-      setSalesRepName(initialData.salesRepName || currentUser?.name || 'Sales Rep');
-      setStatus(initialData.status || 'scheduled');
-      setNotes(initialData.notes || '');
-    } else {
-      resetForm();
+    if (isOpen) {
+      setConfirmDelete(false);
+      setError('');
+      setIsDirty(false);
+      if (initialData) {
+        setCustomerName(initialData.customerName || '');
+        setSelectedCustomerId(initialData.customerId || '');
+        setAddress(initialData.address || '');
+        setDate(initialData.date || new Date().toISOString().split('T')[0]);
+        setTime(initialData.time || '09:00 AM');
+        setTruckId(initialData.truckId || trucks[0]?.id || '');
+        setSalesRepName(initialData.salesRepName || currentUser?.name || '');
+        setStatus(initialData.status || 'scheduled');
+        setNotes(initialData.notes || '');
+        initialSnapshot.current = JSON.stringify(initialData);
+      } else {
+        resetForm();
+        initialSnapshot.current = null;
+      }
     }
-  }, [initialData, isOpen, trucks]);
+  }, [initialData, isOpen, trucks, currentUser]);
 
   const resetForm = () => {
     setCustomerName('');
@@ -53,11 +67,29 @@ const DeliveryModal = ({
     setAddress('');
     setDate(new Date().toISOString().split('T')[0]);
     setTime('09:00 AM');
-    setTruckId(trucks[0]?.id || 'trk_1');
-    setSalesRepName(currentUser?.name || 'Sales Rep');
+    setTruckId(trucks[0]?.id || '');
+    setSalesRepName(currentUser?.name || '');
     setStatus('scheduled');
     setNotes('');
     setError('');
+    setIsDirty(false);
+  };
+
+  const markDirty = () => setIsDirty(true);
+
+  // Compute booked count per truck for the selected date
+  const getCapacityForTruck = (trkId) => {
+    const booked = deliveries.filter(
+      d => d.truckId === trkId && d.date === date && d.id !== initialData?.id
+    ).length;
+    return booked;
+  };
+
+  const handleClose = () => {
+    if (isDirty) {
+      if (!window.confirm('You have unsaved changes. Close anyway?')) return;
+    }
+    onClose();
   };
 
   const handleSubmit = (e) => {
@@ -80,6 +112,11 @@ const DeliveryModal = ({
       return;
     }
 
+    if (!truckId) {
+      setError('Please assign a driver/truck.');
+      return;
+    }
+
     const payload = {
       id: initialData?.id || `del_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       customerId: selectedCustomerId || null,
@@ -98,19 +135,18 @@ const DeliveryModal = ({
     onClose();
   };
 
-  const handleDelete = () => {
+  const handleDeleteConfirmed = () => {
     if (!initialData?.id) return;
-    if (window.confirm(`Are you sure you want to delete delivery for ${customerName}?`)) {
-      onDelete(initialData.id);
-      onClose();
-    }
+    onDelete(initialData.id);
+    onClose();
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay-backdrop anim-fade-in" onClick={onClose}>
+    <div className="manifest-modal-overlay anim-fade-in" onClick={handleClose}>
       <div className="manifest-modal-content anim-scale-in" onClick={(e) => e.stopPropagation()}>
+
         {/* Modal Header */}
         <div className="manifest-modal-header">
           <div className="modal-title-wrap">
@@ -118,14 +154,30 @@ const DeliveryModal = ({
               <Truck size={20} />
             </div>
             <div>
-              <h3>{initialData ? 'Edit Delivery Ticket' : 'Add New Delivery Ticket'}</h3>
-              <p className="modal-sub-text">Dispatch & Capacity Scheduling</p>
+              <h3>{initialData?.id ? 'Edit Delivery Ticket' : 'New Delivery Ticket'}</h3>
+              <p className="modal-sub-text">Dispatch &amp; Capacity Scheduling</p>
             </div>
           </div>
-          <button type="button" className="modal-close-btn" onClick={onClose} title="Close">
+          <button type="button" className="modal-close-btn" onClick={handleClose} title="Close">
             <X size={20} />
           </button>
         </div>
+
+        {/* Inline Delete Confirmation Banner */}
+        {confirmDelete && (
+          <div className="modal-delete-confirm-banner">
+            <AlertTriangle size={18} />
+            <span>Delete this delivery? This cannot be undone.</span>
+            <div className="delete-confirm-actions">
+              <button type="button" className="btn-confirm-delete" onClick={handleDeleteConfirmed}>
+                Yes, delete
+              </button>
+              <button type="button" className="btn-cancel-delete" onClick={() => setConfirmDelete(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="manifest-modal-form">
@@ -141,6 +193,7 @@ const DeliveryModal = ({
                 setSelectedCustomerId(val);
                 const foundOpt = customerOptions.find(o => o.value === val);
                 if (foundOpt) setCustomerName(foundOpt.label);
+                markDirty();
               }}
               placeholder="Select Customer or type custom..."
             />
@@ -151,7 +204,7 @@ const DeliveryModal = ({
             <input
               type="text"
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={(e) => { setAddress(e.target.value); markDirty(); }}
               placeholder="1234 Main St, City, State ZIP"
               className="modal-text-input"
             />
@@ -164,7 +217,7 @@ const DeliveryModal = ({
               <input
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => { setDate(e.target.value); markDirty(); }}
                 className="modal-text-input"
               />
             </div>
@@ -173,7 +226,7 @@ const DeliveryModal = ({
               <label><Clock size={14} /> Time Slot</label>
               <select
                 value={time}
-                onChange={(e) => setTime(e.target.value)}
+                onChange={(e) => { setTime(e.target.value); markDirty(); }}
                 className="modal-select-input"
               >
                 {TIME_SLOTS.map(t => (
@@ -183,17 +236,21 @@ const DeliveryModal = ({
             </div>
 
             <div className="form-group-field">
-              <label><Truck size={14} /> Assigned Truck</label>
+              <label><Truck size={14} /> Assigned Driver</label>
               <select
                 value={truckId}
-                onChange={(e) => setTruckId(e.target.value)}
+                onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
                 className="modal-select-input"
               >
-                {trucks.map(trk => (
-                  <option key={trk.id} value={trk.id}>
-                    {trk.name} ({trk.driver})
-                  </option>
-                ))}
+                {trucks.map(trk => {
+                  const booked = getCapacityForTruck(trk.id);
+                  const isFull = booked >= MAX_TRUCK_CAPACITY;
+                  return (
+                    <option key={trk.id} value={trk.id} disabled={isFull}>
+                      {trk.driver} — {booked}/{MAX_TRUCK_CAPACITY}{isFull ? ' FULL' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -205,7 +262,7 @@ const DeliveryModal = ({
               <input
                 type="text"
                 value={salesRepName}
-                onChange={(e) => setSalesRepName(e.target.value)}
+                onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
                 placeholder="Sales Rep Name"
                 className="modal-text-input"
               />
@@ -215,22 +272,22 @@ const DeliveryModal = ({
               <label>Status</label>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="modal-select-input"
+                onChange={(e) => { setStatus(e.target.value); markDirty(); }}
+                className={`modal-select-input status-select status-${status}`}
               >
-                <option value="scheduled">Scheduled</option>
-                <option value="delayed">Delayed / Running Late</option>
-                <option value="completed">Completed / Delivered</option>
+                <option value="scheduled">🕐 Scheduled</option>
+                <option value="delayed">⚠️ Delayed / Running Late</option>
+                <option value="completed">✅ Completed / Delivered</option>
               </select>
             </div>
           </div>
 
           {/* Notes */}
           <div className="form-group-field">
-            <label><FileText size={14} /> Delivery Notes & Gate Codes</label>
+            <label><FileText size={14} /> Delivery Notes &amp; Gate Codes</label>
             <textarea
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => { setNotes(e.target.value); markDirty(); }}
               placeholder="Forklift needed, gate codes, contact person..."
               rows={3}
               className="modal-textarea-input"
@@ -239,18 +296,22 @@ const DeliveryModal = ({
 
           {/* Footer Actions */}
           <div className="manifest-modal-footer">
-            {initialData?.id && (
-              <button type="button" className="modal-btn-delete" onClick={handleDelete}>
+            {initialData?.id && !confirmDelete && (
+              <button
+                type="button"
+                className="modal-btn-delete"
+                onClick={() => setConfirmDelete(true)}
+              >
                 <Trash2 size={16} /> Delete
               </button>
             )}
             <div className="footer-right-group">
-              <button type="button" className="modal-btn-cancel" onClick={onClose}>
+              <button type="button" className="modal-btn-cancel" onClick={handleClose}>
                 Cancel
               </button>
               <button type="submit" className="modal-btn-save">
                 <Save size={16} />
-                <span>{initialData ? 'Save Changes' : 'Add Delivery'}</span>
+                <span>{initialData?.id ? 'Save Changes' : 'Add Delivery'}</span>
               </button>
             </div>
           </div>

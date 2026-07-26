@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, Calendar, Truck, User, AlertCircle, Edit2 } from 'lucide-react';
+import { Plus, Edit2 } from 'lucide-react';
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 
 const DAYS_OF_WEEK = [
-  { name: 'Monday', short: 'Mon', index: 1 },
-  { name: 'Tuesday', short: 'Tue', index: 2 },
-  { name: 'Wednesday', short: 'Wed', index: 3 },
+  { name: 'Monday',    short: 'Mon', index: 1 },
+  { name: 'Tuesday',  short: 'Tue', index: 2 },
+  { name: 'Wednesday',short: 'Wed', index: 3 },
   { name: 'Thursday', short: 'Thu', index: 4 },
-  { name: 'Friday', short: 'Fri', index: 5 }
+  { name: 'Friday',   short: 'Fri', index: 5 }
 ];
 
 const BoardGrid = ({
@@ -17,18 +17,22 @@ const BoardGrid = ({
   weekDates = [],
   searchQuery = '',
   editable = false,
+  userLocation = null,        // ← new: filter deliveries by location
   onAddDelivery,
   onEditDelivery,
   onUpdateTruck
 }) => {
-  const [internalSearch, setInternalSearch] = useState('');
+  const [internalSearch] = useState('');
   const activeSearch = searchQuery || internalSearch;
   const [editingTruckId, setEditingTruckId] = useState(null);
   const [tempTruckName, setTempTruckName] = useState('');
   const [tempDriverName, setTempDriverName] = useState('');
 
-  // Filter deliveries based on search query
+  // Filter deliveries: by search query AND by location (if provided)
   const filteredDeliveries = deliveries.filter(d => {
+    // Location filter — skip if no filter or delivery has no location
+    if (userLocation && d.location && d.location !== userLocation) return false;
+
     if (!activeSearch.trim()) return true;
     const q = activeSearch.toLowerCase().trim();
     return (
@@ -38,9 +42,12 @@ const BoardGrid = ({
     );
   });
 
-  const getDeliveriesForCell = (truckId, dateStr) => {
-    return filteredDeliveries.filter(d => d.truckId === truckId && d.date === dateStr);
-  };
+  const getDeliveriesForCell = (truckId, dateStr) =>
+    filteredDeliveries.filter(d => d.truckId === truckId && d.date === dateStr);
+
+  // All deliveries for a cell (ignoring search) for capacity calculation
+  const getRawCapacity = (truckId, dateStr) =>
+    deliveries.filter(d => d.truckId === truckId && d.date === dateStr).length;
 
   const getCapacityColorClass = (count) => {
     if (count >= MAX_TRUCK_CAPACITY) return 'capacity-alert-red';
@@ -56,9 +63,7 @@ const BoardGrid = ({
   };
 
   const handleSaveTruck = (trkId) => {
-    if (onUpdateTruck) {
-      onUpdateTruck(trkId, tempTruckName, tempDriverName);
-    }
+    if (onUpdateTruck) onUpdateTruck(trkId, tempTruckName, tempDriverName);
     setEditingTruckId(null);
   };
 
@@ -70,10 +75,16 @@ const BoardGrid = ({
     return isToday ? `${formatted} · today` : formatted;
   };
 
+  // Weekly totals per truck
+  const getWeeklyTotal = (truckId) =>
+    deliveries.filter(d => d.truckId === truckId && weekDates.includes(d.date)).length;
+
   if (trucks.length === 0) {
     return (
       <div className="manifest-empty-state">
-        <Truck size={40} className="empty-truck-icon" />
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="empty-truck-icon">
+          <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+        </svg>
         <h3>No drivers assigned to this location</h3>
         <p>Add users with the <strong>Driver</strong> role in <strong>Users &amp; Roles</strong> and assign them to this location.</p>
       </div>
@@ -82,18 +93,19 @@ const BoardGrid = ({
 
   return (
     <div className="manifest-board-wrapper">
-      {/* Dispatch Board Grid Container — Days as Rows, Trucks/Drivers as Columns */}
       <div className="board-grid-scroll-container">
         <table className="manifest-dispatch-table">
           <thead>
             <tr>
               <th className="day-col-header-row">
-                <div className="th-day-inner">
-                  <span>Day</span>
-                </div>
+                <div className="th-day-inner"><span>Day</span></div>
               </th>
               {trucks.map(trk => (
-                <th key={trk.id} className="truck-col-header">
+                <th
+                  key={trk.id}
+                  className="truck-col-header"
+                  style={{ '--truck-color': trk.color || '#D4AF37' }}
+                >
                   {editingTruckId === trk.id ? (
                     <div className="truck-edit-inline">
                       <input
@@ -122,8 +134,8 @@ const BoardGrid = ({
                     <div className="truck-label-wrap" onClick={() => handleStartEditTruck(trk)}>
                       <div className="truck-color-dot" style={{ background: trk.color || '#D4AF37' }} />
                       <div className="truck-text-details">
-                        <span className="truck-name">{trk.name}</span>
-                        <span className="truck-driver">{trk.driver}</span>
+                        <span className="truck-name">{trk.driver}</span>
+                        <span className="truck-driver">{trk.name}</span>
                       </div>
                       {editable && <Edit2 size={12} className="edit-truck-icon" />}
                     </div>
@@ -140,7 +152,6 @@ const BoardGrid = ({
 
               return (
                 <tr key={dayObj.short} className={`day-grid-row ${isToday ? 'today-row' : ''}`}>
-                  {/* Day Info Cell (Row Title) */}
                   <td className={`day-info-cell ${isToday ? 'today-cell' : ''}`}>
                     <div className="day-label-wrap">
                       <span className="day-name">{dayObj.name}</span>
@@ -148,32 +159,32 @@ const BoardGrid = ({
                     </div>
                   </td>
 
-                  {/* Truck Columns for this Day */}
                   {trucks.map(trk => {
                     const cellDeliveries = getDeliveriesForCell(trk.id, dateStr);
-                    const count = cellDeliveries.length;
-                    const capClass = getCapacityColorClass(count);
+                    const rawCount = getRawCapacity(trk.id, dateStr);
+                    const capClass = getCapacityColorClass(rawCount);
 
                     return (
                       <td key={trk.id} className="dispatch-cell">
                         <div className="cell-header-bar">
-                          <span className={`cell-capacity-pill ${capClass}`} title={`${count} of ${MAX_TRUCK_CAPACITY} deliveries booked`}>
-                            {count}/{MAX_TRUCK_CAPACITY}
+                          <span
+                            className={`cell-capacity-pill ${capClass}`}
+                            title={`${rawCount} of ${MAX_TRUCK_CAPACITY} deliveries booked`}
+                          >
+                            {rawCount}/{MAX_TRUCK_CAPACITY}
                           </span>
-
                           {editable && (
                             <button
                               type="button"
                               className="cell-add-btn"
                               onClick={() => onAddDelivery && onAddDelivery(trk.id, dateStr)}
-                              title={`Add delivery to ${trk.name} on ${dayObj.name}`}
+                              title={`Add delivery — ${trk.driver} on ${dayObj.name}`}
                             >
                               <Plus size={14} />
                             </button>
                           )}
                         </div>
 
-                        {/* Ticket Cards List */}
                         <div className="cell-tickets-list">
                           {cellDeliveries.map(del => (
                             <TicketChip
@@ -182,6 +193,7 @@ const BoardGrid = ({
                               truckColor={trk.color}
                               onClick={onEditDelivery}
                               editable={editable}
+                              searchQuery={activeSearch}
                             />
                           ))}
                         </div>
@@ -192,6 +204,26 @@ const BoardGrid = ({
               );
             })}
           </tbody>
+
+          {/* Weekly totals footer row */}
+          <tfoot>
+            <tr className="weekly-totals-row">
+              <td className="totals-label-cell">Week Total</td>
+              {trucks.map(trk => {
+                const total = getWeeklyTotal(trk.id);
+                const weekMax = MAX_TRUCK_CAPACITY * 5;
+                return (
+                  <td key={trk.id} className="totals-count-cell">
+                    <span
+                      className={`week-total-pill ${total >= weekMax ? 'capacity-alert-red' : total >= weekMax * 0.75 ? 'capacity-warn-amber' : 'capacity-ok-green'}`}
+                    >
+                      {total} / {weekMax}
+                    </span>
+                  </td>
+                );
+              })}
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>

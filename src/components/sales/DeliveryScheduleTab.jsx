@@ -234,6 +234,7 @@ const DeliveryScheduleTab = ({
               weekDates={weekDates}
               searchQuery={searchQuery}
               editable={true}
+              userLocation={currentUser?.location || null}
               onAddDelivery={handleOpenAddModal}
               onEditDelivery={handleOpenEditModal}
               onUpdateTruck={handleUpdateTruck}
@@ -247,6 +248,7 @@ const DeliveryScheduleTab = ({
               weekDates={weekDates}
               searchQuery={searchQuery}
               editable={false}
+              userLocation={currentUser?.location || null}
               onEditDelivery={null}
             />
           )}
@@ -276,6 +278,7 @@ const DeliveryScheduleTab = ({
         onDelete={handleDeleteDelivery}
         initialData={editingDelivery}
         trucks={trucks}
+        deliveries={deliveries}
         customerOptions={customerOptions}
         currentUser={currentUser}
       />

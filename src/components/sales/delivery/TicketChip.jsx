@@ -2,17 +2,36 @@ import React from 'react';
 import { MapPin, User, Clock, FileText } from 'lucide-react';
 import StatusPill from './StatusPill';
 
+/**
+ * Highlight substring matches inside a text string with <mark> tags.
+ */
+function Highlight({ text = '', query = '' }) {
+  if (!query || !text) return <>{text}</>;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase()
+          ? <mark key={i} className="ticket-highlight">{part}</mark>
+          : part
+      )}
+    </>
+  );
+}
+
 const TicketChip = ({
   delivery,
   truckColor = '#D4AF37',
   onClick,
-  editable = false
+  editable = false,
+  searchQuery = ''
 }) => {
   if (!delivery) return null;
 
   return (
     <div
-      className={`manifest-ticket-chip ${editable ? 'clickable' : ''}`}
+      className={`manifest-ticket-chip ${editable ? 'clickable' : ''} status-border-${delivery.status || 'scheduled'}`}
       style={{ borderLeftColor: truckColor }}
       onClick={() => onClick && onClick(delivery)}
       title={editable ? 'Click to edit delivery' : delivery.customerName}
@@ -24,15 +43,19 @@ const TicketChip = ({
         <StatusPill status={delivery.status} size="small" />
       </div>
 
-      <h5 className="ticket-customer">{delivery.customerName}</h5>
+      <h5 className="ticket-customer">
+        <Highlight text={delivery.customerName} query={searchQuery} />
+      </h5>
 
       <p className="ticket-address">
-        <MapPin size={12} /> {delivery.address}
+        <MapPin size={12} />
+        <Highlight text={delivery.address} query={searchQuery} />
       </p>
 
       <div className="ticket-footer">
         <span className="ticket-rep">
-          <User size={11} /> {delivery.salesRepName || 'Sales Rep'}
+          <User size={11} />
+          <Highlight text={delivery.salesRepName || 'Sales Rep'} query={searchQuery} />
         </span>
         {delivery.notes && (
           <span className="ticket-has-notes" title={delivery.notes}>
