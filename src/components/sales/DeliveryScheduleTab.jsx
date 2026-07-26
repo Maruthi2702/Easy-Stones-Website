@@ -168,9 +168,6 @@ const DeliveryScheduleTab = ({
       <div className="delivery-schedule-header compact-header">
         <div className="header-left-title">
           {sidebarToggle}
-          <div className="header-icon-ring compact">
-            <Truck size={18} />
-          </div>
           <div>
             <h2 className="title-text-compact">Delivery Schedule</h2>
             <span className="subtitle-manifest">Shared weekly dispatch</span>
