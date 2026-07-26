@@ -31,6 +31,8 @@ import ActivityLog from './src/models/ActivityLog.js';
 import Schedule from './src/models/Schedule.js';
 // Unified Model: Customer (now handles both Leads & Active Customers)
 import OfficeCheckIn from './src/models/OfficeCheckIn.js';
+import Delivery from './src/models/Delivery.js';
+import Truck from './src/models/Truck.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
 import path from 'path';
@@ -3788,50 +3790,119 @@ app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
   }
 });
 
-// ── MANIFEST DISPATCH SCHEDULER ENDPOINTS ──
-let memoryTrucks = [
-  { id: 'trk_1', name: 'Titan Alpha', driver: 'Dave Miller', color: '#D4AF37' },
-  { id: 'trk_2', name: 'Glacier Express', driver: 'Mark Stevens', color: '#2F8F73' },
-  { id: 'trk_3', name: 'Granite Hauler', driver: 'Alex Rivera', color: '#E1602A' },
-  { id: 'trk_4', name: 'Cascade Transport', driver: 'John Carter', color: '#3B82F6' },
-  { id: 'trk_5', name: 'Moda Dispatch', driver: 'Sam Taylor', color: '#8B5CF6' },
-  { id: 'trk_6', name: 'Olympic Cargo', driver: 'Chris Evans', color: '#64748B' }
+// ── MANIFEST DISPATCH SCHEDULER ENDPOINTS (MongoDB Persisted) ──
+
+const DEFAULT_DELIVERIES_SEED = [
+  {
+    id: 'del_101',
+    truckId: 'trk_1',
+    date: new Date().toISOString().split('T')[0],
+    time: '08:30 AM',
+    customerName: 'Apex Marble & Granite',
+    address: '1420 E Trent Ave, Spokane, WA',
+    salesRepName: 'Krish Manager',
+    status: 'scheduled',
+    notes: 'Forklift on site. Deliver 14 Calacatta slabs.',
+    location: 'Spokane',
+    driver: 'Sergio'
+  },
+  {
+    id: 'del_102',
+    truckId: 'trk_1',
+    date: new Date().toISOString().split('T')[0],
+    time: '11:00 AM',
+    customerName: 'Cascade Home Builders',
+    address: '920 E Sprague Ave, Spokane, WA',
+    salesRepName: 'Alex Rep',
+    status: 'completed',
+    notes: 'Call 30 mins before arrival.',
+    location: 'Spokane',
+    driver: 'Sergio'
+  },
+  {
+    id: 'del_103',
+    truckId: 'trk_2',
+    date: new Date().toISOString().split('T')[0],
+    time: '09:15 AM',
+    customerName: 'Five Star Granite, Inc.',
+    address: '8810 8th Ave S, Seattle, WA',
+    salesRepName: 'Sam Rep',
+    status: 'delayed',
+    notes: 'Running late due to I-5 traffic.',
+    location: 'Seattle',
+    driver: 'Jonathan'
+  }
 ];
 
-let memoryDeliveries = [];
-
-app.get('/api/trucks', verifyAnyAuth, (req, res) => {
-  res.json(memoryTrucks);
-});
-
-app.post('/api/trucks', verifyAnyAuth, (req, res) => {
-  if (req.body.trucks && Array.isArray(req.body.trucks)) {
-    memoryTrucks = req.body.trucks;
+app.get('/api/trucks', verifyAnyAuth, async (req, res) => {
+  try {
+    const trucks = await Truck.find().lean();
+    res.json(trucks);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch trucks' });
   }
-  res.json(memoryTrucks);
 });
 
-app.get('/api/deliveries', verifyAnyAuth, (req, res) => {
-  res.json(memoryDeliveries);
-});
-
-app.post('/api/deliveries', verifyAnyAuth, (req, res) => {
-  const delivery = req.body;
-  if (!delivery || !delivery.id) return res.status(400).json({ error: 'Invalid delivery' });
-
-  const idx = memoryDeliveries.findIndex(d => d.id === delivery.id);
-  if (idx >= 0) {
-    memoryDeliveries[idx] = delivery;
-  } else {
-    memoryDeliveries.unshift(delivery);
+app.post('/api/trucks', verifyAnyAuth, async (req, res) => {
+  try {
+    const { trucks } = req.body;
+    if (Array.isArray(trucks)) {
+      for (const t of trucks) {
+        if (t.id) {
+          await Truck.findOneAndUpdate({ id: t.id }, { $set: t }, { upsert: true });
+        }
+      }
+    }
+    const updated = await Truck.find().lean();
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save trucks' });
   }
-  res.json(memoryDeliveries);
 });
 
-app.delete('/api/deliveries/:id', verifyAnyAuth, (req, res) => {
-  const { id } = req.params;
-  memoryDeliveries = memoryDeliveries.filter(d => d.id !== id);
-  res.json({ success: true, deliveries: memoryDeliveries });
+app.get('/api/deliveries', verifyAnyAuth, async (req, res) => {
+  try {
+    let list = await Delivery.find().sort({ createdAt: -1 }).lean();
+    if (list.length === 0) {
+      await Delivery.insertMany(DEFAULT_DELIVERIES_SEED);
+      list = await Delivery.find().sort({ createdAt: -1 }).lean();
+    }
+    res.json(list);
+  } catch (err) {
+    console.error('[server] get deliveries error:', err);
+    res.status(500).json({ error: 'Server error fetching deliveries' });
+  }
+});
+
+app.post('/api/deliveries', verifyAnyAuth, async (req, res) => {
+  try {
+    const delivery = req.body;
+    if (!delivery || !delivery.id) return res.status(400).json({ error: 'Invalid delivery data' });
+
+    await Delivery.findOneAndUpdate(
+      { id: delivery.id },
+      { $set: delivery },
+      { upsert: true, new: true }
+    );
+
+    const list = await Delivery.find().sort({ createdAt: -1 }).lean();
+    res.json(list);
+  } catch (err) {
+    console.error('[server] save delivery error:', err);
+    res.status(500).json({ error: 'Server error saving delivery' });
+  }
+});
+
+app.delete('/api/deliveries/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Delivery.deleteOne({ id });
+    const list = await Delivery.find().sort({ createdAt: -1 }).lean();
+    res.json({ success: true, deliveries: list });
+  } catch (err) {
+    console.error('[server] delete delivery error:', err);
+    res.status(500).json({ error: 'Server error deleting delivery' });
+  }
 });
 
 // Private, read-only calendar feed in iCalendar (.ics) format

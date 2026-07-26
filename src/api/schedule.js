@@ -171,15 +171,7 @@ export async function saveTrucks(trucks) {
 
 // ── GET DELIVERIES ──
 export async function getDeliveries() {
-  // Local Storage check first for instant performance
-  try {
-    const saved = localStorage.getItem('manifest_deliveries');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (e) {}
-
+  // Always query database API first for sync across all users/drivers/incognito sessions
   try {
     const token = localStorage.getItem('token');
     const res = await fetch(`${API_URL}/api/deliveries`, {
@@ -188,34 +180,33 @@ export async function getDeliveries() {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
-        localStorage.setItem('manifest_deliveries', JSON.stringify(data));
+        try {
+          localStorage.setItem('manifest_deliveries', JSON.stringify(data));
+        } catch (e) {}
         return data;
       }
     }
-  } catch (err) {}
+  } catch (err) {
+    console.warn('[schedule] getDeliveries API error:', err);
+  }
+
+  // Local Storage fallback when offline
+  try {
+    const saved = localStorage.getItem('manifest_deliveries');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
 
   return INITIAL_SAMPLE_DELIVERIES;
 }
 
 // ── SAVE / UPDATE DELIVERY ──
 export async function saveDelivery(delivery) {
-  let list = await getDeliveries();
-  const existingIdx = list.findIndex(d => d.id === delivery.id);
-  if (existingIdx >= 0) {
-    list[existingIdx] = delivery;
-  } else {
-    list = [delivery, ...list];
-  }
-
-  // Always persist to localStorage first
-  try {
-    localStorage.setItem('manifest_deliveries', JSON.stringify(list));
-  } catch (e) {}
-
-  // Background API sync
   try {
     const token = localStorage.getItem('token');
-    await fetch(`${API_URL}/api/deliveries`, {
+    const res = await fetch(`${API_URL}/api/deliveries`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -223,28 +214,60 @@ export async function saveDelivery(delivery) {
       },
       body: JSON.stringify(delivery)
     });
-  } catch (err) {}
+    if (res.ok) {
+      const updatedList = await res.json();
+      if (Array.isArray(updatedList) && updatedList.length > 0) {
+        try {
+          localStorage.setItem('manifest_deliveries', JSON.stringify(updatedList));
+        } catch (e) {}
+        return updatedList;
+      }
+    }
+  } catch (err) {
+    console.warn('[schedule] saveDelivery API error:', err);
+  }
 
+  // Fallback to local mutation if offline
+  let list = await getDeliveries();
+  const existingIdx = list.findIndex(d => d.id === delivery.id);
+  if (existingIdx >= 0) {
+    list[existingIdx] = delivery;
+  } else {
+    list = [delivery, ...list];
+  }
+  try {
+    localStorage.setItem('manifest_deliveries', JSON.stringify(list));
+  } catch (e) {}
   return list;
 }
 
 // ── DELETE DELIVERY ──
 export async function deleteDelivery(id) {
-  let list = await getDeliveries();
-  list = list.filter(d => d.id !== id);
-
-  try {
-    localStorage.setItem('manifest_deliveries', JSON.stringify(list));
-  } catch (e) {}
-
   try {
     const token = localStorage.getItem('token');
-    await fetch(`${API_URL}/api/deliveries/${id}`, {
+    const res = await fetch(`${API_URL}/api/deliveries/${id}`, {
       method: 'DELETE',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });
-  } catch (err) {}
+    if (res.ok) {
+      const payload = await res.json();
+      const list = payload.deliveries || payload;
+      if (Array.isArray(list)) {
+        try {
+          localStorage.setItem('manifest_deliveries', JSON.stringify(list));
+        } catch (e) {}
+        return list;
+      }
+    }
+  } catch (err) {
+    console.warn('[schedule] deleteDelivery API error:', err);
+  }
 
+  let list = await getDeliveries();
+  list = list.filter(d => d.id !== id);
+  try {
+    localStorage.setItem('manifest_deliveries', JSON.stringify(list));
+  } catch (e) {}
   return list;
 }
 
