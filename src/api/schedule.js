@@ -120,6 +120,14 @@ export async function saveTrucks(trucks) {
   return trucks;
 }
 
+// Helper to filter out old legacy sample deliveries cached in local storage
+const isLegacySampleDelivery = (d) => {
+  if (!d) return true;
+  const legacyIds = ['del_1', 'del_2', 'del_3', 'del_4'];
+  const legacyCustomers = ['360 Marble and Granite LLC', '4 Evergreen Fabricators', 'Take Me For Granite INC', 'Tops Solid Surface'];
+  return legacyIds.includes(d.id) || legacyCustomers.includes(d.customerName);
+};
+
 // ── GET DELIVERIES ──
 export async function getDeliveries() {
   // Always query database API first for sync across all users/drivers/incognito sessions
@@ -131,22 +139,30 @@ export async function getDeliveries() {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {
+        const cleanData = data.filter(d => !isLegacySampleDelivery(d));
         try {
-          localStorage.setItem('manifest_deliveries', JSON.stringify(data));
+          localStorage.setItem('manifest_deliveries', JSON.stringify(cleanData));
         } catch (e) {}
-        return data;
+        return cleanData;
       }
     }
   } catch (err) {
     console.warn('[schedule] getDeliveries API error:', err);
   }
 
-  // Local Storage fallback when offline
+  // Local Storage fallback when offline (purges old sample data)
   try {
     const saved = localStorage.getItem('manifest_deliveries');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        const cleanParsed = parsed.filter(d => !isLegacySampleDelivery(d));
+        // Overwrite localStorage with cleaned array to purge old sample data permanently
+        try {
+          localStorage.setItem('manifest_deliveries', JSON.stringify(cleanParsed));
+        } catch (e) {}
+        return cleanParsed;
+      }
     }
   } catch (e) {}
 
