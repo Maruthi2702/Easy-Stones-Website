@@ -87,7 +87,7 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.12);
   padding: 0.25rem;
   border-radius: 8px;
@@ -134,7 +134,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(26, 26, 26, 0.8);
+  background: rgba(28, 28, 30, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
   padding: 0.46rem 0.85rem;
@@ -216,7 +216,7 @@ body.light-theme-active .btn-add-delivery,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(28, 35, 51, 0.85);
+  background: #1c1c1e;
   border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 0.6rem 1rem;
   border-radius: 12px;
@@ -354,18 +354,17 @@ body.light-theme-active .board-search-input,
 .board-grid-scroll-container {
   width: 100%;
   overflow-x: auto;
-  background: rgba(18, 20, 29, 0.85);
-  backdrop-filter: blur(12px);
+  background: #1c1c1e;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
   -webkit-overflow-scrolling: touch;
 }
 
 body.light-theme-active .board-grid-scroll-container,
 .light-theme-active .board-grid-scroll-container {
-  background: #ecefed;
-  border-color: #cbd5e1;
+  background: #f8fafc;
+  border-color: #e2e8f0;
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
 }
 
@@ -392,7 +391,7 @@ body.light-theme-active .manifest-dispatch-table td,
 .day-col-header-row {
   width: 170px;
   padding: 1rem 1.1rem;
-  background: #262626;
+  background: #1c1c1e;
   text-align: left;
 }
 
@@ -408,7 +407,7 @@ body.light-theme-active .manifest-dispatch-table td,
 .truck-col-header {
   width: 190px;
   padding: 0.9rem 1.1rem;
-  background: #262626;
+  background: #1c1c1e;
   text-align: left;
   border-top: 3px solid var(--truck-color, #D4AF37);
   position: relative;
@@ -795,8 +794,8 @@ body.light-theme-active .ticket-highlight,
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  background: rgba(28, 35, 51, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #1c1c1e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 0.85rem 1.25rem;
   border-radius: 14px;
 }
@@ -959,7 +958,7 @@ body.light-theme-active .driver-truck-select,
 
 /* Driver Cards List */
 .driver-stops-list {
-  background: rgba(18, 20, 29, 0.85);
+  background: #1c1c1e;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   padding: 1.25rem;
@@ -1140,7 +1139,7 @@ body.light-theme-active .driver-stops-header h3,
 .manifest-modal-content {
   width: 92%;
   max-width: 640px;
-  background: #1a1f2e;
+  background: #1c1c1e;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(212, 175, 55, 0.08);
@@ -1278,7 +1277,7 @@ body.light-theme-active .form-group-field label,
   width: 100%;
   padding: 0.65rem 0.85rem;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
   border: 1.5px solid rgba(255, 255, 255, 0.12);
   color: #ffffff;
   font-size: 0.9rem;
@@ -1302,7 +1301,7 @@ body.light-theme-active .modal-textarea-input,
 .light-theme-active .modal-select-input,
 .light-theme-active .modal-textarea-input {
   background: #f8fafc;
-  border-color: #cbd5e1;
+  border-color: #e2e8f0;
   color: #0f172a;
 }
 
