@@ -297,9 +297,6 @@ const LostSalesTab = ({
       <div className="lost-sales-header compact-header">
         <div className="header-left-title">
           {sidebarToggle}
-          <div className="header-icon-ring compact">
-            <TrendingDown size={18} />
-          </div>
           <h2 className="title-text-compact">Lost Sales Tracker</h2>
         </div>
 

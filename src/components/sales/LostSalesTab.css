@@ -1444,3 +1444,60 @@ body.light-theme-active .modal-btn-cancel,
     color: #ef4444 !important;
   }
 }
+
+/* ── Responsive Viewport Optimizations (Mobile, iPad, Laptop, Desktop) ── */
+@media (max-width: 1024px) {
+  .lost-sales-filter-bar.compact {
+    flex-wrap: wrap;
+  }
+  .filter-dropdowns {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .lost-sales-tab-container.high-density {
+    padding: 1rem;
+  }
+  .lost-sales-header.compact-header {
+    gap: 0.6rem;
+  }
+  .title-text-compact {
+    font-size: 1.15rem;
+  }
+  .btn-add-lost-sale {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.8rem;
+    border-radius: 8px;
+  }
+  .inline-kpi-pills-bar {
+    gap: 0.45rem;
+  }
+  .kpi-pill {
+    padding: 0.3rem 0.65rem;
+    font-size: 0.76rem;
+  }
+  .filter-dropdowns {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.5rem;
+  }
+  .select-filter-wrap {
+    width: 100%;
+  }
+  .select-filter-wrap select {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .search-input-box {
+    min-width: 100%;
+  }
+  .btn-toggle-stats span {
+    font-size: 0.8rem;
+  }
+}
+
