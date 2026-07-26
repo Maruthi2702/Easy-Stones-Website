@@ -3788,6 +3788,52 @@ app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
   }
 });
 
+// ── MANIFEST DISPATCH SCHEDULER ENDPOINTS ──
+let memoryTrucks = [
+  { id: 'trk_1', name: 'Titan Alpha', driver: 'Dave Miller', color: '#D4AF37' },
+  { id: 'trk_2', name: 'Glacier Express', driver: 'Mark Stevens', color: '#2F8F73' },
+  { id: 'trk_3', name: 'Granite Hauler', driver: 'Alex Rivera', color: '#E1602A' },
+  { id: 'trk_4', name: 'Cascade Transport', driver: 'John Carter', color: '#3B82F6' },
+  { id: 'trk_5', name: 'Moda Dispatch', driver: 'Sam Taylor', color: '#8B5CF6' },
+  { id: 'trk_6', name: 'Olympic Cargo', driver: 'Chris Evans', color: '#64748B' }
+];
+
+let memoryDeliveries = [];
+
+app.get('/api/trucks', verifyAnyAuth, (req, res) => {
+  res.json(memoryTrucks);
+});
+
+app.post('/api/trucks', verifyAnyAuth, (req, res) => {
+  if (req.body.trucks && Array.isArray(req.body.trucks)) {
+    memoryTrucks = req.body.trucks;
+  }
+  res.json(memoryTrucks);
+});
+
+app.get('/api/deliveries', verifyAnyAuth, (req, res) => {
+  res.json(memoryDeliveries);
+});
+
+app.post('/api/deliveries', verifyAnyAuth, (req, res) => {
+  const delivery = req.body;
+  if (!delivery || !delivery.id) return res.status(400).json({ error: 'Invalid delivery' });
+
+  const idx = memoryDeliveries.findIndex(d => d.id === delivery.id);
+  if (idx >= 0) {
+    memoryDeliveries[idx] = delivery;
+  } else {
+    memoryDeliveries.unshift(delivery);
+  }
+  res.json(memoryDeliveries);
+});
+
+app.delete('/api/deliveries/:id', verifyAnyAuth, (req, res) => {
+  const { id } = req.params;
+  memoryDeliveries = memoryDeliveries.filter(d => d.id !== id);
+  res.json({ success: true, deliveries: memoryDeliveries });
+});
+
 // Private, read-only calendar feed in iCalendar (.ics) format
 app.get('/api/calendar/feed/:userId.ics', async (req, res) => {
   try {

@@ -1,144 +1,234 @@
-import React, { useState } from 'react';
-import { Truck, Calendar, Clock, MapPin, Search, Filter, Plus, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Truck, Calendar, ChevronLeft, ChevronRight, Plus, RefreshCw, Shield, Eye } from 'lucide-react';
+import RoleGate from './delivery/RoleGate';
+import BoardGrid from './delivery/BoardGrid';
+import DriverView from './delivery/DriverView';
+import DeliveryModal from './delivery/DeliveryModal';
+import {
+  getTrucks,
+  saveTrucks,
+  getDeliveries,
+  saveDelivery,
+  deleteDelivery,
+  updateDeliveryStatus
+} from '../../api/schedule';
 import './DeliveryScheduleTab.css';
 
-const INITIAL_SAMPLE_DELIVERIES = [
-  {
-    id: 'del_1',
-    customerName: 'Apex Marble & Granite',
-    address: '1420 E Trent Ave, Spokane, WA',
-    driver: 'Dave Miller',
-    status: 'Scheduled',
-    deliveryDate: new Date().toISOString().split('T')[0],
-    timeSlot: '09:00 AM - 11:00 AM',
-    itemsCount: 14,
-    location: 'Spokane',
-    notes: 'Forklift available on site. Contact John before arrival.'
-  },
-  {
-    id: 'del_2',
-    customerName: 'Five Star Granite, Inc.',
-    address: '8810 8th Ave S, Seattle, WA',
-    driver: 'Mark Stevens',
-    status: 'In Transit',
-    deliveryDate: new Date().toISOString().split('T')[0],
-    timeSlot: '11:30 AM - 01:30 PM',
-    itemsCount: 22,
-    location: 'Seattle',
-    notes: 'Delivering Calacatta slabs.'
+function getWeekMonday(date = new Date()) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  return new Date(d.setDate(diff));
+}
+
+function getWeekDates(mondayDate) {
+  const dates = [];
+  for (let i = 0; i < 6; i++) { // Mon - Sat
+    const d = new Date(mondayDate);
+    d.setDate(d.getDate() + i);
+    dates.push(d.toISOString().split('T')[0]);
   }
-];
+  return dates;
+}
 
 const DeliveryScheduleTab = ({
   currentUser = null,
   theme = 'dark',
   locationsList = ['Seattle', 'Spokane', 'Salt Lake City'],
+  customerOptions = [],
   sidebarToggle = null
 }) => {
-  const [deliveries, setDeliveries] = useState(INITIAL_SAMPLE_DELIVERIES);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('All');
-
-  const filteredDeliveries = deliveries.filter(item => {
-    const q = searchQuery.toLowerCase().trim();
-    const matchesSearch = !q || (
-      item.customerName.toLowerCase().includes(q) ||
-      item.address.toLowerCase().includes(q) ||
-      item.driver.toLowerCase().includes(q)
-    );
-    const matchesStatus = selectedStatus === 'All' || item.status === selectedStatus;
-    return matchesSearch && matchesStatus;
+  // Roles: 'office' | 'sales' | 'driver'
+  const [role, setRole] = useState(() => {
+    if (currentUser?.role === 'driver') return 'driver';
+    if (currentUser?.role === 'sales_rep') return 'sales';
+    return 'office';
   });
+
+  const [trucks, setTrucks] = useState([]);
+  const [deliveries, setDeliveries] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Week State
+  const [currentMonday, setCurrentMonday] = useState(() => getWeekMonday(new Date()));
+  const weekDates = getWeekDates(currentMonday);
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDelivery, setEditingDelivery] = useState(null);
+
+  // Initial Data Load
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [tList, dList] = await Promise.all([getTrucks(), getDeliveries()]);
+      setTrucks(tList);
+      setDeliveries(dList);
+    } catch (err) {
+      console.error('Error loading schedule data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Week Navigation
+  const handlePrevWeek = () => {
+    const prev = new Date(currentMonday);
+    prev.setDate(prev.getDate() - 7);
+    setCurrentMonday(prev);
+  };
+
+  const handleNextWeek = () => {
+    const next = new Date(currentMonday);
+    next.setDate(next.getDate() + 7);
+    setCurrentMonday(next);
+  };
+
+  const handleTodayWeek = () => {
+    setCurrentMonday(getWeekMonday(new Date()));
+  };
+
+  // Add / Edit Handlers
+  const handleOpenAddModal = (truckId = null, dateStr = null) => {
+    setEditingDelivery({
+      truckId: truckId || trucks[0]?.id || 'trk_1',
+      date: dateStr || weekDates[0],
+      time: '09:00 AM',
+      salesRepName: currentUser?.name || 'Sales Rep',
+      status: 'scheduled'
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (delivery) => {
+    setEditingDelivery(delivery);
+    setIsModalOpen(true);
+  };
+
+  const handleSaveDelivery = async (deliveryPayload) => {
+    const updatedList = await saveDelivery(deliveryPayload);
+    setDeliveries(updatedList);
+  };
+
+  const handleDeleteDelivery = async (id) => {
+    const updatedList = await deleteDelivery(id);
+    setDeliveries(updatedList);
+  };
+
+  const handleUpdateStatus = async (id, newStatus) => {
+    const updatedList = await updateDeliveryStatus(id, newStatus);
+    setDeliveries(updatedList);
+  };
+
+  const handleUpdateTruck = async (id, newName, newDriver) => {
+    const updatedTrucks = trucks.map(t =>
+      t.id === id ? { ...t, name: newName, driver: newDriver } : t
+    );
+    setTrucks(updatedTrucks);
+    await saveTrucks(updatedTrucks);
+  };
+
+  const weekRangeText = `${weekDates[0]} to ${weekDates[5]}`;
 
   return (
     <div className={`delivery-schedule-container high-density ${theme}-theme-active`}>
-      {/* Header Bar */}
+      {/* Top Header Bar */}
       <div className="delivery-schedule-header compact-header">
         <div className="header-left-title">
           {sidebarToggle}
           <div className="header-icon-ring compact">
             <Truck size={18} />
           </div>
-          <h2 className="title-text-compact">Delivery Schedule</h2>
-        </div>
-
-        <div className="header-right-actions">
-          <button type="button" className="btn-add-delivery">
-            <Plus size={16} />
-            <span>Schedule Delivery</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Filter & Search Bar */}
-      <div className="delivery-filter-bar compact">
-        <div className="search-input-box">
-          <Search size={16} className="search-icon" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search customer, address, driver..."
-          />
-        </div>
-
-        <div className="filter-dropdowns">
-          <div className="select-filter-wrap">
-            <Filter size={14} className="filter-icon" />
-            <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
-              <option value="All">All Statuses</option>
-              <option value="Scheduled">Scheduled</option>
-              <option value="In Transit">In Transit</option>
-              <option value="Completed">Completed</option>
-              <option value="Delayed">Delayed</option>
-            </select>
+          <div>
+            <h2 className="title-text-compact">Manifest — Dispatch Scheduler</h2>
+            <span className="subtitle-manifest">Shared Weekly Dispatch & Driver Operations</span>
           </div>
         </div>
-      </div>
 
-      {/* Data Grid / Cards */}
-      <div className="delivery-grid-wrapper high-capacity">
-        <div className="delivery-card-list">
-          {filteredDeliveries.map(item => (
-            <div key={item.id} className="delivery-item-card">
-              <div className="delivery-card-top">
-                <div className="delivery-cust-info">
-                  <h4>{item.customerName}</h4>
-                  <span className="delivery-address"><MapPin size={14} /> {item.address}</span>
-                </div>
-                <span className={`delivery-status-badge status-${item.status.toLowerCase().replace(/\s+/g, '-')}`}>
-                  {item.status}
-                </span>
-              </div>
-
-              <div className="delivery-card-details">
-                <div className="detail-chip">
-                  <Calendar size={13} />
-                  <span>{item.deliveryDate}</span>
-                </div>
-                <div className="detail-chip">
-                  <Clock size={13} />
-                  <span>{item.timeSlot}</span>
-                </div>
-                <div className="detail-chip">
-                  <Truck size={13} />
-                  <span>Driver: {item.driver}</span>
-                </div>
-                <div className="detail-chip">
-                  <span>{item.itemsCount} Slabs</span>
-                </div>
-              </div>
-
-              {item.notes && (
-                <div className="delivery-card-notes">
-                  <FileText size={13} />
-                  <span>{item.notes}</span>
-                </div>
-              )}
-            </div>
-          ))}
+        {/* Week Navigator Controls */}
+        <div className="week-navigator-controls">
+          <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
+            <ChevronLeft size={16} />
+          </button>
+          <button type="button" className="btn-week-nav today" onClick={handleTodayWeek} title="Current Week">
+            Today
+          </button>
+          <button type="button" className="btn-week-nav" onClick={handleNextWeek} title="Next Week">
+            <ChevronRight size={16} />
+          </button>
+          <span className="week-range-label"><Calendar size={13} /> {weekRangeText}</span>
         </div>
+
+        {/* Action Button (Office Mode Only) */}
+        {role === 'office' && (
+          <div className="header-right-actions">
+            <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
+              <Plus size={16} />
+              <span>New Delivery Ticket</span>
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Role Gate Switcher */}
+      <RoleGate currentRole={role} onSelectRole={setRole} />
+
+      {/* Main Content Area based on Role */}
+      {loading ? (
+        <div className="manifest-loading-box">
+          <RefreshCw size={24} className="spin-icon" />
+          <span>Loading Dispatch Manifest...</span>
+        </div>
+      ) : (
+        <div className="manifest-role-stage">
+          {role === 'office' && (
+            <BoardGrid
+              trucks={trucks}
+              deliveries={deliveries}
+              weekDates={weekDates}
+              editable={true}
+              onAddDelivery={handleOpenAddModal}
+              onEditDelivery={handleOpenEditModal}
+              onUpdateTruck={handleUpdateTruck}
+            />
+          )}
+
+          {role === 'sales' && (
+            <BoardGrid
+              trucks={trucks}
+              deliveries={deliveries}
+              weekDates={weekDates}
+              editable={false}
+              onEditDelivery={null}
+            />
+          )}
+
+          {role === 'driver' && (
+            <DriverView
+              trucks={trucks}
+              deliveries={deliveries}
+              weekDates={weekDates}
+              onUpdateStatus={handleUpdateStatus}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Delivery Add / Edit Modal */}
+      <DeliveryModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveDelivery}
+        onDelete={handleDeleteDelivery}
+        initialData={editingDelivery}
+        trucks={trucks}
+        customerOptions={customerOptions}
+        currentUser={currentUser}
+      />
     </div>
   );
 };
