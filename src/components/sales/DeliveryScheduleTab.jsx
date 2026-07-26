@@ -23,7 +23,7 @@ function getWeekMonday(date = new Date()) {
 
 function getWeekDates(mondayDate) {
   const dates = [];
-  for (let i = 0; i < 6; i++) { // Mon - Sat
+  for (let i = 0; i < 5; i++) { // Mon - Fri
     const d = new Date(mondayDate);
     d.setDate(d.getDate() + i);
     dates.push(d.toISOString().split('T')[0]);
@@ -132,7 +132,7 @@ const DeliveryScheduleTab = ({
     await saveTrucks(updatedTrucks);
   };
 
-  const weekRangeText = `${weekDates[0]} to ${weekDates[5]}`;
+  const weekRangeText = `${weekDates[0]} to ${weekDates[4]}`;
 
   return (
     <div className={`delivery-schedule-container high-density ${theme}-theme-active`}>

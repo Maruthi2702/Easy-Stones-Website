@@ -7,8 +7,7 @@ const DAYS_OF_WEEK = [
   { name: 'Tue', short: 'Tue', index: 2 },
   { name: 'Wed', short: 'Wed', index: 3 },
   { name: 'Thu', short: 'Thu', index: 4 },
-  { name: 'Fri', short: 'Fri', index: 5 },
-  { name: 'Sat', short: 'Sat', index: 6 }
+  { name: 'Fri', short: 'Fri', index: 5 }
 ];
 
 const DriverView = ({
@@ -29,23 +28,32 @@ const DriverView = ({
 
   return (
     <div className="driver-view-container mobile-first">
-      {/* Truck Login / Selection Bar */}
-      <div className="driver-truck-bar">
-        <div className="truck-picker-label">
+      {/* Drivers 1 Row Selector Bar */}
+      <div className="driver-horizontal-row-bar">
+        <div className="row-bar-title">
           <Truck size={18} className="truck-icon-gold" />
-          <span>Driver Truck:</span>
+          <span>Drivers / Trucks:</span>
         </div>
-        <select
-          value={selectedTruckId}
-          onChange={(e) => setSelectedTruckId(e.target.value)}
-          className="driver-truck-select"
-        >
-          {trucks.map(trk => (
-            <option key={trk.id} value={trk.id}>
-              {trk.name} — {trk.driver}
-            </option>
-          ))}
-        </select>
+        <div className="driver-pills-row">
+          {trucks.map(trk => {
+            const isSelected = trk.id === selectedTruckId;
+            return (
+              <button
+                key={trk.id}
+                type="button"
+                className={`driver-single-pill ${isSelected ? 'active' : ''}`}
+                style={{ borderLeftColor: trk.color || '#D4AF37' }}
+                onClick={() => setSelectedTruckId(trk.id)}
+              >
+                <div className="pill-color-dot" style={{ background: trk.color || '#D4AF37' }} />
+                <div className="pill-text-wrap">
+                  <span className="pill-driver-name">{trk.driver}</span>
+                  <span className="pill-truck-name">{trk.name}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Day Selector Tabs (Mon-Sat) */}

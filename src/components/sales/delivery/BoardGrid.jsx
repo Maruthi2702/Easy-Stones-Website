@@ -8,8 +8,7 @@ const DAYS_OF_WEEK = [
   { name: 'Tuesday', short: 'Tue', index: 2 },
   { name: 'Wednesday', short: 'Wed', index: 3 },
   { name: 'Thursday', short: 'Thu', index: 4 },
-  { name: 'Friday', short: 'Fri', index: 5 },
-  { name: 'Saturday', short: 'Sat', index: 6 }
+  { name: 'Friday', short: 'Fri', index: 5 }
 ];
 
 const BoardGrid = ({
