@@ -11,6 +11,12 @@ export default defineConfig({
       includeAssets: ['favicon.png', 'logo.png'],
       workbox: {
         navigateFallbackDenylist: [/^\/api/],
+        runtimeCaching: [
+          {
+            urlPattern: /^\/api\/.*/,
+            handler: 'NetworkOnly'
+          }
+        ]
       },
       manifest: {
         name: 'Easy Stones',

@@ -94,37 +94,51 @@ export async function getTrucks() {
 
 // ── SAVE TRUCKS ──
 export async function saveTrucks(trucks) {
+  // Always update localStorage immediately
   try {
     localStorage.setItem('manifest_trucks', JSON.stringify(trucks));
+  } catch (e) {}
+
+  // Sync to API in background if available
+  try {
+    const token = localStorage.getItem('token');
     await fetch(`${API_URL}/api/trucks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify({ trucks })
     });
   } catch (err) {}
+
   return trucks;
 }
 
 // ── GET DELIVERIES ──
 export async function getDeliveries() {
+  // Local Storage check first for instant performance
   try {
+    const saved = localStorage.getItem('manifest_deliveries');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+
+  try {
+    const token = localStorage.getItem('token');
     const res = await fetch(`${API_URL}/api/deliveries`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) return data;
+      if (Array.isArray(data) && data.length > 0) {
+        localStorage.setItem('manifest_deliveries', JSON.stringify(data));
+        return data;
+      }
     }
   } catch (err) {}
-
-  // Local Storage fallback
-  try {
-    const saved = localStorage.getItem('manifest_deliveries');
-    if (saved) return JSON.parse(saved);
-  } catch (e) {}
 
   return INITIAL_SAMPLE_DELIVERIES;
 }
@@ -139,13 +153,19 @@ export async function saveDelivery(delivery) {
     list = [delivery, ...list];
   }
 
+  // Always persist to localStorage first
   try {
     localStorage.setItem('manifest_deliveries', JSON.stringify(list));
+  } catch (e) {}
+
+  // Background API sync
+  try {
+    const token = localStorage.getItem('token');
     await fetch(`${API_URL}/api/deliveries`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
       body: JSON.stringify(delivery)
     });
@@ -161,9 +181,13 @@ export async function deleteDelivery(id) {
 
   try {
     localStorage.setItem('manifest_deliveries', JSON.stringify(list));
+  } catch (e) {}
+
+  try {
+    const token = localStorage.getItem('token');
     await fetch(`${API_URL}/api/deliveries/${id}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });
   } catch (err) {}
 
@@ -176,7 +200,7 @@ export async function updateDeliveryStatus(id, newStatus) {
   const item = list.find(d => d.id === id);
   if (item) {
     item.status = newStatus;
-    await saveDelivery(item);
+    return await saveDelivery(item);
   }
   return list;
 }
