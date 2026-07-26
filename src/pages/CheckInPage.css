@@ -32,7 +32,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.35rem 2rem;
+  padding: 2rem 2.5rem 1rem;
   box-sizing: border-box;
   flex-shrink: 0;
   border-bottom: none;
@@ -78,15 +78,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  max-width: 640px;
+  max-width: 680px;
 }
 
 .kiosk-topbar-arrow-btn {
-  width: 58px;
-  height: 58px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 2px solid rgba(255, 255, 255, 0.18);
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -190,7 +190,10 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: max(8vh, 3.5rem) 2.5rem 2rem;
+  padding-top: max(13vh, 5.5rem);
+  padding-left: 2.5rem;
+  padding-right: 2.5rem;
+  padding-bottom: 2rem;
   box-sizing: border-box;
   position: relative;
   overflow-y: auto;
@@ -298,7 +301,7 @@
   font-size: 1.05rem;
   padding: 1.2rem 2.5rem;
   border-radius: 16px;
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -309,20 +312,20 @@
   max-width: 320px;
 }
 
-.kiosk-btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.3);
+.kiosk-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
 }
 
 .kiosk-fullscreen.light-theme .kiosk-btn-secondary {
-  color: #374151;
-  border-color: #d1d5db;
-  background: #ffffff;
+  color: #0f172a;
+  border-color: #cbd5e1;
 }
 
-.kiosk-fullscreen.light-theme .kiosk-btn-secondary:hover:not(:disabled) {
-  background: #f9fafb;
-  border-color: #9ca3af;
+.kiosk-fullscreen.light-theme .kiosk-btn-secondary:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
 }
 
 /* ── Step 1: Welcome — Logo in Center ── */
@@ -388,7 +391,7 @@
 /* ── Form Step (questions) ── */
 .kiosk-form-step {
   width: 100%;
-  max-width: 560px;
+  max-width: 580px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -397,16 +400,16 @@
 }
 
 .kiosk-step-indicator {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: #d4af37;
-  margin-bottom: 1.25rem;
-  background: rgba(212, 175, 55, 0.08);
-  padding: 0.4rem 1.1rem;
+  margin-bottom: 2.75rem;
+  background: rgba(212, 175, 55, 0.07);
+  padding: 0.45rem 1.25rem;
   border-radius: 20px;
-  border: 1px solid rgba(212, 175, 55, 0.15);
+  border: 1px solid rgba(212, 175, 55, 0.18);
 }
 
 .kiosk-fullscreen.light-theme .kiosk-step-indicator {
@@ -451,18 +454,18 @@
 /* ── Glacier Style Underline Input ── */
 .kiosk-glacier-field-container {
   width: 100%;
-  max-width: 520px;
+  max-width: 580px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  margin-top: 1.5rem;
+  margin-top: 0;
 }
 
 .kiosk-glacier-label {
-  font-size: 1.35rem;
+  font-size: 1.4rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 1.1rem;
+  color: #ffffff;
+  margin-bottom: 1.25rem;
   display: flex;
   align-items: center;
   letter-spacing: -0.01em;
@@ -474,17 +477,17 @@
 
 .kiosk-input-line {
   width: 100%;
-  height: 56px;
+  height: 52px;
   background: transparent !important;
   border: none !important;
-  border-bottom: 2.5px solid rgba(255, 255, 255, 0.25) !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.28) !important;
   color: #ffffff !important;
   font-size: clamp(1.4rem, 3.5vw, 1.85rem);
-  font-weight: 600;
+  font-weight: 500;
   font-family: inherit;
   outline: none !important;
   border-radius: 0 !important;
-  padding: 0 0 0.6rem 0;
+  padding: 0 0 0.5rem 0;
   text-transform: capitalize;
   transition: border-color 0.25s ease, color 0.25s ease;
   box-sizing: border-box;
