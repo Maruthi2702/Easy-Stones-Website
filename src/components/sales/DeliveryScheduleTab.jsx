@@ -202,8 +202,7 @@ const DeliveryScheduleTab = ({
         )}
       </div>
 
-      {/* Role Gate Switcher */}
-      <RoleGate currentRole={role} onSelectRole={setRole} currentUser={currentUser} />
+ 
 
       {/* Main Content Area based on Role */}
       {loading ? (
