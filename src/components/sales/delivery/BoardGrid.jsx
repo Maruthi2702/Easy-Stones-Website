@@ -70,6 +70,16 @@ const BoardGrid = ({
     return isToday ? `${formatted} · today` : formatted;
   };
 
+  if (trucks.length === 0) {
+    return (
+      <div className="manifest-empty-state">
+        <Truck size={40} className="empty-truck-icon" />
+        <h3>No drivers assigned to this location</h3>
+        <p>Add users with the <strong>Driver</strong> role in <strong>Users &amp; Roles</strong> and assign them to this location.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="manifest-board-wrapper">
       {/* Dispatch Board Grid Container — Days as Rows, Trucks/Drivers as Columns */}

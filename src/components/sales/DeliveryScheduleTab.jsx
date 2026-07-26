@@ -4,7 +4,6 @@ import BoardGrid from './delivery/BoardGrid';
 import DriverView from './delivery/DriverView';
 import DeliveryModal from './delivery/DeliveryModal';
 import {
-  getTrucks,
   getDeliveries,
   saveDelivery,
   deleteDelivery,
@@ -95,14 +94,13 @@ const DeliveryScheduleTab = ({
       const userLocation = currentUser?.location || null;
       const userAssignedLocations = currentUser?.assignedLocations || [];
 
-      const [driverUsers, tList, dList] = await Promise.all([
+      const [driverUsers, dList] = await Promise.all([
         getDriverUsers(userLocation, userAssignedLocations),
-        getTrucks(),
         getDeliveries()
       ]);
 
-      // Prefer real driver users from the Users tab; fall back to truck records
-      setTrucks(driverUsers && driverUsers.length > 0 ? driverUsers : tList);
+      // Only show real drivers from the Users tab — no hardcoded fallback
+      setTrucks(driverUsers && driverUsers.length > 0 ? driverUsers : []);
       setDeliveries(dList);
     } catch (err) {
       console.error('Error loading schedule data:', err);
