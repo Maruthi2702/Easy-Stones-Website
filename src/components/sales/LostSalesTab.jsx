@@ -363,22 +363,22 @@ const LostSalesTab = ({
         </div>
       )}
 
-      {/* ── ROW 3 & 4: Search + Show Cards + Filters ── */}
+      {/* ── ROW 3 & 4: Search + Controls & Filters ── */}
       <div className="lost-sales-filter-bar compact">
-        <div className="search-and-cards-group">
-          <div className="search-input-box">
-            <Search size={16} className="search-icon" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search customer, product, rep..."
-            />
-            {searchQuery && (
-              <button className="clear-search-btn" onClick={() => setSearchQuery('')}>×</button>
-            )}
-          </div>
+        <div className="search-input-box">
+          <Search size={16} className="search-icon" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search customer, product, rep..."
+          />
+          {searchQuery && (
+            <button className="clear-search-btn" onClick={() => setSearchQuery('')}>×</button>
+          )}
+        </div>
 
+        <div className="filter-controls-group">
           <button
             type="button"
             className={`btn-toggle-stats ${showStatsPanel ? 'active' : ''}`}
@@ -389,9 +389,7 @@ const LostSalesTab = ({
             <span className="btn-text-full">{showStatsPanel ? 'Hide Cards' : 'Show Cards'}</span>
             <span className="btn-text-short">Cards</span>
           </button>
-        </div>
 
-        <div className="filter-dropdowns">
           <div className="select-filter-wrap">
             <Filter size={14} className="filter-icon" />
             <select value={selectedReason} onChange={(e) => setSelectedReason(e.target.value)}>
