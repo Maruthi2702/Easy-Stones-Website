@@ -258,6 +258,7 @@ const DeliveryScheduleTab = ({
               trucks={trucks}
               deliveries={deliveries}
               weekDates={weekDates}
+              currentUser={currentUser}
               onUpdateStatus={handleUpdateStatus}
             />
           )}
