@@ -10,10 +10,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'logo.png'],
       workbox: {
-        navigateFallbackDenylist: [/^\/api/],
+        navigateFallbackDenylist: [/^\/api/, /\/api\//],
         runtimeCaching: [
           {
-            urlPattern: /^\/api\/.*/,
+            urlPattern: ({ url }) => url.pathname.startsWith('/api'),
             handler: 'NetworkOnly'
           }
         ]
