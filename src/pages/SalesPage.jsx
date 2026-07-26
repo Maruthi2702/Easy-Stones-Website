@@ -118,17 +118,21 @@ const SalesPage = () => {
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
     
-    // Compute the default tab based on what the user actually has access to.
-    // CSR users only have view_checkins — they land on Check-In Log, not Dashboard.
     const getDefaultTab = () => {
+        const searchParams = new URLSearchParams(window.location.search);
+        const tabParam = searchParams.get('tab');
+        if (tabParam) return tabParam;
+
         const perms = currentUser?.permissions || [];
         if (perms.includes('view_dashboard')) return 'dashboard';
         if (perms.includes('view_checkins')) return 'checkin';
         if (perms.includes('view_pricelist')) return 'pricelist';
         if (perms.includes('view_customers')) return 'customers';
+        if (perms.includes('view_lost_sales')) return 'lost_sales';
+        if (perms.includes('view_delivery_schedule')) return 'delivery_schedule';
         return 'checkin'; // safe fallback
     };
-    const [crmTab, setCrmTab] = useState(getDefaultTab); // 'dashboard', 'customers', 'checkin', 'pricelist'
+    const [crmTab, setCrmTab] = useState(getDefaultTab); // 'dashboard', 'customers', 'checkin', 'pricelist', 'delivery_schedule'
     const [checkIns, setCheckIns] = useState([]);
     const [checkInsLoading, setCheckInsLoading] = useState(false);
     const [checkInSearch, setCheckInSearch] = useState('');
@@ -242,6 +246,20 @@ const SalesPage = () => {
             setCurrentUserId(currentUser.id || currentUser._id);
         }
     }, [currentUser]);
+
+    // Sync active CRM tab from URL query params on page refresh
+    useEffect(() => {
+        const searchParams = new URLSearchParams(window.location.search);
+        const tabParam = searchParams.get('tab');
+        if (tabParam) {
+            setCrmTab(tabParam);
+            if (tabParam === 'dashboard') {
+                setShowDashboard(true);
+            } else {
+                setShowDashboard(false);
+            }
+        }
+    }, []);
 
     // Fetch Dashboard Stats from Backend — merged into one effect with fetchDashboardData below
     const fetchDashboardStats = useCallback(async () => {
