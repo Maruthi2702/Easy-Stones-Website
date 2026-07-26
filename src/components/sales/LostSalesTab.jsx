@@ -293,7 +293,7 @@ const LostSalesTab = ({
 
   return (
     <div className={`lost-sales-tab-container high-density ${theme}-theme-active`}>
-      {/* ── ROW 1: Top Header (Title + Record Lost Sale Button) ── */}
+      {/* ── ROW 1: Top Header (Title + Record Lost Sale Button - SAME ROW) ── */}
       <div className="lost-sales-header compact-header">
         <div className="header-left-title">
           {sidebarToggle}
@@ -302,8 +302,9 @@ const LostSalesTab = ({
 
         {canEdit && (
           <button type="button" className="btn-add-lost-sale" onClick={handleOpenAddModal}>
-            <Plus size={16} />
-            <span>Record Lost Sale</span>
+            <Plus size={15} />
+            <span className="btn-text-full">Record Lost Sale</span>
+            <span className="btn-text-short">Record</span>
           </button>
         )}
       </div>
@@ -362,30 +363,33 @@ const LostSalesTab = ({
         </div>
       )}
 
-      {/* ── ROW 3: Unified Filter & Search Bar (Search + Show Cards + Filters) ── */}
+      {/* ── ROW 3 & 4: Search + Show Cards + Filters ── */}
       <div className="lost-sales-filter-bar compact">
-        <div className="search-input-box">
-          <Search size={16} className="search-icon" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search customer, product, rep, competitor, or notes..."
-          />
-          {searchQuery && (
-            <button className="clear-search-btn" onClick={() => setSearchQuery('')}>×</button>
-          )}
-        </div>
+        <div className="search-and-cards-group">
+          <div className="search-input-box">
+            <Search size={16} className="search-icon" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search customer, product, rep..."
+            />
+            {searchQuery && (
+              <button className="clear-search-btn" onClick={() => setSearchQuery('')}>×</button>
+            )}
+          </div>
 
-        <button
-          type="button"
-          className={`btn-toggle-stats ${showStatsPanel ? 'active' : ''}`}
-          onClick={() => setShowStatsPanel(!showStatsPanel)}
-          title="Toggle Detailed Analytics Cards"
-        >
-          <BarChart2 size={16} />
-          <span>{showStatsPanel ? 'Hide Cards' : 'Show Cards'}</span>
-        </button>
+          <button
+            type="button"
+            className={`btn-toggle-stats ${showStatsPanel ? 'active' : ''}`}
+            onClick={() => setShowStatsPanel(!showStatsPanel)}
+            title="Toggle Detailed Analytics Cards"
+          >
+            <BarChart2 size={15} />
+            <span className="btn-text-full">{showStatsPanel ? 'Hide Cards' : 'Show Cards'}</span>
+            <span className="btn-text-short">Cards</span>
+          </button>
+        </div>
 
         <div className="filter-dropdowns">
           <div className="select-filter-wrap">
