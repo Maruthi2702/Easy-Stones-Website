@@ -595,20 +595,38 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                     </td>
                                                     <td data-label="Location">{u.location || '-'}</td>
                                                     <td data-label="Actions">
-                                                        <div className="action-buttons-cell">
-                                                            <button 
-                                                                className="action-icon-btn edit" 
+                                                        <div className="action-pill-row">
+                                                            <button
+                                                                className="user-action-pill view"
                                                                 onClick={() => openEditUserModal(u)}
-                                                                title="Edit User"
+                                                                title="View user details"
                                                             >
-                                                                <Edit2 size={15} />
+                                                                <Eye size={13} />
+                                                                View
                                                             </button>
-                                                            <button 
-                                                                className="action-icon-btn delete" 
-                                                                onClick={() => handleDeleteUser(u)}
-                                                                title="Delete User"
+                                                            <button
+                                                                className="user-action-pill edit"
+                                                                onClick={() => openEditUserModal(u)}
+                                                                title="Edit user profile"
                                                             >
-                                                                <Trash2 size={15} />
+                                                                <Edit2 size={13} />
+                                                                Edit
+                                                            </button>
+                                                            <button
+                                                                className="user-action-pill driver"
+                                                                title="Driver access"
+                                                                onClick={() => alert(`Driver access for ${u.username}: role = ${u.role}`)}
+                                                            >
+                                                                <Truck size={13} />
+                                                                Driver Access
+                                                            </button>
+                                                            <button
+                                                                className="user-action-pill delete"
+                                                                onClick={() => handleDeleteUser(u)}
+                                                                title="Delete user"
+                                                            >
+                                                                <Trash2 size={13} />
+                                                                Delete
                                                             </button>
                                                         </div>
                                                     </td>

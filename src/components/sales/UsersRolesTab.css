@@ -346,42 +346,78 @@
     font-size: 1rem;
 }
 
-/* ── TABLE ACTIONS ── */
-.action-buttons-cell {
-    display: flex;
-    gap: 0.6rem;
-}
-
-.action-icon-btn {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
+/* ── TABLE ACTIONS — Pill Buttons ── */
+.action-pill-row {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.user-action-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+}
+
+/* View — neutral dark pill */
+.user-action-pill.view {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
     color: #94a3b8;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.user-action-pill.view:hover {
+    background: rgba(255, 255, 255, 0.11);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #e2e8f0;
 }
 
-.action-icon-btn:hover {
-    color: #ffffff;
-    transform: translateY(-1px);
-}
-
-.action-icon-btn.edit:hover {
-    background: rgba(212, 175, 55, 0.12);
-    border-color: rgba(212, 175, 55, 0.4);
+/* Edit — gold/amber accent */
+.user-action-pill.edit {
+    background: rgba(212, 175, 55, 0.1);
+    border-color: rgba(212, 175, 55, 0.3);
     color: #d4af37;
+}
+.user-action-pill.edit:hover {
+    background: rgba(212, 175, 55, 0.2);
+    border-color: rgba(212, 175, 55, 0.55);
+    color: #e8c84a;
     box-shadow: 0 0 10px rgba(212, 175, 55, 0.15);
 }
 
-.action-icon-btn.delete:hover {
-    background: rgba(239, 68, 68, 0.12);
-    border-color: rgba(239, 68, 68, 0.4);
-    color: #ef4444;
+/* Driver Access — blue-teal accent */
+.user-action-pill.driver {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #60a5fa;
+}
+.user-action-pill.driver:hover {
+    background: rgba(59, 130, 246, 0.18);
+    border-color: rgba(59, 130, 246, 0.5);
+    color: #93c5fd;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.15);
+}
+
+/* Delete — red accent */
+.user-action-pill.delete {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.25);
+    color: #f87171;
+}
+.user-action-pill.delete:hover {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fca5a5;
     box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
 }
 
