@@ -31,6 +31,32 @@ function getWeekDates(mondayDate) {
   return dates;
 }
 
+const getUserRoleFromPermissions = (user) => {
+  if (!user) return 'office';
+  const roleName = user.role?.toLowerCase() || '';
+  const perms = user.permissions || [];
+
+  if (roleName === 'driver' || roleName === 'logistics') {
+    return 'driver';
+  }
+
+  if (
+    roleName === 'admin' ||
+    roleName === 'manager' ||
+    perms.includes('edit_delivery_schedule') ||
+    perms.includes('manage_delivery_schedule') ||
+    perms.includes('manage_users')
+  ) {
+    return 'office';
+  }
+
+  if (roleName === 'sales_rep' || perms.includes('view_delivery_schedule')) {
+    return 'sales';
+  }
+
+  return 'office';
+};
+
 const DeliveryScheduleTab = ({
   currentUser = null,
   theme = 'dark',
@@ -38,12 +64,14 @@ const DeliveryScheduleTab = ({
   customerOptions = [],
   sidebarToggle = null
 }) => {
-  // Roles: 'office' | 'sales' | 'driver'
-  const [role, setRole] = useState(() => {
-    if (currentUser?.role === 'driver') return 'driver';
-    if (currentUser?.role === 'sales_rep') return 'sales';
-    return 'office';
-  });
+  // Compute default role directly from user info & permissions
+  const [role, setRole] = useState(() => getUserRoleFromPermissions(currentUser));
+
+  useEffect(() => {
+    if (currentUser) {
+      setRole(getUserRoleFromPermissions(currentUser));
+    }
+  }, [currentUser]);
 
   const [trucks, setTrucks] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
@@ -175,7 +203,7 @@ const DeliveryScheduleTab = ({
       </div>
 
       {/* Role Gate Switcher */}
-      <RoleGate currentRole={role} onSelectRole={setRole} />
+      <RoleGate currentRole={role} onSelectRole={setRole} currentUser={currentUser} />
 
       {/* Main Content Area based on Role */}
       {loading ? (

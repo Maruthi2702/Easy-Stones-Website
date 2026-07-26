@@ -25,21 +25,34 @@ const ROLES = [
   }
 ];
 
-const RoleGate = ({ currentRole, onSelectRole }) => {
+const RoleGate = ({ currentRole, onSelectRole, currentUser = null }) => {
+  const isManagerOrAdmin = !currentUser || 
+    currentUser.role === 'admin' || 
+    currentUser.role === 'manager' || 
+    currentUser.permissions?.includes('edit_delivery_schedule') ||
+    currentUser.permissions?.includes('manage_delivery_schedule');
+
   return (
     <div className="manifest-role-bar">
       <div className="role-selector-pills">
-        <span className="role-bar-label">Active Manifest Mode:</span>
+        <span className="role-bar-label">
+          User Account Mode ({currentUser?.name || currentUser?.role || 'Active User'}):
+        </span>
         {ROLES.map(r => {
           const Icon = r.icon;
           const isActive = currentRole === r.id;
+
+          // If not admin/manager, hide unpermitted mode switches
+          if (!isManagerOrAdmin && !isActive) return null;
+
           return (
             <button
               key={r.id}
               type="button"
               className={`role-pill-btn ${isActive ? 'active' : ''}`}
-              onClick={() => onSelectRole(r.id)}
+              onClick={() => isManagerOrAdmin && onSelectRole(r.id)}
               title={r.desc}
+              style={{ cursor: isManagerOrAdmin ? 'pointer' : 'default' }}
             >
               <Icon size={15} />
               <span>{r.label}</span>
