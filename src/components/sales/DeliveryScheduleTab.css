@@ -146,6 +146,50 @@ body.light-theme-active .btn-week-nav,
   gap: 0.35rem;
 }
 
+/* Header Action Button (New Delivery Ticket) */
+.header-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-add-delivery {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.35rem;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #d4af37 0%, #c5a028 50%, #e6c25e 100%);
+  background-size: 200% 200%;
+  color: #0a0a0a;
+  font-weight: 800;
+  font-size: 0.88rem;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.35);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.btn-add-delivery:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(212, 175, 55, 0.5), 0 0 12px rgba(212, 175, 55, 0.2);
+  background-position: 100% 0%;
+}
+
+.btn-add-delivery:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+}
+
+body.light-theme-active .btn-add-delivery,
+.light-theme-active .btn-add-delivery {
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.3);
+}
+
 /* Role Gate Bar */
 .manifest-role-bar {
   display: flex;
