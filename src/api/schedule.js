@@ -92,6 +92,60 @@ export async function getTrucks() {
   return DEFAULT_TRUCKS;
 }
 
+// ── GET DRIVERS FROM USERS TAB (filtered by location) ──
+// Fetches all users from /api/salesreps, filters to role='driver' or 'logistics'
+// and intersects with the given location. Returns them as truck-shaped objects.
+const TRUCK_COLORS = ['#D4AF37', '#2F8F73', '#E1602A', '#3B82F6', '#8B5CF6', '#64748B', '#10B981', '#F59E0B'];
+
+export async function getDriverUsers(userLocation = null, userAssignedLocations = []) {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_URL}/api/salesreps`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+    if (!res.ok) throw new Error('Failed to fetch users');
+    const payload = await res.json();
+    const allUsers = payload.data || payload || [];
+
+    // Filter to driver/logistics role users only
+    let drivers = allUsers.filter(u =>
+      u.role === 'driver' || u.role === 'logistics'
+    );
+
+    // Filter to users assigned to the current user's location (if a location filter is given)
+    if (userLocation || userAssignedLocations.length > 0) {
+      const filterLocs = userAssignedLocations.length > 0
+        ? userAssignedLocations
+        : [userLocation];
+
+      // Wildcard '*' means all locations — don't filter
+      if (!filterLocs.includes('*')) {
+        drivers = drivers.filter(u => {
+          const driverLocs = u.assignedLocations || (u.location ? [u.location] : []);
+          // Driver assigned '*' means all locations
+          if (driverLocs.includes('*')) return true;
+          return driverLocs.some(loc => filterLocs.includes(loc));
+        });
+      }
+    }
+
+    if (drivers.length === 0) return null; // Signal caller to fall back to truck data
+
+    // Convert driver user records → truck-shaped objects for BoardGrid / DriverView
+    return drivers.map((u, idx) => ({
+      id: u._id || `drv_${u.username}`,
+      name: u.name || u.username,
+      driver: u.name || u.username,
+      color: TRUCK_COLORS[idx % TRUCK_COLORS.length],
+      username: u.username,
+      location: u.location || (u.assignedLocations?.[0] || '')
+    }));
+  } catch (err) {
+    console.warn('[schedule] getDriverUsers error:', err);
+    return null;
+  }
+}
+
 // ── SAVE TRUCKS ──
 export async function saveTrucks(trucks) {
   // Always update localStorage immediately

@@ -9,7 +9,8 @@ import {
   getDeliveries,
   saveDelivery,
   deleteDelivery,
-  updateDeliveryStatus
+  updateDeliveryStatus,
+  getDriverUsers
 } from '../../api/schedule';
 import './DeliveryScheduleTab.css';
 
@@ -92,15 +93,24 @@ const DeliveryScheduleTab = ({
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tList, dList] = await Promise.all([getTrucks(), getDeliveries()]);
-      setTrucks(tList);
+      const userLocation = currentUser?.location || null;
+      const userAssignedLocations = currentUser?.assignedLocations || [];
+
+      const [driverUsers, tList, dList] = await Promise.all([
+        getDriverUsers(userLocation, userAssignedLocations),
+        getTrucks(),
+        getDeliveries()
+      ]);
+
+      // Prefer real driver users from the Users tab; fall back to truck records
+      setTrucks(driverUsers && driverUsers.length > 0 ? driverUsers : tList);
       setDeliveries(dList);
     } catch (err) {
       console.error('Error loading schedule data:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
