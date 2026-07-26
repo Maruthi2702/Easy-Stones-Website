@@ -130,7 +130,7 @@ export async function getDeliveries() {
     });
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         try {
           localStorage.setItem('manifest_deliveries', JSON.stringify(data));
         } catch (e) {}
@@ -146,11 +146,11 @@ export async function getDeliveries() {
     const saved = localStorage.getItem('manifest_deliveries');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {}
 
-  return INITIAL_SAMPLE_DELIVERIES;
+  return [];
 }
 
 // ── SAVE / UPDATE DELIVERY ──
@@ -167,7 +167,7 @@ export async function saveDelivery(delivery) {
     });
     if (res.ok) {
       const updatedList = await res.json();
-      if (Array.isArray(updatedList) && updatedList.length > 0) {
+      if (Array.isArray(updatedList)) {
         try {
           localStorage.setItem('manifest_deliveries', JSON.stringify(updatedList));
         } catch (e) {}
