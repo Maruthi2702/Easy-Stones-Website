@@ -3361,6 +3361,7 @@ const SalesPage = () => {
                             <DeliveryScheduleTab
                                 currentUser={currentUser}
                                 locationsList={locations || ['Seattle', 'Spokane', 'Salt Lake City']}
+                                customerOptions={customerOptions}
                                 theme={theme}
                                 sidebarToggle={sidebarToggle}
                             />
