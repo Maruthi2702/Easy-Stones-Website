@@ -84,6 +84,7 @@ const DeliveryScheduleTab = ({
 
   const [trucks, setTrucks] = useState([]);
   const [deliveries, setDeliveries] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Week State
