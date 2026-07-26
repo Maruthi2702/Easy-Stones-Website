@@ -323,51 +323,81 @@ body.light-theme-active .manifest-dispatch-table td,
   border-color: #cbd5e1;
 }
 
-.truck-col-header {
-  width: 190px;
+.day-col-header-row {
+  width: 170px;
   padding: 0.85rem 1rem;
-  background: rgba(28, 35, 51, 0.9);
+  background: rgba(28, 35, 51, 0.95);
   text-align: left;
 }
 
-.th-truck-inner {
+.th-day-inner {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   color: #d4af37;
   font-size: 0.85rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.day-col-header {
-  padding: 0.85rem 0.75rem;
-  background: rgba(28, 35, 51, 0.6);
-  text-align: center;
-}
-
-.day-col-header.today-col {
-  background: rgba(212, 175, 55, 0.12);
-}
-
-.th-day-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.th-day-inner .day-name {
-  font-size: 0.9rem;
   font-weight: 800;
-  color: #ffffff;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.th-day-inner .day-date {
-  font-size: 0.75rem;
+.truck-col-header {
+  width: 180px;
+  padding: 0.85rem 1rem;
+  background: rgba(28, 35, 51, 0.9);
+  text-align: left;
+}
+
+body.light-theme-active .truck-col-header,
+.light-theme-active .truck-col-header {
+  background: #ffffff;
+}
+
+.day-info-cell {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 4px solid #d4af37;
+  vertical-align: middle;
+}
+
+.day-info-cell.today-cell {
+  background: rgba(212, 175, 55, 0.12);
+  border-left: 4px solid #d4af37;
+}
+
+body.light-theme-active .day-info-cell,
+.light-theme-active .day-info-cell {
+  background: #ffffff;
+}
+
+body.light-theme-active .day-info-cell.today-cell,
+.light-theme-active .day-info-cell.today-cell {
+  background: #fefce8;
+}
+
+.day-label-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.day-label-wrap .day-name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.day-label-wrap .day-date {
+  font-size: 0.78rem;
   color: #94a3b8;
   font-family: monospace, monospace;
+  margin-top: 2px;
+}
+
+body.light-theme-active .day-label-wrap .day-name,
+.light-theme-active .day-label-wrap .day-name {
+  color: #1c2333;
 }
 
 body.light-theme-active .th-day-inner .day-name,

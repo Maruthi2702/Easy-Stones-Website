@@ -84,38 +84,19 @@ const BoardGrid = ({
         </div>
       </div>
 
-      {/* Dispatch Board Grid Container */}
+      {/* Dispatch Board Grid Container — Days as Rows, Trucks/Drivers as Columns */}
       <div className="board-grid-scroll-container">
         <table className="manifest-dispatch-table">
           <thead>
             <tr>
-              <th className="truck-col-header">
-                <div className="th-truck-inner">
-                  <Truck size={16} />
-                  <span>Truck / Driver</span>
+              <th className="day-col-header-row">
+                <div className="th-day-inner">
+                  <Calendar size={16} />
+                  <span>Day / Date</span>
                 </div>
               </th>
-              {DAYS_OF_WEEK.map((dayObj, idx) => {
-                const dateStr = weekDates[idx] || '';
-                const isToday = dateStr === new Date().toISOString().split('T')[0];
-
-                return (
-                  <th key={dayObj.short} className={`day-col-header ${isToday ? 'today-col' : ''}`}>
-                    <div className="th-day-inner">
-                      <span className="day-name">{dayObj.name}</span>
-                      <span className="day-date">{dateStr}</span>
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-
-          <tbody>
-            {trucks.map(trk => (
-              <tr key={trk.id} className="truck-grid-row">
-                {/* Truck Info Cell (Row Title) */}
-                <td className="truck-info-cell" style={{ borderLeftColor: trk.color || '#D4AF37' }}>
+              {trucks.map(trk => (
+                <th key={trk.id} className="truck-col-header" style={{ borderTop: `3px solid ${trk.color || '#D4AF37'}` }}>
                   {editingTruckId === trk.id ? (
                     <div className="truck-edit-inline">
                       <input
@@ -150,51 +131,69 @@ const BoardGrid = ({
                       {editable && <Edit2 size={12} className="edit-truck-icon" />}
                     </div>
                   )}
-                </td>
+                </th>
+              ))}
+            </tr>
+          </thead>
 
-                {/* Day Columns */}
-                {DAYS_OF_WEEK.map((dayObj, idx) => {
-                  const dateStr = weekDates[idx] || '';
-                  const cellDeliveries = getDeliveriesForCell(trk.id, dateStr);
-                  const count = cellDeliveries.length;
-                  const capClass = getCapacityColorClass(count);
+          <tbody>
+            {DAYS_OF_WEEK.map((dayObj, idx) => {
+              const dateStr = weekDates[idx] || '';
+              const isToday = dateStr === new Date().toISOString().split('T')[0];
 
-                  return (
-                    <td key={dateStr || idx} className="dispatch-cell">
-                      <div className="cell-header-bar">
-                        <span className={`cell-capacity-pill ${capClass}`} title={`${count} of ${MAX_TRUCK_CAPACITY} deliveries booked`}>
-                          {count}/{MAX_TRUCK_CAPACITY}
-                        </span>
+              return (
+                <tr key={dayObj.short} className={`day-grid-row ${isToday ? 'today-row' : ''}`}>
+                  {/* Day Info Cell (Row Title) */}
+                  <td className={`day-info-cell ${isToday ? 'today-cell' : ''}`}>
+                    <div className="day-label-wrap">
+                      <span className="day-name">{dayObj.name}</span>
+                      <span className="day-date">{dateStr}</span>
+                    </div>
+                  </td>
 
-                        {editable && (
-                          <button
-                            type="button"
-                            className="cell-add-btn"
-                            onClick={() => onAddDelivery && onAddDelivery(trk.id, dateStr)}
-                            title={`Add delivery to ${trk.name} on ${dayObj.name}`}
-                          >
-                            <Plus size={14} />
-                          </button>
-                        )}
-                      </div>
+                  {/* Truck Columns for this Day */}
+                  {trucks.map(trk => {
+                    const cellDeliveries = getDeliveriesForCell(trk.id, dateStr);
+                    const count = cellDeliveries.length;
+                    const capClass = getCapacityColorClass(count);
 
-                      {/* Ticket Cards List */}
-                      <div className="cell-tickets-list">
-                        {cellDeliveries.map(del => (
-                          <TicketChip
-                            key={del.id}
-                            delivery={del}
-                            truckColor={trk.color}
-                            onClick={onEditDelivery}
-                            editable={editable}
-                          />
-                        ))}
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                    return (
+                      <td key={trk.id} className="dispatch-cell">
+                        <div className="cell-header-bar">
+                          <span className={`cell-capacity-pill ${capClass}`} title={`${count} of ${MAX_TRUCK_CAPACITY} deliveries booked`}>
+                            {count}/{MAX_TRUCK_CAPACITY}
+                          </span>
+
+                          {editable && (
+                            <button
+                              type="button"
+                              className="cell-add-btn"
+                              onClick={() => onAddDelivery && onAddDelivery(trk.id, dateStr)}
+                              title={`Add delivery to ${trk.name} on ${dayObj.name}`}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Ticket Cards List */}
+                        <div className="cell-tickets-list">
+                          {cellDeliveries.map(del => (
+                            <TicketChip
+                              key={del.id}
+                              delivery={del}
+                              truckColor={trk.color}
+                              onClick={onEditDelivery}
+                              editable={editable}
+                            />
+                          ))}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
