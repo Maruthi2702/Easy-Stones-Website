@@ -36,88 +36,51 @@
   border-radius: 4px;
 }
 
-/* Header & Title */
-/* Single Unified Header Bar */
-.delivery-schedule-header.single-row-header {
+/* ── TOP HEADER: Title + Subtitle + New Ticket ── */
+.manifest-top-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.25rem;
   gap: 1rem;
-  flex-wrap: nowrap;
 }
 
-@media (max-width: 1024px) {
-  .delivery-schedule-header.single-row-header {
-    flex-wrap: wrap;
-  }
-}
-
-.header-left-group {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.header-title-wrap .title-text-compact {
-  font-size: 1.5rem;
-  font-weight: 800;
-  margin: 0;
-  color: #ffffff;
-  letter-spacing: -0.01em;
-}
-
-.header-title-wrap .subtitle-manifest {
-  font-size: 0.78rem;
-  color: #94a3b8;
-  display: block;
-  margin-top: 1px;
-}
-
-.header-center-group {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.header-right-group {
+.manifest-title-block {
   display: flex;
   align-items: center;
   gap: 0.85rem;
 }
 
-.search-box-wrap-header {
+.manifest-title {
+  font-size: 2rem;
+  font-weight: 900;
+  margin: 0;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.manifest-subtitle {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  display: block;
+  margin-top: 3px;
+  font-weight: 400;
+}
+
+/* ── NAV BAR: Week Navigator + Date Range + Search ── */
+.manifest-nav-bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  background: rgba(26, 26, 26, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  padding: 0.5rem 0.85rem;
-  min-width: 250px;
-  transition: border-color 0.2s ease;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  gap: 1.25rem;
 }
 
-.search-box-wrap-header:focus-within {
-  border-color: #d4af37;
-}
-
-.search-box-wrap-header .search-icon {
-  color: #94a3b8;
-}
-
-.board-search-input-header {
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #ffffff;
-  font-size: 0.88rem;
-  width: 100%;
-  font-family: inherit;
-}
-
-.board-search-input-header::placeholder {
-  color: #64748b;
+.nav-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
 }
 
 .week-navigator-controls {
@@ -159,39 +122,35 @@
 
 .week-range-label-text {
   font-size: 1.05rem;
-  font-weight: 800;
+  font-weight: 700;
   color: #f8fafc;
-  letter-spacing: 0.02em;
-  font-family: inherit;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-/* Search Box Top */
-.control-bar-right {
+/* Search box — inline in nav bar (sales role) */
+.search-box-wrap-header {
   display: flex;
   align-items: center;
-}
-
-.search-box-wrap-top {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
+  gap: 0.5rem;
   background: rgba(26, 26, 26, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
-  padding: 0.5rem 0.9rem;
-  min-width: 320px;
+  padding: 0.46rem 0.85rem;
+  min-width: 260px;
   transition: border-color 0.2s ease;
 }
 
-.search-box-wrap-top:focus-within {
-  border-color: #d4af37;
+.search-box-wrap-header:focus-within {
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
-.search-box-wrap-top .search-icon {
-  color: #94a3b8;
+.search-box-wrap-header .search-icon {
+  color: #64748b;
 }
 
-.board-search-input-top {
+.board-search-input-header {
   background: transparent;
   border: none;
   outline: none;
@@ -201,16 +160,19 @@
   font-family: inherit;
 }
 
-.board-search-input-top::placeholder {
+.board-search-input-header::placeholder {
   color: #64748b;
 }
 
-/* Header Action Button (New Delivery Ticket) */
-.header-right-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+/* Read-only footer (sales) */
+.manifest-readonly-footer {
+  margin-top: 1.25rem;
+  font-size: 0.82rem;
+  color: #64748b;
+  font-style: italic;
 }
+
+
 
 .btn-add-delivery {
   display: inline-flex;

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Truck, Calendar, ChevronLeft, ChevronRight, Plus, RefreshCw, Shield, Eye, Search } from 'lucide-react';
-import RoleGate from './delivery/RoleGate';
+import { Truck, ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from 'lucide-react';
 import BoardGrid from './delivery/BoardGrid';
 import DriverView from './delivery/DriverView';
 import DeliveryModal from './delivery/DeliveryModal';
@@ -17,13 +16,13 @@ import './DeliveryScheduleTab.css';
 function getWeekMonday(date = new Date()) {
   const d = new Date(date);
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   return new Date(d.setDate(diff));
 }
 
 function getWeekDates(mondayDate) {
   const dates = [];
-  for (let i = 0; i < 5; i++) { // Mon - Fri
+  for (let i = 0; i < 5; i++) {
     const d = new Date(mondayDate);
     d.setDate(d.getDate() + i);
     dates.push(d.toISOString().split('T')[0]);
@@ -45,9 +44,7 @@ const getUserRoleFromPermissions = (user) => {
   const roleName = user.role?.toLowerCase() || '';
   const perms = user.permissions || [];
 
-  if (roleName === 'driver' || roleName === 'logistics') {
-    return 'driver';
-  }
+  if (roleName === 'driver' || roleName === 'logistics') return 'driver';
 
   if (
     roleName === 'admin' ||
@@ -55,15 +52,17 @@ const getUserRoleFromPermissions = (user) => {
     perms.includes('edit_delivery_schedule') ||
     perms.includes('manage_delivery_schedule') ||
     perms.includes('manage_users')
-  ) {
-    return 'office';
-  }
+  ) return 'office';
 
-  if (roleName === 'sales_rep' || perms.includes('view_delivery_schedule')) {
-    return 'sales';
-  }
+  if (roleName === 'sales_rep' || perms.includes('view_delivery_schedule')) return 'sales';
 
   return 'office';
+};
+
+const ROLE_SUBTITLES = {
+  office: 'Office · full edit access',
+  sales: 'Sales team · view and check capacity',
+  driver: 'Driver · your assigned stops'
 };
 
 const DeliveryScheduleTab = ({
@@ -73,13 +72,10 @@ const DeliveryScheduleTab = ({
   customerOptions = [],
   sidebarToggle = null
 }) => {
-  // Compute default role directly from user info & permissions
   const [role, setRole] = useState(() => getUserRoleFromPermissions(currentUser));
 
   useEffect(() => {
-    if (currentUser) {
-      setRole(getUserRoleFromPermissions(currentUser));
-    }
+    if (currentUser) setRole(getUserRoleFromPermissions(currentUser));
   }, [currentUser]);
 
   const [trucks, setTrucks] = useState([]);
@@ -87,15 +83,12 @@ const DeliveryScheduleTab = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Week State
   const [currentMonday, setCurrentMonday] = useState(() => getWeekMonday(new Date()));
   const weekDates = getWeekDates(currentMonday);
 
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
 
-  // Initial Data Load
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -109,11 +102,8 @@ const DeliveryScheduleTab = ({
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  // Week Navigation
   const handlePrevWeek = () => {
     const prev = new Date(currentMonday);
     prev.setDate(prev.getDate() - 7);
@@ -126,11 +116,8 @@ const DeliveryScheduleTab = ({
     setCurrentMonday(next);
   };
 
-  const handleTodayWeek = () => {
-    setCurrentMonday(getWeekMonday(new Date()));
-  };
+  const handleTodayWeek = () => setCurrentMonday(getWeekMonday(new Date()));
 
-  // Add / Edit Handlers
   const handleOpenAddModal = (truckId = null, dateStr = null) => {
     setEditingDelivery({
       truckId: truckId || trucks[0]?.id || 'trk_1',
@@ -147,8 +134,8 @@ const DeliveryScheduleTab = ({
     setIsModalOpen(true);
   };
 
-  const handleSaveDelivery = async (deliveryPayload) => {
-    const updatedList = await saveDelivery(deliveryPayload);
+  const handleSaveDelivery = async (payload) => {
+    const updatedList = await saveDelivery(payload);
     setDeliveries(updatedList);
   };
 
@@ -174,19 +161,28 @@ const DeliveryScheduleTab = ({
 
   return (
     <div className={`delivery-schedule-container high-density ${theme}-theme-active`}>
-      {/* Single Unified Header Bar */}
-      <div className="delivery-schedule-header compact-header single-row-header">
-        {/* Left: Sidebar Toggle & Title */}
-        <div className="header-left-group">
+
+      {/* ── TOP HEADER: Title + Subtitle + New Ticket (office only) ── */}
+      <div className="manifest-top-header">
+        <div className="manifest-title-block">
           {sidebarToggle}
-          <div className="header-title-wrap">
-            <h2 className="title-text-compact">Manifest</h2>
-            <span className="subtitle-manifest">Shared weekly dispatch</span>
+          <div>
+            <h2 className="manifest-title">Manifest</h2>
+            <span className="manifest-subtitle">{ROLE_SUBTITLES[role]}</span>
           </div>
         </div>
 
-        {/* Center: Week Navigator & Date Range */}
-        <div className="header-center-group">
+        {role === 'office' && (
+          <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
+            <Plus size={16} />
+            <span>New ticket</span>
+          </button>
+        )}
+      </div>
+
+      {/* ── SUB-CONTROL BAR: Week Nav + Date + Search (sales only) ── */}
+      <div className="manifest-nav-bar">
+        <div className="nav-bar-left">
           <div className="week-navigator-controls">
             <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
               <ChevronLeft size={16} />
@@ -201,8 +197,8 @@ const DeliveryScheduleTab = ({
           <span className="week-range-label-text">{weekRangeText}</span>
         </div>
 
-        {/* Right: Search Box & New Ticket Button */}
-        <div className="header-right-group">
+        {/* Search: only show for sales role, office has it inline elsewhere */}
+        {role === 'sales' && (
           <div className="search-box-wrap-header">
             <Search size={15} className="search-icon" />
             <input
@@ -213,17 +209,10 @@ const DeliveryScheduleTab = ({
               className="board-search-input-header"
             />
           </div>
-
-          {role === 'office' && (
-            <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
-              <Plus size={16} />
-              <span>New ticket</span>
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Main Content Area based on Role */}
+      {/* ── MAIN CONTENT ── */}
       {loading ? (
         <div className="manifest-loading-box">
           <RefreshCw size={24} className="spin-icon" />
@@ -266,7 +255,13 @@ const DeliveryScheduleTab = ({
         </div>
       )}
 
-      {/* Delivery Add / Edit Modal */}
+      {/* ── READ-ONLY FOOTER (sales) ── */}
+      {role === 'sales' && (
+        <div className="manifest-readonly-footer">
+          Read-only · contact office to schedule
+        </div>
+      )}
+
       <DeliveryModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
