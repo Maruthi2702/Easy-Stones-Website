@@ -172,34 +172,36 @@ const DeliveryScheduleTab = ({
             <Truck size={18} />
           </div>
           <div>
-            <h2 className="title-text-compact">Manifest — Dispatch Scheduler</h2>
-            <span className="subtitle-manifest">Shared Weekly Dispatch & Driver Operations</span>
+            <h2 className="title-text-compact">Delivery Schedule</h2>
+            <span className="subtitle-manifest">Shared weekly dispatch</span>
           </div>
         </div>
 
-        {/* Week Navigator Controls */}
-        <div className="week-navigator-controls">
-          <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
-            <ChevronLeft size={16} />
-          </button>
-          <button type="button" className="btn-week-nav today" onClick={handleTodayWeek} title="Current Week">
-            Today
-          </button>
-          <button type="button" className="btn-week-nav" onClick={handleNextWeek} title="Next Week">
-            <ChevronRight size={16} />
-          </button>
-          <span className="week-range-label"><Calendar size={13} /> {weekRangeText}</span>
-        </div>
-
-        {/* Action Button (Office Mode Only) */}
-        {role === 'office' && (
-          <div className="header-right-actions">
-            <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
-              <Plus size={16} />
-              <span>New Delivery Ticket</span>
+        <div className="header-right-controls-group">
+          {/* Week Navigator Controls */}
+          <div className="week-navigator-controls">
+            <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
+              <ChevronLeft size={16} />
             </button>
+            <button type="button" className="btn-week-nav today" onClick={handleTodayWeek} title="Current Week">
+              Today
+            </button>
+            <button type="button" className="btn-week-nav" onClick={handleNextWeek} title="Next Week">
+              <ChevronRight size={16} />
+            </button>
+            <span className="week-range-label"><Calendar size={13} /> {weekRangeText}</span>
           </div>
-        )}
+
+          {/* Action Button (Office Mode Only) */}
+          {role === 'office' && (
+            <div className="header-right-actions">
+              <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
+                <Plus size={16} />
+                <span>New ticket</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
  

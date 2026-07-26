@@ -46,6 +46,13 @@
   flex-wrap: wrap;
 }
 
+.header-right-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .delivery-schedule-header .header-left-title {
   display: flex;
   align-items: center;
