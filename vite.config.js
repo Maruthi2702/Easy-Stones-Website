@@ -9,6 +9,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'logo.png'],
+      workbox: {
+        navigateFallbackDenylist: [/^\/api/],
+      },
       manifest: {
         name: 'Easy Stones',
         short_name: 'Easy Stones',
