@@ -15,20 +15,22 @@ const BoardGrid = ({
   trucks = [],
   deliveries = [],
   weekDates = [],
+  searchQuery = '',
   editable = false,
   onAddDelivery,
   onEditDelivery,
   onUpdateTruck
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [internalSearch, setInternalSearch] = useState('');
+  const activeSearch = searchQuery || internalSearch;
   const [editingTruckId, setEditingTruckId] = useState(null);
   const [tempTruckName, setTempTruckName] = useState('');
   const [tempDriverName, setTempDriverName] = useState('');
 
-  // Filter deliveries based on search query in Sales & Office views
+  // Filter deliveries based on search query
   const filteredDeliveries = deliveries.filter(d => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase().trim();
+    if (!activeSearch.trim()) return true;
+    const q = activeSearch.toLowerCase().trim();
     return (
       d.customerName?.toLowerCase().includes(q) ||
       d.address?.toLowerCase().includes(q) ||
@@ -60,30 +62,16 @@ const BoardGrid = ({
     setEditingTruckId(null);
   };
 
+  const formatDaySubtext = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    const formatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const isToday = dateStr === new Date().toISOString().split('T')[0];
+    return isToday ? `${formatted} · today` : formatted;
+  };
+
   return (
     <div className="manifest-board-wrapper">
-      {/* Grid Controls (Search & View Info) */}
-      <div className="board-top-controls">
-        <div className="search-box-wrap">
-          <Search size={16} className="search-icon" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search customer, address, sales rep..."
-            className="board-search-input"
-          />
-        </div>
-
-        <div className="view-mode-indicator">
-          {editable ? (
-            <span className="mode-badge office">Dispatch Mode (Editable)</span>
-          ) : (
-            <span className="mode-badge sales">Capacity Check Mode (Read-Only)</span>
-          )}
-        </div>
-      </div>
-
       {/* Dispatch Board Grid Container — Days as Rows, Trucks/Drivers as Columns */}
       <div className="board-grid-scroll-container">
         <table className="manifest-dispatch-table">
@@ -91,12 +79,11 @@ const BoardGrid = ({
             <tr>
               <th className="day-col-header-row">
                 <div className="th-day-inner">
-                  <Calendar size={16} />
-                  <span>Day / Date</span>
+                  <span>Day</span>
                 </div>
               </th>
               {trucks.map(trk => (
-                <th key={trk.id} className="truck-col-header" style={{ borderTop: `3px solid ${trk.color || '#D4AF37'}` }}>
+                <th key={trk.id} className="truck-col-header">
                   {editingTruckId === trk.id ? (
                     <div className="truck-edit-inline">
                       <input
@@ -126,7 +113,7 @@ const BoardGrid = ({
                       <div className="truck-color-dot" style={{ background: trk.color || '#D4AF37' }} />
                       <div className="truck-text-details">
                         <span className="truck-name">{trk.name}</span>
-                        <span className="truck-driver"><User size={11} /> {trk.driver}</span>
+                        <span className="truck-driver">{trk.driver}</span>
                       </div>
                       {editable && <Edit2 size={12} className="edit-truck-icon" />}
                     </div>
@@ -147,7 +134,7 @@ const BoardGrid = ({
                   <td className={`day-info-cell ${isToday ? 'today-cell' : ''}`}>
                     <div className="day-label-wrap">
                       <span className="day-name">{dayObj.name}</span>
-                      <span className="day-date">{dateStr}</span>
+                      <span className="day-date">{formatDaySubtext(dateStr)}</span>
                     </div>
                   </td>
 

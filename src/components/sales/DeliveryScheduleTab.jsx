@@ -31,6 +31,15 @@ function getWeekDates(mondayDate) {
   return dates;
 }
 
+function formatWeekRangeText(dates) {
+  if (!dates || dates.length < 5) return '';
+  const d1 = new Date(dates[0] + 'T00:00:00');
+  const d5 = new Date(dates[4] + 'T00:00:00');
+  const m1 = d1.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const m5 = d5.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${m1} — ${m5}`;
+}
+
 const getUserRoleFromPermissions = (user) => {
   if (!user) return 'office';
   const roleName = user.role?.toLowerCase() || '';
@@ -160,7 +169,7 @@ const DeliveryScheduleTab = ({
     await saveTrucks(updatedTrucks);
   };
 
-  const weekRangeText = `${weekDates[0]} to ${weekDates[4]}`;
+  const weekRangeText = formatWeekRangeText(weekDates);
 
   return (
     <div className={`delivery-schedule-container high-density ${theme}-theme-active`}>
@@ -169,13 +178,25 @@ const DeliveryScheduleTab = ({
         <div className="header-left-title">
           {sidebarToggle}
           <div>
-            <h2 className="title-text-compact">Delivery Schedule</h2>
+            <h2 className="title-text-compact">Manifest</h2>
             <span className="subtitle-manifest">Shared weekly dispatch</span>
           </div>
         </div>
 
-        <div className="header-right-controls-group">
-          {/* Week Navigator Controls */}
+        {/* Action Button (Office Mode Only) */}
+        {role === 'office' && (
+          <div className="header-right-actions">
+            <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
+              <Plus size={16} />
+              <span>New ticket</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Control Bar (Week Nav & Search) */}
+      <div className="manifest-sub-control-bar">
+        <div className="control-bar-left">
           <div className="week-navigator-controls">
             <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
               <ChevronLeft size={16} />
@@ -186,22 +207,23 @@ const DeliveryScheduleTab = ({
             <button type="button" className="btn-week-nav" onClick={handleNextWeek} title="Next Week">
               <ChevronRight size={16} />
             </button>
-            <span className="week-range-label"><Calendar size={13} /> {weekRangeText}</span>
           </div>
+          <span className="week-range-label-text">{weekRangeText}</span>
+        </div>
 
-          {/* Action Button (Office Mode Only) */}
-          {role === 'office' && (
-            <div className="header-right-actions">
-              <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
-                <Plus size={16} />
-                <span>New ticket</span>
-              </button>
-            </div>
-          )}
+        <div className="control-bar-right">
+          <div className="search-box-wrap-top">
+            <Search size={15} className="search-icon" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search customer or address"
+              className="board-search-input-top"
+            />
+          </div>
         </div>
       </div>
-
- 
 
       {/* Main Content Area based on Role */}
       {loading ? (
@@ -216,6 +238,7 @@ const DeliveryScheduleTab = ({
               trucks={trucks}
               deliveries={deliveries}
               weekDates={weekDates}
+              searchQuery={searchQuery}
               editable={true}
               onAddDelivery={handleOpenAddModal}
               onEditDelivery={handleOpenEditModal}
@@ -228,6 +251,7 @@ const DeliveryScheduleTab = ({
               trucks={trucks}
               deliveries={deliveries}
               weekDates={weekDates}
+              searchQuery={searchQuery}
               editable={false}
               onEditDelivery={null}
             />

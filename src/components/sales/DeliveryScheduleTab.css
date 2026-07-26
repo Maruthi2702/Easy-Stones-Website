@@ -92,33 +92,41 @@ body.light-theme-active .delivery-schedule-header .title-text-compact,
   color: #1c2333;
 }
 
-/* Week Navigator Controls */
+/* Sub-Control Bar (Week Nav & Search Input) */
+.manifest-sub-control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.control-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
 .week-navigator-controls {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0.3rem 0.6rem;
-  border-radius: 12px;
-}
-
-body.light-theme-active .week-navigator-controls,
-.light-theme-active .week-navigator-controls {
-  background: #ffffff;
-  border-color: #cbd5e1;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  gap: 0.25rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.25rem;
+  border-radius: 8px;
 }
 
 .btn-week-nav {
   height: 32px;
-  padding: 0 0.6rem;
-  border-radius: 8px;
+  padding: 0 0.85rem;
+  border-radius: 6px;
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   color: #cbd5e1;
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -132,25 +140,57 @@ body.light-theme-active .week-navigator-controls,
 }
 
 .btn-week-nav.today {
-  background: rgba(212, 175, 55, 0.15);
-  color: #d4af37;
-  border-color: rgba(212, 175, 55, 0.3);
+  background: transparent;
+  color: #eab308;
+  font-weight: 800;
 }
 
-body.light-theme-active .btn-week-nav,
-.light-theme-active .btn-week-nav {
-  color: #475569;
+.week-range-label-text {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 0.02em;
+  font-family: inherit;
 }
 
-.week-range-label {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #d4af37;
-  font-family: monospace, monospace;
-  margin-left: 0.4rem;
+/* Search Box Top */
+.control-bar-right {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+}
+
+.search-box-wrap-top {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: rgba(26, 26, 26, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  min-width: 320px;
+  transition: border-color 0.2s ease;
+}
+
+.search-box-wrap-top:focus-within {
+  border-color: #d4af37;
+}
+
+.search-box-wrap-top .search-icon {
+  color: #94a3b8;
+}
+
+.board-search-input-top {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ffffff;
+  font-size: 0.88rem;
+  width: 100%;
+  font-family: inherit;
+}
+
+.board-search-input-top::placeholder {
+  color: #64748b;
 }
 
 /* Header Action Button (New Delivery Ticket) */
@@ -376,8 +416,8 @@ body.light-theme-active .manifest-dispatch-table td,
 
 .day-col-header-row {
   width: 170px;
-  padding: 0.85rem 1rem;
-  background: rgba(28, 35, 51, 0.95);
+  padding: 1rem 1.1rem;
+  background: #262626;
   text-align: left;
 }
 
@@ -385,17 +425,15 @@ body.light-theme-active .manifest-dispatch-table td,
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #d4af37;
-  font-size: 0.85rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: #a1a1aa;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .truck-col-header {
-  width: 180px;
-  padding: 0.85rem 1rem;
-  background: rgba(28, 35, 51, 0.9);
+  width: 190px;
+  padding: 0.9rem 1.1rem;
+  background: #262626;
   text-align: left;
 }
 
@@ -404,15 +442,19 @@ body.light-theme-active .truck-col-header,
   background: #ffffff;
 }
 
+.day-grid-row.today-row,
+tr.today-row {
+  background: #271c08 !important;
+}
+
 .day-info-cell {
-  padding: 1rem;
+  padding: 1.1rem;
   background: rgba(255, 255, 255, 0.02);
-  border-left: 4px solid #d4af37;
   vertical-align: middle;
 }
 
 .day-info-cell.today-cell {
-  background: rgba(212, 175, 55, 0.12);
+  background: #271c08 !important;
   border-left: 4px solid #d4af37;
 }
 
@@ -423,7 +465,7 @@ body.light-theme-active .day-info-cell,
 
 body.light-theme-active .day-info-cell.today-cell,
 .light-theme-active .day-info-cell.today-cell {
-  background: #fefce8;
+  background: #fefce8 !important;
 }
 
 .day-label-wrap {
@@ -432,18 +474,21 @@ body.light-theme-active .day-info-cell.today-cell,
 }
 
 .day-label-wrap .day-name {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: #ffffff;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .day-label-wrap .day-date {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: #94a3b8;
-  font-family: monospace, monospace;
+  font-weight: 600;
   margin-top: 2px;
+}
+
+.today-cell .day-label-wrap .day-date {
+  color: #eab308;
 }
 
 body.light-theme-active .day-label-wrap .day-name,
