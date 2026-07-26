@@ -143,8 +143,8 @@ const SalesMapPage = ({ embedded = false }) => {
                     top: '3rem',
                     left: '3rem',
                     zIndex: 10,
-                    backgroundColor: '#1f2937',
-                    border: '2px solid #4ade80',
+                    backgroundColor: '#1c1c1e',
+                    border: '2px solid #d4af37',
                     borderRadius: '8px',
                     padding: '1rem',
                     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
@@ -185,9 +185,9 @@ const SalesMapPage = ({ embedded = false }) => {
                         top: '3rem',
                         right: '3rem',
                         zIndex: 10,
-                        backgroundColor: '#1f2937',
+                        backgroundColor: '#1c1c1e',
                         color: 'white',
-                        border: '2px solid #4ade80',
+                        border: '2px solid #d4af37',
                         borderRadius: '8px',
                         padding: '0.75rem 1rem',
                         cursor: 'pointer',
@@ -200,11 +200,11 @@ const SalesMapPage = ({ embedded = false }) => {
                         transition: 'all 0.2s'
                     }}
                     onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#374151';
+                        e.currentTarget.style.backgroundColor = '#2a2a2d';
                         e.currentTarget.style.transform = 'scale(1.05)';
                     }}
                     onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = '#1f2937';
+                        e.currentTarget.style.backgroundColor = '#1c1c1e';
                         e.currentTarget.style.transform = 'scale(1)';
                     }}
                 >

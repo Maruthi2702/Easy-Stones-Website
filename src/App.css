@@ -124,7 +124,7 @@ main.main-site {
 }
 
 .custom-alert-modal {
-  background: var(--bg-card, #1a1a1a);
+  background: var(--bg-card, #1c1c1e);
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
   border-radius: 16px;
   padding: 2.25rem 2rem;

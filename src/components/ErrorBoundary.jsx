@@ -63,7 +63,7 @@ class ErrorBoundary extends React.Component {
                     </p>
                     <details style={{
                         whiteSpace: 'pre-wrap',
-                        background: 'var(--bg-card, #1e293b)',
+                        background: 'var(--bg-card, #1c1c1e)',
                         padding: '1.25rem',
                         borderRadius: '12px',
                         textAlign: 'left',

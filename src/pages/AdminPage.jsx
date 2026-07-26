@@ -1883,7 +1883,7 @@ const AdminPage = () => {
                             style={{ width: '100%', padding: '0.625rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
                           >
                             {bundleLocations.map(loc => (
-                              <option key={loc} value={loc} style={{ background: '#1a1a1a' }}>{loc}</option>
+                              <option key={loc} value={loc} style={{ background: '#1c1c1e' }}>{loc}</option>
                             ))}
                           </select>
                         </div>
