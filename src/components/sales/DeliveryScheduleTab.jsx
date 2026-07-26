@@ -5,7 +5,6 @@ import DriverView from './delivery/DriverView';
 import DeliveryModal from './delivery/DeliveryModal';
 import {
   getTrucks,
-  saveTrucks,
   getDeliveries,
   saveDelivery,
   deleteDelivery,
@@ -159,12 +158,12 @@ const DeliveryScheduleTab = ({
     setDeliveries(updatedList);
   };
 
-  const handleUpdateTruck = async (id, newName, newDriver) => {
-    const updatedTrucks = trucks.map(t =>
+  const handleUpdateTruck = (id, newName, newDriver) => {
+    // Only update local state — drivers are sourced from the Users tab.
+    // Permanent driver edits should be done via Users & Roles → edit user.
+    setTrucks(prev => prev.map(t =>
       t.id === id ? { ...t, name: newName, driver: newDriver } : t
-    );
-    setTrucks(updatedTrucks);
-    await saveTrucks(updatedTrucks);
+    ));
   };
 
   const weekRangeText = formatWeekRangeText(weekDates);
