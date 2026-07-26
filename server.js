@@ -3792,48 +3792,6 @@ app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
 
 // ── MANIFEST DISPATCH SCHEDULER ENDPOINTS (MongoDB Persisted) ──
 
-const DEFAULT_DELIVERIES_SEED = [
-  {
-    id: 'del_101',
-    truckId: 'trk_1',
-    date: new Date().toISOString().split('T')[0],
-    time: '08:30 AM',
-    customerName: 'Apex Marble & Granite',
-    address: '1420 E Trent Ave, Spokane, WA',
-    salesRepName: 'Krish Manager',
-    status: 'scheduled',
-    notes: 'Forklift on site. Deliver 14 Calacatta slabs.',
-    location: 'Spokane',
-    driver: 'Sergio'
-  },
-  {
-    id: 'del_102',
-    truckId: 'trk_1',
-    date: new Date().toISOString().split('T')[0],
-    time: '11:00 AM',
-    customerName: 'Cascade Home Builders',
-    address: '920 E Sprague Ave, Spokane, WA',
-    salesRepName: 'Alex Rep',
-    status: 'completed',
-    notes: 'Call 30 mins before arrival.',
-    location: 'Spokane',
-    driver: 'Sergio'
-  },
-  {
-    id: 'del_103',
-    truckId: 'trk_2',
-    date: new Date().toISOString().split('T')[0],
-    time: '09:15 AM',
-    customerName: 'Five Star Granite, Inc.',
-    address: '8810 8th Ave S, Seattle, WA',
-    salesRepName: 'Sam Rep',
-    status: 'delayed',
-    notes: 'Running late due to I-5 traffic.',
-    location: 'Seattle',
-    driver: 'Jonathan'
-  }
-];
-
 app.get('/api/trucks', verifyAnyAuth, async (req, res) => {
   try {
     const trucks = await Truck.find().lean();
@@ -3862,11 +3820,7 @@ app.post('/api/trucks', verifyAnyAuth, async (req, res) => {
 
 app.get('/api/deliveries', verifyAnyAuth, async (req, res) => {
   try {
-    let list = await Delivery.find().sort({ createdAt: -1 }).lean();
-    if (list.length === 0) {
-      await Delivery.insertMany(DEFAULT_DELIVERIES_SEED);
-      list = await Delivery.find().sort({ createdAt: -1 }).lean();
-    }
+    const list = await Delivery.find().sort({ createdAt: -1 }).lean();
     res.json(list);
   } catch (err) {
     console.error('[server] get deliveries error:', err);

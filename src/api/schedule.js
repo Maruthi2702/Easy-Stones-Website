@@ -11,56 +11,7 @@ export const DEFAULT_TRUCKS = [
   { id: 'trk_6', name: 'Olympic Cargo', driver: 'Chris Evans', color: '#64748B' }
 ];
 
-export const INITIAL_SAMPLE_DELIVERIES = [
-  {
-    id: 'del_101',
-    truckId: 'trk_1',
-    date: getFormattedDayOffset(1), // Mon/Tue
-    time: '08:30 AM',
-    customerName: 'Apex Marble & Granite',
-    address: '1420 E Trent Ave, Spokane, WA',
-    salesRepName: 'Krish Manager',
-    status: 'scheduled',
-    notes: 'Forklift on site. Deliver 14 Calacatta slabs.',
-    location: 'Spokane'
-  },
-  {
-    id: 'del_102',
-    truckId: 'trk_1',
-    date: getFormattedDayOffset(1),
-    time: '11:00 AM',
-    customerName: 'Cascade Home Builders',
-    address: '920 E Sprague Ave, Spokane, WA',
-    salesRepName: 'Alex Rep',
-    status: 'completed',
-    notes: 'Call 30 mins before arrival.',
-    location: 'Spokane'
-  },
-  {
-    id: 'del_103',
-    truckId: 'trk_2',
-    date: getFormattedDayOffset(2),
-    time: '09:15 AM',
-    customerName: 'Five Star Granite, Inc.',
-    address: '8810 8th Ave S, Seattle, WA',
-    salesRepName: 'Sam Rep',
-    status: 'delayed',
-    notes: 'Running late due to I-5 traffic.',
-    location: 'Seattle'
-  },
-  {
-    id: 'del_104',
-    truckId: 'trk_3',
-    date: getFormattedDayOffset(3),
-    time: '01:30 PM',
-    customerName: 'Pacific Stone Works',
-    address: '405 1st Ave S, Seattle, WA',
-    salesRepName: 'Krish Manager',
-    status: 'scheduled',
-    notes: 'Deliver Taj Mahal Quartzite bundle.',
-    location: 'Seattle'
-  }
-];
+export const INITIAL_SAMPLE_DELIVERIES = [];
 
 function getFormattedDayOffset(offset = 0) {
   const d = new Date();
