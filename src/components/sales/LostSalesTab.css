@@ -781,10 +781,10 @@ body.light-theme-active .detail-pill strong,
   max-width: 680px !important;
   max-height: 90vh !important;
   overflow-y: auto !important;
-  background: #12141d !important;
-  border: 1.5px solid rgba(212, 175, 55, 0.35) !important;
-  border-radius: 20px !important;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75), 0 0 20px rgba(212, 175, 55, 0.1) !important;
+  background: #1c1c1e !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(212, 175, 55, 0.08) !important;
   padding: 1.75rem 2rem !important;
   color: #ffffff !important;
   box-sizing: border-box !important;
@@ -796,7 +796,7 @@ body.light-theme-active .lost-sale-modal-content,
   background: #ffffff !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18), 0 4px 16px rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.15) !important;
 }
 
 .lost-sale-modal-header {
