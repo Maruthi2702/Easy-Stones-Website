@@ -203,7 +203,7 @@ body.light-theme-active .btn-toggle-stats,
 }
 
 .kpi-card {
-  background: rgba(18, 20, 29, 0.75);
+  background: rgba(28, 28, 30, 0.95);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
@@ -399,7 +399,7 @@ body.light-theme-active .select-filter-wrap select option,
 
 /* ── HIGH DENSITY DATA GRID ── */
 .lost-sales-grid-wrapper.high-capacity {
-  background: rgba(18, 20, 29, 0.75);
+  background: rgba(28, 28, 30, 0.95);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
@@ -1264,7 +1264,7 @@ body.light-theme-active .modal-btn-cancel,
 
   /* Executive Mobile Opportunity Cards */
   .lost-sale-card-mobile {
-    background: rgba(18, 20, 29, 0.85);
+    background: rgba(28, 28, 30, 0.98);
     backdrop-filter: blur(16px);
     border: 1.5px solid rgba(255, 255, 255, 0.08);
     border-radius: 16px;

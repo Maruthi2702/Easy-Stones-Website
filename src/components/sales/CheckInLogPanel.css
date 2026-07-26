@@ -1956,7 +1956,7 @@ table.clp-table {
 }
 
 .selection-email-modal-container {
-  background: rgba(26, 26, 26, 0.9);
+  background: #1c1c1e;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
   width: 90%;

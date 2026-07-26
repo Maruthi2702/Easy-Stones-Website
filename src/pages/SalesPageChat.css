@@ -168,7 +168,7 @@
 
 .chat-input-wrapper {
     flex: 1;
-    background: #2C2C2E; /* iOS Dark Input */
+    background: #1c1c1e; /* iOS Dark Input */
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 24px;
     padding: 0.6rem 1.25rem;
@@ -440,7 +440,7 @@
 
     .chat-message.other .message-content {
         border-bottom-left-radius: 4px;
-        background: #2C2C2E;
+        background: #1c1c1e;
         border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
