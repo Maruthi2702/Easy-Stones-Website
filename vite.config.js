@@ -43,12 +43,12 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'https://easystones.onrender.com',
         changeOrigin: true,
         secure: false,
       },
       '/socket.io': {
-        target: 'http://localhost:3001',
+        target: 'https://easystones.onrender.com',
         ws: true,
         changeOrigin: true,
         secure: false,
