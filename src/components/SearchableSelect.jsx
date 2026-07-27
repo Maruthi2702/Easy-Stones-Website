@@ -41,7 +41,13 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
         );
     }, [options, searchTerm, hasOpenedOnce]);
 
-    const selectedOption = React.useMemo(() => options.find(option => option.value === value), [options, value]);
+    const selectedOption = React.useMemo(() => 
+        options.find(option => 
+            option.value === value || 
+            (option.label && value && option.label.toLowerCase() === value.toString().toLowerCase())
+        ), 
+        [options, value]
+    );
 
     const handleSelect = (optionValue, e) => {
         if (e) {
@@ -51,6 +57,9 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
         onChange(optionValue);
         setIsOpen(false);
     };
+
+    const displayText = selectedOption ? selectedOption.label : (value || placeholder || 'Select...');
+    const hasValue = !!(selectedOption || value);
 
     return (
         <div className={`searchable-select-container ${className || ''}`} ref={dropdownRef} style={{ position: 'relative', ...style }}>
@@ -71,8 +80,8 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                     touchAction: 'manipulation'
                 }}
             >
-                <span style={{ color: selectedOption ? '#FFF' : '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {selectedOption ? selectedOption.label : placeholder || 'Select...'}
+                <span style={{ color: hasValue ? '#FFF' : '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {displayText}
                 </span>
                 {isLoading
                     ? <Loader size={14} color="#9CA3AF" style={{ animation: 'spin 1s linear infinite' }} />

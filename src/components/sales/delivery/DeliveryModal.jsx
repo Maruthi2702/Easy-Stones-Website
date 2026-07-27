@@ -45,8 +45,16 @@ const DeliveryModal = ({
       setError('');
       setIsDirty(false);
       if (initialData) {
-        setCustomerName(initialData.customerName || '');
-        setSelectedCustomerId(initialData.customerId || '');
+        const custName = initialData.customerName || '';
+        let custId = initialData.customerId || '';
+        if (!custId && custName) {
+          const match = customerOptions.find(
+            o => o.label?.toLowerCase() === custName.toLowerCase() || o.value === custName
+          );
+          if (match) custId = match.value;
+        }
+        setCustomerName(custName);
+        setSelectedCustomerId(custId || custName);
         setAddress(initialData.address || '');
         setDate(formatForDateInput(initialData.date) || formatForDateInput(new Date()));
         setTime(initialData.time || '09:00 AM');
@@ -60,7 +68,7 @@ const DeliveryModal = ({
         initialSnapshot.current = null;
       }
     }
-  }, [initialData, isOpen, trucks, currentUser]);
+  }, [initialData, isOpen, trucks, currentUser, customerOptions]);
 
   const resetForm = () => {
     setCustomerName('');
@@ -189,11 +197,16 @@ const DeliveryModal = ({
             <label>Customer Name <span className="req-star">*</span></label>
             <SearchableSelect
               options={customerOptions}
-              value={selectedCustomerId}
+              value={selectedCustomerId || customerName}
               onChange={(val) => {
                 setSelectedCustomerId(val);
-                const foundOpt = customerOptions.find(o => o.value === val);
-                if (foundOpt) setCustomerName(foundOpt.label);
+                const foundOpt = customerOptions.find(o => o.value === val || o.label === val);
+                if (foundOpt) {
+                  setCustomerName(foundOpt.label);
+                  setSelectedCustomerId(foundOpt.value);
+                } else {
+                  setCustomerName(val);
+                }
                 markDirty();
               }}
               placeholder="Select Customer or type custom..."
