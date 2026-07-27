@@ -25,7 +25,7 @@ const DeliveryModal = ({
   const [customerName, setCustomerName] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [address, setAddress] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => formatForDateInput(new Date()));
   const [time, setTime] = useState('09:00 AM');
   const [truckId, setTruckId] = useState(trucks[0]?.id || '');
   const [salesRepName, setSalesRepName] = useState(currentUser?.name || '');
@@ -47,7 +47,7 @@ const DeliveryModal = ({
         setCustomerName(initialData.customerName || '');
         setSelectedCustomerId(initialData.customerId || '');
         setAddress(initialData.address || '');
-        setDate(initialData.date || new Date().toISOString().split('T')[0]);
+        setDate(formatForDateInput(initialData.date) || formatForDateInput(new Date()));
         setTime(initialData.time || '09:00 AM');
         setTruckId(initialData.truckId || trucks[0]?.id || '');
         setSalesRepName(initialData.salesRepName || currentUser?.name || '');
@@ -65,7 +65,7 @@ const DeliveryModal = ({
     setCustomerName('');
     setSelectedCustomerId('');
     setAddress('');
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(formatForDateInput(new Date()));
     setTime('09:00 AM');
     setTruckId(trucks[0]?.id || '');
     setSalesRepName(currentUser?.name || '');

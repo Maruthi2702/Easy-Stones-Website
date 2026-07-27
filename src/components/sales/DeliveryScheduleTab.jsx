@@ -12,15 +12,8 @@ import {
   updateDeliveryStatus,
   getDriverUsers
 } from '../../api/schedule';
+import { formatForDateInput, formatDate } from '../../utils/dateUtils';
 import './DeliveryScheduleTab.css';
-
-function getLocalDateStr(dateInput = new Date()) {
-  const d = new Date(dateInput);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 function getWeekMonday(date = new Date()) {
   const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : new Date(date);
@@ -37,7 +30,7 @@ function getWeekDates(mondayDate) {
   for (let i = 0; i < 5; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
-    dates.push(getLocalDateStr(d));
+    dates.push(formatForDateInput(d));
   }
   return dates;
 }

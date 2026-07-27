@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Edit2, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, User } from 'lucide-react';
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
+import { formatForDateInput } from '../../../utils/dateUtils';
 
 const DAYS_OF_WEEK = [
   { name: 'Monday',    short: 'Mon', index: 1 },
@@ -10,13 +11,6 @@ const DAYS_OF_WEEK = [
   { name: 'Thursday', short: 'Thu', index: 4 },
   { name: 'Friday',   short: 'Fri', index: 5 }
 ];
-
-const getLocalDateStr = (d = new Date()) => {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
 
 const BoardGrid = ({
   trucks = [],
@@ -29,7 +23,7 @@ const BoardGrid = ({
   onEditDelivery,
   onUpdateTruck
 }) => {
-  const todayStr = getLocalDateStr(new Date());
+  const todayStr = formatForDateInput(new Date());
   const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
