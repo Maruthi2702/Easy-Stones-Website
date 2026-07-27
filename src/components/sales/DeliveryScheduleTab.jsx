@@ -205,8 +205,9 @@ const DeliveryScheduleTab = ({
   return (
     <div className={`delivery-schedule-container high-density ${theme}-theme-active`}>
 
-      {/* ── OPTION 1: INTEGRATED 1-ROW COMPACT LUXURY TOOLBAR ── */}
+      {/* ── OPTION 1: 1-ROW COMPACT LUXURY TOOLBAR ── */}
       <div className="manifest-top-header header-option-1">
+        {/* Left: Title + Sidebar Menu Button */}
         <div className="manifest-title-block">
           {sidebarToggle}
           <div>
@@ -215,22 +216,23 @@ const DeliveryScheduleTab = ({
           </div>
         </div>
 
-        <div className="manifest-header-right-group">
-          {/* Integrated Glass Pill: Week Controller + Date Range Badge */}
-          <div className="header-glass-pill-nav">
-            <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
-              <ChevronLeft size={15} />
-            </button>
-            <button type="button" className="btn-week-nav today" onClick={handleTodayWeek} title="Current Week">
-              Today
-            </button>
-            <button type="button" className="btn-week-nav" onClick={handleNextWeek} title="Next Week">
-              <ChevronRight size={15} />
-            </button>
-            <div className="pill-divider-line" />
-            <span className="week-range-label-text">{weekRangeText}</span>
-          </div>
+        {/* Center: Integrated Glass Pill Nav */}
+        <div className="header-glass-pill-nav">
+          <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
+            <ChevronLeft size={15} />
+          </button>
+          <button type="button" className="btn-week-nav today" onClick={handleTodayWeek} title="Current Week">
+            Today
+          </button>
+          <button type="button" className="btn-week-nav" onClick={handleNextWeek} title="Next Week">
+            <ChevronRight size={15} />
+          </button>
+          <div className="pill-divider-line" />
+          <span className="week-range-label-text">{weekRangeText}</span>
+        </div>
 
+        {/* Right: Search / New Ticket Action */}
+        <div className="manifest-header-actions">
           {role === 'sales' && (
             <div className="search-box-wrap-header">
               <Search size={15} className="search-icon" />
