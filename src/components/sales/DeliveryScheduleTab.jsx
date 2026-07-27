@@ -205,27 +205,18 @@ const DeliveryScheduleTab = ({
   return (
     <div className={`delivery-schedule-container high-density ${theme}-theme-active`}>
 
-      {/* ── TOP HEADER: Title + Subtitle + New Ticket (office only) ── */}
+      {/* ── UNIFIED TOP HEADER BAR ── */}
       <div className="manifest-top-header">
         <div className="manifest-title-block">
           {sidebarToggle}
           <div>
-            <h2 className="manifest-title">Manifest</h2>
+            <h2 className="manifest-title">Delivery Schedule</h2>
             <span className="manifest-subtitle">{ROLE_SUBTITLES[role]}</span>
           </div>
         </div>
 
-        {role === 'office' && (
-          <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
-            <Plus size={16} />
-            <span>New ticket</span>
-          </button>
-        )}
-      </div>
-
-      {/* ── SUB-CONTROL BAR: Week Nav + Date + Search (sales only) ── */}
-      <div className="manifest-nav-bar">
-        <div className="nav-bar-left">
+        <div className="manifest-header-right-group">
+          {/* Week Navigator Controls */}
           <div className="week-navigator-controls">
             <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
               <ChevronLeft size={16} />
@@ -237,22 +228,29 @@ const DeliveryScheduleTab = ({
               <ChevronRight size={16} />
             </button>
           </div>
-          <span className="week-range-label-text">{weekRangeText}</span>
-        </div>
 
-        {/* Search: only show for sales role, office has it inline elsewhere */}
-        {role === 'sales' && (
-          <div className="search-box-wrap-header">
-            <Search size={15} className="search-icon" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search customer or address"
-              className="board-search-input-header"
-            />
-          </div>
-        )}
+          <span className="week-range-label-text">{weekRangeText}</span>
+
+          {role === 'sales' && (
+            <div className="search-box-wrap-header">
+              <Search size={15} className="search-icon" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search customer..."
+                className="board-search-input-header"
+              />
+            </div>
+          )}
+
+          {role === 'office' && (
+            <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
+              <Plus size={16} />
+              <span>New ticket</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── MAIN CONTENT ── */}
