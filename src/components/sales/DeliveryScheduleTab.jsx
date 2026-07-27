@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Truck, ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from 'lucide-react';
+import { io } from 'socket.io-client';
+import { API_URL } from '../../config/api';
 import BoardGrid from './delivery/BoardGrid';
 import DriverView from './delivery/DriverView';
 import DeliveryModal from './delivery/DeliveryModal';
@@ -109,7 +111,37 @@ const DeliveryScheduleTab = ({
     }
   }, [currentUser]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+
+    let socket;
+    try {
+      const socketUrl = API_URL || window.location.origin;
+      socket = io(socketUrl, {
+        transports: ['websocket', 'polling'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+      });
+
+      socket.on('delivery_update', (updatedList) => {
+        if (Array.isArray(updatedList)) {
+          setDeliveries(updatedList);
+        } else {
+          loadData();
+        }
+      });
+
+      socket.on('truck_update', () => {
+        loadData();
+      });
+    } catch (err) {
+      console.warn('[DeliveryScheduleTab] WebSockets error:', err);
+    }
+
+    return () => {
+      if (socket) socket.disconnect();
+    };
+  }, [loadData]);
 
   const handlePrevWeek = () => {
     const prev = new Date(currentMonday);

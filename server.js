@@ -3812,6 +3812,7 @@ app.post('/api/trucks', verifyAnyAuth, async (req, res) => {
       }
     }
     const updated = await Truck.find().lean();
+    req.app.get('io')?.emit('truck_update', updated);
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: 'Failed to save trucks' });
@@ -3840,6 +3841,7 @@ app.post('/api/deliveries', verifyAnyAuth, async (req, res) => {
     );
 
     const list = await Delivery.find().sort({ createdAt: -1 }).lean();
+    req.app.get('io')?.emit('delivery_update', list);
     res.json(list);
   } catch (err) {
     console.error('[server] save delivery error:', err);
@@ -3852,6 +3854,7 @@ app.delete('/api/deliveries/:id', verifyAnyAuth, async (req, res) => {
     const { id } = req.params;
     await Delivery.deleteOne({ id });
     const list = await Delivery.find().sort({ createdAt: -1 }).lean();
+    req.app.get('io')?.emit('delivery_update', list);
     res.json({ success: true, deliveries: list });
   } catch (err) {
     console.error('[server] delete delivery error:', err);
