@@ -205,8 +205,8 @@ const DeliveryScheduleTab = ({
   return (
     <div className={`delivery-schedule-container high-density ${theme}-theme-active`}>
 
-      {/* ── UNIFIED TOP HEADER BAR ── */}
-      <div className="manifest-top-header">
+      {/* ── OPTION 1: INTEGRATED 1-ROW COMPACT LUXURY TOOLBAR ── */}
+      <div className="manifest-top-header header-option-1">
         <div className="manifest-title-block">
           {sidebarToggle}
           <div>
@@ -216,20 +216,20 @@ const DeliveryScheduleTab = ({
         </div>
 
         <div className="manifest-header-right-group">
-          {/* Week Navigator Controls */}
-          <div className="week-navigator-controls">
+          {/* Integrated Glass Pill: Week Controller + Date Range Badge */}
+          <div className="header-glass-pill-nav">
             <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
-              <ChevronLeft size={16} />
+              <ChevronLeft size={15} />
             </button>
             <button type="button" className="btn-week-nav today" onClick={handleTodayWeek} title="Current Week">
               Today
             </button>
             <button type="button" className="btn-week-nav" onClick={handleNextWeek} title="Next Week">
-              <ChevronRight size={16} />
+              <ChevronRight size={15} />
             </button>
+            <div className="pill-divider-line" />
+            <span className="week-range-label-text">{weekRangeText}</span>
           </div>
-
-          <span className="week-range-label-text">{weekRangeText}</span>
 
           {role === 'sales' && (
             <div className="search-box-wrap-header">
@@ -245,7 +245,7 @@ const DeliveryScheduleTab = ({
           )}
 
           {role === 'office' && (
-            <button type="button" className="btn-add-delivery" onClick={() => handleOpenAddModal()}>
+            <button type="button" className="btn-add-delivery gold-glow-btn" onClick={() => handleOpenAddModal()}>
               <Plus size={16} />
               <span>New ticket</span>
             </button>
