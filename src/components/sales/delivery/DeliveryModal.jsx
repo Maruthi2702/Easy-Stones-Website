@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, Trash2, Calendar, Clock, MapPin, User, Truck, FileText, AlertCircle, AlertTriangle } from 'lucide-react';
 import SearchableSelect from '../../SearchableSelect';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
+import { formatForDateInput } from '../../../utils/dateUtils';
 
 const TIME_SLOTS = [
   '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM',
