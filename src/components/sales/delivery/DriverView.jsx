@@ -11,6 +11,13 @@ const DAYS_OF_WEEK = [
   { name: 'Friday',   short: 'Fri', index: 5 }
 ];
 
+const getLocalDateStr = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const DriverView = ({
   trucks = [],
   deliveries = [],
@@ -18,7 +25,7 @@ const DriverView = ({
   currentUser = null,
   onUpdateStatus
 }) => {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateStr(new Date());
 
   // Auto-detect truck assigned to current logged-in driver user
   const getAssignedTruck = () => {

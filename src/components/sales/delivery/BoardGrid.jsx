@@ -11,6 +11,13 @@ const DAYS_OF_WEEK = [
   { name: 'Friday',   short: 'Fri', index: 5 }
 ];
 
+const getLocalDateStr = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const BoardGrid = ({
   trucks = [],
   deliveries = [],
@@ -22,7 +29,7 @@ const BoardGrid = ({
   onEditDelivery,
   onUpdateTruck
 }) => {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateStr(new Date());
   const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
 
   const [selectedDate, setSelectedDate] = useState(initialDate);

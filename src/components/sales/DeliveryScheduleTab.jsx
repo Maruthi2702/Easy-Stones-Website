@@ -14,19 +14,30 @@ import {
 } from '../../api/schedule';
 import './DeliveryScheduleTab.css';
 
+function getLocalDateStr(dateInput = new Date()) {
+  const d = new Date(dateInput);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function getWeekMonday(date = new Date()) {
-  const d = new Date(date);
+  const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : new Date(date);
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff));
+  const diff = d.getDate() - day + (day === 0 ? 1 : 1);
+  const monday = new Date(d);
+  monday.setDate(diff);
+  return monday;
 }
 
 function getWeekDates(mondayDate) {
   const dates = [];
+  const base = new Date(mondayDate);
   for (let i = 0; i < 5; i++) {
-    const d = new Date(mondayDate);
-    d.setDate(d.getDate() + i);
-    dates.push(d.toISOString().split('T')[0]);
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    dates.push(getLocalDateStr(d));
   }
   return dates;
 }
