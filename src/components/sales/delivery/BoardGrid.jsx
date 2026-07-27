@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, User } from 'lucide-react';
+import { Plus, Edit2, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText } from 'lucide-react';
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
@@ -74,14 +74,16 @@ const BoardGrid = ({
     if (!dateStr) return '';
     const d = new Date(dateStr + 'T00:00:00');
     const formatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const isToday = dateStr === new Date().toISOString().split('T')[0];
+    const isToday = dateStr === todayStr;
     return isToday ? `${formatted} · today` : formatted;
   };
 
-  // Helper for screenshot pill tab label e.g., "Mon 21"
+  // Helper for screenshot pill tab label e.g., "Mon 27"
   const getPillTabLabel = (dayShort, dateStr) => {
     if (!dateStr) return dayShort;
-    const dayNum = dateStr.split('-')[2] || '';
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return dayShort;
+    const dayNum = parseInt(parts[2], 10);
     return `${dayShort} ${dayNum}`;
   };
 
@@ -136,16 +138,19 @@ const BoardGrid = ({
             {DAYS_OF_WEEK.map((dayObj, idx) => {
               const dateStr = weekDates[idx] || '';
               const isSelected = selectedDate === dateStr;
+              const isToday = dateStr === todayStr;
               const pillLabel = getPillTabLabel(dayObj.short, dateStr);
+              const dayStopsCount = deliveries.filter(d => d.date === dateStr).length;
 
               return (
                 <button
                   key={dayObj.short}
                   type="button"
-                  className={`screenshot-pill-btn ${isSelected ? 'active' : ''}`}
+                  className={`screenshot-pill-btn ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
                   onClick={() => setSelectedDate(dateStr)}
                 >
-                  {pillLabel}
+                  <span className="pill-label-text">{pillLabel}</span>
+                  {dayStopsCount > 0 && <span className="pill-count-dot">{dayStopsCount}</span>}
                 </button>
               );
             })}
@@ -153,7 +158,7 @@ const BoardGrid = ({
 
           {/* Subheader summary text */}
           <div className="screenshot-subtext">
-            {trucks.length} trucks · {totalStopsSelectedDay} {totalStopsSelectedDay === 1 ? 'stop' : 'stops'} scheduled
+            {trucks.length} {trucks.length === 1 ? 'truck' : 'trucks'} · {totalStopsSelectedDay} {totalStopsSelectedDay === 1 ? 'stop' : 'stops'} scheduled
           </div>
 
           {/* Driver Cards List */}
@@ -172,7 +177,7 @@ const BoardGrid = ({
                   <div className="driver-card-header">
                     <div className="driver-name-wrap">
                       <span className="driver-color-dot" style={{ background: trk.color || '#D4AF37' }} />
-                      <span className="driver-name-text">{trk.driver}</span>
+                      <span className="driver-name-text">{trk.driver || trk.name}</span>
                     </div>
 
                     <div className="card-top-right">
@@ -197,21 +202,51 @@ const BoardGrid = ({
                     <div className="no-stops-subtext">No stops scheduled</div>
                   ) : (
                     <div className="stops-items-list">
-                      {trkDeliveries.map(del => (
+                      {trkDeliveries.map((del, idx) => (
                         <div
                           key={del.id}
                           className="screenshot-stop-item"
                           onClick={() => onEditDelivery && onEditDelivery(del)}
+                          title={editable ? "Click to edit delivery ticket" : del.customerName}
                         >
                           <div className="stop-item-top">
-                            <span className="stop-time">{del.time || '09:00 AM'}</span>
+                            <span className="stop-time">
+                              <Clock size={13} style={{ marginRight: '5px', opacity: 0.85 }} />
+                              {del.time || '09:00 AM'}
+                            </span>
                             <span className={`stop-status-badge ${del.status || 'scheduled'}`}>
-                              {(del.status === 'completed' ? 'COMPLETE' : del.status || 'SCHEDULED').toUpperCase()}
+                              {del.status === 'completed' || del.status === 'delivered' ? (
+                                <><CheckCircle2 size={11} style={{ marginRight: '3px' }} /> COMPLETED</>
+                              ) : del.status === 'delayed' ? (
+                                <><AlertTriangle size={11} style={{ marginRight: '3px' }} /> DELAYED</>
+                              ) : (
+                                <><Clock size={11} style={{ marginRight: '3px' }} /> SCHEDULED</>
+                              )}
                             </span>
                           </div>
+
                           <h4 className="stop-customer-title">{del.customerName}</h4>
+
                           {del.address && (
-                            <div className="stop-location-text">{del.address}</div>
+                            <div className="stop-location-text">
+                              <MapPin size={13} style={{ marginRight: '5px', opacity: 0.75 }} />
+                              {del.address}
+                            </div>
+                          )}
+
+                          {(del.salesRepName || del.notes) && (
+                            <div className="stop-meta-footer">
+                              {del.salesRepName && (
+                                <span className="stop-rep-badge">
+                                  <User size={11} /> {del.salesRepName}
+                                </span>
+                              )}
+                              {del.notes && (
+                                <span className="stop-notes-badge" title={del.notes}>
+                                  <FileText size={11} /> Notes
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                       ))}
@@ -279,7 +314,7 @@ const BoardGrid = ({
             <tbody>
               {DAYS_OF_WEEK.map((dayObj, idx) => {
                 const dateStr = weekDates[idx] || '';
-                const isToday = dateStr === new Date().toISOString().split('T')[0];
+                const isToday = dateStr === todayStr;
 
                 return (
                   <tr key={dayObj.short} className={`day-grid-row ${isToday ? 'today-row' : ''}`}>

@@ -1673,31 +1673,44 @@ body.light-theme-active .this-week-title,
 
 /* Day Pills Row */
 .screenshot-day-pills {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  overflow-x: auto;
-  padding-bottom: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.55rem;
   margin-bottom: 0.85rem;
-  scrollbar-width: none;
 }
 
-.screenshot-day-pills::-webkit-scrollbar {
-  display: none;
+@media (max-width: 640px) {
+  .screenshot-day-pills {
+    display: flex;
+    overflow-x: auto;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    scrollbar-width: none;
+  }
 }
 
 .screenshot-pill-btn {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
-  padding: 0.55rem 1rem;
+  padding: 0.6rem 0.5rem;
   color: #b0b0b0;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
   white-space: nowrap;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
+}
+
+.screenshot-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
 }
 
 body.light-theme-active .screenshot-pill-btn,
@@ -1708,11 +1721,25 @@ body.light-theme-active .screenshot-pill-btn,
 }
 
 .screenshot-pill-btn.active {
-  background: #e6c25e;
+  background: linear-gradient(135deg, #e6c25e, #d4af37);
   border-color: #e6c25e;
   color: #000000;
   font-weight: 800;
-  box-shadow: 0 4px 12px rgba(230, 194, 94, 0.3);
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.35);
+}
+
+.pill-count-dot {
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+}
+
+.screenshot-pill-btn.active .pill-count-dot {
+  background: rgba(0, 0, 0, 0.2);
+  color: #000000;
 }
 
 /* Subtext Summary */
@@ -1768,10 +1795,11 @@ body.light-theme-active .screenshot-driver-card,
 }
 
 .driver-color-dot {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 8px currentColor;
 }
 
 .driver-name-text {
@@ -1805,33 +1833,36 @@ body.light-theme-active .driver-name-text,
 .capacity-badge.has-stops {
   background: rgba(16, 185, 129, 0.15);
   color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
 .btn-card-add-stop {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  background: rgba(212, 175, 55, 0.14);
-  border: 1px solid rgba(212, 175, 55, 0.4);
+  gap: 0.35rem;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.35);
   color: #e6c25e;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  padding: 0.25rem 0.6rem;
-  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-card-add-stop:hover {
-  background: #d4af37;
+  background: linear-gradient(135deg, #d4af37, #c5a028);
   color: #000000;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.35);
+  transform: translateY(-1px);
 }
 
 .no-stops-subtext {
   font-size: 0.9rem;
   color: #606060;
   font-weight: 500;
-  padding: 0.2rem 0;
+  padding: 0.25rem 0;
 }
 
 /* Stop Items inside Driver Card */
@@ -1842,16 +1873,19 @@ body.light-theme-active .driver-name-text,
 }
 
 .screenshot-stop-item {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
-  padding: 0.75rem 0.9rem;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  padding: 0.9rem 1.1rem;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .screenshot-stop-item:hover {
   background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(212, 175, 55, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
 
 body.light-theme-active .screenshot-stop-item,
@@ -1864,7 +1898,7 @@ body.light-theme-active .screenshot-stop-item,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.4rem;
 }
 
 .stop-time {
@@ -1872,6 +1906,8 @@ body.light-theme-active .screenshot-stop-item,
   font-weight: 800;
   color: #ffffff;
   font-family: monospace;
+  display: inline-flex;
+  align-items: center;
 }
 
 body.light-theme-active .stop-time,
@@ -1882,27 +1918,32 @@ body.light-theme-active .stop-time,
 .stop-status-badge {
   font-size: 0.72rem;
   font-weight: 800;
-  padding: 0.2rem 0.65rem;
+  padding: 0.25rem 0.65rem;
   border-radius: 6px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   background: rgba(16, 185, 129, 0.18);
   color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  display: inline-flex;
+  align-items: center;
 }
 
 .stop-status-badge.delayed {
   background: rgba(225, 96, 42, 0.18);
   color: #ff8c5a;
+  border-color: rgba(225, 96, 42, 0.3);
 }
 
 .stop-status-badge.scheduled {
   background: rgba(212, 175, 55, 0.18);
   color: #e6c25e;
+  border-color: rgba(212, 175, 55, 0.3);
 }
 
 .stop-customer-title {
-  margin: 0 0 0.2rem 0;
-  font-size: 1.1rem;
+  margin: 0 0 0.25rem 0;
+  font-size: 1.12rem;
   font-weight: 800;
   color: #ffffff;
   letter-spacing: -0.2px;
@@ -1915,12 +1956,42 @@ body.light-theme-active .stop-customer-title,
 
 .stop-location-text {
   font-size: 0.88rem;
-  color: #808080;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
 }
 
 body.light-theme-active .stop-location-text,
 .light-theme-active .stop-location-text {
   color: #64748b;
+}
+
+.stop-meta-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stop-rep-badge {
+  font-size: 0.78rem;
+  color: #a0a0a0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.stop-notes-badge {
+  font-size: 0.75rem;
+  color: #e6c25e;
+  background: rgba(212, 175, 55, 0.1);
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
 .driver-notes-box {
