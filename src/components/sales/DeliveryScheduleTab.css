@@ -956,6 +956,251 @@ body.light-theme-active .driver-truck-select,
   font-family: monospace, monospace;
 }
 
+/* Dispatch Board - Screenshot Match Design */
+.dispatch-board-container {
+  background: #0d0d0f;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 1.75rem;
+  max-width: 680px;
+  margin: 0 auto;
+  color: #ffffff;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+}
+
+body.light-theme-active .dispatch-board-container,
+.light-theme-active .dispatch-board-container {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.dispatch-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 1.25rem 0;
+  letter-spacing: -0.5px;
+}
+
+body.light-theme-active .dispatch-title,
+.light-theme-active .dispatch-title {
+  color: #0f172a;
+}
+
+.dispatch-day-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.dispatch-day-pill {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 0.55rem 1.05rem;
+  color: #94a3b8;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.dispatch-day-pill:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.dispatch-day-pill.active {
+  background: #d4af37;
+  border-color: #d4af37;
+  color: #000000;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.25);
+}
+
+.dispatch-summary-text {
+  font-size: 0.88rem;
+  color: #71717a;
+  font-weight: 500;
+  margin-bottom: 1.25rem;
+}
+
+.dispatch-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dispatch-truck-card {
+  background: #141416;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  border-left-width: 5px;
+  border-left-style: solid;
+  padding: 1.15rem 1.35rem;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.dispatch-truck-card:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: #17171a;
+}
+
+body.light-theme-active .dispatch-truck-card,
+.light-theme-active .dispatch-truck-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+.truck-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.truck-driver-info {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.driver-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.driver-name {
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+body.light-theme-active .driver-name,
+.light-theme-active .driver-name {
+  color: #0f172a;
+}
+
+.capacity-badge {
+  font-family: monospace, monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #71717a;
+}
+
+.capacity-badge.has-stops {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.no-stops-message {
+  font-size: 0.95rem;
+  color: #52525b;
+  margin-top: 0.35rem;
+}
+
+.truck-stops-wrapper {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.truck-stop-item {
+  padding-top: 0.25rem;
+}
+
+.stop-time-and-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.stop-time-text {
+  font-family: monospace, monospace;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #a1a1aa;
+  display: flex;
+  align-items: center;
+}
+
+.stop-status-pill {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.stop-status-pill.completed,
+.stop-status-pill.delivered {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.stop-status-pill.delayed,
+.stop-status-pill.late {
+  background: rgba(225, 96, 42, 0.15);
+  color: #ff8c5a;
+  border: 1px solid rgba(225, 96, 42, 0.3);
+}
+
+.stop-status-pill.scheduled {
+  background: rgba(212, 175, 55, 0.15);
+  color: #e6c25e;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.stop-customer-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0.25rem 0;
+  letter-spacing: -0.2px;
+}
+
+body.light-theme-active .stop-customer-title,
+.light-theme-active .stop-customer-title {
+  color: #0f172a;
+}
+
+.stop-location-subtitle {
+  font-size: 0.88rem;
+  color: #71717a;
+  display: flex;
+  align-items: center;
+}
+
+.stop-notes-text {
+  font-size: 0.82rem;
+  color: #d4af37;
+  margin-top: 0.35rem;
+  display: flex;
+  align-items: center;
+}
+
+.driver-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
 /* Driver Cards List */
 .driver-stops-list {
   background: #1c1c1e;

@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Clock, MapPin, CheckCircle2, AlertTriangle, FileText, User } from 'lucide-react';
-import StatusPill from './StatusPill';
+import { Clock, MapPin, CheckCircle2, AlertTriangle, FileText, User } from 'lucide-react';
 
-const DAYS_OF_WEEK = [
-  { name: 'Mon', short: 'Mon', index: 1 },
-  { name: 'Tue', short: 'Tue', index: 2 },
-  { name: 'Wed', short: 'Wed', index: 3 },
-  { name: 'Thu', short: 'Thu', index: 4 },
-  { name: 'Fri', short: 'Fri', index: 5 }
-];
+const DAYS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 
 const DriverView = ({
   trucks = [],
@@ -19,42 +12,7 @@ const DriverView = ({
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Auto-detect truck assigned to current logged-in driver user
-  const getAssignedTruck = () => {
-    const uName = (currentUser?.name || '').toLowerCase();
-    const uUsername = (currentUser?.username || '').toLowerCase();
-
-    if (trucks && trucks.length > 0 && (uName || uUsername)) {
-      const match = trucks.find(t => {
-        const dName = (t.driver || '').toLowerCase();
-        const tName = (t.name || '').toLowerCase();
-        return (
-          (uName && (dName === uName || tName === uName)) ||
-          (uUsername && (dName === uUsername || tName === uUsername)) ||
-          t.id === currentUser?.id ||
-          t.id === currentUser?._id
-        );
-      });
-      if (match) return match;
-    }
-
-    // If logged-in user has driver role, create/use their driver profile
-    if (currentUser) {
-      return {
-        id: currentUser._id || currentUser.id || `drv_${currentUser.username}`,
-        name: currentUser.name || currentUser.username,
-        driver: currentUser.name || currentUser.username,
-        color: '#D4AF37'
-      };
-    }
-
-    return trucks[0] || { id: 'trk_1', name: 'Driver Truck', driver: 'Driver', color: '#D4AF37' };
-  };
-
-  const initialTruck = getAssignedTruck();
   const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
-
-  const [selectedTruckId, setSelectedTruckId] = useState(initialTruck?.id || 'trk_1');
   const [selectedDate, setSelectedDate] = useState(initialDate);
 
   // Sync selectedDate when weekDates changes
@@ -65,39 +23,21 @@ const DriverView = ({
     }
   }, [weekDates, todayStr]);
 
-  // Sync selectedTruckId when trucks or currentUser changes
-  useEffect(() => {
-    const assigned = getAssignedTruck();
-    if (assigned && assigned.id !== selectedTruckId) {
-      setSelectedTruckId(assigned.id);
-    }
-  }, [currentUser, trucks]);
-
-  const currentTruck = trucks.find(t => t.id === selectedTruckId) || initialTruck;
-
-  // Strict delivery matching for current logged in driver
+  // Robust delivery matching helper (handles ISO timestamps, truckId, driver name)
   const isDeliveryMatchingTruck = (d, trk) => {
-    if (!d) return false;
+    if (!d || !trk) return false;
     const dTruckId = String(d.truckId || '');
-    const trkId = String(trk?.id || '');
-    const trkDriver = String(trk?.driver || '').toLowerCase();
-    const trkName = String(trk?.name || '').toLowerCase();
+    const trkId = String(trk.id || trk._id || '');
+    const trkDriver = String(trk.driver || trk.name || '').toLowerCase();
     const dDriver = String(d.driver || '').toLowerCase();
     const dTruckName = String(d.truckName || '').toLowerCase();
+    const trkName = String(trk.name || '').toLowerCase();
 
-    const uName = String(currentUser?.name || '').toLowerCase();
-    const uUsername = String(currentUser?.username || '').toLowerCase();
-    const uId = String(currentUser?._id || currentUser?.id || '');
-
-    const matchesTruck = (trkId && dTruckId === trkId) ||
+    return (
+      (trkId && dTruckId === trkId) ||
       (dDriver && trkDriver && dDriver === trkDriver) ||
-      (dTruckName && trkName && dTruckName === trkName);
-
-    const matchesUser = (uName && dDriver === uName) ||
-      (uUsername && dDriver === uUsername) ||
-      (uId && dTruckId === uId);
-
-    return matchesTruck || matchesUser;
+      (dTruckName && trkName && dTruckName === trkName)
+    );
   };
 
   const isDeliveryMatchingDate = (d, targetDate) => {
@@ -107,156 +47,164 @@ const DriverView = ({
     return delDateStr === targetDateStr;
   };
 
-  // Filter deliveries ONLY for this driver
-  const driverDeliveries = deliveries.filter(d =>
-    isDeliveryMatchingTruck(d, currentTruck) && isDeliveryMatchingDate(d, selectedDate)
-  );
-
-  const getStopsCountForDay = (dateStr) => {
-    return deliveries.filter(d =>
-      isDeliveryMatchingTruck(d, currentTruck) && isDeliveryMatchingDate(d, dateStr)
-    ).length;
+  // Helper to format date string e.g. "Mon 21"
+  const getFormattedDayLabel = (dateStr, idx) => {
+    const dayName = DAYS_SHORT[idx] || 'Day';
+    if (!dateStr) return `${dayName}`;
+    const dayNum = dateStr.slice(8, 10);
+    return `${dayName} ${parseInt(dayNum, 10) || dayNum}`;
   };
 
-  // Check if driver has scheduled stops on ANY other day this week
-  const findOtherDaysWithStops = () => {
-    return weekDates.filter(dStr => dStr !== selectedDate && getStopsCountForDay(dStr) > 0);
-  };
+  // Get total stops scheduled across all trucks for the selected date
+  const selectedDayDeliveries = deliveries.filter(d => isDeliveryMatchingDate(d, selectedDate));
+  const totalStopsOnSelectedDay = selectedDayDeliveries.length;
 
-  const otherDaysWithStops = findOtherDaysWithStops();
-  const driverDisplayName = currentUser?.name || currentTruck?.driver || currentTruck?.name || 'Driver';
+  // Identify current logged-in driver's truck ID if applicable
+  const currentLoggedDriverName = (currentUser?.name || currentUser?.username || '').toLowerCase();
+
+  // If trucks list is empty, build default list from drivers
+  const displayTrucks = trucks && trucks.length > 0 ? trucks : [
+    { id: 'trk_1', name: 'Sergio', driver: 'Sergio', color: '#D4AF37' },
+    { id: 'trk_2', name: 'Rene', driver: 'Rene', color: '#2F8F73' },
+    { id: 'trk_3', name: 'Luis', driver: 'Luis', color: '#E1602A' },
+    { id: 'trk_4', name: 'Marco', driver: 'Marco', color: '#3B82F6' }
+  ];
+
+  // Sort trucks so the logged-in driver appears at the top if logged in
+  const sortedTrucks = [...displayTrucks].sort((a, b) => {
+    if (!currentLoggedDriverName) return 0;
+    const aName = String(a.driver || a.name).toLowerCase();
+    const bName = String(b.driver || b.name).toLowerCase();
+    if (aName === currentLoggedDriverName) return -1;
+    if (bName === currentLoggedDriverName) return 1;
+    return 0;
+  });
 
   return (
-    <div className="driver-view-container mobile-first">
-      {/* Row 1: Day Selector Tabs (Mon-Fri) with Stop Counts */}
-      <div className="driver-day-tabs">
-        {DAYS_OF_WEEK.map((day, idx) => {
-          const dateStr = weekDates[idx] || '';
+    <div className="dispatch-board-container">
+      {/* Header */}
+      <h2 className="dispatch-title">This week</h2>
+
+      {/* Horizontal Day Pills (Mon 21, Tue 22, Wed 23, Thu 24, Fri 25) */}
+      <div className="dispatch-day-tabs">
+        {weekDates.slice(0, 5).map((dateStr, idx) => {
           const isSelected = selectedDate === dateStr;
-          const isToday = dateStr === todayStr;
-          const count = getStopsCountForDay(dateStr);
+          const label = getFormattedDayLabel(dateStr, idx);
 
           return (
             <button
-              key={day.short}
+              key={dateStr || idx}
               type="button"
-              className={`driver-tab-btn ${isSelected ? 'active' : ''} ${isToday ? 'today' : ''}`}
+              className={`dispatch-day-pill ${isSelected ? 'active' : ''}`}
               onClick={() => setSelectedDate(dateStr)}
             >
-              <span className="tab-day-name">
-                {day.name} {count > 0 ? `(${count})` : ''}
-              </span>
-              <span className="tab-day-date">{dateStr ? dateStr.slice(5) : ''}</span>
+              {label}
             </button>
           );
         })}
       </div>
 
-      {/* Deliveries List for Driver */}
-      <div className="driver-stops-list">
-        <div className="driver-stops-header">
-          <h3>
-            Stops for {driverDisplayName} — {selectedDate}
-          </h3>
-          <span className="stops-count-badge">{driverDeliveries.length} Stops</span>
-        </div>
+      {/* Subheader summary: "5 trucks · 1 stop scheduled" */}
+      <div className="dispatch-summary-text">
+        {displayTrucks.length} trucks · {totalStopsOnSelectedDay} stop{totalStopsOnSelectedDay !== 1 ? 's' : ''} scheduled
+      </div>
 
-        {driverDeliveries.length === 0 ? (
-          <div className="empty-stops-placeholder">
-            <Truck size={36} className="empty-truck-icon" />
-            <p>No delivery stops scheduled for this day ({selectedDate}).</p>
-            {otherDaysWithStops.length > 0 && (
-              <div className="other-days-notice" style={{ marginTop: '0.85rem' }}>
-                <span style={{ fontSize: '0.85rem', color: '#d4af37' }}>
-                  Stops scheduled on other days this week:
+      {/* Fleet Driver Cards List */}
+      <div className="dispatch-cards-list">
+        {sortedTrucks.map(truck => {
+          const stopsForTruck = deliveries.filter(d =>
+            isDeliveryMatchingTruck(d, truck) && isDeliveryMatchingDate(d, selectedDate)
+          );
+          const stopCount = stopsForTruck.length;
+          const isCurrentDriverCard = currentLoggedDriverName &&
+            String(truck.driver || truck.name).toLowerCase() === currentLoggedDriverName;
+
+          return (
+            <div
+              key={truck.id || truck._id}
+              className={`dispatch-truck-card ${isCurrentDriverCard ? 'current-driver-highlight' : ''}`}
+              style={{ borderLeftColor: truck.color || '#D4AF37' }}
+            >
+              {/* Card Top: Dot + Driver Name + Capacity Badge (e.g. 1/8) */}
+              <div className="truck-card-header">
+                <div className="truck-driver-info">
+                  <span className="driver-dot" style={{ background: truck.color || '#D4AF37' }} />
+                  <span className="driver-name">{truck.driver || truck.name}</span>
+                </div>
+                <span className={`capacity-badge ${stopCount > 0 ? 'has-stops' : ''}`}>
+                  {stopCount}/8
                 </span>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  {otherDaysWithStops.map(dStr => (
-                    <button
-                      key={dStr}
-                      type="button"
-                      onClick={() => setSelectedDate(dStr)}
-                      style={{
-                        background: 'linear-gradient(135deg, #d4af37, #c5a028)',
-                        color: '#000000',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '0.4rem 0.85rem',
-                        fontSize: '0.82rem',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                        boxShadow: '0 2px 8px rgba(212, 175, 55, 0.25)'
-                      }}
-                    >
-                      {dStr} ({getStopsCountForDay(dStr)} stops)
-                    </button>
-                  ))}
-                </div>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="driver-cards-grid">
-            {driverDeliveries.map((del, index) => (
-              <div
-                key={del.id}
-                className="driver-stop-card"
-                style={{ borderLeftColor: currentTruck?.color || '#D4AF37' }}
-              >
-                <div className="stop-card-header">
-                  <span className="stop-number">Stop #{index + 1}</span>
-                  <span className="stop-time">
-                    <Clock size={14} /> {del.time || '09:00 AM'}
-                  </span>
-                  <StatusPill status={del.status} size="small" />
+
+              {/* Card Body: Stops List or "No stops scheduled" */}
+              {stopCount === 0 ? (
+                <div className="no-stops-message">No stops scheduled</div>
+              ) : (
+                <div className="truck-stops-wrapper">
+                  {stopsForTruck.map(del => {
+                    const statusStr = (del.status || 'scheduled').toLowerCase();
+                    let statusLabel = 'SCHEDULED';
+                    if (statusStr === 'completed' || statusStr === 'delivered') statusLabel = 'COMPLETE';
+                    if (statusStr === 'delayed' || statusStr === 'late') statusLabel = 'DELAYED';
+
+                    return (
+                      <div className="truck-stop-item" key={del.id}>
+                        {/* Time & Status Badge */}
+                        <div className="stop-time-and-status">
+                          <span className="stop-time-text">
+                            <Clock size={13} style={{ marginRight: '4px' }} />
+                            {del.time || '09:00 AM'}
+                          </span>
+                          <span className={`stop-status-pill ${statusStr}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+
+                        {/* Customer Name */}
+                        <h4 className="stop-customer-title">{del.customerName}</h4>
+
+                        {/* Address / Location */}
+                        <div className="stop-location-subtitle">
+                          <MapPin size={13} style={{ marginRight: '4px' }} />
+                          {del.address || 'Location not specified'}
+                        </div>
+
+                        {del.notes && (
+                          <div className="stop-notes-text">
+                            <FileText size={12} style={{ marginRight: '4px' }} />
+                            {del.notes}
+                          </div>
+                        )}
+
+                        {/* Quick action buttons for status updating */}
+                        <div className="driver-quick-actions">
+                          <button
+                            type="button"
+                            className="btn-action-late"
+                            onClick={() => onUpdateStatus && onUpdateStatus(del.id, 'delayed')}
+                            disabled={statusStr === 'delayed' || statusStr === 'late'}
+                          >
+                            <AlertTriangle size={14} />
+                            Running Late
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-action-delivered"
+                            onClick={() => onUpdateStatus && onUpdateStatus(del.id, 'completed')}
+                            disabled={statusStr === 'completed' || statusStr === 'delivered'}
+                          >
+                            <CheckCircle2 size={14} />
+                            Delivered
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                <h4 className="stop-customer">{del.customerName}</h4>
-
-                <div className="stop-address">
-                  <MapPin size={15} />
-                  <span>{del.address || 'Address not provided'}</span>
-                </div>
-
-                {del.notes && (
-                  <div className="stop-notes-box">
-                    <FileText size={14} />
-                    <span>{del.notes}</span>
-                  </div>
-                )}
-
-                {del.salesRepName && (
-                  <div className="stop-sales-rep">
-                    <User size={13} /> Rep: {del.salesRepName}
-                  </div>
-                )}
-
-                {/* Driver Quick Action Buttons */}
-                <div className="driver-action-buttons">
-                  <button
-                    type="button"
-                    className="btn-action-late"
-                    onClick={() => onUpdateStatus && onUpdateStatus(del.id, 'delayed')}
-                    disabled={del.status === 'delayed'}
-                  >
-                    <AlertTriangle size={15} />
-                    <span>Running Late</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className="btn-action-delivered"
-                    onClick={() => onUpdateStatus && onUpdateStatus(del.id, 'completed')}
-                    disabled={del.status === 'completed'}
-                  >
-                    <CheckCircle2 size={15} />
-                    <span>Delivered</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
