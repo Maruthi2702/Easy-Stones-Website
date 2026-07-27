@@ -1528,7 +1528,7 @@ const SalesPage = () => {
             setSelectedCustomerDetail(cachedData);
             setQuickNote(cachedData.quickNote || '');
             setVisitsLoading(false);
-        } else if (!selectedCustomerDetail || selectedCustomerDetail._id !== customerId) {
+        } else {
             setVisitsLoading(true);
         }
 
@@ -1666,13 +1666,18 @@ const SalesPage = () => {
             setCustomerOriginTab(origin);
 
             const isShell = !customer.company && !customer.contactName && !customer.email && !customer.name;
+            const cached = customerCacheRef.current[customer._id];
             if (isShell) {
                 if (selectedCustomerId !== customer._id) {
                     setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
                 }
+                setVisitsLoading(true);
             } else {
-                // Populate selected customer details immediately to transition instantly without list flashes/reloads
-                setSelectedCustomerDetail(customer);
+                // Populate selected customer details immediately to transition instantly
+                setSelectedCustomerDetail(cached || customer);
+                if (!cached || !cached.visits) {
+                    setVisitsLoading(true);
+                }
             }
             setSelectedCustomerId(customer._id);
             
@@ -3668,9 +3673,10 @@ const SalesPage = () => {
 
                                         <div className="chat-container channel-feed">
                                             <div className="chat-messages feed-list">
-                                                {visitsLoading ? (
-                                                    <div className="loading-spinner-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '2rem' }}>
-                                                        <Loader className="spin-animation" size={32} color="#E5C04A" />
+                                                {visitsLoading || (!selectedCustomerDetail?.visits && !customerCacheRef.current[selectedCustomerId]) ? (
+                                                    <div className="loading-spinner-container" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '220px', padding: '3rem 2rem', gap: '12px' }}>
+                                                        <Loader className="spin-animation" size={32} color="#D4AF37" />
+                                                        <span style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 500 }}>Loading customer history...</span>
                                                     </div>
                                                 ) : (
                                                     selectedCustomer.visits?.length > 0 ? (
