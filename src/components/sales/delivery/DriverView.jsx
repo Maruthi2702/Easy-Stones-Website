@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, FileText, User } from 'lucide-react';
+import { Truck, Clock, MapPin, CheckCircle2, AlertTriangle, FileText, User } from 'lucide-react';
 import StatusPill from './StatusPill';
 
 const DAYS_OF_WEEK = [
@@ -21,20 +21,34 @@ const DriverView = ({
 
   // Auto-detect truck assigned to current logged-in driver user
   const getAssignedTruck = () => {
-    if (!trucks || trucks.length === 0) return null;
-    const match = trucks.find(t => {
-      const dName = (t.driver || '').toLowerCase();
-      const tName = (t.name || '').toLowerCase();
-      const uName = (currentUser?.name || '').toLowerCase();
-      const uUsername = (currentUser?.username || '').toLowerCase();
-      return (
-        (uName && (dName === uName || tName === uName)) ||
-        (uUsername && (dName === uUsername || tName === uUsername)) ||
-        t.id === currentUser?.id ||
-        t.id === currentUser?._id
-      );
-    });
-    return match || trucks[0];
+    const uName = (currentUser?.name || '').toLowerCase();
+    const uUsername = (currentUser?.username || '').toLowerCase();
+
+    if (trucks && trucks.length > 0 && (uName || uUsername)) {
+      const match = trucks.find(t => {
+        const dName = (t.driver || '').toLowerCase();
+        const tName = (t.name || '').toLowerCase();
+        return (
+          (uName && (dName === uName || tName === uName)) ||
+          (uUsername && (dName === uUsername || tName === uUsername)) ||
+          t.id === currentUser?.id ||
+          t.id === currentUser?._id
+        );
+      });
+      if (match) return match;
+    }
+
+    // If logged-in user has driver role, create/use their driver profile
+    if (currentUser) {
+      return {
+        id: currentUser._id || currentUser.id || `drv_${currentUser.username}`,
+        name: currentUser.name || currentUser.username,
+        driver: currentUser.name || currentUser.username,
+        color: '#D4AF37'
+      };
+    }
+
+    return trucks[0] || { id: 'trk_1', name: 'Driver Truck', driver: 'Driver', color: '#D4AF37' };
   };
 
   const initialTruck = getAssignedTruck();
@@ -59,9 +73,9 @@ const DriverView = ({
     }
   }, [currentUser, trucks]);
 
-  const currentTruck = trucks.find(t => t.id === selectedTruckId) || trucks[0];
+  const currentTruck = trucks.find(t => t.id === selectedTruckId) || initialTruck;
 
-  // Robust delivery matching helper (handles YYYY-MM-DD vs ISO timestamps, truckId, driver name, salesRep)
+  // Strict delivery matching for current logged in driver
   const isDeliveryMatchingTruck = (d, trk) => {
     if (!d) return false;
     const dTruckId = String(d.truckId || '');
@@ -70,16 +84,20 @@ const DriverView = ({
     const trkName = String(trk?.name || '').toLowerCase();
     const dDriver = String(d.driver || '').toLowerCase();
     const dTruckName = String(d.truckName || '').toLowerCase();
+
     const uName = String(currentUser?.name || '').toLowerCase();
     const uUsername = String(currentUser?.username || '').toLowerCase();
+    const uId = String(currentUser?._id || currentUser?.id || '');
 
-    return (
-      (trkId && dTruckId === trkId) ||
+    const matchesTruck = (trkId && dTruckId === trkId) ||
       (dDriver && trkDriver && dDriver === trkDriver) ||
-      (dTruckName && trkName && dTruckName === trkName) ||
-      (dDriver && uName && dDriver === uName) ||
-      (dDriver && uUsername && dDriver === uUsername)
-    );
+      (dTruckName && trkName && dTruckName === trkName);
+
+    const matchesUser = (uName && dDriver === uName) ||
+      (uUsername && dDriver === uUsername) ||
+      (uId && dTruckId === uId);
+
+    return matchesTruck || matchesUser;
   };
 
   const isDeliveryMatchingDate = (d, targetDate) => {
@@ -89,6 +107,7 @@ const DriverView = ({
     return delDateStr === targetDateStr;
   };
 
+  // Filter deliveries ONLY for this driver
   const driverDeliveries = deliveries.filter(d =>
     isDeliveryMatchingTruck(d, currentTruck) && isDeliveryMatchingDate(d, selectedDate)
   );
@@ -105,6 +124,7 @@ const DriverView = ({
   };
 
   const otherDaysWithStops = findOtherDaysWithStops();
+  const driverDisplayName = currentUser?.name || currentTruck?.driver || currentTruck?.name || 'Driver';
 
   return (
     <div className="driver-view-container mobile-first">
@@ -132,45 +152,11 @@ const DriverView = ({
         })}
       </div>
 
-      {/* Row 2: Drivers / Trucks Selector Bar */}
-      {trucks.length > 0 && (
-        <div className="driver-horizontal-row-bar">
-          <div className="row-bar-title">
-            <Truck size={18} className="truck-icon-gold" />
-            <span>Assigned Driver / Truck:</span>
-          </div>
-          <div className="driver-pills-row">
-            {trucks.map(trk => {
-              const isSelected = trk.id === selectedTruckId;
-              const trkStops = deliveries.filter(d =>
-                isDeliveryMatchingTruck(d, trk) && isDeliveryMatchingDate(d, selectedDate)
-              ).length;
-
-              return (
-                <button
-                  key={trk.id}
-                  type="button"
-                  className={`driver-single-pill ${isSelected ? 'active' : ''}`}
-                  style={{ borderLeftColor: trk.color || '#D4AF37' }}
-                  onClick={() => setSelectedTruckId(trk.id)}
-                >
-                  <div className="pill-color-dot" style={{ background: trk.color || '#D4AF37' }} />
-                  <div className="pill-text-wrap">
-                    <span className="pill-driver-name">{trk.driver}</span>
-                    <span className="pill-truck-name">{trk.name} {trkStops > 0 ? `• ${trkStops} stops` : ''}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Deliveries List for Driver */}
       <div className="driver-stops-list">
         <div className="driver-stops-header">
           <h3>
-            Stops for {currentTruck?.driver || currentTruck?.name || 'Driver'} — {selectedDate}
+            Stops for {driverDisplayName} — {selectedDate}
           </h3>
           <span className="stops-count-badge">{driverDeliveries.length} Stops</span>
         </div>
@@ -184,21 +170,22 @@ const DriverView = ({
                 <span style={{ fontSize: '0.85rem', color: '#d4af37' }}>
                   Stops scheduled on other days this week:
                 </span>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                   {otherDaysWithStops.map(dStr => (
                     <button
                       key={dStr}
                       type="button"
                       onClick={() => setSelectedDate(dStr)}
                       style={{
-                        background: '#d4af37',
+                        background: 'linear-gradient(135deg, #d4af37, #c5a028)',
                         color: '#000000',
                         border: 'none',
                         borderRadius: '6px',
-                        padding: '0.35rem 0.75rem',
-                        fontSize: '0.8rem',
+                        padding: '0.4rem 0.85rem',
+                        fontSize: '0.82rem',
                         fontWeight: '700',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(212, 175, 55, 0.25)'
                       }}
                     >
                       {dStr} ({getStopsCountForDay(dStr)} stops)
@@ -219,7 +206,7 @@ const DriverView = ({
                 <div className="stop-card-header">
                   <span className="stop-number">Stop #{index + 1}</span>
                   <span className="stop-time">
-                    <Clock size={13} /> {del.time}
+                    <Clock size={14} /> {del.time || '09:00 AM'}
                   </span>
                   <StatusPill status={del.status} size="small" />
                 </div>
@@ -228,19 +215,21 @@ const DriverView = ({
 
                 <div className="stop-address">
                   <MapPin size={15} />
-                  <span>{del.address}</span>
+                  <span>{del.address || 'Address not provided'}</span>
                 </div>
 
                 {del.notes && (
                   <div className="stop-notes-box">
-                    <FileText size={13} />
+                    <FileText size={14} />
                     <span>{del.notes}</span>
                   </div>
                 )}
 
-                <div className="stop-sales-rep">
-                  <User size={12} /> Rep: {del.salesRepName || 'Sales Rep'}
-                </div>
+                {del.salesRepName && (
+                  <div className="stop-sales-rep">
+                    <User size={13} /> Rep: {del.salesRepName}
+                  </div>
+                )}
 
                 {/* Driver Quick Action Buttons */}
                 <div className="driver-action-buttons">
