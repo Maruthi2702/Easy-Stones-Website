@@ -140,16 +140,17 @@ const DriverView = ({
           const pillLabel = getPillTabLabel(dayObj.short, dateStr);
           const count = getStopsCountForDay(dateStr);
 
-          return (
-            <button
-              key={dayObj.short}
-              type="button"
-              className={`screenshot-pill-btn ${isSelected ? 'active' : ''}`}
-              onClick={() => setSelectedDate(dateStr)}
-            >
-              {pillLabel} {count > 0 ? `(${count})` : ''}
-            </button>
-          );
+              return (
+                <button
+                  key={dayObj.short}
+                  type="button"
+                  className={`screenshot-pill-btn ${isSelected ? 'active' : ''}`}
+                  onClick={() => setSelectedDate(dateStr)}
+                >
+                  <span className="pill-label-text">{pillLabel}</span>
+                  {count > 0 && <span className="pill-count-dot">{count}</span>}
+                </button>
+              );
         })}
       </div>
 
