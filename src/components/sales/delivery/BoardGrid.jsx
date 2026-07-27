@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit2 } from 'lucide-react';
+import { Plus, Edit2, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, User } from 'lucide-react';
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 
@@ -17,22 +17,25 @@ const BoardGrid = ({
   weekDates = [],
   searchQuery = '',
   editable = false,
-  userLocation = null,        // ← new: filter deliveries by location
+  userLocation = null,
   onAddDelivery,
   onEditDelivery,
   onUpdateTruck
 }) => {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
+
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' (screenshot design) | 'table'
   const [internalSearch] = useState('');
   const activeSearch = searchQuery || internalSearch;
   const [editingTruckId, setEditingTruckId] = useState(null);
   const [tempTruckName, setTempTruckName] = useState('');
   const [tempDriverName, setTempDriverName] = useState('');
 
-  // Filter deliveries: by search query AND by location (if provided)
+  // Filter deliveries by search query & location
   const filteredDeliveries = deliveries.filter(d => {
-    // Location filter — skip if no filter or delivery has no location
     if (userLocation && d.location && d.location !== userLocation) return false;
-
     if (!activeSearch.trim()) return true;
     const q = activeSearch.toLowerCase().trim();
     return (
@@ -45,7 +48,6 @@ const BoardGrid = ({
   const getDeliveriesForCell = (truckId, dateStr) =>
     filteredDeliveries.filter(d => d.truckId === truckId && d.date === dateStr);
 
-  // All deliveries for a cell (ignoring search) for capacity calculation
   const getRawCapacity = (truckId, dateStr) =>
     deliveries.filter(d => d.truckId === truckId && d.date === dateStr).length;
 
@@ -75,9 +77,14 @@ const BoardGrid = ({
     return isToday ? `${formatted} · today` : formatted;
   };
 
-  // Weekly totals per truck
-  const getWeeklyTotal = (truckId) =>
-    deliveries.filter(d => d.truckId === truckId && weekDates.includes(d.date)).length;
+  // Helper for screenshot pill tab label e.g., "Mon 21"
+  const getPillTabLabel = (dayShort, dateStr) => {
+    if (!dateStr) return dayShort;
+    const dayNum = dateStr.split('-')[2] || '';
+    return `${dayShort} ${dayNum}`;
+  };
+
+  const totalStopsSelectedDay = deliveries.filter(d => d.date === selectedDate).length;
 
   if (trucks.length === 0) {
     return (
@@ -93,139 +100,243 @@ const BoardGrid = ({
 
   return (
     <div className="manifest-board-wrapper">
-      <div className="board-grid-scroll-container">
-        <table className="manifest-dispatch-table">
-          <thead>
-            <tr>
-              <th className="day-col-header-row">
-                <div className="th-day-inner"><span>Day</span></div>
-              </th>
-              {trucks.map(trk => (
-                <th
-                  key={trk.id}
-                  className="truck-col-header"
-                  style={{ '--truck-color': trk.color || '#D4AF37' }}
-                >
-                  {editingTruckId === trk.id ? (
-                    <div className="truck-edit-inline">
-                      <input
-                        type="text"
-                        value={tempTruckName}
-                        onChange={(e) => setTempTruckName(e.target.value)}
-                        placeholder="Truck Name"
-                        className="truck-input-sm"
-                      />
-                      <input
-                        type="text"
-                        value={tempDriverName}
-                        onChange={(e) => setTempDriverName(e.target.value)}
-                        placeholder="Driver Name"
-                        className="truck-input-sm"
-                      />
-                      <button
-                        type="button"
-                        className="btn-save-truck-sm"
-                        onClick={() => handleSaveTruck(trk.id)}
-                      >
-                        Save
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="truck-label-wrap" onClick={() => handleStartEditTruck(trk)}>
-                      <div className="truck-color-dot" style={{ background: trk.color || '#D4AF37' }} />
-                      <div className="truck-text-details">
-                        <span className="truck-name">{trk.driver}</span>
-                        <span className="truck-driver">{trk.name}</span>
-                      </div>
-                      {editable && <Edit2 size={12} className="edit-truck-icon" />}
-                    </div>
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
+      {/* View Switcher Header */}
+      <div className="view-mode-toggle-bar">
+        <div className="toggle-left">
+          <span className="mode-active-label">Schedule View</span>
+        </div>
+        <div className="toggle-right-btns">
+          <button
+            type="button"
+            className={`btn-view-toggle ${viewMode === 'cards' ? 'active' : ''}`}
+            onClick={() => setViewMode('cards')}
+          >
+            <LayoutGrid size={14} />
+            <span>Cards View</span>
+          </button>
+          <button
+            type="button"
+            className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`}
+            onClick={() => setViewMode('table')}
+          >
+            <Calendar size={14} />
+            <span>Dispatch Matrix</span>
+          </button>
+        </div>
+      </div>
 
-          <tbody>
+      {viewMode === 'cards' ? (
+        /* ── SCREENSHOT DESIGN LAYOUT ── */
+        <div className="screenshot-schedule-card">
+          <h2 className="this-week-title">This week</h2>
+
+          {/* Day Selector Pills Row */}
+          <div className="screenshot-day-pills">
             {DAYS_OF_WEEK.map((dayObj, idx) => {
               const dateStr = weekDates[idx] || '';
-              const isToday = dateStr === new Date().toISOString().split('T')[0];
+              const isSelected = selectedDate === dateStr;
+              const pillLabel = getPillTabLabel(dayObj.short, dateStr);
 
               return (
-                <tr key={dayObj.short} className={`day-grid-row ${isToday ? 'today-row' : ''}`}>
-                  <td className={`day-info-cell ${isToday ? 'today-cell' : ''}`}>
-                    <div className="day-label-wrap">
-                      <span className="day-name">{dayObj.name}</span>
-                      <span className="day-date">{formatDaySubtext(dateStr)}</span>
-                    </div>
-                  </td>
-
-                  {trucks.map(trk => {
-                    const cellDeliveries = getDeliveriesForCell(trk.id, dateStr);
-                    const rawCount = getRawCapacity(trk.id, dateStr);
-                    const capClass = getCapacityColorClass(rawCount);
-
-                    return (
-                      <td key={trk.id} className="dispatch-cell">
-                        <div className="cell-header-bar">
-                          <span
-                            className={`cell-capacity-pill ${capClass}`}
-                            title={`${rawCount} of ${MAX_TRUCK_CAPACITY} deliveries booked`}
-                          >
-                            {rawCount}/{MAX_TRUCK_CAPACITY}
-                          </span>
-                          {editable && (
-                            <button
-                              type="button"
-                              className="cell-add-btn"
-                              onClick={() => onAddDelivery && onAddDelivery(trk.id, dateStr)}
-                              title={`Add delivery — ${trk.driver} on ${dayObj.name}`}
-                            >
-                              <Plus size={14} />
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="cell-tickets-list">
-                          {cellDeliveries.map(del => (
-                            <TicketChip
-                              key={del.id}
-                              delivery={del}
-                              truckColor={trk.color}
-                              onClick={onEditDelivery}
-                              editable={editable}
-                              searchQuery={activeSearch}
-                            />
-                          ))}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
+                <button
+                  key={dayObj.short}
+                  type="button"
+                  className={`screenshot-pill-btn ${isSelected ? 'active' : ''}`}
+                  onClick={() => setSelectedDate(dateStr)}
+                >
+                  {pillLabel}
+                </button>
               );
             })}
-          </tbody>
+          </div>
 
-          {/* Weekly totals footer row */}
-          <tfoot>
-            <tr className="weekly-totals-row">
-              <td className="totals-label-cell">Week Total</td>
-              {trucks.map(trk => {
-                const total = getWeeklyTotal(trk.id);
-                const weekMax = MAX_TRUCK_CAPACITY * 5;
+          {/* Subheader summary text */}
+          <div className="screenshot-subtext">
+            {trucks.length} trucks · {totalStopsSelectedDay} {totalStopsSelectedDay === 1 ? 'stop' : 'stops'} scheduled
+          </div>
+
+          {/* Driver Cards List */}
+          <div className="screenshot-driver-list">
+            {trucks.map(trk => {
+              const trkDeliveries = getDeliveriesForCell(trk.id, selectedDate);
+              const capCount = getRawCapacity(trk.id, selectedDate);
+
+              return (
+                <div
+                  key={trk.id}
+                  className="screenshot-driver-card"
+                  style={{ borderLeftColor: trk.color || '#D4AF37' }}
+                >
+                  {/* Card Header Row */}
+                  <div className="driver-card-header">
+                    <div className="driver-name-wrap">
+                      <span className="driver-color-dot" style={{ background: trk.color || '#D4AF37' }} />
+                      <span className="driver-name-text">{trk.driver}</span>
+                    </div>
+
+                    <div className="card-top-right">
+                      <span className={`capacity-badge ${capCount > 0 ? 'has-stops' : 'empty'}`}>
+                        {capCount}/{MAX_TRUCK_CAPACITY}
+                      </span>
+                      {editable && (
+                        <button
+                          type="button"
+                          className="btn-card-add-stop"
+                          onClick={() => onAddDelivery && onAddDelivery(trk.id, selectedDate)}
+                          title={`Add stop for ${trk.driver}`}
+                        >
+                          <Plus size={14} /> Add stop
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Content Body */}
+                  {trkDeliveries.length === 0 ? (
+                    <div className="no-stops-subtext">No stops scheduled</div>
+                  ) : (
+                    <div className="stops-items-list">
+                      {trkDeliveries.map(del => (
+                        <div
+                          key={del.id}
+                          className="screenshot-stop-item"
+                          onClick={() => onEditDelivery && onEditDelivery(del)}
+                        >
+                          <div className="stop-item-top">
+                            <span className="stop-time">{del.time || '09:00 AM'}</span>
+                            <span className={`stop-status-badge ${del.status || 'scheduled'}`}>
+                              {(del.status === 'completed' ? 'COMPLETE' : del.status || 'SCHEDULED').toUpperCase()}
+                            </span>
+                          </div>
+                          <h4 className="stop-customer-title">{del.customerName}</h4>
+                          {del.address && (
+                            <div className="stop-location-text">{del.address}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* ── DISPATCH TABLE MATRIX ── */
+        <div className="board-grid-scroll-container">
+          <table className="manifest-dispatch-table">
+            <thead>
+              <tr>
+                <th className="day-col-header-row">
+                  <div className="th-day-inner"><span>Day</span></div>
+                </th>
+                {trucks.map(trk => (
+                  <th
+                    key={trk.id}
+                    className="truck-col-header"
+                    style={{ '--truck-color': trk.color || '#D4AF37' }}
+                  >
+                    {editingTruckId === trk.id ? (
+                      <div className="truck-edit-inline">
+                        <input
+                          type="text"
+                          value={tempTruckName}
+                          onChange={(e) => setTempTruckName(e.target.value)}
+                          placeholder="Truck Name"
+                          className="truck-input-sm"
+                        />
+                        <input
+                          type="text"
+                          value={tempDriverName}
+                          onChange={(e) => setTempDriverName(e.target.value)}
+                          placeholder="Driver Name"
+                          className="truck-input-sm"
+                        />
+                        <button
+                          type="button"
+                          className="btn-save-truck-sm"
+                          onClick={() => handleSaveTruck(trk.id)}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="truck-label-wrap" onClick={() => handleStartEditTruck(trk)}>
+                        <div className="truck-color-dot" style={{ background: trk.color || '#D4AF37' }} />
+                        <div className="truck-text-details">
+                          <span className="truck-name">{trk.driver}</span>
+                          <span className="truck-driver">{trk.name}</span>
+                        </div>
+                        {editable && <Edit2 size={12} className="edit-truck-icon" />}
+                      </div>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {DAYS_OF_WEEK.map((dayObj, idx) => {
+                const dateStr = weekDates[idx] || '';
+                const isToday = dateStr === new Date().toISOString().split('T')[0];
+
                 return (
-                  <td key={trk.id} className="totals-count-cell">
-                    <span
-                      className={`week-total-pill ${total >= weekMax ? 'capacity-alert-red' : total >= weekMax * 0.75 ? 'capacity-warn-amber' : 'capacity-ok-green'}`}
-                    >
-                      {total} / {weekMax}
-                    </span>
-                  </td>
+                  <tr key={dayObj.short} className={`day-grid-row ${isToday ? 'today-row' : ''}`}>
+                    <td className={`day-info-cell ${isToday ? 'today-cell' : ''}`}>
+                      <div className="day-label-wrap">
+                        <span className="day-name">{dayObj.name}</span>
+                        <span className="day-date">{formatDaySubtext(dateStr)}</span>
+                      </div>
+                    </td>
+
+                    {trucks.map(trk => {
+                      const cellDeliveries = getDeliveriesForCell(trk.id, dateStr);
+                      const rawCount = getRawCapacity(trk.id, dateStr);
+                      const capClass = getCapacityColorClass(rawCount);
+
+                      return (
+                        <td key={trk.id} className="dispatch-cell">
+                          <div className="cell-header-bar">
+                            <span
+                              className={`cell-capacity-pill ${capClass}`}
+                              title={`${rawCount} of ${MAX_TRUCK_CAPACITY} deliveries booked`}
+                            >
+                              {rawCount}/{MAX_TRUCK_CAPACITY}
+                            </span>
+                            {editable && (
+                              <button
+                                type="button"
+                                className="cell-add-btn"
+                                onClick={() => onAddDelivery && onAddDelivery(trk.id, dateStr)}
+                                title={`Add delivery — ${trk.driver} on ${dayObj.name}`}
+                              >
+                                <Plus size={14} />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="cell-tickets-list">
+                            {cellDeliveries.map(del => (
+                              <TicketChip
+                                key={del.id}
+                                delivery={del}
+                                truckColor={trk.color}
+                                onClick={onEditDelivery}
+                                editable={editable}
+                                searchQuery={activeSearch}
+                              />
+                            ))}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
                 );
               })}
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
