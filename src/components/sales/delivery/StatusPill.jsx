@@ -1,7 +1,7 @@
 import React from 'react';
 import { CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
 
-const StatusPill = ({ status = 'scheduled', size = 'normal' }) => {
+const StatusPill = ({ status = 'pending', size = 'normal' }) => {
   const getStatusDetails = () => {
     switch (status?.toLowerCase()) {
       case 'completed':
@@ -19,6 +19,13 @@ const StatusPill = ({ status = 'scheduled', size = 'normal' }) => {
           icon: AlertTriangle,
           className: 'pill-status-delayed',
           color: '#E1602A'
+        };
+      case 'pending':
+        return {
+          label: 'Pending',
+          icon: Clock,
+          className: 'pill-status-pending',
+          color: '#f59e0b'
         };
       case 'scheduled':
       default:

@@ -73,7 +73,7 @@ const DeliveryModal = ({
   const [soNumber, setSoNumber] = useState('');
   const [address, setAddress] = useState('');
   const [salesRepName, setSalesRepName] = useState(currentUser?.name || '');
-  const [status, setStatus] = useState('scheduled');
+  const [status, setStatus] = useState('pending');
   const [notes, setNotes] = useState('');
   const [time, setTime] = useState('09:00 AM');
   const [error, setError] = useState('');
@@ -174,7 +174,7 @@ const DeliveryModal = ({
         setSoNumber(initialData.soNumber || initialData.invoiceNumber || '');
         setAddress(initialData.address || '');
         setSalesRepName(initialData.salesRepName || currentUser?.name || '');
-        setStatus(initialData.status || 'scheduled');
+        setStatus(initialData.status || 'pending');
         setNotes(initialData.notes || '');
         setTime(initialData.time || '09:00 AM');
         initialSnapshot.current = JSON.stringify(initialData);
@@ -194,7 +194,7 @@ const DeliveryModal = ({
     setSoNumber('');
     setAddress('');
     setSalesRepName(currentUser?.name || '');
-    setStatus('scheduled');
+    setStatus('pending');
     setNotes('');
     setTime('09:00 AM');
     setError('');
@@ -473,6 +473,7 @@ const DeliveryModal = ({
                 onChange={(e) => { setStatus(e.target.value); markDirty(); }}
                 className={`modal-select-input status-select status-${status}`}
               >
+                <option value="pending">⏳ Pending</option>
                 <option value="scheduled">🕐 Scheduled</option>
                 <option value="delayed">⚠️ Delayed / Running Late</option>
                 <option value="completed">✅ Completed / Delivered</option>

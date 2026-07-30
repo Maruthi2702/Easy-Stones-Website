@@ -2439,11 +2439,26 @@ body.light-theme-active .stop-status-badge.delivered,
   border: 1px solid #a7f3d0 !important;
 }
 
+body.light-theme-active .stop-status-badge.pending,
+.light-theme-active .stop-status-badge.pending,
+body.light-theme-active .pill-status-pending,
+.light-theme-active .pill-status-pending {
+  background: #fffbeb !important;
+  color: #d97706 !important;
+  border: 1px solid #fde68a !important;
+}
+
+.pill-status-pending {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #f59e0b !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+}
+
 body.light-theme-active .stop-status-badge.scheduled,
 .light-theme-active .stop-status-badge.scheduled {
-  background: #fffbeb !important;
-  color: #b38b14 !important;
-  border: 1px solid #fde68a !important;
+  background: #f0fdf4 !important;
+  color: #15803d !important;
+  border: 1px solid #bbf7d0 !important;
 }
 
 body.light-theme-active .stop-status-badge.delayed,
