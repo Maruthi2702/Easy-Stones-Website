@@ -2122,3 +2122,274 @@ body.light-theme-active .stop-location-text,
   }
 }
 
+/* ═══════════════════════════════════════════════════
+   LIGHT THEME PREMIUM DESIGN OVERRIDES (body.light-theme-active)
+   ═══════════════════════════════════════════════════ */
+body.light-theme-active .delivery-schedule-container,
+.light-theme-active .delivery-schedule-container {
+  color: #0f172a;
+}
+
+/* Top Header Title & Subtitle */
+body.light-theme-active .manifest-title,
+.light-theme-active .manifest-title {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+
+body.light-theme-active .manifest-subtitle,
+.light-theme-active .manifest-subtitle {
+  color: #475569 !important;
+}
+
+/* Integrated Glass Pill Navigation */
+body.light-theme-active .header-glass-pill-nav,
+.light-theme-active .header-glass-pill-nav {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-theme-active .pill-divider-line,
+.light-theme-active .pill-divider-line {
+  background: #cbd5e1 !important;
+}
+
+body.light-theme-active .nav-range-text,
+.light-theme-active .nav-range-text {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+body.light-theme-active .btn-week-nav,
+.light-theme-active .btn-week-nav {
+  color: #334155 !important;
+}
+
+body.light-theme-active .btn-week-nav:hover,
+.light-theme-active .btn-week-nav:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Card Wrappers & Scroll Containers */
+body.light-theme-active .board-grid-scroll-container,
+body.light-theme-active .screenshot-schedule-card,
+.light-theme-active .board-grid-scroll-container,
+.light-theme-active .screenshot-schedule-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+}
+
+body.light-theme-active .this-week-title,
+body.light-theme-active .card-inner-top-bar h2,
+body.light-theme-active .card-inner-top-bar h3,
+.light-theme-active .this-week-title,
+.light-theme-active .card-inner-top-bar h2,
+.light-theme-active .card-inner-top-bar h3 {
+  color: #0f172a !important;
+}
+
+/* View Switcher Buttons */
+body.light-theme-active .btn-view-toggle,
+.light-theme-active .btn-view-toggle {
+  background: #ffffff !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+body.light-theme-active .btn-view-toggle:hover,
+.light-theme-active .btn-view-toggle:hover {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+body.light-theme-active .btn-view-toggle.active,
+.light-theme-active .btn-view-toggle.active {
+  background: #fffbeb !important;
+  color: #b38b14 !important;
+  border-color: #d4af37 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.2) !important;
+}
+
+/* Table Header "Day" Box & Columns */
+body.light-theme-active .day-col-header-row,
+body.light-theme-active .th-day-inner,
+.light-theme-active .day-col-header-row,
+.light-theme-active .th-day-inner {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  font-weight: 800 !important;
+}
+
+body.light-theme-active .manifest-dispatch-table th,
+body.light-theme-active .manifest-dispatch-table td,
+.light-theme-active .manifest-dispatch-table th,
+.light-theme-active .manifest-dispatch-table td {
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme-active .truck-col-header,
+.light-theme-active .truck-col-header {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme-active .truck-col-header .truck-name,
+body.light-theme-active .driver-name-text,
+.light-theme-active .truck-col-header .truck-name,
+.light-theme-active .driver-name-text {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+body.light-theme-active .driver-subtext,
+.light-theme-active .driver-subtext {
+  color: #64748b !important;
+}
+
+body.light-theme-active .capacity-badge,
+.light-theme-active .capacity-badge {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+/* Day Row Labels (MONDAY, TUESDAY, etc.) */
+body.light-theme-active .day-info-cell,
+body.light-theme-active .cell-day-label,
+.light-theme-active .day-info-cell,
+.light-theme-active .cell-day-label {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme-active .day-name,
+.light-theme-active .day-name {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+}
+
+body.light-theme-active .day-date-sub,
+.light-theme-active .day-date-sub {
+  color: #64748b !important;
+}
+
+/* Delivery Tickets & Stop Cards */
+body.light-theme-active .screenshot-stop-item,
+body.light-theme-active .manifest-ticket-chip,
+body.light-theme-active .screenshot-driver-card,
+.light-theme-active .screenshot-stop-item,
+.light-theme-active .manifest-ticket-chip,
+.light-theme-active .screenshot-driver-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  color: #0f172a !important;
+}
+
+body.light-theme-active .screenshot-stop-item:hover,
+body.light-theme-active .manifest-ticket-chip:hover,
+.light-theme-active .screenshot-stop-item:hover,
+.light-theme-active .manifest-ticket-chip:hover {
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light-theme-active .stop-customer-title,
+body.light-theme-active .ticket-customer,
+.light-theme-active .stop-customer-title,
+.light-theme-active .ticket-customer {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+body.light-theme-active .stop-time,
+body.light-theme-active .ticket-time-mono,
+.light-theme-active .stop-time,
+.light-theme-active .ticket-time-mono {
+  color: #334155 !important;
+  font-weight: 700 !important;
+}
+
+body.light-theme-active .stop-location-text,
+body.light-theme-active .stop-meta-footer,
+.light-theme-active .stop-location-text,
+.light-theme-active .stop-meta-footer {
+  color: #475569 !important;
+}
+
+body.light-theme-active .stop-rep-badge,
+.light-theme-active .stop-rep-badge {
+  color: #64748b !important;
+}
+
+body.light-theme-active .stop-notes-badge,
+.light-theme-active .stop-notes-badge {
+  background: #fffbeb !important;
+  color: #b38b14 !important;
+  border: 1px solid #fde68a !important;
+}
+
+body.light-theme-active .no-stops-subtext,
+.light-theme-active .no-stops-subtext {
+  color: #94a3b8 !important;
+}
+
+/* Status Badges in Light Theme */
+body.light-theme-active .stop-status-badge.completed,
+body.light-theme-active .stop-status-badge.delivered,
+.light-theme-active .stop-status-badge.completed,
+.light-theme-active .stop-status-badge.delivered {
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+
+body.light-theme-active .stop-status-badge.scheduled,
+.light-theme-active .stop-status-badge.scheduled {
+  background: #fffbeb !important;
+  color: #b38b14 !important;
+  border: 1px solid #fde68a !important;
+}
+
+body.light-theme-active .stop-status-badge.delayed,
+.light-theme-active .stop-status-badge.delayed {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fecaca !important;
+}
+
+/* Day Pills in Cards View (Light Theme) */
+body.light-theme-active .screenshot-pill-btn,
+.light-theme-active .screenshot-pill-btn {
+  background: #ffffff !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+body.light-theme-active .screenshot-pill-btn:hover,
+.light-theme-active .screenshot-pill-btn:hover {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+body.light-theme-active .screenshot-pill-btn.active,
+.light-theme-active .screenshot-pill-btn.active {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  border-color: #0f172a !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25) !important;
+}
+
+body.light-theme-active .screenshot-subtext,
+.light-theme-active .screenshot-subtext {
+  color: #64748b !important;
+}
+
+
