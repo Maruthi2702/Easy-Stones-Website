@@ -1760,10 +1760,10 @@ body.light-theme-active .this-week-title,
 .screenshot-day-pills {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 0.85rem;
+  margin-bottom: 1rem;
   width: 100%;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding: 4px 2px 8px 2px;
   box-sizing: border-box;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -1774,34 +1774,41 @@ body.light-theme-active .this-week-title,
 }
 
 .screenshot-pill-btn {
-  flex: 1 0 62px;
-  min-width: 62px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  flex: 1 0 auto;
+  min-width: 66px;
+  height: 44px;
+  background: var(--bg-card, #1c1c1e);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
   border-radius: 14px;
-  padding: 0.55rem 0.4rem;
-  color: #b0b0b0;
-  font-size: 0.86rem;
-  font-weight: 600;
+  padding: 0.35rem 0.55rem;
+  color: var(--text-secondary, #b0b0b0);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  text-align: center;
+  transition: all 0.2s ease;
   box-sizing: border-box;
   touch-action: manipulation;
+  user-select: none;
+}
+
+.pill-content-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  white-space: nowrap;
 }
 
 .pill-day-name {
-  font-weight: 700;
+  font-size: 0.84rem;
+  font-weight: 600;
   letter-spacing: -0.2px;
 }
 
 .pill-day-num {
+  font-size: 0.92rem;
   font-weight: 800;
-  opacity: 0.9;
 }
 
 .screenshot-pill-btn:hover {
@@ -1810,36 +1817,71 @@ body.light-theme-active .this-week-title,
   color: #ffffff;
 }
 
-body.light-theme-active .screenshot-pill-btn,
-.light-theme-active .screenshot-pill-btn {
-  background: #ffffff;
-  border-color: #cbd5e1;
-  color: #475569;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.screenshot-pill-btn.active {
-  background: linear-gradient(135deg, #e6c25e, #d4af37) !important;
-  border-color: #e6c25e !important;
-  color: #000000 !important;
-  font-weight: 800 !important;
-  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.4) !important;
-}
-
 .pill-count-dot {
-  background: rgba(0, 0, 0, 0.25);
-  color: inherit;
+  background: rgba(212, 175, 55, 0.2);
+  color: #d4af37;
+  border: 1px solid rgba(212, 175, 55, 0.35);
   font-size: 0.72rem;
   font-weight: 800;
-  padding: 0.1rem 0.4rem;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
   border-radius: 10px;
-  min-width: 16px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-.screenshot-pill-btn.active .pill-count-dot {
-  background: rgba(0, 0, 0, 0.2);
-  color: #000000;
+/* Active Gold Pill State for ALL Themes */
+.screenshot-pill-btn.active,
+body.light-theme-active .screenshot-pill-btn.active,
+.light-theme-active .screenshot-pill-btn.active {
+  background: linear-gradient(135deg, #d4af37, #c5a028) !important;
+  border-color: #d4af37 !important;
+  color: #000000 !important;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.38) !important;
+}
+
+.screenshot-pill-btn.active .pill-day-name,
+.screenshot-pill-btn.active .pill-day-num,
+body.light-theme-active .screenshot-pill-btn.active .pill-day-name,
+body.light-theme-active .screenshot-pill-btn.active .pill-day-num,
+.light-theme-active .screenshot-pill-btn.active .pill-day-name,
+.light-theme-active .screenshot-pill-btn.active .pill-day-num {
+  color: #000000 !important;
+  font-weight: 800 !important;
+}
+
+.screenshot-pill-btn.active .pill-count-dot,
+body.light-theme-active .screenshot-pill-btn.active .pill-count-dot,
+.light-theme-active .screenshot-pill-btn.active .pill-count-dot {
+  background: rgba(0, 0, 0, 0.25) !important;
+  color: #000000 !important;
+  border: 1px solid rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Light theme overrides for non-active pills */
+body.light-theme-active .screenshot-pill-btn,
+.light-theme-active .screenshot-pill-btn {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+}
+
+body.light-theme-active .screenshot-pill-btn:hover,
+.light-theme-active .screenshot-pill-btn:hover {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+body.light-theme-active .pill-count-dot,
+.light-theme-active .pill-count-dot {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
 }
 
 /* Subtext Summary */

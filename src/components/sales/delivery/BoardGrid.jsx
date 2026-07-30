@@ -158,8 +158,10 @@ const BoardGrid = ({
                   className={`screenshot-pill-btn ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
                   onClick={() => setSelectedDate(dateStr)}
                 >
-                  <span className="pill-day-name">{dayObj.short}</span>
-                  {dateStr && <span className="pill-day-num">{dateStr.split('-')[2]}</span>}
+                  <div className="pill-content-wrap">
+                    <span className="pill-day-name">{dayObj.short}</span>
+                    {dateStr && <span className="pill-day-num">{dateStr.split('-')[2]}</span>}
+                  </div>
                   {dayStopsCount > 0 && <span className="pill-count-dot">{dayStopsCount}</span>}
                 </button>
               );
