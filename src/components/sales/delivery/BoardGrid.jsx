@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText } from 'lucide-react';
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
@@ -27,13 +27,24 @@ const BoardGrid = ({
   const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  // Default viewMode: 'table' (Dispatch Matrix) for Laptop/Desktop (>= 1024px), 'cards' (Cards View) for Mobile/iPad (< 1024px)
+  // Automatic screen size detection (Desktop/Laptop >= 900px -> Dispatch Matrix 'table', Mobile/iPad < 900px -> Cards View 'cards')
   const [viewMode, setViewMode] = useState(() => {
     if (typeof window !== 'undefined') {
-      return window.innerWidth >= 1024 ? 'table' : 'cards';
+      return window.innerWidth >= 900 ? 'table' : 'cards';
     }
     return 'table';
   });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== 'undefined') {
+        setViewMode(window.innerWidth >= 900 ? 'table' : 'cards');
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [internalSearch] = useState('');
   const activeSearch = searchQuery || internalSearch;
 
@@ -94,27 +105,6 @@ const BoardGrid = ({
 
   return (
     <div className="manifest-board-wrapper">
-      <div className="view-switcher-bar" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem', gap: '0.5rem' }}>
-        <button
-          type="button"
-          className={`btn-view-toggle ${viewMode === 'cards' ? 'active' : ''}`}
-          onClick={() => setViewMode('cards')}
-          title="Switch to Cards View"
-        >
-          <LayoutGrid size={14} />
-          <span>Cards View</span>
-        </button>
-        <button
-          type="button"
-          className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`}
-          onClick={() => setViewMode('table')}
-          title="Switch to Dispatch Matrix"
-        >
-          <Calendar size={14} />
-          <span>Dispatch Matrix</span>
-        </button>
-      </div>
-
       {viewMode === 'cards' ? (
         /* ── SCREENSHOT DESIGN LAYOUT ── */
         <div className="screenshot-schedule-card">
