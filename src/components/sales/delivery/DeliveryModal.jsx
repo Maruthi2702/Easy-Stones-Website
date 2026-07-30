@@ -298,18 +298,27 @@ const DeliveryModal = ({
           </button>
         </div>
 
-        {/* Inline Custom Unsaved Changes Confirmation Banner */}
+        {/* Custom Unsaved Changes Pop-up Modal Overlay */}
         {confirmClose && (
-          <div className="modal-delete-confirm-banner modal-unsaved-confirm-banner">
-            <AlertTriangle size={18} />
-            <span>You have unsaved changes. Are you sure you want to close?</span>
-            <div className="delete-confirm-actions">
-              <button type="button" className="btn-confirm-delete" onClick={handleForceClose}>
-                Yes, Discard
-              </button>
-              <button type="button" className="btn-cancel-delete" onClick={() => setConfirmClose(false)}>
-                Keep Editing
-              </button>
+          <div className="unsaved-modal-backdrop anim-fade-in" onClick={() => setConfirmClose(false)}>
+            <div className="unsaved-modal-card anim-scale-in" onClick={(e) => e.stopPropagation()}>
+              <div className="unsaved-modal-header">
+                <div className="unsaved-icon-badge">
+                  <AlertTriangle size={24} />
+                </div>
+                <h4>Unsaved Changes</h4>
+              </div>
+              <p className="unsaved-modal-body">
+                You have unsaved changes on this delivery ticket. Are you sure you want to discard your changes and close?
+              </p>
+              <div className="unsaved-modal-actions">
+                <button type="button" className="btn-keep-editing" onClick={() => setConfirmClose(false)}>
+                  Keep Editing
+                </button>
+                <button type="button" className="btn-discard-changes" onClick={handleForceClose}>
+                  Discard Changes
+                </button>
+              </div>
             </div>
           </div>
         )}
