@@ -4790,6 +4790,15 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
       errors: []
     };
 
+    // Helper to normalize strings (lowercase & strip non-alphanumeric characters like spaces/punctuation)
+    const normalizeStr = (str) => {
+      if (!str || typeof str !== 'string') return '';
+      return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+    };
+
+    // Fetch existing customers to check in-memory for fast normalized comparisons
+    const existingCustomersList = await Customer.find().lean();
+
     // Iterate through all rows
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
@@ -4798,22 +4807,18 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
         const rawEmail = row[emailKey];
 
         if (!rawEmail || typeof rawEmail !== 'string') {
-          // Only report error if the row looks like it should contain data (has other fields)
           if (Object.keys(row).length > 2) {
             results.errors.push(`Row ${i + 2}: Missing or invalid email`);
           }
           continue;
         }
 
-        // Basic validation
         if (!rawEmail.includes('@')) {
           results.errors.push(`Row ${i + 2}: Invalid email format "${rawEmail}"`);
           continue;
         }
 
         const email = rawEmail.toLowerCase().trim();
-
-        // Prepare data from row
         const contactName = (nameKey && row[nameKey]) ? String(row[nameKey]).trim() : 'Unknown';
         const company = (companyKey && row[companyKey]) ? String(row[companyKey]).trim() : contactName;
         const phone = (phoneKey && row[phoneKey]) ? String(row[phoneKey]).trim() : '';
@@ -4822,17 +4827,32 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
         const state = (stateKey && row[stateKey]) ? String(row[stateKey]).trim() : '';
         const zipCode = (zipKey && row[zipKey]) ? String(row[zipKey]).trim() : '';
 
-        // Check if customer already exists by email OR matching company name (case-insensitive)
-        const queryConditions = [{ email: email }];
-        if (company && company !== 'Unknown') {
-          const escapedComp = company.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-          queryConditions.push({ company: { $regex: new RegExp(`^${escapedComp}$`, 'i') } });
-        }
+        const normEmail = email;
+        const normCompany = normalizeStr(company);
+        const normStreet = normalizeStr(street);
 
-        let customer = await Customer.findOne({ $or: queryConditions });
+        // Check if customer already exists by email, normalized company name (lowercase, no spaces), or street address
+        const isExisting = existingCustomersList.some(c => {
+          // 1. Email match
+          if (normEmail && c.email && c.email.toLowerCase().trim() === normEmail) {
+            return true;
+          }
+          // 2. Company name match (lowercase & no spaces)
+          if (normCompany && normCompany !== 'unknown' && c.company) {
+            if (normalizeStr(c.company) === normCompany) {
+              return true;
+            }
+          }
+          // 3. Street address match
+          if (normStreet && c.address?.street) {
+            if (normalizeStr(c.address.street) === normStreet) {
+              return true;
+            }
+          }
+          return false;
+        });
 
-        if (customer) {
-          // Skip existing customers to preserve existing edits
+        if (isExisting) {
           results.skipped++;
           continue;
         } else {
@@ -4851,10 +4871,11 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
               zipCode: zipCode
             },
             isVerified: true,
-            priceLevel: 1 // Default level
+            priceLevel: 1
           });
 
           await newCustomer.save();
+          existingCustomersList.push(newCustomer.toObject());
           results.added++;
         }
       } catch (err) {
