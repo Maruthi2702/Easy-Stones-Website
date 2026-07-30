@@ -2229,9 +2229,9 @@ body.light-theme-active .day-col-header-row,
 body.light-theme-active .th-day-inner,
 .light-theme-active .day-col-header-row,
 .light-theme-active .th-day-inner {
-  background: #f1f5f9 !important;
+  background: #ffffff !important;
   color: #0f172a !important;
-  border-color: #cbd5e1 !important;
+  border-color: #e2e8f0 !important;
   font-weight: 800 !important;
 }
 
