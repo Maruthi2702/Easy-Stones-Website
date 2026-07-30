@@ -218,15 +218,17 @@ const DeliveryScheduleTab = ({
 
         {/* Center: Integrated Glass Pill Nav */}
         <div className="header-glass-pill-nav">
-          <button type="button" className="btn-week-nav" onClick={handlePrevWeek} title="Previous Week">
-            <ChevronLeft size={15} />
-          </button>
-          <button type="button" className="btn-week-nav today" onClick={handleTodayWeek} title="Current Week">
-            Today
-          </button>
-          <button type="button" className="btn-week-nav" onClick={handleNextWeek} title="Next Week">
-            <ChevronRight size={15} />
-          </button>
+          <div className="week-nav-btn-group">
+            <button type="button" className="btn-week-arrow" onClick={handlePrevWeek} title="Previous Week">
+              <ChevronLeft size={16} />
+            </button>
+            <button type="button" className="btn-week-today" onClick={handleTodayWeek} title="Current Week">
+              Today
+            </button>
+            <button type="button" className="btn-week-arrow" onClick={handleNextWeek} title="Next Week">
+              <ChevronRight size={16} />
+            </button>
+          </div>
           <div className="pill-divider-line" />
           <span className="week-range-label-text">{weekRangeText}</span>
         </div>

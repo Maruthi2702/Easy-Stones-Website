@@ -58,14 +58,60 @@
 .header-glass-pill-nav {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  background: rgba(28, 28, 30, 0.85);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 0.32rem 0.9rem 0.32rem 0.45rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  gap: 0.5rem;
+  background: var(--bg-card, #1c1c1e);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  padding: 0.35rem 0.85rem 0.35rem 0.4rem;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   flex-shrink: 0;
+}
+
+.week-nav-btn-group {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.btn-week-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #b0b0b0);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-week-arrow:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary, #ffffff);
+}
+
+.btn-week-today {
+  padding: 0 0.65rem;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #ffffff);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-week-today:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--accent-primary, #d4af37);
 }
 
 .pill-divider-line {
@@ -2413,6 +2459,34 @@ body.light-theme-active .header-glass-pill-nav,
   background: #ffffff !important;
   border: 1px solid #cbd5e1 !important;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-theme-active .week-nav-btn-group,
+.light-theme-active .week-nav-btn-group {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme-active .btn-week-arrow,
+.light-theme-active .btn-week-arrow {
+  color: #475569 !important;
+}
+
+body.light-theme-active .btn-week-arrow:hover,
+.light-theme-active .btn-week-arrow:hover {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+body.light-theme-active .btn-week-today,
+.light-theme-active .btn-week-today {
+  color: #0f172a !important;
+}
+
+body.light-theme-active .btn-week-today:hover,
+.light-theme-active .btn-week-today:hover {
+  background: #ffffff !important;
+  color: #b38b14 !important;
 }
 
 body.light-theme-active .pill-divider-line,
