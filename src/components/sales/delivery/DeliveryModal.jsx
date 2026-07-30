@@ -344,7 +344,7 @@ const DeliveryModal = ({
             </div>
 
             {/* Route Stop & Assigned Driver — 2 col grid like VisitModal */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="delivery-form-2col">
               <div className="form-group">
                 <label><Navigation size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Route (Stop #)</label>
                 <select
@@ -401,7 +401,7 @@ const DeliveryModal = ({
             </div>
 
             {/* SO / Invoice# & Delivery Address */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="delivery-form-2col">
               <div className="form-group">
                 <label><Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />SO / Invoice# <span style={{ color: 'red' }}>*</span></label>
                 <input
@@ -425,7 +425,7 @@ const DeliveryModal = ({
             </div>
 
             {/* Sales Rep & Status */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="delivery-form-2col">
               <div className="form-group">
                 <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Sales Representative</label>
                 {salesRepsList.length > 0 ? (

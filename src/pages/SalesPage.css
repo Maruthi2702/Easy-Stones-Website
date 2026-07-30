@@ -1714,6 +1714,19 @@
   gap: 1rem;
 }
 
+/* Delivery Modal responsive 2-column grid */
+.delivery-form-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 560px) {
+  .delivery-form-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
 .checkbox-group {
   display: flex;
   align-items: center;
