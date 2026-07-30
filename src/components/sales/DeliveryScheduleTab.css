@@ -1766,29 +1766,22 @@ body.light-theme-active .this-week-title,
 }
 
 .ux-day-pills-bar {
-  display: flex;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.25rem;
   margin-bottom: 1.1rem;
   width: 100%;
-  overflow-x: auto;
-  padding: 4px 2px 8px 2px;
   box-sizing: border-box;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.ux-day-pills-bar::-webkit-scrollbar {
-  display: none;
 }
 
 .ux-day-pill-card {
-  flex: 1 0 68px;
-  min-width: 68px;
-  height: 72px;
+  width: 100%;
+  min-width: 0;
+  height: 66px;
   background: var(--bg-card, #1c1c1e);
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
-  border-radius: 16px;
-  padding: 0.45rem 0.35rem;
+  border-radius: 12px;
+  padding: 0.35rem 0.1rem;
   color: var(--text-secondary, #b0b0b0);
   cursor: pointer;
   display: flex;
@@ -1803,24 +1796,28 @@ body.light-theme-active .this-week-title,
 }
 
 .ux-pill-day-name {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.2px;
   color: var(--text-light, #808080);
 }
 
 .ux-pill-date-num {
-  font-size: 1.22rem;
+  font-size: 1.1rem;
   font-weight: 800;
   line-height: 1.1;
   color: var(--text-primary, #ffffff);
 }
 
 .ux-pill-stops-count {
-  font-size: 0.65rem;
+  font-size: 0.58rem;
   font-weight: 700;
   color: var(--text-muted, #606060);
   margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 /* Hover & Active States */
