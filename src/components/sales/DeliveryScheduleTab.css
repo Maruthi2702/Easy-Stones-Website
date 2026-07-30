@@ -1756,11 +1756,19 @@ body.light-theme-active .this-week-title,
   color: #0f172a;
 }
 
-/* Day Pills Row — Touch optimized scrollable bar */
-.screenshot-day-pills {
+/* ═══════════════════════════════════════════════════
+   UX REDESIGN MOBILE LAYOUT (Clean, Luxury Mobile View)
+   ═══════════════════════════════════════════════════ */
+.ux-mobile-schedule-container {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.25rem;
+}
+
+.ux-day-pills-bar {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.1rem;
   width: 100%;
   overflow-x: auto;
   padding: 4px 2px 8px 2px;
@@ -1769,119 +1777,245 @@ body.light-theme-active .this-week-title,
   -webkit-overflow-scrolling: touch;
 }
 
-.screenshot-day-pills::-webkit-scrollbar {
+.ux-day-pills-bar::-webkit-scrollbar {
   display: none;
 }
 
-.screenshot-pill-btn {
-  flex: 1 0 auto;
-  min-width: 66px;
-  height: 44px;
+.ux-day-pill-card {
+  flex: 1 0 68px;
+  min-width: 68px;
+  height: 72px;
   background: var(--bg-card, #1c1c1e);
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
-  border-radius: 14px;
-  padding: 0.35rem 0.55rem;
+  border-radius: 16px;
+  padding: 0.45rem 0.35rem;
   color: var(--text-secondary, #b0b0b0);
   cursor: pointer;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  transition: all 0.2s ease;
+  gap: 0.1rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
   touch-action: manipulation;
   user-select: none;
 }
 
-.pill-content-wrap {
-  display: flex;
-  align-items: baseline;
-  gap: 0.25rem;
-  white-space: nowrap;
+.ux-pill-day-name {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-light, #808080);
 }
 
-.pill-day-name {
-  font-size: 0.84rem;
-  font-weight: 600;
-  letter-spacing: -0.2px;
-}
-
-.pill-day-num {
-  font-size: 0.92rem;
+.ux-pill-date-num {
+  font-size: 1.22rem;
   font-weight: 800;
+  line-height: 1.1;
+  color: var(--text-primary, #ffffff);
 }
 
-.screenshot-pill-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.25);
-  color: #ffffff;
+.ux-pill-stops-count {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted, #606060);
+  margin-top: 1px;
 }
 
-.pill-count-dot {
-  background: rgba(212, 175, 55, 0.2);
-  color: #d4af37;
-  border: 1px solid rgba(212, 175, 55, 0.35);
-  font-size: 0.72rem;
-  font-weight: 800;
-  min-width: 19px;
-  height: 19px;
-  padding: 0 4px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-sizing: border-box;
+/* Hover & Active States */
+.ux-day-pill-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
-/* Active Gold Pill State for ALL Themes */
-.screenshot-pill-btn.active,
-body.light-theme-active .screenshot-pill-btn.active,
-.light-theme-active .screenshot-pill-btn.active {
+.ux-day-pill-card.active,
+body.light-theme-active .ux-day-pill-card.active,
+.light-theme-active .ux-day-pill-card.active {
   background: linear-gradient(135deg, #d4af37, #c5a028) !important;
   border-color: #d4af37 !important;
   color: #000000 !important;
-  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.38) !important;
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4) !important;
+  transform: translateY(-1px);
 }
 
-.screenshot-pill-btn.active .pill-day-name,
-.screenshot-pill-btn.active .pill-day-num,
-body.light-theme-active .screenshot-pill-btn.active .pill-day-name,
-body.light-theme-active .screenshot-pill-btn.active .pill-day-num,
-.light-theme-active .screenshot-pill-btn.active .pill-day-name,
-.light-theme-active .screenshot-pill-btn.active .pill-day-num {
+.ux-day-pill-card.active .ux-pill-day-name,
+.ux-day-pill-card.active .ux-pill-date-num,
+.ux-day-pill-card.active .ux-pill-stops-count,
+body.light-theme-active .ux-day-pill-card.active .ux-pill-day-name,
+body.light-theme-active .ux-day-pill-card.active .ux-pill-date-num,
+body.light-theme-active .ux-day-pill-card.active .ux-pill-stops-count,
+.light-theme-active .ux-day-pill-card.active .ux-pill-day-name,
+.light-theme-active .ux-day-pill-card.active .ux-pill-date-num,
+.light-theme-active .ux-day-pill-card.active .ux-pill-stops-count {
   color: #000000 !important;
   font-weight: 800 !important;
 }
 
-.screenshot-pill-btn.active .pill-count-dot,
-body.light-theme-active .screenshot-pill-btn.active .pill-count-dot,
-.light-theme-active .screenshot-pill-btn.active .pill-count-dot {
-  background: rgba(0, 0, 0, 0.25) !important;
-  color: #000000 !important;
-  border: 1px solid rgba(0, 0, 0, 0.3) !important;
-}
-
-/* Light theme overrides for non-active pills */
-body.light-theme-active .screenshot-pill-btn,
-.light-theme-active .screenshot-pill-btn {
+/* Light Theme overrides for non-active pills */
+body.light-theme-active .ux-day-pill-card,
+.light-theme-active .ux-day-pill-card {
   background: #ffffff !important;
   border-color: #e2e8f0 !important;
-  color: #475569 !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
 }
 
-body.light-theme-active .screenshot-pill-btn:hover,
-.light-theme-active .screenshot-pill-btn:hover {
-  background: #f8fafc !important;
+body.light-theme-active .ux-pill-day-name,
+.light-theme-active .ux-pill-day-name {
+  color: #64748b !important;
+}
+
+body.light-theme-active .ux-pill-date-num,
+.light-theme-active .ux-pill-date-num {
   color: #0f172a !important;
 }
 
-body.light-theme-active .pill-count-dot,
-.light-theme-active .pill-count-dot {
-  background: #f1f5f9;
-  color: #475569;
-  border-color: #cbd5e1;
+body.light-theme-active .ux-pill-stops-count,
+.light-theme-active .ux-pill-stops-count {
+  color: #94a3b8 !important;
+}
+
+/* Subtext */
+.ux-schedule-subtext {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary, #b0b0b0);
+  margin-bottom: 1.25rem;
+}
+
+body.light-theme-active .ux-schedule-subtext,
+.light-theme-active .ux-schedule-subtext {
+  color: #64748b !important;
+}
+
+/* Driver Cards Container */
+.ux-driver-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.ux-driver-card {
+  background: var(--bg-card, #1c1c1e);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-left-width: 4px;
+  border-radius: 16px;
+  padding: 1.1rem;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+body.light-theme-active .ux-driver-card,
+.light-theme-active .ux-driver-card {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Driver Header */
+.ux-driver-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+}
+
+.ux-driver-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.ux-driver-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.ux-driver-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-primary, #ffffff);
+}
+
+body.light-theme-active .ux-driver-name,
+.light-theme-active .ux-driver-name {
+  color: #0f172a !important;
+}
+
+.ux-driver-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.ux-capacity-badge {
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 0.25rem 0.6rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary, #b0b0b0);
+}
+
+body.light-theme-active .ux-capacity-badge,
+.light-theme-active .ux-capacity-badge {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+.ux-btn-add-stop {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.08));
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  color: var(--accent-primary, #d4af37);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.3rem 0.75rem;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s ease;
+}
+
+.ux-btn-add-stop:hover {
+  background: linear-gradient(135deg, #d4af37, #c5a028);
+  color: #000000;
+  border-color: #d4af37;
+}
+
+body.light-theme-active .ux-btn-add-stop,
+.light-theme-active .ux-btn-add-stop {
+  background: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #b38b14 !important;
+}
+
+body.light-theme-active .ux-btn-add-stop:hover,
+.light-theme-active .ux-btn-add-stop:hover {
+  background: linear-gradient(135deg, #d4af37, #c5a028) !important;
+  color: #000000 !important;
+}
+
+.ux-no-stops-text {
+  font-size: 0.9rem;
+  color: var(--text-muted, #606060);
+  font-style: italic;
+  padding: 0.5rem 0;
+}
+
+body.light-theme-active .ux-no-stops-text,
+.light-theme-active .ux-no-stops-text {
+  color: #94a3b8 !important;
+}
+
+.ux-tickets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
 /* Subtext Summary */

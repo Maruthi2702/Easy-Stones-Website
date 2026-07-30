@@ -139,42 +139,41 @@ const BoardGrid = ({
   return (
     <div className="manifest-board-wrapper">
       {viewMode === 'cards' ? (
-        /* ── SCREENSHOT DESIGN LAYOUT ── */
-        <div className="screenshot-schedule-card">
+        /* ── UX REDESIGN MOBILE LAYOUT ── */
+        <div className="ux-mobile-schedule-container">
 
-          {/* Day Selector Pills Row */}
-          <div className="screenshot-day-pills" ref={pillsRef}>
+          {/* Day Selector Pills Bar */}
+          <div className="ux-day-pills-bar" ref={pillsRef}>
             {DAYS_OF_WEEK.map((dayObj, idx) => {
               const dateStr = weekDates[idx] || '';
               const isSelected = selectedDate === dateStr;
               const isToday = dateStr === todayStr;
-              const pillLabel = getPillTabLabel(dayObj, dateStr);
               const dayStopsCount = deliveries.filter(d => d.date === dateStr).length;
 
               return (
                 <button
                   key={dayObj.short}
                   type="button"
-                  className={`screenshot-pill-btn ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
+                  className={`ux-day-pill-card ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
                   onClick={() => setSelectedDate(dateStr)}
                 >
-                  <div className="pill-content-wrap">
-                    <span className="pill-day-name">{dayObj.short}</span>
-                    {dateStr && <span className="pill-day-num">{dateStr.split('-')[2]}</span>}
-                  </div>
-                  {dayStopsCount > 0 && <span className="pill-count-dot">{dayStopsCount}</span>}
+                  <span className="ux-pill-day-name">{dayObj.short.toUpperCase()}</span>
+                  <span className="ux-pill-date-num">{dateStr ? dateStr.split('-')[2] : ''}</span>
+                  <span className="ux-pill-stops-count">
+                    {isSelected ? 'Active' : (dayStopsCount > 0 ? `${dayStopsCount} ${dayStopsCount === 1 ? 'stop' : 'stops'}` : '0 stops')}
+                  </span>
                 </button>
               );
             })}
           </div>
 
-          {/* Subheader summary text */}
-          <div className="screenshot-subtext">
+          {/* Day Subtext Summary */}
+          <div className="ux-schedule-subtext">
             {trucks.length} {trucks.length === 1 ? 'truck' : 'trucks'} · {totalStopsSelectedDay} {totalStopsSelectedDay === 1 ? 'stop' : 'stops'} scheduled
           </div>
 
-          {/* Driver Cards List */}
-          <div className="screenshot-driver-list">
+          {/* Driver Sections */}
+          <div className="ux-driver-list">
             {trucks.map(trk => {
               const trkDeliveries = getDeliveriesForCell(trk.id, selectedDate);
               const capCount = getRawCapacity(trk.id, selectedDate);
@@ -182,24 +181,24 @@ const BoardGrid = ({
               return (
                 <div
                   key={trk.id}
-                  className="screenshot-driver-card"
+                  className="ux-driver-card"
                   style={{ borderLeftColor: trk.color || '#D4AF37' }}
                 >
-                  {/* Card Header Row */}
-                  <div className="driver-card-header">
-                    <div className="driver-name-wrap">
-                      <span className="driver-color-dot" style={{ background: trk.color || '#D4AF37' }} />
-                      <span className="driver-name-text">{trk.driver || trk.name}</span>
+                  {/* Driver Header */}
+                  <div className="ux-driver-header">
+                    <div className="ux-driver-name-wrap">
+                      <span className="ux-driver-dot" style={{ background: trk.color || '#D4AF37' }} />
+                      <span className="ux-driver-name">{trk.driver || trk.name}</span>
                     </div>
 
-                    <div className="card-top-right">
-                      <span className={`capacity-badge ${capCount > 0 ? 'has-stops' : 'empty'}`}>
+                    <div className="ux-driver-actions">
+                      <span className={`ux-capacity-badge ${capCount > 0 ? 'has-stops' : 'empty'}`}>
                         {capCount}/{MAX_TRUCK_CAPACITY}
                       </span>
                       {editable && (
                         <button
                           type="button"
-                          className="btn-card-add-stop"
+                          className="ux-btn-add-stop"
                           onClick={() => onAddDelivery && onAddDelivery(trk.id, selectedDate)}
                           title={`Add stop for ${trk.driver}`}
                         >
@@ -209,11 +208,11 @@ const BoardGrid = ({
                     </div>
                   </div>
 
-                  {/* Card Content Body */}
+                  {/* Driver Delivery Ticket Cards */}
                   {trkDeliveries.length === 0 ? (
-                    <div className="no-stops-subtext">No stops scheduled</div>
+                    <div className="ux-no-stops-text">No stops scheduled</div>
                   ) : (
-                    <div className="stops-items-list">
+                    <div className="ux-tickets-list">
                       {trkDeliveries.map(del => (
                         <TicketChip
                           key={del.id}
