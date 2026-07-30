@@ -46,7 +46,7 @@ const VisitModal = ({
                 </div>
                 <div className="modal-body">
                     <div className="form-group">
-                        <label>Date <span style={{ color: 'red' }}>*</span></label>
+                        <label>Date <span className="req-star">*</span></label>
                         <CustomDatePicker
                             value={visitForm.date}
                             onChange={(value) => setVisitForm({ ...visitForm, date: value })}
@@ -55,7 +55,7 @@ const VisitModal = ({
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
                         <div className="form-group">
-                            <label>Customer <span style={{ color: 'red' }}>*</span></label>
+                            <label>Customer <span className="req-star">*</span></label>
                             <SearchableSelect
                                 options={customerOptions}
                                 value={visitForm.customerId}
@@ -67,7 +67,7 @@ const VisitModal = ({
                             />
                         </div>
                         <div className="form-group">
-                            <label>Visit Type <span style={{ color: 'red' }}>*</span></label>
+                            <label>Visit Type <span className="req-star">*</span></label>
                             <SearchableSelect
                                 options={[
                                     'Quick Note',

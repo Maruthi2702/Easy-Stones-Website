@@ -1727,6 +1727,13 @@
   }
 }
 
+.req-star {
+  color: #ff4d4f !important;
+  font-weight: 800 !important;
+  margin-left: 3px;
+  display: inline-block;
+}
+
 .checkbox-group {
   display: flex;
   align-items: center;

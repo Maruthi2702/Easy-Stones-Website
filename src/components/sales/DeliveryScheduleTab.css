@@ -1452,7 +1452,10 @@ body.light-theme-active .form-group-field label,
 }
 
 .req-star {
-  color: #ef4444;
+  color: #ff4d4f !important;
+  font-weight: 800 !important;
+  margin-left: 3px;
+  display: inline-block;
 }
 
 .modal-text-input,

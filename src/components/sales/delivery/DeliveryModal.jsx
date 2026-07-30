@@ -334,7 +334,7 @@ const DeliveryModal = ({
 
             {/* Date */}
             <div className="form-group">
-              <label>Date <span style={{ color: 'red' }}>*</span></label>
+              <label>Date <span className="req-star">*</span></label>
               <input
                 type="date"
                 value={date}
@@ -358,7 +358,7 @@ const DeliveryModal = ({
               </div>
 
               <div className="form-group">
-                <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver <span style={{ color: 'red' }}>*</span></label>
+                <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver <span className="req-star">*</span></label>
                 <select
                   value={truckId}
                   onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
@@ -379,7 +379,7 @@ const DeliveryModal = ({
 
             {/* Customer Name */}
             <div className="form-group">
-              <label>Customer Name <span style={{ color: 'red' }}>*</span></label>
+              <label>Customer Name <span className="req-star">*</span></label>
               <SearchableSelect
                 options={activeCustomerOptions}
                 value={selectedCustomerId || customerName}
@@ -403,7 +403,7 @@ const DeliveryModal = ({
             {/* SO / Invoice# & Delivery Address */}
             <div className="delivery-form-2col">
               <div className="form-group">
-                <label><Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />SO / Invoice# <span style={{ color: 'red' }}>*</span></label>
+                <label><Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />SO / Invoice# <span className="req-star">*</span></label>
                 <input
                   type="text"
                   value={soNumber}
