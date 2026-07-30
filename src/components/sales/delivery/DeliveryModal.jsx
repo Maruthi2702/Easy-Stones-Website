@@ -333,38 +333,15 @@ const DeliveryModal = ({
               />
             </div>
 
-            {/* Route Stop & Assigned Driver — 2 col grid like VisitModal */}
-            <div className="delivery-form-2col">
-              <div className="form-group">
-                <label><Navigation size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Route (Stop #)</label>
-                <select
-                  value={routeNumber}
-                  onChange={(e) => { setRouteNumber(Number(e.target.value)); markDirty(); }}
-                >
-                  {ROUTE_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver</label>
-                <select
-                  value={truckId}
-                  onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
-                >
-                  <option value="">-- Unassigned / Pending Driver --</option>
-                  {trucks.map(trk => {
-                    const booked = getCapacityForTruck(trk.id);
-                    const isFull = booked >= MAX_TRUCK_CAPACITY;
-                    return (
-                      <option key={trk.id} value={trk.id} disabled={isFull}>
-                        {trk.driver || trk.name} — {booked}/{MAX_TRUCK_CAPACITY}{isFull ? ' FULL' : ''}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
+            {/* Date */}
+            <div className="form-group">
+              <label>Date <span className="req-star">*</span></label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => { setDate(e.target.value); markDirty(); }}
+                required
+              />
             </div>
 
             {/* Customer Name */}
@@ -410,6 +387,40 @@ const DeliveryModal = ({
                   onChange={(e) => { setAddress(e.target.value); markDirty(); }}
                   placeholder="City / Street / Jobsite address..."
                 />
+              </div>
+            </div>
+
+            {/* Route Stop & Assigned Driver — 2 col grid */}
+            <div className="delivery-form-2col">
+              <div className="form-group">
+                <label><Navigation size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Route (Stop #)</label>
+                <select
+                  value={routeNumber}
+                  onChange={(e) => { setRouteNumber(Number(e.target.value)); markDirty(); }}
+                >
+                  {ROUTE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver</label>
+                <select
+                  value={truckId}
+                  onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
+                >
+                  <option value="">-- Unassigned / Pending Driver --</option>
+                  {trucks.map(trk => {
+                    const booked = getCapacityForTruck(trk.id);
+                    const isFull = booked >= MAX_TRUCK_CAPACITY;
+                    return (
+                      <option key={trk.id} value={trk.id} disabled={isFull}>
+                        {trk.driver || trk.name} — {booked}/{MAX_TRUCK_CAPACITY}{isFull ? ' FULL' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
             </div>
 
