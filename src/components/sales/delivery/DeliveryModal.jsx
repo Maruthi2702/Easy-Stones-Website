@@ -16,6 +16,18 @@ const ROUTE_OPTIONS = [
   { value: 8, label: 'Stop #8' }
 ];
 
+function extractString(val) {
+  if (!val) return '';
+  if (typeof val === 'string') {
+    return val === '[object Object]' ? '' : val.trim();
+  }
+  if (typeof val === 'object') {
+    const res = val.street || val.address || val.line1 || val.city || val.name || '';
+    return typeof res === 'string' ? (res === '[object Object]' ? '' : res.trim()) : String(res || '').trim();
+  }
+  return String(val).trim();
+}
+
 const DeliveryModal = ({
   isOpen,
   onClose,
@@ -59,10 +71,10 @@ const DeliveryModal = ({
           .then(data => {
             if (Array.isArray(data)) {
               const mapped = data.map(c => {
-                const addrPart = c.address || c.street || c.shippingAddress || c.billingAddress || '';
-                const cityPart = c.city || c.shippingCity || c.billingCity || '';
-                const statePart = c.state || c.shippingState || c.billingState || '';
-                const zipPart = c.zip || c.postalCode || c.shippingZip || '';
+                const addrPart = extractString(c.address) || extractString(c.street) || extractString(c.shippingAddress) || extractString(c.billingAddress);
+                const cityPart = extractString(c.city) || extractString(c.shippingCity) || extractString(c.billingCity);
+                const statePart = extractString(c.state) || extractString(c.shippingState) || extractString(c.billingState);
+                const zipPart = extractString(c.zip) || extractString(c.postalCode) || extractString(c.shippingZip);
                 const fullAddr = [addrPart, cityPart, statePart, zipPart].filter(Boolean).join(', ') || cityPart || addrPart;
                 return {
                   value: c._id,
@@ -331,8 +343,8 @@ const DeliveryModal = ({
                 if (foundOpt) {
                   setCustomerName(foundOpt.label);
                   setSelectedCustomerId(foundOpt.value);
-                  const autoAddr = foundOpt.fullAddress || foundOpt.city || foundOpt.address || '';
-                  if (autoAddr) {
+                  const autoAddr = extractString(foundOpt.fullAddress) || extractString(foundOpt.city) || extractString(foundOpt.address) || '';
+                  if (autoAddr && autoAddr !== '[object Object]') {
                     setAddress(autoAddr);
                   }
                 } else {

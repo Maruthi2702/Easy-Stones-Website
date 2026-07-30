@@ -820,15 +820,25 @@ const SalesPage = () => {
 
     const customerOptions = React.useMemo(() => {
         const sourceData = allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || []);
+        const extractString = (val) => {
+            if (!val) return '';
+            if (typeof val === 'string') return val === '[object Object]' ? '' : val.trim();
+            if (typeof val === 'object') {
+                const res = val.street || val.address || val.line1 || val.city || val.name || '';
+                return typeof res === 'string' ? (res === '[object Object]' ? '' : res.trim()) : String(res || '').trim();
+            }
+            return String(val).trim();
+        };
+
         return sourceData
             .slice()
             .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
             .map(c => {
-                const addrPart = c.address || c.street || c.shippingAddress || c.billingAddress || '';
-                const cityPart = c.city || c.shippingCity || c.billingCity || '';
-                const statePart = c.state || c.shippingState || c.billingState || '';
-                const zipPart = c.zip || c.postalCode || c.shippingZip || '';
-                const fullAddr = [addrPart, cityPart, statePart, zipPart].filter(Boolean).join(', ') || cityPart || addrPart;
+                const addrPart = extractString(c.address) || extractString(c.street) || extractString(c.shippingAddress) || extractString(c.billingAddress);
+                const cityPart = extractString(c.city) || extractString(c.shippingCity) || extractString(c.billingCity);
+                const statePart = extractString(c.state) || extractString(c.shippingState) || extractString(c.billingState);
+                const zipPart = extractString(c.zip) || extractString(c.postalCode) || extractString(c.shippingZip);
+                const fullAddr = [addrPart, cityPart, statePart, zipPart].filter(p => p && p !== '[object Object]').join(', ') || cityPart || addrPart;
 
                 return {
                     value: c._id,
