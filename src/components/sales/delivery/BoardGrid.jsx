@@ -56,7 +56,9 @@ const BoardGrid = ({
     return (
       d.customerName?.toLowerCase().includes(q) ||
       d.address?.toLowerCase().includes(q) ||
-      d.salesRepName?.toLowerCase().includes(q)
+      d.salesRepName?.toLowerCase().includes(q) ||
+      d.soNumber?.toLowerCase().includes(q) ||
+      d.invoiceNumber?.toLowerCase().includes(q)
     );
   });
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, User, Clock, FileText } from 'lucide-react';
+import { MapPin, User, Clock, FileText, Hash } from 'lucide-react';
 import StatusPill from './StatusPill';
 
 /**
@@ -29,6 +29,8 @@ const TicketChip = ({
 }) => {
   if (!delivery) return null;
 
+  const soVal = delivery.soNumber || delivery.invoiceNumber;
+
   return (
     <div
       className={`manifest-ticket-chip ${editable ? 'clickable' : ''} status-border-${delivery.status || 'scheduled'}`}
@@ -57,6 +59,11 @@ const TicketChip = ({
           <User size={11} />
           <Highlight text={delivery.salesRepName || 'Sales Rep'} query={searchQuery} />
         </span>
+        {soVal && (
+          <span className="stop-so-badge" title={`SO/Invoice #${soVal}`}>
+            <Hash size={11} /> SO #{soVal}
+          </span>
+        )}
         {delivery.notes && (
           <span className="ticket-has-notes" title={delivery.notes}>
             <FileText size={11} /> Notes

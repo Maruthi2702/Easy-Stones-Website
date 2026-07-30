@@ -10,6 +10,8 @@ const deliverySchema = new mongoose.Schema({
   salesRepName: { type: String, default: '' },
   status: { type: String, enum: ['scheduled', 'completed', 'delayed'], default: 'scheduled' },
   notes: { type: String, default: '' },
+  soNumber: { type: String, default: '' },
+  invoiceNumber: { type: String, default: '' },
   location: { type: String, default: '' },
   driver: { type: String, default: '' }
 }, {

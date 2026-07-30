@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Trash2, Calendar, Clock, MapPin, User, Truck, FileText, AlertCircle, AlertTriangle } from 'lucide-react';
+import { X, Save, Trash2, Calendar, Clock, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle } from 'lucide-react';
 import SearchableSelect from '../../SearchableSelect';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
@@ -26,6 +26,7 @@ const DeliveryModal = ({
   const [customerName, setCustomerName] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [address, setAddress] = useState('');
+  const [soNumber, setSoNumber] = useState('');
   const [date, setDate] = useState(() => formatForDateInput(new Date()));
   const [time, setTime] = useState('09:00 AM');
   const [truckId, setTruckId] = useState(trucks[0]?.id || '');
@@ -56,6 +57,7 @@ const DeliveryModal = ({
         setCustomerName(custName);
         setSelectedCustomerId(custId || custName);
         setAddress(initialData.address || '');
+        setSoNumber(initialData.soNumber || initialData.invoiceNumber || '');
         setDate(formatForDateInput(initialData.date) || formatForDateInput(new Date()));
         setTime(initialData.time || '09:00 AM');
         setTruckId(initialData.truckId || trucks[0]?.id || '');
@@ -74,6 +76,7 @@ const DeliveryModal = ({
     setCustomerName('');
     setSelectedCustomerId('');
     setAddress('');
+    setSoNumber('');
     setDate(formatForDateInput(new Date()));
     setTime('09:00 AM');
     setTruckId(trucks[0]?.id || '');
@@ -131,6 +134,8 @@ const DeliveryModal = ({
       customerId: selectedCustomerId || null,
       customerName: finalCustomerName,
       address: address.trim(),
+      soNumber: soNumber.trim(),
+      invoiceNumber: soNumber.trim(),
       date,
       time,
       truckId,
@@ -213,15 +218,27 @@ const DeliveryModal = ({
             />
           </div>
 
-          <div className="form-group-field">
-            <label><MapPin size={14} /> Delivery Address <span className="req-star">*</span></label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => { setAddress(e.target.value); markDirty(); }}
-              placeholder="1234 Main St, City, State ZIP"
-              className="modal-text-input"
-            />
+          <div className="form-grid-2col" style={{ marginBottom: '0.75rem' }}>
+            <div className="form-group-field" style={{ marginBottom: 0 }}>
+              <label><MapPin size={14} /> Delivery Address <span className="req-star">*</span></label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => { setAddress(e.target.value); markDirty(); }}
+                placeholder="1234 Main St, City, State ZIP"
+                className="modal-text-input"
+              />
+            </div>
+            <div className="form-group-field" style={{ marginBottom: 0 }}>
+              <label><Hash size={14} /> SO# / Invoice # <span className="opt-subtext">(ERP Tracking)</span></label>
+              <input
+                type="text"
+                value={soNumber}
+                onChange={(e) => { setSoNumber(e.target.value); markDirty(); }}
+                placeholder="e.g. SO-10492 or INV-8821"
+                className="modal-text-input"
+              />
+            </div>
           </div>
 
           {/* Date, Time & Truck */}
