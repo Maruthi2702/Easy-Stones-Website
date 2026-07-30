@@ -167,7 +167,7 @@ const DeliveryScheduleTab = ({
       date: dateStr || weekDates[0],
       time: '09:00 AM',
       salesRepName: currentUser?.name || 'Sales Rep',
-      status: 'scheduled'
+      status: 'pending'
     });
     setIsModalOpen(true);
   };
