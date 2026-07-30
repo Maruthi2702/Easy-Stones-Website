@@ -94,6 +94,27 @@ const BoardGrid = ({
 
   return (
     <div className="manifest-board-wrapper">
+      <div className="view-switcher-bar" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem', gap: '0.5rem' }}>
+        <button
+          type="button"
+          className={`btn-view-toggle ${viewMode === 'cards' ? 'active' : ''}`}
+          onClick={() => setViewMode('cards')}
+          title="Switch to Cards View"
+        >
+          <LayoutGrid size={14} />
+          <span>Cards View</span>
+        </button>
+        <button
+          type="button"
+          className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`}
+          onClick={() => setViewMode('table')}
+          title="Switch to Dispatch Matrix"
+        >
+          <Calendar size={14} />
+          <span>Dispatch Matrix</span>
+        </button>
+      </div>
+
       {viewMode === 'cards' ? (
         /* ── SCREENSHOT DESIGN LAYOUT ── */
         <div className="screenshot-schedule-card">
