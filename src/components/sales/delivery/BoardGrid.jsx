@@ -125,6 +125,17 @@ const BoardGrid = ({
     );
   }
 
+  const pillsRef = React.useRef(null);
+
+  useEffect(() => {
+    if (pillsRef.current) {
+      const activePill = pillsRef.current.querySelector('.screenshot-pill-btn.active');
+      if (activePill) {
+        activePill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [selectedDate]);
+
   return (
     <div className="manifest-board-wrapper">
       {viewMode === 'cards' ? (
@@ -132,12 +143,12 @@ const BoardGrid = ({
         <div className="screenshot-schedule-card">
 
           {/* Day Selector Pills Row */}
-          <div className="screenshot-day-pills">
+          <div className="screenshot-day-pills" ref={pillsRef}>
             {DAYS_OF_WEEK.map((dayObj, idx) => {
               const dateStr = weekDates[idx] || '';
               const isSelected = selectedDate === dateStr;
               const isToday = dateStr === todayStr;
-              const pillLabel = getPillTabLabel(dayObj.short, dateStr);
+              const pillLabel = getPillTabLabel(dayObj, dateStr);
               const dayStopsCount = deliveries.filter(d => d.date === dateStr).length;
 
               return (
@@ -147,7 +158,8 @@ const BoardGrid = ({
                   className={`screenshot-pill-btn ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
                   onClick={() => setSelectedDate(dateStr)}
                 >
-                  <span className="pill-label-text">{pillLabel}</span>
+                  <span className="pill-day-name">{dayObj.short}</span>
+                  {dateStr && <span className="pill-day-num">{dateStr.split('-')[2]}</span>}
                   {dayStopsCount > 0 && <span className="pill-count-dot">{dayStopsCount}</span>}
                 </button>
               );
