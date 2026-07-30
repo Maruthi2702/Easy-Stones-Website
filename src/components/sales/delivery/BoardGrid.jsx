@@ -27,6 +27,18 @@ const BoardGrid = ({
   const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
+
+  // Sync selectedDate when weekDates changes (e.g. clicking 'Today' selects today's day pill)
+  useEffect(() => {
+    if (weekDates && weekDates.length > 0) {
+      if (weekDates.includes(todayStr)) {
+        setSelectedDate(todayStr);
+      } else if (!weekDates.includes(selectedDate)) {
+        setSelectedDate(weekDates[0]);
+      }
+    }
+  }, [weekDates, todayStr]);
+
   // Automatic screen size detection (Desktop/Laptop >= 900px -> Dispatch Matrix 'table', Mobile/iPad < 900px -> Cards View 'cards')
   const [viewMode, setViewMode] = useState(() => {
     if (typeof window !== 'undefined') {
