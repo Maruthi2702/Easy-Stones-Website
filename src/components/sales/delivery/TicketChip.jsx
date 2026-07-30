@@ -40,9 +40,16 @@ const TicketChip = ({
       title={editable ? 'Click to edit delivery' : delivery.customerName}
     >
       <div className="ticket-header">
-        <span className="ticket-time-mono" title={`Stop #${stopNum}${soVal ? ` · SO #${soVal}` : ''}`}>
-          <Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}{soVal ? ` · SO #${soVal}` : ''}
-        </span>
+        <div className="header-left-group">
+          <span className="ticket-time-mono" title={`Stop #${stopNum}`}>
+            <Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}
+          </span>
+          {soVal && (
+            <span className="chip-so-inline-badge" title={`SO/Invoice #${soVal}`}>
+              <Hash size={10} /> SO #{soVal}
+            </span>
+          )}
+        </div>
         <StatusPill status={delivery.status} size="small" />
       </div>
 
