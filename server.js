@@ -4879,11 +4879,26 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
         const normCompany = normalizeStr(company);
         const normStreet = normalizeStr(street);
 
-        // Check if customer already exists by email, normalized company name (lowercase, no spaces), or street address
+        // Check if customer already exists by real email, valid company name (lowercase, no spaces), or valid street address
         const isExisting = existingCustomersList.some(c => {
-          if (normEmail && c.email && c.email.toLowerCase().trim() === normEmail) return true;
-          if (normCompany && normCompany !== 'na' && normCompany !== 'unknown' && c.company && normalizeStr(c.company) === normCompany) return true;
-          if (normStreet && normStreet !== 'na' && c.address?.street && normalizeStr(c.address.street) === normStreet) return true;
+          // 1. Real Email match (ignore placeholder @easystones-client.com emails)
+          if (normEmail && !normEmail.endsWith('@easystones-client.com') && c.email && c.email.toLowerCase().trim() === normEmail) {
+            return true;
+          }
+          // 2. Company name match (lowercase & no spaces, minimum length 3)
+          if (normCompany && normCompany.length > 2 && normCompany !== 'na' && normCompany !== 'unknown' && c.company) {
+            const dbNormComp = normalizeStr(c.company);
+            if (dbNormComp && dbNormComp.length > 2 && dbNormComp !== 'na' && dbNormComp !== 'unknown' && dbNormComp === normCompany) {
+              return true;
+            }
+          }
+          // 3. Real Street address match (minimum length 5)
+          if (normStreet && normStreet.length > 4 && normStreet !== 'na' && normStreet !== 'unknown' && c.address?.street) {
+            const dbNormStreet = normalizeStr(c.address.street);
+            if (dbNormStreet && dbNormStreet.length > 4 && dbNormStreet !== 'na' && dbNormStreet !== 'unknown' && dbNormStreet === normStreet) {
+              return true;
+            }
+          }
           return false;
         });
 
