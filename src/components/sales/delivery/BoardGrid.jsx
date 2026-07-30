@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText } from 'lucide-react';
+import { Plus, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText } from 'lucide-react';
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
@@ -36,45 +36,6 @@ const BoardGrid = ({
   });
   const [internalSearch] = useState('');
   const activeSearch = searchQuery || internalSearch;
-  const [editingTruckId, setEditingTruckId] = useState(null);
-  const [tempTruckName, setTempTruckName] = useState('');
-  const [tempDriverName, setTempDriverName] = useState('');
-
-  // Filter deliveries by search query & location
-  const filteredDeliveries = deliveries.filter(d => {
-    if (userLocation && d.location && d.location !== userLocation) return false;
-    if (!activeSearch.trim()) return true;
-    const q = activeSearch.toLowerCase().trim();
-    return (
-      d.customerName?.toLowerCase().includes(q) ||
-      d.address?.toLowerCase().includes(q) ||
-      d.salesRepName?.toLowerCase().includes(q)
-    );
-  });
-
-  const getDeliveriesForCell = (truckId, dateStr) =>
-    filteredDeliveries.filter(d => d.truckId === truckId && d.date === dateStr);
-
-  const getRawCapacity = (truckId, dateStr) =>
-    deliveries.filter(d => d.truckId === truckId && d.date === dateStr).length;
-
-  const getCapacityColorClass = (count) => {
-    if (count >= MAX_TRUCK_CAPACITY) return 'capacity-alert-red';
-    if (count >= MAX_TRUCK_CAPACITY - 2) return 'capacity-warn-amber';
-    return 'capacity-ok-green';
-  };
-
-  const handleStartEditTruck = (trk) => {
-    if (!editable) return;
-    setEditingTruckId(trk.id);
-    setTempTruckName(trk.name);
-    setTempDriverName(trk.driver);
-  };
-
-  const handleSaveTruck = (trkId) => {
-    if (onUpdateTruck) onUpdateTruck(trkId, tempTruckName, tempDriverName);
-    setEditingTruckId(null);
-  };
 
   const formatDaySubtext = (dateStr) => {
     if (!dateStr) return '';
@@ -252,40 +213,15 @@ const BoardGrid = ({
                     className="truck-col-header"
                     style={{ '--truck-color': trk.color || '#D4AF37' }}
                   >
-                    {editingTruckId === trk.id ? (
-                      <div className="truck-edit-inline">
-                        <input
-                          type="text"
-                          value={tempTruckName}
-                          onChange={(e) => setTempTruckName(e.target.value)}
-                          placeholder="Truck Name"
-                          className="truck-input-sm"
-                        />
-                        <input
-                          type="text"
-                          value={tempDriverName}
-                          onChange={(e) => setTempDriverName(e.target.value)}
-                          placeholder="Driver Name"
-                          className="truck-input-sm"
-                        />
-                        <button
-                          type="button"
-                          className="btn-save-truck-sm"
-                          onClick={() => handleSaveTruck(trk.id)}
-                        >
-                          Save
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="truck-label-wrap" onClick={() => handleStartEditTruck(trk)}>
-                        <div className="truck-color-dot" style={{ background: trk.color || '#D4AF37' }} />
-                        <div className="truck-text-details">
-                          <span className="truck-name">{trk.driver}</span>
+                    <div className="truck-label-wrap">
+                      <div className="truck-color-dot" style={{ background: trk.color || '#D4AF37' }} />
+                      <div className="truck-text-details">
+                        <span className="truck-name">{trk.driver || trk.name}</span>
+                        {trk.name && trk.driver && trk.name !== trk.driver && (
                           <span className="truck-driver">{trk.name}</span>
-                        </div>
-                        {editable && <Edit2 size={12} className="edit-truck-icon" />}
+                        )}
                       </div>
-                    )}
+                    </div>
                   </th>
                 ))}
               </tr>
