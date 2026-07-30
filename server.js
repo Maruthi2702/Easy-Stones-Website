@@ -3851,11 +3851,6 @@ app.post('/api/deliveries', verifyAnyAuth, async (req, res) => {
     const delivery = req.body;
     if (!delivery || !delivery.id) return res.status(400).json({ error: 'Invalid delivery data' });
 
-    const soVal = delivery.soNumber || delivery.invoiceNumber;
-    if (!soVal || !String(soVal).trim()) {
-      return res.status(400).json({ error: 'SO / Invoice# is required' });
-    }
-
     await Delivery.findOneAndUpdate(
       { id: delivery.id },
       { $set: delivery },

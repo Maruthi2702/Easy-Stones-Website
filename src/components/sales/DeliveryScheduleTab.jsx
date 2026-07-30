@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Truck, ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from 'lucide-react';
-import { io } from 'socket.io-client';
-import { API_URL } from '../../config/api';
 import BoardGrid from './delivery/BoardGrid';
 import DriverView from './delivery/DriverView';
 import DeliveryModal from './delivery/DeliveryModal';
 import {
-  getDeliveries,
   saveDelivery,
   deleteDelivery,
   updateDeliveryStatus,
-  getDriverUsers
+  getScheduleDataCached,
+  getScheduleCacheSync,
+  subscribeScheduleCache
 } from '../../api/schedule';
 import { formatForDateInput, formatDate } from '../../utils/dateUtils';
 import './DeliveryScheduleTab.css';
@@ -83,10 +82,11 @@ const DeliveryScheduleTab = ({
     if (currentUser) setRole(getUserRoleFromPermissions(currentUser));
   }, [currentUser]);
 
-  const [trucks, setTrucks] = useState([]);
-  const [deliveries, setDeliveries] = useState([]);
+  const initialCache = getScheduleCacheSync();
+  const [trucks, setTrucks] = useState(() => initialCache.trucks || []);
+  const [deliveries, setDeliveries] = useState(() => initialCache.deliveries || []);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !initialCache.isLoaded);
 
   const [currentMonday, setCurrentMonday] = useState(() => getWeekMonday(new Date()));
   const weekDates = getWeekDates(currentMonday);
@@ -94,20 +94,14 @@ const DeliveryScheduleTab = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (forceRefresh = false) => {
+    if (!getScheduleCacheSync().isLoaded || forceRefresh) {
+      setLoading(true);
+    }
     try {
-      const userLocation = currentUser?.location || null;
-      const userAssignedLocations = currentUser?.assignedLocations || [];
-
-      const [driverUsers, dList] = await Promise.all([
-        getDriverUsers(userLocation, userAssignedLocations),
-        getDeliveries()
-      ]);
-
-      // Only show real drivers from the Users tab — no hardcoded fallback
-      setTrucks(driverUsers && driverUsers.length > 0 ? driverUsers : []);
-      setDeliveries(dList);
+      const data = await getScheduleDataCached(currentUser, forceRefresh);
+      setTrucks(data.trucks || []);
+      setDeliveries(data.deliveries || []);
     } catch (err) {
       console.error('Error loading schedule data:', err);
     } finally {
@@ -118,32 +112,15 @@ const DeliveryScheduleTab = ({
   useEffect(() => {
     loadData();
 
-    let socket;
-    try {
-      const socketUrl = API_URL || window.location.origin;
-      socket = io(socketUrl, {
-        transports: ['websocket', 'polling'],
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
-      });
-
-      socket.on('delivery_update', (updatedList) => {
-        if (Array.isArray(updatedList)) {
-          setDeliveries(updatedList);
-        } else {
-          loadData();
-        }
-      });
-
-      socket.on('truck_update', () => {
-        loadData();
-      });
-    } catch (err) {
-      console.warn('[DeliveryScheduleTab] WebSockets error:', err);
-    }
+    const unsubscribe = subscribeScheduleCache(({ deliveries: newDeliveries, trucks: newTrucks }) => {
+      setDeliveries(newDeliveries);
+      if (newTrucks && newTrucks.length > 0) {
+        setTrucks(newTrucks);
+      }
+    });
 
     return () => {
-      if (socket) socket.disconnect();
+      unsubscribe();
     };
   }, [loadData]);
 

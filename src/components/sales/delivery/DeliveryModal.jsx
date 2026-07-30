@@ -67,7 +67,7 @@ const DeliveryModal = ({
 }) => {
   const [date, setDate] = useState(() => formatForDateInput(new Date()));
   const [routeNumber, setRouteNumber] = useState(1);
-  const [truckId, setTruckId] = useState(trucks[0]?.id || '');
+  const [truckId, setTruckId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [soNumber, setSoNumber] = useState('');
@@ -166,7 +166,7 @@ const DeliveryModal = ({
         }
         setDate(formatForDateInput(initialData.date) || formatForDateInput(new Date()));
         setRouteNumber(Number(initialData.routeNumber) || 1);
-        setTruckId(initialData.truckId || trucks[0]?.id || '');
+        setTruckId(initialData.truckId || '');
         setCustomerName(custName);
         setSelectedCustomerId(custId || custName);
         setSoNumber(initialData.soNumber || initialData.invoiceNumber || '');
@@ -186,7 +186,7 @@ const DeliveryModal = ({
   const resetForm = () => {
     setDate(formatForDateInput(new Date()));
     setRouteNumber(1);
-    setTruckId(trucks[0]?.id || '');
+    setTruckId('');
     setCustomerName('');
     setSelectedCustomerId('');
     setSoNumber('');
@@ -234,16 +234,6 @@ const DeliveryModal = ({
 
     if (!finalCustomerName) {
       setError('Please select or enter a Customer Name.');
-      return;
-    }
-
-    if (!soNumber.trim()) {
-      setError('Please enter an SO / Invoice#.');
-      return;
-    }
-
-    if (!truckId) {
-      setError('Please assign a driver/truck.');
       return;
     }
 
@@ -358,12 +348,12 @@ const DeliveryModal = ({
               </div>
 
               <div className="form-group">
-                <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver <span className="req-star">*</span></label>
+                <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver</label>
                 <select
                   value={truckId}
                   onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
-                  required
                 >
+                  <option value="">-- Unassigned / Pending Driver --</option>
                   {trucks.map(trk => {
                     const booked = getCapacityForTruck(trk.id);
                     const isFull = booked >= MAX_TRUCK_CAPACITY;
@@ -403,18 +393,17 @@ const DeliveryModal = ({
             {/* SO / Invoice# & Delivery Address */}
             <div className="delivery-form-2col">
               <div className="form-group">
-                <label><Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />SO / Invoice# <span className="req-star">*</span></label>
+                <label><Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />SO / Invoice#</label>
                 <input
                   type="text"
                   value={soNumber}
                   onChange={(e) => { setSoNumber(e.target.value); markDirty(); }}
                   placeholder="e.g. SO-10492 or INV-8821"
-                  required
                 />
               </div>
 
               <div className="form-group">
-                <label><MapPin size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Delivery Address <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.78rem' }}>(Optional)</span></label>
+                <label><MapPin size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Delivery Address</label>
                 <input
                   type="text"
                   value={address}

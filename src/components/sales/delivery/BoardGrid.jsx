@@ -90,7 +90,7 @@ const BoardGrid = ({
   const cellMap = React.useMemo(() => {
     const map = new Map();
     for (const d of filteredDeliveries) {
-      const key = `${d.truckId}_${d.date}`;
+      const key = `${d.truckId || ''}_${d.date}`;
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(d);
     }
@@ -106,11 +106,22 @@ const BoardGrid = ({
     return map;
   }, [filteredDeliveries]);
 
+  const displayTrucks = React.useMemo(() => {
+    const hasUnassigned = deliveries.some(d => !d.truckId || d.truckId === '' || d.truckId === 'unassigned');
+    if (hasUnassigned) {
+      return [
+        { id: '', name: 'Unassigned', driver: 'Unassigned', color: '#94A3B8' },
+        ...trucks
+      ];
+    }
+    return trucks;
+  }, [trucks, deliveries]);
+
   const getDeliveriesForCell = (truckId, dateStr) =>
-    cellMap.get(`${truckId}_${dateStr}`) || [];
+    cellMap.get(`${truckId || ''}_${dateStr}`) || [];
 
   const getRawCapacity = (truckId, dateStr) =>
-    (cellMap.get(`${truckId}_${dateStr}`) || []).length;
+    (cellMap.get(`${truckId || ''}_${dateStr}`) || []).length;
 
   const getCapacityColorClass = (count) => {
     if (count >= MAX_TRUCK_CAPACITY) return 'capacity-alert-red';
@@ -198,13 +209,13 @@ const BoardGrid = ({
 
           {/* Driver Sections */}
           <div className="ux-driver-list">
-            {trucks.map(trk => {
+            {displayTrucks.map(trk => {
               const trkDeliveries = getDeliveriesForCell(trk.id, selectedDate);
               const capCount = getRawCapacity(trk.id, selectedDate);
 
               return (
                 <div
-                  key={trk.id}
+                  key={trk.id || 'unassigned'}
                   className="ux-driver-card"
                   style={{ borderLeftColor: trk.color || '#D4AF37' }}
                 >
@@ -263,9 +274,9 @@ const BoardGrid = ({
                 <th className="day-col-header-row">
                   <div className="th-day-inner"><span>Day</span></div>
                 </th>
-                {trucks.map(trk => (
+                {displayTrucks.map(trk => (
                   <th
-                    key={trk.id}
+                    key={trk.id || 'unassigned'}
                     className="truck-col-header"
                     style={{ '--truck-color': trk.color || '#D4AF37' }}
                   >
@@ -297,7 +308,7 @@ const BoardGrid = ({
                       </div>
                     </td>
 
-                    {trucks.map(trk => {
+                    {displayTrucks.map(trk => {
                       const cellDeliveries = getDeliveriesForCell(trk.id, dateStr);
                       const rawCount = getRawCapacity(trk.id, dateStr);
                       const capClass = getCapacityColorClass(rawCount);
