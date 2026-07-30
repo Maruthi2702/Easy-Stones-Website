@@ -16,16 +16,42 @@ const ROUTE_OPTIONS = [
   { value: 8, label: 'Stop #8' }
 ];
 
-function extractString(val) {
-  if (!val) return '';
-  if (typeof val === 'string') {
-    return val === '[object Object]' ? '' : val.trim();
+function extractCustomerAddress(c) {
+  if (!c) return { city: '', street: '', fullAddress: '' };
+
+  const extractStr = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val === '[object Object]' ? '' : val.trim();
+    if (typeof val === 'object') {
+      const res = val.street || val.address || val.line1 || val.city || val.name || '';
+      return typeof res === 'string' ? (res === '[object Object]' ? '' : res.trim()) : String(res || '').trim();
+    }
+    return String(val).trim();
+  };
+
+  // 1. Extract City from top-level and nested address objects
+  let city = extractStr(c.city) || extractStr(c.shippingCity) || extractStr(c.billingCity);
+  if (!city && c.shippingAddress && typeof c.shippingAddress === 'object') {
+    city = extractStr(c.shippingAddress.city);
   }
-  if (typeof val === 'object') {
-    const res = val.street || val.address || val.line1 || val.city || val.name || '';
-    return typeof res === 'string' ? (res === '[object Object]' ? '' : res.trim()) : String(res || '').trim();
+  if (!city && c.billingAddress && typeof c.billingAddress === 'object') {
+    city = extractStr(c.billingAddress.city);
   }
-  return String(val).trim();
+  if (!city && c.address && typeof c.address === 'object') {
+    city = extractStr(c.address.city);
+  }
+
+  // 2. Extract Street
+  let street = extractStr(c.address) || extractStr(c.street) || extractStr(c.shippingAddress) || extractStr(c.billingAddress);
+  if (street === city) street = '';
+
+  const state = extractStr(c.state) || extractStr(c.shippingState) || extractStr(c.billingState);
+
+  // Combine street & city if both exist, otherwise city or street
+  const parts = [street, city, state].filter(Boolean);
+  const fullAddress = parts.join(', ') || city || street;
+
+  return { city, street, fullAddress };
 }
 
 const DeliveryModal = ({
@@ -71,17 +97,13 @@ const DeliveryModal = ({
           .then(data => {
             if (Array.isArray(data)) {
               const mapped = data.map(c => {
-                const addrPart = extractString(c.address) || extractString(c.street) || extractString(c.shippingAddress) || extractString(c.billingAddress);
-                const cityPart = extractString(c.city) || extractString(c.shippingCity) || extractString(c.billingCity);
-                const statePart = extractString(c.state) || extractString(c.shippingState) || extractString(c.billingState);
-                const zipPart = extractString(c.zip) || extractString(c.postalCode) || extractString(c.shippingZip);
-                const fullAddr = [addrPart, cityPart, statePart, zipPart].filter(Boolean).join(', ') || cityPart || addrPart;
+                const { city, street, fullAddress } = extractCustomerAddress(c);
                 return {
                   value: c._id,
                   label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
-                  city: cityPart,
-                  address: addrPart,
-                  fullAddress: fullAddr
+                  city,
+                  address: street || city,
+                  fullAddress
                 };
               });
               setFetchedCustomerOptions(mapped);
@@ -343,7 +365,7 @@ const DeliveryModal = ({
                 if (foundOpt) {
                   setCustomerName(foundOpt.label);
                   setSelectedCustomerId(foundOpt.value);
-                  const autoAddr = extractString(foundOpt.fullAddress) || extractString(foundOpt.city) || extractString(foundOpt.address) || '';
+                  const autoAddr = foundOpt.city || foundOpt.fullAddress || foundOpt.address || '';
                   if (autoAddr && autoAddr !== '[object Object]') {
                     setAddress(autoAddr);
                   }

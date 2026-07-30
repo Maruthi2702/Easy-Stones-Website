@@ -820,7 +820,7 @@ const SalesPage = () => {
 
     const customerOptions = React.useMemo(() => {
         const sourceData = allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || []);
-        const extractString = (val) => {
+        const extractStr = (val) => {
             if (!val) return '';
             if (typeof val === 'string') return val === '[object Object]' ? '' : val.trim();
             if (typeof val === 'object') {
@@ -834,17 +834,22 @@ const SalesPage = () => {
             .slice()
             .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
             .map(c => {
-                const addrPart = extractString(c.address) || extractString(c.street) || extractString(c.shippingAddress) || extractString(c.billingAddress);
-                const cityPart = extractString(c.city) || extractString(c.shippingCity) || extractString(c.billingCity);
-                const statePart = extractString(c.state) || extractString(c.shippingState) || extractString(c.billingState);
-                const zipPart = extractString(c.zip) || extractString(c.postalCode) || extractString(c.shippingZip);
-                const fullAddr = [addrPart, cityPart, statePart, zipPart].filter(p => p && p !== '[object Object]').join(', ') || cityPart || addrPart;
+                let cityPart = extractStr(c.city) || extractStr(c.shippingCity) || extractStr(c.billingCity);
+                if (!cityPart && c.shippingAddress && typeof c.shippingAddress === 'object') cityPart = extractStr(c.shippingAddress.city);
+                if (!cityPart && c.billingAddress && typeof c.billingAddress === 'object') cityPart = extractStr(c.billingAddress.city);
+                if (!cityPart && c.address && typeof c.address === 'object') cityPart = extractStr(c.address.city);
+
+                let addrPart = extractStr(c.address) || extractStr(c.street) || extractStr(c.shippingAddress) || extractStr(c.billingAddress);
+                if (addrPart === cityPart) addrPart = '';
+
+                const statePart = extractStr(c.state) || extractStr(c.shippingState) || extractStr(c.billingState);
+                const fullAddr = [addrPart, cityPart, statePart].filter(p => p && p !== '[object Object]').join(', ') || cityPart || addrPart;
 
                 return {
                     value: c._id,
                     label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
                     city: cityPart,
-                    address: addrPart,
+                    address: addrPart || cityPart,
                     fullAddress: fullAddr
                 };
             });
