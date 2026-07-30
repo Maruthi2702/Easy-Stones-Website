@@ -40,8 +40,8 @@ const TicketChip = ({
       title={editable ? 'Click to edit delivery' : delivery.customerName}
     >
       <div className="ticket-header">
-        <span className="ticket-time-mono" title={`Stop #${stopNum}`}>
-          <Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}
+        <span className="ticket-time-mono" title={`Stop #${stopNum}${soVal ? ` · SO #${soVal}` : ''}`}>
+          <Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}{soVal ? ` · SO #${soVal}` : ''}
         </span>
         <StatusPill status={delivery.status} size="small" />
       </div>
