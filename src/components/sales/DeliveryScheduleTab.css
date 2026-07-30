@@ -2475,9 +2475,18 @@ body.light-theme-active .screenshot-pill-btn.active,
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25) !important;
 }
 
-body.light-theme-active .screenshot-subtext,
-.light-theme-active .screenshot-subtext {
-  color: #64748b !important;
+/* Unsaved Changes Banner Styling */
+.modal-unsaved-confirm-banner {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border-left-color: #f59e0b !important;
+  color: #fbbf24 !important;
+}
+
+body.light-theme-active .modal-unsaved-confirm-banner,
+.light-theme-active .modal-unsaved-confirm-banner {
+  background: #fffbeb !important;
+  border-left-color: #d97706 !important;
+  color: #b45309 !important;
 }
 
 

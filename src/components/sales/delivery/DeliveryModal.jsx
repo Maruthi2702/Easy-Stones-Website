@@ -149,9 +149,12 @@ const DeliveryModal = ({
   // Track initial snapshot for dirty state checking
   const initialSnapshot = useRef(null);
 
+  const [confirmClose, setConfirmClose] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       setConfirmDelete(false);
+      setConfirmClose(false);
       setError('');
       setIsDirty(false);
       if (initialData) {
@@ -208,9 +211,16 @@ const DeliveryModal = ({
   };
 
   const handleClose = () => {
-    if (isDirty) {
-      if (!window.confirm('You have unsaved changes. Close anyway?')) return;
+    if (isDirty && !confirmClose) {
+      setConfirmClose(true);
+      return;
     }
+    setConfirmClose(false);
+    onClose();
+  };
+
+  const handleForceClose = () => {
+    setConfirmClose(false);
     onClose();
   };
 
@@ -287,6 +297,22 @@ const DeliveryModal = ({
             <X size={20} />
           </button>
         </div>
+
+        {/* Inline Custom Unsaved Changes Confirmation Banner */}
+        {confirmClose && (
+          <div className="modal-delete-confirm-banner modal-unsaved-confirm-banner">
+            <AlertTriangle size={18} />
+            <span>You have unsaved changes. Are you sure you want to close?</span>
+            <div className="delete-confirm-actions">
+              <button type="button" className="btn-confirm-delete" onClick={handleForceClose}>
+                Yes, Discard
+              </button>
+              <button type="button" className="btn-cancel-delete" onClick={() => setConfirmClose(false)}>
+                Keep Editing
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Inline Delete Confirmation Banner */}
         {confirmDelete && (
