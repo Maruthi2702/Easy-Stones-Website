@@ -1665,16 +1665,8 @@ app.get('/api/customers', authenticate, requirePermission('view_customers'), asy
 });
 
 // Get ALL customers for dropdown selection (minimal fields)
-// Accessible by users with view_customers OR delivery schedule / checkin / lost sales access
-app.get('/api/customers/dropdown', authenticate, requireAnyPermission(
-  'view_customers',
-  'view_delivery_schedule',
-  'edit_delivery_schedule',
-  'manage_delivery_schedule',
-  'view_checkins',
-  'view_lost_sales',
-  'edit_lost_sales'
-), async (req, res) => {
+// Accessible by ALL authenticated users regardless of specific role permissions
+app.get('/api/customers/dropdown', authenticate, async (req, res) => {
   try {
     const customers = await Customer.find({})
       .select('_id company contactName firstName lastName email customerType')
