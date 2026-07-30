@@ -2100,26 +2100,15 @@ body.light-theme-active .stop-location-text,
   flex-wrap: wrap;
 }
 
-.chip-so-inline-badge {
-  font-size: 0.73rem;
-  font-weight: 750;
-  color: #60a5fa;
-  background: rgba(59, 130, 246, 0.18);
-  border: 1px solid rgba(96, 165, 250, 0.35);
-  padding: 0.1rem 0.45rem;
-  border-radius: 5px;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+.so-header-inline-text {
+  font-weight: 700;
+  color: #d4af37;
+  letter-spacing: 0.01em;
 }
 
-body.light-theme-active .chip-so-inline-badge,
-.light-theme-active .chip-so-inline-badge {
-  background: #dbeafe !important;
-  color: #1e40af !important;
-  border: 1px solid #93c5fd !important;
+body.light-theme-active .so-header-inline-text,
+.light-theme-active .so-header-inline-text {
+  color: #b38b14 !important;
 }
 
 body.light-theme-active .stop-so-badge,
