@@ -72,7 +72,7 @@ const DeliveryModal = ({
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [soNumber, setSoNumber] = useState('');
   const [address, setAddress] = useState('');
-  const [salesRepName, setSalesRepName] = useState(currentUser?.name || '');
+  const [salesRepName, setSalesRepName] = useState(currentUser?.name || 'Admin');
   const [status, setStatus] = useState('pending');
   const [notes, setNotes] = useState('');
   const [time, setTime] = useState('09:00 AM');
@@ -83,7 +83,7 @@ const DeliveryModal = ({
   // Fallback internal fetch for customer options if parent prop is empty
   const [fetchedCustomerOptions, setFetchedCustomerOptions] = useState([]);
   // Sales Reps list for location
-  const [salesRepsList, setSalesRepsList] = useState([]);
+  const [salesRepsList, setSalesRepsList] = useState(['Admin']);
 
   useEffect(() => {
     if (isOpen) {
@@ -135,9 +135,7 @@ const DeliveryModal = ({
               }
             }
             const names = locUsers.map(u => u.name || u.username).filter(Boolean);
-            if (names.length > 0) {
-              setSalesRepsList(Array.from(new Set(names)));
-            }
+            setSalesRepsList(Array.from(new Set(['Admin', ...names])));
           }
         })
         .catch(err => console.warn('Failed to fetch sales reps in DeliveryModal:', err));
@@ -173,7 +171,7 @@ const DeliveryModal = ({
         setSelectedCustomerId(custId || custName);
         setSoNumber(initialData.soNumber || initialData.invoiceNumber || '');
         setAddress(initialData.address || '');
-        setSalesRepName(initialData.salesRepName || currentUser?.name || '');
+        setSalesRepName(initialData.salesRepName || currentUser?.name || 'Admin');
         setStatus(initialData.status || 'pending');
         setNotes(initialData.notes || '');
         setTime(initialData.time || '09:00 AM');
@@ -193,7 +191,7 @@ const DeliveryModal = ({
     setSelectedCustomerId('');
     setSoNumber('');
     setAddress('');
-    setSalesRepName(currentUser?.name || '');
+    setSalesRepName(currentUser?.name || 'Admin');
     setStatus('pending');
     setNotes('');
     setTime('09:00 AM');

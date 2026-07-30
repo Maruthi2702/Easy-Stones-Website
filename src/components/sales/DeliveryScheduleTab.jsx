@@ -166,7 +166,7 @@ const DeliveryScheduleTab = ({
       truckId: truckId || trucks[0]?.id || 'trk_1',
       date: dateStr || weekDates[0],
       time: '09:00 AM',
-      salesRepName: currentUser?.name || 'Sales Rep',
+      salesRepName: currentUser?.name || 'Admin',
       status: 'pending'
     });
     setIsModalOpen(true);
