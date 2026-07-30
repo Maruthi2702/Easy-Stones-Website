@@ -37,6 +37,30 @@ const BoardGrid = ({
   const [internalSearch] = useState('');
   const activeSearch = searchQuery || internalSearch;
 
+  // Filter deliveries by search query & location
+  const filteredDeliveries = deliveries.filter(d => {
+    if (userLocation && d.location && d.location !== userLocation) return false;
+    if (!activeSearch.trim()) return true;
+    const q = activeSearch.toLowerCase().trim();
+    return (
+      d.customerName?.toLowerCase().includes(q) ||
+      d.address?.toLowerCase().includes(q) ||
+      d.salesRepName?.toLowerCase().includes(q)
+    );
+  });
+
+  const getDeliveriesForCell = (truckId, dateStr) =>
+    filteredDeliveries.filter(d => d.truckId === truckId && d.date === dateStr);
+
+  const getRawCapacity = (truckId, dateStr) =>
+    deliveries.filter(d => d.truckId === truckId && d.date === dateStr).length;
+
+  const getCapacityColorClass = (count) => {
+    if (count >= MAX_TRUCK_CAPACITY) return 'capacity-alert-red';
+    if (count >= MAX_TRUCK_CAPACITY - 2) return 'capacity-warn-amber';
+    return 'capacity-ok-green';
+  };
+
   const formatDaySubtext = (dateStr) => {
     if (!dateStr) return '';
     const d = new Date(dateStr + 'T00:00:00');
