@@ -382,15 +382,24 @@ body.light-theme-active .add-customer-modal label {
 body.light-theme-active .add-customer-modal input[type="text"],
 body.light-theme-active .add-customer-modal input[type="email"],
 body.light-theme-active .add-customer-modal input[type="tel"],
-body.light-theme-active .add-customer-modal select,
 body.light-theme-active .add-customer-modal textarea {
-    background: #f8fafc !important;
+    background-color: #f8fafc !important;
     border-color: #cbd5e1 !important;
     color: #1e293b !important;
 }
 
 body.light-theme-active .add-customer-modal select {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    color: #1e293b !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E") !important;
+    background-position: right 0.75rem center !important;
+    background-repeat: no-repeat !important;
+    background-size: 1.25rem !important;
+    padding-right: 2.5rem !important;
 }
 
 body.light-theme-active .add-customer-modal input[type="text"]:focus,
@@ -399,6 +408,6 @@ body.light-theme-active .add-customer-modal input[type="tel"]:focus,
 body.light-theme-active .add-customer-modal select:focus,
 body.light-theme-active .add-customer-modal textarea:focus {
     border-color: #b89324 !important;
-    background: #ffffff !important;
+    background-color: #ffffff !important;
     box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1) !important;
 }
