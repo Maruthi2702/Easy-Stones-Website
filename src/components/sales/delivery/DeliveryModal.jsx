@@ -237,8 +237,8 @@ const DeliveryModal = ({
       return;
     }
 
-    if (!address.trim()) {
-      setError('Please enter a Delivery Address.');
+    if (!soNumber.trim()) {
+      setError('Please enter an SO# / Invoice Number.');
       return;
     }
 
@@ -414,18 +414,19 @@ const DeliveryModal = ({
           {/* 3. SO#/INVOICE NUMBER & DELIVERY ADDRESS */}
           <div className="form-grid-2col">
             <div className="form-group-field">
-              <label><Hash size={14} /> SO# / Invoice # <span className="opt-subtext">(ERP Tracking)</span></label>
+              <label><Hash size={14} /> SO# / Invoice # <span className="req-star">*</span> <span className="opt-subtext">(ERP Tracking)</span></label>
               <input
                 type="text"
                 value={soNumber}
                 onChange={(e) => { setSoNumber(e.target.value); markDirty(); }}
                 placeholder="e.g. SO-10492 or INV-8821"
                 className="modal-text-input"
+                required
               />
             </div>
 
             <div className="form-group-field">
-              <label><MapPin size={14} /> Delivery Address <span className="req-star">*</span></label>
+              <label><MapPin size={14} /> Delivery Address <span className="opt-subtext">(Optional)</span></label>
               <input
                 type="text"
                 value={address}
