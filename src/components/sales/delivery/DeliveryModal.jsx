@@ -479,7 +479,7 @@ const DeliveryModal = ({
               <Trash2 size={16} /> Delete
             </button>
           )}
-          <button className="btn-secondary" onClick={handleClose}>
+          <button className="btn-secondary btn-cancel-red" onClick={handleClose}>
             Cancel
           </button>
           <button className="btn-primary" onClick={handleSubmit}>

@@ -1551,15 +1551,23 @@ body.light-theme-active .modal-textarea-input:focus,
   cursor: pointer;
 }
 
+.btn-cancel-red,
 .modal-btn-cancel {
   padding: 0.6rem 1.1rem;
   border-radius: 8px;
-  background: transparent;
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
-  color: #cbd5e1;
+  background: #dc2626 !important;
+  border: 1px solid #ef4444 !important;
+  color: #ffffff !important;
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-cancel-red:hover,
+.modal-btn-cancel:hover {
+  background: #b91c1c !important;
+  border-color: #dc2626 !important;
 }
 
 .modal-btn-save {
