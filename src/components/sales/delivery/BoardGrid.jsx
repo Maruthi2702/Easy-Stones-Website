@@ -112,27 +112,6 @@ const BoardGrid = ({
       {viewMode === 'cards' ? (
         /* ── SCREENSHOT DESIGN LAYOUT ── */
         <div className="screenshot-schedule-card">
-          <div className="card-inner-top-bar">
-            <h2 className="this-week-title">This week</h2>
-            <div className="toggle-right-btns">
-              <button
-                type="button"
-                className={`btn-view-toggle ${viewMode === 'cards' ? 'active' : ''}`}
-                onClick={() => setViewMode('cards')}
-              >
-                <LayoutGrid size={14} />
-                <span>Cards View</span>
-              </button>
-              <button
-                type="button"
-                className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`}
-                onClick={() => setViewMode('table')}
-              >
-                <Calendar size={14} />
-                <span>Dispatch Matrix</span>
-              </button>
-            </div>
-          </div>
 
           {/* Day Selector Pills Row */}
           <div className="screenshot-day-pills">
@@ -261,27 +240,6 @@ const BoardGrid = ({
       ) : (
         /* ── DISPATCH TABLE MATRIX ── */
         <div className="board-grid-scroll-container">
-          <div className="card-inner-top-bar" style={{ marginBottom: '1rem', padding: '0 0.5rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#ffffff' }}>Dispatch Matrix</h3>
-            <div className="toggle-right-btns">
-              <button
-                type="button"
-                className={`btn-view-toggle ${viewMode === 'cards' ? 'active' : ''}`}
-                onClick={() => setViewMode('cards')}
-              >
-                <LayoutGrid size={14} />
-                <span>Cards View</span>
-              </button>
-              <button
-                type="button"
-                className={`btn-view-toggle ${viewMode === 'table' ? 'active' : ''}`}
-                onClick={() => setViewMode('table')}
-              >
-                <Calendar size={14} />
-                <span>Dispatch Matrix</span>
-              </button>
-            </div>
-          </div>
           <table className="manifest-dispatch-table">
             <thead>
               <tr>
