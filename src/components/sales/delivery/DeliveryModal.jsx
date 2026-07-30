@@ -238,7 +238,7 @@ const DeliveryModal = ({
     }
 
     if (!soNumber.trim()) {
-      setError('Please enter an SO# / Invoice Number.');
+      setError('Please enter an SO / Invoice#.');
       return;
     }
 
@@ -414,7 +414,7 @@ const DeliveryModal = ({
           {/* 3. SO#/INVOICE NUMBER & DELIVERY ADDRESS */}
           <div className="form-grid-2col">
             <div className="form-group-field">
-              <label><Hash size={14} /> SO# / Invoice # <span className="req-star">*</span> <span className="opt-subtext">(ERP Tracking)</span></label>
+              <label><Hash size={14} /> SO / Invoice# <span className="req-star">*</span></label>
               <input
                 type="text"
                 value={soNumber}

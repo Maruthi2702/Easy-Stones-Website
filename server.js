@@ -3853,7 +3853,7 @@ app.post('/api/deliveries', verifyAnyAuth, async (req, res) => {
 
     const soVal = delivery.soNumber || delivery.invoiceNumber;
     if (!soVal || !String(soVal).trim()) {
-      return res.status(400).json({ error: 'SO# / Invoice Number is required' });
+      return res.status(400).json({ error: 'SO / Invoice# is required' });
     }
 
     await Delivery.findOneAndUpdate(
