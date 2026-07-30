@@ -1669,7 +1669,7 @@ app.get('/api/customers', authenticate, requirePermission('view_customers'), asy
 app.get('/api/customers/dropdown', authenticate, async (req, res) => {
   try {
     const customers = await Customer.find({})
-      .select('_id company contactName firstName lastName email customerType')
+      .select('_id company contactName firstName lastName email customerType city address street state zip shippingAddress shippingCity billingAddress billingCity')
       .sort({ company: 1, contactName: 1 })
       .lean();
 

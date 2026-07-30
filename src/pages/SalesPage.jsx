@@ -824,10 +824,10 @@ const SalesPage = () => {
             .slice()
             .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
             .map(c => {
-                const addrPart = c.address || c.street || c.shippingAddress || '';
+                const addrPart = c.address || c.street || c.shippingAddress || c.billingAddress || '';
                 const cityPart = c.city || c.shippingCity || c.billingCity || '';
-                const statePart = c.state || c.shippingState || '';
-                const zipPart = c.zip || c.postalCode || '';
+                const statePart = c.state || c.shippingState || c.billingState || '';
+                const zipPart = c.zip || c.postalCode || c.shippingZip || '';
                 const fullAddr = [addrPart, cityPart, statePart, zipPart].filter(Boolean).join(', ') || cityPart || addrPart;
 
                 return {

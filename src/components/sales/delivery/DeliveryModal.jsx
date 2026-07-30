@@ -3,6 +3,7 @@ import { X, Save, Trash2, Calendar, Clock, MapPin, User, Truck, FileText, Hash, 
 import SearchableSelect from '../../SearchableSelect';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
+import { API_URL } from '../../../config/api';
 
 const TIME_SLOTS = [
   '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM',
@@ -37,6 +38,41 @@ const DeliveryModal = ({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
+  // Fallback internal fetch if parent customerOptions is empty
+  const [fetchedOptions, setFetchedOptions] = useState([]);
+
+  useEffect(() => {
+    if (isOpen && (!customerOptions || customerOptions.length === 0)) {
+      const token = localStorage.getItem('token');
+      fetch(`${API_URL}/api/customers/dropdown`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
+        .then(res => res.ok ? res.json() : [])
+        .then(data => {
+          if (Array.isArray(data)) {
+            const mapped = data.map(c => {
+              const addrPart = c.address || c.street || c.shippingAddress || c.billingAddress || '';
+              const cityPart = c.city || c.shippingCity || c.billingCity || '';
+              const statePart = c.state || c.shippingState || c.billingState || '';
+              const zipPart = c.zip || c.postalCode || c.shippingZip || '';
+              const fullAddr = [addrPart, cityPart, statePart, zipPart].filter(Boolean).join(', ') || cityPart || addrPart;
+              return {
+                value: c._id,
+                label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
+                city: cityPart,
+                address: addrPart,
+                fullAddress: fullAddr
+              };
+            });
+            setFetchedOptions(mapped);
+          }
+        })
+        .catch(err => console.warn('Failed to fetch customer options in DeliveryModal:', err));
+    }
+  }, [isOpen, customerOptions]);
+
+  const activeOptions = (customerOptions && customerOptions.length > 0) ? customerOptions : fetchedOptions;
+
   // Track if form has been changed from initialData
   const initialSnapshot = useRef(null);
 
@@ -49,7 +85,7 @@ const DeliveryModal = ({
         const custName = initialData.customerName || '';
         let custId = initialData.customerId || '';
         if (!custId && custName) {
-          const match = customerOptions.find(
+          const match = activeOptions.find(
             o => o.label?.toLowerCase() === custName.toLowerCase() || o.value === custName
           );
           if (match) custId = match.value;
@@ -70,7 +106,7 @@ const DeliveryModal = ({
         initialSnapshot.current = null;
       }
     }
-  }, [initialData, isOpen, trucks, currentUser, customerOptions]);
+  }, [initialData, isOpen, trucks, currentUser, activeOptions]);
 
   const resetForm = () => {
     setCustomerName('');
@@ -201,11 +237,11 @@ const DeliveryModal = ({
           <div className="form-group-field">
             <label>Customer Name <span className="req-star">*</span></label>
             <SearchableSelect
-              options={customerOptions}
+              options={activeOptions}
               value={selectedCustomerId || customerName}
               onChange={(val) => {
                 setSelectedCustomerId(val);
-                const foundOpt = customerOptions.find(o => o.value === val || o.label === val);
+                const foundOpt = activeOptions.find(o => o.value === val || o.label === val);
                 if (foundOpt) {
                   setCustomerName(foundOpt.label);
                   setSelectedCustomerId(foundOpt.value);
