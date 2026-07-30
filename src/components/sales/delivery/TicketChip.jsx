@@ -1,5 +1,5 @@
-import React from 'react';
-import { MapPin, User, Clock, FileText, Hash, Navigation } from 'lucide-react';
+import React, { useState } from 'react';
+import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check } from 'lucide-react';
 import StatusPill from './StatusPill';
 
 /**
@@ -27,10 +27,24 @@ const TicketChip = ({
   editable = false,
   searchQuery = ''
 }) => {
+  const [copied, setCopied] = useState(false);
+
   if (!delivery) return null;
 
   const soVal = delivery.soNumber || delivery.invoiceNumber;
   const stopNum = delivery.routeNumber || 1;
+
+  const handleCopySO = (e, val) => {
+    e.stopPropagation();
+    if (!val) return;
+    try {
+      navigator.clipboard.writeText(val);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch (err) {
+      console.warn('Clipboard copy failed:', err);
+    }
+  };
 
   return (
     <div
@@ -40,9 +54,23 @@ const TicketChip = ({
       title={editable ? 'Click to edit delivery' : delivery.customerName}
     >
       <div className="ticket-header">
-        <span className="ticket-time-mono" title={`Stop #${stopNum}${soVal ? ` | SO# ${soVal}` : ''}`}>
+        <span className="ticket-time-mono">
           <Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}
-          {soVal && <span className="so-header-inline-text"> | SO# {soVal}</span>}
+          {soVal && (
+            <span
+              className={`so-header-inline-text ${copied ? 'copied' : ''}`}
+              onClick={(e) => handleCopySO(e, soVal)}
+              title={copied ? 'Copied to clipboard!' : 'Click to copy SO#'}
+            >
+              {' | SO# '}
+              <span className="so-num-highlight">{soVal}</span>
+              {copied ? (
+                <Check size={11} className="so-copy-icon success" />
+              ) : (
+                <Copy size={11} className="so-copy-icon" />
+              )}
+            </span>
+          )}
         </span>
         <StatusPill status={delivery.status} size="small" />
       </div>
