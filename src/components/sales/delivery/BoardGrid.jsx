@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText } from 'lucide-react';
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
@@ -28,16 +28,28 @@ const BoardGrid = ({
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
 
-  // Sync selectedDate when weekDates changes (e.g. clicking 'Today' selects today's day pill)
+  // Track the week start so we only react when the user navigates to a DIFFERENT week
+  const prevWeekStartRef = useRef(weekDates[0] || '');
+
   useEffect(() => {
+    const currentWeekStart = weekDates[0] || '';
+    const weekChanged = currentWeekStart !== prevWeekStartRef.current;
+    prevWeekStartRef.current = currentWeekStart;
+
     if (weekDates && weekDates.length > 0) {
-      if (weekDates.includes(todayStr)) {
-        setSelectedDate(todayStr);
+      if (weekChanged) {
+        // User navigated to a new week — auto-select today if in range, else first day
+        if (weekDates.includes(todayStr)) {
+          setSelectedDate(todayStr);
+        } else {
+          setSelectedDate(weekDates[0]);
+        }
       } else if (!weekDates.includes(selectedDate)) {
+        // Same week but selectedDate no longer valid (edge case), fall back
         setSelectedDate(weekDates[0]);
       }
     }
-  }, [weekDates, todayStr]);
+  }, [weekDates]);
 
   // Automatic screen size detection (Desktop/Laptop >= 900px -> Dispatch Matrix 'table', Mobile/iPad < 900px -> Cards View 'cards')
   const [viewMode, setViewMode] = useState(() => {
