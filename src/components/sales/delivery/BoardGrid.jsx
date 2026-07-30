@@ -27,7 +27,13 @@ const BoardGrid = ({
   const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [viewMode, setViewMode] = useState('cards'); // 'cards' (screenshot design) | 'table'
+  // Default viewMode: 'table' (Dispatch Matrix) for Laptop/Desktop (>= 1024px), 'cards' (Cards View) for Mobile/iPad (< 1024px)
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024 ? 'table' : 'cards';
+    }
+    return 'table';
+  });
   const [internalSearch] = useState('');
   const activeSearch = searchQuery || internalSearch;
   const [editingTruckId, setEditingTruckId] = useState(null);
