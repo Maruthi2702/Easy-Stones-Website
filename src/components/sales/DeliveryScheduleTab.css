@@ -2156,9 +2156,19 @@ body.light-theme-active .pill-divider-line,
 }
 
 body.light-theme-active .nav-range-text,
-.light-theme-active .nav-range-text {
+body.light-theme-active .week-range-label-text,
+.light-theme-active .nav-range-text,
+.light-theme-active .week-range-label-text {
   color: #0f172a !important;
-  font-weight: 700 !important;
+  font-weight: 800 !important;
+}
+
+/* Today Row & Cells in Light Theme */
+body.light-theme-active tr.today-row,
+body.light-theme-active .day-grid-row.today-row,
+.light-theme-active tr.today-row,
+.light-theme-active .day-grid-row.today-row {
+  background: #fefce8 !important;
 }
 
 body.light-theme-active .btn-week-nav,
@@ -2230,6 +2240,7 @@ body.light-theme-active .manifest-dispatch-table td,
 .light-theme-active .manifest-dispatch-table th,
 .light-theme-active .manifest-dispatch-table td {
   border-color: #e2e8f0 !important;
+  background: #ffffff !important;
 }
 
 body.light-theme-active .truck-col-header,
