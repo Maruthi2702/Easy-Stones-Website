@@ -4802,15 +4802,15 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
       return str.toLowerCase().replace(/[^a-z0-9]/g, '');
     };
 
-    // Helper to map level string (1, Level 1, Level - 1)
+    // Helper to map level string (defaults to Level - 4 for Excel upload)
     const parseLevel = (val) => {
-      if (!val) return { levelStr: 'Level - 3', priceNum: 3 };
+      if (!val) return { levelStr: 'Level - 4', priceNum: 4 };
       const s = String(val).trim().toLowerCase();
       if (s.includes('1')) return { levelStr: 'Level - 1', priceNum: 1 };
       if (s.includes('2')) return { levelStr: 'Level - 2', priceNum: 2 };
-      if (s.includes('4')) return { levelStr: 'Level - 4', priceNum: 4 };
       if (s.includes('3')) return { levelStr: 'Level - 3', priceNum: 3 };
-      return { levelStr: 'Level - 3', priceNum: 3 };
+      if (s.includes('4')) return { levelStr: 'Level - 4', priceNum: 4 };
+      return { levelStr: 'Level - 4', priceNum: 4 };
     };
 
     // Helper to map Customer Type
@@ -4848,13 +4848,13 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
       const row = data[i];
 
       try {
-        const contactName = (nameKey && row[nameKey]) ? String(row[nameKey]).trim() : 'Unknown';
-        const company = (companyKey && row[companyKey]) ? String(row[companyKey]).trim() : contactName;
-        const phone = (phoneKey && row[phoneKey]) ? String(row[phoneKey]).trim() : '';
-        const street = (addressKey && row[addressKey]) ? String(row[addressKey]).trim() : '';
-        const city = (cityKey && row[cityKey]) ? String(row[cityKey]).trim() : '';
-        const state = (stateKey && row[stateKey]) ? String(row[stateKey]).trim() : '';
-        const zipCode = (zipKey && row[zipKey]) ? String(row[zipKey]).trim() : '';
+        const contactName = (nameKey && row[nameKey] && String(row[nameKey]).trim()) ? String(row[nameKey]).trim() : 'N/A';
+        const company = (companyKey && row[companyKey] && String(row[companyKey]).trim()) ? String(row[companyKey]).trim() : (contactName !== 'N/A' ? contactName : 'N/A');
+        const phone = (phoneKey && row[phoneKey] && String(row[phoneKey]).trim()) ? String(row[phoneKey]).trim() : 'N/A';
+        const street = (addressKey && row[addressKey] && String(row[addressKey]).trim()) ? String(row[addressKey]).trim() : 'N/A';
+        const city = (cityKey && row[cityKey] && String(row[cityKey]).trim()) ? String(row[cityKey]).trim() : 'N/A';
+        const state = (stateKey && row[stateKey] && String(row[stateKey]).trim()) ? String(row[stateKey]).trim() : 'N/A';
+        const zipCode = (zipKey && row[zipKey] && String(row[zipKey]).trim()) ? String(row[zipKey]).trim() : 'N/A';
 
         const rawLevelVal = (levelKey && row[levelKey]) ? row[levelKey] : null;
         const { levelStr, priceNum } = parseLevel(rawLevelVal);
@@ -4882,8 +4882,8 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
         // Check if customer already exists by email, normalized company name (lowercase, no spaces), or street address
         const isExisting = existingCustomersList.some(c => {
           if (normEmail && c.email && c.email.toLowerCase().trim() === normEmail) return true;
-          if (normCompany && normCompany !== 'unknown' && c.company && normalizeStr(c.company) === normCompany) return true;
-          if (normStreet && c.address?.street && normalizeStr(c.address.street) === normStreet) return true;
+          if (normCompany && normCompany !== 'na' && normCompany !== 'unknown' && c.company && normalizeStr(c.company) === normCompany) return true;
+          if (normStreet && normStreet !== 'na' && c.address?.street && normalizeStr(c.address.street) === normStreet) return true;
           return false;
         });
 
