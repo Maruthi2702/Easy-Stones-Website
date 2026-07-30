@@ -249,7 +249,7 @@ const DeliveryScheduleTab = ({
           {role === 'office' && (
             <button type="button" className="btn-add-delivery gold-glow-btn" onClick={() => handleOpenAddModal()}>
               <Plus size={16} />
-              <span>New ticket</span>
+              <span>Add Delivery</span>
             </button>
           )}
         </div>
