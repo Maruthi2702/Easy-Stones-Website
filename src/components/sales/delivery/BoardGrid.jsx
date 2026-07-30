@@ -212,53 +212,15 @@ const BoardGrid = ({
                     <div className="no-stops-subtext">No stops scheduled</div>
                   ) : (
                     <div className="stops-items-list">
-                      {trkDeliveries.map((del, idx) => (
-                        <div
+                      {trkDeliveries.map(del => (
+                        <TicketChip
                           key={del.id}
-                          className="screenshot-stop-item"
-                          onClick={() => onEditDelivery && onEditDelivery(del)}
-                          title={editable ? "Click to edit delivery ticket" : del.customerName}
-                        >
-                          <div className="stop-item-top">
-                            <span className="stop-time">
-                              <Clock size={13} style={{ marginRight: '5px', opacity: 0.85 }} />
-                              {del.time || '09:00 AM'}
-                            </span>
-                            <span className={`stop-status-badge ${del.status || 'scheduled'}`}>
-                              {del.status === 'completed' || del.status === 'delivered' ? (
-                                <><CheckCircle2 size={11} style={{ marginRight: '3px' }} /> COMPLETED</>
-                              ) : del.status === 'delayed' ? (
-                                <><AlertTriangle size={11} style={{ marginRight: '3px' }} /> DELAYED</>
-                              ) : (
-                                <><Clock size={11} style={{ marginRight: '3px' }} /> SCHEDULED</>
-                              )}
-                            </span>
-                          </div>
-
-                          <h4 className="stop-customer-title">{del.customerName}</h4>
-
-                          {del.address && (
-                            <div className="stop-location-text">
-                              <MapPin size={13} style={{ marginRight: '5px', opacity: 0.75 }} />
-                              {del.address}
-                            </div>
-                          )}
-
-                          {(del.salesRepName || del.notes) && (
-                            <div className="stop-meta-footer">
-                              {del.salesRepName && (
-                                <span className="stop-rep-badge">
-                                  <User size={11} /> {del.salesRepName}
-                                </span>
-                              )}
-                              {del.notes && (
-                                <span className="stop-notes-badge" title={del.notes}>
-                                  <FileText size={11} /> Notes
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                          delivery={del}
+                          truckColor={trk.color || '#D4AF37'}
+                          editable={editable}
+                          searchQuery={searchQuery}
+                          onClick={onEditDelivery}
+                        />
                       ))}
                     </div>
                   )}
