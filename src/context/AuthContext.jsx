@@ -114,36 +114,27 @@ export const AuthProvider = ({ children }) => {
         };
     }, [user]);
 
-    // Cross-tab session synchronization & tab focus auth validation
+    // Cross-tab session synchronization
     useEffect(() => {
         const handleStorageChange = (e) => {
-            if (e.key === 'token' && !e.newValue) {
-                console.log('Cross-tab logout detected');
+            if (e.key === 'auth_logout_event' || (e.key === 'token' && !e.newValue)) {
+                console.log('Cross-tab logout event received');
                 setUser(null);
-            } else if (e.key === 'token' && e.newValue) {
-                console.log('Cross-tab login detected');
+            } else if (e.key === 'auth_login_event' || (e.key === 'token' && e.newValue)) {
+                console.log('Cross-tab login event received');
                 checkAuth();
             }
         };
 
-        const handleFocus = () => {
-            const token = localStorage.getItem('token');
-            if (!token && user) {
-                console.log('Token removed; logging out session on tab focus');
-                setUser(null);
-            }
-        };
-
         window.addEventListener('storage', handleStorageChange);
-        window.addEventListener('focus', handleFocus);
 
         return () => {
             window.removeEventListener('storage', handleStorageChange);
-            window.removeEventListener('focus', handleFocus);
         };
-    }, [user]);
+    }, []);
 
     const login = (userData) => {
+        localStorage.setItem('auth_login_event', Date.now().toString());
         setUser(userData);
     };
 
@@ -157,7 +148,7 @@ export const AuthProvider = ({ children }) => {
             console.error('Logout error:', error);
         } finally {
             localStorage.removeItem('token');
-            window.dispatchEvent(new Event('storage'));
+            localStorage.setItem('auth_logout_event', Date.now().toString());
             setUser(null);
         }
     };
