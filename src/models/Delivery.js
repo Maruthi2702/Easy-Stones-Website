@@ -12,6 +12,7 @@ const deliverySchema = new mongoose.Schema({
   notes: { type: String, default: '' },
   soNumber: { type: String, default: '' },
   invoiceNumber: { type: String, default: '' },
+  routeNumber: { type: Number, default: 1 },
   location: { type: String, default: '' },
   driver: { type: String, default: '' }
 }, {

@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Trash2, Calendar, Clock, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle } from 'lucide-react';
+import { X, Save, Trash2, Calendar, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle, Navigation } from 'lucide-react';
 import SearchableSelect from '../../SearchableSelect';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { API_URL } from '../../../config/api';
 
-const TIME_SLOTS = [
-  '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM',
-  '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
-  '12:00 PM', '12:30 PM', '01:00 PM', '01:30 PM',
-  '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM',
-  '04:00 PM', '04:30 PM', '05:00 PM'
+const ROUTE_OPTIONS = [
+  { value: 1, label: 'Stop #1 (1st Stop)' },
+  { value: 2, label: 'Stop #2' },
+  { value: 3, label: 'Stop #3' },
+  { value: 4, label: 'Stop #4' },
+  { value: 5, label: 'Stop #5' },
+  { value: 6, label: 'Stop #6' },
+  { value: 7, label: 'Stop #7' },
+  { value: 8, label: 'Stop #8' }
 ];
 
 const DeliveryModal = ({
@@ -20,60 +23,96 @@ const DeliveryModal = ({
   onDelete,
   initialData = null,
   trucks = [],
-  deliveries = [],      // ← used to compute capacity per driver/date
+  deliveries = [],      // used to compute capacity per driver/date
   customerOptions = [],
   currentUser = null
 }) => {
+  const [date, setDate] = useState(() => formatForDateInput(new Date()));
+  const [routeNumber, setRouteNumber] = useState(1);
+  const [truckId, setTruckId] = useState(trucks[0]?.id || '');
   const [customerName, setCustomerName] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [address, setAddress] = useState('');
   const [soNumber, setSoNumber] = useState('');
-  const [date, setDate] = useState(() => formatForDateInput(new Date()));
-  const [time, setTime] = useState('09:00 AM');
-  const [truckId, setTruckId] = useState(trucks[0]?.id || '');
+  const [address, setAddress] = useState('');
   const [salesRepName, setSalesRepName] = useState(currentUser?.name || '');
   const [status, setStatus] = useState('scheduled');
   const [notes, setNotes] = useState('');
+  const [time, setTime] = useState('09:00 AM');
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Fallback internal fetch if parent customerOptions is empty
-  const [fetchedOptions, setFetchedOptions] = useState([]);
+  // Fallback internal fetch for customer options if parent prop is empty
+  const [fetchedCustomerOptions, setFetchedCustomerOptions] = useState([]);
+  // Sales Reps list for location
+  const [salesRepsList, setSalesRepsList] = useState([]);
 
   useEffect(() => {
-    if (isOpen && (!customerOptions || customerOptions.length === 0)) {
+    if (isOpen) {
+      // 1. Fetch customer dropdown if empty
+      if (!customerOptions || customerOptions.length === 0) {
+        const token = localStorage.getItem('token');
+        fetch(`${API_URL}/api/customers/dropdown`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        })
+          .then(res => res.ok ? res.json() : [])
+          .then(data => {
+            if (Array.isArray(data)) {
+              const mapped = data.map(c => {
+                const addrPart = c.address || c.street || c.shippingAddress || c.billingAddress || '';
+                const cityPart = c.city || c.shippingCity || c.billingCity || '';
+                const statePart = c.state || c.shippingState || c.billingState || '';
+                const zipPart = c.zip || c.postalCode || c.shippingZip || '';
+                const fullAddr = [addrPart, cityPart, statePart, zipPart].filter(Boolean).join(', ') || cityPart || addrPart;
+                return {
+                  value: c._id,
+                  label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
+                  city: cityPart,
+                  address: addrPart,
+                  fullAddress: fullAddr
+                };
+              });
+              setFetchedCustomerOptions(mapped);
+            }
+          })
+          .catch(err => console.warn('Failed to fetch customer options in DeliveryModal:', err));
+      }
+
+      // 2. Fetch Sales Reps for user location
       const token = localStorage.getItem('token');
-      fetch(`${API_URL}/api/customers/dropdown`, {
+      fetch(`${API_URL}/api/salesreps`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       })
         .then(res => res.ok ? res.json() : [])
-        .then(data => {
-          if (Array.isArray(data)) {
-            const mapped = data.map(c => {
-              const addrPart = c.address || c.street || c.shippingAddress || c.billingAddress || '';
-              const cityPart = c.city || c.shippingCity || c.billingCity || '';
-              const statePart = c.state || c.shippingState || c.billingState || '';
-              const zipPart = c.zip || c.postalCode || c.shippingZip || '';
-              const fullAddr = [addrPart, cityPart, statePart, zipPart].filter(Boolean).join(', ') || cityPart || addrPart;
-              return {
-                value: c._id,
-                label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
-                city: cityPart,
-                address: addrPart,
-                fullAddress: fullAddr
-              };
-            });
-            setFetchedOptions(mapped);
+        .then(payload => {
+          const list = payload.data || payload || [];
+          if (Array.isArray(list)) {
+            const userLoc = currentUser?.location;
+            const userAssigned = currentUser?.assignedLocations || [];
+            let locUsers = list;
+            if (userLoc || userAssigned.length > 0) {
+              const filterLocs = userAssigned.length > 0 ? userAssigned : [userLoc];
+              if (!filterLocs.includes('*')) {
+                locUsers = list.filter(u => {
+                  const uLocs = u.assignedLocations || (u.location ? [u.location] : []);
+                  if (uLocs.includes('*')) return true;
+                  return uLocs.some(loc => filterLocs.includes(loc));
+                });
+              }
+            }
+            const names = locUsers.map(u => u.name || u.username).filter(Boolean);
+            if (names.length > 0) {
+              setSalesRepsList(Array.from(new Set(names)));
+            }
           }
         })
-        .catch(err => console.warn('Failed to fetch customer options in DeliveryModal:', err));
+        .catch(err => console.warn('Failed to fetch sales reps in DeliveryModal:', err));
     }
-  }, [isOpen, customerOptions]);
+  }, [isOpen, customerOptions, currentUser]);
 
-  const activeOptions = (customerOptions && customerOptions.length > 0) ? customerOptions : fetchedOptions;
+  const activeCustomerOptions = (customerOptions && customerOptions.length > 0) ? customerOptions : fetchedCustomerOptions;
 
-  // Track if form has been changed from initialData
+  // Track initial snapshot for dirty state checking
   const initialSnapshot = useRef(null);
 
   useEffect(() => {
@@ -85,52 +124,53 @@ const DeliveryModal = ({
         const custName = initialData.customerName || '';
         let custId = initialData.customerId || '';
         if (!custId && custName) {
-          const match = activeOptions.find(
+          const match = activeCustomerOptions.find(
             o => o.label?.toLowerCase() === custName.toLowerCase() || o.value === custName
           );
           if (match) custId = match.value;
         }
+        setDate(formatForDateInput(initialData.date) || formatForDateInput(new Date()));
+        setRouteNumber(Number(initialData.routeNumber) || 1);
+        setTruckId(initialData.truckId || trucks[0]?.id || '');
         setCustomerName(custName);
         setSelectedCustomerId(custId || custName);
-        setAddress(initialData.address || '');
         setSoNumber(initialData.soNumber || initialData.invoiceNumber || '');
-        setDate(formatForDateInput(initialData.date) || formatForDateInput(new Date()));
-        setTime(initialData.time || '09:00 AM');
-        setTruckId(initialData.truckId || trucks[0]?.id || '');
+        setAddress(initialData.address || '');
         setSalesRepName(initialData.salesRepName || currentUser?.name || '');
         setStatus(initialData.status || 'scheduled');
         setNotes(initialData.notes || '');
+        setTime(initialData.time || '09:00 AM');
         initialSnapshot.current = JSON.stringify(initialData);
       } else {
         resetForm();
         initialSnapshot.current = null;
       }
     }
-  }, [initialData, isOpen, trucks, currentUser, activeOptions]);
+  }, [initialData, isOpen, trucks, currentUser, activeCustomerOptions]);
 
   const resetForm = () => {
+    setDate(formatForDateInput(new Date()));
+    setRouteNumber(1);
+    setTruckId(trucks[0]?.id || '');
     setCustomerName('');
     setSelectedCustomerId('');
-    setAddress('');
     setSoNumber('');
-    setDate(formatForDateInput(new Date()));
-    setTime('09:00 AM');
-    setTruckId(trucks[0]?.id || '');
+    setAddress('');
     setSalesRepName(currentUser?.name || '');
     setStatus('scheduled');
     setNotes('');
+    setTime('09:00 AM');
     setError('');
     setIsDirty(false);
   };
 
   const markDirty = () => setIsDirty(true);
 
-  // Compute booked count per truck for the selected date
+  // Compute booked capacity count per truck for the selected date
   const getCapacityForTruck = (trkId) => {
-    const booked = deliveries.filter(
+    return deliveries.filter(
       d => d.truckId === trkId && d.date === date && d.id !== initialData?.id
     ).length;
-    return booked;
   };
 
   const handleClose = () => {
@@ -146,7 +186,7 @@ const DeliveryModal = ({
 
     let finalCustomerName = customerName.trim();
     if (!finalCustomerName && selectedCustomerId) {
-      const foundOpt = customerOptions.find(o => o.value === selectedCustomerId);
+      const foundOpt = activeCustomerOptions.find(o => o.value === selectedCustomerId);
       if (foundOpt) finalCustomerName = foundOpt.label;
     }
 
@@ -172,6 +212,7 @@ const DeliveryModal = ({
       address: address.trim(),
       soNumber: soNumber.trim(),
       invoiceNumber: soNumber.trim(),
+      routeNumber: Number(routeNumber) || 1,
       date,
       time,
       truckId,
@@ -233,15 +274,60 @@ const DeliveryModal = ({
         <form onSubmit={handleSubmit} className="manifest-modal-form">
           {error && <div className="modal-error-banner"><AlertCircle size={18} /> {error}</div>}
 
-          {/* Customer & Address */}
+          {/* 1. DATE, ROUTE NUMBER & DRIVER FIELD */}
+          <div className="form-grid-3col">
+            <div className="form-group-field">
+              <label><Calendar size={14} /> Date <span className="req-star">*</span></label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => { setDate(e.target.value); markDirty(); }}
+                className="modal-text-input"
+              />
+            </div>
+
+            <div className="form-group-field">
+              <label><Navigation size={14} /> Route Number (Stop #)</label>
+              <select
+                value={routeNumber}
+                onChange={(e) => { setRouteNumber(Number(e.target.value)); markDirty(); }}
+                className="modal-select-input"
+              >
+                {ROUTE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group-field">
+              <label><Truck size={14} /> Assigned Driver <span className="req-star">*</span></label>
+              <select
+                value={truckId}
+                onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
+                className="modal-select-input"
+              >
+                {trucks.map(trk => {
+                  const booked = getCapacityForTruck(trk.id);
+                  const isFull = booked >= MAX_TRUCK_CAPACITY;
+                  return (
+                    <option key={trk.id} value={trk.id} disabled={isFull}>
+                      {trk.driver || trk.name} — {booked}/{MAX_TRUCK_CAPACITY}{isFull ? ' FULL' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+
+          {/* 2. CUSTOMER NAME FIELD */}
           <div className="form-group-field">
             <label>Customer Name <span className="req-star">*</span></label>
             <SearchableSelect
-              options={activeOptions}
+              options={activeCustomerOptions}
               value={selectedCustomerId || customerName}
               onChange={(val) => {
                 setSelectedCustomerId(val);
-                const foundOpt = activeOptions.find(o => o.value === val || o.label === val);
+                const foundOpt = activeCustomerOptions.find(o => o.value === val || o.label === val);
                 if (foundOpt) {
                   setCustomerName(foundOpt.label);
                   setSelectedCustomerId(foundOpt.value);
@@ -258,18 +344,9 @@ const DeliveryModal = ({
             />
           </div>
 
-          <div className="form-grid-2col" style={{ marginBottom: '0.75rem' }}>
-            <div className="form-group-field" style={{ marginBottom: 0 }}>
-              <label><MapPin size={14} /> Delivery Address <span className="req-star">*</span></label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => { setAddress(e.target.value); markDirty(); }}
-                placeholder="1234 Main St, City, State ZIP"
-                className="modal-text-input"
-              />
-            </div>
-            <div className="form-group-field" style={{ marginBottom: 0 }}>
+          {/* 3. SO#/INVOICE NUMBER & DELIVERY ADDRESS */}
+          <div className="form-grid-2col">
+            <div className="form-group-field">
               <label><Hash size={14} /> SO# / Invoice # <span className="opt-subtext">(ERP Tracking)</span></label>
               <input
                 type="text"
@@ -279,64 +356,45 @@ const DeliveryModal = ({
                 className="modal-text-input"
               />
             </div>
-          </div>
 
-          {/* Date, Time & Truck */}
-          <div className="form-grid-3col">
             <div className="form-group-field">
-              <label><Calendar size={14} /> Date</label>
+              <label><MapPin size={14} /> Delivery Address <span className="req-star">*</span></label>
               <input
-                type="date"
-                value={date}
-                onChange={(e) => { setDate(e.target.value); markDirty(); }}
+                type="text"
+                value={address}
+                onChange={(e) => { setAddress(e.target.value); markDirty(); }}
+                placeholder="City / Street / Jobsite address..."
                 className="modal-text-input"
               />
             </div>
-
-            <div className="form-group-field">
-              <label><Clock size={14} /> Time Slot</label>
-              <select
-                value={time}
-                onChange={(e) => { setTime(e.target.value); markDirty(); }}
-                className="modal-select-input"
-              >
-                {TIME_SLOTS.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group-field">
-              <label><Truck size={14} /> Assigned Driver</label>
-              <select
-                value={truckId}
-                onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
-                className="modal-select-input"
-              >
-                {trucks.map(trk => {
-                  const booked = getCapacityForTruck(trk.id);
-                  const isFull = booked >= MAX_TRUCK_CAPACITY;
-                  return (
-                    <option key={trk.id} value={trk.id} disabled={isFull}>
-                      {trk.driver} — {booked}/{MAX_TRUCK_CAPACITY}{isFull ? ' FULL' : ''}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
           </div>
 
-          {/* Sales Rep & Status */}
+          {/* 4. SALES REP & STATUS */}
           <div className="form-grid-2col">
             <div className="form-group-field">
               <label><User size={14} /> Sales Representative</label>
-              <input
-                type="text"
-                value={salesRepName}
-                onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
-                placeholder="Sales Rep Name"
-                className="modal-text-input"
-              />
+              {salesRepsList.length > 0 ? (
+                <select
+                  value={salesRepName}
+                  onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
+                  className="modal-select-input"
+                >
+                  {salesRepsList.map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                  {!salesRepsList.includes(salesRepName) && salesRepName && (
+                    <option value={salesRepName}>{salesRepName}</option>
+                  )}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={salesRepName}
+                  onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
+                  placeholder="Sales Rep Name"
+                  className="modal-text-input"
+                />
+              )}
             </div>
 
             <div className="form-group-field">
@@ -353,7 +411,7 @@ const DeliveryModal = ({
             </div>
           </div>
 
-          {/* Notes */}
+          {/* 5. NOTES */}
           <div className="form-group-field">
             <label><FileText size={14} /> Delivery Notes &amp; Gate Codes</label>
             <textarea

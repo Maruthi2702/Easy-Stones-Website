@@ -62,11 +62,31 @@ const BoardGrid = ({
     );
   });
 
+  // Pre-index deliveries by `${truckId}_${date}` in O(N) for optimal rendering performance
+  const cellMap = React.useMemo(() => {
+    const map = new Map();
+    for (const d of filteredDeliveries) {
+      const key = `${d.truckId}_${d.date}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(d);
+    }
+    // Sort each cell's list by routeNumber ascending (Stop #1, Stop #2...), then by time
+    for (const list of map.values()) {
+      list.sort((a, b) => {
+        const rA = Number(a.routeNumber) || 1;
+        const rB = Number(b.routeNumber) || 1;
+        if (rA !== rB) return rA - rB;
+        return (a.time || '').localeCompare(b.time || '');
+      });
+    }
+    return map;
+  }, [filteredDeliveries]);
+
   const getDeliveriesForCell = (truckId, dateStr) =>
-    filteredDeliveries.filter(d => d.truckId === truckId && d.date === dateStr);
+    cellMap.get(`${truckId}_${dateStr}`) || [];
 
   const getRawCapacity = (truckId, dateStr) =>
-    deliveries.filter(d => d.truckId === truckId && d.date === dateStr).length;
+    (cellMap.get(`${truckId}_${dateStr}`) || []).length;
 
   const getCapacityColorClass = (count) => {
     if (count >= MAX_TRUCK_CAPACITY) return 'capacity-alert-red';

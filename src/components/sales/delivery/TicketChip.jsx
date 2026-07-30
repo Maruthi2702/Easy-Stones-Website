@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, User, Clock, FileText, Hash } from 'lucide-react';
+import { MapPin, User, Clock, FileText, Hash, Navigation } from 'lucide-react';
 import StatusPill from './StatusPill';
 
 /**
@@ -30,6 +30,7 @@ const TicketChip = ({
   if (!delivery) return null;
 
   const soVal = delivery.soNumber || delivery.invoiceNumber;
+  const stopNum = delivery.routeNumber || 1;
 
   return (
     <div
@@ -39,8 +40,8 @@ const TicketChip = ({
       title={editable ? 'Click to edit delivery' : delivery.customerName}
     >
       <div className="ticket-header">
-        <span className="ticket-time-mono">
-          <Clock size={12} /> {delivery.time || 'TBD'}
+        <span className="ticket-time-mono" title={`Stop #${stopNum}`}>
+          <Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}
         </span>
         <StatusPill status={delivery.status} size="small" />
       </div>
