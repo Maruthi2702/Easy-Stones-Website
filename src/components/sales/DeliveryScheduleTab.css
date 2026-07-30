@@ -1460,13 +1460,16 @@ body.light-theme-active .form-group-field label,
 
 .modal-text-input,
 .modal-select-input,
-.modal-textarea-input {
+.modal-textarea-input,
+.delivery-modal-content input,
+.delivery-modal-content select,
+.delivery-modal-content textarea {
   width: 100%;
   padding: 0.65rem 0.85rem;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1.5px solid rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background: #1c1c1e !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
   font-size: 0.9rem;
   font-family: inherit;
   outline: none;
@@ -1474,11 +1477,22 @@ body.light-theme-active .form-group-field label,
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.delivery-modal-content select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23b0b0b0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.85rem center !important;
+  background-size: 16px !important;
+  padding-right: 2.2rem !important;
+}
+
 .modal-text-input:focus,
 .modal-select-input:focus,
-.modal-textarea-input:focus {
-  border-color: rgba(212, 175, 55, 0.7);
-  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
+.modal-textarea-input:focus,
+.delivery-modal-content input:focus,
+.delivery-modal-content select:focus,
+.delivery-modal-content textarea:focus {
+  border-color: rgba(212, 175, 55, 0.7) !important;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15) !important;
 }
 
 body.light-theme-active .modal-text-input,
@@ -1486,10 +1500,16 @@ body.light-theme-active .modal-select-input,
 body.light-theme-active .modal-textarea-input,
 .light-theme-active .modal-text-input,
 .light-theme-active .modal-select-input,
-.light-theme-active .modal-textarea-input {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: #0f172a;
+.light-theme-active .modal-textarea-input,
+body.light-theme-active .delivery-modal-content input,
+body.light-theme-active .delivery-modal-content select,
+body.light-theme-active .delivery-modal-content textarea,
+.light-theme-active .delivery-modal-content input,
+.light-theme-active .delivery-modal-content select,
+.light-theme-active .delivery-modal-content textarea {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
 body.light-theme-active .modal-text-input:focus,
