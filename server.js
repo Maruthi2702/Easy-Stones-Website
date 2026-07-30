@@ -730,6 +730,22 @@ const requirePermission = (...permissions) => (req, res, next) => {
   next();
 };
 
+const requireAnyPermission = (...permissions) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Not authenticated. Please log in.' });
+  }
+
+  const userPerms = req.user.permissions || [];
+  const hasAny = permissions.some(p => userPerms.includes(p));
+  if (!hasAny) {
+    return res.status(403).json({
+      error: `Access denied. Your role ("${req.user.role}") requires at least one of these permissions: ${permissions.join(', ')}.`
+    });
+  }
+
+  next();
+};
+
 // Legacy aliases — kept so any remaining code using old names still works
 // during the transition. These will be removed in a future cleanup.
 const verifyToken    = authenticate;
@@ -1649,7 +1665,16 @@ app.get('/api/customers', authenticate, requirePermission('view_customers'), asy
 });
 
 // Get ALL customers for dropdown selection (minimal fields)
-app.get('/api/customers/dropdown', authenticate, requirePermission('view_customers'), async (req, res) => {
+// Accessible by users with view_customers OR delivery schedule / checkin / lost sales access
+app.get('/api/customers/dropdown', authenticate, requireAnyPermission(
+  'view_customers',
+  'view_delivery_schedule',
+  'edit_delivery_schedule',
+  'manage_delivery_schedule',
+  'view_checkins',
+  'view_lost_sales',
+  'edit_lost_sales'
+), async (req, res) => {
   try {
     const customers = await Customer.find({})
       .select('_id company contactName firstName lastName email customerType')
