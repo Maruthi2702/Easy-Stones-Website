@@ -333,17 +333,6 @@ const DeliveryModal = ({
               />
             </div>
 
-            {/* Date */}
-            <div className="form-group">
-              <label>Date <span className="req-star">*</span></label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => { setDate(e.target.value); markDirty(); }}
-                required
-              />
-            </div>
-
             {/* Customer Name */}
             <div className="form-group">
               <label>Customer Name <span className="req-star">*</span></label>
