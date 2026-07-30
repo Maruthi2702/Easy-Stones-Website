@@ -277,26 +277,18 @@ const DeliveryModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="manifest-modal-overlay anim-fade-in" onClick={handleClose}>
-      <div className="manifest-modal-content anim-scale-in" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay visit-modal-overlay" onClick={handleClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
 
-        {/* Modal Header */}
-        <div className="manifest-modal-header">
-          <div className="modal-title-wrap">
-            <div className="modal-icon-badge gold">
-              <Truck size={20} />
-            </div>
-            <div>
-              <h3>{initialData?.id ? 'Edit Delivery Ticket' : 'New Delivery Ticket'}</h3>
-              <p className="modal-sub-text">Dispatch &amp; Capacity Scheduling</p>
-            </div>
-          </div>
-          <button type="button" className="modal-close-btn" onClick={handleClose} title="Close">
+        {/* Modal Header — same structure as VisitModal */}
+        <div className="modal-header">
+          <h2>{initialData?.id ? 'Edit Delivery Ticket' : 'New Delivery Ticket'}</h2>
+          <button className="close-btn" onClick={handleClose} title="Close">
             <X size={20} />
           </button>
         </div>
 
-        {/* Custom Unsaved Changes Pop-up Modal Overlay */}
+        {/* Custom Unsaved Changes Pop-up */}
         {confirmClose && (
           <div className="unsaved-modal-backdrop anim-fade-in" onClick={() => setConfirmClose(false)}>
             <div className="unsaved-modal-card anim-scale-in" onClick={(e) => e.stopPropagation()}>
@@ -321,199 +313,191 @@ const DeliveryModal = ({
           </div>
         )}
 
-        {/* Inline Delete Confirmation Banner */}
-        {confirmDelete && (
-          <div className="modal-delete-confirm-banner">
-            <AlertTriangle size={18} />
-            <span>Delete this delivery? This cannot be undone.</span>
-            <div className="delete-confirm-actions">
-              <button type="button" className="btn-confirm-delete" onClick={handleDeleteConfirmed}>
-                Yes, delete
-              </button>
-              <button type="button" className="btn-cancel-delete" onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </button>
+        {/* Modal Body — same as VisitModal .modal-body */}
+        <div className="modal-body">
+
+          {/* Inline Delete Confirmation Banner */}
+          {confirmDelete && (
+            <div className="modal-delete-confirm-banner">
+              <AlertTriangle size={18} />
+              <span>Delete this delivery? This cannot be undone.</span>
+              <div className="delete-confirm-actions">
+                <button type="button" className="btn-confirm-delete" onClick={handleDeleteConfirmed}>Yes, delete</button>
+                <button type="button" className="btn-cancel-delete" onClick={() => setConfirmDelete(false)}>Cancel</button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="manifest-modal-form">
-          {error && <div className="modal-error-banner"><AlertCircle size={18} /> {error}</div>}
+          {error && <div className="modal-error-banner" style={{ marginBottom: '1rem' }}><AlertCircle size={18} /> {error}</div>}
 
-          {/* 1. DATE, ROUTE NUMBER & DRIVER FIELD */}
-          <div className="form-grid-3col">
-            <div className="form-group-field">
-              <label><Calendar size={14} /> Date <span className="req-star">*</span></label>
+          <form onSubmit={handleSubmit} id="delivery-modal-form">
+
+            {/* Date */}
+            <div className="form-group">
+              <label>Date <span style={{ color: 'red' }}>*</span></label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => { setDate(e.target.value); markDirty(); }}
-                className="modal-text-input"
-              />
-            </div>
-
-            <div className="form-group-field">
-              <label><Navigation size={14} /> Route Number (Stop #)</label>
-              <select
-                value={routeNumber}
-                onChange={(e) => { setRouteNumber(Number(e.target.value)); markDirty(); }}
-                className="modal-select-input"
-              >
-                {ROUTE_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group-field">
-              <label><Truck size={14} /> Assigned Driver <span className="req-star">*</span></label>
-              <select
-                value={truckId}
-                onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
-                className="modal-select-input"
-              >
-                {trucks.map(trk => {
-                  const booked = getCapacityForTruck(trk.id);
-                  const isFull = booked >= MAX_TRUCK_CAPACITY;
-                  return (
-                    <option key={trk.id} value={trk.id} disabled={isFull}>
-                      {trk.driver || trk.name} — {booked}/{MAX_TRUCK_CAPACITY}{isFull ? ' FULL' : ''}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          </div>
-
-          {/* 2. CUSTOMER NAME FIELD */}
-          <div className="form-group-field">
-            <label>Customer Name <span className="req-star">*</span></label>
-            <SearchableSelect
-              options={activeCustomerOptions}
-              value={selectedCustomerId || customerName}
-              onChange={(val) => {
-                setSelectedCustomerId(val);
-                const foundOpt = activeCustomerOptions.find(o => o.value === val || o.label === val);
-                if (foundOpt) {
-                  setCustomerName(foundOpt.label);
-                  setSelectedCustomerId(foundOpt.value);
-                  const autoAddr = foundOpt.city || foundOpt.fullAddress || foundOpt.address || '';
-                  if (autoAddr && autoAddr !== '[object Object]') {
-                    setAddress(autoAddr);
-                  }
-                } else {
-                  setCustomerName(val);
-                }
-                markDirty();
-              }}
-              placeholder="Select Customer or type custom..."
-            />
-          </div>
-
-          {/* 3. SO#/INVOICE NUMBER & DELIVERY ADDRESS */}
-          <div className="form-grid-2col">
-            <div className="form-group-field">
-              <label><Hash size={14} /> SO / Invoice# <span className="req-star">*</span></label>
-              <input
-                type="text"
-                value={soNumber}
-                onChange={(e) => { setSoNumber(e.target.value); markDirty(); }}
-                placeholder="e.g. SO-10492 or INV-8821"
-                className="modal-text-input"
                 required
               />
             </div>
 
-            <div className="form-group-field">
-              <label><MapPin size={14} /> Delivery Address <span className="opt-subtext">(Optional)</span></label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => { setAddress(e.target.value); markDirty(); }}
-                placeholder="City / Street / Jobsite address..."
-                className="modal-text-input"
+            {/* Route Stop & Assigned Driver — 2 col grid like VisitModal */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label><Navigation size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Route (Stop #)</label>
+                <select
+                  value={routeNumber}
+                  onChange={(e) => { setRouteNumber(Number(e.target.value)); markDirty(); }}
+                >
+                  {ROUTE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver <span style={{ color: 'red' }}>*</span></label>
+                <select
+                  value={truckId}
+                  onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
+                  required
+                >
+                  {trucks.map(trk => {
+                    const booked = getCapacityForTruck(trk.id);
+                    const isFull = booked >= MAX_TRUCK_CAPACITY;
+                    return (
+                      <option key={trk.id} value={trk.id} disabled={isFull}>
+                        {trk.driver || trk.name} — {booked}/{MAX_TRUCK_CAPACITY}{isFull ? ' FULL' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            </div>
+
+            {/* Customer Name */}
+            <div className="form-group">
+              <label>Customer Name <span style={{ color: 'red' }}>*</span></label>
+              <SearchableSelect
+                options={activeCustomerOptions}
+                value={selectedCustomerId || customerName}
+                onChange={(val) => {
+                  setSelectedCustomerId(val);
+                  const foundOpt = activeCustomerOptions.find(o => o.value === val || o.label === val);
+                  if (foundOpt) {
+                    setCustomerName(foundOpt.label);
+                    setSelectedCustomerId(foundOpt.value);
+                    const autoAddr = foundOpt.city || foundOpt.fullAddress || foundOpt.address || '';
+                    if (autoAddr && autoAddr !== '[object Object]') setAddress(autoAddr);
+                  } else {
+                    setCustomerName(val);
+                  }
+                  markDirty();
+                }}
+                placeholder="Select Customer or type custom..."
               />
             </div>
-          </div>
 
-          {/* 4. SALES REP & STATUS */}
-          <div className="form-grid-2col">
-            <div className="form-group-field">
-              <label><User size={14} /> Sales Representative</label>
-              {salesRepsList.length > 0 ? (
-                <select
-                  value={salesRepName}
-                  onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
-                  className="modal-select-input"
-                >
-                  {salesRepsList.map(name => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                  {!salesRepsList.includes(salesRepName) && salesRepName && (
-                    <option value={salesRepName}>{salesRepName}</option>
-                  )}
-                </select>
-              ) : (
+            {/* SO / Invoice# & Delivery Address */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label><Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />SO / Invoice# <span style={{ color: 'red' }}>*</span></label>
                 <input
                   type="text"
-                  value={salesRepName}
-                  onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
-                  placeholder="Sales Rep Name"
-                  className="modal-text-input"
+                  value={soNumber}
+                  onChange={(e) => { setSoNumber(e.target.value); markDirty(); }}
+                  placeholder="e.g. SO-10492 or INV-8821"
+                  required
                 />
-              )}
+              </div>
+
+              <div className="form-group">
+                <label><MapPin size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Delivery Address <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.78rem' }}>(Optional)</span></label>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => { setAddress(e.target.value); markDirty(); }}
+                  placeholder="City / Street / Jobsite address..."
+                />
+              </div>
             </div>
 
-            <div className="form-group-field">
-              <label>Status</label>
-              <select
-                value={status}
-                onChange={(e) => { setStatus(e.target.value); markDirty(); }}
-                className={`modal-select-input status-select status-${status}`}
-              >
-                <option value="pending">⏳ Pending</option>
-                <option value="scheduled">🕐 Scheduled</option>
-                <option value="delayed">⚠️ Delayed / Running Late</option>
-                <option value="completed">✅ Completed / Delivered</option>
-              </select>
-            </div>
-          </div>
+            {/* Sales Rep & Status */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Sales Representative</label>
+                {salesRepsList.length > 0 ? (
+                  <select
+                    value={salesRepName}
+                    onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
+                  >
+                    {salesRepsList.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                    {!salesRepsList.includes(salesRepName) && salesRepName && (
+                      <option value={salesRepName}>{salesRepName}</option>
+                    )}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={salesRepName}
+                    onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
+                    placeholder="Sales Rep Name"
+                  />
+                )}
+              </div>
 
-          {/* 5. NOTES */}
-          <div className="form-group-field">
-            <label><FileText size={14} /> Delivery Notes &amp; Gate Codes</label>
-            <textarea
-              value={notes}
-              onChange={(e) => { setNotes(e.target.value); markDirty(); }}
-              placeholder="Forklift needed, gate codes, contact person..."
-              rows={3}
-              className="modal-textarea-input"
-            />
-          </div>
-
-          {/* Footer Actions */}
-          <div className="manifest-modal-footer">
-            {initialData?.id && !confirmDelete && (
-              <button
-                type="button"
-                className="modal-btn-delete"
-                onClick={() => setConfirmDelete(true)}
-              >
-                <Trash2 size={16} /> Delete
-              </button>
-            )}
-            <div className="footer-right-group">
-              <button type="button" className="modal-btn-cancel" onClick={handleClose}>
-                Cancel
-              </button>
-              <button type="submit" className="modal-btn-save">
-                <Save size={16} />
-                <span>{initialData?.id ? 'Save Changes' : 'Add Delivery'}</span>
-              </button>
+              <div className="form-group">
+                <label>Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => { setStatus(e.target.value); markDirty(); }}
+                >
+                  <option value="pending">⏳ Pending</option>
+                  <option value="scheduled">🕐 Scheduled</option>
+                  <option value="delayed">⚠️ Delayed / Running Late</option>
+                  <option value="completed">✅ Completed / Delivered</option>
+                </select>
+              </div>
             </div>
-          </div>
-        </form>
+
+            {/* Notes */}
+            <div className="form-group">
+              <label><FileText size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Delivery Notes &amp; Gate Codes</label>
+              <textarea
+                value={notes}
+                onChange={(e) => { setNotes(e.target.value); markDirty(); }}
+                placeholder="Forklift needed, gate codes, contact person..."
+                rows={4}
+              />
+            </div>
+
+          </form>
+        </div>
+
+        {/* Modal Footer — same as VisitModal */}
+        <div className="modal-footer">
+          {initialData?.id && !confirmDelete && (
+            <button
+              type="button"
+              className="modal-btn-delete"
+              onClick={() => setConfirmDelete(true)}
+              style={{ marginRight: 'auto' }}
+            >
+              <Trash2 size={16} /> Delete
+            </button>
+          )}
+          <button className="btn-secondary" onClick={handleClose}>
+            Cancel
+          </button>
+          <button className="btn-primary" onClick={handleSubmit}>
+            {initialData?.id ? 'Save Changes' : 'Add Delivery'}
+          </button>
+        </div>
+
       </div>
     </div>
   );
