@@ -205,8 +205,12 @@ body.light-theme-active .password-toggle:hover {
   color: var(--text-primary);
 }
 
-/* Global class for required form field asterisks */
-.req-star {
+/* Global class for required form field asterisks - highly specific to override generic modal rules */
+.req-star,
+span.req-star,
+.modal-content span.req-star,
+body.light-theme-active .modal-content span.req-star,
+.light-theme-active .modal-content span.req-star {
   color: #ff4d4f !important;
   font-weight: 800 !important;
   margin-left: 4px !important;
