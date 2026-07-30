@@ -209,6 +209,10 @@ const DeliveryModal = ({
                 if (foundOpt) {
                   setCustomerName(foundOpt.label);
                   setSelectedCustomerId(foundOpt.value);
+                  const autoAddr = foundOpt.fullAddress || foundOpt.city || foundOpt.address || '';
+                  if (autoAddr) {
+                    setAddress(autoAddr);
+                  }
                 } else {
                   setCustomerName(val);
                 }

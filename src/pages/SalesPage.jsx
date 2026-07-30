@@ -820,14 +820,24 @@ const SalesPage = () => {
 
     const customerOptions = React.useMemo(() => {
         const sourceData = allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || []);
-        // Sort and map in one pass to avoid creating intermediate arrays
         return sourceData
-            .slice() // Create a shallow copy to avoid mutating original
+            .slice()
             .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
-            .map(c => ({
-                value: c._id,
-                label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown'
-            }));
+            .map(c => {
+                const addrPart = c.address || c.street || c.shippingAddress || '';
+                const cityPart = c.city || c.shippingCity || c.billingCity || '';
+                const statePart = c.state || c.shippingState || '';
+                const zipPart = c.zip || c.postalCode || '';
+                const fullAddr = [addrPart, cityPart, statePart, zipPart].filter(Boolean).join(', ') || cityPart || addrPart;
+
+                return {
+                    value: c._id,
+                    label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
+                    city: cityPart,
+                    address: addrPart,
+                    fullAddress: fullAddr
+                };
+            });
     }, [allCustomersForSelection, customers]);
 
     const allVisits = React.useMemo(() => {
