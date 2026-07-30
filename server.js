@@ -4777,12 +4777,6 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
       phone: phoneKey
     });
 
-    if (!emailKey) {
-      return res.status(400).json({
-        message: 'Could not detect an "Email" column. Please ensure your Excel file has a column header containing "Email".'
-      });
-    }
-
     const results = {
       added: 0,
       updated: 0,
@@ -4804,21 +4798,6 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
       const row = data[i];
 
       try {
-        const rawEmail = row[emailKey];
-
-        if (!rawEmail || typeof rawEmail !== 'string') {
-          if (Object.keys(row).length > 2) {
-            results.errors.push(`Row ${i + 2}: Missing or invalid email`);
-          }
-          continue;
-        }
-
-        if (!rawEmail.includes('@')) {
-          results.errors.push(`Row ${i + 2}: Invalid email format "${rawEmail}"`);
-          continue;
-        }
-
-        const email = rawEmail.toLowerCase().trim();
         const contactName = (nameKey && row[nameKey]) ? String(row[nameKey]).trim() : 'Unknown';
         const company = (companyKey && row[companyKey]) ? String(row[companyKey]).trim() : contactName;
         const phone = (phoneKey && row[phoneKey]) ? String(row[phoneKey]).trim() : '';
@@ -4826,6 +4805,15 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
         const city = (cityKey && row[cityKey]) ? String(row[cityKey]).trim() : '';
         const state = (stateKey && row[stateKey]) ? String(row[stateKey]).trim() : '';
         const zipCode = (zipKey && row[zipKey]) ? String(row[zipKey]).trim() : '';
+
+        const rawEmail = emailKey ? row[emailKey] : null;
+        let email = '';
+        if (rawEmail && typeof rawEmail === 'string' && rawEmail.includes('@')) {
+          email = rawEmail.toLowerCase().trim();
+        } else {
+          const safeSlug = normalizeStr(company) || normalizeStr(contactName) || `cust_${Date.now()}_${i}`;
+          email = `${safeSlug}@easystones-client.com`;
+        }
 
         const normEmail = email;
         const normCompany = normalizeStr(company);
