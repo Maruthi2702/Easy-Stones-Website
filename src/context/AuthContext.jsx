@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // Auto-logout after 10 minutes of inactivity
+    // Auto-logout after inactivity timeout
     useEffect(() => {
         if (!user) return; // Only run if user is logged in
 
@@ -88,30 +88,22 @@ export const AuthProvider = ({ children }) => {
         let inactivityTimer;
 
         const resetTimer = () => {
-            // Clear existing timer
             if (inactivityTimer) {
                 clearTimeout(inactivityTimer);
             }
-
-            // Set new timer
             inactivityTimer = setTimeout(() => {
                 console.log('Auto-logout due to inactivity');
                 logout();
             }, INACTIVITY_TIMEOUT);
         };
 
-        // Activity events to monitor
         const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
-
-        // Add event listeners
         events.forEach(event => {
             window.addEventListener(event, resetTimer);
         });
 
-        // Start initial timer
         resetTimer();
 
-        // Cleanup
         return () => {
             if (inactivityTimer) {
                 clearTimeout(inactivityTimer);
@@ -122,13 +114,41 @@ export const AuthProvider = ({ children }) => {
         };
     }, [user]);
 
+    // Cross-tab session synchronization & tab focus auth validation
+    useEffect(() => {
+        const handleStorageChange = (e) => {
+            if (e.key === 'token' && !e.newValue) {
+                console.log('Cross-tab logout detected');
+                setUser(null);
+            } else if (e.key === 'token' && e.newValue) {
+                console.log('Cross-tab login detected');
+                checkAuth();
+            }
+        };
+
+        const handleFocus = () => {
+            const token = localStorage.getItem('token');
+            if (!token && user) {
+                console.log('Token removed; logging out session on tab focus');
+                setUser(null);
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [user]);
+
     const login = (userData) => {
         setUser(userData);
     };
 
     const logout = async () => {
         try {
-            // Attempt to logout from both endpoints
             await Promise.all([
                 fetch(`${API_URL}/api/customer/logout`, { method: 'POST', credentials: 'include' }),
                 fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' })
@@ -137,6 +157,7 @@ export const AuthProvider = ({ children }) => {
             console.error('Logout error:', error);
         } finally {
             localStorage.removeItem('token');
+            window.dispatchEvent(new Event('storage'));
             setUser(null);
         }
     };
