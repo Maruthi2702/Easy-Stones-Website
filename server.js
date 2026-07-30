@@ -4770,11 +4770,23 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
     const stateKey = findKey(['state', 'province', 'region']);
     const zipKey = findKey(['zip', 'postal', 'code']);
 
+    // CRM Lead & Display fields
+    const levelKey = findKey(['level', 'tier', 'grade']);
+    const typeKey = findKey(['customertype', 'customer type', 'type', 'category']);
+    const statusKey = findKey(['status', 'stage', 'lead status']);
+    const modaDisplayKey = findKey(['modadisplay', 'moda display', 'display']);
+    const modaBinderKey = findKey(['modabinder', 'moda binder', 'binder']);
+
     console.log('Bulk Upload - Detected Column Mapping:', {
       email: emailKey,
       name: nameKey,
       company: companyKey,
-      phone: phoneKey
+      phone: phoneKey,
+      level: levelKey,
+      customerType: typeKey,
+      status: statusKey,
+      modaDisplay: modaDisplayKey,
+      modaBinder: modaBinderKey
     });
 
     const results = {
@@ -4788,6 +4800,44 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
     const normalizeStr = (str) => {
       if (!str || typeof str !== 'string') return '';
       return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+    };
+
+    // Helper to map level string (1, Level 1, Level - 1)
+    const parseLevel = (val) => {
+      if (!val) return { levelStr: 'Level - 3', priceNum: 3 };
+      const s = String(val).trim().toLowerCase();
+      if (s.includes('1')) return { levelStr: 'Level - 1', priceNum: 1 };
+      if (s.includes('2')) return { levelStr: 'Level - 2', priceNum: 2 };
+      if (s.includes('4')) return { levelStr: 'Level - 4', priceNum: 4 };
+      if (s.includes('3')) return { levelStr: 'Level - 3', priceNum: 3 };
+      return { levelStr: 'Level - 3', priceNum: 3 };
+    };
+
+    // Helper to map Customer Type
+    const parseType = (val) => {
+      if (!val) return 'Fabricator';
+      const s = String(val).trim().toLowerCase();
+      if (s.includes('contractor')) return 'Contractor';
+      if (s.includes('dealer')) return 'Dealer';
+      if (s.includes('floor')) return 'Floor Covering';
+      if (s.includes('designer')) return 'Designer';
+      if (s.includes('builder')) return 'Builder';
+      if (s.includes('fabricator')) return 'Fabricator';
+      return String(val).trim();
+    };
+
+    // Helper to map Status
+    const parseStatus = (val) => {
+      if (!val) return 'Onboarded';
+      const s = String(val).trim().toLowerCase();
+      if (s.includes('new') || s.includes('lead')) return 'New Lead';
+      if (s.includes('try') || s.includes('onboard')) return 'Trying to Onboard';
+      if (s.includes('contact') || s.includes('discuss')) return 'Contacted / In Discussion';
+      if (s.includes('different') || s.includes('rep')) return 'Different Sales Person';
+      if (s.includes('not interested')) return 'Not Interested';
+      if (s.includes('inactive')) return 'Inactive';
+      if (s.includes('onboarded')) return 'Onboarded';
+      return String(val).trim();
     };
 
     // Fetch existing customers to check in-memory for fast normalized comparisons
@@ -4806,6 +4856,16 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
         const state = (stateKey && row[stateKey]) ? String(row[stateKey]).trim() : '';
         const zipCode = (zipKey && row[zipKey]) ? String(row[zipKey]).trim() : '';
 
+        const rawLevelVal = (levelKey && row[levelKey]) ? row[levelKey] : null;
+        const { levelStr, priceNum } = parseLevel(rawLevelVal);
+        const parsedType = (typeKey && row[typeKey]) ? parseType(row[typeKey]) : 'Fabricator';
+        const parsedStatus = (statusKey && row[statusKey]) ? parseStatus(row[statusKey]) : 'Onboarded';
+
+        const rawDisplay = (modaDisplayKey && row[modaDisplayKey]) ? String(row[modaDisplayKey]).trim().toLowerCase() : '';
+        const parsedDisplay = (rawDisplay.includes('yes') || rawDisplay === 'y' || rawDisplay === 'true' || rawDisplay === '1') ? 'Yes' : 'No';
+
+        const rawBinder = (modaBinderKey && row[modaBinderKey]) ? String(row[modaBinderKey]).trim() : '0';
+
         const rawEmail = emailKey ? row[emailKey] : null;
         let email = '';
         if (rawEmail && typeof rawEmail === 'string' && rawEmail.includes('@')) {
@@ -4821,22 +4881,9 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
 
         // Check if customer already exists by email, normalized company name (lowercase, no spaces), or street address
         const isExisting = existingCustomersList.some(c => {
-          // 1. Email match
-          if (normEmail && c.email && c.email.toLowerCase().trim() === normEmail) {
-            return true;
-          }
-          // 2. Company name match (lowercase & no spaces)
-          if (normCompany && normCompany !== 'unknown' && c.company) {
-            if (normalizeStr(c.company) === normCompany) {
-              return true;
-            }
-          }
-          // 3. Street address match
-          if (normStreet && c.address?.street) {
-            if (normalizeStr(c.address.street) === normStreet) {
-              return true;
-            }
-          }
+          if (normEmail && c.email && c.email.toLowerCase().trim() === normEmail) return true;
+          if (normCompany && normCompany !== 'unknown' && c.company && normalizeStr(c.company) === normCompany) return true;
+          if (normStreet && c.address?.street && normalizeStr(c.address.street) === normStreet) return true;
           return false;
         });
 
@@ -4858,8 +4905,13 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
               state: state,
               zipCode: zipCode
             },
-            isVerified: true,
-            priceLevel: 1
+            status: parsedStatus,
+            customerType: parsedType,
+            level: levelStr,
+            priceLevel: priceNum,
+            modaDisplay: parsedDisplay,
+            modaBinder: rawBinder,
+            isVerified: true
           });
 
           await newCustomer.save();
