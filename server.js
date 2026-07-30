@@ -4813,8 +4813,6 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
 
         const email = rawEmail.toLowerCase().trim();
 
-        let customer = await Customer.findOne({ email: email });
-
         // Prepare data from row
         const contactName = (nameKey && row[nameKey]) ? String(row[nameKey]).trim() : 'Unknown';
         const company = (companyKey && row[companyKey]) ? String(row[companyKey]).trim() : contactName;
@@ -4824,19 +4822,19 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
         const state = (stateKey && row[stateKey]) ? String(row[stateKey]).trim() : '';
         const zipCode = (zipKey && row[zipKey]) ? String(row[zipKey]).trim() : '';
 
+        // Check if customer already exists by email OR matching company name (case-insensitive)
+        const queryConditions = [{ email: email }];
+        if (company && company !== 'Unknown') {
+          const escapedComp = company.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          queryConditions.push({ company: { $regex: new RegExp(`^${escapedComp}$`, 'i') } });
+        }
+
+        let customer = await Customer.findOne({ $or: queryConditions });
+
         if (customer) {
-          // Update existing customer
-          if (nameKey && row[nameKey]) customer.contactName = contactName;
-          if (companyKey && row[companyKey]) customer.company = company;
-          if (phoneKey && row[phoneKey]) customer.phone = phone;
-
-          if (addressKey && row[addressKey]) customer.address.street = street;
-          if (cityKey && row[cityKey]) customer.address.city = city;
-          if (stateKey && row[stateKey]) customer.address.state = state;
-          if (zipKey && row[zipKey]) customer.address.zipCode = zipCode;
-
-          await customer.save();
-          results.updated++;
+          // Skip existing customers to preserve existing edits
+          results.skipped++;
+          continue;
         } else {
           const hashedPassword = await bcrypt.hash('Welcome123!', 10);
 
