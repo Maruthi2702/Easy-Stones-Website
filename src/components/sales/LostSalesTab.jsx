@@ -7,6 +7,7 @@ import {
 import { API_URL } from '../../config/api';
 import LostSaleModal, { getCustomerName } from './LostSaleModal';
 import Pagination from '../shared/Pagination';
+import CustomSelect from '../shared/CustomSelect';
 import './LostSalesTab.css';
 
 const LostSalesTab = ({
@@ -343,40 +344,49 @@ const LostSalesTab = ({
             <span className="btn-text-short">Cards</span>
           </button>
 
-          <div className="select-filter-wrap">
+          <div className="select-filter-wrap" style={{ minWidth: 150 }}>
             <Filter size={14} className="filter-icon" />
-            <select value={selectedReason} onChange={(e) => setSelectedReason(e.target.value)}>
-              <option value="All">All Reasons</option>
-              <option value="Out of Stock">Out of Stock</option>
-              <option value="Price Too High">Price Too High</option>
-              <option value="Lead Time">Lead Time</option>
-              <option value="Color / Pattern Match">Color Match</option>
-              <option value="Customer Cancelled">Customer Cancelled</option>
-              <option value="Other">Other</option>
-            </select>
+            <CustomSelect
+              value={selectedReason}
+              onChange={(e) => setSelectedReason(e.target.value)}
+              options={[
+                { value: 'All', label: 'All Reasons' },
+                { value: 'Out of Stock', label: 'Out of Stock' },
+                { value: 'Price Too High', label: 'Price Too High' },
+                { value: 'Lead Time', label: 'Lead Time' },
+                { value: 'Color / Pattern Match', label: 'Color Match' },
+                { value: 'Customer Cancelled', label: 'Customer Cancelled' },
+                { value: 'Other', label: 'Other' }
+              ]}
+            />
           </div>
 
-          <div className="select-filter-wrap">
+          <div className="select-filter-wrap" style={{ minWidth: 160 }}>
             <MapPin size={14} className="filter-icon" />
-            <select value={selectedLocationFilter} onChange={(e) => setSelectedLocationFilter(e.target.value)}>
-              <option value="All">All Showrooms</option>
-              {locationsList.map(loc => {
-                const locName = getSafeString(loc);
-                const locId = typeof loc === 'object' && loc ? (loc._id || locName) : locName;
-                return (
-                  <option key={locId} value={locName}>{locName}</option>
-                );
-              })}
-            </select>
+            <CustomSelect
+              value={selectedLocationFilter}
+              onChange={(e) => setSelectedLocationFilter(e.target.value)}
+              options={[
+                { value: 'All', label: 'All Showrooms' },
+                ...locationsList.map(loc => {
+                  const locName = getSafeString(loc);
+                  return { value: locName, label: locName };
+                })
+              ]}
+            />
           </div>
 
-          <div className="select-filter-wrap">
+          <div className="select-filter-wrap" style={{ minWidth: 150 }}>
             <ArrowUpDown size={14} className="filter-icon" />
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="newest">Newest First</option>
-              <option value="value_desc">Highest Value ($)</option>
-              <option value="slabs_desc">Most Slabs</option>
-            </select>
+            <CustomSelect
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              options={[
+                { value: 'newest', label: 'Newest First' },
+                { value: 'value_desc', label: 'Highest Value ($)' },
+                { value: 'slabs_desc', label: 'Most Slabs' }
+              ]}
+            />
           </div>
         </div>
       </div>
