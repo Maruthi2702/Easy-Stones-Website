@@ -1721,6 +1721,9 @@ const CheckInLogPanel = ({
                       <div className="sel-mob-dropdown" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, marginTop: '4px' }}>
                         {salesReps
                           .filter(rep => {
+                            const r = (rep.role || '').toLowerCase();
+                            const isSalesOrManager = !rep.role || r.includes('sales') || r.includes('manager');
+                            if (!isSalesOrManager) return false;
                             if (selectedCheckIn?.location) {
                               if (rep.location !== selectedCheckIn.location &&
                                   !rep.assignedLocations?.includes(selectedCheckIn.location) &&
@@ -1747,6 +1750,9 @@ const CheckInLogPanel = ({
                             </div>
                           ))}
                         {salesReps.filter(rep => {
+                          const r = (rep.role || '').toLowerCase();
+                          const isSalesOrManager = !rep.role || r.includes('sales') || r.includes('manager');
+                          if (!isSalesOrManager) return false;
                           if (selectedCheckIn?.location) {
                             if (rep.location !== selectedCheckIn.location &&
                                 !rep.assignedLocations?.includes(selectedCheckIn.location) &&
@@ -1997,6 +2003,9 @@ const CheckInLogPanel = ({
                       <div className="custom-autocomplete-dropdown" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, marginTop: '4px' }}>
                         {salesReps
                           .filter(rep => {
+                            const r = (rep.role || '').toLowerCase();
+                            const isSalesOrManager = !rep.role || r.includes('sales') || r.includes('manager');
+                            if (!isSalesOrManager) return false;
                             if (selectedCheckIn?.location) {
                               if (rep.location !== selectedCheckIn.location &&
                                   !rep.assignedLocations?.includes(selectedCheckIn.location) &&
