@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Search, Printer, Tag, FileText, LayoutGrid, RotateCcw, Download } from 'lucide-react';
+import { Search, Printer, Tag, FileText, LayoutGrid, RotateCcw, Download, Lock } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import './PriceListPanel.css';
 
 // Exact Static Data from the PDF Price List (Initial Defaults)
@@ -157,8 +158,17 @@ const defaultPriceListData = [
 ];
 
 const PriceListPanel = ({ sidebarToggle }) => {
+    const { user } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState('document'); // 'document' (exact PDF style) or 'flat'
+
+    const canViewPrices = useMemo(() => {
+        if (!user) return false;
+        if (user.type === 'customer' || user.role === 'admin' || user.role === 'director' || user.role === 'manager') return true;
+        return Array.isArray(user.permissions) && user.permissions.includes('view_product_prices');
+    }, [user]);
+
+    const renderPriceVal = (val) => canViewPrices ? val : '🔒 Hidden';
 
     // Editable state loading from localStorage if present
     const [sheetData, setSheetData] = useState(() => {
@@ -276,8 +286,8 @@ const PriceListPanel = ({ sidebarToggle }) => {
                     sub.items.forEach(item => {
                         list.push({
                             'Color / Material Name': item.name,
-                            '3CM Price': sub.price3cm,
-                            '2CM Price': sub.price2cm,
+                            '3CM Price': renderPriceVal(sub.price3cm),
+                            '2CM Price': renderPriceVal(sub.price2cm),
                             'Slab Size': item.size,
                             'Collection Name': col.collection
                         });
@@ -467,7 +477,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
                                                                     <input
                                                                         type="text"
-                                                                        value={sub.price3cm}
+                                                                        value={renderPriceVal(sub.price3cm)}
                                                                         onChange={(e) => handleCellChange(sigColIdx, subIdx, null, 'price3cm', e.target.value)}
                                                                         className="exact-input-cell text-center font-bold"
                                                                     />
@@ -477,7 +487,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
                                                                     <input
                                                                         type="text"
-                                                                        value={sub.price2cm}
+                                                                        value={renderPriceVal(sub.price2cm)}
                                                                         onChange={(e) => handleCellChange(sigColIdx, subIdx, null, 'price2cm', e.target.value)}
                                                                         className="exact-input-cell text-center font-bold"
                                                                     />
@@ -536,7 +546,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
                                                                     <input
                                                                         type="text"
-                                                                        value={sub.price3cm}
+                                                                        value={renderPriceVal(sub.price3cm)}
                                                                         onChange={(e) => handleCellChange(presColIdx, subIdx, null, 'price3cm', e.target.value)}
                                                                         className="exact-input-cell text-center font-bold"
                                                                     />
@@ -546,7 +556,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
                                                                     <input
                                                                         type="text"
-                                                                        value={sub.price2cm}
+                                                                        value={renderPriceVal(sub.price2cm)}
                                                                         onChange={(e) => handleCellChange(presColIdx, subIdx, null, 'price2cm', e.target.value)}
                                                                         className="exact-input-cell text-center font-bold"
                                                                     />
@@ -606,7 +616,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
                                                                     <input
                                                                         type="text"
-                                                                        value={sub.price3cm}
+                                                                        value={renderPriceVal(sub.price3cm)}
                                                                         onChange={(e) => handleCellChange(luxeColIdx, subIdx, null, 'price3cm', e.target.value)}
                                                                         className="exact-input-cell text-center font-bold"
                                                                     />
@@ -616,7 +626,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
                                                                     <input
                                                                         type="text"
-                                                                        value={sub.price2cm}
+                                                                        value={renderPriceVal(sub.price2cm)}
                                                                         onChange={(e) => handleCellChange(luxeColIdx, subIdx, null, 'price2cm', e.target.value)}
                                                                         className="exact-input-cell text-center font-bold"
                                                                     />
@@ -744,7 +754,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
                                                                     <input
                                                                         type="text"
-                                                                        value={sub.price3cm}
+                                                                        value={renderPriceVal(sub.price3cm)}
                                                                         onChange={(e) => handleCellChange(luxeColIdx, subIdx, null, 'price3cm', e.target.value)}
                                                                         className="exact-input-cell text-center font-bold"
                                                                     />
@@ -754,7 +764,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
                                                                     <input
                                                                         type="text"
-                                                                        value={sub.price2cm}
+                                                                        value={renderPriceVal(sub.price2cm)}
                                                                         onChange={(e) => handleCellChange(luxeColIdx, subIdx, null, 'price2cm', e.target.value)}
                                                                         className="exact-input-cell text-center font-bold"
                                                                     />
@@ -813,7 +823,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
                                                                     <input
                                                                         type="text"
-                                                                        value={sub.price3cm}
+                                                                        value={renderPriceVal(sub.price3cm)}
                                                                         onChange={(e) => handleCellChange(thruColIdx, subIdx, null, 'price3cm', e.target.value)}
                                                                         className="exact-input-cell text-center font-bold"
                                                                     />
@@ -823,7 +833,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                                                 <td className="exact-price-cell text-center" rowSpan={sub.items.length}>
                                                                     <input
                                                                         type="text"
-                                                                        value={sub.price2cm}
+                                                                        value={renderPriceVal(sub.price2cm)}
                                                                         onChange={(e) => handleCellChange(thruColIdx, subIdx, null, 'price2cm', e.target.value)}
                                                                         className="exact-input-cell text-center font-bold"
                                                                     />
@@ -895,7 +905,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                             <td className="text-center font-semibold text-gold">
                                                 <input
                                                     type="text"
-                                                    value={item.price3cm}
+                                                    value={renderPriceVal(item.price3cm)}
                                                     onChange={(e) => handleCellChange(item.colIdx, item.subIdx, null, 'price3cm', e.target.value)}
                                                     className="exact-input-cell text-center font-bold text-gold"
                                                 />
@@ -903,7 +913,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
                                             <td className="text-center">
                                                 <input
                                                     type="text"
-                                                    value={item.price2cm}
+                                                    value={renderPriceVal(item.price2cm)}
                                                     onChange={(e) => handleCellChange(item.colIdx, item.subIdx, null, 'price2cm', e.target.value)}
                                                     className="exact-input-cell text-center"
                                                 />
