@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, Trash2, Calendar, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle, Navigation } from 'lucide-react';
 import SearchableSelect from '../../SearchableSelect';
+import CustomSelect from '../../shared/CustomSelect';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { API_URL } from '../../../config/api';
@@ -389,33 +390,31 @@ const DeliveryModal = ({
             <div className="delivery-form-2col">
               <div className="form-group">
                 <label><Navigation size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Route (Stop #)</label>
-                <select
+                <CustomSelect
                   value={routeNumber}
                   onChange={(e) => { setRouteNumber(Number(e.target.value)); markDirty(); }}
-                >
-                  {ROUTE_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
+                  options={ROUTE_OPTIONS}
+                />
               </div>
 
               <div className="form-group">
                 <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver</label>
-                <select
+                <CustomSelect
                   value={truckId}
                   onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
-                >
-                  <option value="">-- Unassigned / Pending Driver --</option>
-                  {trucks.map(trk => {
-                    const booked = getCapacityForTruck(trk.id);
-                    const isFull = booked >= MAX_TRUCK_CAPACITY;
-                    return (
-                      <option key={trk.id} value={trk.id} disabled={isFull}>
-                        {trk.driver || trk.name} — {booked}/{MAX_TRUCK_CAPACITY}{isFull ? ' FULL' : ''}
-                      </option>
-                    );
-                  })}
-                </select>
+                  options={[
+                    { value: '', label: '-- Unassigned / Pending Driver --' },
+                    ...trucks.map(trk => {
+                      const booked = getCapacityForTruck(trk.id);
+                      const isFull = booked >= MAX_TRUCK_CAPACITY;
+                      return {
+                        value: trk.id,
+                        label: `${trk.driver || trk.name} — ${booked}/${MAX_TRUCK_CAPACITY}${isFull ? ' FULL' : ''}`,
+                        disabled: isFull
+                      };
+                    })
+                  ]}
+                />
               </div>
             </div>
 
@@ -423,39 +422,25 @@ const DeliveryModal = ({
             <div className="delivery-form-2col">
               <div className="form-group">
                 <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Sales Representative</label>
-                {salesRepsList.length > 0 ? (
-                  <select
-                    value={salesRepName}
-                    onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
-                  >
-                    {salesRepsList.map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                    {!salesRepsList.includes(salesRepName) && salesRepName && (
-                      <option value={salesRepName}>{salesRepName}</option>
-                    )}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={salesRepName}
-                    onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
-                    placeholder="Sales Rep Name"
-                  />
-                )}
+                <CustomSelect
+                  value={salesRepName}
+                  onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
+                  options={Array.from(new Set([...salesRepsList, salesRepName].filter(Boolean))).map(name => ({ value: name, label: name }))}
+                />
               </div>
 
               <div className="form-group">
                 <label>Status</label>
-                <select
+                <CustomSelect
                   value={status}
                   onChange={(e) => { setStatus(e.target.value); markDirty(); }}
-                >
-                  <option value="pending">⏳ Pending</option>
-                  <option value="scheduled">🕐 Scheduled</option>
-                  <option value="delayed">⚠️ Delayed / Running Late</option>
-                  <option value="completed">✅ Completed / Delivered</option>
-                </select>
+                  options={[
+                    { value: 'pending', label: '⏳ Pending' },
+                    { value: 'scheduled', label: '🕐 Scheduled' },
+                    { value: 'delayed', label: '⚠️ Delayed / Running Late' },
+                    { value: 'completed', label: '✅ Completed / Delivered' }
+                  ]}
+                />
               </div>
             </div>
 
