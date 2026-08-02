@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, DollarSign, Calculator, AlertCircle, Save, Calendar, Building, FileText } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
+import CustomSelect from '../shared/CustomSelect';
 
 const REASON_OPTIONS = [
   { id: 'Out of Stock', label: 'Out of Stock', color: '#ef4444' },
@@ -291,15 +292,11 @@ const LostSaleModal = ({
               <label>
                 <Building size={14} /> Showroom Location
               </label>
-              <select
+              <CustomSelect
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="modal-select-input"
-              >
-                {locationOptions.map(locName => (
-                  <option key={locName} value={locName}>{locName}</option>
-                ))}
-              </select>
+                options={locationOptions.map(locName => ({ value: locName, label: locName }))}
+              />
             </div>
           </div>
 
@@ -384,15 +381,11 @@ const LostSaleModal = ({
               <label>
                 Primary Reason Lost <span className="req-star">*</span>
               </label>
-              <select
+              <CustomSelect
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="modal-select-input"
-              >
-                {REASON_OPTIONS.map(r => (
-                  <option key={r.id} value={r.id}>{r.label}</option>
-                ))}
-              </select>
+                options={REASON_OPTIONS.map(r => ({ value: r.id, label: r.label }))}
+              />
             </div>
 
             <div className="form-group-field">

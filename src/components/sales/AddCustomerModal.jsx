@@ -3,6 +3,7 @@ import { X, Loader, Scan, Upload, Plus, Camera } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import { formatPhoneInput } from '../../utils/phoneUtils';
 import { parseBusinessCard } from '../../utils/cardParser';
+import CustomSelect from '../shared/CustomSelect';
 import './AddCustomerModal.css';
 
 const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, viewingCustomer }) => {
@@ -487,65 +488,65 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                     <div className="form-grid-2col">
                         <div className="form-group">
                             <label>Status</label>
-                            <select
-                                className="form-select"
+                            <CustomSelect
                                 value={form.status}
                                 onChange={(e) => setForm({ ...form, status: e.target.value })}
                                 disabled={isViewMode}
-                            >
-                                <option value="New Lead">New Lead</option>
-                                <option value="Trying to Onboard">Trying to Onboard</option>
-                                <option value="Contacted / In Discussion">Contacted / In Discussion</option>
-                                <option value="Onboarded">Onboarded</option>
-                                <option value="Different Sales Person">Different Sales Person</option>
-                                <option value="Not Interested">Not Interested</option>
-                                <option value="Inactive">Inactive</option>
-                            </select>
+                                options={[
+                                    { value: 'New Lead', label: 'New Lead' },
+                                    { value: 'Trying to Onboard', label: 'Trying to Onboard' },
+                                    { value: 'Contacted / In Discussion', label: 'Contacted / In Discussion' },
+                                    { value: 'Onboarded', label: 'Onboarded' },
+                                    { value: 'Different Sales Person', label: 'Different Sales Person' },
+                                    { value: 'Not Interested', label: 'Not Interested' },
+                                    { value: 'Inactive', label: 'Inactive' }
+                                ]}
+                            />
                         </div>
                         <div className="form-group">
                             <label>Level</label>
-                            <select
-                                className="form-select"
+                            <CustomSelect
                                 value={form.level}
                                 onChange={(e) => setForm({ ...form, level: e.target.value })}
                                 disabled={isViewMode}
-                            >
-                                <option value="Level - 1">Level 1</option>
-                                <option value="Level - 2">Level 2</option>
-                                <option value="Level - 3">Level 3</option>
-                                <option value="Level - 4">Level 4</option>
-                            </select>
+                                options={[
+                                    { value: 'Level - 1', label: 'Level 1' },
+                                    { value: 'Level - 2', label: 'Level 2' },
+                                    { value: 'Level - 3', label: 'Level 3' },
+                                    { value: 'Level - 4', label: 'Level 4' }
+                                ]}
+                            />
                         </div>
                     </div>
 
                     <div className="form-grid-3col">
                         <div className="form-group">
                             <label>Customer Type</label>
-                            <select
-                                className="form-select"
+                            <CustomSelect
                                 value={form.customerType}
                                 onChange={(e) => setForm({ ...form, customerType: e.target.value })}
                                 disabled={isViewMode}
-                            >
-                                <option value="Fabricator">Fabricator</option>
-                                <option value="Contractor">Contractor</option>
-                                <option value="Dealer">Dealer</option>
-                                <option value="Floor Covering">Floor Covering</option>
-                                <option value="Designer">Designer</option>
-                                <option value="Builder">Builder</option>
-                            </select>
+                                options={[
+                                    { value: 'Fabricator', label: 'Fabricator' },
+                                    { value: 'Contractor', label: 'Contractor' },
+                                    { value: 'Dealer', label: 'Dealer' },
+                                    { value: 'Floor Covering', label: 'Floor Covering' },
+                                    { value: 'Designer', label: 'Designer' },
+                                    { value: 'Builder', label: 'Builder' }
+                                ]}
+                            />
                         </div>
                         <div className="form-group">
                             <label>Moda Display</label>
-                            <select
-                                className="form-select"
+                            <CustomSelect
                                 value={form.modaDisplay}
                                 onChange={(e) => setForm({ ...form, modaDisplay: e.target.value })}
                                 disabled={isViewMode}
-                            >
-                                <option value="No">No</option>
-                                <option value="Yes">Yes</option>
-                            </select>
+                                options={[
+                                    { value: 'No', label: 'No' },
+                                    { value: 'Yes', label: 'Yes' }
+                                ]}
+                            />
                         </div>
                         <div className="form-group">
                             <label>Moda Binder</label>
