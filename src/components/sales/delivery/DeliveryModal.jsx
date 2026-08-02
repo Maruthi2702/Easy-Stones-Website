@@ -134,6 +134,11 @@ const DeliveryModal = ({
                 });
               }
             }
+            // Filter by allowed sales roles (Sales Rep, Manager, Director, Admin)
+            locUsers = locUsers.filter(u => {
+              const r = (u.role || '').toLowerCase();
+              return !u.role || r.includes('sales') || r.includes('manager') || r.includes('director') || r.includes('admin');
+            });
             const names = locUsers.map(u => u.name || u.username).filter(Boolean);
             setSalesRepsList(Array.from(new Set(['Admin', ...names])));
           }
