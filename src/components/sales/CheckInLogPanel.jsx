@@ -29,6 +29,7 @@ import {
   QrCode, Copy, Check, Smartphone
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { formatTitleCase } from '../../utils/textUtils';
 import Pagination from '../shared/Pagination';
 import { useAuth } from '../../context/AuthContext';
 import './CheckInLogPanel.css';
@@ -749,7 +750,8 @@ const CheckInLogPanel = ({
   };
 
   const handleSalesRepChange = (val) => {
-    setSalesRep(val);
+    const formatted = formatTitleCase(val);
+    setSalesRep(formatted);
     // Find matching sales rep in state list
     const matched = salesReps.find(r => 
       r.name.toLowerCase() === val.trim().toLowerCase() || 
@@ -757,7 +759,6 @@ const CheckInLogPanel = ({
     );
     if (matched) {
       setSalesRepEmail(matched.email || '');
-      console.log(`Matched sales rep email: ${matched.email}`);
     } else {
       setSalesRepEmail('');
     }

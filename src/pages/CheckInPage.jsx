@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { formatPhoneInput } from '../utils/phoneUtils';
+import { formatTitleCase } from '../utils/textUtils';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './CheckInPage.css';
@@ -236,7 +237,11 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
 
   const handleStaffChange = (e) => {
     const { name, value } = e.target;
-    let v = (name === 'phone' || name === 'fabricatorPhone') ? formatPhoneInput(value) : value;
+    let v = (name === 'phone' || name === 'fabricatorPhone') 
+      ? formatPhoneInput(value) 
+      : (name === 'name' || name === 'fabricatorCompany') 
+        ? formatTitleCase(value) 
+        : value;
     setStaffFormData(prev => {
       const next = { ...prev, [name]: v };
       try { localStorage.setItem('checkin_draft', JSON.stringify(next)); } catch (e) {}

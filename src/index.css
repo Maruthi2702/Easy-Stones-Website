@@ -323,3 +323,11 @@ body.light-theme-active .sel-mob-dropdown .sel-mob-dropdown-item:hover {
   color: #b3922b !important;
 }
 
+/* ── Global Title-Case Formatting for Form Text Inputs ── */
+input[type="text"]:not(.no-capitalize):not([name="email"]):not([name="username"]):not([name="password"]),
+input:not([type]):not(.no-capitalize),
+textarea:not(.no-capitalize) {
+  text-transform: capitalize;
+}
+
+
