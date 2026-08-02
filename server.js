@@ -311,18 +311,6 @@ async function startServer() {
     } catch (migError) {
       console.error('Error running check-in location migration:', migError);
     }
-    // Database migration: Initialize view_product_prices permission for all existing roles
-    try {
-      const updateRolesResult = await Role.updateMany(
-        { permissions: { $ne: 'view_product_prices' } },
-        { $addToSet: { permissions: 'view_product_prices' } }
-      );
-      if (updateRolesResult.modifiedCount > 0) {
-        console.log(`🔄 Added default "view_product_prices" permission to ${updateRolesResult.modifiedCount} roles`);
-      }
-    } catch (migError) {
-      console.error('Error running roles permissions migration:', migError);
-    }
     // Database seeding: Default Locations
     try {
       const locationCount = await Location.countDocuments();
@@ -390,7 +378,7 @@ async function startServer() {
           name: 'csr',
           displayName: 'CSR',
           permissions: [
-            'view_checkins', 'send_checkin_email', 'view_pricelist', 'view_product_prices',
+            'view_checkins', 'send_checkin_email', 'view_pricelist',
             'view_lost_sales'
           ],
           isSystem: true
