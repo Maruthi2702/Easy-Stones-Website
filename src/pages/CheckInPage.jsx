@@ -71,6 +71,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedCustomerName, setSubmittedCustomerName] = useState('');
   const [error, setError] = useState(null);
 
   const [availableLocations, setAvailableLocations] = useState(['Seattle', 'Spokane', 'Salt Lake City']);
@@ -261,6 +262,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
         credentials: 'include'
       });
       if (response.ok) {
+        setSubmittedCustomerName(staffFormData.name || '');
         setSubmitted(true);
         setStaffFormData({ name: '', phone: '', fabricatorCompany: '', fabricatorPhone: '' });
         try { localStorage.removeItem('checkin_draft'); } catch (e) {}
@@ -487,8 +489,8 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
         {submitted ? (
           <div className="success-message">
             <CheckCircle2 size={64} className="success-icon" />
-            <h2>Welcome!</h2>
-            <p>Thank you for checking in!</p>
+            <h2>Welcome{submittedCustomerName ? `, ${submittedCustomerName}` : ''}!</h2>
+            <p>Thank you for checking in. One of our representatives will be with you shortly!</p>
           </div>
         ) : (
           <form onSubmit={handleStaffSubmit} className="checkin-form">
