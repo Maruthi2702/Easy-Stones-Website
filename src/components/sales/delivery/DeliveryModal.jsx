@@ -251,6 +251,7 @@ const DeliveryModal = ({
       salesRepName: salesRepName.trim(),
       status,
       notes: notes.trim(),
+      location: initialData?.location || currentUser?.location || '',
       updatedAt: new Date().toISOString()
     };
 

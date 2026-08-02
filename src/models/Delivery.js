@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const deliverySchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true, index: true },
+  customerId: { type: String, default: null, index: true },
   truckId: { type: String, default: '', index: true },
   date: { type: String, required: true, index: true },
   time: { type: String, default: '09:00 AM' },
