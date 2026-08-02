@@ -390,11 +390,13 @@ const LostSalesTab = ({
           </div>
         ) : filteredRecords.length === 0 ? (
           <div className="lost-sales-empty-state">
-            <AlertCircle size={40} />
-            <h4>No Lost Sales Found</h4>
-            <p>Try adjusting your search filters or record a new lost sale opportunity.</p>
+            <div className="empty-icon-wrapper">
+              <TrendingDown size={32} />
+            </div>
+            <h4>No Lost Sales Recorded Yet</h4>
+            <p>Track missed opportunities, competitor pricing, and stock gaps in real-time to optimize inventory and pricing strategies.</p>
             <button className="btn-add-lost-sale-empty" onClick={handleOpenAddModal}>
-              + Record Lost Sale
+              <Plus size={18} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Record Lost Sale
             </button>
           </div>
         ) : (

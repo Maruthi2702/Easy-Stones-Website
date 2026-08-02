@@ -1259,7 +1259,106 @@ body.light-theme-active .modal-btn-cancel,
   .select-filter-wrap .filter-icon {
     left: 6px;
   }
+}
 
+/* ── PREMIUM GLASSMORPHISM EMPTY STATE ── */
+.lost-sales-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  margin: 1.5rem 0;
+  text-align: center;
+  background: var(--bg-card, #1c1c1e);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 18px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.lost-sales-empty-state .empty-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: #d4af37;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.15);
+}
+
+.lost-sales-empty-state h4 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.01em;
+}
+
+.lost-sales-empty-state p {
+  font-size: 0.95rem;
+  color: var(--text-secondary, #b0b0b0);
+  max-width: 480px;
+  margin: 0 0 1.75rem 0;
+  line-height: 1.55;
+}
+
+.btn-add-lost-sale-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.75rem;
+  background: linear-gradient(135deg, #d4af37, #c5a028);
+  color: #000000;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.25);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-add-lost-sale-empty:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(212, 175, 55, 0.4);
+  background: linear-gradient(135deg, #e6c25e, #d4af37);
+}
+
+.btn-add-lost-sale-empty:active {
+  transform: translateY(0);
+}
+
+/* Light Theme Overrides */
+body.light-theme-active .lost-sales-empty-state,
+.light-theme-active .lost-sales-empty-state {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-theme-active .lost-sales-empty-state h4,
+.light-theme-active .lost-sales-empty-state h4 {
+  color: #0f172a !important;
+}
+
+body.light-theme-active .lost-sales-empty-state p,
+.light-theme-active .lost-sales-empty-state p {
+  color: #64748b !important;
+}
+
+body.light-theme-active .empty-icon-wrapper,
+.light-theme-active .empty-icon-wrapper {
+  background: rgba(212, 175, 55, 0.1) !important;
+  border-color: rgba(212, 175, 55, 0.25) !important;
+  color: #c5a028 !important;
+}
+
+@media (max-width: 900px) {
   /* Executive Mobile Opportunity Cards */
   .lost-sale-card-mobile {
     background: rgba(28, 28, 30, 0.98);
