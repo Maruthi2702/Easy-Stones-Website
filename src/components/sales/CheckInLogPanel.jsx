@@ -419,6 +419,7 @@ const CheckInLogPanel = ({
   const [activeDropdownIndex, setActiveDropdownIndex] = useState(null);
   const [selMobileTab, setSelMobileTab] = useState('customer'); // 'customer' | 'selections' | 'notes'
   const [mobItemCount, setMobItemCount] = useState(1); // how many item cards to show on mobile
+  const [showSalesRepDropdown, setShowSalesRepDropdown] = useState(false);
 
   // ── OCR Tag Scanning State ──
   const [scanningIndex, setScanningIndex] = useState(null);
@@ -1701,29 +1702,66 @@ const CheckInLogPanel = ({
                 <div className="sel-mob-panel">
 
                   {/* Sales Rep */}
-                  <div className="sel-mob-section">
+                  <div className="sel-mob-section" style={{ position: 'relative' }}>
                     <label className="sel-mob-section-label"><Users size={12} /> Sales Rep</label>
                     <input
                       type="text"
                       value={salesRep}
-                      onChange={(e) => handleSalesRepChange(e.target.value)}
-                      placeholder="Enter sales rep name"
+                      onChange={(e) => {
+                        handleSalesRepChange(e.target.value);
+                        setShowSalesRepDropdown(true);
+                      }}
+                      onFocus={() => setShowSalesRepDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowSalesRepDropdown(false), 200)}
+                      placeholder="Enter or select sales rep name"
                       className="sel-mob-text-input"
-                      list="salesreps-datalist"
+                      autoComplete="off"
                     />
-                    <datalist id="salesreps-datalist">
-                      {salesReps
-                        .filter(rep => {
-                          if (!selectedCheckIn?.location) return true;
-                          if (rep.location === selectedCheckIn.location) return true;
-                          if (rep.assignedLocations?.includes(selectedCheckIn.location)) return true;
-                          if (rep.assignedLocations?.includes('*')) return true;
-                          return false;
-                        })
-                        .map((rep, i) => (
-                          <option key={rep.username || i} value={rep.name} />
-                        ))}
-                    </datalist>
+                    {showSalesRepDropdown && (
+                      <div className="sel-mob-dropdown" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, marginTop: '4px' }}>
+                        {salesReps
+                          .filter(rep => {
+                            if (selectedCheckIn?.location) {
+                              if (rep.location !== selectedCheckIn.location &&
+                                  !rep.assignedLocations?.includes(selectedCheckIn.location) &&
+                                  !rep.assignedLocations?.includes('*')) {
+                                return false;
+                              }
+                            }
+                            if (!salesRep.trim()) return true;
+                            return rep.name.toLowerCase().includes(salesRep.toLowerCase()) ||
+                                   rep.username?.toLowerCase().includes(salesRep.toLowerCase());
+                          })
+                          .slice(0, 10)
+                          .map((rep, i) => (
+                            <div
+                              key={rep.username || i}
+                              className="sel-mob-dropdown-item"
+                              onMouseDown={() => {
+                                handleSalesRepChange(rep.name);
+                                setShowSalesRepDropdown(false);
+                              }}
+                            >
+                              <Users size={13} style={{ color: '#d4af37' }} />
+                              <span>{rep.name}</span>
+                            </div>
+                          ))}
+                        {salesReps.filter(rep => {
+                          if (selectedCheckIn?.location) {
+                            if (rep.location !== selectedCheckIn.location &&
+                                !rep.assignedLocations?.includes(selectedCheckIn.location) &&
+                                !rep.assignedLocations?.includes('*')) {
+                              return false;
+                            }
+                          }
+                          if (!salesRep.trim()) return true;
+                          return rep.name.toLowerCase().includes(salesRep.toLowerCase()) ||
+                                 rep.username?.toLowerCase().includes(salesRep.toLowerCase());
+                        }).length === 0 && (
+                          <div className="sel-mob-dropdown-empty">Type custom sales rep name</div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Divider */}
