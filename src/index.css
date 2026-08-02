@@ -206,14 +206,120 @@ body.light-theme-active .password-toggle:hover {
 }
 
 /* Global class for required form field asterisks - highly specific to override generic modal rules */
-.req-star,
-span.req-star,
-.modal-content span.req-star,
-body.light-theme-active .modal-content span.req-star,
-.light-theme-active .modal-content span.req-star {
-  color: #ff4d4f !important;
-  font-weight: 800 !important;
-  margin-left: 4px !important;
-  display: inline-block !important;
+/* ══════════════════════════════════════════════════════════════
+   GLOBAL DROPDOWN & SELECT CONTROL STYLING
+   ══════════════════════════════════════════════════════════════ */
+
+/* Standardize native <select> elements across the entire app */
+select {
+  background-color: var(--bg-card, #1c1c1e);
+  color: var(--text-primary, #ffffff);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  padding: 0.55rem 2rem 0.55rem 0.75rem;
+  font-size: 0.88rem;
+  font-family: var(--font-main);
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+select:focus {
+  border-color: rgba(212, 175, 55, 0.7);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
+}
+
+select:hover {
+  border-color: rgba(212, 175, 55, 0.4);
+}
+
+/* Style <option> tags inside <select> */
+select option {
+  background-color: #1c1c1e;
+  color: #ffffff;
+  padding: 0.6rem 0.8rem;
+}
+
+select option:hover,
+select option:focus,
+select option:active,
+select option:checked {
+  background-color: rgba(212, 175, 55, 0.2) !important;
+  color: #d4af37 !important;
+}
+
+/* ── Standard Autocomplete Popover Dropdowns ── */
+.custom-autocomplete-dropdown,
+.sel-mob-dropdown,
+.dropdown-menu-list,
+.auto-suggest-dropdown {
+  background-color: var(--bg-card, #1c1c1e) !important;
+  border: 1px solid rgba(212, 175, 55, 0.3) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.75), 0 0 15px rgba(212, 175, 55, 0.1) !important;
+  overflow: hidden;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.custom-autocomplete-dropdown .autocomplete-option,
+.sel-mob-dropdown .sel-mob-dropdown-item,
+.dropdown-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.9rem;
+  color: var(--text-primary, #ffffff);
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.custom-autocomplete-dropdown .autocomplete-option:hover,
+.sel-mob-dropdown .sel-mob-dropdown-item:hover,
+.dropdown-menu-item:hover {
+  background-color: rgba(212, 175, 55, 0.12) !important;
+  color: #d4af37 !important;
+}
+
+/* Light Theme Overrides */
+body.light-theme-active select {
+  background-color: #ffffff;
+  color: #0f172a;
+  border-color: rgba(0, 0, 0, 0.12);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+}
+
+body.light-theme-active select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+body.light-theme-active .custom-autocomplete-dropdown,
+body.light-theme-active .sel-mob-dropdown {
+  background-color: #ffffff !important;
+  border-color: rgba(212, 175, 55, 0.4) !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-theme-active .custom-autocomplete-dropdown .autocomplete-option,
+body.light-theme-active .sel-mob-dropdown .sel-mob-dropdown-item {
+  color: #0f172a;
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme-active .custom-autocomplete-dropdown .autocomplete-option:hover,
+body.light-theme-active .sel-mob-dropdown .sel-mob-dropdown-item:hover {
+  background-color: rgba(212, 175, 55, 0.1) !important;
+  color: #b3922b !important;
 }
 

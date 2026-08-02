@@ -1976,18 +1976,53 @@ const CheckInLogPanel = ({
                     </span>
                     <span className="detail-value">{selectedCheckIn.fabricatorPhone || 'N/A'}</span>
                   </div>
-                  <div className="detail-item">
+                  <div className="detail-item" style={{ position: 'relative' }}>
                     <span className="detail-label">
                       <Users size={12} className="detail-icon" /> Sales Rep:
                     </span>
                     <input
                       type="text"
                       value={salesRep}
-                      onChange={(e) => handleSalesRepChange(e.target.value)}
+                      onChange={(e) => {
+                        handleSalesRepChange(e.target.value);
+                        setShowSalesRepDropdown(true);
+                      }}
+                      onFocus={() => setShowSalesRepDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowSalesRepDropdown(false), 200)}
                       placeholder="Enter sales rep name"
                       className="selection-input"
-                      list="salesreps-datalist"
+                      autoComplete="off"
                     />
+                    {showSalesRepDropdown && (
+                      <div className="custom-autocomplete-dropdown" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, marginTop: '4px' }}>
+                        {salesReps
+                          .filter(rep => {
+                            if (selectedCheckIn?.location) {
+                              if (rep.location !== selectedCheckIn.location &&
+                                  !rep.assignedLocations?.includes(selectedCheckIn.location) &&
+                                  !rep.assignedLocations?.includes('*')) {
+                                return false;
+                              }
+                            }
+                            if (!salesRep.trim()) return true;
+                            return rep.name.toLowerCase().includes(salesRep.toLowerCase()) ||
+                                   rep.username?.toLowerCase().includes(salesRep.toLowerCase());
+                          })
+                          .slice(0, 10)
+                          .map((rep, i) => (
+                            <div
+                              key={rep.username || i}
+                              className="autocomplete-option"
+                              onMouseDown={() => {
+                                handleSalesRepChange(rep.name);
+                                setShowSalesRepDropdown(false);
+                              }}
+                            >
+                              {rep.name}
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -2148,26 +2183,7 @@ const CheckInLogPanel = ({
                   </table>
                 </div>
 
-                {/* HTML5 Datalist for autocomplete */}
-                <datalist id="products-datalist">
-                  {productList.map((prod, pIdx) => (
-                    <option key={prod._id || pIdx} value={prod.name} />
-                  ))}
-                </datalist>
 
-                <datalist id="salesreps-datalist">
-                  {salesReps
-                    .filter(rep => {
-                      if (!selectedCheckIn?.location) return true;
-                      if (rep.location === selectedCheckIn.location) return true;
-                      if (rep.assignedLocations?.includes(selectedCheckIn.location)) return true;
-                      if (rep.assignedLocations?.includes('*')) return true;
-                      return false;
-                    })
-                    .map((rep, idx) => (
-                      <option key={rep.username || idx} value={rep.name} />
-                    ))}
-                </datalist>
 
                 {/* Special Notes */}
                 <div className="selection-notes-wrapper">
