@@ -418,6 +418,7 @@ const CheckInLogPanel = ({
   const [salesRepEmail, setSalesRepEmail] = useState('');
   const [activeDropdownIndex, setActiveDropdownIndex] = useState(null);
   const [selMobileTab, setSelMobileTab] = useState('customer'); // 'customer' | 'selections' | 'notes'
+  const [mobItemCount, setMobItemCount] = useState(1); // how many item cards to show on mobile
 
   // ── OCR Tag Scanning State ──
   const [scanningIndex, setScanningIndex] = useState(null);
@@ -725,9 +726,9 @@ const CheckInLogPanel = ({
     setIsSendingEmail(false);
     setEmailSuccess(false);
     setSelMobileTab('customer');
-    
+
     const savedSelections = checkIn.selections || [];
-    const formattedSelections = Array.from({ length: 6 }, (_, idx) => {
+    const formattedSelections = Array.from({ length: 12 }, (_, idx) => {
       if (savedSelections[idx]) {
         return {
           material: savedSelections[idx].material || '',
@@ -739,6 +740,9 @@ const CheckInLogPanel = ({
       return { material: '', details: '', size: '', lot: '' };
     });
     setSelections(formattedSelections);
+    // Mobile: show as many cards as there are filled rows (min 1)
+    const filledCount = savedSelections.filter(s => s.material?.trim()).length;
+    setMobItemCount(Math.max(1, filledCount));
     setSpecialNotes(checkIn.specialNotes || '');
     setSaveSuccess(false);
   };
@@ -1729,25 +1733,24 @@ const CheckInLogPanel = ({
 
                   {/* Selection Items */}
                   <div className="sel-mob-selections-list">
-                    {(() => {
-                      const filled = selections
-                        .map((sel, idx) => ({ sel, idx }))
-                        .filter(({ sel }) => sel.material.trim() || sel.lot.trim() || sel.details.trim() || sel.size.trim() || sel._new);
-                      const displayItems = filled.length === 0
-                        ? [{ sel: selections[0] || { material: '', details: '', size: '', lot: '' }, idx: 0 }]
-                        : filled;
-                      return displayItems.map(({ sel, idx }) => (
-                        <div key={idx} className="sel-mob-item-card">
+                    {selections.slice(0, mobItemCount).map((sel, idx) => (
+                      <div key={idx} className="sel-mob-item-card">
                           <div className="sel-mob-item-header">
                             <span className="sel-mob-item-badge">ITEM {idx + 1}</span>
                             <button
                               type="button"
                               className="sel-mob-item-remove"
                               onClick={() => {
+                                // Clear the slot data and reduce visible count
                                 setSelections(prev => {
-                                  const next = prev.filter((_, i) => i !== idx);
-                                  return next.length > 0 ? next : [{ material: '', details: '', size: '', lot: '' }];
+                                  const next = [...prev];
+                                  next[idx] = { material: '', details: '', size: '', lot: '' };
+                                  // Shift remaining filled slots up
+                                  const filled = next.filter((_, i) => i !== idx);
+                                  const empties = Array.from({ length: 12 - filled.length }, () => ({ material: '', details: '', size: '', lot: '' }));
+                                  return [...filled, ...empties];
                                 });
+                                setMobItemCount(prev => Math.max(1, prev - 1));
                               }}
                               title="Remove item"
                             >
@@ -1831,27 +1834,15 @@ const CheckInLogPanel = ({
                             </div>
                           </div>
                         </div>
-                      ));
-                    })()}
-                  </div>
+                      ))}
+                    </div>
 
                   {/* Add Another Item */}
-                  {selections.filter(s => s.material.trim() || s.lot.trim() || s.details.trim() || s.size.trim()).length < 12 && (
+                  {mobItemCount < 12 && (
                     <button
                       type="button"
                       className="sel-mob-add-btn"
-                      onClick={() => {
-                        setSelections(prev => {
-                          const copy = [...prev];
-                          const emptyIdx = copy.findIndex(s => !s.material.trim() && !s.lot.trim() && !s.details.trim() && !s.size.trim());
-                          if (emptyIdx !== -1) {
-                            copy[emptyIdx] = { ...copy[emptyIdx], _new: true };
-                          } else {
-                            copy.push({ material: '', details: '', size: '', lot: '', _new: true });
-                          }
-                          return copy;
-                        });
-                      }}
+                      onClick={() => setMobItemCount(prev => prev + 1)}
                     >
                       + Add Another Item
                     </button>
