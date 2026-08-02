@@ -130,6 +130,19 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     return () => document.body.classList.remove('light-theme-active');
   }, [theme]);
 
+  // Auto-return to check-in form after 10 seconds on successful submission
+  useEffect(() => {
+    let timer;
+    if (submitted) {
+      timer = setTimeout(() => {
+        setSubmitted(false);
+      }, 10000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [submitted]);
+
   useEffect(() => {
     const loadLocations = async () => {
       try {
@@ -476,9 +489,6 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
             <CheckCircle2 size={64} className="success-icon" />
             <h2>Welcome!</h2>
             <p>Thank you for checking in!</p>
-            <button type="button" className="submit-btn" onClick={() => setSubmitted(false)} style={{ marginTop: '1.5rem', width: 'auto', padding: '0.8rem 2rem' }}>
-              Check In Another Visitor
-            </button>
           </div>
         ) : (
           <form onSubmit={handleStaffSubmit} className="checkin-form">
