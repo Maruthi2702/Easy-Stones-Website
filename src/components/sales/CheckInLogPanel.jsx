@@ -417,6 +417,7 @@ const CheckInLogPanel = ({
   const [salesReps, setSalesReps] = useState([]);
   const [salesRepEmail, setSalesRepEmail] = useState('');
   const [activeDropdownIndex, setActiveDropdownIndex] = useState(null);
+  const [selMobileTab, setSelMobileTab] = useState('customer'); // 'customer' | 'selections' | 'notes'
 
   // ── OCR Tag Scanning State ──
   const [scanningIndex, setScanningIndex] = useState(null);
@@ -723,6 +724,7 @@ const CheckInLogPanel = ({
     setEmailAddress('');
     setIsSendingEmail(false);
     setEmailSuccess(false);
+    setSelMobileTab('customer');
     
     const savedSelections = checkIn.selections || [];
     const formattedSelections = Array.from({ length: 6 }, (_, idx) => {
@@ -1662,310 +1664,601 @@ const CheckInLogPanel = ({
       {selectedCheckIn && (
         <div className="selection-modal-overlay">
           <div className="selection-modal-container">
-            <div className="selection-modal-header">
-              <h2 className="selection-modal-header-title">CUSTOMER VISIT / STONE SELECTION</h2>
-              <button 
-                type="button" 
-                className="selection-modal-close" 
-                onClick={() => setSelectedCheckIn(null)}
-                autoFocus
-              >
-                <X size={20} />
-              </button>
-            </div>
 
-            <form onSubmit={handleSaveSelections} className="selection-modal-form">
-
-               {/* Customer & Fabricator Details Grid */}
-              <div className="selection-details-grid">
-                <div className="detail-item">
-                  <span className="detail-label">
-                    <Calendar size={12} className="detail-icon" /> Date:
-                  </span>
-                  <span className="detail-value">{formatDate(selectedCheckIn.createdAt)}</span>
+            {/* ════════════════════════════════════════════
+                MOBILE TABBED UI  (hidden on desktop via CSS)
+                ════════════════════════════════════════════ */}
+            <div className="sel-mobile-view">
+              {/* Mobile Header */}
+              <div className="sel-mob-header">
+                <div className="sel-mob-header-text">
+                  <h2 className="sel-mob-title">Stone Selection</h2>
+                  <p className="sel-mob-subtitle">
+                    {selectedCheckIn.name}
+                    {selectedCheckIn.fabricatorCompany ? ` • ${selectedCheckIn.fabricatorCompany}` : ''}
+                  </p>
                 </div>
-                <div className="detail-item">
-                  <span className="detail-label">
-                    <Users size={12} className="detail-icon" /> Customer Name:
-                  </span>
-                  <span className="detail-value">{selectedCheckIn.name}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">
-                    <Phone size={12} className="detail-icon" /> Phone Number:
-                  </span>
-                  <span className="detail-value">{selectedCheckIn.phone}</span>
-                </div>
-
-                <div className="detail-item">
-                  <span className="detail-label">
-                    <Building2 size={12} className="detail-icon" /> Company Name:
-                  </span>
-                  <span className="detail-value">{selectedCheckIn.fabricatorCompany || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">
-                    <Phone size={12} className="detail-icon" /> Company Phone Number:
-                  </span>
-                  <span className="detail-value">{selectedCheckIn.fabricatorPhone || 'N/A'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">
-                    <Users size={12} className="detail-icon" /> Sales Rep:
-                  </span>
-                  <input
-                    type="text"
-                    value={salesRep}
-                    onChange={(e) => handleSalesRepChange(e.target.value)}
-                    placeholder="Enter sales rep name"
-                    className="selection-input"
-                    list="salesreps-datalist"
-                  />
-                </div>
+                <button
+                  type="button"
+                  className="sel-mob-close"
+                  onClick={() => setSelectedCheckIn(null)}
+                >
+                  <X size={20} />
+                </button>
               </div>
 
-              {/* Selections Grid Table */}
-              <div className="selections-table-wrapper">
-                <table className="selections-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '6%', textAlign: 'center' }}>#</th>
-                      <th style={{ width: '38%' }}>Material Name</th>
-                      <th style={{ width: '20%' }}>Lot/Bundle Number</th>
-                      <th style={{ width: '23%' }}>Slab Numbers</th>
-                      <th style={{ width: '13%' }}>Size</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selections.map((sel, idx) => (
-                      <tr key={idx} className="selection-row-item">
-                        <td className="selection-row-num">{idx + 1}</td>
-                        <td style={{ position: 'relative', zIndex: activeDropdownIndex === idx ? 100 : 1 }}>
-                          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', width: '100%' }}>
-                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+              {/* Tab Bar */}
+              <div className="sel-mob-tabs">
+                {[
+                  { key: 'customer', label: 'Customer Info' },
+                  { key: 'selections', label: `Selections (${selections.filter(s => s.material.trim()).length})` },
+                  { key: 'notes', label: 'Notes' },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={`sel-mob-tab${selMobileTab === tab.key ? ' active' : ''}`}
+                    onClick={() => setSelMobileTab(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Panels */}
+              <form onSubmit={handleSaveSelections} className="sel-mob-form">
+
+                {/* ── TAB: CUSTOMER INFO ── */}
+                {selMobileTab === 'customer' && (
+                  <div className="sel-mob-panel">
+                    <div className="sel-mob-info-grid">
+                      <div className="sel-mob-info-item">
+                        <span className="sel-mob-info-label"><Calendar size={11} /> Date</span>
+                        <span className="sel-mob-info-value">{formatDate(selectedCheckIn.createdAt)}</span>
+                      </div>
+                      <div className="sel-mob-info-item">
+                        <span className="sel-mob-info-label"><Users size={11} /> Customer</span>
+                        <span className="sel-mob-info-value">{selectedCheckIn.name}</span>
+                      </div>
+                      <div className="sel-mob-info-item">
+                        <span className="sel-mob-info-label"><Phone size={11} /> Phone</span>
+                        <span className="sel-mob-info-value">{selectedCheckIn.phone || 'N/A'}</span>
+                      </div>
+                      <div className="sel-mob-info-item">
+                        <span className="sel-mob-info-label"><Building2 size={11} /> Company</span>
+                        <span className="sel-mob-info-value">{selectedCheckIn.fabricatorCompany || 'N/A'}</span>
+                      </div>
+                      <div className="sel-mob-info-item">
+                        <span className="sel-mob-info-label"><Phone size={11} /> Co. Phone</span>
+                        <span className="sel-mob-info-value">{selectedCheckIn.fabricatorPhone || 'N/A'}</span>
+                      </div>
+                      <div className="sel-mob-info-item sel-mob-info-item--full">
+                        <span className="sel-mob-info-label"><Users size={11} /> Sales Rep</span>
+                        <input
+                          type="text"
+                          value={salesRep}
+                          onChange={(e) => handleSalesRepChange(e.target.value)}
+                          placeholder="Enter sales rep name"
+                          className="sel-mob-text-input"
+                          list="salesreps-datalist"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="sel-mob-next-btn"
+                      onClick={() => setSelMobileTab('selections')}
+                    >
+                      Next: Selections →
+                    </button>
+                  </div>
+                )}
+
+                {/* ── TAB: SELECTIONS ── */}
+                {selMobileTab === 'selections' && (
+                  <div className="sel-mob-panel">
+                    <div className="sel-mob-selections-list">
+                      {selections.map((sel, idx) => (
+                        <div key={idx} className="sel-mob-item-card">
+                          {/* Card Header */}
+                          <div className="sel-mob-item-header">
+                            <span className="sel-mob-item-badge">ITEM {idx + 1}</span>
+                            <button
+                              type="button"
+                              className="sel-mob-item-remove"
+                              onClick={() => {
+                                setSelections(prev => {
+                                  const next = prev.filter((_, i) => i !== idx);
+                                  // Always keep at least 1 slot
+                                  return next.length > 0 ? next : [{ material: '', details: '', size: '', lot: '' }];
+                                });
+                              }}
+                              title="Remove item"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+
+                          {/* Material Search Input */}
+                          <div className="sel-mob-material-wrapper">
+                            <Search size={14} className="sel-mob-search-icon" />
+                            <input
+                              type="text"
+                              value={sel.material}
+                              onChange={(e) => {
+                                handleSelectionChange(idx, 'material', e.target.value);
+                                setActiveDropdownIndex(idx);
+                              }}
+                              onFocus={() => setActiveDropdownIndex(idx)}
+                              onBlur={() => setTimeout(() => setActiveDropdownIndex(null), 200)}
+                              placeholder="Search material name..."
+                              className="sel-mob-material-input"
+                            />
+                            {/* Scan Tag Button */}
+                            {scanningIndex === idx ? (
+                              <div className="sel-mob-scanning-badge">
+                                <Loader2 size={12} className="animate-spin" />
+                                <span>{scanningProgress}%</span>
+                              </div>
+                            ) : (
+                              <label htmlFor={`mob-tag-${idx}`} className="sel-mob-scan-btn" title="Scan tag photo">
+                                <Scan size={13} />
+                                <input
+                                  id={`mob-tag-${idx}`}
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => handleTagImageUpload(idx, e)}
+                                  disabled={scanningIndex !== null}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                            )}
+                          </div>
+
+                          {/* Autocomplete Dropdown */}
+                          {activeDropdownIndex === idx && (
+                            <div className="sel-mob-dropdown">
+                              {productList
+                                .filter(p => !sel.material.trim() || p.name.toLowerCase().includes(sel.material.toLowerCase()))
+                                .slice(0, 12)
+                                .map(prod => (
+                                  <div
+                                    key={prod._id || prod.id}
+                                    className="sel-mob-dropdown-item"
+                                    onMouseDown={() => {
+                                      handleSelectionChange(idx, 'material', prod.name);
+                                      setActiveDropdownIndex(null);
+                                    }}
+                                  >
+                                    <div className="sel-mob-dropdown-swatch" style={{ background: prod.color || '#3a3a3a' }} />
+                                    <span>{prod.name}</span>
+                                  </div>
+                                ))}
+                              {productList.filter(p => !sel.material.trim() || p.name.toLowerCase().includes(sel.material.toLowerCase())).length === 0 && (
+                                <div className="sel-mob-dropdown-empty">No matching materials</div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Lot / Slabs / Size row */}
+                          <div className="sel-mob-fields-row">
+                            <div className="sel-mob-field">
+                              <label className="sel-mob-field-label">Lot #</label>
                               <input
                                 type="text"
-                                value={sel.material}
-                                onChange={(e) => {
-                                  handleSelectionChange(idx, 'material', e.target.value);
-                                  setActiveDropdownIndex(idx);
-                                }}
-                                onFocus={() => setActiveDropdownIndex(idx)}
-                                onBlur={() => {
-                                  // Small delay to allow onMouseDown on suggestions to fire first
-                                  setTimeout(() => {
-                                    setActiveDropdownIndex(null);
-                                  }, 200);
-                                }}
-                                placeholder="Type material name..."
-                                className="selection-grid-input"
-                                style={{ paddingRight: '2.2rem' }}
+                                value={sel.lot}
+                                onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)}
+                                placeholder="—"
+                                className="sel-mob-field-input"
                               />
-                              {scanningIndex === idx ? (
-                                <div style={{
-                                  position: 'absolute',
-                                  right: '6px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  fontSize: '0.65rem',
-                                  color: '#d4af37',
-                                  background: 'rgba(0, 0, 0, 0.65)',
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  border: '1px solid rgba(212, 175, 55, 0.3)',
-                                  zIndex: 5
-                                }}>
-                                  <Loader2 size={12} className="animate-spin" />
-                                  <span style={{ fontWeight: 'bold' }}>{scanningProgress}%</span>
-                                </div>
-                              ) : (
-                                <label
-                                  htmlFor={`tag-upload-${idx}`}
-                                  className="scan-tag-btn"
-                                  title="Upload Slab Tag Photo"
-                                  style={{
+                            </div>
+                            <div className="sel-mob-field">
+                              <label className="sel-mob-field-label">Slabs</label>
+                              <input
+                                type="text"
+                                value={sel.details}
+                                onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)}
+                                placeholder="1, 2"
+                                className="sel-mob-field-input"
+                              />
+                            </div>
+                            <div className="sel-mob-field">
+                              <label className="sel-mob-field-label">Size</label>
+                              <input
+                                type="text"
+                                value={sel.size}
+                                onChange={(e) => handleSelectionChange(idx, 'size', e.target.value)}
+                                placeholder="120×60"
+                                className="sel-mob-field-input"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Add Another Item */}
+                    {selections.length < 12 && (
+                      <button
+                        type="button"
+                        className="sel-mob-add-btn"
+                        onClick={() => setSelections(prev => [...prev, { material: '', details: '', size: '', lot: '' }])}
+                      >
+                        + Add Another Item
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* ── TAB: NOTES ── */}
+                {selMobileTab === 'notes' && (
+                  <div className="sel-mob-panel">
+                    <div className="sel-mob-disclaimer">
+                      <AlertTriangle size={14} className="sel-mob-disclaimer-icon" />
+                      <p>Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice.</p>
+                    </div>
+                    <label className="sel-mob-notes-label">Special Notes</label>
+                    <textarea
+                      value={specialNotes}
+                      onChange={(e) => setSpecialNotes(e.target.value)}
+                      placeholder="Enter any special requests, delivery notes, or details..."
+                      rows="6"
+                      className="sel-mob-notes-textarea"
+                    />
+                  </div>
+                )}
+
+                {/* ── STICKY BOTTOM ACTION BAR ── */}
+                <div className="sel-mob-actions">
+                  <div className="sel-mob-actions-row1">
+                    {hasSendEmailPermission && (
+                      <button
+                        type="button"
+                        onClick={() => setShowEmailModal(true)}
+                        className="sel-mob-btn-outline"
+                        disabled={isSaving}
+                      >
+                        <Mail size={15} /> Email
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handlePrintPDF}
+                      className="sel-mob-btn-outline"
+                      disabled={isSaving}
+                    >
+                      <Printer size={15} /> Print / PDF
+                    </button>
+                  </div>
+                  <button
+                    type="submit"
+                    className="sel-mob-btn-save"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <><Loader2 size={15} className="animate-spin" /> Saving...</>
+                    ) : saveSuccess ? (
+                      'Saved ✓'
+                    ) : (
+                      <><Save size={15} /> Save Selection</>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+            {/* END MOBILE TABBED UI */}
+
+            {/* ════════════════════════════════════════════
+                DESKTOP UI  (hidden on mobile via CSS)
+                ════════════════════════════════════════════ */}
+            <div className="sel-desktop-view">
+              <div className="selection-modal-header">
+                <h2 className="selection-modal-header-title">CUSTOMER VISIT / STONE SELECTION</h2>
+                <button 
+                  type="button" 
+                  className="selection-modal-close" 
+                  onClick={() => setSelectedCheckIn(null)}
+                  autoFocus
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveSelections} className="selection-modal-form">
+
+                 {/* Customer & Fabricator Details Grid */}
+                <div className="selection-details-grid">
+                  <div className="detail-item">
+                    <span className="detail-label">
+                      <Calendar size={12} className="detail-icon" /> Date:
+                    </span>
+                    <span className="detail-value">{formatDate(selectedCheckIn.createdAt)}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">
+                      <Users size={12} className="detail-icon" /> Customer Name:
+                    </span>
+                    <span className="detail-value">{selectedCheckIn.name}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">
+                      <Phone size={12} className="detail-icon" /> Phone Number:
+                    </span>
+                    <span className="detail-value">{selectedCheckIn.phone}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <span className="detail-label">
+                      <Building2 size={12} className="detail-icon" /> Company Name:
+                    </span>
+                    <span className="detail-value">{selectedCheckIn.fabricatorCompany || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">
+                      <Phone size={12} className="detail-icon" /> Company Phone Number:
+                    </span>
+                    <span className="detail-value">{selectedCheckIn.fabricatorPhone || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">
+                      <Users size={12} className="detail-icon" /> Sales Rep:
+                    </span>
+                    <input
+                      type="text"
+                      value={salesRep}
+                      onChange={(e) => handleSalesRepChange(e.target.value)}
+                      placeholder="Enter sales rep name"
+                      className="selection-input"
+                      list="salesreps-datalist"
+                    />
+                  </div>
+                </div>
+
+                {/* Selections Grid Table */}
+                <div className="selections-table-wrapper">
+                  <table className="selections-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '6%', textAlign: 'center' }}>#</th>
+                        <th style={{ width: '38%' }}>Material Name</th>
+                        <th style={{ width: '20%' }}>Lot/Bundle Number</th>
+                        <th style={{ width: '23%' }}>Slab Numbers</th>
+                        <th style={{ width: '13%' }}>Size</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selections.map((sel, idx) => (
+                        <tr key={idx} className="selection-row-item">
+                          <td className="selection-row-num">{idx + 1}</td>
+                          <td style={{ position: 'relative', zIndex: activeDropdownIndex === idx ? 100 : 1 }}>
+                            <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', width: '100%' }}>
+                              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+                                <input
+                                  type="text"
+                                  value={sel.material}
+                                  onChange={(e) => {
+                                    handleSelectionChange(idx, 'material', e.target.value);
+                                    setActiveDropdownIndex(idx);
+                                  }}
+                                  onFocus={() => setActiveDropdownIndex(idx)}
+                                  onBlur={() => {
+                                    // Small delay to allow onMouseDown on suggestions to fire first
+                                    setTimeout(() => {
+                                      setActiveDropdownIndex(null);
+                                    }, 200);
+                                  }}
+                                  placeholder="Type material name..."
+                                  className="selection-grid-input"
+                                  style={{ paddingRight: '2.2rem' }}
+                                />
+                                {scanningIndex === idx ? (
+                                  <div style={{
                                     position: 'absolute',
                                     right: '6px',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: '24px',
-                                    height: '24px',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
+                                    gap: '4px',
+                                    fontSize: '0.65rem',
                                     color: '#d4af37',
-                                    backgroundColor: 'rgba(212, 175, 55, 0.08)',
-                                    border: '1px solid rgba(212, 175, 55, 0.15)',
-                                    pointerEvents: scanningIndex !== null ? 'none' : 'auto',
-                                    opacity: scanningIndex !== null ? 0.5 : 1,
+                                    background: 'rgba(0, 0, 0, 0.65)',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    border: '1px solid rgba(212, 175, 55, 0.3)',
                                     zIndex: 5
-                                  }}
-                                >
-                                  <Scan size={12} />
-                                  <input
-                                    id={`tag-upload-${idx}`}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => handleTagImageUpload(idx, e)}
-                                    disabled={scanningIndex !== null}
-                                    style={{ display: 'none' }}
-                                  />
-                                </label>
-                              )}
-                            </div>
-                            {activeDropdownIndex === idx && (
-                              <div className={`custom-autocomplete-dropdown ${idx >= 3 ? 'open-upward' : ''}`}>
-                                {productList
-                                  .filter(p => {
-                                    if (!sel.material.trim()) return true;
-                                    return p.name.toLowerCase().includes(sel.material.toLowerCase());
-                                  })
-                                  .slice(0, 15)
-                                  .map((prod) => (
-                                    <div
-                                      key={prod._id || prod.id}
-                                      className="autocomplete-option"
-                                      onMouseDown={() => {
-                                        handleSelectionChange(idx, 'material', prod.name);
-                                        setActiveDropdownIndex(null);
-                                      }}
-                                    >
-                                      {prod.name}
-                                    </div>
-                                  ))
-                                }
-                                {productList.filter(p => {
-                                  if (!sel.material.trim()) return true;
-                                  return p.name.toLowerCase().includes(sel.material.toLowerCase());
-                                }).length === 0 && (
-                                  <div className="autocomplete-no-options">
-                                    No matching materials found
+                                  }}>
+                                    <Loader2 size={12} className="animate-spin" />
+                                    <span style={{ fontWeight: 'bold' }}>{scanningProgress}%</span>
                                   </div>
+                                ) : (
+                                  <label
+                                    htmlFor={`tag-upload-${idx}`}
+                                    className="scan-tag-btn"
+                                    title="Upload Slab Tag Photo"
+                                    style={{
+                                      position: 'absolute',
+                                      right: '6px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      width: '24px',
+                                      height: '24px',
+                                      borderRadius: '6px',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s',
+                                      color: '#d4af37',
+                                      backgroundColor: 'rgba(212, 175, 55, 0.08)',
+                                      border: '1px solid rgba(212, 175, 55, 0.15)',
+                                      pointerEvents: scanningIndex !== null ? 'none' : 'auto',
+                                      opacity: scanningIndex !== null ? 0.5 : 1,
+                                      zIndex: 5
+                                    }}
+                                  >
+                                    <Scan size={12} />
+                                    <input
+                                      id={`tag-upload-${idx}`}
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) => handleTagImageUpload(idx, e)}
+                                      disabled={scanningIndex !== null}
+                                      style={{ display: 'none' }}
+                                    />
+                                  </label>
                                 )}
                               </div>
-                            )}
-                          </div>
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            value={sel.lot}
-                            onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)}
-                            placeholder="Lot / Bundle #"
-                            className="selection-grid-input"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            value={sel.details}
-                            onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)}
-                            placeholder="1, 2"
-                            className="selection-grid-input"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            value={sel.size}
-                            onChange={(e) => handleSelectionChange(idx, 'size', e.target.value)}
-                            placeholder="120 x 60"
-                            className="selection-grid-input"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                              {activeDropdownIndex === idx && (
+                                <div className={`custom-autocomplete-dropdown ${idx >= 3 ? 'open-upward' : ''}`}>
+                                  {productList
+                                    .filter(p => {
+                                      if (!sel.material.trim()) return true;
+                                      return p.name.toLowerCase().includes(sel.material.toLowerCase());
+                                    })
+                                    .slice(0, 15)
+                                    .map((prod) => (
+                                      <div
+                                        key={prod._id || prod.id}
+                                        className="autocomplete-option"
+                                        onMouseDown={() => {
+                                          handleSelectionChange(idx, 'material', prod.name);
+                                          setActiveDropdownIndex(null);
+                                        }}
+                                      >
+                                        {prod.name}
+                                      </div>
+                                    ))
+                                  }
+                                  {productList.filter(p => {
+                                    if (!sel.material.trim()) return true;
+                                    return p.name.toLowerCase().includes(sel.material.toLowerCase());
+                                  }).length === 0 && (
+                                    <div className="autocomplete-no-options">
+                                      No matching materials found
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              value={sel.lot}
+                              onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)}
+                              placeholder="Lot / Bundle #"
+                              className="selection-grid-input"
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              value={sel.details}
+                              onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)}
+                              placeholder="1, 2"
+                              className="selection-grid-input"
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              value={sel.size}
+                              onChange={(e) => handleSelectionChange(idx, 'size', e.target.value)}
+                              placeholder="120 x 60"
+                              className="selection-grid-input"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              {/* HTML5 Datalist for autocomplete */}
-              <datalist id="products-datalist">
-                {productList.map((prod, pIdx) => (
-                  <option key={prod._id || pIdx} value={prod.name} />
-                ))}
-              </datalist>
-
-              <datalist id="salesreps-datalist">
-                {salesReps
-                  .filter(rep => {
-                    if (!selectedCheckIn?.location) return true;
-                    if (rep.location === selectedCheckIn.location) return true;
-                    if (rep.assignedLocations?.includes(selectedCheckIn.location)) return true;
-                    if (rep.assignedLocations?.includes('*')) return true;
-                    return false;
-                  })
-                  .map((rep, idx) => (
-                    <option key={rep.username || idx} value={rep.name} />
+                {/* HTML5 Datalist for autocomplete */}
+                <datalist id="products-datalist">
+                  {productList.map((prod, pIdx) => (
+                    <option key={prod._id || pIdx} value={prod.name} />
                   ))}
-              </datalist>
+                </datalist>
 
-              {/* Special Notes */}
-              <div className="selection-notes-wrapper">
-                <label className="selection-notes-label">Special Notes:</label>
-                <textarea
-                  value={specialNotes}
-                  onChange={(e) => setSpecialNotes(e.target.value)}
-                  placeholder="Enter any special requests, delivery notes, or details..."
-                  rows="3"
-                  className="selection-textarea"
-                />
-              </div>
+                <datalist id="salesreps-datalist">
+                  {salesReps
+                    .filter(rep => {
+                      if (!selectedCheckIn?.location) return true;
+                      if (rep.location === selectedCheckIn.location) return true;
+                      if (rep.assignedLocations?.includes(selectedCheckIn.location)) return true;
+                      if (rep.assignedLocations?.includes('*')) return true;
+                      return false;
+                    })
+                    .map((rep, idx) => (
+                      <option key={rep.username || idx} value={rep.name} />
+                    ))}
+                </datalist>
 
-              {/* Disclaimer */}
-              <div className="selection-disclaimer">
-                <AlertTriangle size={18} className="disclaimer-warning-icon" />
-                <p>
-                  <strong>Note:</strong> Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice to you or your fabricator.
-                </p>
-              </div>
+                {/* Special Notes */}
+                <div className="selection-notes-wrapper">
+                  <label className="selection-notes-label">Special Notes:</label>
+                  <textarea
+                    value={specialNotes}
+                    onChange={(e) => setSpecialNotes(e.target.value)}
+                    placeholder="Enter any special requests, delivery notes, or details..."
+                    rows="3"
+                    className="selection-textarea"
+                  />
+                </div>
 
-              {/* Actions */}
-              <div className="selection-modal-actions">
-                <div className="selection-modal-actions-left">
-                  {hasSendEmailPermission && (
+                {/* Disclaimer */}
+                <div className="selection-disclaimer">
+                  <AlertTriangle size={18} className="disclaimer-warning-icon" />
+                  <p>
+                    <strong>Note:</strong> Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice to you or your fabricator.
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="selection-modal-actions">
+                  <div className="selection-modal-actions-left">
+                    {hasSendEmailPermission && (
+                      <button
+                        type="button"
+                        onClick={() => setShowEmailModal(true)}
+                        className="btn-email-trigger"
+                        disabled={isSaving}
+                      >
+                        <Mail size={15} /> Send Email
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setShowEmailModal(true)}
-                      className="btn-email-trigger"
+                      onClick={handlePrintPDF}
+                      className="btn-print-trigger"
                       disabled={isSaving}
                     >
-                      <Mail size={15} /> Send Email
+                      <Printer size={15} /> Print / Save PDF
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handlePrintPDF}
-                    className="btn-print-trigger"
-                    disabled={isSaving}
-                  >
-                    <Printer size={15} /> Print / Save PDF
-                  </button>
-                </div>
+                  </div>
 
-                <div className="selection-modal-actions-right">
-                  <button
-                    type="submit"
-                    className="btn-save-selection"
-                    disabled={isSaving}
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 size={15} className="animate-spin" /> Saving...
-                      </>
-                    ) : saveSuccess ? (
-                      'Saved Successfully! ✓'
-                    ) : (
-                      <>
-                        <Save size={15} /> Save Selection
-                      </>
-                    )}
-                  </button>
+                  <div className="selection-modal-actions-right">
+                    <button
+                      type="submit"
+                      className="btn-save-selection"
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" /> Saving...
+                        </>
+                      ) : saveSuccess ? (
+                        'Saved Successfully! ✓'
+                      ) : (
+                        <>
+                          <Save size={15} /> Save Selection
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </form>
+              </form>
+            </div>
+            {/* END DESKTOP UI */}
+
           </div>
         </div>
       )}
