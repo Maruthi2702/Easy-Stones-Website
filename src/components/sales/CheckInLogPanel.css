@@ -4835,3 +4835,38 @@ body.light-theme-active .sel-mob-actions { background: #f8fafc; border-top-color
 body.light-theme-active .sel-mob-btn-outline { border-color: #cbd5e1; color: #475569; }
 .clp-root.light-theme .sel-mob-btn-outline:hover,
 body.light-theme-active .sel-mob-btn-outline:hover { background: #f1f5f9; color: #0f172a; }
+
+/* ── Mobile: Section wrapper & divider (single-scroll layout) ── */
+.sel-mob-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.sel-mob-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #d4af37;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.sel-mob-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #505050;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0.25rem 0;
+}
+.sel-mob-divider::before,
+.sel-mob-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+}

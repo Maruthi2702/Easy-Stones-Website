@@ -1670,16 +1670,17 @@ const CheckInLogPanel = ({
           <div className="selection-modal-container">
 
             {/* ════════════════════════════════════════════
-                MOBILE TABBED UI  (hidden on desktop via CSS)
+                MOBILE UI  (hidden on desktop via CSS)
                 ════════════════════════════════════════════ */}
             <div className="sel-mobile-view">
-              {/* Mobile Header */}
+
+              {/* Header: title + customer name & phone only */}
               <div className="sel-mob-header">
                 <div className="sel-mob-header-text">
                   <h2 className="sel-mob-title">Stone Selection</h2>
                   <p className="sel-mob-subtitle">
                     {selectedCheckIn.name}
-                    {selectedCheckIn.fabricatorCompany ? ` • ${selectedCheckIn.fabricatorCompany}` : ''}
+                    {selectedCheckIn.phone ? ` • ${selectedCheckIn.phone}` : ''}
                   </p>
                 </div>
                 <button
@@ -1691,89 +1692,52 @@ const CheckInLogPanel = ({
                 </button>
               </div>
 
-              {/* Tab Bar */}
-              <div className="sel-mob-tabs">
-                {[
-                  { key: 'customer', label: 'Customer Info' },
-                  { key: 'selections', label: `Selections (${selections.filter(s => s.material.trim()).length})` },
-                  { key: 'notes', label: 'Notes' },
-                ].map(tab => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    className={`sel-mob-tab${selMobileTab === tab.key ? ' active' : ''}`}
-                    onClick={() => setSelMobileTab(tab.key)}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Tab Panels */}
+              {/* Single-scroll form body */}
               <form onSubmit={handleSaveSelections} className="sel-mob-form">
+                <div className="sel-mob-panel">
 
-                {/* ── TAB: CUSTOMER INFO ── */}
-                {selMobileTab === 'customer' && (
-                  <div className="sel-mob-panel">
-                    <div className="sel-mob-info-grid">
-                      <div className="sel-mob-info-item">
-                        <span className="sel-mob-info-label"><Calendar size={11} /> Date</span>
-                        <span className="sel-mob-info-value">{formatDate(selectedCheckIn.createdAt)}</span>
-                      </div>
-                      <div className="sel-mob-info-item">
-                        <span className="sel-mob-info-label"><Users size={11} /> Customer</span>
-                        <span className="sel-mob-info-value">{selectedCheckIn.name}</span>
-                      </div>
-                      <div className="sel-mob-info-item">
-                        <span className="sel-mob-info-label"><Phone size={11} /> Phone</span>
-                        <span className="sel-mob-info-value">{selectedCheckIn.phone || 'N/A'}</span>
-                      </div>
-                      <div className="sel-mob-info-item">
-                        <span className="sel-mob-info-label"><Building2 size={11} /> Company</span>
-                        <span className="sel-mob-info-value">{selectedCheckIn.fabricatorCompany || 'N/A'}</span>
-                      </div>
-                      <div className="sel-mob-info-item">
-                        <span className="sel-mob-info-label"><Phone size={11} /> Co. Phone</span>
-                        <span className="sel-mob-info-value">{selectedCheckIn.fabricatorPhone || 'N/A'}</span>
-                      </div>
-                      <div className="sel-mob-info-item sel-mob-info-item--full">
-                        <span className="sel-mob-info-label"><Users size={11} /> Sales Rep</span>
-                        <input
-                          type="text"
-                          value={salesRep}
-                          onChange={(e) => handleSalesRepChange(e.target.value)}
-                          placeholder="Enter sales rep name"
-                          className="sel-mob-text-input"
-                          list="salesreps-datalist"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="sel-mob-next-btn"
-                      onClick={() => setSelMobileTab('selections')}
-                    >
-                      Next: Selections →
-                    </button>
+                  {/* Sales Rep */}
+                  <div className="sel-mob-section">
+                    <label className="sel-mob-section-label"><Users size={12} /> Sales Rep</label>
+                    <input
+                      type="text"
+                      value={salesRep}
+                      onChange={(e) => handleSalesRepChange(e.target.value)}
+                      placeholder="Enter sales rep name"
+                      className="sel-mob-text-input"
+                      list="salesreps-datalist"
+                    />
+                    <datalist id="salesreps-datalist">
+                      {salesReps
+                        .filter(rep => {
+                          if (!selectedCheckIn?.location) return true;
+                          if (rep.location === selectedCheckIn.location) return true;
+                          if (rep.assignedLocations?.includes(selectedCheckIn.location)) return true;
+                          if (rep.assignedLocations?.includes('*')) return true;
+                          return false;
+                        })
+                        .map((rep, i) => (
+                          <option key={rep.username || i} value={rep.name} />
+                        ))}
+                    </datalist>
                   </div>
-                )}
 
-                {/* ── TAB: SELECTIONS ── */}
-                {selMobileTab === 'selections' && (
-                  <div className="sel-mob-panel">
-                    <div className="sel-mob-selections-list">
-                      {(() => {
-                        // On mobile: only show filled items + items flagged as _new
-                        const filled = selections
-                          .map((sel, idx) => ({ sel, idx }))
-                          .filter(({ sel }) => sel.material.trim() || sel.lot.trim() || sel.details.trim() || sel.size.trim() || sel._new);
-                        // If no items at all, show slot 0 as empty starter
-                        const displayItems = filled.length === 0
-                          ? [{ sel: selections[0] || { material: '', details: '', size: '', lot: '' }, idx: 0 }]
-                          : filled;
-                        return displayItems.map(({ sel, idx }, displayNum) => (
-                          <div key={idx} className="sel-mob-item-card">
-                          {/* Card Header */}
+                  {/* Divider */}
+                  <div className="sel-mob-divider">
+                    <span>Material Selections</span>
+                  </div>
+
+                  {/* Selection Items */}
+                  <div className="sel-mob-selections-list">
+                    {(() => {
+                      const filled = selections
+                        .map((sel, idx) => ({ sel, idx }))
+                        .filter(({ sel }) => sel.material.trim() || sel.lot.trim() || sel.details.trim() || sel.size.trim() || sel._new);
+                      const displayItems = filled.length === 0
+                        ? [{ sel: selections[0] || { material: '', details: '', size: '', lot: '' }, idx: 0 }]
+                        : filled;
+                      return displayItems.map(({ sel, idx }) => (
+                        <div key={idx} className="sel-mob-item-card">
                           <div className="sel-mob-item-header">
                             <span className="sel-mob-item-badge">ITEM {idx + 1}</span>
                             <button
@@ -1782,7 +1746,6 @@ const CheckInLogPanel = ({
                               onClick={() => {
                                 setSelections(prev => {
                                   const next = prev.filter((_, i) => i !== idx);
-                                  // Always keep at least 1 slot
                                   return next.length > 0 ? next : [{ material: '', details: '', size: '', lot: '' }];
                                 });
                               }}
@@ -1792,7 +1755,7 @@ const CheckInLogPanel = ({
                             </button>
                           </div>
 
-                          {/* Material Search Input */}
+                          {/* Material Search */}
                           <div className="sel-mob-material-wrapper">
                             <Search size={14} className="sel-mob-search-icon" />
                             <input
@@ -1807,7 +1770,6 @@ const CheckInLogPanel = ({
                               placeholder="Search material name..."
                               className="sel-mob-material-input"
                             />
-                            {/* Scan Tag Button */}
                             {scanningIndex === idx ? (
                               <div className="sel-mob-scanning-badge">
                                 <Loader2 size={12} className="animate-spin" />
@@ -1828,7 +1790,7 @@ const CheckInLogPanel = ({
                             )}
                           </div>
 
-                          {/* Autocomplete Dropdown */}
+                          {/* Autocomplete */}
                           {activeDropdownIndex === idx && (
                             <div className="sel-mob-dropdown">
                               {productList
@@ -1853,132 +1815,86 @@ const CheckInLogPanel = ({
                             </div>
                           )}
 
-                          {/* Lot / Slabs / Size row */}
+                          {/* Lot / Slabs / Size */}
                           <div className="sel-mob-fields-row">
                             <div className="sel-mob-field">
                               <label className="sel-mob-field-label">Lot #</label>
-                              <input
-                                type="text"
-                                value={sel.lot}
-                                onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)}
-                                placeholder="—"
-                                className="sel-mob-field-input"
-                              />
+                              <input type="text" value={sel.lot} onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)} placeholder="—" className="sel-mob-field-input" />
                             </div>
                             <div className="sel-mob-field">
                               <label className="sel-mob-field-label">Slabs</label>
-                              <input
-                                type="text"
-                                value={sel.details}
-                                onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)}
-                                placeholder="1, 2"
-                                className="sel-mob-field-input"
-                              />
+                              <input type="text" value={sel.details} onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)} placeholder="1, 2" className="sel-mob-field-input" />
                             </div>
                             <div className="sel-mob-field">
                               <label className="sel-mob-field-label">Size</label>
-                              <input
-                                type="text"
-                                value={sel.size}
-                                onChange={(e) => handleSelectionChange(idx, 'size', e.target.value)}
-                                placeholder="120×60"
-                                className="sel-mob-field-input"
-                              />
+                              <input type="text" value={sel.size} onChange={(e) => handleSelectionChange(idx, 'size', e.target.value)} placeholder="120×60" className="sel-mob-field-input" />
                             </div>
                           </div>
                         </div>
-                        ));
-                      })()}
-                    </div>
+                      ));
+                    })()}
+                  </div>
 
-                    {/* Add Another Item */}
-                    {selections.filter(s => s.material.trim() || s.lot.trim() || s.details.trim() || s.size.trim()).length < 12 && (
-                      <button
-                        type="button"
-                        className="sel-mob-add-btn"
-                        onClick={() => {
-                          // Find next empty slot or append new one
-                          const nextEmpty = selections.findIndex(s => !s.material.trim() && !s.lot.trim() && !s.details.trim() && !s.size.trim());
-                          if (nextEmpty === -1) {
-                            setSelections(prev => [...prev, { material: '', details: '', size: '', lot: '' }]);
+                  {/* Add Another Item */}
+                  {selections.filter(s => s.material.trim() || s.lot.trim() || s.details.trim() || s.size.trim()).length < 12 && (
+                    <button
+                      type="button"
+                      className="sel-mob-add-btn"
+                      onClick={() => {
+                        setSelections(prev => {
+                          const copy = [...prev];
+                          const emptyIdx = copy.findIndex(s => !s.material.trim() && !s.lot.trim() && !s.details.trim() && !s.size.trim());
+                          if (emptyIdx !== -1) {
+                            copy[emptyIdx] = { ...copy[emptyIdx], _new: true };
+                          } else {
+                            copy.push({ material: '', details: '', size: '', lot: '', _new: true });
                           }
-                          // Slot already exists as empty — it will appear once user starts typing
-                          // Force show it by temporarily marking it
-                          setSelections(prev => {
-                            const copy = [...prev];
-                            const emptyIdx = copy.findIndex(s => !s.material.trim() && !s.lot.trim() && !s.details.trim() && !s.size.trim());
-                            if (emptyIdx !== -1) {
-                              copy[emptyIdx] = { ...copy[emptyIdx], _new: true };
-                            } else {
-                              copy.push({ material: '', details: '', size: '', lot: '', _new: true });
-                            }
-                            return copy;
-                          });
-                        }}
-                      >
-                        + Add Another Item
-                      </button>
-                    )}
-                  </div>
-                )}
+                          return copy;
+                        });
+                      }}
+                    >
+                      + Add Another Item
+                    </button>
+                  )}
 
-                {/* ── TAB: NOTES ── */}
-                {selMobileTab === 'notes' && (
-                  <div className="sel-mob-panel">
-                    <div className="sel-mob-disclaimer">
-                      <AlertTriangle size={14} className="sel-mob-disclaimer-icon" />
-                      <p>Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice.</p>
-                    </div>
-                    <label className="sel-mob-notes-label">Special Notes</label>
-                    <textarea
-                      value={specialNotes}
-                      onChange={(e) => setSpecialNotes(e.target.value)}
-                      placeholder="Enter any special requests, delivery notes, or details..."
-                      rows="6"
-                      className="sel-mob-notes-textarea"
-                    />
+                  {/* Warning / Disclaimer */}
+                  <div className="sel-mob-disclaimer">
+                    <AlertTriangle size={14} className="sel-mob-disclaimer-icon" />
+                    <p>Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice.</p>
                   </div>
-                )}
 
-                {/* ── STICKY BOTTOM ACTION BAR ── */}
+                  {/* Notes */}
+                  <label className="sel-mob-notes-label">Special Notes</label>
+                  <textarea
+                    value={specialNotes}
+                    onChange={(e) => setSpecialNotes(e.target.value)}
+                    placeholder="Enter any special requests, delivery notes, or details..."
+                    rows="4"
+                    className="sel-mob-notes-textarea"
+                  />
+
+                </div>
+
+                {/* Sticky Bottom Action Bar */}
                 <div className="sel-mob-actions">
                   <div className="sel-mob-actions-row1">
                     {hasSendEmailPermission && (
-                      <button
-                        type="button"
-                        onClick={() => setShowEmailModal(true)}
-                        className="sel-mob-btn-outline"
-                        disabled={isSaving}
-                      >
+                      <button type="button" onClick={() => setShowEmailModal(true)} className="sel-mob-btn-outline" disabled={isSaving}>
                         <Mail size={15} /> Email
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={handlePrintPDF}
-                      className="sel-mob-btn-outline"
-                      disabled={isSaving}
-                    >
+                    <button type="button" onClick={handlePrintPDF} className="sel-mob-btn-outline" disabled={isSaving}>
                       <Printer size={15} /> Print / PDF
                     </button>
                   </div>
-                  <button
-                    type="submit"
-                    className="sel-mob-btn-save"
-                    disabled={isSaving}
-                  >
-                    {isSaving ? (
-                      <><Loader2 size={15} className="animate-spin" /> Saving...</>
-                    ) : saveSuccess ? (
-                      'Saved ✓'
-                    ) : (
-                      <><Save size={15} /> Save Selection</>
-                    )}
+                  <button type="submit" className="sel-mob-btn-save" disabled={isSaving}>
+                    {isSaving ? (<><Loader2 size={15} className="animate-spin" /> Saving...</>) : saveSuccess ? ('Saved ✓') : (<><Save size={15} /> Save Selection</>)}
                   </button>
                 </div>
               </form>
             </div>
-            {/* END MOBILE TABBED UI */}
+            {/* END MOBILE UI */}
+
 
             {/* ════════════════════════════════════════════
                 DESKTOP UI  (hidden on mobile via CSS)
