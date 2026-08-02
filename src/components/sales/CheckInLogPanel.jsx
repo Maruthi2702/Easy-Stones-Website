@@ -1848,12 +1848,6 @@ const CheckInLogPanel = ({
                     </button>
                   )}
 
-                  {/* Warning / Disclaimer */}
-                  <div className="sel-mob-disclaimer">
-                    <AlertTriangle size={14} className="sel-mob-disclaimer-icon" />
-                    <p>Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice.</p>
-                  </div>
-
                   {/* Notes */}
                   <label className="sel-mob-notes-label">Special Notes</label>
                   <textarea
@@ -1863,6 +1857,12 @@ const CheckInLogPanel = ({
                     rows="4"
                     className="sel-mob-notes-textarea"
                   />
+
+                  {/* Warning / Disclaimer */}
+                  <div className="sel-mob-disclaimer">
+                    <AlertTriangle size={14} className="sel-mob-disclaimer-icon" />
+                    <p>Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice.</p>
+                  </div>
 
                 </div>
 
