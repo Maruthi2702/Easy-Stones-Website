@@ -9,63 +9,6 @@ import LostSaleModal, { getCustomerName } from './LostSaleModal';
 import Pagination from '../shared/Pagination';
 import './LostSalesTab.css';
 
-const INITIAL_SAMPLE_DATA = [
-  {
-    _id: 'ls_1',
-    customerName: 'Five Star Granite, Inc.',
-    productName: 'Calacatta Laza 3CM',
-    lengthInches: 126,
-    widthInches: 63,
-    sfPerSlab: 55.13,
-    slabsCount: 21,
-    totalSf: 1157.63,
-    pricePerSf: 14.50,
-    totalLostValue: 16785.64,
-    reason: 'Out of Stock',
-    location: 'Seattle',
-    competitorName: 'MSI Quartz',
-    notes: 'Client needed 21 slabs urgently for commercial lobby project. Out of stock in Seattle branch.',
-    salesRepName: 'Krish Manager',
-    date: new Date(Date.now() - 86400000 * 2).toISOString()
-  },
-  {
-    _id: 'ls_2',
-    customerName: 'Apex Marble & Granite',
-    productName: 'Taj Mahal Quartzite 3CM',
-    lengthInches: 130,
-    widthInches: 70,
-    sfPerSlab: 63.19,
-    slabsCount: 8,
-    totalSf: 505.56,
-    pricePerSf: 28.00,
-    totalLostValue: 14155.68,
-    reason: 'Price Too High',
-    location: 'Spokane',
-    competitorName: 'Bedrosians',
-    notes: 'Competitor offered $24/SF on alternative block.',
-    salesRepName: 'Alex Rep',
-    date: new Date(Date.now() - 86400000 * 5).toISOString()
-  },
-  {
-    _id: 'ls_3',
-    customerName: 'Cascade Home Builders',
-    productName: 'Carrara White Marble 2CM',
-    lengthInches: 120,
-    widthInches: 60,
-    sfPerSlab: 50.00,
-    slabsCount: 12,
-    totalSf: 600.00,
-    pricePerSf: 11.00,
-    totalLostValue: 6600.00,
-    reason: 'Lead Time',
-    location: 'Salt Lake City',
-    competitorName: 'Arizona Tile',
-    notes: 'Delivery lead time was 3 weeks; builder needed delivery in 4 days.',
-    salesRepName: 'Sam Rep',
-    date: new Date(Date.now() - 86400000 * 9).toISOString()
-  }
-];
-
 const LostSalesTab = ({
   currentUser = null,
   customersList = [],
@@ -76,15 +19,7 @@ const LostSalesTab = ({
   isDropdownLoading = false,
   sidebarToggle = null
 }) => {
-  const [lostSales, setLostSales] = useState(() => {
-    try {
-      const saved = localStorage.getItem('lost_sales_records');
-      return saved ? JSON.parse(saved) : INITIAL_SAMPLE_DATA;
-    } catch (e) {
-      return INITIAL_SAMPLE_DATA;
-    }
-  });
-
+  const [lostSales, setLostSales] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReason, setSelectedReason] = useState('All');
@@ -107,22 +42,24 @@ const LostSalesTab = ({
   const canEdit = isAdmin || userPermissions.includes('edit_lost_sales') || userPermissions.includes('manage_lost_sales');
   const canDelete = isAdmin || userPermissions.includes('delete_lost_sales') || userPermissions.includes('manage_lost_sales');
 
-  // Sync with LocalStorage and Backend API
+  // Sync with Backend API
   const fetchLostSalesFromApi = async () => {
     try {
       setLoading(true);
+      const token = localStorage.getItem('token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
       const res = await fetch(`${API_URL}/api/lost-sales`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers,
+        credentials: 'include'
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setLostSales(data);
-          localStorage.setItem('lost_sales_records', JSON.stringify(data));
         }
       }
     } catch (err) {
-      // Quiet fallback
+      console.error('Failed to fetch lost sales from API:', err);
     } finally {
       setLoading(false);
     }
@@ -137,34 +74,38 @@ const LostSalesTab = ({
     setCurrentPage(1);
   }, [searchQuery, selectedReason, selectedLocationFilter, sortBy]);
 
-  const saveRecordsToStorage = (updatedList) => {
-    setLostSales(updatedList);
-    try {
-      localStorage.setItem('lost_sales_records', JSON.stringify(updatedList));
-    } catch (e) {}
-  };
-
   const handleSaveOpportunity = async (newRecord) => {
     try {
-      await fetch(`${API_URL}/api/lost-sales`, {
-        method: newRecord._id.startsWith('ls_') ? 'POST' : 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+      setLoading(true);
+      const isNew = !newRecord._id || newRecord._id.startsWith('ls_');
+      const url = isNew ? `${API_URL}/api/lost-sales` : `${API_URL}/api/lost-sales/${newRecord._id}`;
+      const method = isNew ? 'POST' : 'PUT';
+
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers,
+        credentials: 'include',
         body: JSON.stringify(newRecord)
       });
-    } catch (err) {}
 
-    const existingIndex = lostSales.findIndex(item => item._id === newRecord._id);
-    let updated;
-    if (existingIndex >= 0) {
-      updated = [...lostSales];
-      updated[existingIndex] = newRecord;
-    } else {
-      updated = [newRecord, ...lostSales];
+      if (res.ok) {
+        await fetchLostSalesFromApi();
+      } else {
+        const errData = await res.json();
+        alert(errData.message || 'Failed to save lost sale record');
+      }
+    } catch (err) {
+      console.error('Error saving lost sale opportunity:', err);
+      alert('Network error while saving lost sale record');
+    } finally {
+      setLoading(false);
     }
-    saveRecordsToStorage(updated);
   };
 
   const handleDeleteRecord = async (id, e) => {
@@ -172,14 +113,26 @@ const LostSalesTab = ({
     if (!window.confirm('Are you sure you want to delete this lost sale record?')) return;
 
     try {
-      await fetch(`${API_URL}/api/lost-sales/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-      });
-    } catch (err) {}
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-    const updated = lostSales.filter(item => item._id !== id);
-    saveRecordsToStorage(updated);
+      const res = await fetch(`${API_URL}/api/lost-sales/${id}`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include'
+      });
+
+      if (res.ok) {
+        setLostSales(prev => prev.filter(item => item._id !== id));
+      } else {
+        alert('Failed to delete lost sale record');
+      }
+    } catch (err) {
+      console.error('Error deleting lost sale record:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOpenAddModal = () => {

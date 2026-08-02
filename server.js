@@ -33,6 +33,7 @@ import Schedule from './src/models/Schedule.js';
 import OfficeCheckIn from './src/models/OfficeCheckIn.js';
 import Delivery from './src/models/Delivery.js';
 import Truck from './src/models/Truck.js';
+import LostSale from './src/models/LostSale.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
 import path from 'path';
@@ -5145,6 +5146,120 @@ app.patch('/api/customers/:id/quick-note', verifyAnyAuth, async (req, res) => {
   } catch (error) {
     console.error('Update quick note error:', error);
     res.status(500).json({ message: 'Failed to update quick note' });
+  }
+});
+
+// ── LOST SALES API ROUTES ──
+
+// GET /api/lost-sales: Fetch all lost sales
+app.get('/api/lost-sales', verifyAnyAuth, async (req, res) => {
+  try {
+    const list = await LostSale.find().sort({ date: -1, createdAt: -1 }).lean();
+    res.json(list);
+  } catch (error) {
+    console.error('Error fetching lost sales:', error);
+    res.status(500).json({ message: 'Failed to fetch lost sales' });
+  }
+});
+
+// POST /api/lost-sales: Create a lost sale entry
+app.post('/api/lost-sales', verifyAnyAuth, async (req, res) => {
+  try {
+    const data = req.body;
+    const slabsCount = Number(data.slabsCount) || 1;
+    const sfPerSlab = Number(data.sfPerSlab) || 0;
+    const pricePerSf = Number(data.pricePerSf) || 0;
+    const totalSf = data.totalSf ? Number(data.totalSf) : (slabsCount * sfPerSlab);
+    const totalLostValue = data.totalLostValue ? Number(data.totalLostValue) : (totalSf * pricePerSf);
+
+    const lostSale = new LostSale({
+      customerName: data.customerName,
+      customerId: data.customerId || null,
+      productName: data.productName,
+      productId: data.productId || null,
+      lengthInches: Number(data.lengthInches) || 0,
+      widthInches: Number(data.widthInches) || 0,
+      sfPerSlab: sfPerSlab,
+      slabsCount: slabsCount,
+      totalSf: totalSf,
+      pricePerSf: pricePerSf,
+      totalLostValue: totalLostValue,
+      reason: data.reason || 'Out of Stock',
+      location: data.location || 'Seattle',
+      competitorName: data.competitorName || '',
+      notes: data.notes || '',
+      salesRepName: data.salesRepName || req.user?.username || req.user?.contactName || 'Sales Rep',
+      salesRepId: data.salesRepId || req.user?._id || null,
+      date: data.date ? new Date(data.date) : new Date()
+    });
+
+    await lostSale.save();
+    req.app.get('io').emit('lost_sale_update');
+    res.status(201).json(lostSale);
+  } catch (error) {
+    console.error('Error creating lost sale:', error);
+    res.status(500).json({ message: 'Failed to create lost sale record', error: error.message });
+  }
+});
+
+// PUT /api/lost-sales/:id: Update a lost sale entry
+app.put('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const data = req.body;
+    const slabsCount = Number(data.slabsCount) || 1;
+    const sfPerSlab = Number(data.sfPerSlab) || 0;
+    const pricePerSf = Number(data.pricePerSf) || 0;
+    const totalSf = data.totalSf ? Number(data.totalSf) : (slabsCount * sfPerSlab);
+    const totalLostValue = data.totalLostValue ? Number(data.totalLostValue) : (totalSf * pricePerSf);
+
+    const updateObj = {
+      customerName: data.customerName,
+      productName: data.productName,
+      lengthInches: Number(data.lengthInches) || 0,
+      widthInches: Number(data.widthInches) || 0,
+      sfPerSlab: sfPerSlab,
+      slabsCount: slabsCount,
+      totalSf: totalSf,
+      pricePerSf: pricePerSf,
+      totalLostValue: totalLostValue,
+      reason: data.reason,
+      location: data.location,
+      competitorName: data.competitorName || '',
+      notes: data.notes || ''
+    };
+    if (data.salesRepName) updateObj.salesRepName = data.salesRepName;
+    if (data.date) updateObj.date = new Date(data.date);
+
+    const updated = await LostSale.findByIdAndUpdate(
+      req.params.id,
+      updateObj,
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Lost sale record not found' });
+    }
+
+    req.app.get('io').emit('lost_sale_update');
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating lost sale:', error);
+    res.status(500).json({ message: 'Failed to update lost sale record', error: error.message });
+  }
+});
+
+// DELETE /api/lost-sales/:id: Delete a lost sale entry
+app.delete('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const deleted = await LostSale.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Lost sale record not found' });
+    }
+    req.app.get('io').emit('lost_sale_update');
+    res.json({ success: true, message: 'Lost sale record deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting lost sale:', error);
+    res.status(500).json({ message: 'Failed to delete lost sale record' });
   }
 });
 
