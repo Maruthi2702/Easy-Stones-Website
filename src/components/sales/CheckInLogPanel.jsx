@@ -1722,8 +1722,8 @@ const CheckInLogPanel = ({
                         {salesReps
                           .filter(rep => {
                             const r = (rep.role || '').toLowerCase();
-                            const isSalesOrManager = !rep.role || r.includes('sales') || r.includes('manager');
-                            if (!isSalesOrManager) return false;
+                            const isAllowedRole = !rep.role || r.includes('sales') || r.includes('manager') || r.includes('director') || r.includes('admin');
+                            if (!isAllowedRole) return false;
                             if (selectedCheckIn?.location) {
                               if (rep.location !== selectedCheckIn.location &&
                                   !rep.assignedLocations?.includes(selectedCheckIn.location) &&
@@ -1751,8 +1751,8 @@ const CheckInLogPanel = ({
                           ))}
                         {salesReps.filter(rep => {
                           const r = (rep.role || '').toLowerCase();
-                          const isSalesOrManager = !rep.role || r.includes('sales') || r.includes('manager');
-                          if (!isSalesOrManager) return false;
+                          const isAllowedRole = !rep.role || r.includes('sales') || r.includes('manager') || r.includes('director') || r.includes('admin');
+                          if (!isAllowedRole) return false;
                           if (selectedCheckIn?.location) {
                             if (rep.location !== selectedCheckIn.location &&
                                 !rep.assignedLocations?.includes(selectedCheckIn.location) &&
@@ -2004,8 +2004,8 @@ const CheckInLogPanel = ({
                         {salesReps
                           .filter(rep => {
                             const r = (rep.role || '').toLowerCase();
-                            const isSalesOrManager = !rep.role || r.includes('sales') || r.includes('manager');
-                            if (!isSalesOrManager) return false;
+                            const isAllowedRole = !rep.role || r.includes('sales') || r.includes('manager') || r.includes('director') || r.includes('admin');
+                            if (!isAllowedRole) return false;
                             if (selectedCheckIn?.location) {
                               if (rep.location !== selectedCheckIn.location &&
                                   !rep.assignedLocations?.includes(selectedCheckIn.location) &&
