@@ -268,18 +268,6 @@ async function startServer() {
       console.error('⚠️ Warning: Failed to sync database indexes:', indexError);
     }
 
-    // Database migration: Update status value from legacy "Working with other sales Rep" to "Different Sales Person"
-    try {
-      const updateResult = await Customer.updateMany(
-        { status: 'Working with other sales Rep' },
-        { $set: { status: 'Different Sales Person' } }
-      );
-      if (updateResult.modifiedCount > 0) {
-        console.log(`🔄 Migrated ${updateResult.modifiedCount} customers to new status: "Different Sales Person"`);
-      }
-    } catch (migError) {
-      console.error('Error running status update migration:', migError);
-    }
     // Database migration: Initialize assignedLocations for existing users & upgrade admins to global
     try {
       const updateUsersResult = await User.updateMany(
@@ -298,18 +286,6 @@ async function startServer() {
       }
     } catch (migError) {
       console.error('Error running user locations migration:', migError);
-    }
-    // Database migration: Initialize location for existing check-in records
-    try {
-      const updateCheckinsResult = await OfficeCheckIn.updateMany(
-        { location: { $exists: false } },
-        { $set: { location: 'Seattle' } }
-      );
-      if (updateCheckinsResult.modifiedCount > 0) {
-        console.log(`🔄 Migrated ${updateCheckinsResult.modifiedCount} check-in records with default location 'Seattle'`);
-      }
-    } catch (migError) {
-      console.error('Error running check-in location migration:', migError);
     }
     // Database seeding: Default Locations
     try {
