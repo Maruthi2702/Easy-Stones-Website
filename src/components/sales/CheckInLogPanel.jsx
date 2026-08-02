@@ -1035,7 +1035,9 @@ const CheckInLogPanel = ({
     setSelections(prev => prev.map((sel, i) => {
       if (i === idx) {
         const val = field === 'material' ? value.toUpperCase() : value;
-        return { ...sel, [field]: val };
+        // Clear _new flag once user starts editing
+        const { _new, ...rest } = sel;
+        return { ...rest, [field]: val };
       }
       return sel;
     }));
@@ -1045,8 +1047,10 @@ const CheckInLogPanel = ({
     if (e) e.preventDefault();
     setIsSaving(true);
     try {
-      // Filter out completely blank rows
-      const cleanSelections = selections.filter(s => s.material.trim() !== '');
+      // Filter out completely blank rows and strip internal _new flags
+      const cleanSelections = selections
+        .filter(s => s.material.trim() !== '')
+        .map(({ _new, ...s }) => s);
 
       const response = await fetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
         method: 'PUT',
@@ -1758,8 +1762,17 @@ const CheckInLogPanel = ({
                 {selMobileTab === 'selections' && (
                   <div className="sel-mob-panel">
                     <div className="sel-mob-selections-list">
-                      {selections.map((sel, idx) => (
-                        <div key={idx} className="sel-mob-item-card">
+                      {(() => {
+                        // On mobile: only show filled items + items flagged as _new
+                        const filled = selections
+                          .map((sel, idx) => ({ sel, idx }))
+                          .filter(({ sel }) => sel.material.trim() || sel.lot.trim() || sel.details.trim() || sel.size.trim() || sel._new);
+                        // If no items at all, show slot 0 as empty starter
+                        const displayItems = filled.length === 0
+                          ? [{ sel: selections[0] || { material: '', details: '', size: '', lot: '' }, idx: 0 }]
+                          : filled;
+                        return displayItems.map(({ sel, idx }, displayNum) => (
+                          <div key={idx} className="sel-mob-item-card">
                           {/* Card Header */}
                           <div className="sel-mob-item-header">
                             <span className="sel-mob-item-badge">ITEM {idx + 1}</span>
@@ -1874,15 +1887,34 @@ const CheckInLogPanel = ({
                             </div>
                           </div>
                         </div>
-                      ))}
+                        ));
+                      })()}
                     </div>
 
                     {/* Add Another Item */}
-                    {selections.length < 12 && (
+                    {selections.filter(s => s.material.trim() || s.lot.trim() || s.details.trim() || s.size.trim()).length < 12 && (
                       <button
                         type="button"
                         className="sel-mob-add-btn"
-                        onClick={() => setSelections(prev => [...prev, { material: '', details: '', size: '', lot: '' }])}
+                        onClick={() => {
+                          // Find next empty slot or append new one
+                          const nextEmpty = selections.findIndex(s => !s.material.trim() && !s.lot.trim() && !s.details.trim() && !s.size.trim());
+                          if (nextEmpty === -1) {
+                            setSelections(prev => [...prev, { material: '', details: '', size: '', lot: '' }]);
+                          }
+                          // Slot already exists as empty — it will appear once user starts typing
+                          // Force show it by temporarily marking it
+                          setSelections(prev => {
+                            const copy = [...prev];
+                            const emptyIdx = copy.findIndex(s => !s.material.trim() && !s.lot.trim() && !s.details.trim() && !s.size.trim());
+                            if (emptyIdx !== -1) {
+                              copy[emptyIdx] = { ...copy[emptyIdx], _new: true };
+                            } else {
+                              copy.push({ material: '', details: '', size: '', lot: '', _new: true });
+                            }
+                            return copy;
+                          });
+                        }}
                       >
                         + Add Another Item
                       </button>
