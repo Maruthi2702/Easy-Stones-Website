@@ -445,7 +445,7 @@ const CheckInLogPanel = ({
           setBuilderPhone(parsed.builderPhone || '');
           setSalesRep(parsed.salesRep || '');
           setSalesRepEmail(parsed.salesRepEmail || '');
-          setSelections(parsed.selections || Array.from({ length: 6 }, () => ({ material: '', details: '', size: '', lot: '' })));
+          setSelections(parsed.selections || Array.from({ length: 3 }, () => ({ material: '', details: '', size: '', lot: '' })));
           setSpecialNotes(parsed.specialNotes || '');
         }
       }
@@ -730,7 +730,8 @@ const CheckInLogPanel = ({
     setSelMobileTab('customer');
 
     const savedSelections = checkIn.selections || [];
-    const formattedSelections = Array.from({ length: 12 }, (_, idx) => {
+    const initialCount = Math.max(3, savedSelections.length);
+    const formattedSelections = Array.from({ length: initialCount }, (_, idx) => {
       if (savedSelections[idx]) {
         return {
           material: savedSelections[idx].material || '',
@@ -742,11 +743,21 @@ const CheckInLogPanel = ({
       return { material: '', details: '', size: '', lot: '' };
     });
     setSelections(formattedSelections);
-    // Mobile: show as many cards as there are filled rows (min 1)
     const filledCount = savedSelections.filter(s => s.material?.trim()).length;
     setMobItemCount(Math.max(1, filledCount));
     setSpecialNotes(checkIn.specialNotes || '');
     setSaveSuccess(false);
+  };
+
+  const handleAddSelectionRow = () => {
+    setSelections(prev => [...prev, { material: '', details: '', size: '', lot: '' }]);
+  };
+
+  const handleRemoveSelectionRow = (idx) => {
+    setSelections(prev => {
+      if (prev.length <= 1) return [{ material: '', details: '', size: '', lot: '' }];
+      return prev.filter((_, i) => i !== idx);
+    });
   };
 
   const handleSalesRepChange = (val) => {
@@ -1987,19 +1998,23 @@ const CheckInLogPanel = ({
                     <span className="detail-label">
                       <Users size={12} className="detail-icon" /> Sales Rep:
                     </span>
-                    <input
-                      type="text"
-                      value={salesRep}
-                      onChange={(e) => {
-                        handleSalesRepChange(e.target.value);
-                        setShowSalesRepDropdown(true);
-                      }}
-                      onFocus={() => setShowSalesRepDropdown(true)}
-                      onBlur={() => setTimeout(() => setShowSalesRepDropdown(false), 200)}
-                      placeholder="Enter sales rep name"
-                      className="selection-input"
-                      autoComplete="off"
-                    />
+                    <div className="selection-input-wrapper">
+                      <UserCheck size={15} className="selection-input-icon" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#d4af37', pointerEvents: 'none', zIndex: 5 }} />
+                      <input
+                        type="text"
+                        value={salesRep}
+                        onChange={(e) => {
+                          handleSalesRepChange(e.target.value);
+                          setShowSalesRepDropdown(true);
+                        }}
+                        onFocus={() => setShowSalesRepDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowSalesRepDropdown(false), 200)}
+                        placeholder="Select or enter sales rep..."
+                        className="selection-input selection-input-with-icon"
+                        style={{ paddingLeft: '2.6rem' }}
+                        autoComplete="off"
+                      />
+                    </div>
                     {showSalesRepDropdown && (
                       <div className="custom-autocomplete-dropdown" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, marginTop: '4px' }}>
                         {salesReps
@@ -2041,18 +2056,21 @@ const CheckInLogPanel = ({
                   <table className="selections-table">
                     <thead>
                       <tr>
-                        <th style={{ width: '6%', textAlign: 'center' }}>#</th>
-                        <th style={{ width: '38%' }}>Material Name</th>
+                        <th style={{ width: '5%', textAlign: 'center' }}>#</th>
+                        <th style={{ width: '35%' }}>Material Name</th>
                         <th style={{ width: '20%' }}>Lot/Bundle Number</th>
-                        <th style={{ width: '23%' }}>Slab Numbers</th>
-                        <th style={{ width: '13%' }}>Size</th>
+                        <th style={{ width: '19%' }}>Slab Numbers</th>
+                        <th style={{ width: '15%' }}>Size</th>
+                        <th style={{ width: '6%', textAlign: 'center' }} title="Remove Row">
+                          <Trash2 size={13} style={{ opacity: 0.6 }} />
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {selections.map((sel, idx) => (
                         <tr key={idx} className="selection-row-item">
                           <td className="selection-row-num">{idx + 1}</td>
-                          <td style={{ position: 'relative', zIndex: activeDropdownIndex === idx ? 100 : 1 }}>
+                          <td style={{ position: 'relative', zIndex: activeDropdownIndex === idx ? 9999 : (selections.length - idx) }}>
                             <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', width: '100%' }}>
                               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
                                 <input
@@ -2128,7 +2146,7 @@ const CheckInLogPanel = ({
                                 )}
                               </div>
                               {activeDropdownIndex === idx && (
-                                <div className={`custom-autocomplete-dropdown ${idx >= 3 ? 'open-upward' : ''}`}>
+                                <div className={`custom-autocomplete-dropdown ${(idx >= 2 && selections.length > 3) ? 'open-upward' : ''}`}>
                                   {productList
                                     .filter(p => {
                                       if (!sel.material.trim()) return true;
@@ -2187,10 +2205,36 @@ const CheckInLogPanel = ({
                               className="selection-grid-input"
                             />
                           </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {selections.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn-remove-selection-row"
+                                onClick={() => handleRemoveSelectionRow(idx)}
+                                title="Remove Row"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Add Row Button */}
+                <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.25rem' }}>
+                  <button
+                    type="button"
+                    className="btn-add-selection-row"
+                    onClick={handleAddSelectionRow}
+                  >
+                    <div className="btn-add-icon-ring">
+                      <Plus size={14} />
+                    </div>
+                    <span>Add Material Row</span>
+                  </button>
                 </div>
 
 
