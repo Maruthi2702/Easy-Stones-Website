@@ -730,8 +730,7 @@ const CheckInLogPanel = ({
     setSelMobileTab('customer');
 
     const savedSelections = checkIn.selections || [];
-    const initialCount = Math.max(3, savedSelections.length);
-    const formattedSelections = Array.from({ length: initialCount }, (_, idx) => {
+    const formattedSelections = Array.from({ length: 12 }, (_, idx) => {
       if (savedSelections[idx]) {
         return {
           material: savedSelections[idx].material || '',
@@ -747,6 +746,16 @@ const CheckInLogPanel = ({
     setMobItemCount(Math.max(1, filledCount));
     setSpecialNotes(checkIn.specialNotes || '');
     setSaveSuccess(false);
+  };
+
+  const handleAddMobItem = () => {
+    setSelections(prev => {
+      if (prev.length <= mobItemCount) {
+        return [...prev, { material: '', details: '', size: '', lot: '' }];
+      }
+      return prev;
+    });
+    setMobItemCount(prev => Math.min(12, prev + 1));
   };
 
   const handleAddSelectionRow = () => {
@@ -1897,7 +1906,7 @@ const CheckInLogPanel = ({
                     <button
                       type="button"
                       className="sel-mob-add-btn"
-                      onClick={() => setMobItemCount(prev => prev + 1)}
+                      onClick={handleAddMobItem}
                     >
                       + Add Another Item
                     </button>
