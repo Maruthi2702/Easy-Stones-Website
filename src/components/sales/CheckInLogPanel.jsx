@@ -1816,7 +1816,6 @@ const CheckInLogPanel = ({
 
                           {/* Material Search */}
                           <div className="sel-mob-material-wrapper">
-                            <Search size={14} className="sel-mob-search-icon" />
                             <input
                               type="text"
                               value={sel.material}
