@@ -3905,8 +3905,8 @@ body.light-theme-active .clp-customer-style-card {
 .clp-root.light-theme .clp-customer-style-card.clp-row-today,
 body.light-theme-active .clp-root .clp-customer-style-card.clp-row-today,
 body.light-theme-active .clp-customer-style-card.clp-row-today {
-  border-left: 3.5px solid #10b981 !important;
-  background: linear-gradient(145deg, rgba(16, 185, 129, 0.05) 0%, #ffffff 100%) !important;
+  border-left: 3.5px solid #d4af37 !important;
+  background: #ffffff !important;
 }
 
 .clp-root.light-theme .clp-customer-style-card:hover,
@@ -3928,7 +3928,8 @@ body.light-theme-active .clp-csc-avatar {
 .clp-root.light-theme .clp-csc-title,
 body.light-theme-active .clp-root .clp-csc-title,
 body.light-theme-active .clp-csc-title {
-  color: #b48a1c !important;
+  color: #0f172a !important;
+  font-weight: 700 !important;
 }
 
 .clp-root.light-theme .clp-csc-badge-pill.gold-outline,
@@ -3952,7 +3953,12 @@ body.light-theme-active .clp-csc-status-badge {
 .clp-root.light-theme .clp-csc-status-badge.today,
 body.light-theme-active .clp-root .clp-csc-status-badge.today,
 body.light-theme-active .clp-csc-status-badge.today {
-  color: #059669 !important;
+  color: #047857 !important;
+  background: rgba(16, 185, 129, 0.1) !important;
+  padding: 3px 9px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  font-weight: 600 !important;
 }
 
 .clp-root.light-theme .clp-csc-dashed-divider,
