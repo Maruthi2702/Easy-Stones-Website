@@ -1,0 +1,592 @@
+/* ══════════════════════════════════════════════════════════════
+   ELECTRONIC PROOF OF DELIVERY (ePOD) MODAL STYLING
+   ══════════════════════════════════════════════════════════════ */
+
+.pod-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 1rem;
+}
+
+.pod-modal-content {
+  background: var(--bg-card, #1c1c1e);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 18px;
+  width: 100%;
+  max-width: 740px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(212, 175, 55, 0.15);
+  overflow: hidden;
+  animation: podModalFadeUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes podModalFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.pod-modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.pod-title-block h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pod-icon {
+  color: var(--accent-primary, #d4af37);
+}
+
+.pod-subtitle {
+  font-size: 0.8rem;
+  color: #a0a0a0;
+  display: block;
+  margin-top: 3px;
+}
+
+.pod-close-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.pod-close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.pod-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.pod-error-alert {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+
+.packing-list-banner {
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+  color: #ffffff;
+}
+
+.pod-view-pdf-btn {
+  background: linear-gradient(135deg, #d4af37, #c5a028);
+  color: #000000;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: transform 0.15s ease;
+}
+
+.pod-view-pdf-btn:hover {
+  transform: translateY(-1px);
+}
+
+.pod-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.pod-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #d4af37;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.req-star {
+  color: #ef4444;
+}
+
+.pod-input-field {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  color: #ffffff;
+  font-size: 0.9rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.pod-input-field:focus {
+  border-color: rgba(212, 175, 55, 0.7);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
+}
+
+/* Signature Grid */
+.pod-signature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .pod-signature-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pod-sig-box {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sig-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sig-clear-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #b0b0b0;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sig-clear-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.sig-canvas {
+  background: #000000;
+  border: 1px dashed rgba(212, 175, 55, 0.4);
+  border-radius: 8px;
+  width: 100%;
+  height: 130px;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.sig-hint {
+  font-size: 0.72rem;
+  color: #707070;
+  text-align: center;
+}
+
+/* Photos Grid */
+.pod-upload-btn {
+  background: rgba(212, 175, 55, 0.15);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: #d4af37;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pod-upload-btn:hover {
+  background: rgba(212, 175, 55, 0.25);
+}
+
+.pod-photos-preview-grid {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  min-height: 70px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.pod-photo-thumb {
+  position: relative;
+  width: 75px;
+  height: 75px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+}
+
+.pod-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #ef4444;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.pod-photos-empty {
+  font-size: 0.8rem;
+  color: #606060;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.pod-textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  min-height: 85px;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.pod-textarea::placeholder {
+  color: #808080;
+  font-family: inherit;
+  font-size: 0.84rem;
+}
+
+.pod-textarea:focus {
+  border-color: rgba(212, 175, 55, 0.6);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.15);
+}
+
+.pod-modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.pod-btn-cancel {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #b0b0b0;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.pod-btn-submit {
+  background: linear-gradient(135deg, #d4af37, #c5a028);
+  color: #000000;
+  border: none;
+  padding: 0.65rem 1.4rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.35);
+  transition: transform 0.15s ease;
+}
+
+.pod-btn-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.pod-btn-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Light Theme Overrides */
+body.light-theme-active .pod-modal-content {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+body.light-theme-active .pod-title-block h3 {
+  color: #0f172a;
+}
+
+body.light-theme-active .pod-input-field,
+body.light-theme-active .pod-textarea {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+body.light-theme-active .sig-canvas {
+  background: #f8fafc;
+}
+
+/* ══════════════════════════════════════════════════════
+   POD VIEWER — Read-only signed ePOD display
+   ══════════════════════════════════════════════════════ */
+
+.pod-viewer-mode .pod-modal-header {
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.08), rgba(0, 0, 0, 0.3));
+  border-bottom-color: rgba(52, 211, 153, 0.2);
+}
+
+/* Info summary row: signee / date / time */
+.pod-info-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.pod-info-cell {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.pod-info-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: var(--text-muted, #808080);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.pod-info-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Signature image display */
+.pod-sig-img-wrap {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-height: 130px;
+}
+
+.pod-sig-img {
+  max-width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Verified badge */
+.sig-verified-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  padding: 2px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.03em;
+}
+
+/* Empty signature placeholder */
+.pod-sig-empty {
+  width: 100%;
+  min-height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  color: var(--text-muted, #606060);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  text-align: center;
+  padding: 1rem;
+}
+
+/* Notes readonly */
+.pod-notes-readonly {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  font-size: 0.88rem;
+  color: var(--text-secondary, #b0b0b0);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* Empty state */
+.pod-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+}
+
+.pod-empty-state p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary, #b0b0b0);
+}
+
+.pod-empty-state span {
+  font-size: 0.82rem;
+  color: var(--text-muted, #606060);
+}
+
+/* ePOD badge on completed ticket chips */
+.ticket-epod-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  padding: 2px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ticket-epod-badge:hover {
+  background: rgba(52, 211, 153, 0.2);
+}
+
+/* Light theme overrides for viewer */
+body.light-theme-active .pod-info-cell {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+body.light-theme-active .pod-info-value {
+  color: #0f172a;
+}
+
+body.light-theme-active .pod-sig-img-wrap {
+  background: #f1f5f9;
+}
+
+body.light-theme-active .pod-sig-empty {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+}
+
+body.light-theme-active .pod-notes-readonly {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+
+.spin-icon {
+  animation: podSpinIcon 1s linear infinite;
+}
+@keyframes podSpinIcon {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+

@@ -23,7 +23,7 @@ const VISITOR_TYPES = [
 const formatTitleCaseInput = (value) => {
   if (!value) return '';
   return value.replace(/\b([a-zA-Z])([a-zA-Z]*)/g, (match, firstLetter, rest) => {
-    return firstLetter.toUpperCase() + rest.toLowerCase();
+    return firstLetter.toUpperCase() + rest;
   });
 };
 

@@ -8,6 +8,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Disable service worker in dev mode — only active in production builds
+      devOptions: {
+        enabled: false
+      },
       includeAssets: ['favicon.png', 'logo.png'],
       workbox: {
         navigateFallbackDenylist: [/^\/api/, /\/api\//],
@@ -43,16 +47,21 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'https://easystones.onrender.com',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
       },
       '/socket.io': {
-        target: 'https://easystones.onrender.com',
+        target: 'http://localhost:3001',
         ws: true,
         changeOrigin: true,
         secure: false,
       },
+      '/uploads': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      }
     },
   },
 })

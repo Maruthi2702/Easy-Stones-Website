@@ -15,9 +15,36 @@ const deliverySchema = new mongoose.Schema({
   invoiceNumber: { type: String, default: '' },
   routeNumber: { type: Number, default: 1 },
   location: { type: String, default: '' },
-  driver: { type: String, default: '' }
+  driver: { type: String, default: '' },
+
+  // New Delivery Classification & 3rd Party Freight Fields
+  deliveryType: { type: String, enum: ['jobsite', 'transfer', 'will_call'], default: 'jobsite' },
+  transferDestination: { type: String, default: '' },
+  pickupInfo: { type: String, default: '' },
+  carrierName: { type: String, default: '' },
+  proNumber: { type: String, default: '' },
+  freightFee: { type: Number, default: 0 },
+
+  // Packing List File
+  packingListUrl: { type: String, default: '' },
+  packingListFilename: { type: String, default: '' },
+
+  // Proof of Delivery (ePOD) Digital Signatures & Photos
+  pod: {
+    signeeName: { type: String, default: '' },
+    driverName: { type: String, default: '' },
+    customerSignature: { type: String, default: '' },
+    driverSignature: { type: String, default: '' },
+    signedAt: { type: Date, default: null },
+    photos: [{ type: String }],
+    notes: { type: String, default: '' },
+    // Signed PDF = original packing list with signatures stamped on last page
+    signedPdfUrl: { type: String, default: '' },
+    signedPdfFilename: { type: String, default: '' }
+  }
 }, {
-  timestamps: true
+  timestamps: true,
+  strict: false
 });
 
 const Delivery = mongoose.models.Delivery || mongoose.model('Delivery', deliverySchema);

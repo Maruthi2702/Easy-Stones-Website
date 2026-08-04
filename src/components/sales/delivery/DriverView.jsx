@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Clock, MapPin, CheckCircle2, AlertTriangle, FileText, User } from 'lucide-react';
-import StatusPill from './StatusPill';
+import { Truck, Clock, MapPin, CheckCircle2, AlertTriangle, FileText, Package, Hash, ChevronLeft, ChevronRight, Navigation, Copy, Check, User } from 'lucide-react';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
+import StatusPill from './StatusPill';
 
 const DAYS_OF_WEEK = [
   { name: 'Monday',    short: 'Mon', index: 1 },
@@ -17,15 +17,19 @@ const DriverView = ({
   deliveries = [],
   weekDates = [],
   currentUser = null,
-  onUpdateStatus
+  onUpdateStatus,
+  onOpenPod,
+  onViewPod,
+  onPrevWeek,
+  onNextWeek,
+  onTodayWeek,
+  weekRangeText = ''
 }) => {
   const todayStr = formatForDateInput(new Date());
 
-  // Auto-detect truck assigned to current logged-in driver user
   const getAssignedTruck = () => {
     const uName = (currentUser?.name || '').toLowerCase();
     const uUsername = (currentUser?.username || '').toLowerCase();
-
     if (trucks && trucks.length > 0 && (uName || uUsername)) {
       const match = trucks.find(t => {
         const dName = (t.driver || '').toLowerCase();
@@ -39,7 +43,6 @@ const DriverView = ({
       });
       if (match) return match;
     }
-
     if (currentUser) {
       return {
         id: currentUser._id || currentUser.id || `drv_${currentUser.username}`,
@@ -48,150 +51,112 @@ const DriverView = ({
         color: '#D4AF37'
       };
     }
-
     return trucks[0] || { id: 'trk_1', name: 'Driver Truck', driver: 'Driver', color: '#D4AF37' };
   };
 
   const initialTruck = getAssignedTruck();
-  const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
-
-  const [selectedTruckId, setSelectedTruckId] = useState(initialTruck?.id || 'trk_1');
-  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [currentTruck, setCurrentTruck] = useState(initialTruck);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
 
   useEffect(() => {
-    if (weekDates && weekDates.length > 0 && !weekDates.includes(selectedDate)) {
-      const fallbackDate = weekDates.includes(todayStr) ? todayStr : weekDates[0];
-      setSelectedDate(fallbackDate);
-    }
-  }, [weekDates, todayStr]);
-
-  useEffect(() => {
-    const assigned = getAssignedTruck();
-    if (assigned && assigned.id !== selectedTruckId) {
-      setSelectedTruckId(assigned.id);
-    }
+    setCurrentTruck(getAssignedTruck());
   }, [currentUser, trucks]);
 
-  const currentTruck = trucks.find(t => t.id === selectedTruckId) || initialTruck;
+  useEffect(() => {
+    if (weekDates.length > 0 && !weekDates.includes(selectedDate)) {
+      setSelectedDate(weekDates[0]);
+    }
+  }, [weekDates]);
 
-  const isDeliveryMatchingTruck = (d, trk) => {
-    if (!d) return false;
-    const dTruckId = String(d.truckId || '');
-    const trkId = String(trk?.id || '');
-    const trkDriver = String(trk?.driver || '').toLowerCase();
-    const trkName = String(trk?.name || '').toLowerCase();
-    const dDriver = String(d.driver || '').toLowerCase();
-    const dTruckName = String(d.truckName || '').toLowerCase();
-
-    const uName = String(currentUser?.name || '').toLowerCase();
-    const uUsername = String(currentUser?.username || '').toLowerCase();
-    const uId = String(currentUser?._id || currentUser?.id || '');
-
-    const matchesTruck = (trkId && dTruckId === trkId) ||
-      (dDriver && trkDriver && dDriver === trkDriver) ||
-      (dTruckName && trkName && dTruckName === trkName);
-
-    const matchesUser = (uName && dDriver === uName) ||
-      (uUsername && dDriver === uUsername) ||
-      (uId && dTruckId === uId);
-
-    return matchesTruck || matchesUser;
+  const isDeliveryMatchingTruck = (del, trk) => {
+    if (!del || !trk) return false;
+    if (del.truckId && String(del.truckId) === String(trk.id)) return true;
+    if (del.truckDriver && trk.driver && del.truckDriver.toLowerCase() === trk.driver.toLowerCase()) return true;
+    if (del.assignedDriver && trk.driver && del.assignedDriver.toLowerCase() === trk.driver.toLowerCase()) return true;
+    if (del.driverName && trk.driver && del.driverName.toLowerCase() === trk.driver.toLowerCase()) return true;
+    return false;
   };
 
   const isDeliveryMatchingDate = (d, targetDate) => {
     if (!d || !d.date) return false;
-    const delDateStr = String(d.date).slice(0, 10);
-    const targetDateStr = String(targetDate).slice(0, 10);
-    return delDateStr === targetDateStr;
+    return String(d.date).slice(0, 10) === String(targetDate).slice(0, 10);
   };
 
-  const driverDeliveries = deliveries.filter(d =>
-    isDeliveryMatchingTruck(d, currentTruck) && isDeliveryMatchingDate(d, selectedDate)
-  );
+  const driverDeliveries = deliveries
+    .filter(d => isDeliveryMatchingTruck(d, currentTruck) && isDeliveryMatchingDate(d, selectedDate))
+    .sort((a, b) => (a.routeNumber || 1) - (b.routeNumber || 1));
 
-  const getPillTabLabel = (dayShort, dateStr) => {
-    if (!dateStr) return dayShort;
-    const dayNum = dateStr.split('-')[2] || '';
-    return `${dayShort} ${dayNum}`;
-  };
+  const getStopsCountForDay = (dateStr) =>
+    deliveries.filter(d => isDeliveryMatchingTruck(d, currentTruck) && isDeliveryMatchingDate(d, dateStr)).length;
 
-  const getStopsCountForDay = (dateStr) => {
-    return deliveries.filter(d =>
-      isDeliveryMatchingTruck(d, currentTruck) && isDeliveryMatchingDate(d, dateStr)
-    ).length;
-  };
-
-  const findOtherDaysWithStops = () => {
-    return weekDates.filter(dStr => dStr !== selectedDate && getStopsCountForDay(dStr) > 0);
-  };
-
-  const otherDaysWithStops = findOtherDaysWithStops();
+  const otherDaysWithStops = weekDates.filter(dStr => dStr !== selectedDate && getStopsCountForDay(dStr) > 0);
   const driverDisplayName = currentUser?.name || currentTruck?.driver || currentTruck?.name || 'Driver';
+  const completedCount = driverDeliveries.filter(d => d.status === 'completed').length;
 
   return (
-    <div className="screenshot-schedule-card driver-mode">
-      <h2 className="this-week-title">This week</h2>
+    <div className="driver-view-container driver-mode">
 
-      {/* Day Selector Pills Row */}
-      <div className="screenshot-day-pills">
+      {/* Day Selector Pills Bar (100% Identical to Office View ux-day-pills-bar) */}
+      <div className="ux-day-pills-bar">
         {DAYS_OF_WEEK.map((dayObj, idx) => {
           const dateStr = weekDates[idx] || '';
           const isSelected = selectedDate === dateStr;
-          const pillLabel = getPillTabLabel(dayObj.short, dateStr);
+          const isToday = dateStr === todayStr;
           const count = getStopsCountForDay(dateStr);
+          const dayNum = dateStr ? dateStr.split('-')[2] : '';
+          const subtext = isSelected ? 'Active' : (count === 1 ? '1 stop' : `${count} stops`);
 
-              return (
-                <button
-                  key={dayObj.short}
-                  type="button"
-                  className={`screenshot-pill-btn ${isSelected ? 'active' : ''}`}
-                  onClick={() => setSelectedDate(dateStr)}
-                >
-                  <span className="pill-label-text">{pillLabel}</span>
-                  {count > 0 && <span className="pill-count-dot">{count}</span>}
-                </button>
-              );
+          return (
+            <button
+              key={dayObj.short}
+              type="button"
+              className={`ux-day-pill-card ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
+              onClick={() => setSelectedDate(dateStr)}
+            >
+              <span className="ux-pill-day-name">{dayObj.short.toUpperCase()}</span>
+              <span className="ux-pill-date-num">{dayNum}</span>
+              <span className="ux-pill-stops-count">{subtext}</span>
+            </button>
+          );
         })}
       </div>
 
-      {/* Subheader summary text */}
+      {/* Summary subtext line */}
       <div className="screenshot-subtext">
-        {driverDisplayName} · {driverDeliveries.length} {driverDeliveries.length === 1 ? 'stop' : 'stops'} scheduled
+        {driverDeliveries.length === 0
+          ? 'No stops scheduled for this day'
+          : `${driverDeliveries.length} stop${driverDeliveries.length !== 1 ? 's' : ''} · ${completedCount} delivered`}
       </div>
 
-      {/* Driver Single Card */}
+      {/* Truck Section Card (identical to Office View .ux-driver-card) */}
       <div className="screenshot-driver-list">
-        <div
-          className="screenshot-driver-card"
-          style={{ borderLeftColor: currentTruck?.color || '#D4AF37' }}
-        >
-          {/* Card Header Row */}
-          <div className="driver-card-header">
-            <div className="driver-name-wrap">
-              <span className="driver-color-dot" style={{ background: currentTruck?.color || '#D4AF37' }} />
-              <span className="driver-name-text">{driverDisplayName}</span>
+        <div className="ux-driver-card" style={{ borderLeftColor: currentTruck?.color || '#D4AF37' }}>
+          
+          {/* Driver Header */}
+          <div className="ux-driver-header">
+            <div className="ux-driver-name-wrap">
+              <span className="ux-driver-dot" style={{ background: currentTruck?.color || '#D4AF37' }} />
+              <span className="ux-driver-name">{driverDisplayName}</span>
             </div>
-            <span className={`capacity-badge ${driverDeliveries.length > 0 ? 'has-stops' : 'empty'}`}>
-              {driverDeliveries.length}/{MAX_TRUCK_CAPACITY}
-            </span>
+            <div className="ux-driver-actions">
+              <span className={`ux-capacity-badge ${driverDeliveries.length > 0 ? 'has-stops' : 'empty'}`}>
+                {completedCount}/{driverDeliveries.length || MAX_TRUCK_CAPACITY}
+              </span>
+            </div>
           </div>
 
-          {/* Card Content Body */}
+          {/* Stops List */}
           {driverDeliveries.length === 0 ? (
             <div className="no-stops-container">
-              <div className="no-stops-subtext">No stops scheduled for {selectedDate}</div>
+              <Package size={36} style={{ color: 'var(--text-muted, #606060)', marginBottom: '0.75rem', opacity: 0.5 }} />
+              <div className="no-stops-subtext">No deliveries scheduled for this day</div>
               {otherDaysWithStops.length > 0 && (
                 <div className="other-days-subbar">
-                  <span style={{ fontSize: '0.82rem', color: '#e6c25e' }}>Stops on other days this week:</span>
+                  <span style={{ fontSize: '0.82rem', color: '#e6c25e' }}>You have stops on:</span>
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
                     {otherDaysWithStops.map(dStr => (
-                      <button
-                        key={dStr}
-                        type="button"
-                        onClick={() => setSelectedDate(dStr)}
-                        className="btn-other-day-pill"
-                      >
-                        {dStr.slice(5)} ({getStopsCountForDay(dStr)} stops)
+                      <button key={dStr} type="button" onClick={() => setSelectedDate(dStr)} className="btn-other-day-pill">
+                        {dStr.slice(5)} ({getStopsCountForDay(dStr)} stop{getStopsCountForDay(dStr) !== 1 ? 's' : ''})
                       </button>
                     ))}
                   </div>
@@ -199,63 +164,86 @@ const DriverView = ({
               )}
             </div>
           ) : (
-            <div className="stops-items-list">
-              {driverDeliveries.map((del, idx) => (
-                <div key={del.id} className="screenshot-stop-item">
-                  <div className="stop-item-top">
-                    <span className="stop-time">
-                      <Clock size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                      {del.time || '09:00 AM'}
-                    </span>
-                    <span className={`stop-status-badge ${del.status || 'scheduled'}`}>
-                      {(del.status === 'completed' ? 'COMPLETE' : del.status || 'SCHEDULED').toUpperCase()}
-                    </span>
-                  </div>
+            <div className="stops-items-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {driverDeliveries.map((del, idx) => {
+                const soVal = del.soNumber || del.invoiceNumber;
+                const stopNum = del.routeNumber || (idx + 1);
 
-                  <h4 className="stop-customer-title">{del.customerName}</h4>
-
-                  {del.address && (
-                    <div className="stop-location-text">
-                      <MapPin size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                      {del.address}
+                return (
+                  <div
+                    key={del.id}
+                    className={`manifest-ticket-chip driver-stop-card-v2 status-border-${del.status || 'scheduled'}`}
+                    style={{ borderLeftColor: currentTruck?.color || '#D4AF37' }}
+                  >
+                    {/* Top Row: Navigation + Stop # | SO# + Status Pill */}
+                    <div className="ticket-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                      <span className="ticket-time-mono" style={{ fontSize: '0.8rem', color: '#d4af37', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Navigation size={12} /> Stop #{stopNum}
+                        {soVal && (
+                          <span style={{ color: '#b0b0b0', fontWeight: 600, marginLeft: 4 }}>
+                            {' | SO# '}
+                            <span style={{ color: '#ffffff' }}>{soVal}</span>
+                          </span>
+                        )}
+                      </span>
+                      <StatusPill status={del.status} size="small" />
                     </div>
-                  )}
 
-                  {del.notes && (
-                    <div className="driver-notes-box">
-                      <FileText size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                      {del.notes}
+                    {/* Customer Title */}
+                    <h4 className="ticket-customer" style={{ margin: '0.2rem 0 0.4rem 0', fontSize: '1.05rem', fontWeight: 700, color: '#ffffff' }}>
+                      {del.customerName}
+                    </h4>
+
+                    {/* Meta info: Address & Salesperson */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.82rem', color: '#b0b0b0', marginBottom: '0.75rem' }}>
+                      {(del.city || del.address || del.location) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <MapPin size={13} style={{ color: '#808080' }} />
+                          <span>{del.address || `${del.city || ''} ${del.location || ''}`.trim()}</span>
+                        </div>
+                      )}
+                      {(del.salesperson || del.driver || currentUser?.name) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <User size={13} style={{ color: '#808080' }} />
+                          <span>{del.salesperson || currentUser?.name || 'Assigned'}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {/* Driver Quick Actions */}
-                  <div className="driver-action-buttons" style={{ marginTop: '0.75rem' }}>
-                    <button
-                      type="button"
-                      className="btn-action-late"
-                      onClick={() => onUpdateStatus && onUpdateStatus(del.id, 'delayed')}
-                      disabled={del.status === 'delayed'}
-                    >
-                      <AlertTriangle size={15} />
-                      <span>Running Late</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="btn-action-delivered"
-                      onClick={() => onUpdateStatus && onUpdateStatus(del.id, 'completed')}
-                      disabled={del.status === 'completed'}
-                    >
-                      <CheckCircle2 size={15} />
-                      <span>Delivered</span>
-                    </button>
+                    {/* Driver Action Buttons */}
+                    <div className="driver-action-buttons" style={{ display: 'flex', gap: '0.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '0.65rem' }}>
+                      <button
+                        type="button"
+                        className="driver-btn driver-btn-late"
+                        onClick={() => onUpdateStatus && onUpdateStatus(del.id, 'delayed')}
+                        disabled={del.status === 'delayed'}
+                      >
+                        <AlertTriangle size={15} /> Running Late
+                      </button>
+                      <button
+                        type="button"
+                        className={`driver-btn driver-btn-delivered ${del.status === 'completed' ? 'signed' : ''}`}
+                        onClick={() => {
+                          if (del.status === 'completed' && onViewPod) {
+                            onViewPod(del);
+                          } else if (onOpenPod) {
+                            onOpenPod(del);
+                          }
+                        }}
+                      >
+                        <CheckCircle2 size={15} />
+                        <span>{del.status === 'completed' ? '✓ View ePOD' : 'Delivered / Sign ePOD'}</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
+
         </div>
       </div>
+
     </div>
   );
 };

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Trash2, Calendar, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle, Navigation } from 'lucide-react';
+import { X, Save, Trash2, Calendar, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle, Navigation, Activity } from 'lucide-react';
 import SearchableSelect from '../../SearchableSelect';
 import CustomSelect from '../../shared/CustomSelect';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
+import { formatTitleCase } from '../../../utils/textUtils';
 import { API_URL } from '../../../config/api';
 
 const ROUTE_OPTIONS = [
@@ -81,6 +82,16 @@ const DeliveryModal = ({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
+  // New Classification & 3rd Party States
+  const [deliveryType, setDeliveryType] = useState('jobsite');
+  const [transferDestination, setTransferDestination] = useState('Spokane');
+  const [pickupInfo, setPickupInfo] = useState('');
+  const [carrierName, setCarrierName] = useState('');
+  const [proNumber, setProNumber] = useState('');
+  const [freightFee, setFreightFee] = useState('');
+  const [packingListUrl, setPackingListUrl] = useState('');
+  const [packingListFilename, setPackingListFilename] = useState('');
+
   // Fallback internal fetch for customer options if parent prop is empty
   const [fetchedCustomerOptions, setFetchedCustomerOptions] = useState([]);
   // Sales Reps list for location
@@ -154,40 +165,53 @@ const DeliveryModal = ({
   const initialSnapshot = useRef(null);
 
   const [confirmClose, setConfirmClose] = useState(false);
+  const [isReadingPdf, setIsReadingPdf] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
+  // Re-initialize form whenever the modal opens or the data identity changes
   useEffect(() => {
-    if (isOpen) {
-      setConfirmDelete(false);
-      setConfirmClose(false);
-      setError('');
-      setIsDirty(false);
-      if (initialData) {
-        const custName = initialData.customerName || '';
-        let custId = initialData.customerId || '';
-        if (!custId && custName) {
-          const match = activeCustomerOptions.find(
-            o => o.label?.toLowerCase() === custName.toLowerCase() || o.value === custName
-          );
-          if (match) custId = match.value;
-        }
-        setDate(formatForDateInput(initialData.date) || formatForDateInput(new Date()));
-        setRouteNumber(Number(initialData.routeNumber) || 1);
-        setTruckId(initialData.truckId || '');
-        setCustomerName(custName);
-        setSelectedCustomerId(custId || custName);
-        setSoNumber(initialData.soNumber || initialData.invoiceNumber || '');
-        setAddress(initialData.address || '');
-        setSalesRepName(initialData.salesRepName || currentUser?.name || 'Admin');
-        setStatus(initialData.status || 'pending');
-        setNotes(initialData.notes || '');
-        setTime(initialData.time || '09:00 AM');
-        initialSnapshot.current = JSON.stringify(initialData);
-      } else {
-        resetForm();
-        initialSnapshot.current = null;
+    if (!isOpen) return;
+    setConfirmDelete(false);
+    setConfirmClose(false);
+    setError('');
+    setIsDirty(false);
+    setIsSaving(false);
+    setIsReadingPdf(false);
+    if (initialData) {
+      const custName = initialData.customerName || '';
+      let custId = initialData.customerId || '';
+      if (!custId && custName) {
+        const match = activeCustomerOptions.find(
+          o => o.label?.toLowerCase() === custName.toLowerCase() || o.value === custName
+        );
+        if (match) custId = match.value;
       }
+      setDate(formatForDateInput(initialData.date) || formatForDateInput(new Date()));
+      setRouteNumber(Number(initialData.routeNumber) || 1);
+      setTruckId(initialData.truckId || '');
+      setCustomerName(custName);
+      setSelectedCustomerId(custId || custName);
+      setSoNumber(initialData.soNumber || initialData.invoiceNumber || '');
+      setAddress(initialData.address || '');
+      setSalesRepName(initialData.salesRepName || currentUser?.name || 'Admin');
+      setStatus(initialData.status || 'pending');
+      setNotes(initialData.notes || '');
+      setTime(initialData.time || '09:00 AM');
+      setDeliveryType(initialData.deliveryType || 'jobsite');
+      setTransferDestination(initialData.transferDestination || 'Spokane');
+      setPickupInfo(initialData.pickupInfo || '');
+      setCarrierName(initialData.carrierName || '');
+      setProNumber(initialData.proNumber || '');
+      setFreightFee(initialData.freightFee || '');
+      setPackingListUrl(initialData.packingListUrl || '');
+      setPackingListFilename(initialData.packingListFilename || '');
+      initialSnapshot.current = JSON.stringify(initialData);
+    } else {
+      resetForm();
+      initialSnapshot.current = null;
     }
-  }, [initialData, isOpen, trucks, currentUser, activeCustomerOptions]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialData?.id]);
 
   const resetForm = () => {
     setDate(formatForDateInput(new Date()));
@@ -201,6 +225,14 @@ const DeliveryModal = ({
     setStatus('pending');
     setNotes('');
     setTime('09:00 AM');
+    setDeliveryType('jobsite');
+    setTransferDestination('Spokane');
+    setPickupInfo('');
+    setCarrierName('');
+    setProNumber('');
+    setFreightFee('');
+    setPackingListUrl('');
+    setPackingListFilename('');
     setError('');
     setIsDirty(false);
   };
@@ -228,9 +260,14 @@ const DeliveryModal = ({
     onClose();
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (isReadingPdf) {
+      setError('Please wait for the PDF document to finish attaching...');
+      return;
+    }
 
     let finalCustomerName = customerName.trim();
     if (!finalCustomerName && selectedCustomerId) {
@@ -258,11 +295,27 @@ const DeliveryModal = ({
       status,
       notes: notes.trim(),
       location: initialData?.location || currentUser?.location || '',
+      deliveryType,
+      transferDestination,
+      pickupInfo: pickupInfo.trim(),
+      carrierName: carrierName.trim(),
+      proNumber: proNumber.trim(),
+      freightFee: Number(freightFee) || 0,
+      packingListUrl,
+      packingListFilename,
       updatedAt: new Date().toISOString()
     };
 
-    onSave(payload);
-    onClose();
+    setIsSaving(true);
+    try {
+      await onSave(payload);  // Wait for DB round-trip before closing
+      onClose();
+    } catch (err) {
+      console.error('[DeliveryModal] save failed:', err);
+      setError('Failed to save delivery. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteConfirmed = () => {
@@ -277,11 +330,18 @@ const DeliveryModal = ({
     <div className="modal-overlay visit-modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
 
-        {/* Modal Header — same structure as VisitModal */}
+        {/* Modal Header */}
         <div className="modal-header">
-          <h2>{initialData?.id ? 'Edit Delivery Ticket' : 'New Delivery Ticket'}</h2>
-          <button className="close-btn" onClick={handleClose} title="Close">
-            <X size={20} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{ background: 'rgba(212, 175, 55, 0.15)', border: '1px solid rgba(212, 175, 55, 0.3)', padding: '0.45rem', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Truck size={18} style={{ color: '#d4af37' }} />
+            </div>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
+              {initialData?.id ? 'Edit Delivery Ticket' : 'New Delivery Ticket'}
+            </h2>
+          </div>
+          <button className="delivery-modal-close-btn" onClick={handleClose} title="Close">
+            <X size={18} />
           </button>
         </div>
 
@@ -327,11 +387,13 @@ const DeliveryModal = ({
 
           {error && <div className="modal-error-banner" style={{ marginBottom: '1rem' }}><AlertCircle size={18} /> {error}</div>}
 
-          <form onSubmit={handleSubmit} id="delivery-modal-form">
+          {/* Delivery Form Controls */}
+        <form onSubmit={handleSubmit} className="delivery-modal-content">
 
-            {/* Date */}
+          {/* ── DATE & DELIVERY TYPE (SIDE BY SIDE) ── */}
+          <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
             <div className="form-group">
-              <label>Date <span className="req-star">*</span></label>
+              <label><Calendar size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Date <span className="req-star">*</span></label>
               <input
                 type="date"
                 value={date}
@@ -340,9 +402,23 @@ const DeliveryModal = ({
               />
             </div>
 
-            {/* Customer Name */}
             <div className="form-group">
-              <label>Customer Name <span className="req-star">*</span></label>
+              <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Delivery Type</label>
+              <CustomSelect
+                value={deliveryType}
+                onChange={(e) => { setDeliveryType(e.target.value); markDirty(); }}
+                options={[
+                  { value: 'jobsite', label: '🚚 Delivery' },
+                  { value: 'transfer', label: '🔄 Inter-Branch Transfer' },
+                  { value: 'will_call', label: '🏭 Will Call Pickup' }
+                ]}
+              />
+            </div>
+          </div>
+
+            {/* Customer Name */}
+            <div className="form-group" style={{ marginBottom: '1.1rem' }}>
+              <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Customer Name <span className="req-star">*</span></label>
               <SearchableSelect
                 options={activeCustomerOptions}
                 value={selectedCustomerId || customerName}
@@ -355,7 +431,7 @@ const DeliveryModal = ({
                     const autoAddr = foundOpt.city || foundOpt.fullAddress || foundOpt.address || '';
                     if (autoAddr && autoAddr !== '[object Object]') setAddress(autoAddr);
                   } else {
-                    setCustomerName(val);
+                    setCustomerName(formatTitleCase(val));
                   }
                   markDirty();
                 }}
@@ -364,14 +440,14 @@ const DeliveryModal = ({
             </div>
 
             {/* SO / Invoice# & Delivery Address */}
-            <div className="delivery-form-2col">
+            <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
               <div className="form-group">
                 <label><Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />SO / Invoice#</label>
                 <input
                   type="text"
                   value={soNumber}
                   onChange={(e) => { setSoNumber(e.target.value); markDirty(); }}
-                  placeholder="e.g. SO-10492 or INV-8821"
+                  placeholder="SO / Invoice #"
                 />
               </div>
 
@@ -387,7 +463,7 @@ const DeliveryModal = ({
             </div>
 
             {/* Route Stop & Assigned Driver — 2 col grid */}
-            <div className="delivery-form-2col">
+            <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
               <div className="form-group">
                 <label><Navigation size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Route (Stop #)</label>
                 <CustomSelect
@@ -398,7 +474,7 @@ const DeliveryModal = ({
               </div>
 
               <div className="form-group">
-                <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver</label>
+                <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver / Fleet</label>
                 <CustomSelect
                   value={truckId}
                   onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
@@ -406,10 +482,12 @@ const DeliveryModal = ({
                     { value: '', label: '-- Unassigned / Pending Driver --' },
                     ...trucks.map(trk => {
                       const booked = getCapacityForTruck(trk.id);
-                      const isFull = booked >= MAX_TRUCK_CAPACITY;
+                      const isFull = trk.id !== 'trk_3rd_party' && booked >= MAX_TRUCK_CAPACITY;
                       return {
                         value: trk.id,
-                        label: `${trk.driver || trk.name} — ${booked}/${MAX_TRUCK_CAPACITY}${isFull ? ' FULL' : ''}`,
+                        label: trk.id === 'trk_3rd_party'
+                          ? `🚚 3rd Party — Contract Freight`
+                          : `${trk.driver || trk.name} — ${booked}/${MAX_TRUCK_CAPACITY}${isFull ? ' FULL' : ''}`,
                         disabled: isFull
                       };
                     })
@@ -418,8 +496,70 @@ const DeliveryModal = ({
               </div>
             </div>
 
+            {/* Conditional 3rd Party Freight Fields */}
+            {truckId === 'trk_3rd_party' && (
+              <div className="delivery-form-3col 3rd-party-banner-fields" style={{ background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', padding: '0.85rem', borderRadius: '12px', marginBottom: '1.1rem' }}>
+                <div className="form-group">
+                  <label style={{ color: '#c084fc' }}>Carrier / Freight Company</label>
+                  <input
+                    type="text"
+                    value={carrierName}
+                    onChange={(e) => { setCarrierName(e.target.value); markDirty(); }}
+                    placeholder="e.g. R+L Carriers, Swift, Old Dominion"
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ color: '#c084fc' }}>PRO / BOL Tracking #</label>
+                  <input
+                    type="text"
+                    value={proNumber}
+                    onChange={(e) => { setProNumber(e.target.value); markDirty(); }}
+                    placeholder="e.g. PRO-984102"
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ color: '#c084fc' }}>Freight Charge ($)</label>
+                  <input
+                    type="number"
+                    value={freightFee}
+                    onChange={(e) => { setFreightFee(e.target.value); markDirty(); }}
+                    placeholder="e.g. 350"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Conditional Inter-Branch Transfer Fields */}
+            {deliveryType === 'transfer' && (
+              <div className="form-group" style={{ marginBottom: '1.1rem' }}>
+                <label style={{ color: '#60a5fa' }}>Destination Showroom Location</label>
+                <CustomSelect
+                  value={transferDestination}
+                  onChange={(e) => { setTransferDestination(e.target.value); markDirty(); }}
+                  options={[
+                    { value: 'Seattle', label: '📍 Seattle Showroom' },
+                    { value: 'Spokane', label: '📍 Spokane Showroom' },
+                    { value: 'Salt Lake City', label: '📍 Salt Lake City Showroom' }
+                  ]}
+                />
+              </div>
+            )}
+
+            {/* Conditional Will Call Pickup Fields */}
+            {deliveryType === 'will_call' && (
+              <div className="form-group" style={{ marginBottom: '1.1rem' }}>
+                <label style={{ color: '#2dd4bf' }}>Customer Pickup Vehicle &amp; Driver Info</label>
+                <input
+                  type="text"
+                  value={pickupInfo}
+                  onChange={(e) => { setPickupInfo(e.target.value); markDirty(); }}
+                  placeholder="e.g. Customer Flatbed Trailer, License # 7ABC12, Driver: Dave"
+                />
+              </div>
+            )}
+
             {/* Sales Rep & Status */}
-            <div className="delivery-form-2col">
+            <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
               <div className="form-group">
                 <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Sales Representative</label>
                 <CustomSelect
@@ -430,7 +570,7 @@ const DeliveryModal = ({
               </div>
 
               <div className="form-group">
-                <label>Status</label>
+                <label><Activity size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Status</label>
                 <CustomSelect
                   value={status}
                   onChange={(e) => { setStatus(e.target.value); markDirty(); }}
@@ -444,13 +584,125 @@ const DeliveryModal = ({
               </div>
             </div>
 
+            {/* Packing List PDF Attachment Upload */}
+            <div className="form-group" style={{ marginBottom: '1.1rem' }}>
+              <label>
+                <FileText size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Packing List PDF
+              </label>
+
+              <div className="file-upload-input-wrap" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '4px' }}>
+                <input
+                  type="text"
+                  value={
+                    packingListUrl && packingListUrl.toLowerCase().startsWith('data:application/')
+                      ? (packingListFilename || 'Attached_Packing_List.pdf')
+                      : packingListUrl
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setPackingListUrl(val);
+                    if (val.startsWith('http://') || val.startsWith('https://')) {
+                      const parts = val.split('/');
+                      setPackingListFilename(parts[parts.length - 1] || 'PackingList.pdf');
+                    } else {
+                      setPackingListFilename(val);
+                    }
+                    markDirty();
+                  }}
+                  placeholder="Paste PDF link or click Browse PDF..."
+                  style={{ flex: 1, textTransform: 'none' }}
+                />
+                <label className="pdf-browse-label-btn" style={{ background: 'rgba(212, 175, 55, 0.15)', border: '1px solid rgba(212, 175, 55, 0.3)', color: '#d4af37', padding: '0.65rem 0.85rem', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setIsReadingPdf(true);
+                        setPackingListFilename(file.name);
+                        try {
+                          const formData = new FormData();
+                          formData.append('file', file);
+                          const token = localStorage.getItem('token');
+                          const res = await fetch(`${API_URL}/api/deliveries/upload-packing-list`, {
+                            method: 'POST',
+                            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                            body: formData
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            setPackingListUrl(data.url);
+                            setPackingListFilename(data.filename || file.name);
+                            markDirty();
+                          } else {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setPackingListUrl(reader.result);
+                              markDirty();
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        } catch (err) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setPackingListUrl(reader.result);
+                            markDirty();
+                          };
+                          reader.readAsDataURL(file);
+                        } finally {
+                          setIsReadingPdf(false);
+                        }
+                      }
+                    }}
+                  />
+                  {isReadingPdf ? 'Attaching PDF...' : 'Browse PDF'}
+                </label>
+              </div>
+
+              {packingListUrl && (
+                <div className="attached-pdf-banner" style={{ background: 'rgba(212, 175, 55, 0.08)', border: '1px solid rgba(212, 175, 55, 0.3)', borderRadius: '12px', padding: '0.65rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginTop: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
+                    <FileText size={18} style={{ color: '#d4af37', flexShrink: 0 }} />
+                    <div style={{ overflow: 'hidden' }}>
+                      <span style={{ color: '#ffffff', fontWeight: 600, fontSize: '0.82rem', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {packingListFilename || 'Attached_Packing_List.pdf'}
+                      </span>
+                      <span style={{ color: '#34d399', fontSize: '0.72rem' }}>✓ PDF Document Attached &amp; Ready</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                    <a
+                      href={initialData?.pod?.signedPdfUrl || packingListUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-view-pdf"
+                      style={{ background: 'linear-gradient(135deg, #d4af37, #c5a028)', color: '#000000', padding: '0.35rem 0.7rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      View PDF
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => { setPackingListUrl(''); setPackingListFilename(''); markDirty(); }}
+                      style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '0.35rem 0.55rem', borderRadius: '8px', fontSize: '0.78rem', cursor: 'pointer' }}
+                      title="Remove PDF"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Notes */}
-            <div className="form-group">
-              <label><FileText size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Delivery Notes &amp; Gate Codes</label>
+            <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+              <label><FileText size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Delivery Notes</label>
               <textarea
                 value={notes}
                 onChange={(e) => { setNotes(e.target.value); markDirty(); }}
-                placeholder="Forklift needed, gate codes, contact person..."
+                placeholder=""
                 rows={4}
               />
             </div>
@@ -458,7 +710,7 @@ const DeliveryModal = ({
           </form>
         </div>
 
-        {/* Modal Footer — same as VisitModal */}
+        {/* Modal Footer */}
         <div className="modal-footer">
           {initialData?.id && !confirmDelete && (
             <button
@@ -470,11 +722,11 @@ const DeliveryModal = ({
               <Trash2 size={16} /> Delete
             </button>
           )}
-          <button className="btn-secondary btn-cancel-red" onClick={handleClose}>
+          <button type="button" className="delivery-modal-cancel-btn" onClick={handleClose}>
             Cancel
           </button>
-          <button className="btn-primary" onClick={handleSubmit}>
-            {initialData?.id ? 'Save Changes' : 'Add Delivery'}
+          <button type="button" className="delivery-modal-submit-btn" onClick={handleSubmit} disabled={isReadingPdf || isSaving}>
+            {isSaving ? 'Saving...' : isReadingPdf ? 'Attaching PDF...' : (initialData?.id ? 'Save Changes' : 'Add Delivery')}
           </button>
         </div>
 

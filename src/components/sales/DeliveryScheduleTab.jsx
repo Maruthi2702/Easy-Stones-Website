@@ -3,6 +3,8 @@ import { Truck, ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from 'lucid
 import BoardGrid from './delivery/BoardGrid';
 import DriverView from './delivery/DriverView';
 import DeliveryModal from './delivery/DeliveryModal';
+import PodModal from './delivery/PodModal';
+import PodViewer from './delivery/PodViewer';
 import {
   saveDelivery,
   deleteDelivery,
@@ -94,6 +96,37 @@ const DeliveryScheduleTab = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
 
+  // Proof of Delivery (ePOD) Modal state — capture new ePOD
+  const [isPodOpen, setIsPodOpen] = useState(false);
+  const [selectedPodDelivery, setSelectedPodDelivery] = useState(null);
+
+  // ePOD Viewer state — read-only view of signed ePOD
+  const [isPodViewerOpen, setIsPodViewerOpen] = useState(false);
+  const [viewerDelivery, setViewerDelivery] = useState(null);
+
+  const handleOpenPod = (delivery) => {
+    setSelectedPodDelivery(delivery);
+    setIsPodOpen(true);
+  };
+
+  const handleOpenPodViewer = (delivery) => {
+    setViewerDelivery(delivery);
+    setIsPodViewerOpen(true);
+  };
+
+  const handleSavePod = async (podData) => {
+    if (!selectedPodDelivery) return;
+    const updated = {
+      ...selectedPodDelivery,
+      status: 'completed',
+      pod: podData,
+      packingListUrl: podData?.signedPdfUrl || selectedPodDelivery.packingListUrl,
+      packingListFilename: podData?.signedPdfFilename || selectedPodDelivery.packingListFilename
+    };
+    await handleSaveDelivery(updated);
+    setIsPodOpen(false);
+  };
+
   const loadData = useCallback(async (forceRefresh = false) => {
     if (!getScheduleCacheSync().isLoaded || forceRefresh) {
       setLoading(true);
@@ -156,12 +189,17 @@ const DeliveryScheduleTab = ({
 
   const handleSaveDelivery = async (payload) => {
     const updatedList = await saveDelivery(payload);
-    setDeliveries(updatedList);
+    if (updatedList && Array.isArray(updatedList)) {
+      setDeliveries(updatedList);
+    }
+    // Don't null editingDelivery here — modal awaits this and calls onClose itself
+    return updatedList;
   };
 
   const handleDeleteDelivery = async (id) => {
     const updatedList = await deleteDelivery(id);
     setDeliveries(updatedList);
+    setEditingDelivery(null);
   };
 
   const handleUpdateStatus = async (id, newStatus) => {
@@ -253,6 +291,7 @@ const DeliveryScheduleTab = ({
               onAddDelivery={handleOpenAddModal}
               onEditDelivery={handleOpenEditModal}
               onUpdateTruck={handleUpdateTruck}
+              onViewPod={handleOpenPodViewer}
             />
           )}
 
@@ -265,6 +304,7 @@ const DeliveryScheduleTab = ({
               editable={false}
               userLocation={currentUser?.location || null}
               onEditDelivery={null}
+              onViewPod={handleOpenPodViewer}
             />
           )}
 
@@ -275,6 +315,12 @@ const DeliveryScheduleTab = ({
               weekDates={weekDates}
               currentUser={currentUser}
               onUpdateStatus={handleUpdateStatus}
+              onOpenPod={handleOpenPod}
+              onViewPod={handleOpenPodViewer}
+              onPrevWeek={handlePrevWeek}
+              onNextWeek={handleNextWeek}
+              onTodayWeek={handleTodayWeek}
+              weekRangeText={weekRangeText}
             />
           )}
         </div>
@@ -296,6 +342,23 @@ const DeliveryScheduleTab = ({
         trucks={trucks}
         deliveries={deliveries}
         customerOptions={customerOptions}
+        currentUser={currentUser}
+      />
+
+      <PodModal
+        isOpen={isPodOpen}
+        onClose={() => setIsPodOpen(false)}
+        delivery={selectedPodDelivery}
+        trucks={trucks}
+        currentUser={currentUser}
+        onSavePod={handleSavePod}
+      />
+
+      <PodViewer
+        isOpen={isPodViewerOpen}
+        onClose={() => setIsPodViewerOpen(false)}
+        delivery={viewerDelivery}
+        trucks={trucks}
         currentUser={currentUser}
       />
     </div>

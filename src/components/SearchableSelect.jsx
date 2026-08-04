@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronDown, Check, Plus, Loader } from 'lucide-react';
+import { ChevronDown, Check, Plus, Loader } from 'lucide-react';
 
 const SearchableSelect = ({ options, value, onChange, placeholder, className, style, onCreateNew, createNewLabel, isLoading }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -67,25 +67,29 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                 className="searchable-select-trigger"
                 onClick={() => setIsOpen(!isOpen)}
                 style={{
-                    padding: '0.5rem',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    borderRadius: '4px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    padding: '0 0.85rem',
+                    border: `1px solid ${isOpen ? 'rgba(212,175,55,0.7)' : 'var(--border-color, rgba(255,255,255,0.12))'}`,
+                    borderRadius: '10px',
+                    backgroundColor: 'var(--bg-card, #1c1c1e)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    minHeight: '38px',
-                    color: '#FFF',
-                    touchAction: 'manipulation'
+                    gap: '0.5rem',
+                    height: '42px',
+                    boxSizing: 'border-box',
+                    color: 'var(--text-primary, #fff)',
+                    touchAction: 'manipulation',
+                    boxShadow: isOpen ? '0 0 0 3px rgba(212,175,55,0.15)' : 'none',
+                    transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
                 }}
             >
-                <span style={{ color: hasValue ? '#FFF' : '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ color: hasValue ? 'var(--text-primary, #fff)' : 'var(--text-muted, #9CA3AF)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.9rem' }}>
                     {displayText}
                 </span>
                 {isLoading
-                    ? <Loader size={14} color="#9CA3AF" style={{ animation: 'spin 1s linear infinite' }} />
-                    : <ChevronDown size={16} color="#9CA3AF" />
+                    ? <Loader size={14} color="#d4af37" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                    : <ChevronDown size={15} color="#d4af37" style={{ flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
                 }
             </div>
 
@@ -94,18 +98,19 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                     className="searchable-select-dropdown"
                     style={{
                         position: 'absolute',
-                        top: '100%',
+                        top: 'calc(100% + 4px)',
                         left: 0,
                         width: '100%',
-                        maxHeight: '250px',
+                        maxHeight: '260px',
                         overflowY: 'auto',
-                        backgroundColor: '#1C1C1E',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        borderRadius: '4px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.1)',
-                        zIndex: 1000,
-                        marginTop: '4px',
-                        WebkitOverflowScrolling: 'touch'
+                        backgroundColor: '#1c1c1e',
+                        border: '1px solid rgba(212, 175, 55, 0.35)',
+                        borderRadius: '10px',
+                        boxShadow: '0 12px 32px rgba(0,0,0,0.85), 0 0 20px rgba(212,175,55,0.12)',
+                        zIndex: 9999,
+                        overflow: 'hidden',
+                        WebkitOverflowScrolling: 'touch',
+                        animation: 'selectPopoverFade 0.15s ease-out'
                     }}
                 >
                     {/* Loading state */}
@@ -116,29 +121,28 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                         </div>
                     ) : (
                         <>
-                            <div className="searchable-select-search" style={{ padding: '8px', position: 'sticky', top: 0, backgroundColor: '#1C1C1E', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                                <div style={{ position: 'relative' }}>
-                                    <Search size={14} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-                                    <input
+                            <div className="searchable-select-search" style={{ padding: '8px', position: 'sticky', top: 0, backgroundColor: '#1c1c1e', borderBottom: '1px solid rgba(255,255,255,0.08)', zIndex: 1 }}>
+                                <input
                                         ref={inputRef}
                                         type="text"
-                                        placeholder="Search..."
+                                        placeholder="Search customers..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         onClick={(e) => e.stopPropagation()}
                                         style={{
                                             width: '100%',
-                                            padding: '6px 8px 6px 28px',
-                                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                                            borderRadius: '4px',
-                                            fontSize: '16px',
+                                            padding: '8px 12px',
+                                            border: '1px solid rgba(212,175,55,0.3)',
+                                            borderRadius: '8px',
+                                            fontSize: '0.88rem',
                                             outline: 'none',
-                                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                            color: '#FFF',
-                                            touchAction: 'manipulation'
+                                            backgroundColor: 'rgba(255,255,255,0.05)',
+                                            color: '#fff',
+                                            touchAction: 'manipulation',
+                                            boxSizing: 'border-box',
+                                            display: 'block'
                                         }}
                                     />
-                                </div>
                             </div>
 
                             {onCreateNew && (

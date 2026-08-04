@@ -21,7 +21,8 @@ const BoardGrid = ({
   userLocation = null,
   onAddDelivery,
   onEditDelivery,
-  onUpdateTruck
+  onUpdateTruck,
+  onViewPod
 }) => {
   const todayStr = formatForDateInput(new Date());
   const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
@@ -256,6 +257,7 @@ const BoardGrid = ({
                           editable={editable}
                           searchQuery={searchQuery}
                           onClick={onEditDelivery}
+                          onViewPod={onViewPod}
                         />
                       ))}
                     </div>
@@ -343,6 +345,7 @@ const BoardGrid = ({
                                 onClick={onEditDelivery}
                                 editable={editable}
                                 searchQuery={activeSearch}
+                                onViewPod={onViewPod}
                               />
                             ))}
                           </div>

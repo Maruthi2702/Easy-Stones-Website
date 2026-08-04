@@ -1575,6 +1575,7 @@ body.light-theme-active .selection-input.selection-input-with-icon,
   color: var(--text-primary, #fff);
   font-size: 0.9rem;
   font-family: inherit;
+  text-transform: none !important;
   resize: vertical;
   outline: none;
   transition: all 0.25s ease;

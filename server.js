@@ -358,13 +358,19 @@ async function startServer() {
             'view_lost_sales'
           ],
           isSystem: true
+        },
+        {
+          name: 'driver',
+          displayName: 'Driver / Logistics',
+          permissions: [
+            'view_delivery_schedule', 'manage_delivery_schedule'
+          ],
+          isSystem: true
         }
       ];
 
       for (const roleDef of defaultRoles) {
         // Only seed/create the role if it doesn't already exist.
-        // This allows administrators to customize and edit system roles through the UI
-        // without their modifications being overwritten on every server restart.
         const existing = await Role.findOne({ name: roleDef.name });
         if (!existing) {
           const created = await Role.create(roleDef);
@@ -372,6 +378,36 @@ async function startServer() {
         } else {
           console.log(`ℹ️ System role '${roleDef.name}' already exists, skipping seed override to preserve custom permissions`);
         }
+      }
+
+      // Seed default driver account if no driver user exists yet
+      const existingDriver = await User.findOne({ role: 'driver' });
+      if (!existingDriver) {
+        const defaultDriver = new User({
+          username: 'driver',
+          password: 'driver123',
+          email: 'driver@easystones.com',
+          role: 'driver',
+          location: 'Seattle',
+          assignedLocations: ['*']
+        });
+        await defaultDriver.save();
+        console.log('🚚 Seeded default driver account: username "driver", password "driver123"');
+      }
+
+      // Seed driver account for Sergio
+      const existingSergio = await User.findOne({ username: 'sergio' });
+      if (!existingSergio) {
+        const sergioUser = new User({
+          username: 'sergio',
+          password: 'sergio123',
+          email: 'sergio@easystones.com',
+          role: 'driver',
+          location: 'Seattle',
+          assignedLocations: ['*']
+        });
+        await sergioUser.save();
+        console.log('🚚 Seeded driver account for Sergio: username "sergio", password "sergio123"');
       }
     } catch (seedRoleErr) {
       console.error('Error seeding roles:', seedRoleErr);
@@ -3816,14 +3852,46 @@ app.post('/api/deliveries', verifyAnyAuth, async (req, res) => {
     const delivery = req.body;
     if (!delivery || !delivery.id) return res.status(400).json({ error: 'Invalid delivery data' });
 
+    const updateData = { ...delivery };
+    delete updateData._id;
+
+    // Automatic Base64 PDF to Physical Disk File Conversion
+    if (updateData.packingListUrl && updateData.packingListUrl.toLowerCase().startsWith('data:application/pdf')) {
+      try {
+        const base64Parts = updateData.packingListUrl.split(',');
+        const base64Data = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
+        const buffer = Buffer.from(base64Data, 'base64');
+        const uploadsDir = path.join(process.cwd(), 'public/uploads/packing_lists');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const filename = `packing_list_${Date.now()}_${Math.round(Math.random() * 1e4)}.pdf`;
+        const filePath = path.join(uploadsDir, filename);
+        fs.writeFileSync(filePath, buffer);
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.get('host');
+        updateData.packingListUrl = `${protocol}://${host}/uploads/packing_lists/${filename}`;
+        if (!updateData.packingListFilename) {
+          updateData.packingListFilename = 'PackingList.pdf';
+        }
+        console.log(`📄 Converted Base64 PDF to disk file: ${updateData.packingListUrl}`);
+      } catch (convErr) {
+        console.error('Error converting base64 PDF to disk file:', convErr);
+      }
+    }
+
     await Delivery.findOneAndUpdate(
       { id: delivery.id },
-      { $set: delivery },
+      { $set: updateData },
       { upsert: true, new: true }
     );
 
     const list = await Delivery.find().sort({ createdAt: -1 }).lean();
-    req.app.get('io')?.emit('delivery_update', list);
+    try {
+      io.emit('delivery_update', list);
+    } catch (e) {
+      req.app.get('io')?.emit('delivery_update', list);
+    }
     res.json(list);
   } catch (err) {
     console.error('[server] save delivery error:', err);
@@ -3836,11 +3904,53 @@ app.delete('/api/deliveries/:id', verifyAnyAuth, async (req, res) => {
     const { id } = req.params;
     await Delivery.deleteOne({ id });
     const list = await Delivery.find().sort({ createdAt: -1 }).lean();
-    req.app.get('io')?.emit('delivery_update', list);
+    try {
+      io.emit('delivery_update', list);
+    } catch (e) {
+      req.app.get('io')?.emit('delivery_update', list);
+    }
     res.json({ success: true, deliveries: list });
   } catch (err) {
     console.error('[server] delete delivery error:', err);
     res.status(500).json({ error: 'Server error deleting delivery' });
+  }
+});
+
+// PDF Upload Endpoint for Delivery Packing Lists
+const packingListStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(process.cwd(), 'public/uploads/packing_lists');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}_${Math.round(Math.random() * 1e4)}`;
+    const ext = path.extname(file.originalname) || '.pdf';
+    cb(null, `packing_list_${uniqueSuffix}${ext}`);
+  }
+});
+
+const uploadPackingList = multer({
+  storage: packingListStorage,
+  limits: { fileSize: 50 * 1024 * 1024 }
+});
+
+app.post('/api/deliveries/upload-packing-list', uploadPackingList.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No PDF file uploaded' });
+    }
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/packing_lists/${req.file.filename}`;
+    res.json({
+      success: true,
+      url: fileUrl,
+      filename: req.file.originalname
+    });
+  } catch (err) {
+    console.error('Error uploading packing list PDF:', err);
+    res.status(500).json({ error: 'Failed to upload packing list PDF' });
   }
 });
 

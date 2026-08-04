@@ -4,12 +4,13 @@ import { io } from 'socket.io-client';
 export const MAX_TRUCK_CAPACITY = 8;
 
 export const DEFAULT_TRUCKS = [
-  { id: 'trk_1', name: 'Titan Alpha', driver: 'Dave Miller', color: '#D4AF37' },
-  { id: 'trk_2', name: 'Glacier Express', driver: 'Mark Stevens', color: '#2F8F73' },
-  { id: 'trk_3', name: 'Granite Hauler', driver: 'Alex Rivera', color: '#E1602A' },
-  { id: 'trk_4', name: 'Cascade Transport', driver: 'John Carter', color: '#3B82F6' },
-  { id: 'trk_5', name: 'Moda Dispatch', driver: 'Sam Taylor', color: '#8B5CF6' },
-  { id: 'trk_6', name: 'Olympic Cargo', driver: 'Chris Evans', color: '#64748B' }
+  { id: 'trk_1', name: 'Truck 1', driver: '', color: '#D4AF37' },
+  { id: 'trk_2', name: 'Truck 2', driver: '', color: '#2F8F73' },
+  { id: 'trk_3', name: 'Truck 3', driver: '', color: '#E1602A' },
+  { id: 'trk_4', name: 'Truck 4', driver: '', color: '#3B82F6' },
+  { id: 'trk_5', name: 'Truck 5', driver: '', color: '#8B5CF6' },
+  { id: 'trk_6', name: 'Truck 6', driver: '', color: '#64748B' },
+  { id: 'trk_3rd_party', name: '3rd Party Freight', driver: '', color: '#a855f7', isContract: true }
 ];
 
 export const INITIAL_SAMPLE_DELIVERIES = [];
@@ -26,13 +27,22 @@ const scheduleCache = {
 function initScheduleSocket() {
   if (scheduleCache.socket) return;
   try {
-    const socketUrl = API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
-    if (!socketUrl) return;
+    const socketUrl = API_URL || (typeof window !== 'undefined' ? window.location.origin : undefined);
 
     scheduleCache.socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000
+    });
+
+    scheduleCache.socket.on('connect', () => {
+      // Re-fetch latest deliveries on connection / reconnection
+      getDeliveries().then(list => {
+        if (Array.isArray(list)) {
+          scheduleCache.deliveries = list;
+          notifyScheduleListeners();
+        }
+      });
     });
 
     scheduleCache.socket.on('delivery_update', (updatedList) => {
@@ -55,6 +65,19 @@ function initScheduleSocket() {
         }
       });
     });
+
+    // Background periodic poll every 10 seconds as a fallback safety net
+    if (typeof window !== 'undefined' && !window.__deliveryPollInterval) {
+      window.__deliveryPollInterval = setInterval(async () => {
+        try {
+          const list = await getDeliveries();
+          if (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(scheduleCache.deliveries)) {
+            scheduleCache.deliveries = list;
+            notifyScheduleListeners();
+          }
+        } catch (e) {}
+      }, 10000);
+    }
   } catch (err) {
     console.warn('[schedule] Socket init error:', err);
   }
@@ -120,8 +143,9 @@ export async function getScheduleDataCached(currentUser = null, forceRefresh = f
 // ── GET TRUCKS ──
 export async function getTrucks() {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
     const res = await fetch(`${API_URL}/api/trucks`, {
+      credentials: 'include',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });
     if (res.ok) {
@@ -139,8 +163,9 @@ const TRUCK_COLORS = ['#D4AF37', '#2F8F73', '#E1602A', '#3B82F6', '#8B5CF6', '#6
 
 export async function getDriverUsers(userLocation = null, userAssignedLocations = []) {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
     const res = await fetch(`${API_URL}/api/salesreps`, {
+      credentials: 'include',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });
     if (!res.ok) throw new Error('Failed to fetch users');
@@ -186,9 +211,10 @@ export async function getDriverUsers(userLocation = null, userAssignedLocations 
 // ── SAVE TRUCKS ──
 export async function saveTrucks(trucks) {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
     await fetch(`${API_URL}/api/trucks`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -209,8 +235,9 @@ export async function getDeliveries() {
   } catch (e) {}
 
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
     const res = await fetch(`${API_URL}/api/deliveries`, {
+      credentials: 'include',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });
     if (res.ok) {
@@ -232,9 +259,10 @@ export async function getDeliveries() {
 // ── SAVE / UPDATE DELIVERY (100% MONGODB DATABASE) ──
 export async function saveDelivery(delivery) {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
     const res = await fetch(`${API_URL}/api/deliveries`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -264,9 +292,10 @@ export async function saveDelivery(delivery) {
 // ── DELETE DELIVERY (100% MONGODB DATABASE) ──
 export async function deleteDelivery(id) {
   try {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
     const res = await fetch(`${API_URL}/api/deliveries/${id}`, {
       method: 'DELETE',
+      credentials: 'include',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });
     if (res.ok) {

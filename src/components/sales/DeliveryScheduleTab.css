@@ -1541,6 +1541,153 @@ body.light-theme-active .modal-textarea-input:focus,
   box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
 }
 
+/* ─────────────────────────────────────────────────
+   Delivery Modal — Form Group & Label UX Overrides
+   Resets the global .form-group defaults so every
+   field row inside the delivery form looks identical.
+───────────────────────────────────────────────────── */
+.delivery-modal-content .form-group {
+  margin-bottom: 1.1rem;
+}
+
+/* Last child shouldn't have extra bottom margin */
+.delivery-modal-content .form-group:last-child {
+  margin-bottom: 0;
+}
+
+/* Consistent label styling across all delivery form fields */
+.delivery-modal-content .form-group label,
+.delivery-modal-content label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #9ca3af) !important;
+  margin-bottom: 6px !important;
+  line-height: 1;
+}
+
+/* Light theme label color — darker for legibility */
+body.light-theme-active .delivery-modal-content .form-group label,
+.light-theme-active .delivery-modal-content .form-group label,
+body.light-theme-active .delivery-modal-content label,
+.light-theme-active .delivery-modal-content label {
+  color: #374151 !important;
+}
+
+/* Label icons should match label color and sit perfectly centered */
+.delivery-modal-content .form-group label svg,
+.delivery-modal-content label svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+  vertical-align: middle;
+}
+
+/* req-star must always be red — override label color + svg opacity */
+.delivery-modal-content .form-group label .req-star,
+.delivery-modal-content label .req-star {
+  color: #ff4d4f !important;
+  opacity: 1 !important;
+  font-style: normal;
+}
+
+/* Slightly larger inputs for better touch targets */
+.delivery-modal-content .form-group input,
+.delivery-modal-content .form-group textarea {
+  min-height: 42px;
+  font-size: 0.9rem !important;
+}
+
+/* Textarea has auto height but at least 4 rows */
+.delivery-modal-content .form-group textarea {
+  min-height: 100px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+/* ── Form 2-col: normalize nested form-group bottom margin ── */
+.delivery-form-2col .form-group {
+  margin-bottom: 0 !important;
+}
+
+/* ── Delivery form container — tighter padding ── */
+.delivery-modal-content {
+  padding: 0;
+  margin: 0;
+}
+
+/* ── Modal footer — cleaner visual separator ── */
+.visit-modal-overlay .modal-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  gap: 0.6rem;
+  padding: 1rem 1.5rem;
+}
+
+body.light-theme-active .visit-modal-overlay .modal-footer,
+.light-theme-active .visit-modal-overlay .modal-footer {
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+/* ── Modal size — delivery modal max-width tighter ── */
+.visit-modal-overlay .modal-content {
+  max-width: 680px;
+}
+
+/* ── Light mode: visible input borders + white modal card ── */
+body.light-theme-active .visit-modal-overlay .modal-content,
+.light-theme-active .visit-modal-overlay .modal-content {
+  background: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+}
+
+body.light-theme-active .delivery-modal-content input,
+body.light-theme-active .delivery-modal-content select,
+body.light-theme-active .delivery-modal-content textarea,
+.light-theme-active .delivery-modal-content input,
+.light-theme-active .delivery-modal-content select,
+.light-theme-active .delivery-modal-content textarea {
+  background: #ffffff !important;
+  border: 1.5px solid #9ca3af !important;
+  color: #111827 !important;
+}
+
+body.light-theme-active .delivery-modal-content input:focus,
+body.light-theme-active .delivery-modal-content select:focus,
+body.light-theme-active .delivery-modal-content textarea:focus,
+.light-theme-active .delivery-modal-content input:focus,
+.light-theme-active .delivery-modal-content select:focus,
+.light-theme-active .delivery-modal-content textarea:focus {
+  border-color: #d4af37 !important;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15) !important;
+}
+
+/* Light mode CustomSelect trigger — visible border */
+body.light-theme-active .visit-modal-overlay .custom-select-trigger,
+.light-theme-active .visit-modal-overlay .custom-select-trigger {
+  background-color: #ffffff !important;
+  border: 1.5px solid #9ca3af !important;
+  color: #111827 !important;
+}
+
+/* Light mode SearchableSelect trigger — visible border */
+body.light-theme-active .visit-modal-overlay .searchable-select-trigger,
+.light-theme-active .visit-modal-overlay .searchable-select-trigger {
+  background-color: #ffffff !important;
+  border: 1.5px solid #9ca3af !important;
+  color: #111827 !important;
+}
+
+body.light-theme-active .visit-modal-overlay .modal-header,
+.light-theme-active .visit-modal-overlay .modal-header {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+
+
 .form-grid-3col {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1830,6 +1977,15 @@ body.light-theme-active .modal-textarea-input:focus,
   margin: 0 auto;
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55);
   box-sizing: border-box;
+}
+
+.screenshot-schedule-card.driver-mode,
+body.light-theme-active .screenshot-schedule-card.driver-mode,
+.light-theme-active .screenshot-schedule-card.driver-mode {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
 }
 
 body.light-theme-active .screenshot-schedule-card,
@@ -2780,28 +2936,6 @@ body.light-theme-active .stop-status-badge.delayed,
   border: 1px solid #fecaca !important;
 }
 
-/* Day Pills in Cards View (Light Theme) */
-body.light-theme-active .screenshot-pill-btn,
-.light-theme-active .screenshot-pill-btn {
-  background: #ffffff !important;
-  color: #475569 !important;
-  border: 1px solid #cbd5e1 !important;
-}
-
-body.light-theme-active .screenshot-pill-btn:hover,
-.light-theme-active .screenshot-pill-btn:hover {
-  background: #f8fafc !important;
-  color: #0f172a !important;
-}
-
-body.light-theme-active .screenshot-pill-btn.active,
-.light-theme-active .screenshot-pill-btn.active {
-  background: #0f172a !important;
-  color: #ffffff !important;
-  border-color: #0f172a !important;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25) !important;
-}
-
 /* Ensure Delivery & Visit Modal overlays have top-level z-index matching VisitModal & AddCustomerModal */
 .modal-overlay.visit-modal-overlay,
 .delivery-modal-overlay {
@@ -2996,4 +3130,611 @@ body.light-theme-active .btn-keep-editing:hover,
   }
 }
 
+/* ── Segmented Control Bar for Delivery Classification ── */
+.delivery-type-segmented-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 4px;
+}
 
+.type-segment-btn {
+  background: transparent;
+  border: none;
+  color: #b0b0b0;
+  padding: 0.6rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.type-segment-btn.active {
+  background: linear-gradient(135deg, #d4af37, #c5a028);
+  color: #000000;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+}
+
+.type-segment-btn:hover:not(.active) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 640px) {
+  .delivery-type-segmented-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   DRIVER VIEW — ENHANCED STOP CARDS (v2)
+   ══════════════════════════════════════════════════════ */
+
+/* Driver Header */
+.driver-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.08));
+}
+
+.driver-view-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.driver-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000;
+  flex-shrink: 0;
+}
+
+.driver-name-main {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+}
+
+.driver-week-label {
+  font-size: 0.75rem;
+  color: var(--text-muted, #606060);
+  margin-top: 1px;
+}
+
+.driver-progress-badge {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  background: var(--bg-card, #1c1c1e);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 10px;
+  padding: 0.35rem 0.75rem;
+}
+
+/* Enhanced stop card */
+.driver-stop-card {
+  border-radius: 14px;
+  background: var(--bg-card, #1c1c1e);
+  border: 1px solid var(--border-color, rgba(255,255,255,0.07));
+  padding: 1rem 1.1rem;
+  margin-bottom: 0.75rem;
+  transition: box-shadow 0.2s ease;
+}
+
+.driver-stop-card:last-child {
+  margin-bottom: 0;
+}
+
+.driver-stop-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+/* Stop number badge */
+.driver-stop-number {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #d4af37;
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  padding: 2px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Status chip */
+.stop-status-chip {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+/* Customer + time row */
+.stop-customer-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.stop-time-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #b0b0b0);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Meta tags row */
+.stop-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.45rem;
+}
+
+.stop-type-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent-primary, #d4af37);
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+.stop-so-tag {
+  font-size: 0.7rem;
+  color: var(--text-secondary, #b0b0b0);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 2px 7px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.stop-carrier-tag {
+  font-size: 0.7rem;
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.08);
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+/* Driver action buttons (v2) */
+.driver-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.driver-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0.5rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all 0.18s ease;
+  text-decoration: none;
+  min-height: 38px;
+}
+
+.driver-btn-pdf {
+  background: rgba(212, 175, 55, 0.1);
+  border-color: rgba(212, 175, 55, 0.3);
+  color: #d4af37;
+}
+
+.driver-btn-pdf:hover {
+  background: rgba(212, 175, 55, 0.2);
+  border-color: #d4af37;
+  box-shadow: 0 2px 10px rgba(212, 175, 55, 0.2);
+}
+
+.driver-btn-late {
+  background: rgba(225, 96, 42, 0.1);
+  border-color: rgba(225, 96, 42, 0.35);
+  color: #ff8c5a;
+}
+
+.driver-btn-late:hover:not(:disabled) {
+  background: rgba(225, 96, 42, 0.2);
+  border-color: #e1602a;
+}
+
+.driver-btn-delivered {
+  flex: 1;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.08));
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.driver-btn-delivered:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.15));
+  box-shadow: 0 3px 12px rgba(16, 185, 129, 0.25);
+}
+
+.driver-btn-delivered.signed {
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.18), rgba(52, 211, 153, 0.1));
+  border-color: rgba(52, 211, 153, 0.5);
+  color: #34d399;
+}
+
+.driver-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Today pill highlight */
+.screenshot-pill-btn.today:not(.active) {
+  border-color: rgba(212, 175, 55, 0.3);
+  color: #d4af37;
+}
+
+/* Light theme overrides for driver view */
+body.light-theme-active .driver-stop-card,
+.light-theme-active .driver-stop-card {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.08);
+}
+
+body.light-theme-active .stop-so-tag,
+.light-theme-active .stop-so-tag,
+body.light-theme-active .stop-time-chip,
+.light-theme-active .stop-time-chip {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.1);
+  color: #475569;
+}
+
+body.light-theme-active .driver-view-header,
+.light-theme-active .driver-view-header {
+  border-bottom-color: rgba(0,0,0,0.08);
+}
+
+@media (max-width: 480px) {
+  .driver-action-buttons {
+    flex-direction: column;
+  }
+  .driver-btn {
+    width: 100%;
+  }
+  .driver-btn-delivered {
+    flex: unset;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════
+   OFFICE-STYLE VERTICAL 5-DAY CARDS (MATCHES OFFICE UI 100%)
+   ══════════════════════════════════════════════════════════════ */
+
+.driver-office-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  width: 100%;
+}
+
+.office-day-cards-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.65rem;
+  margin: 1rem 0 1rem 0;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .office-day-cards-row {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.35rem;
+  }
+  .office-day-card {
+    padding: 0.7rem 0.25rem !important;
+  }
+  .day-card-num {
+    font-size: 1.2rem !important;
+  }
+}
+
+.office-day-card {
+  background: var(--bg-card, #1c1c1e);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  padding: 0.85rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+
+.office-day-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(212, 175, 55, 0.4);
+  transform: translateY(-2px);
+}
+
+.office-day-card.active {
+  background: linear-gradient(135deg, #d4af37, #c5a028) !important;
+  border-color: #d4af37 !important;
+  color: #000000 !important;
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.45) !important;
+  transform: translateY(-2px);
+}
+
+.day-card-name {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary, #b0b0b0);
+}
+
+.office-day-card.active .day-card-name {
+  color: #000000 !important;
+}
+
+.day-card-num {
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: var(--text-primary, #ffffff);
+  line-height: 1.1;
+}
+
+.office-day-card.active .day-card-num {
+  color: #000000 !important;
+}
+
+.day-card-subtext {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted, #808080);
+}
+
+.office-day-card.active .day-card-subtext {
+  color: rgba(0, 0, 0, 0.8) !important;
+}
+
+body.light-theme-active .office-day-card,
+.light-theme-active .office-day-card {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+body.light-theme-active .day-card-name,
+.light-theme-active .day-card-name {
+  color: #64748b;
+}
+
+body.light-theme-active .day-card-num,
+.light-theme-active .day-card-num {
+  color: #0f172a;
+}
+
+body.light-theme-active .office-day-card.active,
+.light-theme-active .office-day-card.active {
+  background: linear-gradient(135deg, #d4af37, #c5a028) !important;
+}
+
+.screenshot-day-pills {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.65rem;
+  margin: 1rem 0 1rem 0;
+  width: 100%;
+}
+
+.screenshot-pill-btn {
+  background: var(--bg-card, #1c1c1e);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  padding: 0.85rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.screenshot-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(212, 175, 55, 0.4);
+  transform: translateY(-2px);
+}
+
+.screenshot-pill-btn.active {
+  background: linear-gradient(135deg, #d4af37, #c5a028) !important;
+  border-color: #d4af37 !important;
+  color: #000000 !important;
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.45) !important;
+  transform: translateY(-2px);
+}
+
+.screenshot-pill-btn.today:not(.active) {
+  border-color: rgba(212, 175, 55, 0.6);
+}
+
+.screenshot-subtext {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary, #b0b0b0);
+  margin-bottom: 1rem;
+}
+
+/* Light theme overrides for driver day cards */
+body.light-theme-active .screenshot-pill-btn,
+.light-theme-active .screenshot-pill-btn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+body.light-theme-active .screenshot-pill-btn.active,
+.light-theme-active .screenshot-pill-btn.active {
+  background: linear-gradient(135deg, #d4af37, #c5a028) !important;
+  color: #000000 !important;
+}
+
+body.light-theme-active .screenshot-subtext,
+.light-theme-active .screenshot-subtext {
+  color: #64748b;
+}
+
+/* Driver View Clean Borderless Container */
+.driver-view-container {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  background: transparent !important;
+  border: none !important;
+  border-width: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+body.light-theme-active .driver-view-container,
+.light-theme-active .driver-view-container {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Delivery Modal Premium UX Styles ── */
+.delivery-modal-close-btn {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: var(--text-secondary, #9ca3af) !important;
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  border-radius: 50% !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease !important;
+}
+
+.delivery-modal-close-btn:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  color: #ef4444 !important;
+  transform: rotate(90deg);
+}
+
+.delivery-modal-cancel-btn {
+  padding: 0.65rem 1.25rem !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: var(--text-primary, #ffffff) !important;
+  font-weight: 600 !important;
+  font-size: 0.88rem !important;
+  cursor: pointer;
+  transition: all 0.2s ease !important;
+}
+
+.delivery-modal-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+.delivery-modal-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.4rem !important;
+  border-radius: 10px !important;
+  background: linear-gradient(135deg, #d4af37, #c5a028) !important;
+  color: #000000 !important;
+  font-weight: 800 !important;
+  font-size: 0.88rem !important;
+  border: none !important;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.35) !important;
+  transition: all 0.25s ease !important;
+}
+
+.delivery-modal-submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(212, 175, 55, 0.5) !important;
+}
+
+/* Light Mode Overrides for Delivery Modal */
+body.light-theme-active .delivery-modal-close-btn,
+.light-theme-active .delivery-modal-close-btn {
+  background: #fee2e2 !important;
+  border: 1px solid #fca5a5 !important;
+  color: #ef4444 !important;
+}
+
+body.light-theme-active .delivery-modal-close-btn:hover,
+.light-theme-active .delivery-modal-close-btn:hover {
+  background: #fca5a5 !important;
+  border-color: #f87171 !important;
+  color: #dc2626 !important;
+}
+
+body.light-theme-active .delivery-modal-cancel-btn,
+.light-theme-active .delivery-modal-cancel-btn {
+  background: #fee2e2 !important;
+  border: 1px solid #fca5a5 !important;
+  color: #ef4444 !important;
+}
+
+body.light-theme-active .delivery-modal-cancel-btn:hover,
+.light-theme-active .delivery-modal-cancel-btn:hover {
+  background: #fca5a5 !important;
+  border-color: #f87171 !important;
+  color: #dc2626 !important;
+}

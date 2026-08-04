@@ -25,7 +25,8 @@ const TicketChip = ({
   truckColor = '#D4AF37',
   onClick,
   editable = false,
-  searchQuery = ''
+  searchQuery = '',
+  onViewPod
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -93,6 +94,16 @@ const TicketChip = ({
           <span className="ticket-has-notes" title={delivery.notes}>
             <FileText size={11} /> Notes
           </span>
+        )}
+        {delivery.status === 'completed' && onViewPod && (
+          <button
+            type="button"
+            className="ticket-epod-badge"
+            onClick={(e) => { e.stopPropagation(); onViewPod(delivery); }}
+            title="View signed ePOD document"
+          >
+            ✓ ePOD
+          </button>
         )}
       </div>
     </div>
