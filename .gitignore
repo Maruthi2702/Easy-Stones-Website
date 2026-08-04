@@ -33,3 +33,6 @@ dist-ssr
 # Tesseract cached language models
 eng.traineddata
 
+# User Uploaded Files (Local Storage)
+public/uploads/
+
