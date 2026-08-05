@@ -419,7 +419,8 @@ const CheckInLogPanel = ({
   const [salesRepEmail, setSalesRepEmail] = useState('');
   const [activeDropdownIndex, setActiveDropdownIndex] = useState(null);
   const [selMobileTab, setSelMobileTab] = useState('customer'); // 'customer' | 'selections' | 'notes'
-  const [mobItemCount, setMobItemCount] = useState(1); // how many item cards to show on mobile
+  const [mobItemCount, setMobItemCount] = useState(2); // how many item cards to show on mobile (default 2)
+  const [desktopRowCount, setDesktopRowCount] = useState(4); // how many table rows to show on desktop (default 4)
   const [showSalesRepDropdown, setShowSalesRepDropdown] = useState(false);
 
   // ── OCR Tag Scanning State ──
@@ -730,6 +731,13 @@ const CheckInLogPanel = ({
     setSelMobileTab('customer');
 
     const savedSelections = checkIn.selections || [];
+    const filledCount = savedSelections.filter(s => s.material?.trim() || s.lot?.trim()).length;
+    const initialDesktop = Math.max(4, Math.min(12, filledCount || savedSelections.length || 4));
+    const initialMobile = Math.max(2, Math.min(12, filledCount || savedSelections.length || 2));
+
+    setDesktopRowCount(initialDesktop);
+    setMobItemCount(initialMobile);
+
     const formattedSelections = Array.from({ length: 12 }, (_, idx) => {
       if (savedSelections[idx]) {
         return {
@@ -742,31 +750,40 @@ const CheckInLogPanel = ({
       return { material: '', details: '', size: '', lot: '' };
     });
     setSelections(formattedSelections);
-    const filledCount = savedSelections.filter(s => s.material?.trim()).length;
-    setMobItemCount(Math.max(1, filledCount));
     setSpecialNotes(checkIn.specialNotes || '');
     setSaveSuccess(false);
   };
 
   const handleAddMobItem = () => {
+    setMobItemCount(prev => Math.min(12, prev + 1));
     setSelections(prev => {
       if (prev.length <= mobItemCount) {
         return [...prev, { material: '', details: '', size: '', lot: '' }];
       }
       return prev;
     });
-    setMobItemCount(prev => Math.min(12, prev + 1));
   };
 
   const handleAddSelectionRow = () => {
-    setSelections(prev => [...prev, { material: '', details: '', size: '', lot: '' }]);
+    setDesktopRowCount(prev => Math.min(12, prev + 1));
+    setSelections(prev => {
+      if (prev.length <= desktopRowCount) {
+        return [...prev, { material: '', details: '', size: '', lot: '' }];
+      }
+      return prev;
+    });
   };
 
   const handleRemoveSelectionRow = (idx) => {
     setSelections(prev => {
-      if (prev.length <= 1) return [{ material: '', details: '', size: '', lot: '' }];
-      return prev.filter((_, i) => i !== idx);
+      const next = [...prev];
+      next[idx] = { material: '', details: '', size: '', lot: '' };
+      const filled = next.filter((item, i) => i !== idx && (item.material?.trim() || item.details?.trim() || item.size?.trim() || item.lot?.trim()));
+      const empties = Array.from({ length: 12 - filled.length }, () => ({ material: '', details: '', size: '', lot: '' }));
+      return [...filled, ...empties];
     });
+    setDesktopRowCount(prev => Math.max(1, prev - 1));
+    setMobItemCount(prev => Math.max(1, prev - 1));
   };
 
   const handleSalesRepChange = (val) => {
@@ -2075,7 +2092,7 @@ const CheckInLogPanel = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {selections.map((sel, idx) => (
+                      {selections.slice(0, desktopRowCount).map((sel, idx) => (
                         <tr key={idx} className="selection-row-item">
                           <td className="selection-row-num">{idx + 1}</td>
                           <td style={{ position: 'relative', zIndex: activeDropdownIndex === idx ? 9999 : (selections.length - idx) }}>
@@ -2232,18 +2249,20 @@ const CheckInLogPanel = ({
                 </div>
 
                 {/* Add Row Button */}
-                <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.25rem' }}>
-                  <button
-                    type="button"
-                    className="btn-add-selection-row"
-                    onClick={handleAddSelectionRow}
-                  >
-                    <div className="btn-add-icon-ring">
-                      <Plus size={14} />
-                    </div>
-                    <span>Add Material Row</span>
-                  </button>
-                </div>
+                {desktopRowCount < 12 && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.25rem' }}>
+                    <button
+                      type="button"
+                      className="btn-add-selection-row"
+                      onClick={handleAddSelectionRow}
+                    >
+                      <div className="btn-add-icon-ring">
+                        <Plus size={14} />
+                      </div>
+                      <span>Add Material Row</span>
+                    </button>
+                  </div>
+                )}
 
 
 
