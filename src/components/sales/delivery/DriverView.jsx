@@ -70,10 +70,13 @@ const DriverView = ({
 
   const isDeliveryMatchingTruck = (del, trk) => {
     if (!del || !trk) return false;
-    if (del.truckId && String(del.truckId) === String(trk.id)) return true;
-    if (del.truckDriver && trk.driver && del.truckDriver.toLowerCase() === trk.driver.toLowerCase()) return true;
-    if (del.assignedDriver && trk.driver && del.assignedDriver.toLowerCase() === trk.driver.toLowerCase()) return true;
-    if (del.driverName && trk.driver && del.driverName.toLowerCase() === trk.driver.toLowerCase()) return true;
+    const delTruckId = String(del.truckId || '').toLowerCase();
+    const trkId = String(trk.id || '').toLowerCase();
+    const trkDriver = String(trk.driver || trk.name || trk.username || '').toLowerCase();
+    const delDriver = String(del.driver || del.truckDriver || del.assignedDriver || del.driverName || del.salesRepName || '').toLowerCase();
+
+    if (delTruckId && (delTruckId === trkId || trkId.includes(delTruckId) || delTruckId.includes(trkId))) return true;
+    if (delDriver && trkDriver && (delDriver === trkDriver || trkDriver.includes(delDriver) || delDriver.includes(trkDriver))) return true;
     return false;
   };
 

@@ -66,7 +66,7 @@ function initScheduleSocket() {
       });
     });
 
-    // Background periodic poll every 10 seconds as a fallback safety net
+    // Background periodic poll every 3 seconds as a fallback safety net
     if (typeof window !== 'undefined' && !window.__deliveryPollInterval) {
       window.__deliveryPollInterval = setInterval(async () => {
         try {
@@ -76,7 +76,7 @@ function initScheduleSocket() {
             notifyScheduleListeners();
           }
         } catch (e) {}
-      }, 10000);
+      }, 3000);
     }
   } catch (err) {
     console.warn('[schedule] Socket init error:', err);

@@ -75,7 +75,12 @@ const BoardGrid = ({
 
   // Filter deliveries by search query & location
   const filteredDeliveries = deliveries.filter(d => {
-    if (userLocation && d.location && d.location !== userLocation) return false;
+    // If user is admin/manager or location is '*' or all, don't hide tickets from other locations
+    if (userLocation && userLocation !== '*' && userLocation !== 'all' && userLocation !== 'All') {
+      if (d.location && d.location !== '*' && d.location !== userLocation) {
+        return false;
+      }
+    }
     if (!activeSearch.trim()) return true;
     const q = activeSearch.toLowerCase().trim();
     return (
