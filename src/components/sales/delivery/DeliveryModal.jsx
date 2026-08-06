@@ -56,6 +56,13 @@ function extractCustomerAddress(c) {
   return { city, street, fullAddress };
 }
 
+const STATUS_OPTIONS = [
+  { value: 'pending', label: '⏳ Pending' },
+  { value: 'scheduled', label: '🕐 Scheduled' },
+  { value: 'delayed', label: '⚠️ Delayed / Running Late' },
+  { value: 'completed', label: '✅ Completed / Delivered' }
+];
+
 const DeliveryModal = ({
   isOpen,
   onClose,
@@ -84,13 +91,17 @@ const DeliveryModal = ({
 
   // New Classification & 3rd Party States
   const [deliveryType, setDeliveryType] = useState('jobsite');
-  const [transferDestination, setTransferDestination] = useState('Spokane');
+  const [transferDestination, setTransferDestination] = useState('');
   const [pickupInfo, setPickupInfo] = useState('');
   const [carrierName, setCarrierName] = useState('');
   const [proNumber, setProNumber] = useState('');
   const [freightFee, setFreightFee] = useState('');
   const [packingListUrl, setPackingListUrl] = useState('');
   const [packingListFilename, setPackingListFilename] = useState('');
+
+  // An inter-branch transfer moves stock between our own showrooms, so the
+  // customer/jobsite half of this form does not apply to it.
+  const isTransfer = deliveryType === 'transfer';
 
   // Deleting a delivery is gated on delete_delivery_schedule, assignable per role
   // under Users & Roles → Delivery Schedule → Delete. The server enforces the same
@@ -203,7 +214,7 @@ const DeliveryModal = ({
       setNotes(initialData.notes || '');
       setTime(initialData.time || '09:00 AM');
       setDeliveryType(initialData.deliveryType || 'jobsite');
-      setTransferDestination(initialData.transferDestination || 'Spokane');
+      setTransferDestination(initialData.transferDestination || '');
       setPickupInfo(initialData.pickupInfo || '');
       setCarrierName(initialData.carrierName || '');
       setProNumber(initialData.proNumber || '');
@@ -280,19 +291,27 @@ const DeliveryModal = ({
       if (foundOpt) finalCustomerName = foundOpt.label;
     }
 
-    if (!finalCustomerName) {
+    if (isTransfer) {
+      if (!transferDestination) {
+        setError('Please choose the branch this transfer is going to.');
+        return;
+      }
+      // A transfer has no customer, but customerName is required and is what the
+      // board chip renders, so name it after the destination.
+      finalCustomerName = `Transfer \u2192 ${transferDestination}`;
+    } else if (!finalCustomerName) {
       setError('Please select or enter a Customer Name.');
       return;
     }
 
     const payload = {
       id: initialData?.id || `del_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-      customerId: selectedCustomerId || null,
+      customerId: isTransfer ? null : (selectedCustomerId || null),
       customerName: finalCustomerName,
-      address: address.trim(),
+      address: isTransfer ? '' : address.trim(),
       soNumber: soNumber.trim(),
       invoiceNumber: soNumber.trim(),
-      routeNumber: Number(routeNumber) || 1,
+      routeNumber: isTransfer ? 1 : (Number(routeNumber) || 1),
       date,
       time,
       truckId,
@@ -302,10 +321,10 @@ const DeliveryModal = ({
       location: initialData?.location || currentUser?.location || '',
       deliveryType,
       transferDestination,
-      pickupInfo: pickupInfo.trim(),
-      carrierName: carrierName.trim(),
-      proNumber: proNumber.trim(),
-      freightFee: Number(freightFee) || 0,
+      pickupInfo: isTransfer ? '' : pickupInfo.trim(),
+      carrierName: isTransfer ? '' : carrierName.trim(),
+      proNumber: isTransfer ? '' : proNumber.trim(),
+      freightFee: isTransfer ? 0 : (Number(freightFee) || 0),
       packingListUrl,
       packingListFilename,
       updatedAt: new Date().toISOString()
@@ -421,7 +440,42 @@ const DeliveryModal = ({
             </div>
           </div>
 
-            {/* Customer Name */}
+            {/* Inter-Branch Transfer: destination + reference number */}
+            {isTransfer && (
+              <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
+                <div className="form-group">
+                  <label style={{ color: '#60a5fa' }}>
+                    <MapPin size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                    Transfer To <span className="req-star">*</span>
+                  </label>
+                  <CustomSelect
+                    value={transferDestination}
+                    onChange={(e) => { setTransferDestination(e.target.value); markDirty(); }}
+                    options={[
+                      { value: '', label: '-- Select destination branch --' },
+                      { value: 'Seattle', label: '📍 Seattle Showroom' },
+                      { value: 'Spokane', label: '📍 Spokane Showroom' },
+                      { value: 'Salt Lake City', label: '📍 Salt Lake City Showroom' }
+                    ]}
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ color: '#60a5fa' }}>
+                    <Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                    Transfer #
+                  </label>
+                  <input
+                    type="text"
+                    value={soNumber}
+                    onChange={(e) => { setSoNumber(e.target.value); markDirty(); }}
+                    placeholder="e.g. TRF-10482"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Customer Name — a transfer moves stock between our own branches */}
+            {!isTransfer && (
             <div className="form-group" style={{ marginBottom: '1.1rem' }}>
               <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Customer Name <span className="req-star">*</span></label>
               <SearchableSelect
@@ -443,8 +497,10 @@ const DeliveryModal = ({
                 placeholder="Select Customer or type custom..."
               />
             </div>
+            )}
 
             {/* SO / Invoice# & Delivery Address */}
+            {!isTransfer && (
             <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
               <div className="form-group">
                 <label><Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />SO / Invoice#</label>
@@ -466,9 +522,11 @@ const DeliveryModal = ({
                 />
               </div>
             </div>
+            )}
 
-            {/* Route Stop & Assigned Driver — 2 col grid */}
+            {/* Assigned Driver, paired with Route normally and with Status on a transfer */}
             <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
+              {!isTransfer && (
               <div className="form-group">
                 <label><Navigation size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Route (Stop #)</label>
                 <CustomSelect
@@ -477,6 +535,7 @@ const DeliveryModal = ({
                   options={ROUTE_OPTIONS}
                 />
               </div>
+              )}
 
               <div className="form-group">
                 <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver / Fleet</label>
@@ -499,10 +558,21 @@ const DeliveryModal = ({
                   ]}
                 />
               </div>
+
+              {isTransfer && (
+                <div className="form-group">
+                  <label><Activity size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Status</label>
+                  <CustomSelect
+                    value={status}
+                    onChange={(e) => { setStatus(e.target.value); markDirty(); }}
+                    options={STATUS_OPTIONS}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Conditional 3rd Party Freight Fields */}
-            {truckId === 'trk_3rd_party' && (
+            {!isTransfer && truckId === 'trk_3rd_party' && (
               <div className="delivery-form-3col 3rd-party-banner-fields" style={{ background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', padding: '0.85rem', borderRadius: '12px', marginBottom: '1.1rem' }}>
                 <div className="form-group">
                   <label style={{ color: '#c084fc' }}>Carrier / Freight Company</label>
@@ -534,22 +604,6 @@ const DeliveryModal = ({
               </div>
             )}
 
-            {/* Conditional Inter-Branch Transfer Fields */}
-            {deliveryType === 'transfer' && (
-              <div className="form-group" style={{ marginBottom: '1.1rem' }}>
-                <label style={{ color: '#60a5fa' }}>Destination Showroom Location</label>
-                <CustomSelect
-                  value={transferDestination}
-                  onChange={(e) => { setTransferDestination(e.target.value); markDirty(); }}
-                  options={[
-                    { value: 'Seattle', label: '📍 Seattle Showroom' },
-                    { value: 'Spokane', label: '📍 Spokane Showroom' },
-                    { value: 'Salt Lake City', label: '📍 Salt Lake City Showroom' }
-                  ]}
-                />
-              </div>
-            )}
-
             {/* Conditional Will Call Pickup Fields */}
             {deliveryType === 'will_call' && (
               <div className="form-group" style={{ marginBottom: '1.1rem' }}>
@@ -563,7 +617,8 @@ const DeliveryModal = ({
               </div>
             )}
 
-            {/* Sales Rep & Status */}
+            {/* Sales Rep & Status — on a transfer, Status sits beside the driver instead */}
+            {!isTransfer && (
             <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
               <div className="form-group">
                 <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Sales Representative</label>
@@ -579,15 +634,11 @@ const DeliveryModal = ({
                 <CustomSelect
                   value={status}
                   onChange={(e) => { setStatus(e.target.value); markDirty(); }}
-                  options={[
-                    { value: 'pending', label: '⏳ Pending' },
-                    { value: 'scheduled', label: '🕐 Scheduled' },
-                    { value: 'delayed', label: '⚠️ Delayed / Running Late' },
-                    { value: 'completed', label: '✅ Completed / Delivered' }
-                  ]}
+                  options={STATUS_OPTIONS}
                 />
               </div>
             </div>
+            )}
 
             {/* Packing List PDF Attachment Upload */}
             <div className="form-group" style={{ marginBottom: '1.1rem' }}>
