@@ -79,6 +79,26 @@ async function refreshActiveWeek() {
   }
 }
 
+// Polling is only a fallback for when the socket connection is actually down —
+// not a constant background drip. Real-time updates come from the socket; this
+// just catches up once the connection is (re)established, or bridges the gap
+// while it's disconnected/reconnecting.
+let pollIntervalId = null;
+
+function startPolling() {
+  if (pollIntervalId) return;
+  pollIntervalId = setInterval(() => {
+    refreshActiveWeek().catch(() => {});
+  }, 3000);
+}
+
+function stopPolling() {
+  if (pollIntervalId) {
+    clearInterval(pollIntervalId);
+    pollIntervalId = null;
+  }
+}
+
 function initScheduleSocket() {
   if (scheduleCache.socket) return;
   try {
@@ -90,9 +110,19 @@ function initScheduleSocket() {
       reconnectionDelay: 1000
     });
 
+    // Assume disconnected until the socket proves otherwise — covers both an
+    // initial connection that's slow/fails, and later drops.
+    startPolling();
+
     scheduleCache.socket.on('connect', () => {
-      // Re-sync the currently viewed week on connection / reconnection
+      stopPolling();
+      // Re-sync the currently viewed week on connection / reconnection, in case
+      // any updates were missed while offline.
       refreshActiveWeek();
+    });
+
+    scheduleCache.socket.on('disconnect', () => {
+      startPolling();
     });
 
     scheduleCache.socket.on('delivery_update', (payload) => {
@@ -114,14 +144,6 @@ function initScheduleSocket() {
         }
       });
     });
-
-    // Background periodic poll every 3 seconds as a fallback safety net —
-    // scoped to only the actively viewed week, not the whole history.
-    if (typeof window !== 'undefined' && !window.__deliveryPollInterval) {
-      window.__deliveryPollInterval = setInterval(() => {
-        refreshActiveWeek().catch(() => {});
-      }, 3000);
-    }
   } catch (err) {
     console.warn('[schedule] Socket init error:', err);
   }
