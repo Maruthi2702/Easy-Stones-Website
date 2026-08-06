@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check } from 'lucide-react';
+import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat } from 'lucide-react';
 import StatusPill from './StatusPill';
 
 /**
@@ -35,6 +35,14 @@ const TicketChip = ({
   const soVal = delivery.soNumber || delivery.invoiceNumber;
   const stopNum = delivery.routeNumber || 1;
 
+  // A branch transfer has no customer, jobsite address, route stop or sales rep,
+  // so those slots would render as a bare "Stop #1", an orphan map pin and a
+  // leftover rep name. Show the transfer's own details instead.
+  const isTransfer = delivery.deliveryType === 'transfer';
+  const refLabel = isTransfer ? ' | Transfer# ' : ' | SO# ';
+  const showRep = !isTransfer;
+  const hasFooter = showRep || Boolean(delivery.notes) || (delivery.status === 'completed' && onViewPod);
+
   const handleCopySO = (e, val) => {
     e.stopPropagation();
     if (!val) return;
@@ -56,14 +64,18 @@ const TicketChip = ({
     >
       <div className="ticket-header">
         <span className="ticket-time-mono">
-          <Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}
+          {isTransfer ? (
+            <><Repeat size={11} style={{ marginRight: 2 }} /> Transfer</>
+          ) : (
+            <><Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}</>
+          )}
           {soVal && (
             <span
               className={`so-header-inline-text ${copied ? 'copied' : ''}`}
               onClick={(e) => handleCopySO(e, soVal)}
-              title={copied ? 'Copied to clipboard!' : 'Click to copy SO#'}
+              title={copied ? 'Copied to clipboard!' : `Click to copy ${isTransfer ? 'Transfer#' : 'SO#'}`}
             >
-              {' | SO# '}
+              {refLabel}
               <span className="so-num-highlight">{soVal}</span>
               {copied ? (
                 <Check size={11} className="so-copy-icon success" />
@@ -80,16 +92,21 @@ const TicketChip = ({
         <Highlight text={delivery.customerName} query={searchQuery} />
       </h5>
 
-      <p className="ticket-address">
-        <MapPin size={12} />
-        <Highlight text={delivery.address} query={searchQuery} />
-      </p>
+      {delivery.address && (
+        <p className="ticket-address">
+          <MapPin size={12} />
+          <Highlight text={delivery.address} query={searchQuery} />
+        </p>
+      )}
 
+      {hasFooter && (
       <div className="ticket-footer">
-        <span className="ticket-rep">
-          <User size={11} />
-          <Highlight text={delivery.salesRepName || 'Sales Rep'} query={searchQuery} />
-        </span>
+        {showRep && (
+          <span className="ticket-rep">
+            <User size={11} />
+            <Highlight text={delivery.salesRepName || 'Sales Rep'} query={searchQuery} />
+          </span>
+        )}
         {delivery.notes && (
           <span className="ticket-has-notes" title={delivery.notes}>
             <FileText size={11} /> Notes
@@ -106,6 +123,7 @@ const TicketChip = ({
           </button>
         )}
       </div>
+      )}
     </div>
   );
 };

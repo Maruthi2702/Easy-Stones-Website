@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Clock, MapPin, CheckCircle2, AlertTriangle, FileText, Package, Hash, ChevronLeft, ChevronRight, Navigation, Copy, Check, User } from 'lucide-react';
+import { Truck, Clock, MapPin, CheckCircle2, AlertTriangle, FileText, Package, Hash, ChevronLeft, ChevronRight, Navigation, Copy, Check, User, Repeat } from 'lucide-react';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import StatusPill from './StatusPill';
@@ -171,6 +171,8 @@ const DriverView = ({
               {driverDeliveries.map((del, idx) => {
                 const soVal = del.soNumber || del.invoiceNumber;
                 const stopNum = del.routeNumber || (idx + 1);
+                // A branch transfer has no route stop or sales rep — see TicketChip
+                const isTransfer = del.deliveryType === 'transfer';
 
                 return (
                   <div
@@ -181,10 +183,14 @@ const DriverView = ({
                     {/* Top Row: Navigation + Stop # | SO# + Status Pill */}
                     <div className="ticket-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
                       <span className="ticket-time-mono" style={{ fontSize: '0.8rem', color: '#d4af37', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <Navigation size={12} /> Stop #{stopNum}
+                        {isTransfer ? (
+                          <><Repeat size={12} /> Transfer</>
+                        ) : (
+                          <><Navigation size={12} /> Stop #{stopNum}</>
+                        )}
                         {soVal && (
                           <span style={{ color: '#b0b0b0', fontWeight: 600, marginLeft: 4 }}>
-                            {' | SO# '}
+                            {isTransfer ? ' | Transfer# ' : ' | SO# '}
                             <span style={{ color: '#ffffff' }}>{soVal}</span>
                           </span>
                         )}
@@ -205,7 +211,7 @@ const DriverView = ({
                           <span>{del.address || `${del.city || ''} ${del.location || ''}`.trim()}</span>
                         </div>
                       )}
-                      {(del.salesperson || del.driver || currentUser?.name) && (
+                      {!isTransfer && (del.salesperson || del.driver || currentUser?.name) && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <User size={13} style={{ color: '#808080' }} />
                           <span>{del.salesperson || currentUser?.name || 'Assigned'}</span>
