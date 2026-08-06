@@ -184,13 +184,13 @@ const DriverView = ({
                     <div className="ticket-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
                       <span className="ticket-time-mono" style={{ fontSize: '0.8rem', color: '#d4af37', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                         {isTransfer ? (
-                          <><Repeat size={12} /> Transfer</>
+                          <><Repeat size={12} /> {soVal ? 'Transfer#' : 'Transfer'}</>
                         ) : (
                           <><Navigation size={12} /> Stop #{stopNum}</>
                         )}
                         {soVal && (
-                          <span style={{ color: '#b0b0b0', fontWeight: 600, marginLeft: 4 }}>
-                            {isTransfer ? ' | Transfer# ' : ' | SO# '}
+                          <span style={{ color: '#b0b0b0', fontWeight: 600, marginLeft: 4, whiteSpace: 'nowrap' }}>
+                            {isTransfer ? ' ' : ' | SO# '}
                             <span style={{ color: '#ffffff' }}>{soVal}</span>
                           </span>
                         )}

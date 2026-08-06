@@ -39,7 +39,10 @@ const TicketChip = ({
   // so those slots would render as a bare "Stop #1", an orphan map pin and a
   // leftover rep name. Show the transfer's own details instead.
   const isTransfer = delivery.deliveryType === 'transfer';
-  const refLabel = isTransfer ? ' | Transfer# ' : ' | SO# ';
+  // The title line already reads "Transfer -> <branch>", so the header says
+  // "Transfer# 14322" rather than repeating the word and wrapping in a narrow
+  // truck column.
+  const refLabel = isTransfer ? ' ' : ' | SO# ';
   const showRep = !isTransfer;
   const hasFooter = showRep || Boolean(delivery.notes) || (delivery.status === 'completed' && onViewPod);
 
@@ -65,7 +68,7 @@ const TicketChip = ({
       <div className="ticket-header">
         <span className="ticket-time-mono">
           {isTransfer ? (
-            <><Repeat size={11} style={{ marginRight: 2 }} /> Transfer</>
+            <><Repeat size={11} style={{ marginRight: 2 }} />{soVal ? 'Transfer#' : 'Transfer'}</>
           ) : (
             <><Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}</>
           )}
