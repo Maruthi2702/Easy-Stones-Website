@@ -18,7 +18,6 @@ const BoardGrid = ({
   weekDates = [],
   searchQuery = '',
   editable = false,
-  userLocation = null,
   onAddDelivery,
   onEditDelivery,
   onUpdateTruck,
@@ -73,14 +72,11 @@ const BoardGrid = ({
   const [internalSearch] = useState('');
   const activeSearch = searchQuery || internalSearch;
 
-  // Filter deliveries by search query & location
+  // Filter deliveries by search query. Location scoping now happens server-side
+  // against the user's assignedLocations; filtering again here would re-hide
+  // branches a multi-location user is entitled to, since this only ever compared
+  // against their single primary `location`.
   const filteredDeliveries = deliveries.filter(d => {
-    // If user is admin/manager or location is '*' or all, don't hide tickets from other locations
-    if (userLocation && userLocation !== '*' && userLocation !== 'all' && userLocation !== 'All') {
-      if (d.location && d.location !== '*' && d.location !== userLocation) {
-        return false;
-      }
-    }
     if (!activeSearch.trim()) return true;
     const q = activeSearch.toLowerCase().trim();
     return (

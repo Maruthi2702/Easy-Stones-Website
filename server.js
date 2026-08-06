@@ -209,6 +209,48 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 // Without this a search for "(" throws, and a crafted pattern can pin the CPU.
 const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Day and month boundaries are reckoned in Pacific time, where the branches
+// operate. A 5pm-Pacific check-in on the 31st is already the 1st in UTC, so
+// reckoning in UTC puts it in the wrong month.
+const PACIFIC_TZ = 'America/Los_Angeles';
+
+// How far behind UTC Pacific is at a given instant (resolves PST vs PDT).
+// Reading the formatted parts back as if they were UTC keeps this independent of
+// the server's own timezone — the round-trip-through-toLocaleString trick this
+// replaced silently returned 0 whenever the host was already on Pacific time.
+const pacificOffsetFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: PACIFIC_TZ,
+  hour12: false,
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit'
+});
+const pacificOffsetMs = (date) => {
+  const parts = {};
+  for (const { type, value } of pacificOffsetFormatter.formatToParts(date)) parts[type] = value;
+  const wallClockAsUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(parts.hour) % 24, Number(parts.minute), Number(parts.second)
+  );
+  return date.getTime() - wallClockAsUtc;
+};
+
+// The calendar date it currently is in Pacific, for a given instant.
+const pacificDateParts = (date) => {
+  const parts = {};
+  for (const { type, value } of pacificOffsetFormatter.formatToParts(date)) parts[type] = value;
+  return { year: Number(parts.year), monthIndex: Number(parts.month) - 1, day: Number(parts.day) };
+};
+
+// The UTC instant of midnight Pacific on a given calendar date. monthIndex is
+// 0-based and Date.UTC handles rollover, so month 12 becomes the next January.
+const pacificMidnightUtc = (year, monthIndex, day = 1) => {
+  const naive = Date.UTC(year, monthIndex, day, 0, 0, 0, 0);
+  const firstGuess = new Date(naive + pacificOffsetMs(new Date(naive)));
+  // Re-derive using the offset actually in force at that instant so dates next
+  // to a DST switch don't land an hour out.
+  return new Date(naive + pacificOffsetMs(firstGuess));
+};
+
 const mongoOptions = {
   serverSelectionTimeoutMS: 15000, // Increased from 5000 for cold-start resilience
   socketTimeoutMS: 45000,
@@ -2334,11 +2376,12 @@ app.get('/api/checkin', authenticate, requirePermission('view_checkins'), async 
     if (month && year) {
       const m = parseInt(month);
       const y = parseInt(year);
-      const startDate = new Date(Date.UTC(y, m - 1, 1));
-      const endDate = new Date(Date.UTC(y, m, 1));
+      // Pacific month boundaries, matching /api/checkin/stats — these used to be
+      // reckoned in UTC, so a late-afternoon check-in on the last day of a month
+      // was listed under the following month while the stats counted it correctly.
       query.createdAt = {
-        $gte: startDate,
-        $lt: endDate
+        $gte: pacificMidnightUtc(y, m - 1, 1),
+        $lt: pacificMidnightUtc(y, m, 1)
       };
     }
 
@@ -2375,19 +2418,11 @@ app.get('/api/checkin/stats', authenticate, requirePermission('view_checkins'), 
   try {
     const now = new Date();
 
-    // Convert server UTC time to Pacific timezone to get correct day/month boundaries
-    const pacificNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
-    // Calculate the UTC offset between real time and Pacific time
-    const tzOffsetMs = now.getTime() - pacificNow.getTime();
-
-    // Midnight Pacific = today's start in Pacific time, expressed in UTC
-    const pacificMidnight = new Date(pacificNow);
-    pacificMidnight.setHours(0, 0, 0, 0);
-    const startOfToday = new Date(pacificMidnight.getTime() + tzOffsetMs);
-
-    // First day of current Pacific month, expressed in UTC
-    const pacificMonthStart = new Date(pacificNow.getFullYear(), pacificNow.getMonth(), 1, 0, 0, 0, 0);
-    const startOfMonth = new Date(pacificMonthStart.getTime() + tzOffsetMs);
+    // Today's and this month's start, in Pacific terms, via the same helpers the
+    // check-in list uses so both agree on which month a check-in belongs to.
+    const { year, monthIndex, day } = pacificDateParts(now);
+    const startOfToday = pacificMidnightUtc(year, monthIndex, day);
+    const startOfMonth = pacificMidnightUtc(year, monthIndex, 1);
 
     const queryToday = { createdAt: { $gte: startOfToday } };
     const queryMonth = { createdAt: { $gte: startOfMonth } };
@@ -3897,6 +3932,26 @@ const DELIVERY_LIST_PROJECTION = {
   'pod.photos': 0
 };
 
+// Restrict a delivery query to the branches a user is assigned to.
+//
+// Deliveries whose location is unset stay visible to everyone, which is the rule
+// the board applied client-side and the only safe one today: every existing
+// delivery has location: '' because nothing populates the field yet. Scoping
+// strictly would empty the board for all users. Once deliveries start carrying a
+// location, this filter narrows them automatically.
+const scopeDeliveryQueryToLocations = (query, req) => {
+  const userLocations = req.user?.assignedLocations || [];
+  if (userLocations.includes('*')) return query;
+  return {
+    ...query,
+    $or: [
+      { location: { $in: [...userLocations, '', '*'] } },
+      { location: { $exists: false } },
+      { location: null }
+    ]
+  };
+};
+
 app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) => {
   try {
     // The board only ever displays one week at a time — scope the query to that
@@ -3904,7 +3959,8 @@ app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) =>
     // entire, ever-growing delivery history on every load. Falls back to the full
     // collection if no range is given.
     const { startDate, endDate } = req.query;
-    const query = (startDate && endDate) ? { date: { $gte: startDate, $lte: endDate } } : {};
+    const baseQuery = (startDate && endDate) ? { date: { $gte: startDate, $lte: endDate } } : {};
+    const query = scopeDeliveryQueryToLocations(baseQuery, req);
     const list = await Delivery.find(query, DELIVERY_LIST_PROJECTION).sort({ createdAt: -1 }).lean();
     res.json(list);
   } catch (err) {
@@ -3916,7 +3972,7 @@ app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) =>
 app.get('/api/deliveries/:id', verifyAnyAuth, canViewDeliveries, async (req, res) => {
   try {
     const { id } = req.params;
-    const delivery = await Delivery.findOne({ id }).lean();
+    const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id }, req)).lean();
     if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
     res.json(delivery);
   } catch (err) {
