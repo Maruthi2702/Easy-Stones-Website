@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
 import { API_URL } from '../config/api';
+import { viewerTimeZone } from '../utils/dateUtils';
 import * as XLSX from 'xlsx';
 import { Sun, Moon } from 'lucide-react';
 import CheckInLogPanel from '../components/sales/CheckInLogPanel';
 import { useAuth } from '../context/AuthContext';
 
 const LIMIT = 20;
+
 
 const CheckInLogPage = () => {
   const { logout } = useAuth();
@@ -107,6 +109,7 @@ const CheckInLogPage = () => {
   const fetchStats = async () => {
     try {
       const params = new URLSearchParams({
+        tz: viewerTimeZone,
         ...(filterLocation && { location: filterLocation })
       });
       const res = await fetch(`${API_URL}/api/checkin/stats?${params}`, { credentials: 'include' });
@@ -145,6 +148,7 @@ const CheckInLogPage = () => {
       const params = new URLSearchParams({
         page: currentPage,
         limit: limit,
+        tz: viewerTimeZone,
         ...(debouncedSearch && { search: debouncedSearch }),
         ...(filterMonth && { month: filterMonth }),
         ...(filterYear && { year: filterYear }),

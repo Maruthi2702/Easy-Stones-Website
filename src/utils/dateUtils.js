@@ -1,7 +1,32 @@
 /**
  * Centralized date formatting utilities to handle local timezone offsets
  * for date and time inputs.
+ *
+ * Two kinds of value pass through here and they are NOT interchangeable:
+ *
+ *   Calendar dates  — a visit date, a delivery's day. These mean the same
+ *                     calendar square everywhere and must never shift by zone,
+ *                     so a 'YYYY-MM-DD' string (or a UTC-midnight Date) is read
+ *                     by its date parts. That is what parseAsLocal does.
+ *   Instants        — createdAt, signedAt: a real moment. These must be
+ *                     converted, not reinterpreted, so they read as the viewer's
+ *                     own local time. Use formatInstant/formatInstantTime.
+ *
+ * Passing an instant to the calendar-date helpers prints the UTC clock face as
+ * if it were local, which shows the wrong time and, after ~4pm Pacific, the
+ * wrong day.
  */
+
+// The viewer's own IANA zone, e.g. 'America/Los_Angeles' or 'Asia/Kolkata'.
+// Sent to the API so server-computed day/month boundaries agree with the
+// timestamps rendered beside them.
+export const viewerTimeZone = (() => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    return '';
+  }
+})();
 
 // Helper to treat UTC strings as Local (stripping Z)
 const parseAsLocal = (date) => {
@@ -75,6 +100,23 @@ export const formatForDateInput = (date) => {
   
   return `${year}-${month}-${day}`;
 };
+
+/**
+ * Format a true instant (createdAt, signedAt, …) in the viewer's local zone.
+ * Unlike formatDate this converts the moment rather than reinterpreting its
+ * clock face, so a check-in logged at 22:42 UTC reads 3:42 PM in Seattle and
+ * 4:12 AM in Kolkata — the same moment, each in the reader's own terms.
+ */
+export const formatInstant = (value, options = { month: 'short', day: 'numeric', year: 'numeric' }) => {
+  if (!value) return '-';
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return '-';
+  return new Intl.DateTimeFormat('en-US', options).format(d);
+};
+
+/** Time-of-day of an instant, in the viewer's local zone. */
+export const formatInstantTime = (value, options = { hour: '2-digit', minute: '2-digit' }) =>
+  formatInstant(value, options);
 
 export const formatDate = (dateString, options = { month: 'short', day: 'numeric', year: 'numeric' }) => {
   if (!dateString) return '-';

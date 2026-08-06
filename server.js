@@ -209,24 +209,43 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 // Without this a search for "(" throws, and a crafted pattern can pin the CPU.
 const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Day and month boundaries are reckoned in Pacific time, where the branches
-// operate. A 5pm-Pacific check-in on the 31st is already the 1st in UTC, so
-// reckoning in UTC puts it in the wrong month.
-const PACIFIC_TZ = 'America/Los_Angeles';
+// "Which day/month does this check-in belong to" has to be answered in some
+// timezone. Callers pass the viewer's own zone (the browser reports it), so the
+// counts and month filter line up with the dates that viewer sees on screen.
+// Falls back to Pacific — where most branches are — when none is supplied.
+const DEFAULT_TZ = 'America/Los_Angeles';
 
-// How far behind UTC Pacific is at a given instant (resolves PST vs PDT).
+const zoneFormatters = new Map();
+const zoneFormatter = (timeZone) => {
+  if (!zoneFormatters.has(timeZone)) {
+    zoneFormatters.set(timeZone, new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    }));
+  }
+  return zoneFormatters.get(timeZone);
+};
+
+// Reject anything Intl won't accept, so a bad ?tz= can't throw mid-request.
+const resolveTimeZone = (tz) => {
+  if (!tz || typeof tz !== 'string') return DEFAULT_TZ;
+  try {
+    zoneFormatter(tz).format(new Date());
+    return tz;
+  } catch {
+    return DEFAULT_TZ;
+  }
+};
+
+// How far behind UTC the zone is at a given instant (resolves DST automatically).
 // Reading the formatted parts back as if they were UTC keeps this independent of
 // the server's own timezone — the round-trip-through-toLocaleString trick this
-// replaced silently returned 0 whenever the host was already on Pacific time.
-const pacificOffsetFormatter = new Intl.DateTimeFormat('en-US', {
-  timeZone: PACIFIC_TZ,
-  hour12: false,
-  year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit', second: '2-digit'
-});
-const pacificOffsetMs = (date) => {
+// replaced silently returned 0 whenever the host was already in that zone.
+const zoneOffsetMs = (date, timeZone) => {
   const parts = {};
-  for (const { type, value } of pacificOffsetFormatter.formatToParts(date)) parts[type] = value;
+  for (const { type, value } of zoneFormatter(timeZone).formatToParts(date)) parts[type] = value;
   const wallClockAsUtc = Date.UTC(
     Number(parts.year), Number(parts.month) - 1, Number(parts.day),
     Number(parts.hour) % 24, Number(parts.minute), Number(parts.second)
@@ -234,21 +253,21 @@ const pacificOffsetMs = (date) => {
   return date.getTime() - wallClockAsUtc;
 };
 
-// The calendar date it currently is in Pacific, for a given instant.
-const pacificDateParts = (date) => {
+// The calendar date it currently is in the given zone.
+const zoneDateParts = (date, timeZone) => {
   const parts = {};
-  for (const { type, value } of pacificOffsetFormatter.formatToParts(date)) parts[type] = value;
+  for (const { type, value } of zoneFormatter(timeZone).formatToParts(date)) parts[type] = value;
   return { year: Number(parts.year), monthIndex: Number(parts.month) - 1, day: Number(parts.day) };
 };
 
-// The UTC instant of midnight Pacific on a given calendar date. monthIndex is
+// The UTC instant of midnight in the given zone on a calendar date. monthIndex is
 // 0-based and Date.UTC handles rollover, so month 12 becomes the next January.
-const pacificMidnightUtc = (year, monthIndex, day = 1) => {
+const zoneMidnightUtc = (timeZone, year, monthIndex, day = 1) => {
   const naive = Date.UTC(year, monthIndex, day, 0, 0, 0, 0);
-  const firstGuess = new Date(naive + pacificOffsetMs(new Date(naive)));
+  const firstGuess = new Date(naive + zoneOffsetMs(new Date(naive), timeZone));
   // Re-derive using the offset actually in force at that instant so dates next
   // to a DST switch don't land an hour out.
-  return new Date(naive + pacificOffsetMs(firstGuess));
+  return new Date(naive + zoneOffsetMs(firstGuess, timeZone));
 };
 
 const mongoOptions = {
@@ -2376,12 +2395,13 @@ app.get('/api/checkin', authenticate, requirePermission('view_checkins'), async 
     if (month && year) {
       const m = parseInt(month);
       const y = parseInt(year);
-      // Pacific month boundaries, matching /api/checkin/stats — these used to be
-      // reckoned in UTC, so a late-afternoon check-in on the last day of a month
-      // was listed under the following month while the stats counted it correctly.
+      // Month boundaries in the viewer's own zone, matching /api/checkin/stats.
+      // These used to be reckoned in UTC, so a late-afternoon check-in on the last
+      // day of a month was listed under the following one.
+      const tz = resolveTimeZone(req.query.tz);
       query.createdAt = {
-        $gte: pacificMidnightUtc(y, m - 1, 1),
-        $lt: pacificMidnightUtc(y, m, 1)
+        $gte: zoneMidnightUtc(tz, y, m - 1, 1),
+        $lt: zoneMidnightUtc(tz, y, m, 1)
       };
     }
 
@@ -2418,11 +2438,13 @@ app.get('/api/checkin/stats', authenticate, requirePermission('view_checkins'), 
   try {
     const now = new Date();
 
-    // Today's and this month's start, in Pacific terms, via the same helpers the
-    // check-in list uses so both agree on which month a check-in belongs to.
-    const { year, monthIndex, day } = pacificDateParts(now);
-    const startOfToday = pacificMidnightUtc(year, monthIndex, day);
-    const startOfMonth = pacificMidnightUtc(year, monthIndex, 1);
+    // Today's and this month's start in the viewer's own zone, via the same
+    // helpers the check-in list uses so both agree on which day/month a check-in
+    // belongs to — and so these counts match the dates rendered on screen.
+    const tz = resolveTimeZone(req.query.tz);
+    const { year, monthIndex, day } = zoneDateParts(now, tz);
+    const startOfToday = zoneMidnightUtc(tz, year, monthIndex, day);
+    const startOfMonth = zoneMidnightUtc(tz, year, monthIndex, 1);
 
     const queryToday = { createdAt: { $gte: startOfToday } };
     const queryMonth = { createdAt: { $gte: startOfMonth } };

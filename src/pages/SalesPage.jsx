@@ -23,7 +23,7 @@ import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
 import SalesPlannerTab from '../components/SalesPlannerTab';
 import CustomDatePicker from '../components/CustomDatePicker';
-import { formatForDateInput, formatDate, toLocalISOString, getLocalISOString } from '../utils/dateUtils';
+import { formatForDateInput, formatDate, formatInstant, toLocalISOString, getLocalISOString, viewerTimeZone } from '../utils/dateUtils';
 import DashboardStats from '../components/sales/DashboardStats';
 import CustomerSidebar from '../components/sales/CustomerSidebar';
 import VisitPostCard from '../components/sales/VisitPostCard';
@@ -163,6 +163,7 @@ const SalesPage = () => {
     const fetchCheckInStats = async () => {
         try {
             const params = new URLSearchParams({
+                tz: viewerTimeZone,
                 ...(checkInFilterLocation && { location: checkInFilterLocation })
             });
             const res = await fetch(`${API_URL}/api/checkin/stats?${params}`, { credentials: 'include' });
@@ -388,6 +389,7 @@ const SalesPage = () => {
             const params = new URLSearchParams({
                 page: checkInPage,
                 limit: checkInLimit,
+                tz: viewerTimeZone,
                 ...(checkInSearch && { search: checkInSearch }),
                 ...(checkInFilterMonth && { month: checkInFilterMonth }),
                 ...(checkInFilterYear && { year: checkInFilterYear }),
@@ -3081,7 +3083,7 @@ const SalesPage = () => {
         const XLSX = await import('xlsx');
         const resources = memoizedFilteredResources;
         const data = resources.map(r => ({
-            Date: formatDate(r.date || r.createdAt),
+            Date: r.date ? formatDate(r.date) : formatInstant(r.createdAt),
             Customer: r.customerName,
             Type: r.resourceType || '-',
             Description: r.description || r.notes || '-',
@@ -3512,7 +3514,7 @@ const SalesPage = () => {
                                                 <Calendar size={16} />
                                                 <label>Member Since</label>
                                             </div>
-                                            <p>{formatDate(selectedCustomer.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                                            <p>{formatInstant(selectedCustomer.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                                         </div>
                                         <div className="info-box">
                                             <div className="info-box-header">
