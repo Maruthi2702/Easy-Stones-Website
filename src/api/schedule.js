@@ -16,13 +16,68 @@ export const DEFAULT_TRUCKS = [
 export const INITIAL_SAMPLE_DELIVERIES = [];
 
 // ── IN-MEMORY CACHE & REAL-TIME SOCKET LISTENER ──
+// The board only ever displays one week at a time, so deliveries are cached
+// per week (keyed by that week's Monday, 'YYYY-MM-DD') instead of as one flat,
+// ever-growing list. Opening/refreshing loads just the current week; navigating
+// to a week already visited this session serves straight from cache instead of
+// re-fetching.
 const scheduleCache = {
-  deliveries: null,
+  weeks: new Map(),       // weekStart ('YYYY-MM-DD') -> deliveries[]
+  activeWeekStart: null,  // week currently being viewed — real-time updates & the
+  activeWeekEnd: null,    // 3s poll fallback are scoped to this range only
   trucks: null,
-  isLoaded: false,
   listeners: new Set(),
   socket: null
 };
+
+function addDaysToDateStr(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function getActiveWeekDeliveries() {
+  if (!scheduleCache.activeWeekStart) return [];
+  return scheduleCache.weeks.get(scheduleCache.activeWeekStart) || [];
+}
+
+// Merge a single created/updated delivery into whichever cached week(s) it
+// belongs to (and remove it from any cached week it no longer belongs to,
+// e.g. if its date was edited).
+function upsertDeliveryIntoCache(delivery) {
+  if (!delivery || !delivery.id) return;
+  for (const [weekStart, list] of scheduleCache.weeks.entries()) {
+    if (list.some(d => d.id === delivery.id)) {
+      scheduleCache.weeks.set(weekStart, list.filter(d => d.id !== delivery.id));
+    }
+  }
+  if (!delivery.date) return;
+  for (const weekStart of scheduleCache.weeks.keys()) {
+    const weekEnd = addDaysToDateStr(weekStart, 4);
+    if (delivery.date >= weekStart && delivery.date <= weekEnd) {
+      scheduleCache.weeks.set(weekStart, [...scheduleCache.weeks.get(weekStart), delivery]);
+      break;
+    }
+  }
+}
+
+function removeDeliveryFromCache(id) {
+  for (const [weekStart, list] of scheduleCache.weeks.entries()) {
+    if (list.some(d => d.id === id)) {
+      scheduleCache.weeks.set(weekStart, list.filter(d => d.id !== id));
+    }
+  }
+}
+
+async function refreshActiveWeek() {
+  if (!scheduleCache.activeWeekStart || !scheduleCache.activeWeekEnd) return;
+  const list = await getDeliveriesForRange(scheduleCache.activeWeekStart, scheduleCache.activeWeekEnd);
+  const prevJson = JSON.stringify(scheduleCache.weeks.get(scheduleCache.activeWeekStart) || []);
+  if (JSON.stringify(list) !== prevJson) {
+    scheduleCache.weeks.set(scheduleCache.activeWeekStart, list);
+    notifyScheduleListeners();
+  }
+}
 
 function initScheduleSocket() {
   if (scheduleCache.socket) return;
@@ -36,24 +91,18 @@ function initScheduleSocket() {
     });
 
     scheduleCache.socket.on('connect', () => {
-      // Re-fetch latest deliveries on connection / reconnection
-      getDeliveries().then(list => {
-        if (Array.isArray(list)) {
-          scheduleCache.deliveries = list;
-          notifyScheduleListeners();
-        }
-      });
+      // Re-sync the currently viewed week on connection / reconnection
+      refreshActiveWeek();
     });
 
-    scheduleCache.socket.on('delivery_update', (updatedList) => {
-      if (Array.isArray(updatedList)) {
-        scheduleCache.deliveries = updatedList;
+    scheduleCache.socket.on('delivery_update', (payload) => {
+      if (!payload) return;
+      if (payload.type === 'delete' && payload.id) {
+        removeDeliveryFromCache(payload.id);
         notifyScheduleListeners();
-      } else {
-        getDeliveries().then(list => {
-          scheduleCache.deliveries = list;
-          notifyScheduleListeners();
-        });
+      } else if (payload.type === 'upsert' && payload.delivery) {
+        upsertDeliveryIntoCache(payload.delivery);
+        notifyScheduleListeners();
       }
     });
 
@@ -66,16 +115,11 @@ function initScheduleSocket() {
       });
     });
 
-    // Background periodic poll every 3 seconds as a fallback safety net
+    // Background periodic poll every 3 seconds as a fallback safety net —
+    // scoped to only the actively viewed week, not the whole history.
     if (typeof window !== 'undefined' && !window.__deliveryPollInterval) {
-      window.__deliveryPollInterval = setInterval(async () => {
-        try {
-          const list = await getDeliveries();
-          if (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(scheduleCache.deliveries)) {
-            scheduleCache.deliveries = list;
-            notifyScheduleListeners();
-          }
-        } catch (e) {}
+      window.__deliveryPollInterval = setInterval(() => {
+        refreshActiveWeek().catch(() => {});
       }, 3000);
     }
   } catch (err) {
@@ -87,7 +131,7 @@ function notifyScheduleListeners() {
   scheduleCache.listeners.forEach(cb => {
     try {
       cb({
-        deliveries: scheduleCache.deliveries || [],
+        deliveries: getActiveWeekDeliveries(),
         trucks: scheduleCache.trucks || []
       });
     } catch (e) {}
@@ -104,38 +148,47 @@ export function subscribeScheduleCache(callback) {
 
 export function getScheduleCacheSync() {
   return {
-    deliveries: scheduleCache.deliveries,
+    deliveries: getActiveWeekDeliveries(),
     trucks: scheduleCache.trucks,
-    isLoaded: scheduleCache.isLoaded
+    isLoaded: Boolean(scheduleCache.activeWeekStart && scheduleCache.weeks.has(scheduleCache.activeWeekStart))
   };
 }
 
-export async function getScheduleDataCached(currentUser = null, forceRefresh = false) {
+// Sync helpers for a given week's initial React state, before it becomes "active"
+// (i.e. before getScheduleDataCached has been called for it).
+export function isWeekCached(weekStart) {
+  return scheduleCache.weeks.has(weekStart);
+}
+
+export function getCachedWeekDeliveries(weekStart) {
+  return scheduleCache.weeks.get(weekStart) || [];
+}
+
+export async function getScheduleDataCached(currentUser = null, weekStart, weekEnd, forceRefresh = false) {
   initScheduleSocket();
 
-  if (scheduleCache.isLoaded && !forceRefresh) {
-    return {
-      deliveries: scheduleCache.deliveries || [],
-      trucks: scheduleCache.trucks || []
-    };
+  scheduleCache.activeWeekStart = weekStart;
+  scheduleCache.activeWeekEnd = weekEnd;
+
+  // Trucks are small and shared across every week — load once, reuse.
+  if (!scheduleCache.trucks || forceRefresh) {
+    const userLocation = currentUser?.location || null;
+    const userAssignedLocations = currentUser?.assignedLocations || [];
+    scheduleCache.trucks = (await getDriverUsers(userLocation, userAssignedLocations)) || [];
   }
 
-  const userLocation = currentUser?.location || null;
-  const userAssignedLocations = currentUser?.assignedLocations || [];
+  if (scheduleCache.weeks.has(weekStart) && !forceRefresh) {
+    notifyScheduleListeners();
+    return { deliveries: scheduleCache.weeks.get(weekStart), trucks: scheduleCache.trucks };
+  }
 
-  const [driverUsers, dList] = await Promise.all([
-    getDriverUsers(userLocation, userAssignedLocations),
-    getDeliveries()
-  ]);
-
-  scheduleCache.trucks = driverUsers || [];
-  scheduleCache.deliveries = dList || [];
-  scheduleCache.isLoaded = true;
+  const list = await getDeliveriesForRange(weekStart, weekEnd);
+  scheduleCache.weeks.set(weekStart, list || []);
 
   notifyScheduleListeners();
 
   return {
-    deliveries: scheduleCache.deliveries,
+    deliveries: scheduleCache.weeks.get(weekStart),
     trucks: scheduleCache.trucks
   };
 }
@@ -227,8 +280,10 @@ export async function saveTrucks(trucks) {
   return trucks;
 }
 
-// ── GET DELIVERIES (100% MONGODB DATABASE) ──
-export async function getDeliveries() {
+// ── GET DELIVERIES FOR A DATE RANGE (100% MONGODB DATABASE) ──
+// startDate/endDate are 'YYYY-MM-DD'. Used to fetch exactly one displayed week
+// instead of the entire delivery history.
+export async function getDeliveriesForRange(startDate, endDate) {
   try {
     localStorage.removeItem('manifest_deliveries');
     localStorage.removeItem('manifest_trucks');
@@ -236,21 +291,19 @@ export async function getDeliveries() {
 
   try {
     const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    const res = await fetch(`${API_URL}/api/deliveries`, {
+    const params = new URLSearchParams({ startDate, endDate });
+    const res = await fetch(`${API_URL}/api/deliveries?${params.toString()}`, {
       credentials: 'include',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data)) {
-        scheduleCache.deliveries = data;
-        return data;
-      }
+      if (Array.isArray(data)) return data;
     } else {
-      console.warn('[schedule] getDeliveries response not OK:', res.status);
+      console.warn('[schedule] getDeliveriesForRange response not OK:', res.status);
     }
   } catch (err) {
-    console.error('[schedule] getDeliveries API error:', err);
+    console.error('[schedule] getDeliveriesForRange API error:', err);
   }
 
   return [];
@@ -270,11 +323,11 @@ export async function saveDelivery(delivery) {
       body: JSON.stringify(delivery)
     });
     if (res.ok) {
-      const updatedList = await res.json();
-      if (Array.isArray(updatedList)) {
-        scheduleCache.deliveries = updatedList;
+      const updated = await res.json();
+      if (updated && updated.id) {
+        upsertDeliveryIntoCache(updated);
         notifyScheduleListeners();
-        return updatedList;
+        return getActiveWeekDeliveries();
       }
     } else {
       console.error('[schedule] saveDelivery API failed with status:', res.status);
@@ -283,10 +336,26 @@ export async function saveDelivery(delivery) {
     console.error('[schedule] saveDelivery API error:', err);
   }
 
-  const fallbackList = await getDeliveries();
-  scheduleCache.deliveries = fallbackList;
-  notifyScheduleListeners();
-  return fallbackList;
+  await refreshActiveWeek();
+  return getActiveWeekDeliveries();
+}
+
+// ── GET SINGLE DELIVERY WITH FULL POD DATA (signatures/photos excluded from list fetches) ──
+export async function getDeliveryById(id) {
+  try {
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+    const res = await fetch(`${API_URL}/api/deliveries/${id}`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    console.warn('[schedule] getDeliveryById response not OK:', res.status);
+  } catch (err) {
+    console.error('[schedule] getDeliveryById API error:', err);
+  }
+  return null;
 }
 
 // ── DELETE DELIVERY (100% MONGODB DATABASE) ──
@@ -299,29 +368,22 @@ export async function deleteDelivery(id) {
       headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     });
     if (res.ok) {
-      const payload = await res.json();
-      const list = payload.deliveries || payload;
-      if (Array.isArray(list)) {
-        scheduleCache.deliveries = list;
-        notifyScheduleListeners();
-        return list;
-      }
-    } else {
-      console.error('[schedule] deleteDelivery API failed with status:', res.status);
+      removeDeliveryFromCache(id);
+      notifyScheduleListeners();
+      return getActiveWeekDeliveries();
     }
+    console.error('[schedule] deleteDelivery API failed with status:', res.status);
   } catch (err) {
     console.error('[schedule] deleteDelivery API error:', err);
   }
 
-  const fallbackList = await getDeliveries();
-  scheduleCache.deliveries = fallbackList;
-  notifyScheduleListeners();
-  return fallbackList;
+  await refreshActiveWeek();
+  return getActiveWeekDeliveries();
 }
 
 // ── UPDATE DELIVERY STATUS (100% MONGODB DATABASE) ──
 export async function updateDeliveryStatus(id, newStatus) {
-  const currentList = scheduleCache.deliveries || await getDeliveries();
+  const currentList = getActiveWeekDeliveries();
   const item = currentList.find(d => d.id === id);
   if (item) {
     const updatedItem = { ...item, status: newStatus };

@@ -3837,13 +3837,41 @@ app.post('/api/trucks', verifyAnyAuth, async (req, res) => {
   }
 });
 
+// Board/list views never need the raw embedded POD images (base64 signatures/photos
+// can be 100s of KB each) — excluding them keeps list fetches and socket broadcasts
+// fast regardless of network conditions. Full POD data is fetched on-demand via
+// GET /api/deliveries/:id when a specific delivery's POD is actually opened.
+const DELIVERY_LIST_PROJECTION = {
+  'pod.customerSignature': 0,
+  'pod.driverSignature': 0,
+  'pod.photos': 0
+};
+
 app.get('/api/deliveries', verifyAnyAuth, async (req, res) => {
   try {
-    const list = await Delivery.find().sort({ createdAt: -1 }).lean();
+    // The board only ever displays one week at a time — scope the query to that
+    // range (via ?startDate=&endDate=, both 'YYYY-MM-DD') instead of pulling the
+    // entire, ever-growing delivery history on every load. Falls back to the full
+    // collection if no range is given.
+    const { startDate, endDate } = req.query;
+    const query = (startDate && endDate) ? { date: { $gte: startDate, $lte: endDate } } : {};
+    const list = await Delivery.find(query, DELIVERY_LIST_PROJECTION).sort({ createdAt: -1 }).lean();
     res.json(list);
   } catch (err) {
     console.error('[server] get deliveries error:', err);
     res.status(500).json({ error: 'Server error fetching deliveries' });
+  }
+});
+
+app.get('/api/deliveries/:id', verifyAnyAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const delivery = await Delivery.findOne({ id }).lean();
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    res.json(delivery);
+  } catch (err) {
+    console.error('[server] get delivery by id error:', err);
+    res.status(500).json({ error: 'Server error fetching delivery' });
   }
 });
 
@@ -3880,19 +3908,40 @@ app.post('/api/deliveries', verifyAnyAuth, async (req, res) => {
       }
     }
 
-    await Delivery.findOneAndUpdate(
+    // Automatic Base64 POD Signature/Photo Upload to Cloudinary
+    // Keeps delivery documents small (was previously storing raw base64 signatures/photos
+    // inline, ballooning document size and making list queries/socket broadcasts slow).
+    if (updateData.pod) {
+      try {
+        const [custSig, driverSig] = await processBase64Images(
+          [updateData.pod.customerSignature, updateData.pod.driverSignature],
+          'deliveries/pod'
+        );
+        updateData.pod.customerSignature = custSig;
+        updateData.pod.driverSignature = driverSig;
+
+        if (Array.isArray(updateData.pod.photos) && updateData.pod.photos.length > 0) {
+          updateData.pod.photos = await processBase64Images(updateData.pod.photos, 'deliveries/pod');
+        }
+      } catch (podErr) {
+        console.error('Error uploading POD images to Cloudinary:', podErr);
+      }
+    }
+
+    const updated = await Delivery.findOneAndUpdate(
       { id: delivery.id },
       { $set: updateData },
       { upsert: true, new: true }
-    );
+    ).lean();
 
-    const list = await Delivery.find().sort({ createdAt: -1 }).lean();
+    // Broadcast just the single changed record — not the whole collection. Clients
+    // merge it into whichever cached week(s) it belongs to.
     try {
-      io.emit('delivery_update', list);
+      io.emit('delivery_update', { type: 'upsert', delivery: updated });
     } catch (e) {
-      req.app.get('io')?.emit('delivery_update', list);
+      req.app.get('io')?.emit('delivery_update', { type: 'upsert', delivery: updated });
     }
-    res.json(list);
+    res.json(updated);
   } catch (err) {
     console.error('[server] save delivery error:', err);
     res.status(500).json({ error: 'Server error saving delivery' });
@@ -3903,13 +3952,12 @@ app.delete('/api/deliveries/:id', verifyAnyAuth, async (req, res) => {
   try {
     const { id } = req.params;
     await Delivery.deleteOne({ id });
-    const list = await Delivery.find().sort({ createdAt: -1 }).lean();
     try {
-      io.emit('delivery_update', list);
+      io.emit('delivery_update', { type: 'delete', id });
     } catch (e) {
-      req.app.get('io')?.emit('delivery_update', list);
+      req.app.get('io')?.emit('delivery_update', { type: 'delete', id });
     }
-    res.json({ success: true, deliveries: list });
+    res.json({ success: true, id });
   } catch (err) {
     console.error('[server] delete delivery error:', err);
     res.status(500).json({ error: 'Server error deleting delivery' });

@@ -11,7 +11,10 @@ import {
   updateDeliveryStatus,
   getScheduleDataCached,
   getScheduleCacheSync,
-  subscribeScheduleCache
+  subscribeScheduleCache,
+  getDeliveryById,
+  isWeekCached,
+  getCachedWeekDeliveries
 } from '../../api/schedule';
 import { formatForDateInput, formatDate } from '../../utils/dateUtils';
 import './DeliveryScheduleTab.css';
@@ -84,14 +87,15 @@ const DeliveryScheduleTab = ({
     if (currentUser) setRole(getUserRoleFromPermissions(currentUser));
   }, [currentUser]);
 
-  const initialCache = getScheduleCacheSync();
-  const [trucks, setTrucks] = useState(() => initialCache.trucks || []);
-  const [deliveries, setDeliveries] = useState(() => initialCache.deliveries || []);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(() => !initialCache.isLoaded);
-
   const [currentMonday, setCurrentMonday] = useState(() => getWeekMonday(new Date()));
   const weekDates = getWeekDates(currentMonday);
+  const weekStart = weekDates[0];
+  const weekEnd = weekDates[4];
+
+  const [trucks, setTrucks] = useState(() => getScheduleCacheSync().trucks || []);
+  const [deliveries, setDeliveries] = useState(() => getCachedWeekDeliveries(weekStart));
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(() => !isWeekCached(weekStart));
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
@@ -104,14 +108,24 @@ const DeliveryScheduleTab = ({
   const [isPodViewerOpen, setIsPodViewerOpen] = useState(false);
   const [viewerDelivery, setViewerDelivery] = useState(null);
 
-  const handleOpenPod = (delivery) => {
+  const handleOpenPod = async (delivery) => {
     setSelectedPodDelivery(delivery);
     setIsPodOpen(true);
+    // List fetches omit the raw signature/photo data for speed — pull the full
+    // record now that a specific delivery's POD is actually being opened.
+    if (delivery?.id) {
+      const full = await getDeliveryById(delivery.id);
+      if (full) setSelectedPodDelivery(full);
+    }
   };
 
-  const handleOpenPodViewer = (delivery) => {
+  const handleOpenPodViewer = async (delivery) => {
     setViewerDelivery(delivery);
     setIsPodViewerOpen(true);
+    if (delivery?.id) {
+      const full = await getDeliveryById(delivery.id);
+      if (full) setViewerDelivery(full);
+    }
   };
 
   const handleSavePod = async (podData) => {
@@ -128,11 +142,11 @@ const DeliveryScheduleTab = ({
   };
 
   const loadData = useCallback(async (forceRefresh = false) => {
-    if (!getScheduleCacheSync().isLoaded || forceRefresh) {
+    if (!isWeekCached(weekStart) || forceRefresh) {
       setLoading(true);
     }
     try {
-      const data = await getScheduleDataCached(currentUser, forceRefresh);
+      const data = await getScheduleDataCached(currentUser, weekStart, weekEnd, forceRefresh);
       setTrucks(data.trucks || []);
       setDeliveries(data.deliveries || []);
     } catch (err) {
@@ -140,7 +154,7 @@ const DeliveryScheduleTab = ({
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser, weekStart, weekEnd]);
 
   useEffect(() => {
     loadData();
