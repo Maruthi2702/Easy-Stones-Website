@@ -93,6 +93,10 @@ const officeCheckInSchema = new mongoose.Schema({
 // Index for listing check-ins by time
 officeCheckInSchema.index({ createdAt: -1 });
 
+// The check-in log always scopes by location (a user's assigned branches) and
+// sorts newest-first, so serve both from one compound index.
+officeCheckInSchema.index({ location: 1, createdAt: -1 });
+
 const OfficeCheckIn = mongoose.model('OfficeCheckIn', officeCheckInSchema);
 
 export default OfficeCheckIn;

@@ -1165,18 +1165,12 @@ const CheckInLogPanel = ({
     return checkIns.filter((c) => isToday(c.createdAt)).length;
   }, [checkIns, todayCountProp]);
 
-  const filtered = useMemo(() => {
-    const s = (searchTerm || '').trim().toLowerCase();
-    if (!s) return checkIns;
-    return checkIns.filter((c) => {
-      return (
-        (c.name || '').toLowerCase().includes(s) ||
-        (c.phone || '').toLowerCase().includes(s) ||
-        (c.fabricatorCompany || '').toLowerCase().includes(s) ||
-        (c.fabricatorName || '').toLowerCase().includes(s)
-      );
-    });
-  }, [checkIns, searchTerm]);
+  // Search is resolved server-side (across name, phone, fabricatorCompany and
+  // fabricatorPhone) and already paginated. Re-filtering the page here used to
+  // drop rows the server had legitimately matched — notably fabricatorPhone
+  // hits, which this list never checked — leaving the result count disagreeing
+  // with the visible rows.
+  const filtered = checkIns;
 
   return (
     <div className={`clp-root ${embedded ? 'clp-embedded' : 'clp-page'} ${theme}-theme`}>

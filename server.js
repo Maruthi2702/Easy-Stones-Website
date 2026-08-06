@@ -205,6 +205,10 @@ const PORT = process.env.PORT || 3001;
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+// Neutralise regex metacharacters before interpolating user input into a RegExp.
+// Without this a search for "(" throws, and a crafted pattern can pin the CPU.
+const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const mongoOptions = {
   serverSelectionTimeoutMS: 15000, // Increased from 5000 for cold-start resilience
   socketTimeoutMS: 45000,
@@ -252,20 +256,32 @@ async function startServer() {
     console.log('✅ Connected to MongoDB Atlas');
     console.log('Connection Ready State:', mongoose.connection.readyState);
 
-    // Ensure all database indexes are created/synced for performance scalability
-    try {
-      console.log('🔨 Syncing database indexes for scalability...');
-      await Promise.all([
-        Customer.createIndexes(),
-        Product.createIndexes(),
-        User.createIndexes(),
-        OfficeCheckIn.createIndexes(),
-        ActivityLog.createIndexes(),
-        Schedule.createIndexes()
-      ]);
+    // Ensure all database indexes are created/synced for performance scalability.
+    // autoIndex is disabled on the connection, so a model missing from this list
+    // silently runs with no indexes at all — Delivery/Truck/LostSale were absent,
+    // which left the delivery board doing full collection scans and, worse, left
+    // Delivery.id's unique constraint unenforced.
+    // Settled individually so one model's failure (e.g. a pre-existing index with
+    // conflicting options) can't mask or abort the rest.
+    console.log('🔨 Syncing database indexes for scalability...');
+    const indexTargets = [
+      ['Customer', Customer], ['Product', Product], ['User', User],
+      ['OfficeCheckIn', OfficeCheckIn], ['ActivityLog', ActivityLog], ['Schedule', Schedule],
+      ['Delivery', Delivery], ['Truck', Truck], ['LostSale', LostSale],
+      ['Location', Location], ['Role', Role]
+    ];
+    const indexResults = await Promise.allSettled(
+      indexTargets.map(([, model]) => model.createIndexes())
+    );
+    indexResults.forEach((result, i) => {
+      if (result.status === 'rejected') {
+        console.error(`⚠️ Index sync failed for ${indexTargets[i][0]}: ${result.reason?.message || result.reason}`);
+      }
+    });
+    if (indexResults.every(r => r.status === 'fulfilled')) {
       console.log('✅ Database indexes synchronized successfully');
-    } catch (indexError) {
-      console.error('⚠️ Warning: Failed to sync database indexes:', indexError);
+    } else {
+      console.log(`✅ Index sync complete (${indexResults.filter(r => r.status === 'fulfilled').length}/${indexTargets.length} models OK)`);
     }
 
     // Database migration: Initialize assignedLocations for existing users & upgrade admins to global
@@ -1080,7 +1096,7 @@ app.post('/api/admin/locations', verifyAnyAuth, checkPermission('manage_users'),
 
     const cleanName = name.trim();
     // Case-insensitive duplicate check
-    const existing = await Location.findOne({ name: { $regex: new RegExp(`^${cleanName}$`, 'i') } });
+    const existing = await Location.findOne({ name: { $regex: new RegExp(`^${escapeRegex(cleanName)}$`, 'i') } });
     if (existing) {
       return res.status(400).json({ message: 'Location already exists' });
     }
@@ -2326,7 +2342,7 @@ app.get('/api/checkin', authenticate, requirePermission('view_checkins'), async 
     }
 
     if (search) {
-      const searchRegex = new RegExp(search, 'i');
+      const searchRegex = new RegExp(escapeRegex(search), 'i');
       query.$or = [
         { name: searchRegex },
         { phone: searchRegex },
@@ -2432,7 +2448,9 @@ app.get('/api/checkin/:id', authenticate, requirePermission('view_checkins'), as
 });
 
 // Get list of sales reps (all users for autocomplete/suggestions)
-app.get('/api/salesreps', async (req, res) => {
+// Staff-only: this is an internal directory (usernames, emails, roles, locations)
+// and was previously reachable unauthenticated.
+app.get('/api/salesreps', authenticate, async (req, res) => {
   try {
     const users = await User.find({}, 'username email role location assignedLocations');
     const formattedUsers = users.map(user => ({
@@ -2452,14 +2470,18 @@ app.get('/api/salesreps', async (req, res) => {
 
 
 // Update specific check-in
-app.put('/api/checkin/:id', async (req, res) => {
+// Previously unauthenticated — allowing anyone to tamper with visitor records and,
+// via salesRepEmail, use the endpoint as an open relay for our email provider.
+// CSRs and sales reps hold view_checkins (not manage_checkins) yet edit selections
+// as part of their normal workflow, so both permissions are accepted here.
+app.put('/api/checkin/:id', authenticate, requireAnyPermission('manage_checkins', 'view_checkins'), async (req, res) => {
   try {
-    const { 
-      name, 
-      phone, 
-      email, 
-      fabricatorCompany, 
-      fabricatorName, 
+    const {
+      name,
+      phone,
+      email,
+      fabricatorCompany,
+      fabricatorName,
       fabricatorPhone,
       builderName,
       builderPhone,
@@ -2472,6 +2494,12 @@ app.put('/api/checkin/:id', async (req, res) => {
     const checkIn = await OfficeCheckIn.findById(req.params.id);
     if (!checkIn) {
       return res.status(404).json({ message: 'Check-in not found' });
+    }
+
+    // Same location scoping the GET/:id and DELETE routes already enforce
+    const userLocations = req.user.assignedLocations || [];
+    if (!userLocations.includes('*') && !userLocations.includes(checkIn.location)) {
+      return res.status(403).json({ message: 'Access denied to this check-in' });
     }
 
     if (name) checkIn.name = name;
@@ -3810,7 +3838,25 @@ app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
 
 // ── MANIFEST DISPATCH SCHEDULER ENDPOINTS (MongoDB Persisted) ──
 
-app.get('/api/trucks', verifyAnyAuth, async (req, res) => {
+// ── Delivery schedule authorisation ──────────────────────────────────────────
+// These routes previously used verifyAnyAuth alone, which admits *customer*
+// tokens (authenticate assigns them permissions: []) — meaning any logged-in
+// customer could read and modify the whole dispatch board.
+//
+// Guard levels are chosen against the live role config, not the seed defaults:
+//   view_delivery_schedule   — held by all six staff roles
+//   edit_delivery_schedule   — all staff EXCEPT driver
+//   delete_delivery_schedule — admin / director / manager only
+//
+// Drivers legitimately POST (ePOD capture + status updates) despite lacking
+// edit_delivery_schedule, so writes accept view_delivery_schedule as well.
+// The boundary being enforced here is staff-vs-customer; tightening
+// staff-vs-staff further would lock drivers out of ePOD.
+const canViewDeliveries = requirePermission('view_delivery_schedule');
+const canWriteDeliveries = requireAnyPermission('edit_delivery_schedule', 'view_delivery_schedule');
+const canDeleteDeliveries = requireAnyPermission('delete_delivery_schedule', 'edit_delivery_schedule');
+
+app.get('/api/trucks', verifyAnyAuth, canViewDeliveries, async (req, res) => {
   try {
     const trucks = await Truck.find().lean();
     res.json(trucks);
@@ -3819,7 +3865,7 @@ app.get('/api/trucks', verifyAnyAuth, async (req, res) => {
   }
 });
 
-app.post('/api/trucks', verifyAnyAuth, async (req, res) => {
+app.post('/api/trucks', verifyAnyAuth, requirePermission('edit_delivery_schedule'), async (req, res) => {
   try {
     const { trucks } = req.body;
     if (Array.isArray(trucks)) {
@@ -3847,7 +3893,7 @@ const DELIVERY_LIST_PROJECTION = {
   'pod.photos': 0
 };
 
-app.get('/api/deliveries', verifyAnyAuth, async (req, res) => {
+app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) => {
   try {
     // The board only ever displays one week at a time — scope the query to that
     // range (via ?startDate=&endDate=, both 'YYYY-MM-DD') instead of pulling the
@@ -3863,7 +3909,7 @@ app.get('/api/deliveries', verifyAnyAuth, async (req, res) => {
   }
 });
 
-app.get('/api/deliveries/:id', verifyAnyAuth, async (req, res) => {
+app.get('/api/deliveries/:id', verifyAnyAuth, canViewDeliveries, async (req, res) => {
   try {
     const { id } = req.params;
     const delivery = await Delivery.findOne({ id }).lean();
@@ -3875,7 +3921,7 @@ app.get('/api/deliveries/:id', verifyAnyAuth, async (req, res) => {
   }
 });
 
-app.post('/api/deliveries', verifyAnyAuth, async (req, res) => {
+app.post('/api/deliveries', verifyAnyAuth, canWriteDeliveries, async (req, res) => {
   try {
     const delivery = req.body;
     if (!delivery || !delivery.id) return res.status(400).json({ error: 'Invalid delivery data' });
@@ -3948,7 +3994,7 @@ app.post('/api/deliveries', verifyAnyAuth, async (req, res) => {
   }
 });
 
-app.delete('/api/deliveries/:id', verifyAnyAuth, async (req, res) => {
+app.delete('/api/deliveries/:id', verifyAnyAuth, canDeleteDeliveries, async (req, res) => {
   try {
     const { id } = req.params;
     await Delivery.deleteOne({ id });
@@ -3985,7 +4031,7 @@ const uploadPackingList = multer({
   limits: { fileSize: 50 * 1024 * 1024 }
 });
 
-app.post('/api/deliveries/upload-packing-list', uploadPackingList.single('file'), (req, res) => {
+app.post('/api/deliveries/upload-packing-list', verifyAnyAuth, canWriteDeliveries, uploadPackingList.single('file'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No PDF file uploaded' });

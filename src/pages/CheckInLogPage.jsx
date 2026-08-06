@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
 import { API_URL } from '../config/api';
@@ -66,10 +66,28 @@ const CheckInLogPage = () => {
   const [filterYear, setFilterYear] = useState(currentDate.getFullYear()); // null = All Years
   const [filterLocation, setFilterLocation] = useState(null);
 
+  // The input stays instant, but only settled input reaches the API — typing a
+  // name used to fire one list request and one stats request per keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 350);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   useEffect(() => {
     fetchCheckIns();
     fetchStats();
-  }, [currentPage, searchTerm, limit, filterMonth, filterYear, filterLocation, refreshTrigger]);
+  }, [currentPage, debouncedSearch, limit, filterMonth, filterYear, filterLocation, refreshTrigger]);
+
+  // The socket is set up once, but the fetchers close over the current page and
+  // filters. Routing through a ref keeps a live update refreshing the view the
+  // user is actually on — previously it always refetched first-render state,
+  // snapping the table back to page 1 with the filters cleared.
+  const refreshRef = useRef(() => {});
+  refreshRef.current = () => {
+    fetchCheckIns(true);
+    fetchStats();
+  };
 
   useEffect(() => {
     const socket = io(API_URL || window.location.origin, {
@@ -78,8 +96,7 @@ const CheckInLogPage = () => {
     });
 
     socket.on('checkin_update', () => {
-      fetchCheckIns(true);
-      fetchStats();
+      refreshRef.current();
     });
 
     return () => {
@@ -109,7 +126,7 @@ const CheckInLogPage = () => {
   };
 
   const fetchCheckIns = async (silent = false) => {
-    const cacheKey = `page_checkins_${currentPage}_${limit}_${searchTerm}_${filterMonth}_${filterYear}_${filterLocation}`;
+    const cacheKey = `page_checkins_${currentPage}_${limit}_${debouncedSearch}_${filterMonth}_${filterYear}_${filterLocation}`;
     const cached = getCachedData(cacheKey);
 
     if (cached && !silent) {
@@ -128,7 +145,7 @@ const CheckInLogPage = () => {
       const params = new URLSearchParams({
         page: currentPage,
         limit: limit,
-        ...(searchTerm && { search: searchTerm }),
+        ...(debouncedSearch && { search: debouncedSearch }),
         ...(filterMonth && { month: filterMonth }),
         ...(filterYear && { year: filterYear }),
         ...(filterLocation && { location: filterLocation }),
