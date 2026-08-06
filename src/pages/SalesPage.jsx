@@ -23,7 +23,7 @@ import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
 import SalesPlannerTab from '../components/SalesPlannerTab';
 import CustomDatePicker from '../components/CustomDatePicker';
-import { formatForDateInput, formatDate, formatInstant, toLocalISOString, getLocalISOString, viewerTimeZone } from '../utils/dateUtils';
+import { formatForDateInput, formatDate, formatInstant, getLocalISOString, viewerTimeZone } from '../utils/dateUtils';
 import DashboardStats from '../components/sales/DashboardStats';
 import CustomerSidebar from '../components/sales/CustomerSidebar';
 import VisitPostCard from '../components/sales/VisitPostCard';

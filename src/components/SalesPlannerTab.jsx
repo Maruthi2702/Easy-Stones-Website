@@ -7,7 +7,6 @@ import {
 import { API_URL } from '../config/api';
 import SearchableSelect from './SearchableSelect';
 
-import { formatForDateTimeInput } from '../utils/dateUtils';
 import GoogleStyleDateTimePicker from './GoogleStyleDateTimePicker';
 
 const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], currentUserId, onSelectCustomer, onScheduleChange, isDropdownLoading }) => {

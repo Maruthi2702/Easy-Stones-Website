@@ -46,32 +46,12 @@ const parseAsLocal = (date) => {
     return new Date(date);
 };
 
-// Returns a date object adjusted to local time but in ISO format (for datetime-local inputs)
-export const toLocalISOString = (date) => {
-  if (!date) return '';
-  const d = parseAsLocal(date);
-  if (!d || isNaN(d.getTime())) return '';
-  
-  const pad = (num) => String(num).padStart(2, '0');
-  const year = d.getFullYear();
-  const month = pad(d.getMonth() + 1);
-  const day = pad(d.getDate());
-  const hours = pad(d.getHours());
-  const minutes = pad(d.getMinutes());
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-};
-
 export const getLocalISOString = (date) => {
     if (!date) return '';
     const d = parseAsLocal(date);
     if (!d) return '';
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
-};
-
-export const formatForDateTimeInput = (date) => {
-  return toLocalISOString(date);
 };
 
 export const formatForDateInput = (date) => {

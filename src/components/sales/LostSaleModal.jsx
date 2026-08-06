@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, DollarSign, Calculator, AlertCircle, Save, Calendar, Building, FileText } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
 import CustomSelect from '../shared/CustomSelect';
+import { formatForDateInput } from '../../utils/dateUtils';
 
 const REASON_OPTIONS = [
   { id: 'Out of Stock', label: 'Out of Stock', color: '#ef4444' },
@@ -62,7 +63,10 @@ const LostSaleModal = ({
   const [location, setLocation] = useState('Seattle');
   const [competitorName, setCompetitorName] = useState('');
   const [notes, setNotes] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // toISOString() would give the UTC date, so an evening entry in the US defaulted
+  // to tomorrow. The lost-sale date is a calendar date and should start on the
+  // rep's own today.
+  const [date, setDate] = useState(() => formatForDateInput(new Date()));
 
   const [error, setError] = useState('');
 
@@ -102,7 +106,7 @@ const LostSaleModal = ({
       setCompetitorName(getCustomerName(initialData.competitorName, ''));
       setNotes(getCustomerName(initialData.notes, ''));
       if (initialData.date) {
-        setDate(new Date(initialData.date).toISOString().split('T')[0]);
+        setDate(formatForDateInput(initialData.date));
       }
     } else {
       resetForm();

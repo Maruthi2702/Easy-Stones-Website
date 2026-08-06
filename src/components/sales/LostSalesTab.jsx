@@ -8,6 +8,7 @@ import { API_URL } from '../../config/api';
 import LostSaleModal, { getCustomerName } from './LostSaleModal';
 import Pagination from '../shared/Pagination';
 import CustomSelect from '../shared/CustomSelect';
+import { formatDate } from '../../utils/dateUtils';
 import './LostSalesTab.css';
 
 const LostSalesTab = ({
@@ -226,14 +227,13 @@ const LostSalesTab = ({
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
   };
 
-  const formatDateStr = (dateVal) => {
-    if (!dateVal) return '-';
-    return new Date(dateVal).toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      year: 'numeric'
-    });
-  };
+  // The lost-sale date is a calendar date stored at UTC midnight; reading it with
+  // a bare new Date() rendered it a day early for anyone west of UTC.
+  const formatDateStr = (dateVal) => formatDate(dateVal, {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric'
+  });
 
   const getReasonBadgeClass = (reason) => {
     switch (reason) {

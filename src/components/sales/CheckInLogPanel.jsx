@@ -30,38 +30,26 @@ import {
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { formatTitleCase } from '../../utils/textUtils';
+import { formatInstant, formatInstantTime } from '../../utils/dateUtils';
 import Pagination from '../shared/Pagination';
 import { useAuth } from '../../context/AuthContext';
 import './CheckInLogPanel.css';
 
 /* ── helpers ──────────────────────────────────── */
-const parseLocalDate = (ts) => {
-  if (!ts) return new Date();
-  if (ts instanceof Date) return ts;
-  if (typeof ts === 'string' && ts.includes('T')) return new Date(ts);
-  if (typeof ts === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ts)) {
-    const [y, m, d] = ts.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-  return new Date(ts);
-};
+// Every date shown here is a check-in's createdAt — a real moment, not a calendar
+// date — so these read through the shared instant helpers and render in the
+// viewer's own zone. This panel used to carry its own copies of them.
+const formatDate = (ts) => formatInstant(ts);
 
-const formatDate = (ts) => {
-  const d = parseLocalDate(ts);
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-};
-
-const formatTime = (ts) => {
-  const d = parseLocalDate(ts);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-};
+const formatTime = (ts) => formatInstantTime(ts);
 
 const formatLastUpdated = (d) =>
-  d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+  d ? formatInstantTime(d, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
 
 const isToday = (ts) => {
   if (!ts) return false;
-  const d = parseLocalDate(ts);
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return false;
   const now = new Date();
   return (
     d.getDate() === now.getDate() &&
