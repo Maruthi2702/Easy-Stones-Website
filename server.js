@@ -3850,11 +3850,13 @@ app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
 //
 // Drivers legitimately POST (ePOD capture + status updates) despite lacking
 // edit_delivery_schedule, so writes accept view_delivery_schedule as well.
-// The boundary being enforced here is staff-vs-customer; tightening
-// staff-vs-staff further would lock drivers out of ePOD.
+//
+// Deletion is the exception: it requires delete_delivery_schedule outright, so
+// who can remove a delivery is controlled purely by role config in
+// Users & Roles → Delivery Schedule → Delete.
 const canViewDeliveries = requirePermission('view_delivery_schedule');
 const canWriteDeliveries = requireAnyPermission('edit_delivery_schedule', 'view_delivery_schedule');
-const canDeleteDeliveries = requireAnyPermission('delete_delivery_schedule', 'edit_delivery_schedule');
+const canDeleteDeliveries = requirePermission('delete_delivery_schedule');
 
 app.get('/api/trucks', verifyAnyAuth, canViewDeliveries, async (req, res) => {
   try {

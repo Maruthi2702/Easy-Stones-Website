@@ -92,6 +92,11 @@ const DeliveryModal = ({
   const [packingListUrl, setPackingListUrl] = useState('');
   const [packingListFilename, setPackingListFilename] = useState('');
 
+  // Deleting a delivery is gated on delete_delivery_schedule, assignable per role
+  // under Users & Roles → Delivery Schedule → Delete. The server enforces the same
+  // permission, so hiding this only keeps the UI honest.
+  const canDeleteDelivery = Boolean(currentUser?.permissions?.includes('delete_delivery_schedule'));
+
   // Fallback internal fetch for customer options if parent prop is empty
   const [fetchedCustomerOptions, setFetchedCustomerOptions] = useState([]);
   // Sales Reps list for location
@@ -712,7 +717,7 @@ const DeliveryModal = ({
 
         {/* Modal Footer */}
         <div className="modal-footer">
-          {initialData?.id && !confirmDelete && (
+          {initialData?.id && canDeleteDelivery && !confirmDelete && (
             <button
               type="button"
               className="modal-btn-delete"

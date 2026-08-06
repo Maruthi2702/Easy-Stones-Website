@@ -1,7 +1,7 @@
 import { API_URL } from '../config/api';
 import { io } from 'socket.io-client';
 
-export const MAX_TRUCK_CAPACITY = 8;
+export const MAX_TRUCK_CAPACITY = 12;
 
 export const DEFAULT_TRUCKS = [
   { id: 'trk_1', name: 'Truck 1', driver: '', color: '#D4AF37' },
@@ -392,6 +392,12 @@ export async function deleteDelivery(id) {
     if (res.ok) {
       removeDeliveryFromCache(id);
       notifyScheduleListeners();
+      return getActiveWeekDeliveries();
+    }
+    if (res.status === 403) {
+      // Reachable if the role's delete permission was revoked mid-session — without
+      // this the click would just appear to do nothing.
+      alert("You don't have permission to delete deliveries. Ask an administrator to grant Delivery Schedule → Delete for your role.");
       return getActiveWeekDeliveries();
     }
     console.error('[schedule] deleteDelivery API failed with status:', res.status);
