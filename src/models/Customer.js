@@ -136,10 +136,10 @@ customerSchema.index({ isActive: 1, createdAt: -1 }); // Active customer lists
 customerSchema.index({ priceLevel: 1, isActive: 1 }); // Price level filter
 customerSchema.index({ 'visits.date': -1 }); // Visit logs & dashboard max visit calculation
 customerSchema.index({ 'address.city': 1 }); // City filter
-customerSchema.index(
-  { company: 'text', contactName: 'text', email: 'text', phone: 'text' },
-  { weights: { company: 10, contactName: 5, email: 2, phone: 1 }, name: 'CustomerTextIndex' }
-);
+// No text index: customer and partner search run on $regex, and nothing in the
+// app ever issues a $text query. Carrying one only added write cost on every
+// customer save and collided with the differently-named index already in the
+// database. Reinstate deliberately if search is moved to $text.
 
 // Hash password before saving
 // Hash password before saving

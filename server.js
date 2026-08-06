@@ -1638,11 +1638,12 @@ app.get('/api/customers', authenticate, requirePermission('view_customers'), asy
 
     let query = {};
     if (search) {
+      const safeSearch = escapeRegex(search);
       query = {
         $or: [
-          { contactName: { $regex: search, $options: 'i' } },
-          { company: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } }
+          { contactName: { $regex: safeSearch, $options: 'i' } },
+          { company: { $regex: safeSearch, $options: 'i' } },
+          { email: { $regex: safeSearch, $options: 'i' } }
         ]
       };
     }
@@ -2973,15 +2974,16 @@ app.get('/api/partners', authenticate, requirePermission('view_customers'), asyn
     const filterConditions = [];
 
     if (search) {
+      const safeSearch = escapeRegex(search);
       filterConditions.push({
         $or: [
-          { company: { $regex: search, $options: 'i' } },
-          { contactName: { $regex: search, $options: 'i' } },
-          { name: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } },
-          { city: { $regex: search, $options: 'i' } },
-          { status: { $regex: search, $options: 'i' } }
+          { company: { $regex: safeSearch, $options: 'i' } },
+          { contactName: { $regex: safeSearch, $options: 'i' } },
+          { name: { $regex: safeSearch, $options: 'i' } },
+          { email: { $regex: safeSearch, $options: 'i' } },
+          { phone: { $regex: safeSearch, $options: 'i' } },
+          { city: { $regex: safeSearch, $options: 'i' } },
+          { status: { $regex: safeSearch, $options: 'i' } }
         ]
       });
     }
