@@ -4,6 +4,13 @@ import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 
+// Widths the dispatch table is laid out from — a driver column needs roughly this
+// much to fit "Stop #1 | SO# 144745" beside its status pill.
+const DAY_COL_WIDTH = 170;
+const MIN_TRUCK_COL_WIDTH = 220;
+// The stylesheet's existing floor — never render narrower than the board does today.
+const MIN_TABLE_WIDTH = 1100;
+
 const DAYS_OF_WEEK = [
   { name: 'Monday',    short: 'Mon', index: 1 },
   { name: 'Tuesday',  short: 'Tue', index: 2 },
@@ -271,7 +278,14 @@ const BoardGrid = ({
       ) : (
         /* ── DISPATCH TABLE MATRIX ── */
         <div className="board-grid-scroll-container">
-          <table className="manifest-dispatch-table">
+          {/* table-layout is fixed, so without a width that grows per driver the
+              columns just divide the same 1100px and every extra driver squeezes
+              the cards further. Give each driver a floor and let the container
+              scroll sideways instead. */}
+          <table
+            className="manifest-dispatch-table"
+            style={{ minWidth: `${Math.max(MIN_TABLE_WIDTH, DAY_COL_WIDTH + displayTrucks.length * MIN_TRUCK_COL_WIDTH)}px` }}
+          >
             <thead>
               <tr>
                 <th className="day-col-header-row">

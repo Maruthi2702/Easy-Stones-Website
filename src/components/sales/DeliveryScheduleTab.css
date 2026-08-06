@@ -741,10 +741,17 @@ body.light-theme-active .manifest-ticket-chip,
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* Truck columns get narrower with every driver added, so let the status pill
+     drop onto its own line rather than being overrun by a long SO number. */
+  flex-wrap: wrap;
+  gap: 0.25rem 0.4rem;
 }
 
 .ticket-time-mono {
+  /* nowrap keeps "Stop #1" and "SO# 144745" each intact; flex-wrap lets them sit
+     on separate lines when the column is too narrow for both. */
   white-space: nowrap;
+  flex-wrap: wrap;
   min-width: 0;
   font-size: 0.73rem;
   font-weight: 700;
@@ -832,6 +839,8 @@ body.light-theme-active .ticket-highlight,
 .manifest-status-pill {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
   gap: 0.28rem;
   padding: 0.2rem 0.52rem;
   border-radius: 12px;
