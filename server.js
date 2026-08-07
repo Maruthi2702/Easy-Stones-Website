@@ -794,15 +794,46 @@ const authenticate = async (req, res, next) => {
     }
 
     // ── Staff / internal access ──────────────────────────────────────────────
-    // ALWAYS look up the user in the DB — never trust role from JWT
-    const dbUser = await User.findById(userId).select('-password');
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(401).json({ error: 'Malformed token. Please log in again.' });
+    }
+
+    // ALWAYS read the user AND the role's permissions from the DB — never trust
+    // anything in the JWT. This used to be two awaits (findById, then findOne on
+    // the role name it returned), which meant two sequential Atlas round trips on
+    // EVERY authenticated request. Joining them server-side halves that: same
+    // freshness, same result, one trip.
+    const [dbUser] = await User.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(userId) } },
+      { $limit: 1 },
+      // Role.name is stored trimmed + lower-cased by its schema setters, and
+      // Role.findOne() used to apply those setters to the query for us.
+      // Aggregation does no casting, so normalise the key explicitly.
+      { $addFields: { _roleKey: { $toLower: { $trim: { input: { $ifNull: ['$role', ''] } } } } } },
+      {
+        $lookup: {
+          from: Role.collection.name,
+          localField: '_roleKey',
+          foreignField: 'name',   // unique index — this is an indexed join
+          as: '_role'
+        }
+      },
+      // Named fields only: keeps the password hash and the stored Google/iCloud
+      // tokens out of the auth payload entirely.
+      {
+        $project: {
+          username: 1,
+          email: 1,
+          role: 1,
+          assignedLocations: 1,
+          permissions: { $ifNull: [{ $arrayElemAt: ['$_role.permissions', 0] }, []] }
+        }
+      }
+    ]);
+
     if (!dbUser) {
       return res.status(401).json({ error: 'User account not found or has been removed.' });
     }
-
-    // ALWAYS look up the role's permissions in the DB — never use cached/JWT values
-    const dbRole = await Role.findOne({ name: dbUser.role });
-    const permissions = dbRole?.permissions || [];
 
     // Populate req.user with fresh data
     req.user = {
@@ -810,7 +841,7 @@ const authenticate = async (req, res, next) => {
       username: dbUser.username,
       email: dbUser.email,
       role: dbUser.role,
-      permissions,          // always fresh from DB
+      permissions: dbUser.permissions,   // always fresh from DB
       assignedLocations: dbUser.assignedLocations || ['Seattle'],
       type: 'staff'
     };
