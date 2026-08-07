@@ -5,6 +5,7 @@ import DriverView from './delivery/DriverView';
 import DeliveryModal from './delivery/DeliveryModal';
 import PodModal from './delivery/PodModal';
 import PodViewer from './delivery/PodViewer';
+import PendingDeliveries from './delivery/PendingDeliveries';
 import {
   saveDelivery,
   deleteDelivery,
@@ -94,6 +95,7 @@ const DeliveryScheduleTab = ({
 
   const [trucks, setTrucks] = useState(() => getScheduleCacheSync().trucks || []);
   const [deliveries, setDeliveries] = useState(() => getCachedWeekDeliveries(weekStart));
+  const [pending, setPending] = useState(() => getScheduleCacheSync().pending || []);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(() => !isWeekCached(weekStart));
 
@@ -149,6 +151,7 @@ const DeliveryScheduleTab = ({
       const data = await getScheduleDataCached(currentUser, weekStart, weekEnd, forceRefresh);
       setTrucks(data.trucks || []);
       setDeliveries(data.deliveries || []);
+      setPending(data.pending || []);
     } catch (err) {
       console.error('Error loading schedule data:', err);
     } finally {
@@ -159,8 +162,9 @@ const DeliveryScheduleTab = ({
   useEffect(() => {
     loadData();
 
-    const unsubscribe = subscribeScheduleCache(({ deliveries: newDeliveries, trucks: newTrucks }) => {
+    const unsubscribe = subscribeScheduleCache(({ deliveries: newDeliveries, pending: newPending, trucks: newTrucks }) => {
       setDeliveries(newDeliveries);
+      setPending(newPending || []);
       if (newTrucks && newTrucks.length > 0) {
         setTrucks(newTrucks);
       }
@@ -184,6 +188,18 @@ const DeliveryScheduleTab = ({
   };
 
   const handleTodayWeek = () => setCurrentMonday(getWeekMonday(new Date()));
+
+  // Opens the same modal with no date, so the order is saved straight to Pending.
+  const handleOpenAddPending = () => {
+    setEditingDelivery({
+      truckId: '',
+      date: '',
+      time: '09:00 AM',
+      salesRepName: currentUser?.name || 'Admin',
+      status: 'pending'
+    });
+    setIsModalOpen(true);
+  };
 
   const handleOpenAddModal = (truckId = null, dateStr = null) => {
     setEditingDelivery({
@@ -316,6 +332,17 @@ const DeliveryScheduleTab = ({
               searchQuery={searchQuery}
               editable={false}
               onEditDelivery={null}
+              onViewPod={handleOpenPodViewer}
+            />
+          )}
+
+          {(role === 'office' || role === 'sales') && (
+            <PendingDeliveries
+              pending={pending}
+              searchQuery={searchQuery}
+              editable={role === 'office'}
+              onAddPending={handleOpenAddPending}
+              onEditDelivery={handleOpenEditModal}
               onViewPod={handleOpenPodViewer}
             />
           )}

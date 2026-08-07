@@ -103,6 +103,10 @@ const DeliveryModal = ({
   // customer/jobsite half of this form does not apply to it.
   const isTransfer = deliveryType === 'transfer';
 
+  // An order with no agreed date is Pending: it sits in its own list under every
+  // week until the customer gives an ETA, rather than landing on a day.
+  const isPendingOrder = !date;
+
   // Deleting a delivery is gated on delete_delivery_schedule, assignable per role
   // under Users & Roles → Delivery Schedule → Delete. The server enforces the same
   // permission, so hiding this only keeps the UI honest.
@@ -417,12 +421,30 @@ const DeliveryModal = ({
           {/* ── DATE & DELIVERY TYPE (SIDE BY SIDE) ── */}
           <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
             <div className="form-group">
-              <label><Calendar size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Date <span className="req-star">*</span></label>
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                <span>
+                  <Calendar size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  Date {!isPendingOrder && <span className="req-star">*</span>}
+                </span>
+                <span
+                  className="pending-date-toggle"
+                  onClick={() => {
+                    setDate(isPendingOrder ? formatForDateInput(new Date()) : '');
+                    markDirty();
+                  }}
+                  title="An order with no date waits in the Pending list until the customer confirms an ETA"
+                >
+                  <input type="checkbox" readOnly checked={isPendingOrder} />
+                  No date yet
+                </span>
+              </label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => { setDate(e.target.value); markDirty(); }}
-                required
+                disabled={isPendingOrder}
+                required={!isPendingOrder}
+                placeholder="Pending — awaiting customer ETA"
               />
             </div>
 

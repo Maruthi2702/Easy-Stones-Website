@@ -23,6 +23,8 @@ export const INITIAL_SAMPLE_DELIVERIES = [];
 // re-fetching.
 const scheduleCache = {
   weeks: new Map(),       // weekStart ('YYYY-MM-DD') -> deliveries[]
+  pending: [],            // orders with no agreed date — belong to no week, shown under all of them
+  pendingLoaded: false,
   activeWeekStart: null,  // week currently being viewed — real-time updates & the
   activeWeekEnd: null,    // 3s poll fallback are scoped to this range only
   trucks: null,
@@ -41,6 +43,8 @@ function getActiveWeekDeliveries() {
   return scheduleCache.weeks.get(scheduleCache.activeWeekStart) || [];
 }
 
+const isPendingDelivery = (d) => !d || !d.date;
+
 // Merge a single created/updated delivery into whichever cached week(s) it
 // belongs to (and remove it from any cached week it no longer belongs to,
 // e.g. if its date was edited).
@@ -51,7 +55,14 @@ function upsertDeliveryIntoCache(delivery) {
       scheduleCache.weeks.set(weekStart, list.filter(d => d.id !== delivery.id));
     }
   }
-  if (!delivery.date) return;
+  scheduleCache.pending = scheduleCache.pending.filter(d => d.id !== delivery.id);
+
+  // Scheduling a pending order moves it out of the list and into its week;
+  // clearing the date moves it back.
+  if (isPendingDelivery(delivery)) {
+    scheduleCache.pending = [delivery, ...scheduleCache.pending];
+    return;
+  }
   for (const weekStart of scheduleCache.weeks.keys()) {
     const weekEnd = addDaysToDateStr(weekStart, 4);
     if (delivery.date >= weekStart && delivery.date <= weekEnd) {
@@ -67,16 +78,20 @@ function removeDeliveryFromCache(id) {
       scheduleCache.weeks.set(weekStart, list.filter(d => d.id !== id));
     }
   }
+  scheduleCache.pending = scheduleCache.pending.filter(d => d.id !== id);
 }
 
 async function refreshActiveWeek() {
   if (!scheduleCache.activeWeekStart || !scheduleCache.activeWeekEnd) return;
-  const list = await getDeliveriesForRange(scheduleCache.activeWeekStart, scheduleCache.activeWeekEnd);
-  const prevJson = JSON.stringify(scheduleCache.weeks.get(scheduleCache.activeWeekStart) || []);
-  if (JSON.stringify(list) !== prevJson) {
-    scheduleCache.weeks.set(scheduleCache.activeWeekStart, list);
-    notifyScheduleListeners();
-  }
+  const [list, pendingList] = await Promise.all([
+    getDeliveriesForRange(scheduleCache.activeWeekStart, scheduleCache.activeWeekEnd),
+    getPendingDeliveries()
+  ]);
+  const weekChanged = JSON.stringify(list) !== JSON.stringify(scheduleCache.weeks.get(scheduleCache.activeWeekStart) || []);
+  const pendingChanged = JSON.stringify(pendingList) !== JSON.stringify(scheduleCache.pending);
+  if (weekChanged) scheduleCache.weeks.set(scheduleCache.activeWeekStart, list);
+  if (pendingChanged) scheduleCache.pending = pendingList;
+  if (weekChanged || pendingChanged) notifyScheduleListeners();
 }
 
 // Polling is only a fallback for when the socket connection is actually down —
@@ -154,6 +169,7 @@ function notifyScheduleListeners() {
     try {
       cb({
         deliveries: getActiveWeekDeliveries(),
+        pending: scheduleCache.pending,
         trucks: scheduleCache.trucks || []
       });
     } catch (e) {}
@@ -171,6 +187,7 @@ export function subscribeScheduleCache(callback) {
 export function getScheduleCacheSync() {
   return {
     deliveries: getActiveWeekDeliveries(),
+    pending: scheduleCache.pending,
     trucks: scheduleCache.trucks,
     isLoaded: Boolean(scheduleCache.activeWeekStart && scheduleCache.weeks.has(scheduleCache.activeWeekStart))
   };
@@ -201,16 +218,24 @@ export async function getScheduleDataCached(currentUser = null, weekStart, weekE
 
   if (scheduleCache.weeks.has(weekStart) && !forceRefresh) {
     notifyScheduleListeners();
-    return { deliveries: scheduleCache.weeks.get(weekStart), trucks: scheduleCache.trucks };
+    return { deliveries: scheduleCache.weeks.get(weekStart), pending: scheduleCache.pending, trucks: scheduleCache.trucks };
   }
 
-  const list = await getDeliveriesForRange(weekStart, weekEnd);
+  const [list, pendingList] = await Promise.all([
+    getDeliveriesForRange(weekStart, weekEnd),
+    // Pending belongs to no week, so it is only fetched when there is nothing
+    // cached yet or the caller explicitly asked for fresh data.
+    (scheduleCache.pendingLoaded && !forceRefresh) ? Promise.resolve(scheduleCache.pending) : getPendingDeliveries()
+  ]);
   scheduleCache.weeks.set(weekStart, list || []);
+  scheduleCache.pending = pendingList || [];
+  scheduleCache.pendingLoaded = true;
 
   notifyScheduleListeners();
 
   return {
     deliveries: scheduleCache.weeks.get(weekStart),
+    pending: scheduleCache.pending,
     trucks: scheduleCache.trucks
   };
 }
@@ -328,6 +353,26 @@ export async function getDeliveriesForRange(startDate, endDate) {
     console.error('[schedule] getDeliveriesForRange API error:', err);
   }
 
+  return [];
+}
+
+// ── GET PENDING DELIVERIES (no agreed date yet) ──
+export async function getPendingDeliveries() {
+  try {
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+    const res = await fetch(`${API_URL}/api/deliveries?pending=true`, {
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    } else {
+      console.warn('[schedule] getPendingDeliveries response not OK:', res.status);
+    }
+  } catch (err) {
+    console.error('[schedule] getPendingDeliveries API error:', err);
+  }
   return [];
 }
 

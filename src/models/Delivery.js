@@ -4,7 +4,10 @@ const deliverySchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true, index: true },
   customerId: { type: String, default: null, index: true },
   truckId: { type: String, default: '', index: true },
-  date: { type: String, required: true, index: true },
+  // Empty when the order is waiting on the customer for an ETA. Such deliveries
+  // sit in the Pending list instead of a week on the board, and get a date the
+  // moment one is agreed.
+  date: { type: String, default: '', index: true },
   time: { type: String, default: '09:00 AM' },
   customerName: { type: String, required: true },
   address: { type: String, default: '' },

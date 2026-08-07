@@ -3980,8 +3980,20 @@ app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) =>
     // range (via ?startDate=&endDate=, both 'YYYY-MM-DD') instead of pulling the
     // entire, ever-growing delivery history on every load. Falls back to the full
     // collection if no range is given.
-    const { startDate, endDate } = req.query;
-    const baseQuery = (startDate && endDate) ? { date: { $gte: startDate, $lte: endDate } } : {};
+    // ?pending=true returns the orders with no agreed date yet. They belong to no
+    // week, so the board shows them in their own list beneath every week.
+    const { startDate, endDate, pending } = req.query;
+    let baseQuery;
+    if (pending === 'true') {
+      // $in rather than $or: the location scoping below contributes its own $or,
+      // and a second one on the same object would replace this filter outright.
+      // { $in: ['', null] } also matches documents with no date field at all.
+      baseQuery = { date: { $in: ['', null] } };
+    } else if (startDate && endDate) {
+      baseQuery = { date: { $gte: startDate, $lte: endDate } };
+    } else {
+      baseQuery = {};
+    }
     const query = scopeDeliveryQueryToLocations(baseQuery, req);
     const list = await Delivery.find(query, DELIVERY_LIST_PROJECTION).sort({ createdAt: -1 }).lean();
     res.json(list);
