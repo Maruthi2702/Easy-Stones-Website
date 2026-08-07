@@ -114,6 +114,13 @@ const DeliveryModal = ({
   // Transfers go out on contract freight rather than our own trucks, so picking
   // that type pre-selects the 3rd-party carrier.
   const thirdPartyTruck = trucks.find(isThirdParty);
+  const isThirdPartySelected = Boolean(thirdPartyTruck && truckId === thirdPartyTruck.id);
+
+  // A new ticket arrives pre-filled with whichever column the + was clicked in
+  // (or the first driver from the toolbar button), so that driver was never a
+  // deliberate choice — a transfer may override it. An existing record's driver
+  // was chosen by someone, so it is left alone.
+  const isNewTicket = !initialData?.id;
 
   // Leaving the driver unassigned marks the order Pending: it waits in the list
   // under the board until the customer confirms, so it needs no date yet.
@@ -462,10 +469,10 @@ const DeliveryModal = ({
                 onChange={(e) => {
                   const nextType = e.target.value;
                   setDeliveryType(nextType);
-                  // Default a transfer to contract freight — but only into an
-                  // empty slot, so an explicit driver choice is never overwritten
-                  // and "Unassigned" stays available for a transfer with no ETA.
-                  if (nextType === 'transfer' && !truckId && thirdPartyTruck) {
+                  // Default a transfer to contract freight. "Unassigned" is still
+                  // selectable afterwards for a transfer with no ETA — this only
+                  // fires on a type change, never on the driver dropdown itself.
+                  if (nextType === 'transfer' && thirdPartyTruck && (isNewTicket || !truckId)) {
                     setTruckId(thirdPartyTruck.id);
                   }
                   markDirty();
@@ -614,8 +621,10 @@ const DeliveryModal = ({
               )}
             </div>
 
-            {/* Conditional 3rd Party Freight Fields */}
-            {!isTransfer && truckId === 'trk_3rd_party' && (
+            {/* Conditional 3rd Party Freight Fields — a delivery going out on
+                contract freight needs the carrier's paperwork recorded against
+                it. Transfers deliberately keep the short field set. */}
+            {!isTransfer && isThirdPartySelected && (
               <div className="delivery-form-3col 3rd-party-banner-fields" style={{ background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', padding: '0.85rem', borderRadius: '12px', marginBottom: '1.1rem' }}>
                 <div className="form-group">
                   <label style={{ color: '#c084fc' }}>Carrier / Freight Company</label>
