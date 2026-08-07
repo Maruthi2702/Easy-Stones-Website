@@ -103,9 +103,9 @@ const DeliveryModal = ({
   // customer/jobsite half of this form does not apply to it.
   const isTransfer = deliveryType === 'transfer';
 
-  // An order with no agreed date is Pending: it sits in its own list under every
-  // week until the customer gives an ETA, rather than landing on a day.
-  const isPendingOrder = !date;
+  // Leaving the driver unassigned marks the order Pending: it waits in the list
+  // under the board until the customer confirms, so it needs no date yet.
+  const isPendingOrder = !truckId;
 
   // Deleting a delivery is gated on delete_delivery_schedule, assignable per role
   // under Users & Roles → Delivery Schedule → Delete. The server enforces the same
@@ -295,6 +295,11 @@ const DeliveryModal = ({
       if (foundOpt) finalCustomerName = foundOpt.label;
     }
 
+    if (!isPendingOrder && !date) {
+      setError('Pick a delivery date, or leave the driver unassigned to keep this in Pending Delivery.');
+      return;
+    }
+
     if (isTransfer) {
       if (!transferDestination) {
         setError('Please choose the branch this transfer is going to.');
@@ -421,31 +426,21 @@ const DeliveryModal = ({
           {/* ── DATE & DELIVERY TYPE (SIDE BY SIDE) ── */}
           <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
             <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                <span>
-                  <Calendar size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                  Date {!isPendingOrder && <span className="req-star">*</span>}
-                </span>
-                <span
-                  className="pending-date-toggle"
-                  onClick={() => {
-                    setDate(isPendingOrder ? formatForDateInput(new Date()) : '');
-                    markDirty();
-                  }}
-                  title="An order with no date waits in the Pending list until the customer confirms an ETA"
-                >
-                  <input type="checkbox" readOnly checked={isPendingOrder} />
-                  No date yet
-                </span>
+              <label>
+                <Calendar size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                Date {!isPendingOrder && <span className="req-star">*</span>}
               </label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => { setDate(e.target.value); markDirty(); }}
-                disabled={isPendingOrder}
                 required={!isPendingOrder}
-                placeholder="Pending — awaiting customer ETA"
               />
+              {isPendingOrder && (
+                <span className="pending-order-note">
+                  No driver assigned — this stays in Pending Delivery until you pick one.
+                </span>
+              )}
             </div>
 
             <div className="form-group">

@@ -189,7 +189,7 @@ const DeliveryScheduleTab = ({
 
   const handleTodayWeek = () => setCurrentMonday(getWeekMonday(new Date()));
 
-  // Opens the same modal with no date, so the order is saved straight to Pending.
+  // Opens the same modal with no driver, so the order is saved straight to Pending.
   const handleOpenAddPending = () => {
     setEditingDelivery({
       truckId: '',

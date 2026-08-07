@@ -117,15 +117,10 @@ const BoardGrid = ({
   }, [filteredDeliveries]);
 
   const displayTrucks = React.useMemo(() => {
-    const hasUnassigned = deliveries.some(d => !d.truckId || d.truckId === '' || d.truckId === 'unassigned');
-    if (hasUnassigned) {
-      return [
-        { id: '', name: 'Unassigned', driver: 'Unassigned', color: '#94A3B8' },
-        ...trucks
-      ];
-    }
+    // No "Unassigned" column: an order without a driver belongs to the Pending
+    // list beneath the board, not to a column of its own.
     return trucks;
-  }, [trucks, deliveries]);
+  }, [trucks]);
 
   const getDeliveriesForCell = (truckId, dateStr) =>
     cellMap.get(`${truckId || ''}_${dateStr}`) || [];

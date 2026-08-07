@@ -23,7 +23,7 @@ export const INITIAL_SAMPLE_DELIVERIES = [];
 // re-fetching.
 const scheduleCache = {
   weeks: new Map(),       // weekStart ('YYYY-MM-DD') -> deliveries[]
-  pending: [],            // orders with no agreed date — belong to no week, shown under all of them
+  pending: [],            // orders with no driver assigned — shown under every week
   pendingLoaded: false,
   activeWeekStart: null,  // week currently being viewed — real-time updates & the
   activeWeekEnd: null,    // 3s poll fallback are scoped to this range only
@@ -43,7 +43,9 @@ function getActiveWeekDeliveries() {
   return scheduleCache.weeks.get(scheduleCache.activeWeekStart) || [];
 }
 
-const isPendingDelivery = (d) => !d || !d.date;
+// Pending means no driver assigned yet — such an order has no truck column to
+// sit in, so it waits in the Pending list until one is chosen.
+const isPendingDelivery = (d) => !d || !d.truckId;
 
 // Merge a single created/updated delivery into whichever cached week(s) it
 // belongs to (and remove it from any cached week it no longer belongs to,
@@ -57,8 +59,8 @@ function upsertDeliveryIntoCache(delivery) {
   }
   scheduleCache.pending = scheduleCache.pending.filter(d => d.id !== delivery.id);
 
-  // Scheduling a pending order moves it out of the list and into its week;
-  // clearing the date moves it back.
+  // Assigning a driver moves the order out of the list and onto that week;
+  // unassigning moves it back.
   if (isPendingDelivery(delivery)) {
     scheduleCache.pending = [delivery, ...scheduleCache.pending];
     return;

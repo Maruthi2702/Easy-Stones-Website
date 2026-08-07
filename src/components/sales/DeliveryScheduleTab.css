@@ -3766,26 +3766,18 @@ body.light-theme-active .pending-deliveries-section,
   gap: 0.6rem;
 }
 
-/* Modal: "No date yet" toggle beside the Date label */
-.pending-date-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
+/* Modal: note under Date when no driver is assigned */
+.pending-order-note {
+  display: block;
+  margin-top: 0.3rem;
   font-size: 0.72rem;
   font-weight: 600;
   color: #94a3b8;
   text-transform: none;
   letter-spacing: 0;
-  cursor: pointer;
-  user-select: none;
 }
 
-.pending-date-toggle input {
-  cursor: pointer;
-  margin: 0;
-}
-
-body.light-theme-active .pending-date-toggle,
-.light-theme-active .pending-date-toggle {
+body.light-theme-active .pending-order-note,
+.light-theme-active .pending-order-note {
   color: #475569;
 }

@@ -3,9 +3,9 @@ import { Clock, Plus } from 'lucide-react';
 import TicketChip from './TicketChip';
 
 /**
- * Orders that are ready to go but have no date agreed with the customer yet.
- * They belong to no week, so this list sits beneath the board on every week —
- * a delivery leaves it the moment it is given a date.
+ * Orders with no driver assigned yet. They have no truck column to sit in, so
+ * this list sits beneath the board on every week — a delivery leaves it the
+ * moment a driver is chosen, and comes back if one is unassigned.
  */
 const PendingDeliveries = ({
   pending = [],
@@ -35,7 +35,7 @@ const PendingDeliveries = ({
           Pending Delivery
           <span className="pending-deliveries-count">{visible.length}</span>
         </span>
-        <span className="pending-deliveries-hint">Awaiting a date from the customer</span>
+        <span className="pending-deliveries-hint">Awaiting a driver and date from the customer</span>
         {editable && (
           <button
             type="button"
@@ -51,7 +51,7 @@ const PendingDeliveries = ({
       {visible.length === 0 ? (
         <p className="pending-deliveries-empty">
           {pending.length === 0
-            ? 'Nothing pending — every order has a date.'
+            ? 'Nothing pending — every order has a driver assigned.'
             : 'No pending orders match this search.'}
         </p>
       ) : (

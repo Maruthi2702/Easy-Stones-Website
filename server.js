@@ -3980,17 +3980,19 @@ app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) =>
     // range (via ?startDate=&endDate=, both 'YYYY-MM-DD') instead of pulling the
     // entire, ever-growing delivery history on every load. Falls back to the full
     // collection if no range is given.
-    // ?pending=true returns the orders with no agreed date yet. They belong to no
-    // week, so the board shows them in their own list beneath every week.
+    // An order with no driver assigned is Pending: it is waiting on the customer
+    // for a date and a driver, and belongs to no truck column. ?pending=true
+    // returns those; a week request returns the assigned ones only, so nothing
+    // is stranded between the two views.
     const { startDate, endDate, pending } = req.query;
     let baseQuery;
     if (pending === 'true') {
       // $in rather than $or: the location scoping below contributes its own $or,
       // and a second one on the same object would replace this filter outright.
-      // { $in: ['', null] } also matches documents with no date field at all.
-      baseQuery = { date: { $in: ['', null] } };
+      // { $in: ['', null] } also matches documents with no truckId field at all.
+      baseQuery = { truckId: { $in: ['', null] } };
     } else if (startDate && endDate) {
-      baseQuery = { date: { $gte: startDate, $lte: endDate } };
+      baseQuery = { date: { $gte: startDate, $lte: endDate }, truckId: { $nin: ['', null] } };
     } else {
       baseQuery = {};
     }
