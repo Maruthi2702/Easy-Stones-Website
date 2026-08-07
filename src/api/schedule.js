@@ -312,9 +312,26 @@ export async function getDriverUsers(userLocation = null, userAssignedLocations 
   const cacheKey = [userLocation || '', ...(userAssignedLocations || [])].join('|');
   if (!force) {
     const cached = readDriversCache(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      // Stale-while-revalidate. The board paints instantly from cache, but a
+      // driver's name is not the kind of thing that should be allowed to sit
+      // wrong for the rest of the TTL — refetch in the background and correct
+      // the columns in place if anything actually changed.
+      fetchDriverUsers(cacheKey, userLocation, userAssignedLocations)
+        .then(fresh => {
+          if (!fresh || JSON.stringify(fresh) === JSON.stringify(cached)) return;
+          scheduleCache.trucks = fresh;
+          notifyScheduleListeners();
+        })
+        .catch(() => {});
+      return cached;
+    }
   }
 
+  return fetchDriverUsers(cacheKey, userLocation, userAssignedLocations);
+}
+
+async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocations = []) {
   try {
     const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
     const res = await fetch(`${API_URL}/api/salesreps`, {
