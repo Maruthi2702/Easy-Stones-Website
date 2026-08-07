@@ -220,6 +220,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     const [editingUser, setEditingUser] = useState(null);
     const [userForm, setUserForm] = useState({
         username: '',
+        displayName: '',
         email: '',
         role: 'sales_rep',
         location: '',

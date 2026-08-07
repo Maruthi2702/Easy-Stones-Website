@@ -6076,10 +6076,23 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // Serve React production build
 const distPath = path.join(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
+  // Everything under /assets carries a content hash in its filename, so a year
+  // of immutable caching is correct there. These four do NOT — their names stay
+  // the same across every deploy, so caching them was pinning browsers to an old
+  // build: sw.js in particular precaches index.html and every chunk, so a stale
+  // copy keeps serving the previous app no matter what the server sends.
+  const NEVER_CACHE = new Set(['/sw.js', '/registerSW.js', '/manifest.webmanifest', '/index.html']);
+
   app.use(express.static(distPath, {
     maxAge: '1y',
     immutable: true,
-    index: false // Don't serve index.html with long cache
+    index: false, // Don't serve index.html with long cache
+    setHeaders: (res, filePath) => {
+      const name = '/' + path.basename(filePath);
+      if (NEVER_CACHE.has(name)) {
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+      }
+    }
   }));
 
   app.get(/(.*)/, (req, res) => {
