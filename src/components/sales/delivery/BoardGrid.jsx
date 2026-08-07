@@ -4,10 +4,11 @@ import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 
-// Widths the dispatch table is laid out from — a driver column needs roughly this
-// much to fit "Stop #1 | SO# 144745" beside its status pill.
+// Widths the dispatch table is laid out from. A driver column needs roughly this
+// much to keep stop, reference number and status pill on one line; below it the
+// three start colliding, so the table scrolls sideways rather than going narrower.
 const DAY_COL_WIDTH = 170;
-const MIN_TRUCK_COL_WIDTH = 220;
+const MIN_TRUCK_COL_WIDTH = 260;
 // The stylesheet's existing floor — never render narrower than the board does today.
 const MIN_TABLE_WIDTH = 1100;
 

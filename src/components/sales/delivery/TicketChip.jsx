@@ -42,7 +42,7 @@ const TicketChip = ({
   // The title line already reads "Transfer -> <branch>", so the header says
   // "Transfer# 14322" rather than repeating the word and wrapping in a narrow
   // truck column.
-  const refLabel = isTransfer ? ' ' : ' | SO# ';
+  const refLabel = isTransfer ? '' : 'SO# ';
   const showRep = !isTransfer;
   const hasFooter = showRep || Boolean(delivery.notes) || (delivery.status === 'completed' && onViewPod);
 

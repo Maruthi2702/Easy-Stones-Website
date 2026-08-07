@@ -190,7 +190,7 @@ const DriverView = ({
                         )}
                         {soVal && (
                           <span style={{ color: '#b0b0b0', fontWeight: 600, marginLeft: 4, whiteSpace: 'nowrap' }}>
-                            {isTransfer ? ' ' : ' | SO# '}
+                            {isTransfer ? '' : 'SO# '}
                             <span style={{ color: '#ffffff' }}>{soVal}</span>
                           </span>
                         )}
