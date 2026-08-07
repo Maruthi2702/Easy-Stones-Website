@@ -154,7 +154,7 @@ function initScheduleSocket() {
     });
 
     scheduleCache.socket.on('truck_update', () => {
-      getDriverUsers().then(drivers => {
+      getDriverUsers(null, [], { force: true }).then(drivers => {
         if (drivers && drivers.length > 0) {
           scheduleCache.trucks = drivers;
           notifyScheduleListeners();
@@ -215,7 +215,7 @@ export async function getScheduleDataCached(currentUser = null, weekStart, weekE
   if (!scheduleCache.trucks || forceRefresh) {
     const userLocation = currentUser?.location || null;
     const userAssignedLocations = currentUser?.assignedLocations || [];
-    scheduleCache.trucks = (await getDriverUsers(userLocation, userAssignedLocations)) || [];
+    scheduleCache.trucks = (await getDriverUsers(userLocation, userAssignedLocations, { force: forceRefresh })) || [];
   }
 
   if (scheduleCache.weeks.has(weekStart) && !forceRefresh) {
@@ -263,7 +263,39 @@ export async function getTrucks() {
 // ── GET DRIVERS FROM USERS TAB (filtered by location) ──
 const TRUCK_COLORS = ['#D4AF37', '#2F8F73', '#E1602A', '#3B82F6', '#8B5CF6', '#64748B', '#10B981', '#F59E0B'];
 
-export async function getDriverUsers(userLocation = null, userAssignedLocations = []) {
+// Drivers change rarely but cost a full round trip on every page load, which is
+// pure latency against a remote database. Persist the resolved list so a reload
+// paints immediately; truck_update and an explicit refresh both bypass this.
+const DRIVERS_CACHE_PREFIX = 'drivers_cache_v1:';
+const DRIVERS_CACHE_TTL = 10 * 60 * 1000;
+
+const readDriversCache = (key) => {
+  try {
+    const raw = localStorage.getItem(DRIVERS_CACHE_PREFIX + key);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (!Array.isArray(data) || Date.now() - ts > DRIVERS_CACHE_TTL) return null;
+    return data;
+  } catch {
+    return null;
+  }
+};
+
+const writeDriversCache = (key, data) => {
+  try {
+    localStorage.setItem(DRIVERS_CACHE_PREFIX + key, JSON.stringify({ data, ts: Date.now() }));
+  } catch {
+    // storage full or unavailable — the list is only ever a cache
+  }
+};
+
+export async function getDriverUsers(userLocation = null, userAssignedLocations = [], { force = false } = {}) {
+  const cacheKey = [userLocation || '', ...(userAssignedLocations || [])].join('|');
+  if (!force) {
+    const cached = readDriversCache(cacheKey);
+    if (cached) return cached;
+  }
+
   try {
     const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
     const res = await fetch(`${API_URL}/api/salesreps`, {
@@ -296,7 +328,7 @@ export async function getDriverUsers(userLocation = null, userAssignedLocations 
 
     if (drivers.length === 0) return null;
 
-    return drivers.map((u, idx) => ({
+    const mapped = drivers.map((u, idx) => ({
       id: u._id || `drv_${u.username}`,
       name: u.name || u.username,
       driver: u.name || u.username,
@@ -304,6 +336,8 @@ export async function getDriverUsers(userLocation = null, userAssignedLocations 
       username: u.username,
       location: u.location || (u.assignedLocations?.[0] || '')
     }));
+    writeDriversCache(cacheKey, mapped);
+    return mapped;
   } catch (err) {
     console.warn('[schedule] getDriverUsers error:', err);
     return null;

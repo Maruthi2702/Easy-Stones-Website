@@ -117,7 +117,24 @@ const optimizeImage = async (buffer) => {
 // Simple Memory Cache for Products (Cache for 10 minutes)
 const memoryCache = {
   products: { data: null, lastFetched: 0 },
+  // The staff directory and the customer dropdown are read on nearly every page
+  // load but change rarely. The dropdown in particular is expensive out of all
+  // proportion to its size: customer documents average tens of KB, so building a
+  // 100KB list means reading tens of MB. Serve both from memory between changes.
+  salesreps: { data: null, lastFetched: 0 },
+  customerDropdown: { data: null, lastFetched: 0 },
   TTL: 10 * 60 * 1000
+};
+
+const cacheHit = (key) =>
+  memoryCache[key].data && (Date.now() - memoryCache[key].lastFetched) < memoryCache.TTL
+    ? memoryCache[key].data
+    : null;
+
+const cachePut = (key, data) => {
+  memoryCache[key].data = data;
+  memoryCache[key].lastFetched = Date.now();
+  return data;
 };
 
 // Helper to bust the product cache after any write
@@ -125,6 +142,17 @@ const bustProductCache = () => {
   memoryCache.products.data = null;
   memoryCache.products.lastFetched = 0;
   console.log('🗑️ Product cache invalidated');
+};
+
+// Customer writes change both the dropdown and, via role edits, the staff list.
+const bustCustomerCaches = () => {
+  memoryCache.customerDropdown.data = null;
+  memoryCache.customerDropdown.lastFetched = 0;
+};
+
+const bustUserCaches = () => {
+  memoryCache.salesreps.data = null;
+  memoryCache.salesreps.lastFetched = 0;
 };
 
 // Base64 to Cloudinary Upload Utility (persistent across restarts)
@@ -607,6 +635,28 @@ app.use('/api', (req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
+  next();
+});
+
+// Invalidate the cached staff and customer lists after any successful write to
+// the collections they are built from. Doing it here rather than in each handler
+// means a new route cannot forget to, and serving a stale dropdown for ten
+// minutes after adding a customer would be worse than the query it saves.
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD') return next();
+  // originalUrl, not req.path: inside a mounted middleware req.path is relative
+  // to the mount point, and Express has restored req.url by the time 'finish'
+  // fires — reading it there matched nothing and left the caches stale.
+  const url = req.originalUrl || '';
+  res.on('finish', () => {
+    if (res.statusCode >= 400) return;
+    if (url.startsWith('/api/customers') || url.startsWith('/api/partners') || url.startsWith('/api/admin/customers')) {
+      bustCustomerCaches();
+    }
+    if (url.startsWith('/api/admin/users') || url.startsWith('/api/admin/roles') || url.startsWith('/api/auth/change-password')) {
+      bustUserCaches();
+    }
+  });
   next();
 });
 
@@ -1747,12 +1797,15 @@ app.get('/api/customers', authenticate, requirePermission('view_customers'), asy
 // Accessible by ALL authenticated users regardless of specific role permissions
 app.get('/api/customers/dropdown', authenticate, async (req, res) => {
   try {
+    const cached = cacheHit('customerDropdown');
+    if (cached) return res.json(cached);
+
     const customers = await Customer.find({})
       .select('_id company contactName firstName lastName email customerType city address street state zip shippingAddress shippingCity billingAddress billingCity')
       .sort({ company: 1, contactName: 1 })
       .lean();
 
-    res.json(customers);
+    res.json(cachePut('customerDropdown', customers));
   } catch (error) {
     console.error('Error fetching customers for dropdown:', error);
     res.status(500).json({ message: 'Failed to fetch customers', error: error.message });
@@ -2510,6 +2563,9 @@ app.get('/api/checkin/:id', authenticate, requirePermission('view_checkins'), as
 // and was previously reachable unauthenticated.
 app.get('/api/salesreps', authenticate, async (req, res) => {
   try {
+    const cached = cacheHit('salesreps');
+    if (cached) return res.json(cached);
+
     const users = await User.find({}, 'username email role location assignedLocations');
     const formattedUsers = users.map(user => ({
       username: user.username,
@@ -2519,7 +2575,7 @@ app.get('/api/salesreps', authenticate, async (req, res) => {
       location: user.location,
       assignedLocations: user.assignedLocations || []
     }));
-    res.json({ success: true, data: formattedUsers });
+    res.json(cachePut('salesreps', { success: true, data: formattedUsers }));
   } catch (error) {
     console.error('Error fetching sales reps:', error);
     res.status(500).json({ message: 'Failed to fetch sales reps' });
