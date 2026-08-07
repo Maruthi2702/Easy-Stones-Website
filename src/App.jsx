@@ -90,6 +90,9 @@ function App() {
   const isSalesPage = location.pathname.startsWith('/sales');
   const isAdminPage = location.pathname.startsWith('/admin');
   const isSelfCheckInPage = location.pathname.startsWith('/self-checkin') || location.search.includes('mode=qr') || location.search.includes('mode=nfc') || location.search.includes('mode=self');
+  // The login screen is a task, not a page to browse from — the full marketing
+  // footer under a two-field form is twenty-odd links competing with one button.
+  const isLoginPage = ['/login', '/customer/login', '/admin/login'].includes(location.pathname);
 
   // Custom Alert Modal State
   const [customAlert, setCustomAlert] = useState(null);
@@ -175,7 +178,7 @@ function App() {
               </Suspense>
             </ErrorBoundary>
           </main>
-          {!isSalesPage && !isAdminPage && !isSelfCheckInPage && <Footer />}
+          {!isSalesPage && !isAdminPage && !isSelfCheckInPage && !isLoginPage && <Footer />}
         </div>
         {/* Custom Alert Modal overlay outside normal layout */}
         {customAlert && (

@@ -1,4 +1,4 @@
-import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, LogOut, X, Package, Warehouse, TrendingUp, ShieldCheck, PhoneCall } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useState, useEffect } from 'react';
@@ -6,8 +6,11 @@ import './Header.css';
 
 const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // A gold Login button pointing at the page you are already on.
+  const onLoginPage = ['/login', '/customer/login', '/admin/login'].includes(location.pathname);
   const [theme, setTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_theme');
@@ -94,7 +97,7 @@ const Header = () => {
                 <LogOut size={18} />
               </button>
             </div>
-          ) : (
+          ) : !onLoginPage && (
             <Link to="/login" className="login-btn">
               Login
             </Link>
@@ -174,7 +177,7 @@ const Header = () => {
               <LogOut size={18} />
               <span>Logout ({user.contactName})</span>
             </button>
-          ) : (
+          ) : !onLoginPage && (
             <Link
               to="/login"
               className="mobile-login-btn"

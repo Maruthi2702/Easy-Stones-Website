@@ -1,10 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, Sun, Moon } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Sun, Moon, AlertCircle, WifiOff } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import './CustomerLoginPage.css';
 
+/**
+ * The one door into the portal — trade customers and staff sign in here and are
+ * routed by account type afterwards. The empty half of a wide screen carries a
+ * slab instead of nothing; see CustomerLoginPage.css for the two images, which
+ * swap with the theme.
+ */
 const CustomerLoginPage = () => {
     const navigate = useNavigate();
     const { login, checkAuth } = useAuth();
@@ -13,8 +19,17 @@ const CustomerLoginPage = () => {
         password: ''
     });
     const [showPassword, setShowPassword] = useState(false);
-    const [error, setError] = useState('');
+    // The panel image is set in CSS so it swaps with the theme without a repaint
+    // here; the caption has to follow it. Specs are the catalogue's own.
+    const SLABS = {
+        light: { name: 'Calacatta Lincoln', spec: 'Quartz · Polished · 126″ × 63″ · 3cm' },
+        dark: { name: 'Nero Marquina', spec: 'Quartz · Polished · 126″ × 63″ · 3cm' }
+    };
+    const [error, setError] = useState(null);   // { field, message, kind }
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const emailRef = useRef(null);
+    const passwordRef = useRef(null);
 
     const [theme, setTheme] = useState(() => {
         try {
@@ -52,29 +67,28 @@ const CustomerLoginPage = () => {
             ...formData,
             [e.target.name]: e.target.value
         });
-        setError('');
+        setError(null);
     };
 
-    const validateEmail = (email) => {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    // Put the cursor back where the problem is, so a keyboard user can just retype.
+    const fail = (field, message, kind = 'auth') => {
+        setError({ field, message, kind });
+        if (field === 'email') emailRef.current?.focus();
+        if (field === 'password') passwordRef.current?.focus();
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Client-side validation - relaxed to allow usernames
         if (!formData.email) {
-            setError('Email or Username is required');
-            return;
+            return fail('email', 'Enter the email address or username you sign in with.');
         }
-
         if (!formData.password) {
-            setError('Password is required');
-            return;
+            return fail('password', 'Enter your password.');
         }
 
         setIsSubmitting(true);
-        setError('');
+        setError(null);
 
         try {
             const response = await fetch(`${API_URL}/api/customer/login`, {
@@ -101,101 +115,130 @@ const CustomerLoginPage = () => {
                     navigate('/');
                 }
             } else {
-                setError(data.message || 'Authentication failed');
+                // The server returns one message for both a bad account and a bad
+                // password on purpose — don't guess which, but do say what to do next.
+                fail('password', data.message || "That didn't match an account. Check both fields and try again.");
             }
         } catch (error) {
-            setError('Connection error. Please try again.');
+            setError({
+                field: null,
+                kind: 'network',
+                message: "Couldn't reach the server. Check your connection and try again."
+            });
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    const badField = (name) => (error?.field === name ? 'is-invalid' : '');
+
     return (
         <div className="customer-login-page">
-            <button 
-                type="button" 
-                onClick={toggleTheme} 
-                style={{
-                    position: 'fixed',
-                    top: '2rem',
-                    right: '2rem',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: 'var(--shadow-md)',
-                    zIndex: 1000,
-                    transition: 'all 0.2s'
-                }}
-                title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
-            >
-                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-            <div className="login-container">
-                <div className="login-card">
-                    <div className="login-header">
-                        <h1>Welcome Back</h1>
-                        <p>Sign in to your account</p>
+            <div className="login-split">
+
+                {/* Slab panel — the product, doing the work an empty half-screen wouldn't */}
+                <aside className="login-slab" aria-hidden="true">
+                    <div className="login-slab-inner">
+                        <img className="login-slab-logo" src="/logo.png" alt="" />
+                        <div className="login-slab-caption">
+                            <p className="login-slab-name">{SLABS[theme].name}</p>
+                            <p className="login-slab-spec">{SLABS[theme].spec}</p>
+                        </div>
+                    </div>
+                </aside>
+
+                {/* Form panel */}
+                <div className="login-panel">
+                    <div className="login-panel-top">
+                        <button
+                            type="button"
+                            className="login-theme-btn"
+                            onClick={toggleTheme}
+                            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                        >
+                            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+                        </button>
                     </div>
 
-                    {error && <div className="error-message">{error}</div>}
+                    <div className="login-panel-center">
+                        <div className="login-form-wrap">
+                            <p className="login-kicker">Customer &amp; staff portal</p>
+                            <h1 className="login-title">Welcome back</h1>
 
-                    <form onSubmit={handleSubmit} className="login-form">
-                        <div className="form-group">
-                            <label>
-                                <Mail size={18} />
-                                Email or Username
-                            </label>
-                            <input
-                                type="text"
-                                name="email"
-                                value={formData.email}
-                                onChange={handleChange}
-                                required
-                                placeholder="Enter your email or username"
-                            />
-                        </div>
+                            {error && (
+                                <div className="login-error" role="alert">
+                                    {error.kind === 'network'
+                                        ? <WifiOff size={17} className="login-error-icon" />
+                                        : <AlertCircle size={17} className="login-error-icon" />}
+                                    <span>{error.message}</span>
+                                </div>
+                            )}
 
-                        <div className="form-group">
-                            <label>
-                                <Lock size={18} />
-                                Password
-                            </label>
-                            <div className="password-input-wrapper">
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    name="password"
-                                    value={formData.password}
-                                    onChange={handleChange}
-                                    required
-                                    placeholder="Enter your password"
-                                />
-                                <button
-                                    type="button"
-                                    className="password-toggle"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    tabIndex="-1"
-                                >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            <form onSubmit={handleSubmit} className="login-form" noValidate>
+                                <div className="login-field">
+                                    <div className="login-label-row">
+                                        <label htmlFor="login-email">Email or username</label>
+                                    </div>
+                                    <div className={`login-input ${badField('email')}`}>
+                                        <Mail size={16} className="login-input-icon" />
+                                        <input
+                                            id="login-email"
+                                            ref={emailRef}
+                                            type="text"
+                                            name="email"
+                                            autoComplete="username"
+                                            value={formData.email}
+                                            onChange={handleChange}
+                                            placeholder="you@company.com"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="login-field">
+                                    <div className="login-label-row">
+                                        <label htmlFor="login-password">Password</label>
+                                        <Link to="/contact" className="login-help-link">Need help?</Link>
+                                    </div>
+                                    <div className={`login-input ${badField('password')}`}>
+                                        <Lock size={16} className="login-input-icon" />
+                                        <input
+                                            id="login-password"
+                                            ref={passwordRef}
+                                            type={showPassword ? 'text' : 'password'}
+                                            name="password"
+                                            autoComplete="current-password"
+                                            value={formData.password}
+                                            onChange={handleChange}
+                                            placeholder="Enter your password"
+                                        />
+                                        <button
+                                            type="button"
+                                            className="login-eye"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            tabIndex="-1"
+                                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                        >
+                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button type="submit" className="login-submit" disabled={isSubmitting}>
+                                    {isSubmitting ? 'Signing you in…' : 'Sign In'}
                                 </button>
-                            </div>
+                            </form>
+
+                            <p className="login-alt">
+                                Don&apos;t have an account? <Link to="/contact">Contact your sales rep</Link>
+                            </p>
                         </div>
+                    </div>
 
-                        <button type="submit" className="submit-btn" disabled={isSubmitting}>
-                            {isSubmitting ? 'Signing in...' : 'Sign In'}
-                        </button>
-                    </form>
-
-                    <div className="toggle-form">
-                        <p style={{ margin: 0 }}>
-                            Don't have an account? <Link to="/contact" className="contact-admin" style={{ textDecoration: 'none' }}>Contact Your Sales Rep.</Link>
-                        </p>
+                    <div className="login-panel-foot">
+                        <Link to="/warranty">Warranty</Link>
+                        <Link to="/warranty?section=care">Care &amp; Maintenance</Link>
+                        <Link to="/contact">Contact</Link>
                     </div>
                 </div>
             </div>
