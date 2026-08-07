@@ -591,8 +591,11 @@ const DeliveryModal = ({
                   value={truckId}
                   onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
                   options={[
-                    { value: '', label: '-- Unassigned / Pending Driver --' },
-                    ...trucks.map(trk => {
+                    // Our own drivers first, then contract freight, and Pending
+                    // Delivery last — the list reads as "who is taking this",
+                    // ending in "nobody yet". Contract freight is pinned after
+                    // the drivers rather than left wherever the API returned it.
+                    ...[...trucks].sort((a, b) => Number(isThirdParty(a)) - Number(isThirdParty(b))).map(trk => {
                       // Contract freight is not one of our trucks, so the daily
                       // load cap does not apply and showing a x/12 count for it
                       // would be misleading.
@@ -606,7 +609,8 @@ const DeliveryModal = ({
                           : `${trk.driver || trk.name} — ${booked}/${MAX_TRUCK_CAPACITY}${isFull ? ' FULL' : ''}`,
                         disabled: isFull
                       };
-                    })
+                    }),
+                    { value: '', label: '📋 Pending Delivery' }
                   ]}
                 />
               </div>
