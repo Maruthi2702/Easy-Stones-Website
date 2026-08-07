@@ -8,7 +8,7 @@ import { formatForDateInput } from '../../../utils/dateUtils';
 // much to keep stop, reference number and status pill on one line; below it the
 // three start colliding, so the table scrolls sideways rather than going narrower.
 const DAY_COL_WIDTH = 170;
-const MIN_TRUCK_COL_WIDTH = 260;
+const MIN_TRUCK_COL_WIDTH = 290;
 // The stylesheet's existing floor — never render narrower than the board does today.
 const MIN_TABLE_WIDTH = 1100;
 
