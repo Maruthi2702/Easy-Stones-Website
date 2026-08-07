@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { prettifyUsername } from '../../utils/textUtils';
+import { clearDriversCache } from '../../api/schedule';
 import './UsersRolesTab.css';
 
 // Granular per-page permission definitions.
@@ -456,6 +457,11 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                 throw new Error(errData.message || `Failed to ${modalMode} user`);
             }
 
+            // The delivery board caches the driver list in localStorage, so a
+            // rename would otherwise keep showing the old name for up to 10
+            // minutes in this tab.
+            clearDriversCache();
+
             alert(`User ${modalMode === 'add' ? 'created' : 'updated'} successfully!`);
             setShowUserModal(false);
             fetchData(); // Reload table
@@ -478,6 +484,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             }
 
             setUsers(prev => prev.filter(u => u._id !== user._id));
+            clearDriversCache();
             alert('User deleted successfully!');
         } catch (err) {
             alert(err.message);

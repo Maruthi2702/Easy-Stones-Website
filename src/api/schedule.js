@@ -266,8 +266,27 @@ const TRUCK_COLORS = ['#D4AF37', '#2F8F73', '#E1602A', '#3B82F6', '#8B5CF6', '#6
 // Drivers change rarely but cost a full round trip on every page load, which is
 // pure latency against a remote database. Persist the resolved list so a reload
 // paints immediately; truck_update and an explicit refresh both bypass this.
-const DRIVERS_CACHE_PREFIX = 'drivers_cache_v1:';
+// Bumped to v2 when driver names started coming from Display Name: entries
+// written by an older build hold the previous names, and a version bump drops
+// them everywhere at once instead of waiting out each browser's TTL.
+const DRIVERS_CACHE_PREFIX = 'drivers_cache_v2:';
 const DRIVERS_CACHE_TTL = 10 * 60 * 1000;
+
+/**
+ * Drop every cached driver list. Renaming or adding a user changes what the
+ * board shows, and a 10-minute TTL is far too long to wait to see your own
+ * edit — Users & Roles calls this on save, and the server emits `truck_update`
+ * so other people's open boards refetch too.
+ */
+export function clearDriversCache() {
+  try {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(DRIVERS_CACHE_PREFIX))
+      .forEach(k => localStorage.removeItem(k));
+  } catch {
+    // storage unavailable — nothing cached to clear
+  }
+}
 
 const readDriversCache = (key) => {
   try {

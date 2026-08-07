@@ -1090,6 +1090,10 @@ app.post('/api/admin/users', authenticate, requirePermission('manage_users'), as
 
     await newUser.save();
 
+    // Driver lists on open delivery boards are built from these accounts and are
+    // cached client-side, so tell them to refetch instead of showing a stale name.
+    req.app.get('io')?.emit('truck_update');
+
     res.status(201).json({
       message: 'User created successfully',
       user: {
@@ -1139,6 +1143,9 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
 
     await user.save();
 
+    // A rename has to reach every open board — see the create route above.
+    req.app.get('io')?.emit('truck_update');
+
     res.json({
       message: 'User updated successfully',
       user: {
@@ -1161,6 +1168,7 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
 app.delete('/api/admin/users/:id', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
+    req.app.get('io')?.emit('truck_update');
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete user' });
