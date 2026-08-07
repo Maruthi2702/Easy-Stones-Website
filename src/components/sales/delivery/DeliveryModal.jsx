@@ -422,20 +422,38 @@ const DeliveryModal = ({
           </div>
         )}
 
-        {/* Modal Body — same as VisitModal .modal-body */}
-        <div className="modal-body">
-
-          {/* Inline Delete Confirmation Banner */}
-          {confirmDelete && (
-            <div className="modal-delete-confirm-banner">
-              <AlertTriangle size={18} />
-              <span>Delete this delivery? This cannot be undone.</span>
-              <div className="delete-confirm-actions">
-                <button type="button" className="btn-confirm-delete" onClick={handleDeleteConfirmed}>Yes, delete</button>
-                <button type="button" className="btn-cancel-delete" onClick={() => setConfirmDelete(false)}>Cancel</button>
+        {/* Delete Confirmation Pop-up — same shape as the unsaved-changes card
+            above, so destructive confirmation always looks and behaves the same
+            and cannot be scrolled past the way the old inline banner could. */}
+        {confirmDelete && (
+          <div className="unsaved-modal-backdrop anim-fade-in" onClick={() => setConfirmDelete(false)}>
+            <div className="unsaved-modal-card is-danger anim-scale-in" onClick={(e) => e.stopPropagation()}>
+              <div className="unsaved-modal-header">
+                <div className="unsaved-icon-badge is-danger">
+                  <Trash2 size={24} />
+                </div>
+                <h4>Delete This {isTransfer ? 'Transfer' : 'Delivery'}?</h4>
+              </div>
+              <p className="unsaved-modal-body">
+                {customerName.trim()
+                  ? <><strong>{customerName.trim()}</strong> will be permanently removed from the schedule.</>
+                  : 'This ticket will be permanently removed from the schedule.'}
+                {' '}This cannot be undone.
+              </p>
+              <div className="unsaved-modal-actions">
+                <button type="button" className="btn-keep-editing" onClick={() => setConfirmDelete(false)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn-discard-changes" onClick={handleDeleteConfirmed}>
+                  Yes, Delete
+                </button>
               </div>
             </div>
-          )}
+          </div>
+        )}
+
+        {/* Modal Body — same as VisitModal .modal-body */}
+        <div className="modal-body">
 
           {error && <div className="modal-error-banner" style={{ marginBottom: '1rem' }}><AlertCircle size={18} /> {error}</div>}
 
@@ -826,7 +844,9 @@ const DeliveryModal = ({
 
         {/* Modal Footer */}
         <div className="modal-footer">
-          {initialData?.id && canDeleteDelivery && !confirmDelete && (
+          {/* Stays mounted while confirming — the pop-up covers it, and hiding
+              it would shift the footer around behind the backdrop. */}
+          {initialData?.id && canDeleteDelivery && (
             <button
               type="button"
               className="modal-btn-delete"
