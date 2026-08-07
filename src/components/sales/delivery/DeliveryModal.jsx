@@ -63,6 +63,14 @@ const STATUS_OPTIONS = [
   { value: 'completed', label: '✅ Completed / Delivered' }
 ];
 
+// The contract-freight entry may arrive as the built-in DEFAULT_TRUCKS row or,
+// once real driver accounts exist, as a user record whose name spells it out
+// ("3rd party - delivery"). Match on either so the transfer default and the
+// no-capacity rule below keep working whichever the board is showing.
+const isThirdParty = (trk) =>
+  trk?.id === 'trk_3rd_party' ||
+  /3rd\s*[-–—\s]*party|third\s*[-–—\s]*party/i.test(`${trk?.driver || ''} ${trk?.name || ''} ${trk?.username || ''}`);
+
 const DeliveryModal = ({
   isOpen,
   onClose,
@@ -102,6 +110,10 @@ const DeliveryModal = ({
   // An inter-branch transfer moves stock between our own showrooms, so the
   // customer/jobsite half of this form does not apply to it.
   const isTransfer = deliveryType === 'transfer';
+
+  // Transfers go out on contract freight rather than our own trucks, so picking
+  // that type pre-selects the 3rd-party carrier.
+  const thirdPartyTruck = trucks.find(isThirdParty);
 
   // Leaving the driver unassigned marks the order Pending: it waits in the list
   // under the board until the customer confirms, so it needs no date yet.
@@ -447,7 +459,17 @@ const DeliveryModal = ({
               <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Delivery Type</label>
               <CustomSelect
                 value={deliveryType}
-                onChange={(e) => { setDeliveryType(e.target.value); markDirty(); }}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  setDeliveryType(nextType);
+                  // Default a transfer to contract freight — but only into an
+                  // empty slot, so an explicit driver choice is never overwritten
+                  // and "Unassigned" stays available for a transfer with no ETA.
+                  if (nextType === 'transfer' && !truckId && thirdPartyTruck) {
+                    setTruckId(thirdPartyTruck.id);
+                  }
+                  markDirty();
+                }}
                 options={[
                   { value: 'jobsite', label: '🚚 Delivery' },
                   { value: 'transfer', label: '🔄 Inter-Branch Transfer' },
@@ -562,11 +584,15 @@ const DeliveryModal = ({
                   options={[
                     { value: '', label: '-- Unassigned / Pending Driver --' },
                     ...trucks.map(trk => {
+                      // Contract freight is not one of our trucks, so the daily
+                      // load cap does not apply and showing a x/12 count for it
+                      // would be misleading.
+                      const contract = isThirdParty(trk);
                       const booked = getCapacityForTruck(trk.id);
-                      const isFull = trk.id !== 'trk_3rd_party' && booked >= MAX_TRUCK_CAPACITY;
+                      const isFull = !contract && booked >= MAX_TRUCK_CAPACITY;
                       return {
                         value: trk.id,
-                        label: trk.id === 'trk_3rd_party'
+                        label: contract
                           ? `🚚 3rd Party — Contract Freight`
                           : `${trk.driver || trk.name} — ${booked}/${MAX_TRUCK_CAPACITY}${isFull ? ' FULL' : ''}`,
                         disabled: isFull
