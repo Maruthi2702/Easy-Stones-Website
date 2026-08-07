@@ -5540,7 +5540,9 @@ app.post('/api/lost-sales', verifyAnyAuth, async (req, res) => {
       competitorName: data.competitorName || '',
       notes: data.notes || '',
       salesRepName: data.salesRepName || req.user?.username || req.user?.contactName || 'Sales Rep',
-      salesRepId: data.salesRepId || req.user?._id || null,
+      // authenticate() exposes the user's id as `id`, not `_id` — this read used
+      // to always be undefined, so every lost sale was stored with a null rep id.
+      salesRepId: data.salesRepId || req.user?.id || null,
       date: data.date ? new Date(data.date) : new Date()
     });
 
