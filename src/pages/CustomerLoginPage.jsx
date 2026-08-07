@@ -139,7 +139,6 @@ const CustomerLoginPage = () => {
                 {/* Slab panel — the product, doing the work an empty half-screen wouldn't */}
                 <aside className="login-slab" aria-hidden="true">
                     <div className="login-slab-inner">
-                        <img className="login-slab-logo" src="/logo.png" alt="" />
                         <div className="login-slab-caption">
                             <p className="login-slab-name">{SLABS[theme].name}</p>
                             <p className="login-slab-spec">{SLABS[theme].spec}</p>

@@ -44,17 +44,18 @@ body.light-theme-active .customer-login-page {
   background-color: var(--bg-secondary); /* holds the layout while the image loads */
 }
 
-/* Scrim top and bottom so the logo and caption stay legible on any material —
-   these sit over stone that ranges from near-white to near-black. */
+/* Scrim at the foot so the caption stays legible over stone that ranges from
+   near-white to near-black. Only a trace at the top — with no logo up there
+   it would just be dimming the slab for nothing. */
 .login-slab::after {
   content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(10, 9, 7, 0.58) 0%,
-    rgba(10, 9, 7, 0.12) 26%,
-    rgba(10, 9, 7, 0.04) 52%,
+    rgba(10, 9, 7, 0.16) 0%,
+    rgba(10, 9, 7, 0.02) 20%,
+    rgba(10, 9, 7, 0.02) 52%,
     rgba(10, 9, 7, 0.78) 100%
   );
 }
@@ -65,18 +66,8 @@ body.light-theme-active .customer-login-page {
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-end;   /* the caption is the only thing in here */
   padding: clamp(1.4rem, 3vw, 2.4rem);
-}
-
-.login-slab-logo {
-  height: 28px;
-  width: auto;
-  /* The panel is a column flex container, so a stretched item would resolve
-     width:auto to the full panel width and distort the mark. */
-  align-self: flex-start;
-  filter: brightness(0) invert(1);
-  opacity: 0.96;
 }
 
 .login-slab-name {
@@ -403,7 +394,6 @@ body:not(.light-theme-active) .login-alt a { color: var(--login-gold); }
   }
 
   .login-form-wrap { max-width: none; }
-  .login-slab-logo { height: 22px; }
 }
 
 @media (max-width: 400px) {
