@@ -81,6 +81,12 @@ const officeCheckInSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
+    // Their Display Name at the time of the check-in. Recorded alongside the
+    // username so the log keeps reading correctly if they later rename.
+    displayName: {
+      type: String,
+      default: ''
+    },
     username: {
       type: String,
       trim: true

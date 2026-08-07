@@ -735,6 +735,27 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
+/**
+ * Usernames are login identifiers and are stored lower-case so signing in is
+ * not case-sensitive. Nothing user-facing should render one directly — use
+ * displayNameOf(), which prefers the Display Name the user set for themselves
+ * and falls back to a tidied-up username for accounts that have not set one.
+ *
+ *   { username: 'jonathan',            displayName: '' }         → 'Jonathan'
+ *   { username: '3rd party - delivery', displayName: '' }        → '3rd Party Delivery'
+ *   { username: '3rd party - delivery', displayName: '3rd Party - Delivery' }
+ *                                                                → '3rd Party - Delivery'
+ */
+const prettifyUsername = (username = '') =>
+  String(username)
+    .split(/[._\-\s]+/)
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
+const displayNameOf = (user) =>
+  String(user?.displayName || '').trim() || prettifyUsername(user?.username);
+
 // =============================================================================
 // AUTHENTICATION & AUTHORIZATION MIDDLEWARE
 // DB-first design: JWT proves identity only. Role + permissions always fetched
@@ -823,6 +844,7 @@ const authenticate = async (req, res, next) => {
       {
         $project: {
           username: 1,
+          displayName: 1,
           email: 1,
           role: 1,
           assignedLocations: 1,
@@ -838,7 +860,8 @@ const authenticate = async (req, res, next) => {
     // Populate req.user with fresh data
     req.user = {
       id: dbUser._id,
-      username: dbUser.username,
+      username: dbUser.username,          // login identifier — do not render
+      displayName: displayNameOf(dbUser), // render this instead
       email: dbUser.email,
       role: dbUser.role,
       permissions: dbUser.permissions,   // always fresh from DB
@@ -998,6 +1021,8 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       token,
       admin: {
         username: user.username,
+        displayName: user.displayName || '',
+        name: displayNameOf(user),
         email: user.email,
         role: user.role,
         permissions
@@ -1042,7 +1067,7 @@ app.get('/api/admin/users', authenticate, requirePermission('manage_users'), asy
 // Create new user (manage_users permission needed)
 app.post('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
-    const { username, password, email, role, location, assignedLocations } = req.body;
+    const { username, displayName, password, email, role, location, assignedLocations } = req.body;
 
     // Check if user exists
     const existingUser = await User.findOne({ username });
@@ -1052,6 +1077,10 @@ app.post('/api/admin/users', authenticate, requirePermission('manage_users'), as
 
     const newUser = new User({
       username,
+      // Left blank on purpose when not supplied — displayNameOf() then derives
+      // one from the username rather than storing a guess we would have to
+      // keep in sync if the username ever changed.
+      displayName: (displayName || '').trim(),
       password,
       email,
       role: role || 'sales_rep',
@@ -1066,6 +1095,8 @@ app.post('/api/admin/users', authenticate, requirePermission('manage_users'), as
       user: {
         id: newUser._id,
         username: newUser.username,
+        displayName: newUser.displayName,
+        name: displayNameOf(newUser),
         email: newUser.email,
         role: newUser.role,
         location: newUser.location,
@@ -1080,7 +1111,7 @@ app.post('/api/admin/users', authenticate, requirePermission('manage_users'), as
 // Update user (manage_users permission needed)
 app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
-    const { username, email, role, password, location, assignedLocations } = req.body;
+    const { username, displayName, email, role, password, location, assignedLocations } = req.body;
     const userId = req.params.id;
 
     const user = await User.findById(userId);
@@ -1097,6 +1128,9 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
       user.username = username;
     }
 
+    // Clearing the box is a real edit — '' means "go back to deriving it from
+    // the username", so this is an !== undefined check, not a truthiness one.
+    if (displayName !== undefined) user.displayName = String(displayName).trim();
     if (email !== undefined) user.email = email;
     if (role !== undefined) user.role = role;
     if (location !== undefined) user.location = location;
@@ -1110,6 +1144,8 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
       user: {
         id: user._id,
         username: user.username,
+        displayName: user.displayName,
+        name: displayNameOf(user),
         email: user.email,
         role: user.role,
         location: user.location,
@@ -1386,6 +1422,8 @@ app.get('/api/user/me', authenticate, async (req, res) => {
     res.json({
       id: user._id,
       username: user.username,
+      displayName: user.displayName || '',
+      name: displayNameOf(user),   // AuthContext exposes this as currentUser.name
       email: user.email,
       role: user.role,
       permissions,
@@ -1633,7 +1671,7 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       message: 'Login successful',
       user: {
         id: account._id,
-        contactName: accountType === 'customer' ? account.contactName : (account.username || account.email),
+        contactName: accountType === 'customer' ? account.contactName : (displayNameOf(account) || account.email),
         email: account.email,
         company: account.company || 'Easy Stones Internal',
         role: account.role || 'customer',
@@ -1691,7 +1729,7 @@ app.get('/api/customer/me', verifyCustomer, async (req, res) => {
 
     res.json({
       id: account._id,
-      contactName: req.accountType === 'customer' ? account.contactName : (account.username || account.email),
+      contactName: req.accountType === 'customer' ? account.contactName : (displayNameOf(account) || account.email),
       email: account.email,
       company: account.company || (req.accountType === 'internal' ? 'Easy Stones Internal' : ''),
       role: account.role || 'customer',
@@ -1758,8 +1796,8 @@ const getPerformerInfo = async (req) => {
 
   if (req.authType === 'admin') {
     id = req.userId;
-    const user = await User.findById(req.userId).select('username');
-    name = user ? user.username : `Unknown User (${req.userId})`;
+    const user = await User.findById(req.userId).select('username displayName');
+    name = user ? displayNameOf(user) : `Unknown User (${req.userId})`;
   } else if (req.authType === 'customer') {
     id = req.customerId;
     const customer = await Customer.findById(req.customerId).select('contactName email');
@@ -2411,12 +2449,13 @@ app.post('/api/checkin', authenticate, async (req, res) => {
       location: kioskLocation,
       loggedBy: {
         userId: req.user?.id,
+        displayName: req.user?.displayName || '',
         username: req.user?.username
       }
     });
 
     await checkIn.save();
-    console.log(`✅ New office check-in at ${checkIn.location} (logged by ${req.user?.username}): ${name} (${phone})`);
+    console.log(`✅ New office check-in at ${checkIn.location} (logged by ${req.user?.displayName || req.user?.username}): ${name} (${phone})`);
 
     // Send email alert to staff with priority fallback logic
     (async () => {
@@ -2597,10 +2636,11 @@ app.get('/api/salesreps', authenticate, async (req, res) => {
     const cached = cacheHit('salesreps');
     if (cached) return res.json(cached);
 
-    const users = await User.find({}, 'username email role location assignedLocations');
+    const users = await User.find({}, 'username displayName email role location assignedLocations');
     const formattedUsers = users.map(user => ({
       username: user.username,
-      name: user.username.split(/[._-]/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '), // Capitalize username neatly
+      displayName: user.displayName || '',
+      name: displayNameOf(user),   // what every consumer of this list renders
       email: user.email,
       role: user.role,
       location: user.location,
@@ -4818,7 +4858,7 @@ app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requi
     let userName = 'Unknown';
     if (!isCustomer) {
       const user = await User.findById(userId);
-      userName = user ? user.username : 'Admin';
+      userName = user ? displayNameOf(user) : 'Admin';
     } else {
       const customer = await Customer.findById(userId);
       userName = customer ? (customer.contactName || customer.email) : 'Customer';
@@ -5539,7 +5579,7 @@ app.post('/api/lost-sales', verifyAnyAuth, async (req, res) => {
       location: data.location || 'Seattle',
       competitorName: data.competitorName || '',
       notes: data.notes || '',
-      salesRepName: data.salesRepName || req.user?.username || req.user?.contactName || 'Sales Rep',
+      salesRepName: data.salesRepName || req.user?.displayName || req.user?.contactName || 'Sales Rep',
       // authenticate() exposes the user's id as `id`, not `_id` — this read used
       // to always be undefined, so every lost sale was stored with a null rep id.
       salesRepId: data.salesRepId || req.user?.id || null,

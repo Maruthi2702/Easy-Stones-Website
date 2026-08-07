@@ -56,6 +56,7 @@ const AdminPage = () => {
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [userFormData, setUserFormData] = useState({
     username: '',
+    displayName: '',
     email: '',
     password: '',
     role: 'sales_rep',
@@ -381,6 +382,7 @@ const AdminPage = () => {
     setEditingUserId(user._id);
     setUserFormData({
       username: user.username,
+      displayName: user.displayName || '',
       email: user.email || '',
       password: '', // Keep blank unless changing
       role: user.role,
@@ -1381,6 +1383,15 @@ const AdminPage = () => {
                             value={userFormData.username}
                             onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
                             required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Display Name</label>
+                          <input
+                            type="text"
+                            value={userFormData.displayName}
+                            onChange={(e) => setUserFormData({ ...userFormData, displayName: e.target.value })}
+                            placeholder="Shown in the app — blank uses the username"
                           />
                         </div>
                         <div className="form-group">

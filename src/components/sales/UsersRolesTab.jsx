@@ -3,9 +3,10 @@ import {
     Users, ShieldAlert, Plus, Edit2, Trash2, Search, 
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
-    FileCog, Mail as MailIcon, TrendingDown, Truck
+    FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { prettifyUsername } from '../../utils/textUtils';
 import './UsersRolesTab.css';
 
 // Granular per-page permission definitions.
@@ -391,6 +392,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
         setModalMode('add');
         setUserForm({
             username: '',
+            displayName: '',
             email: '',
             role: roles[0]?.name || 'sales_rep',
             location: '',
@@ -406,6 +408,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
         setModalMode('edit');
         setUserForm({
             username: user.username,
+            displayName: user.displayName || '',
             email: user.email || '',
             role: user.role || 'sales_rep',
             location: user.location || '',
@@ -488,6 +491,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
         return users.filter(user => {
             return (
                 user.username.toLowerCase().includes(query) ||
+                (user.displayName && user.displayName.toLowerCase().includes(query)) ||
                 (user.email && user.email.toLowerCase().includes(query)) ||
                 user.role.toLowerCase().includes(query) ||
                 (user.location && user.location.toLowerCase().includes(query))
@@ -583,9 +587,14 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                 <tr key={u._id}>
                                                     <td className="username-cell" data-label="Username">
                                                         <div className="avatar-small">
-                                                            {u.username.substring(0, 2).toUpperCase()}
+                                                            {(u.displayName || u.username).substring(0, 2).toUpperCase()}
                                                         </div>
-                                                        <span>{u.username}</span>
+                                                        {/* Display Name is what the rest of the app shows, so lead with
+                                                            it and keep the login username underneath for reference. */}
+                                                        <div className="username-cell-names">
+                                                            <span>{u.displayName || prettifyUsername(u.username)}</span>
+                                                            <small>{u.username}</small>
+                                                        </div>
                                                     </td>
                                                     <td data-label="Email">{u.email || '-'}</td>
                                                     <td data-label="Role">
@@ -892,14 +901,29 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                         <form onSubmit={handleUserSubmit} className="modal-form">
                             <div className="form-group">
                                 <label><UserCheck size={16} /> Username</label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     value={userForm.username}
                                     onChange={(e) => setUserForm(prev => ({ ...prev, username: e.target.value }))}
                                     placeholder="e.g. jdoe"
                                     required
                                     disabled={modalMode === 'edit'} // Username remains constant
                                 />
+                                <small className="form-hint">Used to sign in. Always saved in lower case.</small>
+                            </div>
+
+                            <div className="form-group">
+                                <label><IdCard size={16} /> Display Name</label>
+                                <input
+                                    type="text"
+                                    value={userForm.displayName}
+                                    onChange={(e) => setUserForm(prev => ({ ...prev, displayName: e.target.value }))}
+                                    placeholder={userForm.username ? prettifyUsername(userForm.username) : 'e.g. J. Doe'}
+                                />
+                                <small className="form-hint">
+                                    Shown everywhere in the app — driver lists, check-in log, delivery tickets.
+                                    Leave blank to use <strong>{userForm.username ? prettifyUsername(userForm.username) : 'the username'}</strong>.
+                                </small>
                             </div>
 
                             <div className="form-group">

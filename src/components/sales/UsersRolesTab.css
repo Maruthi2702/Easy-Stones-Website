@@ -254,6 +254,29 @@
     gap: 1rem;
 }
 
+/* Display Name on top, login username beneath it in a quieter tone. */
+.username-cell-names {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+    min-width: 0;
+}
+
+.username-cell-names small {
+    font-size: 0.75rem;
+    opacity: 0.55;
+    font-weight: 500;
+}
+
+/* Helper text under a form field. */
+.form-hint {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    opacity: 0.62;
+}
+
 .avatar-small {
     width: 36px;
     height: 36px;

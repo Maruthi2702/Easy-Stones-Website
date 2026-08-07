@@ -2,12 +2,22 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
+  // Login identifier. Forced lower-case so signing in is not case-sensitive —
+  // which is exactly why it is a poor thing to show people. Use displayName.
   username: {
     type: String,
     required: true,
     unique: true,
     trim: true,
     lowercase: true
+  },
+  // What the app shows wherever this person's name appears: their own casing,
+  // spacing and punctuation, e.g. "3rd Party - Delivery". Optional — when it is
+  // blank the username is tidied up for display instead.
+  displayName: {
+    type: String,
+    trim: true,
+    default: ''
   },
   password: {
     type: String,

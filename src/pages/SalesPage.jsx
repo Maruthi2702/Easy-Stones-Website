@@ -5383,7 +5383,7 @@ const SalesPage = () => {
                                             value={
                                                 typeof selectedCheckIn.loggedBy === 'string' && selectedCheckIn.loggedBy.trim()
                                                     ? selectedCheckIn.loggedBy
-                                                    : selectedCheckIn.loggedBy?.username || (selectedCheckIn.isSelfCheckIn || selectedCheckIn.source === 'self' || selectedCheckIn.loggedBy === 'Self Check-In (QR/NFC)' ? '📱 Self Check-In (QR/NFC)' : 'Staff')
+                                                    : selectedCheckIn.loggedBy?.displayName || selectedCheckIn.loggedBy?.username || (selectedCheckIn.isSelfCheckIn || selectedCheckIn.source === 'self' || selectedCheckIn.loggedBy === 'Self Check-In (QR/NFC)' ? '📱 Self Check-In (QR/NFC)' : 'Staff')
                                             }
                                             readOnly
                                             disabled

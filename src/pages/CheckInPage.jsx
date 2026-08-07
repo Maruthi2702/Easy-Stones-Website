@@ -263,7 +263,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
       const response = await fetch(`${API_URL}/api/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ ...staffFormData, location: selectedLocation, loggedBy: user?.username || user?.name || 'Staff' }),
+        body: JSON.stringify({ ...staffFormData, location: selectedLocation, loggedBy: user?.name || user?.username || 'Staff' }),
         credentials: 'include'
       });
       if (response.ok) {

@@ -67,7 +67,9 @@ export const AuthProvider = ({ children }) => {
                     ...userData,
                     role: userData.role || authData.role,
                     type: authData.authType === 'admin' ? 'internal' : 'customer',
-                    contactName: userData.contactName || userData.username || userData.email
+                    // `name` is the server-resolved Display Name (falling back to a
+                    // tidied username); prefer it over the raw lower-case login id.
+                    contactName: userData.contactName || userData.name || userData.username || userData.email
                 });
             } else {
                 setUser(null);

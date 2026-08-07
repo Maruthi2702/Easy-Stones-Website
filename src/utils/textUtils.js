@@ -14,3 +14,19 @@ export const formatTitleCase = (str) => {
     .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1) : '')
     .join(' ');
 };
+
+/**
+ * Turns a login username into something presentable, for accounts that have not
+ * set a Display Name. Usernames are stored lower-case because they are
+ * identifiers, so they read badly on screen.
+ * Example: "3rd party - delivery" -> "3rd Party Delivery"
+ *
+ * Mirrors prettifyUsername() in server.js — the server sends `name` already
+ * resolved, so this is only for previewing the fallback as an admin types.
+ */
+export const prettifyUsername = (username = '') =>
+  String(username)
+    .split(/[._\-\s]+/)
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
