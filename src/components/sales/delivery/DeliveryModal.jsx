@@ -469,10 +469,12 @@ const DeliveryModal = ({
                 onChange={(e) => {
                   const nextType = e.target.value;
                   setDeliveryType(nextType);
-                  // Default a transfer to contract freight. "Unassigned" is still
-                  // selectable afterwards for a transfer with no ETA — this only
-                  // fires on a type change, never on the driver dropdown itself.
-                  if (nextType === 'transfer' && thirdPartyTruck && (isNewTicket || !truckId)) {
+                  // Default a transfer to contract freight, but only by replacing
+                  // the incidental prefill on a new ticket. An empty driver is
+                  // never filled in: that is how an order with no confirmed date
+                  // stays in Pending Delivery, and it is what the Pending "Add"
+                  // button and an explicit "Unassigned" both mean.
+                  if (nextType === 'transfer' && thirdPartyTruck && isNewTicket && truckId) {
                     setTruckId(thirdPartyTruck.id);
                   }
                   markDirty();
