@@ -97,7 +97,16 @@ body.light-theme-active .customer-login-page {
   flex-direction: column;
   padding: clamp(1.4rem, 3vw, 2.4rem);
   background: var(--bg-primary);
+  /* A trace of warmth behind the form so the panel isn't a flat field of one
+     colour next to a photograph. Barely perceptible, and that's the intent. */
+  background-image: radial-gradient(
+    120% 90% at 78% 0%,
+    rgba(212, 175, 55, 0.055) 0%,
+    rgba(212, 175, 55, 0) 55%
+  );
 }
+
+.login-theme-btn:active { transform: scale(0.94); }
 
 .login-panel-top {
   display: flex;
@@ -133,16 +142,26 @@ body.light-theme-active .customer-login-page {
   width: 100%;
   max-width: 352px;
   margin: 0 auto;
-  animation: loginFadeUp 0.5s ease backwards;
+}
+
+/* The panel settles in order rather than appearing as one block — a short
+   stagger, run once on load. */
+.login-form-wrap > * {
+  animation: loginFadeUp 0.45s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+}
+
+.login-form-wrap > :nth-child(1) { animation-delay: 0.04s; }
+.login-form-wrap > :nth-child(2) { animation-delay: 0.10s; }
+.login-form-wrap > :nth-child(3) { animation-delay: 0.16s; }
+.login-form-wrap > :nth-child(4) { animation-delay: 0.22s; }
+
+@keyframes loginFadeUp {
+  from { opacity: 0; transform: translateY(9px); }
+  to   { opacity: 1; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-form-wrap { animation: none; }
-}
-
-@keyframes loginFadeUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: none; }
+  .login-form-wrap > * { animation: none; }
 }
 
 /* Says who the form is for — one form signs in both customers and staff. */
@@ -166,7 +185,7 @@ body:not(.light-theme-active) .login-kicker { color: var(--login-gold); }
 }
 
 /* ── Fields ───────────────────────────────────────────────────────────────── */
-.login-form {
+.login-fields {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -198,6 +217,7 @@ body:not(.light-theme-active) .login-help-link { color: var(--login-gold); }
 .login-help-link:hover { text-decoration: underline; }
 
 .login-input {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.55rem;
@@ -205,23 +225,57 @@ body:not(.light-theme-active) .login-help-link { color: var(--login-gold); }
   border-radius: 10px;
   background: var(--bg-card);
   padding: 0 0.85rem;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
 
+.login-input:hover:not(:focus-within) {
+  border-color: var(--border-hover);
+}
+
+/* A thin gold rule that draws in from the centre as the field takes focus —
+   the whole of the page's motion budget, spent on the thing you're doing. */
+.login-input::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--login-gold), transparent);
+  transform: scaleX(0);
+  transition: transform 0.28s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.login-input:focus-within::after { transform: scaleX(1); }
+
 .login-input:focus-within {
-  border-color: var(--login-gold);
-  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18);
+  border-color: rgba(212, 175, 55, 0.75);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.14), 0 2px 10px rgba(212, 175, 55, 0.1);
 }
 
 .login-input.is-invalid {
   border-color: #c4483a;
   box-shadow: 0 0 0 3px rgba(196, 72, 58, 0.13);
+  animation: loginShake 0.32s ease;
+}
+
+.login-input.is-invalid::after { background: #c4483a; }
+
+@keyframes loginShake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-3px); }
+  75%      { transform: translateX(3px); }
 }
 
 .login-input-icon {
   flex: none;
   color: var(--text-muted);
+  transition: color 0.18s ease;
 }
+
+/* The leading icon picks up the accent while you're in the field. */
+.login-input:focus-within .login-input-icon { color: var(--login-gold); }
+.login-input.is-invalid .login-input-icon { color: #c4483a; }
 
 .login-input input {
   flex: 1;
@@ -270,6 +324,8 @@ body:not(.light-theme-active) .login-help-link { color: var(--login-gold); }
 
 /* ── Submit ───────────────────────────────────────────────────────────────── */
 .login-submit {
+  position: relative;
+  overflow: hidden;
   width: 100%;
   border: 0;
   border-radius: 10px;
@@ -280,14 +336,42 @@ body:not(.light-theme-active) .login-help-link { color: var(--login-gold); }
   font-family: inherit;
   font-size: 0.95rem;
   font-weight: 700;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow: 0 3px 12px rgba(192, 154, 36, 0.32);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 3px 12px rgba(192, 154, 36, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
+
+.login-submit-label {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* A slow sheen crossing the button on hover — polished metal, not a toy. */
+.login-submit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.42) 50%, transparent 62%);
+  transform: translateX(-120%);
+  transition: transform 0.7s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.login-submit:hover:not(:disabled)::before { transform: translateX(120%); }
 
 .login-submit:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(192, 154, 36, 0.42);
+  box-shadow: 0 8px 22px rgba(192, 154, 36, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.login-submit:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.96);
+  box-shadow: 0 2px 8px rgba(192, 154, 36, 0.3), inset 0 1px 2px rgba(90, 68, 10, 0.28);
 }
 
 .login-submit:disabled {
@@ -298,8 +382,42 @@ body:not(.light-theme-active) .login-help-link { color: var(--login-gold); }
   border: 1px solid var(--border-color);
 }
 
+.login-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: loginSpin 0.7s linear infinite;
+}
+
+@keyframes loginSpin { to { transform: rotate(360deg); } }
+
+/* Caps Lock notice */
+.login-caps {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+  color: #9a7514;
+  animation: loginRise 0.2s ease;
+}
+
+body:not(.light-theme-active) .login-caps { color: #d9b646; }
+
+@keyframes loginRise {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .login-submit:hover:not(:disabled) { transform: none; }
+  .login-submit::before { display: none; }
+  .login-input::after { transition: none; }
+  .login-input.is-invalid { animation: none; }
+  .login-caps { animation: none; }
+  .login-spinner { animation-duration: 1.4s; }
 }
 
 /* ── Error ────────────────────────────────────────────────────────────────── */
@@ -315,6 +433,7 @@ body:not(.light-theme-active) .login-help-link { color: var(--login-gold); }
   color: #8a3a2e;
   font-size: 0.85rem;
   line-height: 1.45;
+  animation: loginRise 0.24s cubic-bezier(0.22, 0.8, 0.3, 1);
 }
 
 body:not(.light-theme-active) .login-error { color: #e29385; }

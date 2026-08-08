@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, Sun, Moon, AlertCircle, WifiOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Sun, Moon, AlertCircle, WifiOff, ArrowBigUp } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 import './CustomerLoginPage.css';
@@ -27,6 +27,14 @@ const CustomerLoginPage = () => {
     };
     const [error, setError] = useState(null);   // { field, message, kind }
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [capsLock, setCapsLock] = useState(false);
+
+    const readCapsLock = (e) => {
+        // getModifierState is unavailable on some synthetic/mobile events.
+        if (typeof e.getModifierState === 'function') {
+            setCapsLock(e.getModifierState('CapsLock'));
+        }
+    };
 
     const emailRef = useRef(null);
     const passwordRef = useRef(null);
@@ -130,7 +138,9 @@ const CustomerLoginPage = () => {
         }
     };
 
-    const badField = (name) => (error?.field === name ? 'is-invalid' : '');
+    // :focus-within carries the accent, so it holds while the reveal toggle
+    // inside the field takes focus.
+    const fieldClass = (name) => 'login-input' + (error?.field === name ? ' is-invalid' : '');
 
     return (
         <div className="customer-login-page">
@@ -174,12 +184,15 @@ const CustomerLoginPage = () => {
                                 </div>
                             )}
 
-                            <form onSubmit={handleSubmit} className="login-form" noValidate>
+                            {/* Not .login-form — index.css paints a grey background on any
+                                input under that class, which showed as a seam against this
+                                field's own surface. The admin login still relies on it. */}
+                            <form onSubmit={handleSubmit} className="login-fields" noValidate>
                                 <div className="login-field">
                                     <div className="login-label-row">
                                         <label htmlFor="login-email">Email or username</label>
                                     </div>
-                                    <div className={`login-input ${badField('email')}`}>
+                                    <div className={fieldClass('email')}>
                                         <Mail size={16} className="login-input-icon" />
                                         <input
                                             id="login-email"
@@ -199,7 +212,7 @@ const CustomerLoginPage = () => {
                                         <label htmlFor="login-password">Password</label>
                                         <Link to="/contact" className="login-help-link">Need help?</Link>
                                     </div>
-                                    <div className={`login-input ${badField('password')}`}>
+                                    <div className={fieldClass('password')}>
                                         <Lock size={16} className="login-input-icon" />
                                         <input
                                             id="login-password"
@@ -209,6 +222,9 @@ const CustomerLoginPage = () => {
                                             autoComplete="current-password"
                                             value={formData.password}
                                             onChange={handleChange}
+                                            onKeyUp={readCapsLock}
+                                            onKeyDown={readCapsLock}
+                                            onBlur={() => setCapsLock(false)}
                                             placeholder="Enter your password"
                                         />
                                         <button
@@ -221,10 +237,20 @@ const CustomerLoginPage = () => {
                                             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                         </button>
                                     </div>
+                                    {/* Silently mistyping a password because Caps Lock is on is
+                                        one of the commonest reasons a correct password fails. */}
+                                    {capsLock && (
+                                        <p className="login-caps">
+                                            <ArrowBigUp size={14} /> Caps Lock is on
+                                        </p>
+                                    )}
                                 </div>
 
                                 <button type="submit" className="login-submit" disabled={isSubmitting}>
-                                    {isSubmitting ? 'Signing you in…' : 'Sign In'}
+                                    <span className="login-submit-label">
+                                        {isSubmitting && <span className="login-spinner" aria-hidden="true" />}
+                                        {isSubmitting ? 'Signing you in…' : 'Sign In'}
+                                    </span>
                                 </button>
                             </form>
 
