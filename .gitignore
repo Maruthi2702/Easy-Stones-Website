@@ -36,3 +36,9 @@ eng.traineddata
 # User Uploaded Files (Local Storage)
 public/uploads/
 
+# Claude Code: share memory + project instructions, keep per-machine settings local
+.claude/settings.local.json
+
+# Vite temp config artifacts
+vite.config.js.timestamp-*.mjs
+
