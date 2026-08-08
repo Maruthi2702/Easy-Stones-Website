@@ -28,9 +28,12 @@ const deliverySchema = new mongoose.Schema({
   proNumber: { type: String, default: '' },
   freightFee: { type: Number, default: 0 },
 
-  // Packing List File
+  // Packing List File — the original the office uploads. Never overwritten by
+  // signing: re-signing has to start from a clean copy, so the signed version
+  // lives separately under pod.signedPdfUrl.
   packingListUrl: { type: String, default: '' },
   packingListFilename: { type: String, default: '' },
+  packingListPublicId: { type: String, default: '' },
 
   // Proof of Delivery (ePOD) Digital Signatures & Photos
   pod: {
@@ -38,12 +41,31 @@ const deliverySchema = new mongoose.Schema({
     driverName: { type: String, default: '' },
     customerSignature: { type: String, default: '' },
     driverSignature: { type: String, default: '' },
+    // Each pad stamps its own time when the pen lifts, so the certificate can
+    // show when the customer signed and when the driver countersigned rather
+    // than one shared submission time.
+    customerSignedAt: { type: Date, default: null },
+    driverSignedAt: { type: Date, default: null },
     signedAt: { type: Date, default: null },
     photos: [{ type: String }],
     notes: { type: String, default: '' },
     // Signed PDF = original packing list with signatures stamped on last page
     signedPdfUrl: { type: String, default: '' },
-    signedPdfFilename: { type: String, default: '' }
+    signedPdfFilename: { type: String, default: '' },
+    signedPdfPublicId: { type: String, default: '' },
+
+    // Whether a real, complete proof exists. Derived server-side on every write
+    // and never accepted from a client — the board's list projection strips the
+    // signature fields, so this is what lets a card render an honest badge
+    // without shipping signature data to every open board.
+    verified: { type: Boolean, default: false, index: true },
+
+    // Set when someone with clear_pod_signatures wipes a wrong signature. The
+    // delivery stays 'completed' (the material did arrive); the card reads
+    // "Awaiting re-sign" until a new signature replaces it.
+    clearedAt: { type: Date, default: null },
+    clearedBy: { type: String, default: '' },
+    clearReason: { type: String, default: '' }
   }
 }, {
   timestamps: true,

@@ -3,7 +3,7 @@ import {
     Users, ShieldAlert, Plus, Edit2, Trash2, Search, 
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
-    FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard
+    FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard, Eraser
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { prettifyUsername } from '../../utils/textUtils';
@@ -81,7 +81,10 @@ const PAGE_PERMISSIONS = [
         actions: [
             { key: 'view_delivery_schedule', label: 'View', icon: Eye, desc: 'View delivery schedules and routes' },
             { key: 'edit_delivery_schedule', label: 'Edit', icon: Pencil, desc: 'Schedule and edit delivery jobs' },
-            { key: 'delete_delivery_schedule', label: 'Delete', icon: Trash2, desc: 'Cancel or delete delivery jobs' }
+            { key: 'delete_delivery_schedule', label: 'Delete', icon: Trash2, desc: 'Cancel or delete delivery jobs' },
+            // Separate from Delete on purpose: voiding a proof the wrong customer
+            // signed is a different level of trust from removing the job itself.
+            { key: 'clear_pod_signatures', label: 'Clear POD', icon: Eraser, desc: 'Delete the signed packing list and reset signatures for re-signing' }
         ]
     },
     {

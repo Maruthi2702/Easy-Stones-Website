@@ -383,7 +383,64 @@
   cursor: not-allowed;
 }
 
-/* Light Theme Overrides */
+/* ── Touch ergonomics ─────────────────────────────────────────────────────
+   Drivers sign on a phone or tablet, standing at a tailgate. The pads and the
+   controls around them are sized for a thumb, not a mouse pointer. */
+.sig-clear-btn {
+  min-height: 34px;
+  padding: 0.3rem 0.85rem;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .sig-canvas {
+    height: 170px;
+  }
+
+  .sig-clear-btn,
+  .pod-upload-btn {
+    min-height: 44px;
+    padding: 0.55rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .pod-btn-cancel,
+  .pod-btn-submit {
+    min-height: 52px;
+    font-size: 0.95rem;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .pod-input-field,
+  .pod-textarea {
+    /* Anything under 16px makes iOS Safari zoom the whole modal on focus. */
+    font-size: 16px;
+  }
+}
+
+/* On a narrow screen the gate message needs its own line above the buttons,
+   rather than squeezing them down to nothing. */
+.pod-modal-footer {
+  flex-wrap: wrap;
+}
+
+.pod-gate-msg {
+  min-width: 100%;
+  order: -1;
+}
+
+@media (min-width: 560px) {
+  .pod-gate-msg {
+    min-width: 0;
+    order: 0;
+  }
+}
+
+/* ── Light Theme Overrides ────────────────────────────────────────────────
+   The capture modal was authored dark-only: its panels use translucent black,
+   which over a white card renders as flat grey slabs. Each surface below needs
+   its own light value — see the header, footer, signature boxes and photo
+   placeholder. */
 body.light-theme-active .pod-modal-content {
   background: #ffffff;
   border-color: #e2e8f0;
@@ -394,6 +451,24 @@ body.light-theme-active .pod-title-block h3 {
   color: #0f172a;
 }
 
+body.light-theme-active .pod-modal-header {
+  background: #f8fafc;
+  border-bottom-color: #e2e8f0;
+}
+
+body.light-theme-active .pod-subtitle {
+  color: #64748b;
+}
+
+body.light-theme-active .pod-close-btn {
+  color: #475569;
+}
+
+body.light-theme-active .pod-modal-footer {
+  background: rgba(255, 255, 255, 0.92);
+  border-top-color: #e2e8f0;
+}
+
 body.light-theme-active .pod-input-field,
 body.light-theme-active .pod-textarea {
   background: #f8fafc;
@@ -401,8 +476,76 @@ body.light-theme-active .pod-textarea {
   color: #0f172a;
 }
 
-body.light-theme-active .sig-canvas {
+body.light-theme-active .pod-textarea::placeholder,
+body.light-theme-active .pod-input-field::placeholder {
+  color: #94a3b8;
+}
+
+body.light-theme-active .pod-sig-box {
   background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+body.light-theme-active .sig-canvas {
+  background: #ffffff;
+  border-color: rgba(180, 130, 20, 0.45);
+}
+
+body.light-theme-active .sig-canvas.is-signed {
+  border-color: rgba(5, 150, 105, 0.5);
+}
+
+/* #d4af37 on white sits under 3:1 — darken it for the label role only, so the
+   gold still reads as the brand accent without failing contrast. */
+body.light-theme-active .pod-label {
+  color: #8a6d10;
+}
+
+body.light-theme-active .sig-hint {
+  color: #64748b;
+}
+
+body.light-theme-active .sig-stamp {
+  color: #059669;
+}
+
+body.light-theme-active .pod-gate-msg {
+  color: #b45309;
+}
+
+body.light-theme-active .sig-clear-btn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+body.light-theme-active .pod-photos-empty {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+body.light-theme-active .pod-btn-cancel {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+body.light-theme-active .pod-upload-btn {
+  background: rgba(212, 175, 55, 0.12);
+  border-color: rgba(180, 130, 20, 0.35);
+  color: #8a6d10;
+}
+
+body.light-theme-active .packing-list-banner {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+body.light-theme-active .pod-error-alert {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -535,24 +678,314 @@ body.light-theme-active .sig-canvas {
   color: var(--text-muted, #606060);
 }
 
-/* ePOD badge on completed ticket chips */
-.ticket-epod-badge {
+/* ── Per-pad signature timestamp (PodModal) ───────────────────────────── */
+.sig-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #34d399;
+}
+
+.sig-canvas.is-signed {
+  border-style: solid;
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+.pod-gate-msg {
+  flex: 1;
+  font-size: 0.74rem;
+  color: #f59e0b;
+  align-self: center;
+}
+
+/* ── Signed document strip (PodViewer) ────────────────────────────────── */
+.pod-signed-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: rgba(52, 211, 153, 0.07);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  border-left: 3px solid #34d399;
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+}
+
+.pod-signed-icon {
+  color: #34d399;
+  flex-shrink: 0;
+}
+
+.pod-signed-meta {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pod-signed-name {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #f1f5f9;
+  word-break: break-all;
+}
+
+.pod-original-link {
+  font-size: 0.7rem;
+  color: #d4af37;
+  text-decoration: underline;
+}
+
+.pod-signed-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.pod-doc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 650;
+  padding: 0.34rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.pod-doc-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: #64748b;
+}
+
+.pod-doc-btn.primary {
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #34d399;
+}
+
+.pod-doc-btn.primary:hover {
+  background: rgba(52, 211, 153, 0.22);
+}
+
+/* ── Cleared / awaiting re-sign strip ─────────────────────────────────── */
+.pod-cleared-strip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+}
+
+.pod-cleared-icon {
+  color: #f59e0b;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pod-cleared-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pod-cleared-body strong {
+  font-size: 0.82rem;
+  color: #f59e0b;
+}
+
+.pod-cleared-body span {
+  font-size: 0.73rem;
+  color: #94a3b8;
+}
+
+.pod-cleared-reason {
+  font-style: italic;
+  color: #cbd5e1 !important;
+}
+
+/* ── Danger zone / clear form ─────────────────────────────────────────── */
+.pod-danger-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 0.95rem;
+  margin-top: 0.3rem;
+}
+
+.pod-dz-text {
+  flex: 1 1 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pod-dz-text strong {
+  font-size: 0.8rem;
+  color: #f1f5f9;
+}
+
+.pod-dz-text span {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.pod-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  padding: 0.45rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.pod-btn-danger:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.2);
+}
+
+.pod-btn-danger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pod-clear-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: rgba(248, 113, 113, 0.05);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 8px;
+  padding: 0.9rem;
+}
+
+.pod-clear-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #f87171;
+  font-size: 0.86rem;
+}
+
+.pod-clear-copy {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.pod-clear-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.2rem;
+}
+
+body.light-theme-active .pod-signed-name,
+.light-theme-active .pod-signed-name,
+body.light-theme-active .pod-dz-text strong,
+.light-theme-active .pod-dz-text strong {
+  color: #0f172a;
+}
+
+body.light-theme-active .pod-doc-btn,
+.light-theme-active .pod-doc-btn {
+  color: #1c2333;
+  border-color: #e2e8f0;
+}
+
+body.light-theme-active .pod-danger-zone,
+.light-theme-active .pod-danger-zone {
+  border-top-color: #e2e8f0;
+}
+
+/* ePOD badge on completed ticket chips.
+   Three states, driven by pod.verified and pod.clearedAt — see EpodChip.jsx. */
+.epod-chip {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: 0.68rem;
   font-weight: 700;
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.1);
-  border: 1px solid rgba(52, 211, 153, 0.25);
   padding: 2px 6px;
   border-radius: 5px;
-  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  white-space: nowrap;
   transition: background 0.15s;
 }
 
-.ticket-epod-badge:hover {
+.epod-chip-verified {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.25);
+  cursor: pointer;
+}
+
+.epod-chip-verified:hover {
   background: rgba(52, 211, 153, 0.2);
+}
+
+.epod-chip-cleared {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.28);
+  cursor: pointer;
+}
+
+.epod-chip-cleared:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+/* Not a button: there is no document behind it to open. */
+.epod-chip-none {
+  color: #64748b;
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+}
+
+body.light-theme-active .epod-chip-none,
+.light-theme-active .epod-chip-none {
+  border-color: #e2e8f0;
+}
+
+body.light-theme-active .epod-chip-verified,
+.light-theme-active .epod-chip-verified {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.08);
+  border-color: rgba(5, 150, 105, 0.25);
+}
+
+body.light-theme-active .epod-chip-cleared,
+.light-theme-active .epod-chip-cleared {
+  color: #b45309;
+  background: rgba(180, 83, 9, 0.08);
+  border-color: rgba(180, 83, 9, 0.25);
 }
 
 /* Light theme overrides for viewer */

@@ -74,10 +74,12 @@ async function embedSig(pdfDoc, dataUrl, maxW, maxH) {
  * @param {string} params.driverSignatureDataUrl
  * @param {string} params.signeeName
  * @param {string} params.deliveryInfo  e.g. "SO# 145301 - Acme Corp - 2026-08-03"
- * @param {Date|string} params.signedAt
- * @returns {Promise<Blob>}
+ * @param {Date|string} params.signedAt          submission time (badge + fallback)
+ * @param {Date|string} [params.customerSignedAt] when the customer's pen lifted
+ * @param {Date|string} [params.driverSignedAt]   when the driver's pen lifted
+ * @returns {Promise<Uint8Array>}
  */
-export async function stampSignaturesOnPdf({
+export async function stampSignaturesOnPdfBytes({
   pdfUrl,
   customerSignatureDataUrl,
   driverSignatureDataUrl,
@@ -85,6 +87,8 @@ export async function stampSignaturesOnPdf({
   driverName,
   deliveryInfo = '',
   signedAt,
+  customerSignedAt,
+  driverSignedAt,
 }) {
   // 1. Load PDF
   const pdfBytes = await fetchPdfBytes(pdfUrl);
@@ -93,18 +97,27 @@ export async function stampSignaturesOnPdf({
   const lastPage = pages[pages.length - 1];
   const { width, height } = lastPage.getSize();
 
-  // 2. Date / time strings
+  // 2. Date / time strings. Each party gets its own stamp when one was captured,
+  //    falling back to the submission time for records signed before the pads
+  //    started timestamping themselves.
   const signedDate = signedAt ? new Date(signedAt) : new Date();
-  const dateStr    = signedDate.toLocaleDateString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  });
-  const timeStr = signedDate.toLocaleTimeString('en-US', {
-    hour: '2-digit', minute: '2-digit',
-  });
+  const formatStamp = (value) => {
+    const d = value ? new Date(value) : signedDate;
+    const safe = isNaN(d) ? signedDate : d;
+    const dateStr = safe.toLocaleDateString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
+    });
+    const timeStr = safe.toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit',
+    });
+    return sanitizeAscii(`${dateStr} ${timeStr}`);
+  };
 
   const cleanName   = sanitizeAscii(signeeName);
   const cleanDriver = sanitizeAscii(driverName);
-  const cleanDate   = sanitizeAscii(`${dateStr} ${timeStr}`);
+  const cleanDate   = formatStamp(signedAt);
+  const custDate    = formatStamp(customerSignedAt);
+  const drvDate     = formatStamp(driverSignedAt);
 
   // 3. Embed Signatures
   const custSig = await embedSig(pdfDoc, customerSignatureDataUrl, 180, 48);
@@ -180,7 +193,7 @@ export async function stampSignaturesOnPdf({
     });
   }
 
-  const custLabel = sanitizeAscii(`Signee: ${cleanName || 'Customer'} - ${cleanDate}`);
+  const custLabel = sanitizeAscii(`Signee: ${cleanName || 'Customer'} - ${custDate}`);
   lastPage.drawText(custLabel, {
     x: CUST_COL_X + 6,
     y: SIG_AREA_Y + 3,
@@ -223,7 +236,7 @@ export async function stampSignaturesOnPdf({
     });
   }
 
-  const drvLabel = sanitizeAscii(`Driver: ${cleanDriver || 'Driver Sign-off'} - ${cleanDate}`);
+  const drvLabel = sanitizeAscii(`Driver: ${cleanDriver || 'Driver Sign-off'} - ${drvDate}`);
   lastPage.drawText(drvLabel, {
     x: DRV_COL_X + 6,
     y: SIG_AREA_Y + 3,
@@ -273,6 +286,19 @@ export async function stampSignaturesOnPdf({
   }
 
   // 5. Serialize PDF
-  const signedBytes = await pdfDoc.save();
+  return pdfDoc.save();
+}
+
+/**
+ * Blob-returning wrapper, for any caller running in a browser.
+ *
+ * Stamping now happens server-side during the POD save — a driver's phone
+ * uploading ~30KB of signature PNGs instead of round-tripping a multi-MB PDF
+ * over cellular — so this exists for compatibility rather than the main path.
+ *
+ * @returns {Promise<Blob>}
+ */
+export async function stampSignaturesOnPdf(params) {
+  const signedBytes = await stampSignaturesOnPdfBytes(params);
   return new Blob([signedBytes], { type: 'application/pdf' });
 }

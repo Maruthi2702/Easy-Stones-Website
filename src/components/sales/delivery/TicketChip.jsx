@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat } from 'lucide-react';
 import StatusPill from './StatusPill';
+import EpodChip from './EpodChip';
 
 /**
  * Highlight substring matches inside a text string with <mark> tags.
@@ -44,7 +45,10 @@ const TicketChip = ({
   // truck column.
   const refLabel = isTransfer ? '' : '| SO# ';
   const showRep = !isTransfer;
-  const hasFooter = showRep || Boolean(delivery.notes) || (delivery.status === 'completed' && onViewPod);
+  // Proof only means something once the delivery is done — an unsigned scheduled
+  // job doesn't need telling that it has no ePOD yet.
+  const showEpod = delivery.status === 'completed';
+  const hasFooter = showRep || Boolean(delivery.notes) || showEpod;
 
   const handleCopySO = (e, val) => {
     e.stopPropagation();
@@ -115,16 +119,7 @@ const TicketChip = ({
             <FileText size={11} /> Notes
           </span>
         )}
-        {delivery.status === 'completed' && onViewPod && (
-          <button
-            type="button"
-            className="ticket-epod-badge"
-            onClick={(e) => { e.stopPropagation(); onViewPod(delivery); }}
-            title="View signed ePOD document"
-          >
-            ✓ ePOD
-          </button>
-        )}
+        {showEpod && <EpodChip delivery={delivery} onViewPod={onViewPod} />}
       </div>
       )}
     </div>

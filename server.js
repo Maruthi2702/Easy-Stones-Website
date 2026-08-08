@@ -36,6 +36,7 @@ import Truck from './src/models/Truck.js';
 import LostSale from './src/models/LostSale.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
+import { stampSignaturesOnPdfBytes } from './src/utils/pdfSigner.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -204,6 +205,125 @@ const processBase64Image = async (base64String, subDir = 'Visits') => {
     return base64String;
   }
 };
+
+// ─── Delivery document storage ──────────────────────────────────────────────
+//
+// Packing lists, signatures and signed PDFs are keyed on the delivery id rather
+// than a timestamp. Re-signing therefore overwrites in place instead of leaving
+// the previous copy stranded in Cloudinary with nothing pointing at it, so a
+// delivery costs a fixed number of assets no matter how often it is re-signed,
+// and deleting one is a direct address rather than a search.
+const cloudinaryReady = () => Boolean(
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET
+);
+
+// Cloudinary public_ids allow a limited character set; delivery ids are
+// generated strings but may carry separators we shouldn't pass through raw.
+const safeIdSegment = (value) => String(value || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+const podAssetIds = (deliveryId) => {
+  const key = safeIdSegment(deliveryId);
+  return {
+    packingList: `deliveries/packing_lists/${key}`,
+    signedPdf: `deliveries/pod/${key}/signed`,
+    custSig: `deliveries/pod/${key}/sig_customer`,
+    driverSig: `deliveries/pod/${key}/sig_driver`
+  };
+};
+
+const uploadBufferToCloudinary = (buffer, publicId, resourceType = 'raw') =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { public_id: publicId, resource_type: resourceType, overwrite: true, invalidate: true },
+      (err, result) => (err ? reject(err) : resolve(result))
+    );
+    stream.end(buffer);
+  });
+
+const destroyCloudinaryAsset = async (publicId, resourceType = 'raw') => {
+  if (!publicId || !cloudinaryReady()) return;
+  try {
+    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType, invalidate: true });
+  } catch (err) {
+    console.warn(`[pod] could not destroy ${publicId}:`, err.message);
+  }
+};
+
+// Writes a PDF buffer and returns { url, publicId }. Without Cloudinary
+// configured this falls back to disk so local dev still works — but on Render
+// that directory is wiped by every deploy, which is why the warning is loud.
+const storeDeliveryPdf = async (buffer, publicId, diskName) => {
+  if (cloudinaryReady()) {
+    const result = await uploadBufferToCloudinary(buffer, publicId, 'raw');
+    return { url: result.secure_url, publicId: result.public_id };
+  }
+
+  console.warn('⚠️ Cloudinary not configured — writing delivery PDF to disk (lost on restart)');
+  const dir = path.join(process.cwd(), 'public/uploads/packing_lists');
+  if (!fs.existsSync(dir)) await fs.promises.mkdir(dir, { recursive: true });
+  await fs.promises.writeFile(path.join(dir, diskName), buffer);
+  return { url: `/uploads/packing_lists/${diskName}`, publicId: '' };
+};
+
+// Signature pads produce 340x130 line art on transparency. The shared image
+// helper re-encodes everything to WebP at up to 1200px, which is the wrong
+// trade here — trimming the empty margin and keeping PNG is both smaller and
+// keeps the clean alpha that stamping depends on.
+const storeSignaturePng = async (dataUrl, publicId) => {
+  if (!dataUrl || !dataUrl.startsWith('data:image/')) return dataUrl || '';
+
+  let buffer = Buffer.from(dataUrl.split(';base64,').pop(), 'base64');
+  try {
+    const sharp = (await import('sharp')).default;
+    buffer = await sharp(buffer).trim({ threshold: 10 }).png({ compressionLevel: 9 }).toBuffer();
+  } catch {
+    // A pad with no strokes trims to nothing and throws — keep the raw canvas PNG.
+  }
+
+  if (!cloudinaryReady()) return dataUrl;
+  const result = await uploadBufferToCloudinary(buffer, publicId, 'image');
+  return result.secure_url;
+};
+
+// The board's list fetch strips signatures and photos for speed, so any save
+// that echoes a delivery straight back — a status change, a reschedule, a drag
+// between trucks — carries a pod with those fields missing. Because $set
+// replaces the whole subdocument, that used to wipe the signatures off a signed
+// delivery. Absent means "unchanged" here; erasing a proof is what
+// DELETE /api/deliveries/:id/pod is for.
+const POD_PRESERVED_KEYS = [
+  'customerSignature', 'driverSignature', 'photos', 'signeeName', 'driverName',
+  'customerSignedAt', 'driverSignedAt', 'signedAt',
+  'signedPdfUrl', 'signedPdfFilename', 'signedPdfPublicId',
+  'clearedAt', 'clearedBy', 'clearReason'
+];
+
+const mergePodOntoExisting = (incoming = {}, existing = {}) => {
+  const merged = { ...existing, ...incoming };
+  for (const key of POD_PRESERVED_KEYS) {
+    const value = incoming[key];
+    // An explicit empty array still counts as intent (removing every photo);
+    // a missing, null or blank value does not.
+    const omitted = !(key in incoming) || value === undefined || value === null || value === '';
+    if (omitted && existing[key] !== undefined) merged[key] = existing[key];
+  }
+  return merged;
+};
+
+// An ePOD counts as real only with a named signee and both signatures. Where a
+// packing list exists it must also have produced a stamped copy — otherwise the
+// card would advertise proof that leads to no document. A delivery with no
+// packing list to begin with is still proven by the signatures alone; requiring
+// a PDF there would leave it permanently reading "No ePOD" after a valid signing.
+const derivePodVerified = (pod, hasPackingList) => Boolean(
+  pod &&
+  String(pod.signeeName || '').trim() &&
+  pod.customerSignature &&
+  pod.driverSignature &&
+  (!hasPackingList || pod.signedPdfUrl)
+);
 
 const app = express();
 const httpServer = createServer(app);
@@ -4051,6 +4171,10 @@ app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
 const canViewDeliveries = requirePermission('view_delivery_schedule');
 const canWriteDeliveries = requireAnyPermission('edit_delivery_schedule', 'view_delivery_schedule');
 const canDeleteDeliveries = requirePermission('delete_delivery_schedule');
+// Deliberately separate from deletion: a dispatcher who should never remove a
+// job may still need to void a proof the wrong customer signed, and the reverse
+// holds too.
+const canClearPod = requirePermission('clear_pod_signatures');
 
 app.get('/api/trucks', verifyAnyAuth, canViewDeliveries, async (req, res) => {
   try {
@@ -4160,48 +4284,110 @@ app.post('/api/deliveries', verifyAnyAuth, canWriteDeliveries, async (req, res) 
     const updateData = { ...delivery };
     delete updateData._id;
 
-    // Automatic Base64 PDF to Physical Disk File Conversion
+    const assetIds = podAssetIds(delivery.id);
+
+    // ePOD validity is a server conclusion, never a client claim — drop whatever
+    // the browser sent and recompute it from the record further down.
+    if (updateData.pod) delete updateData.pod.verified;
+
+    // A packing list arriving inline as base64 becomes a stored PDF. Previously
+    // this wrote to public/uploads, which Render wipes on every deploy — the
+    // saved URL outlived the file it pointed at.
     if (updateData.packingListUrl && updateData.packingListUrl.toLowerCase().startsWith('data:application/pdf')) {
       try {
         const base64Parts = updateData.packingListUrl.split(',');
         const base64Data = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
         const buffer = Buffer.from(base64Data, 'base64');
-        const uploadsDir = path.join(process.cwd(), 'public/uploads/packing_lists');
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-        const filename = `packing_list_${Date.now()}_${Math.round(Math.random() * 1e4)}.pdf`;
-        const filePath = path.join(uploadsDir, filename);
-        fs.writeFileSync(filePath, buffer);
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const host = req.get('host');
-        updateData.packingListUrl = `${protocol}://${host}/uploads/packing_lists/${filename}`;
+        const stored = await storeDeliveryPdf(
+          buffer,
+          assetIds.packingList,
+          `packing_list_${safeIdSegment(delivery.id)}.pdf`
+        );
+        updateData.packingListUrl = stored.url;
+        updateData.packingListPublicId = stored.publicId;
         if (!updateData.packingListFilename) {
           updateData.packingListFilename = 'PackingList.pdf';
         }
-        console.log(`📄 Converted Base64 PDF to disk file: ${updateData.packingListUrl}`);
+        console.log(`📄 Stored packing list for ${delivery.id}: ${stored.url}`);
       } catch (convErr) {
-        console.error('Error converting base64 PDF to disk file:', convErr);
+        console.error('Error storing base64 packing list:', convErr);
       }
     }
 
-    // Automatic Base64 POD Signature/Photo Upload to Cloudinary
-    // Keeps delivery documents small (was previously storing raw base64 signatures/photos
-    // inline, ballooning document size and making list queries/socket broadcasts slow).
     if (updateData.pod) {
+      const existing = await Delivery.findOne(
+        { id: delivery.id },
+        'pod packingListUrl'
+      ).lean();
+
+      updateData.pod = mergePodOntoExisting(updateData.pod, existing?.pod || {});
+
+      // The signature pads send data URLs. Stamp the certificate before those
+      // get swapped for hosted URLs, since pdf-lib embeds from the raw bytes.
+      const freshCustSig = String(updateData.pod.customerSignature || '').startsWith('data:image/');
+      const freshDriverSig = String(updateData.pod.driverSignature || '').startsWith('data:image/');
+
+      const sourcePdf = updateData.packingListUrl || existing?.packingListUrl || '';
+
+      // Stamping runs here rather than on the driver's phone: the device uploads
+      // ~30KB of signature PNGs instead of pulling down a multi-MB packing list
+      // and pushing the whole signed copy back over cellular.
+      if (freshCustSig && freshDriverSig && sourcePdf) {
+        try {
+          const signedBytes = await stampSignaturesOnPdfBytes({
+            pdfUrl: sourcePdf,
+            customerSignatureDataUrl: updateData.pod.customerSignature,
+            driverSignatureDataUrl: updateData.pod.driverSignature,
+            signeeName: updateData.pod.signeeName || '',
+            driverName: updateData.pod.driverName || '',
+            signedAt: updateData.pod.signedAt || new Date(),
+            customerSignedAt: updateData.pod.customerSignedAt,
+            driverSignedAt: updateData.pod.driverSignedAt
+          });
+
+          const stored = await storeDeliveryPdf(
+            Buffer.from(signedBytes),
+            assetIds.signedPdf,
+            `signed_packing_list_${safeIdSegment(delivery.id)}.pdf`
+          );
+          updateData.pod.signedPdfUrl = stored.url;
+          updateData.pod.signedPdfPublicId = stored.publicId;
+          updateData.pod.signedPdfFilename =
+            `signed_packing_list_${delivery.soNumber || delivery.id}.pdf`;
+        } catch (stampErr) {
+          // Drop any previously stamped copy: these are new signatures, and a
+          // fresh proof must never point at the document the last one produced.
+          // pod.verified then stays false rather than claiming a delivery is
+          // proven against a PDF that doesn't match it.
+          updateData.pod.signedPdfUrl = '';
+          updateData.pod.signedPdfPublicId = '';
+          updateData.pod.signedPdfFilename = '';
+          console.error(`[pod] stamping failed for ${delivery.id}:`, stampErr);
+        }
+      }
+
+      // Signatures and photos move to Cloudinary so the delivery document stays
+      // small — inline base64 used to bloat list queries and socket broadcasts.
       try {
-        const [custSig, driverSig] = await processBase64Images(
-          [updateData.pod.customerSignature, updateData.pod.driverSignature],
-          'deliveries/pod'
-        );
-        updateData.pod.customerSignature = custSig;
-        updateData.pod.driverSignature = driverSig;
+        updateData.pod.customerSignature =
+          await storeSignaturePng(updateData.pod.customerSignature, assetIds.custSig);
+        updateData.pod.driverSignature =
+          await storeSignaturePng(updateData.pod.driverSignature, assetIds.driverSig);
 
         if (Array.isArray(updateData.pod.photos) && updateData.pod.photos.length > 0) {
           updateData.pod.photos = await processBase64Images(updateData.pod.photos, 'deliveries/pod');
         }
       } catch (podErr) {
         console.error('Error uploading POD images to Cloudinary:', podErr);
+      }
+
+      updateData.pod.verified = derivePodVerified(updateData.pod, Boolean(sourcePdf));
+
+      // A fresh signature ends the "awaiting re-sign" state left by a clear.
+      if (updateData.pod.verified) {
+        updateData.pod.clearedAt = null;
+        updateData.pod.clearedBy = '';
+        updateData.pod.clearReason = '';
       }
     }
 
@@ -4241,36 +4427,125 @@ app.delete('/api/deliveries/:id', verifyAnyAuth, canDeleteDeliveries, async (req
   }
 });
 
-// PDF Upload Endpoint for Delivery Packing Lists
-const packingListStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(process.cwd(), 'public/uploads/packing_lists');
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+// Void the ePOD on a delivery so a new signature can be captured — the wrong
+// person signing at a shared jobsite is the case this exists for.
+//
+// The delivery stays 'completed': the material did arrive, and dropping it back
+// to 'scheduled' would put a phantom job on the board. Only the proof is
+// withdrawn, and the original packing list is deliberately left in place so the
+// re-sign starts from a clean copy.
+app.delete('/api/deliveries/:id/pod', verifyAnyAuth, canClearPod, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const reason = String(req.body?.reason || '').trim();
+    if (reason.length < 4) {
+      return res.status(400).json({ error: 'A reason is required to clear an ePOD.' });
     }
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}_${Math.round(Math.random() * 1e4)}`;
-    const ext = path.extname(file.originalname) || '.pdf';
-    cb(null, `packing_list_${uniqueSuffix}${ext}`);
+
+    const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id }, req));
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+
+    const { id: performedBy, name: performedByName } = await getPerformerInfo(req);
+    const assetIds = podAssetIds(id);
+    const previous = delivery.pod || {};
+
+    // Destroy by stored id where we have one, falling back to the derived id for
+    // records written before publicIds were tracked.
+    await Promise.all([
+      destroyCloudinaryAsset(previous.signedPdfPublicId || assetIds.signedPdf, 'raw'),
+      destroyCloudinaryAsset(assetIds.custSig, 'image'),
+      destroyCloudinaryAsset(assetIds.driverSig, 'image')
+    ]);
+
+    delivery.pod = {
+      signeeName: '',
+      driverName: '',
+      customerSignature: '',
+      driverSignature: '',
+      customerSignedAt: null,
+      driverSignedAt: null,
+      signedAt: null,
+      photos: previous.photos || [],
+      notes: previous.notes || '',
+      signedPdfUrl: '',
+      signedPdfFilename: '',
+      signedPdfPublicId: '',
+      verified: false,
+      clearedAt: new Date(),
+      clearedBy: performedByName,
+      clearReason: reason
+    };
+    await delivery.save();
+
+    try {
+      await ActivityLog.create({
+        entityType: 'Delivery',
+        entityId: delivery._id,
+        action: 'DELETE',
+        performedBy,
+        performedByName,
+        performedByRole: req.authType,
+        timestamp: getNowLocalISO(),
+        details: {
+          scope: 'epod',
+          deliveryId: id,
+          soNumber: delivery.soNumber || '',
+          customerName: delivery.customerName || '',
+          reason,
+          previousSignee: previous.signeeName || '',
+          previousSignedAt: previous.signedAt || null
+        }
+      });
+    } catch (logErr) {
+      console.error('Failed to log ePOD clear:', logErr);
+    }
+
+    const updated = delivery.toObject();
+    try {
+      io.emit('delivery_update', { type: 'upsert', delivery: updated });
+    } catch (e) {
+      req.app.get('io')?.emit('delivery_update', { type: 'upsert', delivery: updated });
+    }
+
+    res.json({ success: true, delivery: updated });
+  } catch (err) {
+    console.error('[server] clear ePOD error:', err);
+    res.status(500).json({ error: 'Server error clearing ePOD' });
   }
 });
 
+// PDF Upload Endpoint for Delivery Packing Lists.
+//
+// Memory storage, not disk: Render's filesystem is ephemeral, so the previous
+// diskStorage write produced a packingListUrl that broke on the next deploy.
 const uploadPackingList = multer({
-  storage: packingListStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }
 });
 
-app.post('/api/deliveries/upload-packing-list', verifyAnyAuth, canWriteDeliveries, uploadPackingList.single('file'), (req, res) => {
+app.post('/api/deliveries/upload-packing-list', verifyAnyAuth, canWriteDeliveries, uploadPackingList.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No PDF file uploaded' });
     }
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/packing_lists/${req.file.filename}`;
+
+    // Keyed on the delivery when the caller names one, so re-uploading a
+    // corrected packing list replaces the old asset instead of orphaning it.
+    const deliveryId = req.body?.deliveryId;
+    const key = deliveryId
+      ? podAssetIds(deliveryId).packingList
+      : `deliveries/packing_lists/tmp_${Date.now()}_${Math.round(Math.random() * 1e4)}`;
+
+    const stored = await storeDeliveryPdf(
+      req.file.buffer,
+      key,
+      `packing_list_${safeIdSegment(deliveryId || Date.now())}.pdf`
+    );
+
     res.json({
       success: true,
-      url: fileUrl,
+      url: stored.url,
+      publicId: stored.publicId,
       filename: req.file.originalname
     });
   } catch (err) {

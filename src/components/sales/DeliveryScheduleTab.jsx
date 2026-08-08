@@ -18,6 +18,7 @@ import {
   getCachedWeekDeliveries
 } from '../../api/schedule';
 import { formatForDateInput, formatDate } from '../../utils/dateUtils';
+import { API_URL } from '../../config/api';
 import './DeliveryScheduleTab.css';
 
 function getWeekMonday(date = new Date()) {
@@ -132,15 +133,38 @@ const DeliveryScheduleTab = ({
 
   const handleSavePod = async (podData) => {
     if (!selectedPodDelivery) return;
+    // packingListUrl deliberately untouched. It used to be overwritten with the
+    // signed copy, which destroyed the only clean source — re-signing then
+    // stamped a second certificate onto an already-signed page. The signed
+    // version lives at pod.signedPdfUrl instead.
     const updated = {
       ...selectedPodDelivery,
       status: 'completed',
-      pod: podData,
-      packingListUrl: podData?.signedPdfUrl || selectedPodDelivery.packingListUrl,
-      packingListFilename: podData?.signedPdfFilename || selectedPodDelivery.packingListFilename
+      pod: podData
     };
     await handleSaveDelivery(updated);
     setIsPodOpen(false);
+  };
+
+  // Voiding a proof keeps the delivery completed — the material arrived; only
+  // the signature is withdrawn. The board updates from the socket broadcast.
+  const handleClearPod = async (delivery, reason) => {
+    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+    const res = await fetch(`${API_URL}/api/deliveries/${delivery.id}/pod`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ reason })
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'Failed to clear the ePOD.');
+    }
+    const { delivery: updated } = await res.json();
+    setViewerDelivery(updated);
+    return updated;
   };
 
   const loadData = useCallback(async (forceRefresh = false) => {
@@ -399,6 +423,8 @@ const DeliveryScheduleTab = ({
         delivery={viewerDelivery}
         trucks={trucks}
         currentUser={currentUser}
+        canClearPod={Boolean(currentUser?.permissions?.includes('clear_pod_signatures'))}
+        onClearPod={handleClearPod}
       />
     </div>
   );

@@ -4,7 +4,7 @@ const activityLogSchema = new mongoose.Schema({
     entityType: {
         type: String,
         required: true,
-        enum: ['Visit', 'Customer', 'Resource', 'Contact', 'User']
+        enum: ['Visit', 'Customer', 'Resource', 'Contact', 'User', 'Delivery']
     },
     entityId: {
         type: mongoose.Schema.Types.ObjectId,

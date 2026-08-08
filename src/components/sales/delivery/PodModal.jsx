@@ -1,7 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Check, Trash2, Camera, Upload, FileText, Calendar, Clock, User, ShieldCheck, Download, Layers } from 'lucide-react';
-import { API_URL } from '../../../config/api';
-import { stampSignaturesOnPdf } from '../../../utils/pdfSigner';
+import { X, Check, Camera, Upload, FileText, ShieldCheck, Download, Layers } from 'lucide-react';
 import { formatTitleCase } from '../../../utils/textUtils';
 import './PodModal.css';
 
@@ -29,6 +27,11 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   const [hasCustSignature, setHasCustSignature] = useState(Boolean(delivery?.pod?.customerSignature));
   const [hasDriverSignature, setHasDriverSignature] = useState(Boolean(delivery?.pod?.driverSignature));
 
+  // Each pad records its own time when the pen lifts. Stamping both at submit
+  // would make the two dates identical and meaningless.
+  const [custSignedAt, setCustSignedAt] = useState(delivery?.pod?.customerSignedAt || null);
+  const [driverSignedAt, setDriverSignedAt] = useState(delivery?.pod?.driverSignedAt || null);
+
   // Initialize canvas drawings if existing signature exists
   useEffect(() => {
     if (isOpen) {
@@ -37,6 +40,9 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
       setPhotos(delivery?.pod?.photos || []);
       setHasCustSignature(Boolean(delivery?.pod?.customerSignature));
       setHasDriverSignature(Boolean(delivery?.pod?.driverSignature));
+      setCustSignedAt(delivery?.pod?.customerSignedAt || null);
+      setDriverSignedAt(delivery?.pod?.driverSignedAt || null);
+      setError(null);
 
       setTimeout(() => {
         initCanvas(custCanvasRef, delivery?.pod?.customerSignature);
@@ -45,19 +51,60 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     }
   }, [isOpen, delivery]);
 
+  // Rotating a phone changes the pad's width, which would leave the backing
+  // store mismatched all over again. Re-fit any pad that hasn't been signed;
+  // one that has is left alone rather than wiping a captured signature.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const refit = () => {
+      if (!hasCustSignature) initCanvas(custCanvasRef, null);
+      if (!hasDriverSignature) initCanvas(driverCanvasRef, null);
+    };
+    window.addEventListener('resize', refit);
+    window.addEventListener('orientationchange', refit);
+    return () => {
+      window.removeEventListener('resize', refit);
+      window.removeEventListener('orientationchange', refit);
+    };
+  }, [isOpen, hasCustSignature, hasDriverSignature]);
+
+  const formatStamp = (value) => {
+    if (!value) return null;
+    const d = new Date(value);
+    if (isNaN(d)) return null;
+    return `${d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })} · ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  };
+
   const initCanvas = (ref, sigDataUrl) => {
     const canvas = ref.current;
     if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width) return;
+
+    // The backing store has to match the box the browser actually gave us. It
+    // was fixed at 340x130 while CSS stretched the element to 100% width, so
+    // every stroke was written into a narrower coordinate space and then scaled
+    // out — signatures landed off-position and came out horizontally smeared.
+    // Multiplying by devicePixelRatio also stops them looking soft on a phone.
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+
     const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.strokeStyle = '#d4af37';
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
     if (sigDataUrl) {
       const img = new Image();
       img.onload = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        // Fit a stored signature to the pad rather than drawing it 1:1, since
+        // it may have been captured on a differently sized screen.
+        const scale = Math.min(rect.width / img.width, rect.height / img.height, 1);
+        ctx.drawImage(img, 0, 0, img.width * scale, img.height * scale);
       };
       img.src = sigDataUrl;
     }
@@ -69,13 +116,14 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     draw(e, ref);
   };
 
-  const stopDrawing = (setDrawing, ref, setHasSig) => {
+  const stopDrawing = (setDrawing, ref, setHasSig, setSignedAt) => {
     setDrawing(false);
     const canvas = ref.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');
       ctx.beginPath();
       setHasSig(true);
+      setSignedAt(new Date().toISOString());
     }
   };
 
@@ -101,13 +149,18 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     ctx.moveTo(x, y);
   };
 
-  const clearCanvas = (ref, setHasSig) => {
+  const clearCanvas = (ref, setHasSig, setSignedAt) => {
     const canvas = ref.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    // Clear in device pixels — the context carries a devicePixelRatio scale.
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
     ctx.beginPath();
     setHasSig(false);
+    setSignedAt(null);
   };
 
   // Handle Photo Upload
@@ -140,8 +193,13 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
       setError('Customer signature is required.');
       return;
     }
+    if (!hasDriverSignature) {
+      setError('Driver signature is required.');
+      return;
+    }
 
     setIsSaving(true);
+    setIsStampingPdf(Boolean(delivery.packingListUrl));
     setError(null);
 
     const custSigDataUrl = custCanvasRef.current ? custCanvasRef.current.toDataURL() : '';
@@ -158,75 +216,21 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
       'Driver'
     );
 
-    // ── Stamp signatures onto the packing list PDF ──────────────────────────
-    let signedPdfUrl = null;
-    let signedPdfFilename = null;
-
-    if (delivery.packingListUrl) {
-      try {
-        setIsStampingPdf(true);
-        const deliveryInfo = [
-          delivery.soNumber ? `SO# ${delivery.soNumber}` : '',
-          delivery.customerName || '',
-          delivery.date || ''
-        ].filter(Boolean).join(' - ');
-
-        const signedBlob = await stampSignaturesOnPdf({
-          pdfUrl: delivery.packingListUrl,
-          customerSignatureDataUrl: custSigDataUrl,
-          driverSignatureDataUrl: driverSigDataUrl,
-          signeeName: signeeName.trim(),
-          driverName: resolvedDriverName,
-          deliveryInfo,
-          signedAt
-        });
-
-        // Upload the signed PDF to server
-        try {
-          const formData = new FormData();
-          const filename = `signed_packing_list_${delivery.soNumber || delivery.id || Date.now()}.pdf`;
-          formData.append('file', signedBlob, filename);
-          const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-          const uploadRes = await fetch(`${API_URL}/api/deliveries/upload-packing-list`, {
-            method: 'POST',
-            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-            body: formData
-          });
-          if (uploadRes.ok) {
-            const uploadData = await uploadRes.json();
-            signedPdfUrl = uploadData.url;
-            signedPdfFilename = filename;
-            console.log('[PodModal] Signed PDF uploaded:', signedPdfUrl);
-          } else {
-            // Fallback: create a local object URL for download
-            signedPdfUrl = URL.createObjectURL(signedBlob);
-            signedPdfFilename = `signed_packing_list_${Date.now()}.pdf`;
-            console.warn('[PodModal] Upload failed, using object URL');
-          }
-        } catch (uploadErr) {
-          // Fallback: create a local object URL for download
-          signedPdfUrl = URL.createObjectURL(signedBlob);
-          signedPdfFilename = `signed_packing_list_${Date.now()}.pdf`;
-          console.warn('[PodModal] Upload error, using object URL:', uploadErr);
-        }
-      } catch (stampErr) {
-        console.warn('[PodModal] PDF stamp failed, continuing without:', stampErr);
-      } finally {
-        setIsStampingPdf(false);
-      }
-    }
-
+    // Only the signature images travel — roughly 30KB. The server fetches the
+    // packing list, stamps the certificate and stores the signed copy, so a
+    // driver on cellular no longer downloads and re-uploads a multi-MB PDF, and
+    // there is no half-finished state where the upload succeeded but the save
+    // didn't.
     const podData = {
       signeeName: signeeName.trim(),
       driverName: resolvedDriverName,
       customerSignature: custSigDataUrl,
       driverSignature: driverSigDataUrl,
+      customerSignedAt: custSignedAt || signedAt.toISOString(),
+      driverSignedAt: driverSignedAt || signedAt.toISOString(),
       signedAt,
       photos,
-      notes: podNotes,
-      // URL of the signed PDF (packing list + overlaid signatures)
-      signedPdfUrl: signedPdfUrl || null,
-      signedPdfFilename: signedPdfFilename || null
+      notes: podNotes
     };
 
     try {
@@ -235,7 +239,12 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
       }
       onClose();
     } catch (err) {
-      setError('Failed to save Proof of Delivery.');
+      // No local-blob fallback: a blob: URL is meaningless to every other user
+      // and used to be written to the database as if it were a real document.
+      setError(
+        err?.message ||
+        'Could not save the proof of delivery. Check your signal and try again — nothing has been recorded yet.'
+      );
     } finally {
       setIsSaving(false);
       setIsStampingPdf(false);
@@ -243,6 +252,15 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   };
 
   if (!isOpen || !delivery) return null;
+
+  // Both signatures are mandatory — an ePOD with only one party's mark isn't
+  // proof of anything, and the server will refuse to mark it verified anyway.
+  const missingParts = [
+    !signeeName.trim() && 'signee name',
+    !hasCustSignature && 'customer signature',
+    !hasDriverSignature && 'driver signature'
+  ].filter(Boolean);
+  const isReadyToSubmit = missingParts.length === 0;
 
   return (
     <div className="pod-modal-overlay">
@@ -295,42 +313,46 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
             <div className="pod-sig-box">
               <div className="sig-box-header">
                 <label className="pod-label">Customer Signature <span className="req-star">*</span></label>
-                <button type="button" className="sig-clear-btn" onClick={() => clearCanvas(custCanvasRef, setHasCustSignature)}>Clear</button>
+                <button type="button" className="sig-clear-btn" onClick={() => clearCanvas(custCanvasRef, setHasCustSignature, setCustSignedAt)}>Clear</button>
               </div>
               <canvas
                 ref={custCanvasRef}
                 width={340}
                 height={130}
-                className="sig-canvas"
+                className={`sig-canvas ${hasCustSignature ? 'is-signed' : ''}`}
                 onMouseDown={(e) => startDrawing(e, custCanvasRef, setIsCustDrawing)}
                 onMouseMove={(e) => isCustDrawing && draw(e, custCanvasRef)}
-                onMouseUp={() => stopDrawing(setIsCustDrawing, custCanvasRef, setHasCustSignature)}
+                onMouseUp={() => stopDrawing(setIsCustDrawing, custCanvasRef, setHasCustSignature, setCustSignedAt)}
                 onTouchStart={(e) => startDrawing(e, custCanvasRef, setIsCustDrawing)}
                 onTouchMove={(e) => isCustDrawing && draw(e, custCanvasRef)}
-                onTouchEnd={() => stopDrawing(setIsCustDrawing, custCanvasRef, setHasCustSignature)}
+                onTouchEnd={() => stopDrawing(setIsCustDrawing, custCanvasRef, setHasCustSignature, setCustSignedAt)}
               />
-              <span className="sig-hint">Sign above using touchscreen finger or stylus</span>
+              {formatStamp(custSignedAt)
+                ? <span className="sig-stamp"><Check size={11} /> Signed {formatStamp(custSignedAt)}</span>
+                : <span className="sig-hint">Sign above using touchscreen finger or stylus</span>}
             </div>
 
             {/* Driver Signature Pad */}
             <div className="pod-sig-box">
               <div className="sig-box-header">
-                <label className="pod-label">Driver Signature</label>
-                <button type="button" className="sig-clear-btn" onClick={() => clearCanvas(driverCanvasRef, setHasDriverSignature)}>Clear</button>
+                <label className="pod-label">Driver Signature <span className="req-star">*</span></label>
+                <button type="button" className="sig-clear-btn" onClick={() => clearCanvas(driverCanvasRef, setHasDriverSignature, setDriverSignedAt)}>Clear</button>
               </div>
               <canvas
                 ref={driverCanvasRef}
                 width={340}
                 height={130}
-                className="sig-canvas"
+                className={`sig-canvas ${hasDriverSignature ? 'is-signed' : ''}`}
                 onMouseDown={(e) => startDrawing(e, driverCanvasRef, setIsDriverDrawing)}
                 onMouseMove={(e) => isDriverDrawing && draw(e, driverCanvasRef)}
-                onMouseUp={() => stopDrawing(setIsDriverDrawing, driverCanvasRef, setHasDriverSignature)}
+                onMouseUp={() => stopDrawing(setIsDriverDrawing, driverCanvasRef, setHasDriverSignature, setDriverSignedAt)}
                 onTouchStart={(e) => startDrawing(e, driverCanvasRef, setIsDriverDrawing)}
                 onTouchMove={(e) => isDriverDrawing && draw(e, driverCanvasRef)}
-                onTouchEnd={() => stopDrawing(setIsDriverDrawing, driverCanvasRef, setHasDriverSignature)}
+                onTouchEnd={() => stopDrawing(setIsDriverDrawing, driverCanvasRef, setHasDriverSignature, setDriverSignedAt)}
               />
-              <span className="sig-hint">Driver sign-off confirmation</span>
+              {formatStamp(driverSignedAt)
+                ? <span className="sig-stamp"><Check size={11} /> Signed {formatStamp(driverSignedAt)}</span>
+                : <span className="sig-hint">Driver sign-off confirmation</span>}
             </div>
           </div>
 
@@ -367,15 +389,25 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
               value={podNotes}
               onChange={(e) => setPodNotes(e.target.value)}
               placeholder="Add any delivery details, such as slab orientation, site access instructions, or damage notes."
-              className="pod-textarea"
+              /* no-capitalize opts out of the global title-casing in index.css,
+                 which was turning "chipped edge on two slabs" into Title Case. */
+              className="pod-textarea no-capitalize"
               rows={3}
             />
           </div>
         </div>
 
         <div className="pod-modal-footer">
+          {!isReadyToSubmit && !isSaving && (
+            <span className="pod-gate-msg">Still needed: {missingParts.join(', ')}</span>
+          )}
           <button type="button" className="pod-btn-cancel" onClick={onClose}>Cancel</button>
-          <button type="button" className="pod-btn-submit" onClick={handleSave} disabled={isSaving || isStampingPdf}>
+          <button
+            type="button"
+            className="pod-btn-submit"
+            onClick={handleSave}
+            disabled={isSaving || isStampingPdf || !isReadyToSubmit}
+          >
             {isStampingPdf
               ? <><Layers size={16} className="spin-icon" /> Signing PDF...</>
               : isSaving
