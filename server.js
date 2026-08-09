@@ -6380,6 +6380,17 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
+// An /api path that matched no route used to fall through to the SPA and answer
+// with index.html, so the caller's res.json() failed on "Unexpected token '<'"
+// — which says nothing about the actual problem (a typo, or a server running
+// code older than the client). Answer as the API, not as the app.
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    error: `No such endpoint: ${req.method} ${req.originalUrl}`,
+    hint: 'If this endpoint is new, the running server may predate it — restart it.'
+  });
+});
+
 // Serve uploaded files with long-term caching
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'), {
   maxAge: '1y',
@@ -6419,3 +6430,4 @@ if (fs.existsSync(distPath)) {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+
