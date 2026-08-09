@@ -734,11 +734,21 @@ body.light-theme-active .pod-error-alert {
   word-break: break-all;
 }
 
+/* A button now rather than a link — it fetches the file and saves it under the
+   packing list number, which an href can't do across origins. */
 .pod-original-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
   font-size: 0.7rem;
   color: #d4af37;
   text-decoration: underline;
+  cursor: pointer;
 }
+
+.pod-original-link:hover { color: #e6c25e; }
 
 .pod-signed-actions {
   display: flex;

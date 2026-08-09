@@ -37,6 +37,7 @@ import LostSale from './src/models/LostSale.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
 import { stampSignaturesOnPdfBytes } from './src/utils/pdfSigner.js';
+import { signedPackingListFileName } from './src/utils/packingList.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -4345,15 +4346,23 @@ app.post('/api/deliveries', verifyAnyAuth, canWriteDeliveries, async (req, res) 
             driverSignedAt: updateData.pod.driverSignedAt
           });
 
+          // Named after the packing list number — "145994_signed.pdf" — so the
+          // signed copy files next to the paperwork it was stamped from.
+          const signedName = signedPackingListFileName({
+            packingListFilename: updateData.packingListFilename || delivery.packingListFilename,
+            soNumber: delivery.soNumber,
+            invoiceNumber: delivery.invoiceNumber,
+            id: delivery.id
+          });
+
           const stored = await storeDeliveryPdf(
             Buffer.from(signedBytes),
             assetIds.signedPdf,
-            `signed_packing_list_${safeIdSegment(delivery.id)}.pdf`
+            signedName
           );
           updateData.pod.signedPdfUrl = stored.url;
           updateData.pod.signedPdfPublicId = stored.publicId;
-          updateData.pod.signedPdfFilename =
-            `signed_packing_list_${delivery.soNumber || delivery.id}.pdf`;
+          updateData.pod.signedPdfFilename = signedName;
         } catch (stampErr) {
           // Drop any previously stamped copy: these are new signatures, and a
           // fresh proof must never point at the document the last one produced.

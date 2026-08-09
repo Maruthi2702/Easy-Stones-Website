@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, FileText, Calendar, User, Download, Camera, Link2, Check, RotateCcw, AlertTriangle } from 'lucide-react';
+import { packingListFileName, signedPackingListFileName, downloadPdf } from '../../../utils/packingList';
 
 /**
  * Read-only ePOD viewer — shows the signed Proof of Delivery record.
@@ -57,7 +58,11 @@ const PodViewer = ({
   const signedUrl = pod.signedPdfUrl || '';
   const isVerified = Boolean(pod.verified);
   const wasCleared = Boolean(pod.clearedAt) && !isVerified;
-  const downloadName = pod.signedPdfFilename || `signed_packing_list_${delivery.soNumber || delivery.id}.pdf`;
+
+  // Derived rather than read from pod.signedPdfFilename, so records signed
+  // before this naming existed still download as 145994_signed.pdf.
+  const downloadName = signedPackingListFileName(delivery);
+  const originalName = packingListFileName(delivery);
 
   const handleCopyLink = () => {
     if (!signedUrl) return;
@@ -116,18 +121,26 @@ const PodViewer = ({
               <div className="pod-signed-meta">
                 <span className="pod-signed-name">{downloadName}</span>
                 {delivery.packingListUrl && (
-                  <a href={delivery.packingListUrl} target="_blank" rel="noopener noreferrer" className="pod-original-link">
-                    Original packing list kept separately
-                  </a>
+                  <button
+                    type="button"
+                    className="pod-original-link"
+                    onClick={() => downloadPdf(delivery.packingListUrl, originalName)}
+                  >
+                    Original packing list ({originalName})
+                  </button>
                 )}
               </div>
               <div className="pod-signed-actions">
                 <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="pod-doc-btn primary">
                   View
                 </a>
-                <a href={signedUrl} download={downloadName} className="pod-doc-btn">
+                <button
+                  type="button"
+                  className="pod-doc-btn"
+                  onClick={() => downloadPdf(signedUrl, downloadName)}
+                >
                   <Download size={13} /> Download
-                </a>
+                </button>
                 <button type="button" className="pod-doc-btn" onClick={handleCopyLink}>
                   {copied ? <><Check size={13} /> Copied</> : <><Link2 size={13} /> Copy link</>}
                 </button>
@@ -270,14 +283,13 @@ const PodViewer = ({
         <div className="pod-modal-footer">
           <button type="button" className="pod-btn-cancel" onClick={onClose}>Close</button>
           {(signedUrl || delivery.packingListUrl) && (
-            <a
-              href={signedUrl || delivery.packingListUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              download={signedUrl ? downloadName : (delivery.packingListFilename || 'packing_list.pdf')}
+            <button
+              type="button"
+              onClick={() => (signedUrl
+                ? downloadPdf(signedUrl, downloadName)
+                : downloadPdf(delivery.packingListUrl, originalName))}
               className="pod-btn-submit"
               style={{
-                textDecoration: 'none',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
@@ -285,8 +297,8 @@ const PodViewer = ({
                 color: signedUrl ? '#000' : undefined
               }}
             >
-              <Download size={16} /> {signedUrl ? 'Open Signed PDF' : 'Download Packing List'}
-            </a>
+              <Download size={16} /> {signedUrl ? `Download ${downloadName}` : `Download ${originalName}`}
+            </button>
           )}
         </div>
 

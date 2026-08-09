@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Check, Camera, Upload, FileText, ShieldCheck, Download, Layers } from 'lucide-react';
 import { formatTitleCase } from '../../../utils/textUtils';
+import { packingListFileName } from '../../../utils/packingList';
 import './PodModal.css';
 
 /**
@@ -282,8 +283,10 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
               <FileText size={18} style={{ color: '#d4af37' }} />
               <div className="banner-text">
                 <strong>Attached Packing List Document:</strong>
-                <span>{delivery.packingListFilename || 'PackingList.pdf'}</span>
+                <span>{packingListFileName(delivery)}</span>
               </div>
+              {/* Opens rather than downloads — the driver is reading it on a
+                  phone. The Download buttons in the viewer save it by name. */}
               <a
                 href={delivery.packingListUrl}
                 target="_blank"
