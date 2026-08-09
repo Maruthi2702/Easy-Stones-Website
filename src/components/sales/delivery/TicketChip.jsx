@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat } from 'lucide-react';
+import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck } from 'lucide-react';
 import StatusPill from './StatusPill';
 import EpodChip from './EpodChip';
 
@@ -40,6 +40,9 @@ const TicketChip = ({
   // so those slots would render as a bare "Stop #1", an orphan map pin and a
   // leftover rep name. Show the transfer's own details instead.
   const isTransfer = delivery.deliveryType === 'transfer';
+  // A will call is collected by the customer: it is nobody's stop on a route, so
+  // the header says so instead of claiming a stop number it does not have.
+  const isWillCall = delivery.deliveryType === 'will_call';
   // The title line already reads "Transfer -> <branch>", so the header says
   // "Transfer# 14322" rather than repeating the word and wrapping in a narrow
   // truck column.
@@ -73,6 +76,8 @@ const TicketChip = ({
         <span className="ticket-time-mono">
           {isTransfer ? (
             <><Repeat size={11} style={{ marginRight: 2 }} />{soVal ? 'Transfer#' : 'Transfer'}</>
+          ) : isWillCall ? (
+            <><PackageCheck size={11} style={{ marginRight: 2 }} /> Will Call</>
           ) : (
             <><Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}</>
           )}
@@ -99,7 +104,16 @@ const TicketChip = ({
         <Highlight text={delivery.customerName} query={searchQuery} />
       </h5>
 
-      {delivery.address && (
+      {/* A will call has no delivery address — the useful line is which vehicle
+          is coming for it, which is what the counter needs on the day. */}
+      {isWillCall ? (
+        delivery.pickupInfo && (
+          <p className="ticket-address">
+            <Truck size={12} />
+            <Highlight text={delivery.pickupInfo} query={searchQuery} />
+          </p>
+        )
+      ) : delivery.address && (
         <p className="ticket-address">
           <MapPin size={12} />
           <Highlight text={delivery.address} query={searchQuery} />

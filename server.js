@@ -4283,15 +4283,23 @@ app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) =>
     // for a date and a driver, and belongs to no truck column. ?pending=true
     // returns those; a week request returns the assigned ones only, so nothing
     // is stranded between the two views.
+    // A will call is not pending, though it never gets a driver: the customer
+    // collects it on a known date, so it belongs to its week under the board's
+    // Will Call column. Both queries account for it so it lands in exactly one.
     const { startDate, endDate, pending } = req.query;
     let baseQuery;
     if (pending === 'true') {
       // $in rather than $or: the location scoping below contributes its own $or,
       // and a second one on the same object would replace this filter outright.
       // { $in: ['', null] } also matches documents with no truckId field at all.
-      baseQuery = { truckId: { $in: ['', null] } };
+      baseQuery = { truckId: { $in: ['', null] }, deliveryType: { $ne: 'will_call' } };
     } else if (startDate && endDate) {
-      baseQuery = { date: { $gte: startDate, $lte: endDate }, truckId: { $nin: ['', null] } };
+      // Wrapped in $and for the same reason: the location scoping owns the
+      // top-level $or, so this one has to live where it cannot be overwritten.
+      baseQuery = {
+        date: { $gte: startDate, $lte: endDate },
+        $and: [{ $or: [{ truckId: { $nin: ['', null] } }, { deliveryType: 'will_call' }] }]
+      };
     } else {
       baseQuery = {};
     }

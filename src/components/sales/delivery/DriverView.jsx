@@ -70,6 +70,9 @@ const DriverView = ({
 
   const isDeliveryMatchingTruck = (del, trk) => {
     if (!del || !trk) return false;
+    // The customer collects a will call themselves, so it is on nobody's run —
+    // including older ones still carrying the truckId they were created under.
+    if (del.deliveryType === 'will_call') return false;
     const delTruckId = String(del.truckId || '').toLowerCase();
     const trkId = String(trk.id || '').toLowerCase();
     const trkDriver = String(trk.driver || trk.name || trk.username || '').toLowerCase();

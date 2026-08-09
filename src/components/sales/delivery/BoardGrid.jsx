@@ -12,6 +12,22 @@ const MIN_TRUCK_COL_WIDTH = 290;
 // The stylesheet's existing floor — never render narrower than the board does today.
 const MIN_TABLE_WIDTH = 1100;
 
+// A will call is collected by the customer, so it belongs to no driver and to no
+// truck's daily load. It gets a column of its own at the end of the board rather
+// than sitting under whoever happened to be selected when the ticket was made.
+export const WILL_CALL_COLUMN_ID = '__will_call__';
+
+const WILL_CALL_COLUMN = {
+  id: WILL_CALL_COLUMN_ID,
+  driver: 'Will Call',
+  name: 'Customer Pickup',
+  color: '#2dd4bf',
+  isWillCall: true
+};
+
+const columnIdFor = (d) =>
+  d?.deliveryType === 'will_call' ? WILL_CALL_COLUMN_ID : (d?.truckId || '');
+
 const DAYS_OF_WEEK = [
   { name: 'Monday',    short: 'Mon', index: 1 },
   { name: 'Tuesday',  short: 'Tue', index: 2 },
@@ -92,7 +108,10 @@ const BoardGrid = ({
       d.address?.toLowerCase().includes(q) ||
       d.salesRepName?.toLowerCase().includes(q) ||
       d.soNumber?.toLowerCase().includes(q) ||
-      d.invoiceNumber?.toLowerCase().includes(q)
+      d.invoiceNumber?.toLowerCase().includes(q) ||
+      // The chip shows the pickup vehicle in place of the address on a will
+      // call, so the plate on it is searchable the same way an address is.
+      d.pickupInfo?.toLowerCase().includes(q)
     );
   });
 
@@ -100,7 +119,9 @@ const BoardGrid = ({
   const cellMap = React.useMemo(() => {
     const map = new Map();
     for (const d of filteredDeliveries) {
-      const key = `${d.truckId || ''}_${d.date}`;
+      // Keyed by column, not by truck: that pulls a will call out of the driver
+      // column its truckId still points at on older tickets, with no migration.
+      const key = `${columnIdFor(d)}_${d.date}`;
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(d);
     }
@@ -118,8 +139,9 @@ const BoardGrid = ({
 
   const displayTrucks = React.useMemo(() => {
     // No "Unassigned" column: an order without a driver belongs to the Pending
-    // list beneath the board, not to a column of its own.
-    return trucks;
+    // list beneath the board, not to a column of its own. Will Call is the one
+    // driverless column, pinned last so the drivers still read left to right.
+    return [...trucks, WILL_CALL_COLUMN];
   }, [trucks]);
 
   const getDeliveriesForCell = (truckId, dateStr) =>
@@ -232,17 +254,19 @@ const BoardGrid = ({
                     </div>
 
                     <div className="ux-driver-actions">
+                      {/* Will calls are collected by the customer, so the daily
+                          truck load does not apply — count them, don't cap them. */}
                       <span className={`ux-capacity-badge ${capCount > 0 ? 'has-stops' : 'empty'}`}>
-                        {capCount}/{MAX_TRUCK_CAPACITY}
+                        {trk.isWillCall ? capCount : `${capCount}/${MAX_TRUCK_CAPACITY}`}
                       </span>
                       {editable && (
                         <button
                           type="button"
                           className="ux-btn-add-stop"
                           onClick={() => onAddDelivery && onAddDelivery(trk.id, selectedDate)}
-                          title={`Add stop for ${trk.driver}`}
+                          title={trk.isWillCall ? 'Add a customer pickup' : `Add stop for ${trk.driver}`}
                         >
-                          <Plus size={14} /> Add stop
+                          <Plus size={14} /> {trk.isWillCall ? 'Add pickup' : 'Add stop'}
                         </button>
                       )}
                     </div>
@@ -250,7 +274,9 @@ const BoardGrid = ({
 
                   {/* Driver Delivery Ticket Cards */}
                   {trkDeliveries.length === 0 ? (
-                    <div className="ux-no-stops-text">No stops scheduled</div>
+                    <div className="ux-no-stops-text">
+                      {trk.isWillCall ? 'No pickups scheduled' : 'No stops scheduled'}
+                    </div>
                   ) : (
                     <div className="ux-tickets-list">
                       {trkDeliveries.map(del => (
@@ -330,17 +356,21 @@ const BoardGrid = ({
                         <td key={trk.id} className="dispatch-cell">
                           <div className="cell-header-bar">
                             <span
-                              className={`cell-capacity-pill ${capClass}`}
-                              title={`${rawCount} of ${MAX_TRUCK_CAPACITY} deliveries booked`}
+                              className={`cell-capacity-pill ${trk.isWillCall ? 'capacity-ok-green' : capClass}`}
+                              title={trk.isWillCall
+                                ? `${rawCount} customer ${rawCount === 1 ? 'pickup' : 'pickups'} booked`
+                                : `${rawCount} of ${MAX_TRUCK_CAPACITY} deliveries booked`}
                             >
-                              {rawCount}/{MAX_TRUCK_CAPACITY}
+                              {trk.isWillCall ? rawCount : `${rawCount}/${MAX_TRUCK_CAPACITY}`}
                             </span>
                             {editable && (
                               <button
                                 type="button"
                                 className="cell-add-btn"
                                 onClick={() => onAddDelivery && onAddDelivery(trk.id, dateStr)}
-                                title={`Add delivery — ${trk.driver} on ${dayObj.name}`}
+                                title={trk.isWillCall
+                                  ? `Add will call pickup — ${dayObj.name}`
+                                  : `Add delivery — ${trk.driver} on ${dayObj.name}`}
                               >
                                 <Plus size={14} />
                               </button>

@@ -111,6 +111,12 @@ const DeliveryModal = ({
   // customer/jobsite half of this form does not apply to it.
   const isTransfer = deliveryType === 'transfer';
 
+  // On a will call the customer collects the order themselves, so nothing about
+  // our own run applies: no delivery address, no route stop, no driver. It is
+  // saved with no truck and shows in the board's own Will Call column on its
+  // pickup date, rather than under a driver who is not doing the run.
+  const isWillCall = deliveryType === 'will_call';
+
   // Transfers go out on contract freight rather than our own trucks, so picking
   // that type pre-selects the 3rd-party carrier.
   const thirdPartyTruck = trucks.find(isThirdParty);
@@ -123,8 +129,10 @@ const DeliveryModal = ({
   const isNewTicket = !initialData?.id;
 
   // Leaving the driver unassigned marks the order Pending: it waits in the list
-  // under the board until the customer confirms, so it needs no date yet.
-  const isPendingOrder = !truckId;
+  // under the board until the customer confirms, so it needs no date yet. A will
+  // call never has a driver but is not pending — it has a pickup date, and that
+  // date is what puts it in the Will Call column, so it stays required.
+  const isPendingOrder = !truckId && !isWillCall;
 
   // Deleting a delivery is gated on delete_delivery_schedule, assignable per role
   // under Users & Roles → Delivery Schedule → Delete. The server enforces the same
@@ -278,10 +286,13 @@ const DeliveryModal = ({
 
   const markDirty = () => setIsDirty(true);
 
-  // Compute booked capacity count per truck for the selected date
+  // Compute booked capacity count per truck for the selected date. Will calls
+  // never ride on a truck, so older ones still carrying a truckId are left out
+  // rather than eating into that driver's load.
   const getCapacityForTruck = (trkId) => {
     return deliveries.filter(
-      d => d.truckId === trkId && d.date === date && d.id !== initialData?.id
+      d => d.truckId === trkId && d.date === date && d.id !== initialData?.id &&
+        d.deliveryType !== 'will_call'
     ).length;
   };
 
@@ -315,7 +326,9 @@ const DeliveryModal = ({
     }
 
     if (!isPendingOrder && !date) {
-      setError('Pick a delivery date, or leave the driver unassigned to keep this in Pending Delivery.');
+      setError(isWillCall
+        ? 'Pick the date the customer is collecting this order.'
+        : 'Pick a delivery date, or leave the driver unassigned to keep this in Pending Delivery.');
       return;
     }
 
@@ -336,13 +349,16 @@ const DeliveryModal = ({
       id: initialData?.id || `del_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       customerId: isTransfer ? null : (selectedCustomerId || null),
       customerName: finalCustomerName,
-      address: isTransfer ? '' : address.trim(),
+      // A will call is collected from us, so it has no delivery address and no
+      // stop on anyone's route — and no driver, which is what files it under
+      // the board's Will Call column instead of a truck's.
+      address: (isTransfer || isWillCall) ? '' : address.trim(),
       soNumber: soNumber.trim(),
       invoiceNumber: soNumber.trim(),
-      routeNumber: isTransfer ? 1 : (Number(routeNumber) || 1),
+      routeNumber: (isTransfer || isWillCall) ? 1 : (Number(routeNumber) || 1),
       date,
       time,
-      truckId,
+      truckId: isWillCall ? '' : truckId,
       salesRepName: salesRepName.trim(),
       status,
       notes: notes.trim(),
@@ -432,7 +448,7 @@ const DeliveryModal = ({
                 <div className="unsaved-icon-badge is-danger">
                   <Trash2 size={24} />
                 </div>
-                <h4>Delete This {isTransfer ? 'Transfer' : 'Delivery'}?</h4>
+                <h4>Delete This {isTransfer ? 'Transfer' : isWillCall ? 'Will Call' : 'Delivery'}?</h4>
               </div>
               <p className="unsaved-modal-body">
                 {customerName.trim()
@@ -565,8 +581,9 @@ const DeliveryModal = ({
             </div>
             )}
 
-            {/* SO / Invoice# & Delivery Address */}
-            {!isTransfer && (
+            {/* SO / Invoice# & Delivery Address — a will call is collected here,
+                so it has no delivery address and pairs SO# with the rep instead */}
+            {!isTransfer && !isWillCall && (
             <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
               <div className="form-group">
                 <label><Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />SO / Invoice#</label>
@@ -590,7 +607,59 @@ const DeliveryModal = ({
             </div>
             )}
 
+            {/* Will Call: SO / Invoice# & Sales Rep */}
+            {isWillCall && (
+            <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
+              <div className="form-group">
+                <label><Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />SO / Invoice#</label>
+                <input
+                  type="text"
+                  value={soNumber}
+                  onChange={(e) => { setSoNumber(e.target.value); markDirty(); }}
+                  placeholder="SO / Invoice #"
+                />
+              </div>
+
+              <div className="form-group">
+                <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Sales Representative</label>
+                <CustomSelect
+                  value={salesRepName}
+                  onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
+                  options={Array.from(new Set([...salesRepsList, salesRepName].filter(Boolean))).map(name => ({ value: name, label: name }))}
+                />
+              </div>
+            </div>
+            )}
+
+            {/* Will Call: pickup vehicle & Status */}
+            {isWillCall && (
+            <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
+              <div className="form-group">
+                <label style={{ color: '#2dd4bf' }}>
+                  <Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  Pick Up Vehicle Number
+                </label>
+                <input
+                  type="text"
+                  value={pickupInfo}
+                  onChange={(e) => { setPickupInfo(e.target.value); markDirty(); }}
+                  placeholder="License #"
+                />
+              </div>
+
+              <div className="form-group">
+                <label><Activity size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Status</label>
+                <CustomSelect
+                  value={status}
+                  onChange={(e) => { setStatus(e.target.value); markDirty(); }}
+                  options={STATUS_OPTIONS}
+                />
+              </div>
+            </div>
+            )}
+
             {/* Assigned Driver, paired with Route normally and with Status on a transfer */}
+            {!isWillCall && (
             <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
               {!isTransfer && (
               <div className="form-group">
@@ -644,11 +713,12 @@ const DeliveryModal = ({
                 </div>
               )}
             </div>
+            )}
 
             {/* Conditional 3rd Party Freight Fields — a delivery going out on
                 contract freight needs the carrier's paperwork recorded against
-                it. Transfers deliberately keep the short field set. */}
-            {!isTransfer && isThirdPartySelected && (
+                it. Transfers and will calls deliberately keep the short field set. */}
+            {!isTransfer && !isWillCall && isThirdPartySelected && (
               <div className="delivery-form-3col 3rd-party-banner-fields" style={{ background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.25)', padding: '0.85rem', borderRadius: '12px', marginBottom: '1.1rem' }}>
                 <div className="form-group">
                   <label style={{ color: '#c084fc' }}>Carrier / Freight Company</label>
@@ -680,21 +750,9 @@ const DeliveryModal = ({
               </div>
             )}
 
-            {/* Conditional Will Call Pickup Fields */}
-            {deliveryType === 'will_call' && (
-              <div className="form-group" style={{ marginBottom: '1.1rem' }}>
-                <label style={{ color: '#2dd4bf' }}>Customer Pickup Vehicle &amp; Driver Info</label>
-                <input
-                  type="text"
-                  value={pickupInfo}
-                  onChange={(e) => { setPickupInfo(e.target.value); markDirty(); }}
-                  placeholder="e.g. Customer Flatbed Trailer, License # 7ABC12, Driver: Dave"
-                />
-              </div>
-            )}
-
-            {/* Sales Rep & Status — on a transfer, Status sits beside the driver instead */}
-            {!isTransfer && (
+            {/* Sales Rep & Status — on a transfer, Status sits beside the driver
+                instead, and on a will call both moved up above the pickup rows */}
+            {!isTransfer && !isWillCall && (
             <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
               <div className="form-group">
                 <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Sales Representative</label>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Truck, ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from 'lucide-react';
-import BoardGrid from './delivery/BoardGrid';
+import BoardGrid, { WILL_CALL_COLUMN_ID } from './delivery/BoardGrid';
 import DriverView from './delivery/DriverView';
 import DeliveryModal from './delivery/DeliveryModal';
 import PodModal from './delivery/PodModal';
@@ -226,8 +226,12 @@ const DeliveryScheduleTab = ({
   };
 
   const handleOpenAddModal = (truckId = null, dateStr = null) => {
+    // The Will Call column is not a truck — adding from it opens a pickup ticket
+    // with no driver, which is what a customer collection is.
+    const isWillCallColumn = truckId === WILL_CALL_COLUMN_ID;
     setEditingDelivery({
-      truckId: truckId || trucks[0]?.id || 'trk_1',
+      truckId: isWillCallColumn ? '' : (truckId || trucks[0]?.id || 'trk_1'),
+      deliveryType: isWillCallColumn ? 'will_call' : 'jobsite',
       date: dateStr || weekDates[0],
       time: '09:00 AM',
       salesRepName: currentUser?.name || 'Admin',
