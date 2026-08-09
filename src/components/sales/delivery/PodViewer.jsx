@@ -256,61 +256,13 @@ const PodViewer = ({
               than shown disabled, so nobody is offered a control they can't use. */}
           {canClearPod && isVerified && (
             <div className="pod-danger-zone">
-              {!showClearForm ? (
-                <>
-                  <div className="pod-dz-text">
-                    <strong>Clear signatures</strong>
-                    <span>Removes the signed copy so the customer can sign again. The original packing list is kept.</span>
-                  </div>
-                  <button type="button" className="pod-btn-danger" onClick={() => setShowClearForm(true)}>
-                    Clear signatures
-                  </button>
-                </>
-              ) : (
-                <div className="pod-clear-form">
-                  <div className="pod-clear-head">
-                    <AlertTriangle size={16} />
-                    <strong>Clear the ePOD for {delivery.soNumber ? `SO# ${delivery.soNumber}` : delivery.customerName}?</strong>
-                  </div>
-                  <p className="pod-clear-copy">
-                    This permanently deletes the signed PDF, both signature images, the signee name
-                    and both timestamps. The delivery stays completed and the original packing list
-                    is untouched.
-                  </p>
-                  <label className="pod-label" htmlFor="pod-clear-reason">
-                    Reason <span className="req-star">*</span>
-                  </label>
-                  <input
-                    id="pod-clear-reason"
-                    type="text"
-                    className="pod-input-field"
-                    value={clearReason}
-                    onChange={(e) => setClearReason(e.target.value)}
-                    placeholder="e.g. signed by the wrong customer at a shared jobsite"
-                    autoComplete="off"
-                  />
-                  <span className="sig-hint">Recorded in the activity log against your name.</span>
-                  {clearError && <div className="pod-error-alert">{clearError}</div>}
-                  <div className="pod-clear-actions">
-                    <button
-                      type="button"
-                      className="pod-btn-cancel"
-                      onClick={() => { setShowClearForm(false); setClearError(null); }}
-                      disabled={isClearing}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="pod-btn-danger"
-                      onClick={handleConfirmClear}
-                      disabled={isClearing || clearReason.trim().length < 4}
-                    >
-                      {isClearing ? 'Clearing…' : 'Clear signatures'}
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div className="pod-dz-text">
+                <strong>Clear signatures</strong>
+                <span>Removes the signed copy so the customer can sign again. The original packing list is kept.</span>
+              </div>
+              <button type="button" className="pod-btn-danger" onClick={() => setShowClearForm(true)}>
+                Clear signatures
+              </button>
             </div>
           )}
         </div>
@@ -337,6 +289,70 @@ const PodViewer = ({
             </a>
           )}
         </div>
+
+        {/* Clearing an ePOD is destructive and irreversible, so it asks in a
+            pop-up over the record rather than in a panel that can sit below the
+            fold of a scrolled modal. */}
+        {showClearForm && (
+          <div
+            className="pod-confirm-backdrop"
+            onClick={() => { if (!isClearing) { setShowClearForm(false); setClearError(null); } }}
+          >
+            <div className="pod-confirm-card" onClick={(e) => e.stopPropagation()}>
+              <div className="pod-confirm-badge">
+                <AlertTriangle size={22} />
+              </div>
+              <h4 className="pod-confirm-title">
+                Clear the ePOD for {delivery.soNumber ? `SO# ${delivery.soNumber}` : delivery.customerName}?
+              </h4>
+              <p className="pod-confirm-copy">
+                This permanently deletes the signed PDF, both signature images, the signee name
+                and both timestamps. The delivery stays completed and the original packing list
+                is untouched.
+              </p>
+
+              <label className="pod-label pod-confirm-label" htmlFor="pod-clear-reason">
+                Reason <span className="req-star">*</span>
+              </label>
+              {/* no-capitalize: index.css title-cases every text input, and a
+                  free-text reason should read as typed rather than as
+                  "Signed By The Wrong Customer At A Shared Jobsite". */}
+              <input
+                id="pod-clear-reason"
+                type="text"
+                className="pod-input-field no-capitalize"
+                value={clearReason}
+                onChange={(e) => setClearReason(e.target.value)}
+                placeholder="e.g. signed by the wrong customer at a shared jobsite"
+                autoComplete="off"
+                autoFocus
+                disabled={isClearing}
+              />
+              <span className="sig-hint">Recorded in the activity log against your name.</span>
+
+              {clearError && <div className="pod-error-alert">{clearError}</div>}
+
+              <div className="pod-confirm-actions">
+                <button
+                  type="button"
+                  className="pod-btn-cancel"
+                  onClick={() => { setShowClearForm(false); setClearError(null); }}
+                  disabled={isClearing}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="pod-btn-danger pod-confirm-go"
+                  onClick={handleConfirmClear}
+                  disabled={isClearing || clearReason.trim().length < 4}
+                >
+                  {isClearing ? 'Clearing…' : 'Clear signatures'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
