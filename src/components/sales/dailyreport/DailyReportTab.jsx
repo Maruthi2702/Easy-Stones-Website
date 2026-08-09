@@ -8,6 +8,7 @@ import { API_URL } from '../../../config/api';
 import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
 import MonthView from './MonthView';
+import DaySummary from './DaySummary';
 import './DailyReport.css';
 
 /**
@@ -339,7 +340,21 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
             {!canEdit && <span className="dr-badge">Read only</span>}
           </div>
 
+          <div className="dr-sheet">
+          {/* The day summarised, above the form that produces it. */}
+          <DaySummary
+            report={report}
+            totals={totals}
+            canSubmit={canSubmit && !submitted}
+            onSubmit={submitDay}
+            submitting={saving}
+          />
+
           <div className="dr-grid">
+
+            {/* Three to a row, in the order asked for:
+                Visitors · Payments · Containers
+                Delivery · Transfers · Notes */}
 
             {/* ── Visitors ── */}
             <ReportSection
@@ -369,6 +384,95 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                     </tr>
                   ))}
                   <tr className="dr-total"><td>Total</td><td className="dr-num">{totals.visitors}</td></tr>
+                </tbody>
+              </table>
+            </ReportSection>
+
+            {/* ── Payments ── */}
+            <ReportSection
+              title="Payments"
+              icon={Wallet}
+              source={{ kind: 'typed', label: 'entered here' }}
+            >
+              <table className="dr-table">
+                <thead>
+                  <tr><th>Method</th><th className="dr-num">Transactions</th><th className="dr-num">Amount</th></tr>
+                </thead>
+                <tbody>
+                  {[['Cash', 'cash'], ['Credit Card (CC)', 'card'], ['Check', 'check']].map(([label, key]) => (
+                    <tr key={key}>
+                      <td>{label}</td>
+                      <td className="dr-num">
+                        <ReportCell value={report.payments[key].count} disabled={locked}
+                          ariaLabel={`${label} transactions`}
+                          onChange={(v) => setPath(`payments.${key}.count`, v)} />
+                      </td>
+                      <td className="dr-num">
+                        <MoneyCell value={report.payments[key].amount} disabled={locked}
+                          ariaLabel={`${label} amount`}
+                          onChange={(v) => setPath(`payments.${key}.amount`, v)} />
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="dr-total">
+                    <td>Total</td>
+                    <td className="dr-num">{totals.payCount}</td>
+                    <td className="dr-num">${totals.payAmount.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </ReportSection>
+
+            {/* ── Containers ── */}
+            <ReportSection
+              title="Containers"
+              icon={Package}
+              source={{ kind: 'typed', label: 'entered here' }}
+              footnote="Leave the PO# blank to continue the one above."
+              action={!locked && (
+                <button className="dr-addrow-btn" onClick={() => patch(r => {
+                  r.containers.push({ poNumber: '', material: '', slabs: 0 });
+                  return r;
+                })}><Plus size={12} /> Add</button>
+              )}
+            >
+              <table className="dr-table">
+                <thead>
+                  <tr><th style={{ width: '22%' }}>PO#</th><th>Material</th><th className="dr-num">Slabs</th><th className="dr-x" /></tr>
+                </thead>
+                <tbody>
+                  {report.containers.length === 0 && (
+                    <tr><td colSpan={4} className="dr-none">No containers today.</td></tr>
+                  )}
+                  {report.containers.map((c, i) => (
+                    <tr key={i}>
+                      <td>
+                        <ReportCell value={c.poNumber} type="text" align="left" width={100} disabled={locked}
+                          placeholder="PO number" ariaLabel="PO number"
+                          onChange={(v) => patch(r => { r.containers[i].poNumber = v; return r; })} />
+                      </td>
+                      <td>
+                        <ReportCell value={c.material} type="text" align="left" disabled={locked}
+                          placeholder="Material name" ariaLabel="Material"
+                          onChange={(v) => patch(r => { r.containers[i].material = v; return r; })} />
+                      </td>
+                      <td className="dr-num">
+                        <ReportCell value={c.slabs} disabled={locked} ariaLabel="Container slabs"
+                          onChange={(v) => patch(r => { r.containers[i].slabs = v; return r; })} />
+                      </td>
+                      <td className="dr-x">
+                        {!locked && (
+                          <button className="dr-rowdel" aria-label="Remove container line"
+                            onClick={() => patch(r => { r.containers.splice(i, 1); return r; })}><X size={13} /></button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="dr-total">
+                    <td>Total</td><td />
+                    <td className="dr-num">{totals.containerSlabs}</td>
+                    <td className="dr-x" />
+                  </tr>
                 </tbody>
               </table>
             </ReportSection>
@@ -447,7 +551,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                     <tr key={i}>
                       <td>
                         <ReportCell value={t.fromTo} type="text" align="left" width={150}
-                          derived={t.auto} disabled={locked || t.auto} placeholder="SEA — SLC"
+                          derived={t.auto} disabled={locked || t.auto} placeholder="From — To"
                           ariaLabel="Transfer route"
                           onChange={(v) => patch(r => { r.transfers[i].fromTo = v; return r; })} />
                       </td>
@@ -477,95 +581,6 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
               </table>
             </ReportSection>
 
-            {/* ── Containers ── */}
-            <ReportSection
-              title="Containers"
-              icon={Package}
-              source={{ kind: 'typed', label: 'entered here' }}
-              footnote="Leave the PO# blank to continue the one above."
-              action={!locked && (
-                <button className="dr-addrow-btn" onClick={() => patch(r => {
-                  r.containers.push({ poNumber: '', material: '', slabs: 0 });
-                  return r;
-                })}><Plus size={12} /> Add</button>
-              )}
-            >
-              <table className="dr-table">
-                <thead>
-                  <tr><th style={{ width: '22%' }}>PO#</th><th>Material</th><th className="dr-num">Slabs</th><th className="dr-x" /></tr>
-                </thead>
-                <tbody>
-                  {report.containers.length === 0 && (
-                    <tr><td colSpan={4} className="dr-none">No containers today.</td></tr>
-                  )}
-                  {report.containers.map((c, i) => (
-                    <tr key={i}>
-                      <td>
-                        <ReportCell value={c.poNumber} type="text" align="left" width={100} disabled={locked}
-                          placeholder="13540" ariaLabel="PO number"
-                          onChange={(v) => patch(r => { r.containers[i].poNumber = v; return r; })} />
-                      </td>
-                      <td>
-                        <ReportCell value={c.material} type="text" align="left" disabled={locked}
-                          placeholder="Shadow SJ MQ 3CM" ariaLabel="Material"
-                          onChange={(v) => patch(r => { r.containers[i].material = v; return r; })} />
-                      </td>
-                      <td className="dr-num">
-                        <ReportCell value={c.slabs} disabled={locked} ariaLabel="Container slabs"
-                          onChange={(v) => patch(r => { r.containers[i].slabs = v; return r; })} />
-                      </td>
-                      <td className="dr-x">
-                        {!locked && (
-                          <button className="dr-rowdel" aria-label="Remove container line"
-                            onClick={() => patch(r => { r.containers.splice(i, 1); return r; })}><X size={13} /></button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="dr-total">
-                    <td>Total</td><td />
-                    <td className="dr-num">{totals.containerSlabs}</td>
-                    <td className="dr-x" />
-                  </tr>
-                </tbody>
-              </table>
-            </ReportSection>
-
-            {/* ── Payments ── */}
-            <ReportSection
-              title="Payments"
-              icon={Wallet}
-              source={{ kind: 'typed', label: 'entered here' }}
-            >
-              <table className="dr-table">
-                <thead>
-                  <tr><th>Method</th><th className="dr-num">Transactions</th><th className="dr-num">Amount</th></tr>
-                </thead>
-                <tbody>
-                  {[['Cash', 'cash'], ['Credit Card (CC)', 'card'], ['Check', 'check']].map(([label, key]) => (
-                    <tr key={key}>
-                      <td>{label}</td>
-                      <td className="dr-num">
-                        <ReportCell value={report.payments[key].count} disabled={locked}
-                          ariaLabel={`${label} transactions`}
-                          onChange={(v) => setPath(`payments.${key}.count`, v)} />
-                      </td>
-                      <td className="dr-num">
-                        <MoneyCell value={report.payments[key].amount} disabled={locked}
-                          ariaLabel={`${label} amount`}
-                          onChange={(v) => setPath(`payments.${key}.amount`, v)} />
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="dr-total">
-                    <td>Total</td>
-                    <td className="dr-num">{totals.payCount}</td>
-                    <td className="dr-num">${totals.payAmount.toFixed(2)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </ReportSection>
-
             {/* ── Notes ── */}
             <ReportSection title="Notes" icon={ClipboardList} source={{ kind: 'typed', label: 'optional' }}>
               <textarea
@@ -576,6 +591,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                 onChange={(e) => setPath('notes', e.target.value)}
               />
             </ReportSection>
+
+          </div>
           </div>
         </>
       )}

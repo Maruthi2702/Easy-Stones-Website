@@ -253,12 +253,128 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 .dr-badge--done { background: var(--dr-good-bg); color: var(--dr-good); }
 
 /* ── Layout ──────────────────────────────────────────────────────────────── */
+/* The form is capped rather than allowed to fill the screen: auto-fit made six
+   columns at 2560px, which is nobody's reading order and left the page a thin
+   band above a lot of nothing. */
+.dr-sheet {
+  max-width: 1560px;
+  margin: 0 auto;
+}
+
+/* Three to a row — Visitors · Payments · Containers, then
+   Delivery · Transfers · Notes. Fixed, not auto-fit, so the pairing holds. */
 .dr-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.9rem;
   align-items: start;
 }
+
+@media (max-width: 1400px) { .dr-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* ── The day at a glance ─────────────────────────────────────────────────── */
+.dr-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+
+@media (max-width: 1100px) { .dr-stats { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 640px)  { .dr-stats { grid-template-columns: repeat(2, 1fr); } }
+
+.dr-stat {
+  background: var(--dr-surface);
+  border: 1px solid var(--dr-line);
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+  box-shadow: var(--dr-shadow);
+}
+
+.dr-stat.is-accent {
+  border-color: color-mix(in srgb, var(--dr-gold) 38%, var(--dr-line));
+  background: var(--dr-total-bg);
+}
+
+.dr-stat-lab {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--dr-text-3);
+}
+
+.dr-stat-val {
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.15;
+  margin-top: 0.15rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--dr-text);
+}
+
+.dr-stat-suffix {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--dr-text-3);
+  margin-left: 0.25rem;
+}
+
+.dr-stat-sub {
+  font-size: 0.72rem;
+  color: var(--dr-text-3);
+  margin-top: 0.1rem;
+}
+
+/* A nudge, not a gate — a branch that genuinely took no money has a real zero. */
+.dr-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 0.9rem;
+  background: var(--dr-surface);
+  border: 1px solid var(--dr-line);
+  border-radius: 10px;
+  font-size: 0.8rem;
+}
+
+.dr-progress-count { font-weight: 650; color: var(--dr-text); white-space: nowrap; }
+
+.dr-progress-track {
+  flex: 1 1 140px;
+  min-width: 100px;
+  height: 6px;
+  border-radius: 6px;
+  background: var(--dr-line-soft);
+  overflow: hidden;
+}
+
+.dr-progress-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #d9b646, #c09a24);
+  transition: width 0.3s ease;
+}
+
+.dr-progress-blank { color: var(--dr-text-3); }
+
+.dr-progress-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+  font-weight: 650;
+  color: var(--dr-good);
+}
+
+.dr-progress-submit { margin-left: auto; }
+
+@media (prefers-reduced-motion: reduce) { .dr-progress-fill { transition: none; } }
 
 /* ── Card ────────────────────────────────────────────────────────────────── */
 .dr-card {
@@ -626,6 +742,7 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 @media (max-width: 720px) {
   .dr-root { padding: 0.85rem 0.8rem 2.5rem; }
   .dr-grid { grid-template-columns: 1fr; }
+  .dr-progress-submit, .dr-progress-done { margin-left: 0; width: 100%; justify-content: center; }
   .dr-title { width: 100%; margin-right: 0; }
   .dr-actions { width: 100%; }
   .dr-actions .dr-btn { flex: 1; justify-content: center; }
