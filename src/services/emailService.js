@@ -2,7 +2,12 @@ import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 
 // Helper to send general mail using Resend API with SMTP fallback
-export async function sendEmail({ to, subject, html, replyTo, defaultSenderName }) {
+/**
+ * `attachments` is [{ filename, content }] where content is a Buffer or
+ * Uint8Array. Resend wants base64, nodemailer wants the Buffer — the two
+ * transports are fed accordingly rather than making callers care.
+ */
+export async function sendEmail({ to, subject, html, replyTo, defaultSenderName, attachments = [] }) {
   let sent = false;
   let errorDetails = [];
 
@@ -20,7 +25,13 @@ export async function sendEmail({ to, subject, html, replyTo, defaultSenderName 
       if (replyTo) {
         payload.replyTo = replyTo;
       }
-      
+      if (attachments.length) {
+        payload.attachments = attachments.map(a => ({
+          filename: a.filename,
+          content: Buffer.from(a.content).toString('base64')
+        }));
+      }
+
       const { data, error } = await resend.emails.send(payload);
       if (error) {
         const errMsg = error.message || JSON.stringify(error);
@@ -61,6 +72,12 @@ export async function sendEmail({ to, subject, html, replyTo, defaultSenderName 
         };
         if (replyTo) {
           payload.replyTo = replyTo;
+        }
+        if (attachments.length) {
+          payload.attachments = attachments.map(a => ({
+            filename: a.filename,
+            content: Buffer.from(a.content)
+          }));
         }
 
         await transporter.sendMail(payload);

@@ -1,6 +1,9 @@
 import express from 'express';
 import DailyReport from '../models/DailyReport.js';
+import { buildDayPdf, buildMonthPdf, dayPdfFileName, monthPdfFileName } from '../utils/dailyReportPdf.js';
+import { sendEmail } from '../services/emailService.js';
 import Delivery from '../models/Delivery.js';
+import { BRANCH_NAMES, branchCode, isBranch } from '../config/branches.js';
 import OfficeCheckIn from '../models/OfficeCheckIn.js';
 
 /**
@@ -15,15 +18,8 @@ import OfficeCheckIn from '../models/OfficeCheckIn.js';
  *   app.use('/api/daily-reports', createDailyReportsRouter({ authenticate, requirePermission }));
  */
 
-const LOCATION_CODES = {
-  'Seattle': 'SEA',
-  'Spokane': 'SPO',
-  'Salt Lake City': 'SLC',
-  'Dallas': 'DAL'
-};
-
-const shortCode = (name) =>
-  LOCATION_CODES[name] || String(name || '').slice(0, 3).toUpperCase();
+// The branches and their clocks live in one place — the auto-submit job needs
+// the same list, and two copies of it would eventually disagree.
 
 const isValidDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 const isValidMonth = (value) => /^\d{4}-\d{2}$/.test(String(value || ''));
@@ -31,6 +27,25 @@ const isValidMonth = (value) => /^\d{4}-\d{2}$/.test(String(value || ''));
 const num = (value) => {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : 0;
+};
+
+/**
+ * A figure nobody has entered stays null rather than becoming 0 — "no payments
+ * recorded" and "no money taken" are different statements and the report keeps
+ * them apart. Only an empty string, null or undefined means unsaid; a typed 0
+ * is a real answer.
+ */
+const numOrNull = (value) => {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+};
+
+const moneyOrNull = (value) => {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Number(String(value).replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 };
 
 const money = (value) => {
@@ -45,6 +60,9 @@ const allowedLocations = (req) => {
 };
 
 const canSeeLocation = (req, location) => {
+  // '*' means every branch we have — not every string. Without this an
+  // administrator asking for "Nowhere" got a 200 and an empty sheet.
+  if (!isBranch(location)) return false;
   const allowed = allowedLocations(req);
   return allowed === '*' || allowed.includes(location);
 };
@@ -91,7 +109,7 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     byDestination.set(dest, (byDestination.get(dest) || 0) + 1);
   }
   const transfers = [...byDestination.entries()].map(([dest, count]) => ({
-    fromTo: `${shortCode(location)} — ${shortCode(dest)}`,
+    fromTo: `${branchCode(location)} — ${branchCode(dest)}`,
     count,
     slabs: 0,
     auto: true
@@ -130,6 +148,44 @@ function applyDerived(report, derived) {
   return report;
 }
 
+/**
+ * What a slab count usually looks like, so a slipped finger can be questioned.
+ *
+ * A container is around a hundred slabs, which is the anchor when a branch has
+ * no history yet. Once it has filed enough container lines, its own median
+ * takes over — Spokane should not be measured against Seattle's volumes.
+ *
+ * The band is deliberately wide. This asks a question; it never refuses a
+ * figure, so the cost of a false alarm is a glance and the cost of a miss is a
+ * wrong number in a director's inbox.
+ */
+const TYPICAL_CONTAINER_SLABS = 100;
+
+async function slabExpectation(locations) {
+  const docs = await DailyReport.find(
+    { location: { $in: locations } },
+    'containers.slabs'
+  ).sort({ date: -1 }).limit(60).lean();
+
+  const seen = docs
+    .flatMap(d => (d.containers || []).map(c => c.slabs))
+    .filter(v => Number.isFinite(v) && v > 0)
+    .sort((a, b) => a - b);
+
+  // Under a handful of lines a median is noise, so hold the anchor.
+  const centre = seen.length >= 6
+    ? seen[Math.floor(seen.length / 2)]
+    : TYPICAL_CONTAINER_SLABS;
+
+  return {
+    centre,
+    low: Math.max(1, Math.round(centre / 5)),
+    high: Math.round(centre * 3),
+    fromHistory: seen.length >= 6,
+    sampled: seen.length
+  };
+}
+
 /** Everything the month view needs, without shipping whole documents. */
 const summarise = (r) => ({
   date: r.date,
@@ -141,8 +197,20 @@ const summarise = (r) => ({
   transferSlabs: (r.transfers || []).reduce((sum, t) => sum + (t.slabs || 0), 0),
   containerSlabs: (r.containers || []).reduce((sum, c) => sum + (c.slabs || 0), 0),
   payments: ['cash', 'card', 'check'].reduce((sum, k) => sum + (r.payments?.[k]?.amount || 0), 0),
-  submittedBy: r.submittedBy || ''
+  submittedBy: r.submittedBy || '',
+  autoSubmitted: Boolean(r.autoSubmitted)
 });
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Recipients arrive as a comma/space separated string or an array. */
+const parseRecipients = (input) => {
+  const list = Array.isArray(input) ? input : String(input || '').split(/[,;\s]+/);
+  return [...new Set(list.map(x => String(x).trim().toLowerCase()).filter(x => EMAIL_RE.test(x)))];
+};
+
+const escapeHtml = (v) => String(v ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export default function createDailyReportsRouter({ authenticate, requirePermission, logActivity }) {
   const router = express.Router();
@@ -156,7 +224,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   router.get('/locations', canView, (req, res) => {
     const allowed = allowedLocations(req);
     res.json({
-      locations: allowed === '*' ? Object.keys(LOCATION_CODES) : allowed,
+      locations: allowed === '*' ? BRANCH_NAMES : allowed,
       canExportAll: allowed === '*'
     });
   });
@@ -177,7 +245,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         }
         locations = [location];
       } else {
-        locations = allowed === '*' ? Object.keys(LOCATION_CODES) : allowed;
+        locations = allowed === '*' ? BRANCH_NAMES : allowed;
       }
 
       const rows = await DailyReport.find({
@@ -189,6 +257,44 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     } catch (error) {
       console.error('[daily-reports] month view failed:', error);
       res.status(500).json({ message: 'Could not load the month.' });
+    }
+  });
+
+  /**
+   * GET /api/daily-reports/overview/:date — one day across every branch this
+   * user may see. What the selector's "All locations" reads.
+   *
+   * Branches with nothing saved are included rather than omitted: a day missing
+   * from the list looks like a branch that took no visitors, and the difference
+   * between "nobody came in" and "nobody filled it in" is the reason to open
+   * this view at all. Those rows still carry the system's own figures, so a
+   * branch that hasn't started shows the deliveries it was assigned.
+   */
+  router.get('/overview/:date', canView, async (req, res) => {
+    try {
+      const { date } = req.params;
+      const tz = Number(req.query.tzOffset) || 0;
+      if (!isValidDate(date)) return res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' });
+
+      const allowed = allowedLocations(req);
+      // Filtered to branches we have, so a stale name on a user's record can't
+      // put a branch in the list that doesn't exist.
+      const locations = (allowed === '*' ? BRANCH_NAMES : allowed).filter(isBranch);
+
+      const saved = await DailyReport.find({ date, location: { $in: locations } });
+      const byLocation = new Map(saved.map(r => [r.location, r]));
+
+      const rows = await Promise.all(locations.map(async (location) => {
+        const stored = byLocation.get(location);
+        const report = stored || new DailyReport({ date, location });
+        applyDerived(report, await deriveFromSystem(date, location, tz));
+        return { ...summarise(report), status: stored ? report.status : 'none' };
+      }));
+
+      res.json({ date, rows });
+    } catch (error) {
+      console.error('[daily-reports] overview failed:', error);
+      res.status(500).json({ message: 'Could not load that day.' });
     }
   });
 
@@ -222,6 +328,9 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           deliveriesAssigned: derived.deliveriesAssigned,
           pickupsAssigned: derived.pickupsAssigned
         },
+        // The band a slab count is sane within, so the rule lives on the server
+        // rather than being reinvented in the form.
+        slabRange: await slabExpectation([location]),
         isNew: report.isNew
       });
     } catch (error) {
@@ -254,13 +363,13 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         status: body.status === 'closed' ? 'closed' : 'draft',
         visitors: {
           homeowners: num(body.visitors?.homeowners),
-          fabricators: num(body.visitors?.fabricators),
-          designers: num(body.visitors?.designers)
+          fabricators: numOrNull(body.visitors?.fabricators),
+          designers: numOrNull(body.visitors?.designers)
         },
-        deliveries: { assigned: num(body.deliveries?.assigned), capacity: num(body.deliveries?.capacity) },
-        pickups: { assigned: num(body.pickups?.assigned), capacity: num(body.pickups?.capacity) },
-        returns: num(body.returns),
-        sinks: num(body.sinks),
+        deliveries: { assigned: num(body.deliveries?.assigned), capacity: numOrNull(body.deliveries?.capacity) },
+        pickups: { assigned: num(body.pickups?.assigned), capacity: numOrNull(body.pickups?.capacity) },
+        returns: numOrNull(body.returns),
+        sinks: numOrNull(body.sinks),
         transfers: (body.transfers || []).map(t => ({
           fromTo: String(t.fromTo || '').trim(),
           count: num(t.count),
@@ -273,9 +382,9 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           slabs: num(c.slabs)
         })).filter(c => c.poNumber || c.material || c.slabs),
         payments: {
-          cash: { count: num(body.payments?.cash?.count), amount: money(body.payments?.cash?.amount) },
-          card: { count: num(body.payments?.card?.count), amount: money(body.payments?.card?.amount) },
-          check: { count: num(body.payments?.check?.count), amount: money(body.payments?.check?.amount) }
+          cash: { count: numOrNull(body.payments?.cash?.count), amount: moneyOrNull(body.payments?.cash?.amount) },
+          card: { count: numOrNull(body.payments?.card?.count), amount: moneyOrNull(body.payments?.card?.amount) },
+          check: { count: numOrNull(body.payments?.check?.count), amount: moneyOrNull(body.payments?.check?.amount) }
         },
         notes: String(body.notes || '').trim(),
         updatedBy: req.user?.displayName || req.user?.username || ''
@@ -315,6 +424,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       report.status = 'submitted';
       report.submittedBy = req.user?.displayName || req.user?.username || '';
       report.submittedAt = new Date();
+      report.autoSubmitted = false;
       await report.save();
 
       if (logActivity) {
@@ -347,6 +457,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       if (!report) return res.status(404).json({ message: 'No report for that day.' });
 
       report.status = 'draft';
+      report.autoSubmitted = false;
       report.reopenedBy = req.user?.displayName || req.user?.username || '';
       report.reopenedAt = new Date();
       report.reopenReason = String(reason).trim();
@@ -382,7 +493,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         }
         locations = [location];
       } else {
-        locations = allowed === '*' ? Object.keys(LOCATION_CODES) : allowed;
+        locations = allowed === '*' ? BRANCH_NAMES : allowed;
       }
 
       const rows = await DailyReport.find({
@@ -393,8 +504,8 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       const head = [
         'Date', 'Branch', 'Status',
         'Homeowners', 'Fabricators', 'Designers', 'Visitors total',
-        'Deliveries assigned', 'Deliveries capacity',
-        'Pick-ups assigned', 'Pick-ups capacity',
+        'Deliveries count', 'Deliveries slabs',
+        'Pick-ups count', 'Pick-ups slabs',
         'Returns', 'Sinks',
         'Transfer routes', 'Transfer count', 'Transfer slabs',
         'Container lines', 'Container slabs',
@@ -435,6 +546,156 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     } catch (error) {
       console.error('[daily-reports] export failed:', error);
       res.status(500).json({ message: 'Could not build the export.' });
+    }
+  });
+
+  // ── PDF ────────────────────────────────────────────────────────────────────
+  // Download and email share one resolver each, so the file a manager opens and
+  // the file that lands in an inbox can never be built from different rules.
+
+  const resolveDay = async (req, res) => {
+    const { date } = req.params;
+    const location = req.query.location || req.body?.location;
+    if (!isValidDate(date)) { res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' }); return null; }
+    if (!location) { res.status(400).json({ message: 'Provide a branch.' }); return null; }
+    if (!canSeeLocation(req, location)) { res.status(403).json({ message: 'That branch is not assigned to you.' }); return null; }
+
+    let report = await DailyReport.findOne({ date, location }).lean();
+    if (!report) {
+      // A day nobody has saved still prints — as an empty sheet marked draft,
+      // which is more useful than an error when someone asks for yesterday.
+      const blank = new DailyReport({ date, location });
+      const derived = await deriveFromSystem(date, location, Number(req.query.tzOffset) || 0);
+      applyDerived(blank, derived);
+      report = blank.toObject();
+    }
+    return report;
+  };
+
+  const resolveMonth = async (req, res) => {
+    const { month } = req.params;
+    const location = req.query.location || req.body?.location;
+    if (!isValidMonth(month)) { res.status(400).json({ message: 'Provide a month as YYYY-MM.' }); return null; }
+
+    const allowed = allowedLocations(req);
+    let locations;
+    let scopeLabel;
+    if (location && location !== 'all') {
+      if (!canSeeLocation(req, location)) { res.status(403).json({ message: 'That branch is not assigned to you.' }); return null; }
+      locations = [location];
+      scopeLabel = location;
+    } else {
+      locations = allowed === '*' ? BRANCH_NAMES : allowed;
+      scopeLabel = locations.length === 1 ? locations[0] : 'All branches';
+    }
+
+    const docs = await DailyReport.find({
+      location: { $in: locations },
+      date: { $regex: `^${month}-` }
+    }).sort({ location: 1, date: 1 }).lean();
+
+    return { month, rows: docs.map(summarise), scopeLabel };
+  };
+
+  /** GET /api/daily-reports/:date/pdf?location=Seattle */
+  router.get('/:date/pdf', canView, async (req, res) => {
+    try {
+      const report = await resolveDay(req, res);
+      if (!report) return;
+      const bytes = await buildDayPdf(report);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${dayPdfFileName(report)}"`);
+      res.send(Buffer.from(bytes));
+    } catch (error) {
+      console.error('[daily-reports] day pdf failed:', error);
+      res.status(500).json({ message: 'Could not build the PDF.' });
+    }
+  });
+
+  /** GET /api/daily-reports/export/:month/pdf?location=Seattle|all */
+  router.get('/export/:month/pdf', canView, async (req, res) => {
+    try {
+      const data = await resolveMonth(req, res);
+      if (!data) return;
+      const bytes = await buildMonthPdf(data);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${monthPdfFileName(data.month, data.scopeLabel)}"`);
+      res.send(Buffer.from(bytes));
+    } catch (error) {
+      console.error('[daily-reports] month pdf failed:', error);
+      res.status(500).json({ message: 'Could not build the PDF.' });
+    }
+  });
+
+  const mailReport = async (req, res, { subject, heading, lines, filename, bytes }) => {
+    const to = parseRecipients(req.body?.to);
+    if (!to.length) return res.status(400).json({ message: 'Add at least one valid email address.' });
+    if (to.length > 20) return res.status(400).json({ message: 'That is more recipients than this is meant for — 20 at most.' });
+
+    const sender = req.user?.displayName || req.user?.username || 'Easy Stones';
+    const note = String(req.body?.message || '').trim();
+
+    const html = `
+      <div style="font-family:Helvetica,Arial,sans-serif;color:#1b1a17;line-height:1.55">
+        <h2 style="margin:0 0 4px;font-size:17px">${escapeHtml(heading)}</h2>
+        <p style="margin:0 0 14px;color:#6b6b6b;font-size:13px">${lines.map(escapeHtml).join(' &middot; ')}</p>
+        ${note ? `<p style="margin:0 0 14px;font-size:14px;white-space:pre-wrap">${escapeHtml(note)}</p>` : ''}
+        <p style="margin:0 0 6px;font-size:13px">The report is attached as a PDF.</p>
+        <p style="margin:18px 0 0;font-size:12px;color:#8a857a">Sent by ${escapeHtml(sender)} from the Easy Stones portal.</p>
+      </div>`;
+
+    const result = await sendEmail({
+      to,
+      subject,
+      html,
+      replyTo: req.user?.email || undefined,
+      defaultSenderName: 'Easy Stones',
+      attachments: [{ filename, content: Buffer.from(bytes) }]
+    });
+
+    if (!result.success) {
+      return res.status(502).json({ message: `Could not send the email. ${result.error || ''}`.trim() });
+    }
+
+    if (logActivity) logActivity(req, 'daily_report_emailed', `${filename} → ${to.join(', ')}`);
+    res.json({ sent: to });
+  };
+
+  /** POST /api/daily-reports/:date/email  { location, to, message } */
+  router.post('/:date/email', canView, async (req, res) => {
+    try {
+      const report = await resolveDay(req, res);
+      if (!report) return;
+      const bytes = await buildDayPdf(report);
+      await mailReport(req, res, {
+        subject: `Daily Work Report — ${report.location}, ${report.date}${report.status === 'draft' ? ' (draft)' : ''}`,
+        heading: `Daily Work Report — ${report.location}`,
+        lines: [report.date, report.status === 'submitted' ? 'Submitted' : 'Draft'],
+        filename: dayPdfFileName(report),
+        bytes
+      });
+    } catch (error) {
+      console.error('[daily-reports] day email failed:', error);
+      res.status(500).json({ message: 'Could not send the report.' });
+    }
+  });
+
+  /** POST /api/daily-reports/export/:month/email  { location, to, message } */
+  router.post('/export/:month/email', canView, async (req, res) => {
+    try {
+      const data = await resolveMonth(req, res);
+      if (!data) return;
+      const bytes = await buildMonthPdf(data);
+      await mailReport(req, res, {
+        subject: `Daily Work Report — ${data.scopeLabel}, ${data.month}`,
+        heading: `Daily Work Report — month summary`,
+        lines: [data.scopeLabel, data.month, `${data.rows.length} day${data.rows.length === 1 ? '' : 's'}`],
+        filename: monthPdfFileName(data.month, data.scopeLabel),
+        bytes
+      });
+    } catch (error) {
+      console.error('[daily-reports] month email failed:', error);
+      res.status(500).json({ message: 'Could not send the report.' });
     }
   });
 

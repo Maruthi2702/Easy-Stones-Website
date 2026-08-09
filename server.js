@@ -40,6 +40,7 @@ import { discoverICloudCalendars, syncICloudCalendar } from './src/services/iclo
 import { stampSignaturesOnPdfBytes } from './src/utils/pdfSigner.js';
 import { signedPackingListFileName } from './src/utils/packingList.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
+import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -689,6 +690,10 @@ async function startServer() {
 
     httpServer.listen(PORT, () => {
       console.log(`🚀 Backend server running on port ${PORT}`);
+
+      // A day nobody signed off is closed out at 11:59 PM on the branch's own
+      // clock, so the figures stop being editable once the day is over.
+      startAutoSubmitDailyReports();
 
       // Keep-Alive Mechanism for Render Free Tier
       const keepAliveInterval = 5 * 60 * 1000;

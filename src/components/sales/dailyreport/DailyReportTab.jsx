@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Users, Truck, ArrowLeftRight, Package, Wallet, ClipboardList,
-  ChevronLeft, ChevronRight, Plus, X, Check, Lock, Unlock,
-  Download, CalendarDays, MapPin, AlertCircle, Loader2
+  ChevronLeft, ChevronRight, ChevronDown, Plus, X, Check, Lock, Unlock,
+  MapPin, AlertCircle, Loader2, FileText, Mail, FileSpreadsheet
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
 import MonthView from './MonthView';
+import AllBranchesDay from './AllBranchesDay';
 import DaySummary from './DaySummary';
+import EmailReportDialog from './EmailReportDialog';
+import ExportMenu from './ExportMenu';
 import './DailyReport.css';
 
 /**
@@ -20,17 +23,37 @@ import './DailyReport.css';
  * without signing the kiosk, the person on shift is right and the system isn't.
  */
 
-const todayISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+/** The branch selector's every-branch option — never a real branch name. */
+const ALL = 'all';
+
+const isoOf = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const todayISO = () => isoOf(new Date());
 
 const monthOf = (iso) => iso.slice(0, 7);
 
 const shiftDay = (iso, days) => {
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return isoOf(d);
+};
+
+/**
+ * One date carries both views, so moving a month keeps the day number where it
+ * can — clamped, because 31 January a month back is the 28th, not the 3rd of
+ * March, which is what Date's own rollover would have given.
+ */
+const shiftMonth = (iso, months) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const lastOfTarget = new Date(y, m + months, 0).getDate();
+  return isoOf(new Date(y, m - 1 + months, Math.min(d, lastOfTarget)));
+};
+
+const withMonth = (iso, ym) => {
+  const [y, m] = ym.split('-').map(Number);
+  const lastOfTarget = new Date(y, m, 0).getDate();
+  return `${ym}-${String(Math.min(Number(iso.slice(8, 10)), lastOfTarget)).padStart(2, '0')}`;
 };
 
 const longDate = (iso) => {
@@ -38,23 +61,30 @@ const longDate = (iso) => {
   return d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 };
 
+/** null is "unsaid" — it contributes nothing to a total rather than a zero. */
 const n = (v) => {
+  if (v === null || v === undefined || v === '') return 0;
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;
 };
+
+const said = (...values) => values.some(v => v !== null && v !== undefined && v !== '');
+
+/** A total is only a dash when nothing underneath it has been said at all. */
+const total = (value, ...sources) => (said(...sources) ? value : '—');
 
 const emptyReport = (date, location) => ({
   date,
   location,
   status: 'draft',
-  visitors: { homeowners: 0, fabricators: 0, designers: 0 },
-  deliveries: { assigned: 0, capacity: 0 },
-  pickups: { assigned: 0, capacity: 0 },
-  returns: 0,
-  sinks: 0,
+  visitors: { homeowners: 0, fabricators: null, designers: null },
+  deliveries: { assigned: 0, capacity: null },
+  pickups: { assigned: 0, capacity: null },
+  returns: null,
+  sinks: null,
   transfers: [],
   containers: [],
-  payments: { cash: { count: 0, amount: 0 }, card: { count: 0, amount: 0 }, check: { count: 0, amount: 0 } },
+  payments: { cash: { count: null, amount: null }, card: { count: null, amount: null }, check: { count: null, amount: null } },
   notes: ''
 });
 
@@ -78,6 +108,10 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const [dirty, setDirty] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenReason, setReopenReason] = useState('');
+  const [emailOpen, setEmailOpen] = useState(false);
+  // What a slab count usually looks like for this branch — the server works it
+  // out so the rule isn't reinvented here.
+  const [slabRange, setSlabRange] = useState(null);
 
   const saveTimer = useRef(null);
   const skipAutosave = useRef(true);
@@ -114,7 +148,9 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   // ── load the day ──────────────────────────────────────────────────────────
   const loadDay = useCallback(async () => {
-    if (!location) return;
+    // "All locations" is a reading of the day, not a sheet to fill in — it
+    // fetches every branch itself rather than one report to edit.
+    if (!location || location === ALL) return;
     setLoading(true);
     setError(null);
     try {
@@ -126,6 +162,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       const data = await res.json();
       skipAutosave.current = true;
       setReport({ ...emptyReport(date, location), ...data.report });
+      setSlabRange(data.slabRange || null);
       setDirty(false);
     } catch (err) {
       setError(err.message);
@@ -137,6 +174,14 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   useEffect(() => { if (view === 'day') loadDay(); }, [loadDay, view]);
 
+  const allBranches = location === ALL;
+
+  // Held in a ref so reloading after a lock doesn't change save's identity —
+  // the autosave effect depends on it, and a new save on every date change
+  // would schedule a write nobody asked for.
+  const loadDayRef = useRef(loadDay);
+  useEffect(() => { loadDayRef.current = loadDay; }, [loadDay]);
+
   // ── autosave the draft ────────────────────────────────────────────────────
   const save = useCallback(async (payload) => {
     if (!canEdit || payload.status === 'submitted') return;
@@ -146,6 +191,16 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
         method: 'PUT',
         body: JSON.stringify(payload)
       });
+      // 409 means the day was locked under us — someone else submitted it, or
+      // the clock reached 11:59 while this form was still open. Show it as it
+      // now is rather than leaving edits going into a sheet that won't take
+      // them.
+      if (res.status === 409) {
+        setError('This day has been submitted. Reopen it to make more changes.');
+        setDirty(false);
+        loadDayRef.current?.();
+        return;
+      }
       if (!res.ok) throw new Error((await res.json()).message || 'Could not save.');
       setSavedAt(new Date());
       setDirty(false);
@@ -170,6 +225,70 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const locked = !canEdit || report?.status === 'submitted';
 
   const patch = (fn) => setReport(prev => (prev ? fn(structuredClone(prev)) : prev));
+
+  /**
+   * Enter on the last line of a repeating section adds another; backspace on an
+   * empty line removes it. Deliberately unadvertised — it rewards the person who
+   * fills this in every evening without cluttering the card for everyone else.
+   */
+  /**
+   * Records a nil rather than leaving the section unsaid. Without it the only
+   * way to state "no money came in" is to type six zeros, so nobody does, and
+   * the day stays ambiguous forever.
+   */
+  const declareNoPayments = () => patch(r => {
+    for (const k of ['cash', 'card', 'check']) r.payments[k] = { count: 0, amount: 0 };
+    return r;
+  });
+
+  const paymentsUnsaid = report && !said(
+    report.payments.cash.count, report.payments.cash.amount,
+    report.payments.card.count, report.payments.card.amount,
+    report.payments.check.count, report.payments.check.amount
+  );
+
+  /**
+   * A line starts empty, not at zero. Pushing 0 would have every new row assert
+   * "no slabs" the moment it appears, which is the same blank-reads-as-answered
+   * confusion the dashes exist to remove. Wholly empty lines are dropped on save.
+   */
+  const addTransfer = () => patch(r => { r.transfers.push({ fromTo: '', count: null, slabs: null, auto: false }); return r; });
+  const addContainer = () => patch(r => { r.containers.push({ poNumber: '', material: '', slabs: null }); return r; });
+
+  /**
+   * A slab count far outside what this branch usually sees. A question, never a
+   * block — a genuine 520-slab container should still save.
+   */
+  const oddContainers = (report?.containers || [])
+    .map(c => c.slabs)
+    .filter(v => outOfBandValue(v));
+
+  function outOfBandValue(value) {
+    if (!slabRange || value === null || value === undefined || value === '') return false;
+    const x = Number(value);
+    return Number.isFinite(x) && x > 0 && (x < slabRange.low || x > slabRange.high);
+  }
+
+  const outOfBand = outOfBandValue;
+
+  const rowKeys = (listName, index, addRow, isEmpty) => (e) => {
+    if (locked) return;
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const cells = [...(e.target.closest('tbody')?.querySelectorAll('.dr-cell:not(:disabled)') || [])];
+      const here = cells.indexOf(e.target);
+      const onLastRow = here >= cells.length - 1;
+      if (onLastRow) addRow();
+      else cells[here + 1]?.focus();
+      return;
+    }
+
+    if (e.key === 'Backspace' && isEmpty && e.target.value === '') {
+      e.preventDefault();
+      patch(r => { r[listName].splice(index, 1); return r; });
+    }
+  };
 
   const setPath = (path, value) => patch(r => {
     const keys = path.split('.');
@@ -224,6 +343,75 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     window.open(`${API_URL}/api/daily-reports/export/${monthOf(date)}?location=${qs}`, '_blank', 'noopener');
   };
 
+  // The month PDF follows whichever branch the top bar is on; "all" is only
+  // offered to someone assigned to every branch, same as the CSV.
+  const pdfUrl = view === 'month'
+    ? `${API_URL}/api/daily-reports/export/${monthOf(date)}/pdf?location=${encodeURIComponent(location)}`
+    : `${API_URL}/api/daily-reports/${date}/pdf?location=${encodeURIComponent(location)}&tzOffset=${-new Date().getTimezoneOffset()}`;
+
+  const downloadPdf = () => window.open(pdfUrl, '_blank', 'noopener');
+
+  const emailReport = async ({ to, message }) => {
+    const url = view === 'month'
+      ? `${API_URL}/api/daily-reports/export/${monthOf(date)}/email`
+      : `${API_URL}/api/daily-reports/${date}/email`;
+    const res = await authFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({ location, to, message })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Could not send the report.');
+    return data;
+  };
+
+  const pdfName = view === 'month'
+    ? `daily_report_${monthOf(date)}_${(location === 'all' ? 'All_branches' : location).replace(/\s+/g, '_')}.pdf`
+    : `daily_report_${date}_${String(location).replace(/\s+/g, '_')}.pdf`;
+
+  /**
+   * Everything you can do with the report on screen, in one menu.
+   *
+   * A single day's sheet is per branch, so PDF and email are offered on the
+   * month whatever the scope, and on a day only once a branch is chosen —
+   * "All locations" for one day has no one sheet to be.
+   */
+  const monthLabel = new Date(`${monthOf(date)}-01T00:00:00`)
+    .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const scopeLabel = allBranches ? 'your branches' : location;
+
+  const exportItems = [
+    ...((view === 'month' || !allBranches) ? [
+      {
+        key: 'pdf',
+        icon: FileText,
+        label: 'Download PDF',
+        hint: view === 'month' ? `${scopeLabel} · ${monthLabel}` : `${longDate(date)} · ${location}`,
+        onSelect: downloadPdf
+      },
+      {
+        key: 'email',
+        icon: Mail,
+        label: 'Email as PDF…',
+        hint: 'send it to one or more people',
+        onSelect: () => setEmailOpen(true)
+      }
+    ] : []),
+    {
+      key: 'csv',
+      icon: FileSpreadsheet,
+      label: `Download CSV — ${allBranches ? 'your branches' : 'this branch'}`,
+      hint: `${scopeLabel} · ${monthLabel}`,
+      onSelect: () => exportCsv(allBranches ? 'all' : 'branch')
+    },
+    ...((canExportAll && !allBranches) ? [{
+      key: 'csv-all',
+      icon: FileSpreadsheet,
+      label: 'Download CSV — every branch',
+      hint: monthLabel,
+      onSelect: () => exportCsv('all')
+    }] : [])
+  ];
+
   // ── render ────────────────────────────────────────────────────────────────
   if (!perms.includes('view_daily_report')) {
     return (
@@ -263,11 +451,12 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
           >Month</button>
         </div>
 
-        {view === 'day' && (
+        {view === 'day' ? (
           <div className="dr-datenav">
             <button onClick={() => setDate(shiftDay(date, -1))} aria-label="Previous day"><ChevronLeft size={16} /></button>
+            {/* No leading icon: the native picker indicator inside the field is
+                already a calendar, and two of them 130px apart is clutter. */}
             <label className="dr-datepick">
-              <CalendarDays size={14} />
               <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
             </label>
             <button onClick={() => setDate(shiftDay(date, 1))} aria-label="Next day"><ChevronRight size={16} /></button>
@@ -275,30 +464,46 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
               <button className="dr-today" onClick={() => setDate(todayISO())}>Today</button>
             )}
           </div>
+        ) : (
+          /* The month view had no way to leave the current month — the same
+             stepper, a month at a time, over the one date both views share. */
+          <div className="dr-datenav">
+            <button onClick={() => setDate(shiftMonth(date, -1))} aria-label="Previous month"><ChevronLeft size={16} /></button>
+            <label className="dr-datepick">
+              {/* Safari has no month picker and renders this as a text box, so
+                  the value is checked rather than trusted. */}
+              <input
+                type="month"
+                value={monthOf(date)}
+                onChange={(e) => /^\d{4}-\d{2}$/.test(e.target.value) && setDate(withMonth(date, e.target.value))}
+              />
+            </label>
+            <button onClick={() => setDate(shiftMonth(date, 1))} aria-label="Next month"><ChevronRight size={16} /></button>
+            {monthOf(date) !== monthOf(todayISO()) && (
+              <button className="dr-today" onClick={() => setDate(todayISO())}>This month</button>
+            )}
+          </div>
         )}
 
         <label className="dr-locpick">
           <MapPin size={14} />
           <select value={location} onChange={(e) => setLocation(e.target.value)} aria-label="Branch">
+            {/* Only the branches assigned to this person, and "all" means all
+                of those — never every branch the company has. */}
+            {locations.length > 1 && <option value={ALL}>All locations</option>}
             {locations.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
+          <ChevronDown size={13} className="dr-locpick-caret" />
         </label>
 
         <div className="dr-actions">
-          <button className="dr-btn" onClick={() => exportCsv('branch')} title={`Export ${location} for ${monthOf(date)}`}>
-            <Download size={14} /> Export {location || 'branch'}
-          </button>
-          {canExportAll && (
-            <button className="dr-btn" onClick={() => exportCsv('all')} title={`Export every branch for ${monthOf(date)}`}>
-              <Download size={14} /> All branches
-            </button>
-          )}
-          {view === 'day' && !submitted && canSubmit && (
+          <ExportMenu items={exportItems} />
+          {view === 'day' && !allBranches && !submitted && canSubmit && (
             <button className="dr-btn dr-btn--gold" onClick={submitDay} disabled={loading || !report}>
               <Check size={14} /> Submit day
             </button>
           )}
-          {view === 'day' && submitted && canReopen && (
+          {view === 'day' && !allBranches && submitted && canReopen && (
             <button className="dr-btn" onClick={() => setReopenOpen(true)}>
               <Unlock size={14} /> Reopen
             </button>
@@ -318,7 +523,17 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
           location={location}
           locations={locations}
           authFetch={authFetch}
-          onOpenDay={(d) => { setDate(d); setView('day'); }}
+          onOpenDay={(d, loc) => {
+            setDate(d);
+            if (loc) setLocation(loc);
+            setView('day');
+          }}
+        />
+      ) : allBranches ? (
+        <AllBranchesDay
+          date={date}
+          authFetch={authFetch}
+          onOpenBranch={(loc) => setLocation(loc)}
         />
       ) : loading ? (
         <div className="dr-empty"><Loader2 size={30} className="dr-spin" /><p>Loading {longDate(date)}…</p></div>
@@ -330,7 +545,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
             <span className="dr-daylabel">{longDate(date)} · {location}</span>
             {submitted ? (
               <span className="dr-badge dr-badge--done">
-                <Lock size={11} /> Submitted{report.submittedBy ? ` by ${report.submittedBy}` : ''}
+                {/* An automatic submission means the figures stand as they were
+                    left at 11:59, not that anybody checked them — say which. */}
+                <Lock size={11} /> {report.autoSubmitted
+                  ? 'Submitted automatically'
+                  : `Submitted${report.submittedBy ? ` by ${report.submittedBy}` : ''}`}
               </span>
             ) : (
               <span className="dr-badge">
@@ -356,7 +575,12 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                 Visitors · Payments · Containers
                 Delivery · Transfers · Notes */}
 
-            {/* ── Visitors ── */}
+                        {/* Two columns, so the pairs are deliberate:
+                Visitors  · Delivery
+                Transfers · Containers   — slabs out beside slabs in,
+                Payments  · Notes          the same pairing as the tiles above. */}
+
+{/* ── Visitors ── */}
             <ReportSection
               title="Visitors"
               icon={Users}
@@ -383,96 +607,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                       </td>
                     </tr>
                   ))}
-                  <tr className="dr-total"><td>Total</td><td className="dr-num">{totals.visitors}</td></tr>
-                </tbody>
-              </table>
-            </ReportSection>
-
-            {/* ── Payments ── */}
-            <ReportSection
-              title="Payments"
-              icon={Wallet}
-              source={{ kind: 'typed', label: 'entered here' }}
-            >
-              <table className="dr-table">
-                <thead>
-                  <tr><th>Method</th><th className="dr-num">Transactions</th><th className="dr-num">Amount</th></tr>
-                </thead>
-                <tbody>
-                  {[['Cash', 'cash'], ['Credit Card (CC)', 'card'], ['Check', 'check']].map(([label, key]) => (
-                    <tr key={key}>
-                      <td>{label}</td>
-                      <td className="dr-num">
-                        <ReportCell value={report.payments[key].count} disabled={locked}
-                          ariaLabel={`${label} transactions`}
-                          onChange={(v) => setPath(`payments.${key}.count`, v)} />
-                      </td>
-                      <td className="dr-num">
-                        <MoneyCell value={report.payments[key].amount} disabled={locked}
-                          ariaLabel={`${label} amount`}
-                          onChange={(v) => setPath(`payments.${key}.amount`, v)} />
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="dr-total">
-                    <td>Total</td>
-                    <td className="dr-num">{totals.payCount}</td>
-                    <td className="dr-num">${totals.payAmount.toFixed(2)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </ReportSection>
-
-            {/* ── Containers ── */}
-            <ReportSection
-              title="Containers"
-              icon={Package}
-              source={{ kind: 'typed', label: 'entered here' }}
-              footnote="Leave the PO# blank to continue the one above."
-              action={!locked && (
-                <button className="dr-addrow-btn" onClick={() => patch(r => {
-                  r.containers.push({ poNumber: '', material: '', slabs: 0 });
-                  return r;
-                })}><Plus size={12} /> Add</button>
-              )}
-            >
-              <table className="dr-table">
-                <thead>
-                  <tr><th style={{ width: '22%' }}>PO#</th><th>Material</th><th className="dr-num">Slabs</th><th className="dr-x" /></tr>
-                </thead>
-                <tbody>
-                  {report.containers.length === 0 && (
-                    <tr><td colSpan={4} className="dr-none">No containers today.</td></tr>
-                  )}
-                  {report.containers.map((c, i) => (
-                    <tr key={i}>
-                      <td>
-                        <ReportCell value={c.poNumber} type="text" align="left" width={100} disabled={locked}
-                          placeholder="PO number" ariaLabel="PO number"
-                          onChange={(v) => patch(r => { r.containers[i].poNumber = v; return r; })} />
-                      </td>
-                      <td>
-                        <ReportCell value={c.material} type="text" align="left" disabled={locked}
-                          placeholder="Material name" ariaLabel="Material"
-                          onChange={(v) => patch(r => { r.containers[i].material = v; return r; })} />
-                      </td>
-                      <td className="dr-num">
-                        <ReportCell value={c.slabs} disabled={locked} ariaLabel="Container slabs"
-                          onChange={(v) => patch(r => { r.containers[i].slabs = v; return r; })} />
-                      </td>
-                      <td className="dr-x">
-                        {!locked && (
-                          <button className="dr-rowdel" aria-label="Remove container line"
-                            onClick={() => patch(r => { r.containers.splice(i, 1); return r; })}><X size={13} /></button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="dr-total">
-                    <td>Total</td><td />
-                    <td className="dr-num">{totals.containerSlabs}</td>
-                    <td className="dr-x" />
-                  </tr>
+                  <tr className="dr-total"><td>Total</td><td className="dr-num">{total(totals.visitors, report.visitors.fabricators, report.visitors.designers) === '—' && !totals.visitors ? '—' : totals.visitors}</td></tr>
                 </tbody>
               </table>
             </ReportSection>
@@ -481,12 +616,12 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
             <ReportSection
               title="Delivery & Pick-Up Summary"
               icon={Truck}
-              source={{ kind: 'auto', label: 'assigned, from the schedule' }}
-              footnote="Capacity is what the drivers on shift could take."
+              source={{ kind: 'auto', label: 'counted from the schedule' }}
+              footnote="The count comes from the schedule. Slabs is how many went out on them."
             >
               <table className="dr-table">
                 <thead>
-                  <tr><th /><th className="dr-num">Assigned</th><th className="dr-num">Capacity</th></tr>
+                  <tr><th /><th className="dr-num">Count</th><th className="dr-num">Slabs</th></tr>
                 </thead>
                 <tbody>
                   {[['Deliveries', 'deliveries'], ['Pick-ups', 'pickups']].map(([label, key]) => (
@@ -494,11 +629,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                       <td>{label}</td>
                       <td className="dr-num">
                         <ReportCell value={report[key].assigned} derived disabled={locked}
-                          ariaLabel={`${label} assigned`} onChange={(v) => setPath(`${key}.assigned`, v)} />
+                          ariaLabel={`${label} count`} onChange={(v) => setPath(`${key}.assigned`, v)} />
                       </td>
                       <td className="dr-num">
                         <ReportCell value={report[key].capacity} disabled={locked}
-                          ariaLabel={`${label} capacity`} onChange={(v) => setPath(`${key}.capacity`, v)} />
+                          ariaLabel={`${label} slabs`} onChange={(v) => setPath(`${key}.capacity`, v)} />
                       </td>
                     </tr>
                   ))}
@@ -533,10 +668,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
               icon={ArrowLeftRight}
               source={{ kind: 'auto', label: 'from transfer tickets' }}
               action={!locked && (
-                <button className="dr-addrow-btn" onClick={() => patch(r => {
-                  r.transfers.push({ fromTo: '', count: 0, slabs: 0, auto: false });
-                  return r;
-                })}><Plus size={12} /> Add</button>
+                <button className="dr-addrow-btn" onClick={addTransfer}><Plus size={12} /> Add</button>
               )}
             >
               <table className="dr-table">
@@ -561,6 +693,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                       </td>
                       <td className="dr-num">
                         <ReportCell value={t.slabs} disabled={locked} ariaLabel="Transfer slabs"
+                          className={outOfBand(t.slabs) ? 'is-odd' : ''}
+                          onKeyDown={rowKeys('transfers', i, addTransfer, !t.fromTo && !n(t.count) && !n(t.slabs))}
                           onChange={(v) => patch(r => { r.transfers[i].slabs = v; return r; })} />
                       </td>
                       <td className="dr-x">
@@ -581,6 +715,102 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
               </table>
             </ReportSection>
 
+            {/* ── Containers ── */}
+            <ReportSection
+              title="Containers"
+              icon={Package}
+              source={{ kind: 'typed', label: 'entered here' }}
+              footnote={oddContainers.length
+                ? `${oddContainers.join(' and ')} ${oddContainers.length === 1 ? 'is' : 'are'} well outside the usual ${slabRange.low}–${slabRange.high} slabs${slabRange.fromHistory ? ' for this branch' : ' for a container'}. Keep it if that's right.`
+                : 'Leave the PO# blank to continue the one above.'}
+              footnoteTone={oddContainers.length ? 'warn' : undefined}
+              action={!locked && (
+                <button className="dr-addrow-btn" onClick={addContainer}><Plus size={12} /> Add</button>
+              )}
+            >
+              <table className="dr-table">
+                <thead>
+                  <tr><th style={{ width: '22%' }}>PO#</th><th>Material</th><th className="dr-num">Slabs</th><th className="dr-x" /></tr>
+                </thead>
+                <tbody>
+                  {report.containers.length === 0 && (
+                    <tr><td colSpan={4} className="dr-none">No containers today.</td></tr>
+                  )}
+                  {report.containers.map((c, i) => (
+                    <tr key={i}>
+                      <td>
+                        <ReportCell value={c.poNumber} type="text" align="left" width={100} disabled={locked}
+                          placeholder="PO number" ariaLabel="PO number"
+                          onChange={(v) => patch(r => { r.containers[i].poNumber = v; return r; })} />
+                      </td>
+                      <td>
+                        <ReportCell value={c.material} type="text" align="left" disabled={locked}
+                          placeholder="Material name" ariaLabel="Material"
+                          onChange={(v) => patch(r => { r.containers[i].material = v; return r; })} />
+                      </td>
+                      <td className="dr-num">
+                        <ReportCell value={c.slabs} disabled={locked} ariaLabel="Container slabs"
+                          className={outOfBand(c.slabs) ? 'is-odd' : ''}
+                          onKeyDown={rowKeys('containers', i, addContainer, !c.poNumber && !c.material && !n(c.slabs))}
+                          onChange={(v) => patch(r => { r.containers[i].slabs = v; return r; })} />
+                      </td>
+                      <td className="dr-x">
+                        {!locked && (
+                          <button className="dr-rowdel" aria-label="Remove container line"
+                            onClick={() => patch(r => { r.containers.splice(i, 1); return r; })}><X size={13} /></button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="dr-total">
+                    <td>Total</td><td />
+                    <td className="dr-num">{totals.containerSlabs}</td>
+                    <td className="dr-x" />
+                  </tr>
+                </tbody>
+              </table>
+            </ReportSection>
+
+            {/* ── Payments ── */}
+            <ReportSection
+              title="Payments"
+              icon={Wallet}
+              source={{ kind: 'typed', label: paymentsUnsaid ? 'nothing recorded yet' : 'entered here' }}
+              action={!locked && paymentsUnsaid && (
+                <button className="dr-addrow-btn" onClick={declareNoPayments} title="Record that no money was taken today">
+                  Nothing taken today
+                </button>
+              )}
+            >
+              <table className="dr-table">
+                <thead>
+                  <tr><th>Method</th><th className="dr-num">Transactions</th><th className="dr-num">Amount</th></tr>
+                </thead>
+                <tbody>
+                  {[['Cash', 'cash'], ['Credit Card (CC)', 'card'], ['Check', 'check']].map(([label, key]) => (
+                    <tr key={key}>
+                      <td>{label}</td>
+                      <td className="dr-num">
+                        <ReportCell value={report.payments[key].count} disabled={locked}
+                          ariaLabel={`${label} transactions`}
+                          onChange={(v) => setPath(`payments.${key}.count`, v)} />
+                      </td>
+                      <td className="dr-num">
+                        <MoneyCell value={report.payments[key].amount} disabled={locked}
+                          ariaLabel={`${label} amount`}
+                          onChange={(v) => setPath(`payments.${key}.amount`, v)} />
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="dr-total">
+                    <td>Total</td>
+                    <td className="dr-num">{paymentsUnsaid ? '—' : totals.payCount}</td>
+                    <td className="dr-num">{paymentsUnsaid ? '—' : `$${totals.payAmount.toFixed(2)}`}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </ReportSection>
+
             {/* ── Notes ── */}
             <ReportSection title="Notes" icon={ClipboardList} source={{ kind: 'typed', label: 'optional' }}>
               <textarea
@@ -596,6 +826,17 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
           </div>
         </>
       )}
+
+      <EmailReportDialog
+        open={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        onSend={emailReport}
+        title={view === 'month' ? `Email the ${monthOf(date)} summary` : `Email ${longDate(date)}`}
+        subtitle={view === 'month'
+          ? `The month for ${location}.`
+          : `${location}${report?.status === 'draft' ? ' — this day is still a draft and will be marked as one.' : '.'}`}
+        filename={pdfName}
+      />
 
       {/* Reopening a signed-off day states why, on the record. */}
       {reopenOpen && (

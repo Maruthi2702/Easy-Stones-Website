@@ -1,5 +1,6 @@
 import React from 'react';
 import { Users, Truck, PackagePlus, ArrowLeftRight, Wallet, Check } from 'lucide-react';
+import { moneyShort } from './summaryFigures';
 
 /**
  * The day at a glance — the five figures anyone asks about, above the form
@@ -11,18 +12,25 @@ import { Users, Truck, PackagePlus, ArrowLeftRight, Wallet, Check } from 'lucide
  * signed off over it.
  */
 
-const money = (v) => `$${Number(v || 0).toLocaleString('en-US', {
-  minimumFractionDigits: Number(v || 0) % 1 ? 2 : 0,
-  maximumFractionDigits: 2
-})}`;
-
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + 's'}`;
+
+const spoken = (...values) => values.some(v => v !== null && v !== undefined && v !== '');
+
+/**
+ * A line the user has started saying something on. A row added but not yet
+ * typed into is not a container — counting it would have the tiles claim a
+ * delivery the branch never received, and it is dropped on save anyway.
+ */
+const hasContent = (line) =>
+  Boolean(line.poNumber || line.material || line.fromTo) || spoken(line.count, line.slabs);
 
 const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false }) => {
   if (!report || !totals) return null;
 
   const v = report.visitors;
   const submitted = report.status === 'submitted';
+  const containerLines = report.containers.filter(hasContent).length;
+  const transferLines = report.transfers.filter(hasContent).length;
 
   const tiles = [
     {
@@ -41,42 +49,45 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false })
       icon: Truck,
       label: 'Deliveries',
       value: totals.assigned,
-      // Capacity only means something once it has been entered.
-      // The gap is the margin on .dr-stat-suffix, not a space in the string.
-      suffix: totals.capacity ? `/${totals.capacity}` : null,
-      sub: totals.capacity ? 'of capacity' : 'capacity not set'
+      // Slabs are counted alongside the deliveries, not out of them — a
+      // count, never a ratio, so it reads underneath rather than as "16/24".
+      sub: totals.capacity ? `${totals.capacity} slabs` : 'no slabs counted yet'
     },
     {
       key: 'in',
       icon: PackagePlus,
       label: 'Slabs in',
       value: totals.containerSlabs,
-      sub: report.containers.length ? plural(report.containers.length, 'container') : 'no containers'
+      sub: containerLines ? plural(containerLines, 'container') : 'no containers'
     },
     {
       key: 'out',
       icon: ArrowLeftRight,
       label: 'Slabs out',
       value: totals.transferSlabs,
-      sub: report.transfers.length ? plural(report.transfers.length, 'transfer') : 'no transfers'
+      sub: transferLines ? plural(transferLines, 'transfer') : 'no transfers'
     },
     {
       key: 'payments',
       icon: Wallet,
       label: 'Payments',
-      value: money(totals.payAmount),
+      value: moneyShort(totals.payAmount),
       sub: totals.payCount ? plural(totals.payCount, 'transaction') : 'none recorded',
       accent: true
     }
   ];
 
-  // "Filled" means something was recorded, not that it was validated.
+  // "Filled" means somebody said something — including saying nothing was taken.
+  // Counting only figures above zero left a genuine nil day permanently
+  // incomplete, which is exactly the day most likely to be forgotten.
+  const said = spoken;
+  const p = report.payments;
   const sections = [
-    { name: 'visitors', filled: totals.visitors > 0 },
-    { name: 'deliveries', filled: totals.assigned > 0 || totals.capacity > 0 },
-    { name: 'transfers', filled: report.transfers.length > 0 },
-    { name: 'containers', filled: report.containers.length > 0 },
-    { name: 'payments', filled: totals.payCount > 0 || totals.payAmount > 0 }
+    { name: 'visitors', filled: said(v.fabricators, v.designers) || totals.visitors > 0 },
+    { name: 'deliveries', filled: said(report.deliveries.capacity, report.pickups.capacity, report.returns, report.sinks) || totals.assigned > 0 },
+    { name: 'transfers', filled: transferLines > 0 },
+    { name: 'containers', filled: containerLines > 0 },
+    { name: 'payments', filled: said(p.cash.count, p.cash.amount, p.card.count, p.card.amount, p.check.count, p.check.amount) }
   ];
   const done = sections.filter(s => s.filled).length;
   const blank = sections.filter(s => !s.filled).map(s => s.name);
@@ -108,7 +119,9 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false })
         </span>
         <span className="dr-progress-blank">{blankLabel}</span>
         {submitted ? (
-          <span className="dr-progress-done"><Check size={13} /> Submitted</span>
+          <span className="dr-progress-done">
+            <Check size={13} /> {report.autoSubmitted ? 'Submitted automatically' : 'Submitted'}
+          </span>
         ) : canSubmit && (
           <button type="button" className="dr-btn dr-btn--gold dr-progress-submit" onClick={onSubmit} disabled={submitting}>
             <Check size={14} /> Submit day

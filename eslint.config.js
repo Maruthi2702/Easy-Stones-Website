@@ -26,4 +26,23 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // The server half of the tree runs in Node, not a browser: process, Buffer
+    // and console are its own globals. Without this every server file reports
+    // them as undefined, which buries the findings that matter.
+    files: [
+      'server.js',
+      'scripts/**/*.js',
+      'src/routes/**/*.js',
+      'src/models/**/*.js',
+      'src/services/**/*.js',
+      'src/jobs/**/*.js',
+      'src/config/**/*.js',
+      'src/middleware/**/*.js',
+      'src/utils/dailyReportPdf.js',
+    ],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
 ])

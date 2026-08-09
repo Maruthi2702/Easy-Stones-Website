@@ -15,6 +15,8 @@ export const ReportCell = ({
   align = 'right',
   width,
   placeholder = '',
+  onKeyDown,
+  className = '',
   type = 'number',
   title,
   ariaLabel
@@ -24,31 +26,34 @@ export const ReportCell = ({
     inputMode={type === 'number' ? 'decimal' : 'text'}
     /* no-capitalize: index.css title-cases every text input, which would
        turn "Shadow SJ MQ 3CM" into "Shadow Sj Mq 3Cm". */
-    className={`dr-cell no-capitalize ${derived ? 'is-derived' : ''} ${align === 'left' ? 'is-left' : ''}`}
+    className={`dr-cell no-capitalize ${derived ? 'is-derived' : ''} ${align === 'left' ? 'is-left' : ''} ${className}`}
     style={width ? { width } : undefined}
-    value={value ?? ''}
+    value={value === null || value === undefined ? '' : value}
     disabled={disabled}
-    placeholder={placeholder}
+    placeholder={placeholder || (type === 'number' ? '—' : '')}
     title={title}
     aria-label={ariaLabel}
     onChange={(e) => {
       const raw = e.target.value;
       if (type === 'number' && raw !== '' && !/^\d*\.?\d*$/.test(raw)) return;
-      onChange(raw);
+      // Clearing a numeric field means "unsaid", not zero.
+      onChange(type === 'number' && raw === '' ? null : raw);
     }}
+    onKeyDown={onKeyDown}
     onFocus={(e) => e.target.select()}
   />
 );
 
 /** Money reads better with the symbol outside the box than inside the value. */
-export const MoneyCell = ({ value, onChange, disabled = false, ariaLabel }) => (
+export const MoneyCell = ({ value, onChange, disabled = false, ariaLabel, onKeyDown }) => (
   <span className="dr-money">
-    <span className="dr-money-sign">$</span>
+    <span className={`dr-money-sign ${value === null || value === undefined ? 'is-unsaid' : ''}`}>$</span>
     <ReportCell
       value={value}
       onChange={onChange}
       disabled={disabled}
       ariaLabel={ariaLabel}
+      onKeyDown={onKeyDown}
       width={92}
     />
   </span>

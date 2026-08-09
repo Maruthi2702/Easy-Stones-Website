@@ -32,6 +32,17 @@
   --dr-derived-l: rgba(52, 211, 153, 0.28);
   --dr-shadow:    0 10px 30px rgba(0, 0, 0, 0.45);
 
+  /* Every control in the top bar stands the same height, whether it is a
+     button, a stepper or a select — one row of controls rather than five
+     things that happened to land beside each other. */
+  --dr-ctl-h: 32px;
+
+  /* The sidebar takes ~240px, so a viewport-width media query mis-measures this
+     panel by that much and packs five tiles into a column that can't hold them.
+     Container queries ask the panel itself. */
+  container-type: inline-size;
+  container-name: dr;
+
   min-height: 100%;
   padding: 1.1rem 1.25rem 3rem;
   background: var(--dr-bg);
@@ -101,82 +112,139 @@ body.light-theme-active .dr-root,
 }
 
 .dr-viewtoggle button {
+  height: var(--dr-ctl-h);
   border: 0;
   background: none;
   font: inherit;
   font-size: 0.78rem;
   font-weight: 620;
-  padding: 0.4rem 0.85rem;
+  padding: 0 0.9rem;
   color: var(--dr-text-2);
   cursor: pointer;
 }
+
+.dr-viewtoggle button:hover:not(.on) { background: var(--dr-head); color: var(--dr-text); }
 
 .dr-viewtoggle button.on {
   background: var(--dr-gold);
   color: var(--dr-gold-ink);
 }
 
+/* Back, the date itself, forward, and Today — one control rather than four
+   boxes with gaps between them, the same idiom as the Day/Month toggle beside
+   it. */
 .dr-datenav {
   display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
+  align-items: stretch;
+  height: var(--dr-ctl-h);
+  border: 1px solid var(--dr-line);
+  border-radius: 8px;
+  background: var(--dr-surface);
+  overflow: hidden;
 }
 
 .dr-datenav > button {
   width: 30px;
-  height: 30px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--dr-line);
-  border-radius: 8px;
-  background: var(--dr-surface);
+  border: 0;
+  background: none;
   color: var(--dr-text-2);
   cursor: pointer;
 }
 
-.dr-datenav > button:hover { color: var(--dr-text); border-color: var(--dr-gold); }
+.dr-datenav > button:hover { background: var(--dr-head); color: var(--dr-text); }
 
-.dr-today {
-  width: auto !important;
-  padding: 0 0.65rem;
+.dr-datenav > button.dr-today {
+  width: auto;
+  padding: 0 0.7rem;
+  border-left: 1px solid var(--dr-line);
   font: inherit;
   font-size: 0.75rem;
   font-weight: 620;
+  color: var(--dr-gold);
 }
 
-.dr-datepick,
+/* A segment of the stepper, so it carries dividers rather than a border. */
+.dr-datepick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.55rem;
+  border-left: 1px solid var(--dr-line);
+  border-right: 1px solid var(--dr-line);
+  color: var(--dr-text-3);
+}
+
+.dr-datepick:focus-within { box-shadow: inset 0 0 0 2px var(--dr-gold); }
+
 .dr-locpick {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.35rem 0.6rem;
+  height: var(--dr-ctl-h);
+  padding: 0 0.55rem;
   border: 1px solid var(--dr-line);
   border-radius: 8px;
   background: var(--dr-surface);
-  color: var(--dr-text-2);
+  color: var(--dr-text-3);
+  transition: border-color 0.15s ease;
 }
 
-.dr-datepick input,
-.dr-locpick select {
+.dr-locpick:hover { border-color: var(--dr-gold); }
+
+.dr-locpick:focus-within {
+  border-color: var(--dr-gold);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.16);
+}
+
+/* Without it the branch reads as a label, not something you can change — the
+   native chevron is turned off below so this stands in for it. */
+.dr-locpick-caret { color: var(--dr-text-3); flex: none; }
+
+/* index.css styles every select and input on the site — its own border, radius,
+   background and 0.55rem/2rem padding for a native chevron. Inside these pills
+   the wrapper is the control, so the field has to be stripped back completely:
+   patching one property at a time left the select overflowing the rounded
+   border it sits in, which is the seam you could see around the branch name. */
+.dr-root .dr-locpick select,
+.dr-root .dr-datepick input {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0;
   border: 0;
-  outline: none;
+  border-radius: 0;
   background: none;
+  background-image: none;
+  box-shadow: none;
+  outline: none;
+  height: auto;
+  min-width: 0;
+  line-height: 1.2;
   font: inherit;
   font-size: 0.8rem;
   color: var(--dr-text);
   cursor: pointer;
 }
 
-/* index.css paints a chevron on every select in the light theme but sets no
-   background-repeat, so it tiled across our own bordered wrapper. Scoped under
-   .dr-root to outrank it. */
-.dr-root .dr-locpick select {
-  background-image: none;
-  background-repeat: no-repeat;
-  appearance: none;
-  -webkit-appearance: none;
-  padding-right: 0.2rem;
+/* The wrapper carries hover and focus, so the field must not draw its own. */
+.dr-root .dr-locpick select:hover,
+.dr-root .dr-locpick select:focus,
+.dr-root .dr-datepick input:hover,
+.dr-root .dr-datepick input:focus {
+  border: 0;
+  box-shadow: none;
+  outline: none;
+  background: none;
 }
+
+/* A long branch name truncates rather than stretching the pill across the bar. */
+.dr-root .dr-locpick select {
+  max-width: 148px;
+  text-overflow: ellipsis;
+}
+
 
 /* The native picker indicator is black-on-black in the dark theme. */
 .dr-datepick input::-webkit-calendar-picker-indicator {
@@ -191,17 +259,21 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 .dr-actions {
   display: inline-flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.4rem;
 }
 
 .dr-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
+  white-space: nowrap;
   font: inherit;
   font-size: 0.78rem;
   font-weight: 620;
-  padding: 0.42rem 0.8rem;
+  height: var(--dr-ctl-h);
+  padding: 0 0.8rem;
   border: 1px solid var(--dr-line);
   border-radius: 8px;
   background: var(--dr-surface);
@@ -220,6 +292,58 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 }
 
 .dr-btn--gold:hover:not(:disabled) { filter: brightness(1.05); }
+
+/* ── The export menu ─────────────────────────────────────────────────────── */
+.dr-menu { position: relative; display: inline-flex; }
+
+.dr-btn--menu.is-open { border-color: var(--dr-gold); background: var(--dr-head); }
+
+.dr-menu-caret {
+  margin-left: 0.05rem;
+  color: var(--dr-text-3);
+  transition: transform 0.15s ease;
+}
+
+.dr-btn--menu.is-open .dr-menu-caret { transform: rotate(180deg); }
+
+.dr-menu-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 254px;
+  padding: 0.3rem;
+  border: 1px solid var(--dr-line);
+  border-radius: 10px;
+  background: var(--dr-surface);
+  box-shadow: var(--dr-shadow);
+}
+
+.dr-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--dr-text);
+  cursor: pointer;
+}
+
+.dr-menu-item:hover,
+.dr-menu-item:focus-visible { background: var(--dr-head); outline: none; }
+
+.dr-menu-icon { margin-top: 1px; color: var(--dr-gold); flex: none; }
+
+.dr-menu-text { display: flex; flex-direction: column; gap: 0.08rem; }
+.dr-menu-text strong { font-size: 0.8rem; font-weight: 620; }
+.dr-menu-text em { font-style: normal; font-size: 0.7rem; color: var(--dr-text-3); }
+
+@media (prefers-reduced-motion: reduce) { .dr-menu-caret { transition: none; } }
 
 /* ── Status line ─────────────────────────────────────────────────────────── */
 .dr-statusline {
@@ -257,20 +381,23 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
    columns at 2560px, which is nobody's reading order and left the page a thin
    band above a lot of nothing. */
 .dr-sheet {
-  max-width: 1560px;
+  max-width: 1180px;
   margin: 0 auto;
 }
 
-/* Three to a row — Visitors · Payments · Containers, then
-   Delivery · Transfers · Notes. Fixed, not auto-fit, so the pairing holds. */
+/* Two to a row. Fixed rather than auto-fit, so the pairing set by the DOM order
+   holds at every width instead of reflowing into whatever fits. */
 .dr-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.9rem;
   align-items: start;
 }
 
-@media (max-width: 1400px) { .dr-grid { grid-template-columns: repeat(2, 1fr); } }
+@container dr (max-width: 860px) { .dr-grid { grid-template-columns: 1fr; } }
+@supports not (container-type: inline-size) {
+  @media (max-width: 1100px) { .dr-grid { grid-template-columns: 1fr; } }
+}
 
 /* ── The day at a glance ─────────────────────────────────────────────────── */
 .dr-stats {
@@ -280,8 +407,12 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   margin-bottom: 0.8rem;
 }
 
-@media (max-width: 1100px) { .dr-stats { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 640px)  { .dr-stats { grid-template-columns: repeat(2, 1fr); } }
+@container dr (max-width: 1080px) { .dr-stats { grid-template-columns: repeat(3, 1fr); } }
+@container dr (max-width: 560px) { .dr-stats { grid-template-columns: repeat(2, 1fr); } }
+@supports not (container-type: inline-size) {
+  @media (max-width: 1180px) { .dr-stats { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 760px)  { .dr-stats { grid-template-columns: repeat(2, 1fr); } }
+}
 
 .dr-stat {
   background: var(--dr-surface);
@@ -308,7 +439,10 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 }
 
 .dr-stat-val {
-  font-size: 1.7rem;
+  /* A month total is a longer string than a day's — let it step down rather
+     than run past the edge of its tile. */
+  font-size: clamp(1.25rem, 2.4cqi + 0.7rem, 1.7rem);
+  overflow-wrap: anywhere;
   font-weight: 700;
   line-height: 1.15;
   margin-top: 0.15rem;
@@ -450,6 +584,10 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 .dr-table-scroll { overflow-x: auto; }
 
 .dr-table {
+  /* One token for the horizontal padding, so a header, a cell and the inset
+     that lines a bare figure up with a typed one all move together. */
+  --dr-cellpad: 0.85rem;
+
   width: 100%;
   border-collapse: collapse;
   font-size: 0.82rem;
@@ -462,13 +600,13 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--dr-text-3);
-  padding: 0.45rem 0.85rem;
+  padding: 0.45rem var(--dr-cellpad);
   border-bottom: 1px solid var(--dr-line-soft);
   white-space: nowrap;
 }
 
 .dr-table td {
-  padding: 0.32rem 0.85rem;
+  padding: 0.32rem var(--dr-cellpad);
   border-bottom: 1px solid var(--dr-line-soft);
   color: var(--dr-text);
   vertical-align: middle;
@@ -479,8 +617,24 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 .dr-num { text-align: right; font-variant-numeric: tabular-nums; }
 .dr-x { width: 34px; text-align: center; }
 
+/* A header sits over its own column. `.dr-table th` aligns every header left
+   and outranks .dr-num on specificity, which left ASSIGNED and CAPACITY a
+   hand's width to the left of the boxes they name — and the same in every
+   other table on the page. Re-stated at th level so the column wins. */
+.dr-table th.dr-num { text-align: right; }
+.dr-table th.dr-x { text-align: center; }
+
+/* A typed figure sits inside an input's border and padding; a header or a total
+   is bare text against the cell edge, so the two ran nine pixels apart down the
+   same column. Inset the bare ones to meet the digits. The month tables hold no
+   inputs — their columns are already flush with each other. */
+.dr-table:not(.dr-table--month) th.dr-num,
+.dr-table:not(.dr-table--month) .dr-total td.dr-num {
+  padding-right: calc(var(--dr-cellpad) + 0.5rem + 1px);
+}
+
 .dr-none {
-  padding: 0.9rem 0.85rem !important;
+  padding: 0.9rem var(--dr-cellpad) !important;
   text-align: center;
   color: var(--dr-text-3);
   font-size: 0.78rem;
@@ -579,11 +733,20 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 
 .dr-notes::placeholder { color: var(--dr-text-3); }
 
-/* ── Month view ──────────────────────────────────────────────────────────── */
+/* ── Month view, and one day across every branch ─────────────────────────── */
+/* Capped like the form above it: eight columns stretched over a 2560px screen
+   put the day at one edge and its takings at the other, with a hand's width of
+   nothing between every figure. */
+.dr-month {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
 .dr-month-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.6rem;
   margin-bottom: 0.8rem;
 }
 
@@ -594,12 +757,43 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   color: var(--dr-text);
 }
 
-.dr-table--month td { padding: 0.5rem 0.85rem; }
+/* Which branches are being read — the selector that chose them is in the top
+   bar, so the view says so rather than offering a second one. */
+.dr-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 620;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--dr-line);
+  border-radius: 20px;
+  background: var(--dr-surface);
+  color: var(--dr-text-2);
+}
+
+.dr-month-meta {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--dr-text-3);
+}
+
+.dr-table--month td { padding: 0.5rem var(--dr-cellpad); }
+
+/* Fixed shares for the figures, so the leading column takes the slack instead
+   of the gaps between the numbers. */
+.dr-table--month .dr-num { width: 11%; }
+.dr-table--month th:last-child { width: 8rem; }
 
 .dr-monthrow { cursor: pointer; }
 .dr-monthrow:hover td { background: var(--dr-head); }
 
+/* A day nobody has opened is a gap in the record, not an alarm. */
+.dr-monthrow.is-idle td { color: var(--dr-text-3); }
+.dr-monthrow.is-idle .dr-day { font-weight: 600; }
+
 .dr-day { font-weight: 650; }
+.dr-branch { color: var(--dr-text-2); }
 
 .dr-status {
   display: inline-flex;
@@ -615,6 +809,14 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 .dr-status--ok   { background: var(--dr-good-bg); color: var(--dr-good); }
 .dr-status--warn { background: var(--dr-warn-bg); color: var(--dr-warn); }
 .dr-status--off  { background: var(--dr-line-soft); color: var(--dr-text-3); }
+
+/* Not started reads as an outline: nothing has been put in it yet. */
+.dr-status--idle {
+  background: none;
+  border: 1px dashed var(--dr-line);
+  color: var(--dr-text-3);
+  padding: 0.1rem 0.45rem;
+}
 
 /* ── States ──────────────────────────────────────────────────────────────── */
 .dr-empty {
@@ -733,9 +935,23 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   outline-offset: 2px;
 }
 
+/* Segmented groups clip their overflow, so a ring drawn outside the segment is
+   cut in half — these draw theirs inside. */
+.dr-viewtoggle button:focus-visible,
+.dr-datenav > button:focus-visible { outline-offset: -2px; }
+
 @media (prefers-reduced-motion: reduce) {
   .dr-spin { animation-duration: 2.4s; }
   .dr-btn, .dr-cell { transition: none; }
+}
+
+/* On a touch device the cells and buttons become targets, not just fields.
+   44px is the size Apple's guidance asks for and a warehouse thumb needs. */
+@media (pointer: coarse) {
+  .dr-cell { min-height: 44px; padding-top: 0; padding-bottom: 0; font-size: 16px; }
+  .dr-btn, .dr-viewtoggle button, .dr-datenav > button, .dr-addrow-btn { min-height: 44px; }
+  .dr-rowdel { width: 34px; height: 34px; }
+  .dr-table td { padding-top: 0.4rem; padding-bottom: 0.4rem; }
 }
 
 /* ── Narrow screens ──────────────────────────────────────────────────────── */
@@ -745,7 +961,75 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   .dr-progress-submit, .dr-progress-done { margin-left: 0; width: 100%; justify-content: center; }
   .dr-title { width: 100%; margin-right: 0; }
   .dr-actions { width: 100%; }
-  .dr-actions .dr-btn { flex: 1; justify-content: center; }
-  .dr-table th, .dr-table td { padding-left: 0.6rem; padding-right: 0.6rem; }
+  .dr-actions > .dr-btn,
+  .dr-actions > .dr-menu { flex: 1; }
+  .dr-menu .dr-btn { width: 100%; }
+  /* Anchored to the right edge on a wide bar, but a full-width button on a
+     narrow one has no right edge worth hanging from. */
+  .dr-menu-pop { left: 0; right: 0; min-width: 0; }
+  .dr-datenav { flex: 1; }
+  .dr-datepick { flex: 1; justify-content: center; }
+  .dr-table { --dr-cellpad: 0.6rem; }
   .dr-cell { width: 62px; }
 }
+
+/* ── Email dialog ────────────────────────────────────────────────────────── */
+.dr-confirm--wide { max-width: 470px; text-align: left; }
+.dr-confirm--wide h4,
+.dr-confirm--wide > p { text-align: center; }
+
+.dr-field-hint {
+  margin: 0.35rem 0 0.9rem;
+  font-size: 0.72rem;
+  color: var(--dr-text-3);
+}
+
+.dr-hint-bad { color: var(--dr-bad); }
+
+.dr-optional {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--dr-text-3);
+}
+
+.dr-email-msg {
+  margin: 0;
+  width: 100%;
+  min-height: 70px;
+}
+
+.dr-sent-list {
+  font-size: 0.75rem;
+  color: var(--dr-text-3);
+  word-break: break-word;
+}
+
+/* ── Unsaid figures, and figures worth a second look ─────────────────────── */
+
+/* An empty numeric field shows an em dash: it has not been answered, which is
+   a different fact from a nil return and prints differently on the PDF. */
+.dr-cell::placeholder {
+  color: var(--dr-text-3);
+  opacity: 0.75;
+}
+
+/* A slab count far outside what the branch usually sees. It asks; it never
+   blocks — the figure saves exactly as typed. */
+.dr-cell.is-odd {
+  border-color: color-mix(in srgb, var(--dr-warn) 55%, var(--dr-line));
+  background: var(--dr-warn-bg);
+}
+
+.dr-cell.is-odd:focus {
+  border-color: var(--dr-warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dr-warn) 22%, transparent);
+}
+
+.dr-footnote.is-warn {
+  color: var(--dr-warn);
+  background: var(--dr-warn-bg);
+}
+
+/* The dollar sign shouldn't read as a filled field when the amount is unsaid. */
+.dr-money-sign.is-unsaid { opacity: 0.45; }

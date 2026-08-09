@@ -28,7 +28,11 @@ const containerLineSchema = new mongoose.Schema({
 
 const countPairSchema = new mongoose.Schema({
   assigned: { type: Number, default: 0 },
-  capacity: { type: Number, default: 0 }
+  // Shown on the sheet as "Slabs" — how many went out on the day's deliveries
+  // and pick-ups. Named `capacity` because that is what the column asked for
+  // first, and the stored days would need migrating to rename it.
+  // null until someone counts them.
+  capacity: { type: Number, default: null }
 }, { _id: false });
 
 const dailyReportSchema = new mongoose.Schema({
@@ -44,24 +48,34 @@ const dailyReportSchema = new mongoose.Schema({
     index: true
   },
 
+  /**
+   * null means nobody has said yet; 0 means somebody said none.
+   *
+   * The distinction is the whole point of the difference between a blank sheet
+   * and a finished one — a day with no payments recorded is not the same fact
+   * as a day on which no money was taken, and the report should not quietly
+   * turn the first into the second. Figures the system derives (homeowners
+   * from check-ins, assigned from the schedule) are always known, so they stay
+   * plain numbers.
+   */
   visitors: {
     homeowners: { type: Number, default: 0 },
-    fabricators: { type: Number, default: 0 },
-    designers: { type: Number, default: 0 }
+    fabricators: { type: Number, default: null },
+    designers: { type: Number, default: null }
   },
 
   deliveries: { type: countPairSchema, default: () => ({}) },
   pickups: { type: countPairSchema, default: () => ({}) },
-  returns: { type: Number, default: 0 },
-  sinks: { type: Number, default: 0 },
+  returns: { type: Number, default: null },
+  sinks: { type: Number, default: null },
 
   transfers: { type: [transferLineSchema], default: [] },
   containers: { type: [containerLineSchema], default: [] },
 
   payments: {
-    cash: { count: { type: Number, default: 0 }, amount: { type: Number, default: 0 } },
-    card: { count: { type: Number, default: 0 }, amount: { type: Number, default: 0 } },
-    check: { count: { type: Number, default: 0 }, amount: { type: Number, default: 0 } }
+    cash: { count: { type: Number, default: null }, amount: { type: Number, default: null } },
+    card: { count: { type: Number, default: null }, amount: { type: Number, default: null } },
+    check: { count: { type: Number, default: null }, amount: { type: Number, default: null } }
   },
 
   notes: { type: String, default: '' },
@@ -69,6 +83,10 @@ const dailyReportSchema = new mongoose.Schema({
   // Who touched it, so a submitted report means something.
   submittedBy: { type: String, default: '' },
   submittedAt: { type: Date, default: null },
+  // Signed off by the 11:59 PM job rather than by a person. Kept apart from
+  // submittedBy so the UI can say so plainly: an automatic submission means the
+  // figures stand as they were left, not that anybody checked them.
+  autoSubmitted: { type: Boolean, default: false },
   reopenedBy: { type: String, default: '' },
   reopenedAt: { type: Date, default: null },
   reopenReason: { type: String, default: '' },
