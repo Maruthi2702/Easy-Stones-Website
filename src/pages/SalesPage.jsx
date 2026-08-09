@@ -37,6 +37,7 @@ import UsersRolesTab from '../components/sales/UsersRolesTab';
 import UserProfileTab from '../components/sales/UserProfileTab';
 import LostSalesTab from '../components/sales/LostSalesTab';
 import DeliveryScheduleTab from '../components/sales/DeliveryScheduleTab';
+import DailyReportTab from '../components/sales/dailyreport/DailyReportTab';
 import Pagination from '../components/shared/Pagination';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
@@ -3377,6 +3378,21 @@ const SalesPage = () => {
                                 theme={theme}
                                 onCreateNew={() => setShowAddCustomerModal(true)}
                                 isDropdownLoading={isDropdownLoading}
+                                sidebarToggle={sidebarToggle}
+                            />
+                        </ErrorBoundary>
+                    );
+                })()}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'daily_report' && (() => {
+                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+                    ) : null;
+
+                    return (
+                        <ErrorBoundary key="daily-report-view">
+                            <DailyReportTab
+                                currentUser={currentUser}
                                 sidebarToggle={sidebarToggle}
                             />
                         </ErrorBoundary>

@@ -3,7 +3,8 @@ import {
     Users, ShieldAlert, Plus, Edit2, Trash2, Search, 
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
-    FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard, Eraser
+    FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard, Eraser,
+    ClipboardList, CheckCheck, RotateCcw
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { prettifyUsername } from '../../utils/textUtils';
@@ -70,6 +71,21 @@ const PAGE_PERMISSIONS = [
             { key: 'view_lost_sales', label: 'View', icon: Eye, desc: 'View lost sales records and metrics' },
             { key: 'edit_lost_sales', label: 'Edit', icon: Pencil, desc: 'Record new lost sales and edit existing records' },
             { key: 'delete_lost_sales', label: 'Delete', icon: Trash2, desc: 'Delete lost sale records' }
+        ]
+    },
+    {
+        id: 'daily_report',
+        page: 'Daily Report',
+        icon: ClipboardList,
+        description: 'The daily work report for a branch',
+        color: '#0ea5a4',
+        actions: [
+            { key: 'view_daily_report',   label: 'View',    icon: Eye,       desc: 'Open the daily report and the month view' },
+            { key: 'edit_daily_report',   label: 'Edit',    icon: Pencil,    desc: "Fill in and save the day's figures" },
+            // Submit is separate from Edit: signing a day off is a statement,
+            // not just another save.
+            { key: 'submit_daily_report', label: 'Submit',  icon: CheckCheck, desc: 'Sign off a day and lock it' },
+            { key: 'reopen_daily_report', label: 'Reopen',  icon: RotateCcw, desc: 'Unlock a submitted day to correct it' }
         ]
     },
     {

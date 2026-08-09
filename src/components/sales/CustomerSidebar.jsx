@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Pin, PinOff, Sun, Moon,
-    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown, Truck
+    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown, Truck, ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -142,6 +142,18 @@ const CustomerSidebar = ({
                     >
                         <Truck size={18} />
                         <span>Delivery Schedule</span>
+                    </button>
+                )}
+
+                {/* Daily Report — requires view_daily_report */}
+                {(user?.permissions?.includes('view_daily_report') || user?.role === 'admin' || !user) && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'daily_report' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('daily_report')}
+                        title="Daily Work Report"
+                    >
+                        <ClipboardList size={18} />
+                        <span>Daily Report</span>
                     </button>
                 )}
 

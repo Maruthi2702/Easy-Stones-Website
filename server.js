@@ -22,6 +22,7 @@ import compression from 'compression';
 import Product from './src/models/Product.js';
 import User from './src/models/User.js';
 import Role from './src/models/Role.js';
+import DailyReport from './src/models/DailyReport.js';
 import Location from './src/models/Location.js';
 import ContactSubmission from './src/models/ContactSubmission.js';
 import Customer from './src/models/Customer.js';
@@ -38,6 +39,7 @@ import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } 
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
 import { stampSignaturesOnPdfBytes } from './src/utils/pdfSigner.js';
 import { signedPackingListFileName } from './src/utils/packingList.js';
+import createDailyReportsRouter from './src/routes/dailyReports.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -478,7 +480,7 @@ async function startServer() {
       ['Customer', Customer], ['Product', Product], ['User', User],
       ['OfficeCheckIn', OfficeCheckIn], ['ActivityLog', ActivityLog], ['Schedule', Schedule],
       ['Delivery', Delivery], ['Truck', Truck], ['LostSale', LostSale],
-      ['Location', Location], ['Role', Role]
+      ['Location', Location], ['Role', Role], ['DailyReport', DailyReport]
     ];
     const indexResults = await Promise.allSettled(
       indexTargets.map(([, model]) => model.createIndexes())
@@ -539,7 +541,8 @@ async function startServer() {
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
             'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
-            'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales'
+            'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
+            'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report'
           ],
           isSystem: true
         },
@@ -550,7 +553,8 @@ async function startServer() {
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
             'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
-            'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales'
+            'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
+            'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report'
           ],
           isSystem: true
         },
@@ -561,7 +565,8 @@ async function startServer() {
             'view_dashboard', 'view_customers', 'manage_customers',
             'view_checkins', 'manage_checkins', 'send_checkin_email', 'delete_checkins',
             'view_pricelist', 'manage_users', 'view_product_prices',
-            'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales'
+            'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
+            'view_daily_report', 'edit_daily_report', 'submit_daily_report'
           ],
           isSystem: true
         },
@@ -603,6 +608,27 @@ async function startServer() {
           console.log(`🌱 Seeded standard role: ${created.name} → [${created.permissions.join(', ')}]`);
         } else {
           console.log(`ℹ️ System role '${roleDef.name}' already exists, skipping seed override to preserve custom permissions`);
+        }
+      }
+
+      // New feature permissions reach existing installations here. The seed above
+      // deliberately never overwrites a role, so a permission added after a role
+      // was created would otherwise exist for nobody — including administrators,
+      // who hold every other permission by definition. Only admin and director
+      // are topped up; the rest are for you to assign under Users & Roles.
+      const NEW_PERMISSION_GRANTS = [
+        { roles: ['admin', 'director'], permissions: ['view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report'] }
+      ];
+
+      for (const grant of NEW_PERMISSION_GRANTS) {
+        for (const roleName of grant.roles) {
+          const role = await Role.findOne({ name: roleName });
+          if (!role) continue;
+          const missing = grant.permissions.filter(p => !role.permissions.includes(p));
+          if (missing.length === 0) continue;
+          role.permissions.push(...missing);
+          await role.save();
+          console.log(`🔑 Granted ${roleName}: ${missing.join(', ')}`);
         }
       }
 
@@ -4221,6 +4247,14 @@ const DELIVERY_LIST_PROJECTION = {
 // delivery has location: '' because nothing populates the field yet. Scoping
 // strictly would empty the board for all users. Once deliveries start carrying a
 // location, this filter narrows them automatically.
+// ── DAILY WORK REPORT ──
+// Lives in src/routes/dailyReports.js rather than here — a self-contained
+// feature with its own model, handed the middleware it needs.
+app.use('/api/daily-reports', createDailyReportsRouter({
+  authenticate,
+  requirePermission
+}));
+
 const scopeDeliveryQueryToLocations = (query, req) => {
   const userLocations = req.user?.assignedLocations || [];
   if (userLocations.includes('*')) return query;
