@@ -252,9 +252,9 @@ export async function buildDayPdf(report) {
 
   y = drawGlance(c, fonts, y, [
     { label: 'Visitors', value: int(visitors), sub: `${int(v.homeowners || 0)} homeowners` },
-    { label: 'Deliveries', value: int(assigned), sub: slabsOut ? `${int(slabsOut)} slabs` : 'no slabs counted yet' },
-    { label: 'Slabs in', value: int(containerSlabs), sub: `${containers.length} line${containers.length === 1 ? '' : 's'}` },
-    { label: 'Slabs out', value: int(transferSlabs), sub: `${transfers.length} transfer${transfers.length === 1 ? '' : 's'}` },
+    { label: 'Orders', value: int(assigned), sub: `${int(report.deliveries?.assigned)} out · ${int(report.pickups?.assigned)} picked up` },
+    { label: 'Containers', value: int(containers.length), sub: containerSlabs ? `${int(containerSlabs)} slabs` : 'no slabs counted' },
+    { label: 'Transfers', value: int(transferCount), sub: transferSlabs ? `${int(transferSlabs)} slabs` : 'no slabs counted' },
     { label: 'Payments', value: money(payAmount), sub: `${payCount} transaction${payCount === 1 ? '' : 's'}` }
   ]);
 
@@ -391,7 +391,9 @@ export async function buildMonthPdf({ month, rows, scopeLabel }) {
   const sum = (list, key) => list.reduce((s, r) => s + Number(r[key] || 0), 0);
   const grand = {
     visitors: sum(rows, 'visitors'), deliveries: sum(rows, 'deliveries'), pickups: sum(rows, 'pickups'),
-    containerSlabs: sum(rows, 'containerSlabs'), transferSlabs: sum(rows, 'transferSlabs'), payments: sum(rows, 'payments')
+    containerCount: sum(rows, 'containerCount'), containerSlabs: sum(rows, 'containerSlabs'),
+    transferCount: sum(rows, 'transferCount'), transferSlabs: sum(rows, 'transferSlabs'),
+    payments: sum(rows, 'payments')
   };
 
   const cols = [
@@ -453,9 +455,9 @@ export async function buildMonthPdf({ month, rows, scopeLabel }) {
     if (!continued) {
       y = drawGlance(c, fonts, y, [
         { label: 'Visitors', value: int(grand.visitors), sub: `${byBranch.size} branch${byBranch.size === 1 ? '' : 'es'}` },
-        { label: 'Deliveries', value: int(grand.deliveries), sub: `+${int(grand.pickups)} pick-ups` },
-        { label: 'Slabs in', value: int(grand.containerSlabs), sub: 'containers' },
-        { label: 'Slabs out', value: int(grand.transferSlabs), sub: 'transfers' },
+        { label: 'Orders', value: int(grand.deliveries + grand.pickups), sub: `${int(grand.deliveries)} out · ${int(grand.pickups)} picked up` },
+        { label: 'Containers', value: int(grand.containerCount), sub: `${int(grand.containerSlabs)} slabs` },
+        { label: 'Transfers', value: int(grand.transferCount), sub: `${int(grand.transferSlabs)} slabs` },
         { label: 'Payments', value: money(grand.payments), sub: `${rows.length} day${rows.length === 1 ? '' : 's'}` }
       ]);
     }

@@ -194,7 +194,12 @@ const summarise = (r) => ({
   visitors: (r.visitors?.homeowners || 0) + (r.visitors?.fabricators || 0) + (r.visitors?.designers || 0),
   deliveries: r.deliveries?.assigned || 0,
   pickups: r.pickups?.assigned || 0,
+  // A transfer line is a route, and its `count` is how many went down it — the
+  // figure the tiles quote is the transfers, not the lines they are grouped on.
+  // A container has no such count: one line is one container.
+  transferCount: (r.transfers || []).reduce((sum, t) => sum + (t.count || 0), 0),
   transferSlabs: (r.transfers || []).reduce((sum, t) => sum + (t.slabs || 0), 0),
+  containerCount: (r.containers || []).length,
   containerSlabs: (r.containers || []).reduce((sum, c) => sum + (c.slabs || 0), 0),
   payments: ['cash', 'card', 'check'].reduce((sum, k) => sum + (r.payments?.[k]?.amount || 0), 0),
   submittedBy: r.submittedBy || '',

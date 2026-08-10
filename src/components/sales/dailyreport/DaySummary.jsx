@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Truck, PackagePlus, ArrowLeftRight, Wallet, Check } from 'lucide-react';
+import { Users, Truck, Package, ArrowLeftRight, Wallet, Check } from 'lucide-react';
 import { moneyShort } from './summaryFigures';
 
 /**
@@ -12,7 +12,13 @@ import { moneyShort } from './summaryFigures';
  * signed off over it.
  */
 
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + 's'}`;
+const plural = (count, one, many) => `${count} ${count === 1 ? one : many || one + 's'}`;
+
+/** An unsaid cell is a blank string, not a number — it contributes nothing. */
+const n = (v) => {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : 0;
+};
 
 const spoken = (...values) => values.some(v => v !== null && v !== undefined && v !== '');
 
@@ -45,27 +51,41 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false })
       ].filter(Boolean).join(' · ') || 'none recorded'
     },
     {
-      key: 'deliveries',
+      key: 'orders',
       icon: Truck,
-      label: 'Deliveries',
+      label: 'Orders',
+      // Deliveries and pick-ups are one figure: an order that went out on a
+      // truck and one the customer came for are both an order fulfilled.
       value: totals.assigned,
-      // Slabs are counted alongside the deliveries, not out of them — a
-      // count, never a ratio, so it reads underneath rather than as "16/24".
-      sub: totals.capacity ? `${totals.capacity} slabs` : 'no slabs counted yet'
+      // Slabs are counted alongside the orders, not out of them — a count,
+      // never a ratio, so it reads underneath rather than as "16/24".
+      sub: [
+        `${n(report.deliveries.assigned)} out`,
+        `${n(report.pickups.assigned)} picked up`,
+        totals.capacity ? `${totals.capacity} slabs` : null
+      ].filter(Boolean).join(' · ')
     },
     {
-      key: 'in',
-      icon: PackagePlus,
-      label: 'Slabs in',
-      value: totals.containerSlabs,
-      sub: containerLines ? plural(containerLines, 'container') : 'no containers'
+      key: 'containers',
+      icon: Package,
+      label: 'Containers',
+      value: containerLines,
+      sub: containerLines
+        ? (totals.containerSlabs ? plural(totals.containerSlabs, 'slab') : 'no slabs counted')
+        : 'none recorded'
     },
     {
-      key: 'out',
+      key: 'transfers',
       icon: ArrowLeftRight,
-      label: 'Slabs out',
-      value: totals.transferSlabs,
-      sub: transferLines ? plural(transferLines, 'transfer') : 'no transfers'
+      label: 'Transfers',
+      // The lines are routes; the counts on them are the transfers themselves.
+      value: totals.transferCount,
+      sub: transferLines
+        ? [
+            plural(transferLines, 'route'),
+            totals.transferSlabs ? plural(totals.transferSlabs, 'slab') : null
+          ].filter(Boolean).join(' · ')
+        : 'none recorded'
     },
     {
       key: 'payments',

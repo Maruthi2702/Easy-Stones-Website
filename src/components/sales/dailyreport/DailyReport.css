@@ -43,7 +43,15 @@
   container-type: inline-size;
   container-name: dr;
 
-  min-height: 100%;
+  /* .sales-main is a fixed-height shell that clips its overflow, so every tab
+     scrolls inside its own root or not at all. */
+  height: 100%;
+  max-height: calc(100vh - 82px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+
+  box-sizing: border-box;
   padding: 1.1rem 1.25rem 3rem;
   background: var(--dr-bg);
   color: var(--dr-text);
@@ -75,6 +83,15 @@ body.light-theme-active .dr-root,
   --dr-derived-l: #b7e0c6;
   --dr-shadow:    0 6px 18px rgba(15, 23, 42, 0.07);
 }
+
+/* The same gold scrollbar the other CRM tabs carry. */
+.dr-root::-webkit-scrollbar { width: 8px; height: 8px; }
+.dr-root::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.15); }
+.dr-root::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.35);
+  border-radius: 4px;
+}
+.dr-root::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.65); }
 
 /* ── Top bar ─────────────────────────────────────────────────────────────── */
 .dr-topbar {

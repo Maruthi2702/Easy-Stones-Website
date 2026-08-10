@@ -53,7 +53,9 @@ const blankDay = (date, location) => ({
   visitors: 0,
   deliveries: 0,
   pickups: 0,
+  transferCount: 0,
   transferSlabs: 0,
+  containerCount: 0,
   containerSlabs: 0,
   payments: 0
 });

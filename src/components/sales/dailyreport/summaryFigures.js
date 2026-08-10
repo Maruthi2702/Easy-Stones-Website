@@ -30,14 +30,18 @@ export const STATUS = {
 
 const ZERO_TOTALS = {
   visitors: 0, deliveries: 0, pickups: 0,
-  transferSlabs: 0, containerSlabs: 0, payments: 0
+  transferCount: 0, transferSlabs: 0,
+  containerCount: 0, containerSlabs: 0,
+  payments: 0
 };
 
 export const sumRows = (rows) => rows.reduce((t, r) => ({
   visitors: t.visitors + (r.visitors || 0),
   deliveries: t.deliveries + (r.deliveries || 0),
   pickups: t.pickups + (r.pickups || 0),
+  transferCount: t.transferCount + (r.transferCount || 0),
   transferSlabs: t.transferSlabs + (r.transferSlabs || 0),
+  containerCount: t.containerCount + (r.containerCount || 0),
   containerSlabs: t.containerSlabs + (r.containerSlabs || 0),
   payments: t.payments + (r.payments || 0)
 }), { ...ZERO_TOTALS });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Truck, PackagePlus, ArrowLeftRight, Wallet } from 'lucide-react';
+import { Users, Truck, Package, ArrowLeftRight, Wallet } from 'lucide-react';
 import { money, moneyShort, STATUS } from './summaryFigures';
 
 /**
@@ -22,31 +22,35 @@ export const StatusChip = ({ status, title }) => {
 
 /**
  * The same five tiles the day view opens with, over a wider span. Deliveries
- * and pick-ups share a tile there, so they share one here too.
+ * and pick-ups add up to Orders there, so they do here too.
  */
 export const SummaryStats = ({ totals, visitorsNote, paymentsNote }) => {
   const tiles = [
     { key: 'visitors', icon: Users, label: 'Visitors', value: totals.visitors, sub: visitorsNote },
     {
-      key: 'deliveries',
+      key: 'orders',
       icon: Truck,
-      label: 'Deliveries',
+      label: 'Orders',
       value: totals.deliveries + totals.pickups,
       sub: `${totals.deliveries} out · ${totals.pickups} picked up`
     },
     {
-      key: 'in',
-      icon: PackagePlus,
-      label: 'Slabs in',
-      value: totals.containerSlabs,
-      sub: totals.containerSlabs ? 'from containers' : 'no containers'
+      key: 'containers',
+      icon: Package,
+      label: 'Containers',
+      value: totals.containerCount,
+      sub: totals.containerCount
+        ? (totals.containerSlabs ? `${totals.containerSlabs} slabs` : 'no slabs counted')
+        : 'none recorded'
     },
     {
-      key: 'out',
+      key: 'transfers',
       icon: ArrowLeftRight,
-      label: 'Slabs out',
-      value: totals.transferSlabs,
-      sub: totals.transferSlabs ? 'on transfers' : 'no transfers'
+      label: 'Transfers',
+      value: totals.transferCount,
+      sub: totals.transferCount
+        ? (totals.transferSlabs ? `${totals.transferSlabs} slabs` : 'no slabs counted')
+        : 'none recorded'
     },
     {
       key: 'payments',
