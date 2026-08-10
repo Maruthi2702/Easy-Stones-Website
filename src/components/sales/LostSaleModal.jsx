@@ -4,14 +4,21 @@ import SearchableSelect from '../SearchableSelect';
 import CustomSelect from '../shared/CustomSelect';
 import { formatForDateInput } from '../../utils/dateUtils';
 
-const REASON_OPTIONS = [
-  { id: 'Out of Stock', label: 'Out of Stock', color: '#ef4444' },
-  { id: 'Price Too High', label: 'Price Too High / Competitor', color: '#f59e0b' },
-  { id: 'Lead Time', label: 'Lead Time / Delivery Delay', color: '#3b82f6' },
-  { id: 'Color / Pattern Match', label: 'Color / Pattern Match Issue', color: '#8b5cf6' },
-  { id: 'Customer Cancelled', label: 'Customer Cancelled Project', color: '#64748b' },
-  { id: 'Quality Issue', label: 'Quality / Defect Concern', color: '#ec4899' },
-  { id: 'Other', label: 'Other Reason', color: '#10b981' }
+/**
+ * The one list of loss reasons. `id` is what gets stored, so it has to match
+ * the `reason` enum in models/LostSale.js exactly — a value outside that enum
+ * fails validation on save and the record never lands. The tracker's filter
+ * and badge colours read from here too, so all three stay in step.
+ */
+export const REASON_OPTIONS = [
+  { id: 'Out of Stock', label: 'Out of Stock', filterLabel: 'Out of Stock', badgeClass: 'badge-out-of-stock' },
+  { id: 'Price Too High', label: 'Price Too High / Competitor', filterLabel: 'Price Too High', badgeClass: 'badge-price-high' },
+  { id: 'Lead Time', label: 'Lead Time / Delivery Delay', filterLabel: 'Lead Time', badgeClass: 'badge-lead-time' },
+  { id: 'Color / Pattern Match', label: 'Color / Pattern Match Issue', filterLabel: 'Color Match', badgeClass: 'badge-color-match' },
+  { id: 'Quality / Spec Issue', label: 'Quality / Defect Concern', filterLabel: 'Quality Issue', badgeClass: 'badge-quality-issue' },
+  { id: 'Competitor Discount', label: 'Competitor Discount', filterLabel: 'Competitor', badgeClass: 'badge-competitor' },
+  { id: 'Customer Cancelled', label: 'Customer Cancelled Project', filterLabel: 'Cancelled', badgeClass: 'badge-cancelled' },
+  { id: 'Other', label: 'Other Reason', filterLabel: 'Other', badgeClass: 'badge-other-reason' }
 ];
 
 const DEFAULT_PRODUCTS = [

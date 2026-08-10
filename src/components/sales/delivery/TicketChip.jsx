@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck } from 'lucide-react';
+import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine } from 'lucide-react';
 import StatusPill from './StatusPill';
 import EpodChip from './EpodChip';
 
@@ -27,7 +27,11 @@ const TicketChip = ({
   onClick,
   editable = false,
   searchQuery = '',
-  onViewPod
+  onViewPod,
+  // Only supplied for tickets that are collected rather than delivered — the
+  // board decides that per column and leaves it off everywhere else, so a
+  // normal stop stays the driver's to sign for.
+  onOpenPod
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -51,7 +55,13 @@ const TicketChip = ({
   // Proof only means something once the delivery is done — an unsigned scheduled
   // job doesn't need telling that it has no ePOD yet.
   const showEpod = delivery.status === 'completed';
-  const hasFooter = showRep || Boolean(delivery.notes) || showEpod;
+  // Nobody drives a pickup, so its signature is captured at the counter by
+  // whoever releases it. Offered until there is proof rather than until the
+  // ticket is completed: a pickup someone marked complete by hand still has
+  // nobody's signature on it, and a cleared ePOD has to be re-signed by the
+  // same counter that took the first one.
+  const canSign = Boolean(editable && onOpenPod && !delivery.pod?.verified);
+  const hasFooter = showRep || Boolean(delivery.notes) || showEpod || canSign;
 
   const handleCopySO = (e, val) => {
     e.stopPropagation();
@@ -134,6 +144,16 @@ const TicketChip = ({
           </span>
         )}
         {showEpod && <EpodChip delivery={delivery} onViewPod={onViewPod} />}
+        {canSign && (
+          <button
+            type="button"
+            className="ticket-sign-btn"
+            onClick={(e) => { e.stopPropagation(); onOpenPod(delivery); }}
+            title="Capture the signature of whoever is collecting this order"
+          >
+            <PenLine size={11} /> Release &amp; Sign
+          </button>
+        )}
       </div>
       )}
     </div>

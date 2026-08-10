@@ -38,6 +38,10 @@ import LostSale from './src/models/LostSale.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
 import { stampSignaturesOnPdfBytes } from './src/utils/pdfSigner.js';
+import {
+  isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
+  PICKUP_WORDING, DELIVERY_WORDING
+} from './src/utils/deliveryPickup.js';
 import { signedPackingListFileName } from './src/utils/packingList.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
@@ -328,6 +332,32 @@ const derivePodVerified = (pod, hasPackingList) => Boolean(
   pod.driverSignature &&
   (!hasPackingList || pod.signedPdfUrl)
 );
+
+/**
+ * Which captions the stamped certificate carries.
+ *
+ * An order the customer collected was signed for by whoever came for it and
+ * whoever released it at the counter — printing "Driver" on that certificate
+ * would name a role nobody filled. Derived here rather than taken from the
+ * browser: this text is stamped into a document that is then treated as proof.
+ *
+ * Will calls say so on the delivery. Contract freight does not — its column is
+ * a driver user account, so the only way to recognise it is by the name on the
+ * account the ticket was filed under.
+ */
+const certificateWordingFor = async ({ deliveryType, truckId }) => {
+  if (isWillCall({ deliveryType })) return PICKUP_WORDING;
+
+  const id = String(truckId || '');
+  if (!id) return DELIVERY_WORDING;
+  if (id === THIRD_PARTY_TRUCK_ID) return PICKUP_WORDING;
+  if (!mongoose.Types.ObjectId.isValid(id)) return DELIVERY_WORDING;
+
+  const truckUser = await User.findById(id, 'name username').lean();
+  return THIRD_PARTY_NAME.test(`${truckUser?.name || ''} ${truckUser?.username || ''}`)
+    ? PICKUP_WORDING
+    : DELIVERY_WORDING;
+};
 
 const app = express();
 const httpServer = createServer(app);
@@ -4084,6 +4114,25 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requirePe
 // SCHEDULE / PLANNER ENDPOINTS
 // ============================================
 
+/**
+ * Tell every open planner that this user's schedule moved.
+ *
+ * A schedule belongs to one user, but that user can have the planner open in
+ * two browsers, on a phone, and be running a calendar sync at the same time —
+ * so the write has to be announced, not just answered. Clients filter on
+ * userId and refetch the range they are actually looking at; the payload
+ * deliberately carries no schedule contents, since it crosses to sockets that
+ * belong to other people.
+ */
+function emitScheduleUpdate(payload) {
+  if (!payload || !payload.userId) return;
+  try {
+    io.emit('schedule_update', { ...payload, userId: String(payload.userId) });
+  } catch (err) {
+    console.warn('[schedule] broadcast failed:', err.message);
+  }
+}
+
 // Get user's schedule
 app.get('/api/schedule', verifyAnyAuth, async (req, res) => {
 
@@ -4132,6 +4181,8 @@ app.post('/api/schedule', verifyAnyAuth, async (req, res) => {
     // Populate customer info for the response
     const populatedItem = await Schedule.findById(newItem._id).populate('customerId', 'contactName company');
 
+    emitScheduleUpdate({ type: 'upsert', userId, id: String(newItem._id) });
+
     res.status(201).json(populatedItem);
   } catch (error) {
     console.error('Create schedule error:', error);
@@ -4156,6 +4207,8 @@ app.put('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
       return res.status(404).json({ message: 'Schedule item not found' });
     }
 
+    emitScheduleUpdate({ type: 'upsert', userId, id: String(item._id) });
+
     res.json(item);
   } catch (error) {
     console.error('Update schedule error:', error);
@@ -4174,6 +4227,8 @@ app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
     if (result.deletedCount === 0) {
       return res.status(404).json({ message: 'Schedule item not found' });
     }
+
+    emitScheduleUpdate({ type: 'delete', userId, id: String(id) });
 
     res.json({ success: true });
   } catch (error) {
@@ -4365,7 +4420,7 @@ app.post('/api/deliveries', verifyAnyAuth, canWriteDeliveries, async (req, res) 
     if (updateData.pod) {
       const existing = await Delivery.findOne(
         { id: delivery.id },
-        'pod packingListUrl'
+        'pod packingListUrl deliveryType truckId'
       ).lean();
 
       updateData.pod = mergePodOntoExisting(updateData.pod, existing?.pod || {});
@@ -4382,6 +4437,11 @@ app.post('/api/deliveries', verifyAnyAuth, canWriteDeliveries, async (req, res) 
       // and pushing the whole signed copy back over cellular.
       if (freshCustSig && freshDriverSig && sourcePdf) {
         try {
+          const wording = await certificateWordingFor({
+            deliveryType: updateData.deliveryType ?? existing?.deliveryType,
+            truckId: updateData.truckId ?? existing?.truckId
+          });
+
           const signedBytes = await stampSignaturesOnPdfBytes({
             pdfUrl: sourcePdf,
             customerSignatureDataUrl: updateData.pod.customerSignature,
@@ -4390,7 +4450,8 @@ app.post('/api/deliveries', verifyAnyAuth, canWriteDeliveries, async (req, res) 
             driverName: updateData.pod.driverName || '',
             signedAt: updateData.pod.signedAt || new Date(),
             customerSignedAt: updateData.pod.customerSignedAt,
-            driverSignedAt: updateData.pod.driverSignedAt
+            driverSignedAt: updateData.pod.driverSignedAt,
+            wording
           });
 
           // Named after the packing list number — "145994_signed.pdf" — so the
@@ -4791,6 +4852,10 @@ const syncGoogleCalendar = async (userId) => {
     const data = await fetchGoogleEvents(accessToken);
     const googleEvents = data.items || [];
 
+    // A sync that pulled nothing new should not make every open planner refetch,
+    // so the broadcast at the end waits on this.
+    let plannerChanged = false;
+
     // 1. Google -> Sales Planner Sync
     for (const gEvent of googleEvents) {
       const isSyncedFromApp = gEvent.description && gEvent.description.includes('EasyStones ID:');
@@ -4806,6 +4871,7 @@ const syncGoogleCalendar = async (userId) => {
       if (gEvent.status === 'cancelled') {
         if (existingImport) {
           await Schedule.deleteOne({ _id: existingImport._id });
+          plannerChanged = true;
         }
         continue;
       }
@@ -4816,10 +4882,18 @@ const syncGoogleCalendar = async (userId) => {
       if (!startTime) continue;
 
       if (existingImport) {
-        existingImport.startTime = startTime;
-        existingImport.endTime = endTime;
-        existingImport.notes = `Google Calendar Event\n[Google ID: ${gEvent.id}]\n\n${gEvent.description || ''}`;
-        await existingImport.save();
+        const notes = `Google Calendar Event\n[Google ID: ${gEvent.id}]\n\n${gEvent.description || ''}`;
+        if (
+          String(existingImport.startTime) !== String(startTime) ||
+          String(existingImport.endTime) !== String(endTime) ||
+          existingImport.notes !== notes
+        ) {
+          existingImport.startTime = startTime;
+          existingImport.endTime = endTime;
+          existingImport.notes = notes;
+          await existingImport.save();
+          plannerChanged = true;
+        }
       } else {
         let syncCustomer = await Customer.findOne({ company: 'Google Calendar Sync' });
         if (!syncCustomer) {
@@ -4843,6 +4917,7 @@ const syncGoogleCalendar = async (userId) => {
           status: 'Scheduled'
         });
         await newItem.save();
+        plannerChanged = true;
       }
     }
 
@@ -4892,8 +4967,13 @@ const syncGoogleCalendar = async (userId) => {
           const createdEvent = await createRes.json();
           schedule.notes = `${schedule.notes || ''}\n\n[Synced to Google ID: ${createdEvent.id}]`;
           await schedule.save();
+          plannerChanged = true;
         }
       }
+    }
+
+    if (plannerChanged) {
+      emitScheduleUpdate({ type: 'sync', userId });
     }
   } catch (err) {
     console.error(`Error in syncGoogleCalendar for user ${userId}:`, err);
@@ -5113,7 +5193,9 @@ app.post('/api/auth/icloud/connect', verifyAnyAuth, async (req, res) => {
       await user.save();
 
       // Trigger initial sync cycle
-      await syncICloudCalendar(userId);
+      if (await syncICloudCalendar(userId)) {
+        emitScheduleUpdate({ type: 'sync', userId });
+      }
 
       return res.json({
         success: true,
@@ -5151,7 +5233,9 @@ app.get('/api/auth/icloud/status', verifyAnyAuth, async (req, res) => {
 app.post('/api/auth/icloud/sync', verifyAnyAuth, async (req, res) => {
   try {
     const userId = req.userId || req.customerId;
-    await syncICloudCalendar(userId);
+    if (await syncICloudCalendar(userId)) {
+      emitScheduleUpdate({ type: 'sync', userId });
+    }
     res.json({ success: true, message: 'iCloud Calendar synchronized successfully' });
   } catch (error) {
     console.error('iCloud sync trigger error:', error);
@@ -5962,10 +6046,12 @@ app.put('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
     if (data.salesRepName) updateObj.salesRepName = data.salesRepName;
     if (data.date) updateObj.date = new Date(data.date);
 
+    // findByIdAndUpdate skips validators by default, so an edit could store a
+    // `reason` outside the schema enum that POST would have rejected.
     const updated = await LostSale.findByIdAndUpdate(
       req.params.id,
       updateObj,
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!updated) {

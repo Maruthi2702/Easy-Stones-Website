@@ -793,6 +793,10 @@ body.light-theme-active .ticket-customer,
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* A pickup carries a Release & Sign button here as well as the rep and the
+     ePOD badge, which is more than a narrow truck column fits on one line. */
+  flex-wrap: wrap;
+  gap: 0.3rem;
   font-size: 0.67rem;
   color: #64748b;
   border-top: 1px dashed rgba(255, 255, 255, 0.1);

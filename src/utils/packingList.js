@@ -90,6 +90,51 @@ export function downloadUrlFor(url, filename) {
  * Falls back to the fl_attachment URL if the fetch is blocked, which still
  * beats the raw asset name.
  */
+/**
+ * Open a stored PDF in the browser's own viewer instead of saving it.
+ *
+ * A plain link cannot do this. These are stored on Cloudinary as raw assets,
+ * and raw delivery answers `Content-Type: application/octet-stream` with
+ * `Content-Disposition: attachment`, so every browser downloads it however the
+ * link is written — target="_blank" included. Transformations that would
+ * change either header (fl_inline, fl_attachment with an extension) are
+ * rejected on raw assets with a 400, so the URL cannot be talked round either.
+ *
+ * Fetching the same bytes and re-wrapping them as application/pdf is what
+ * leaves. The storage host allows the read (Access-Control-Allow-Origin: *),
+ * which is the same route downloadPdf already takes.
+ */
+export async function openPdfInline(url) {
+  const href = String(url || '');
+  if (!href) return;
+
+  // Opened synchronously, before the first await: a tab opened afterwards is a
+  // popup as far as the browser is concerned, and gets blocked. Deliberately
+  // without 'noopener', which would make window.open return null and leave
+  // nothing to navigate — the handle is dropped by hand instead.
+  const tab = window.open('', '_blank');
+  if (tab) tab.opener = null;
+
+  try {
+    const res = await fetch(href);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = new Blob([await res.blob()], { type: 'application/pdf' });
+    const objectUrl = URL.createObjectURL(blob);
+
+    if (tab) tab.location.href = objectUrl;
+    else window.open(objectUrl, '_blank');
+
+    // Long enough that the viewer has the document, and that a reload inside
+    // that tab still works for a while.
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
+  } catch (err) {
+    console.warn('[packingList] inline preview failed, opening the file itself:', err);
+    // Downloads rather than previews, but that beats a tab that does nothing.
+    if (tab) tab.location.href = href;
+    else window.open(href, '_blank', 'noopener');
+  }
+}
+
 export async function downloadPdf(url, filename) {
   const href = String(url || '');
   if (!href) return;

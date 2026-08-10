@@ -110,29 +110,6 @@ const CustomerSidebar = ({
                     </button>
                 )}
 
-                {/* Price List / Selection Sheet — requires view_pricelist */}
-                {user?.permissions?.includes('view_pricelist') && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'pricelist' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('pricelist')}
-                    >
-                        <Tag size={18} />
-                        <span>Price List</span>
-                    </button>
-                )}
-
-                {/* Lost Sales — requires view_lost_sales */}
-                {(user?.permissions?.includes('view_lost_sales') || user?.permissions?.includes('manage_lost_sales') || user?.role === 'admin' || !user) && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'lost_sales' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('lost_sales')}
-                        title="Lost Sales Tracker"
-                    >
-                        <TrendingDown size={18} />
-                        <span>Lost Sales</span>
-                    </button>
-                )}
-
                 {/* Delivery Schedule — requires view_delivery_schedule */}
                 {(user?.permissions?.includes('view_delivery_schedule') || user?.permissions?.includes('manage_delivery_schedule') || user?.role === 'admin' || !user) && (
                     <button
@@ -154,6 +131,29 @@ const CustomerSidebar = ({
                     >
                         <ClipboardList size={18} />
                         <span>Daily Report</span>
+                    </button>
+                )}
+
+                {/* Price List / Selection Sheet — requires view_pricelist */}
+                {user?.permissions?.includes('view_pricelist') && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'pricelist' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('pricelist')}
+                    >
+                        <Tag size={18} />
+                        <span>Price List</span>
+                    </button>
+                )}
+
+                {/* Lost Sales — requires view_lost_sales */}
+                {(user?.permissions?.includes('view_lost_sales') || user?.permissions?.includes('manage_lost_sales') || user?.role === 'admin' || !user) && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'lost_sales' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('lost_sales')}
+                        title="Lost Sales Tracker"
+                    >
+                        <TrendingDown size={18} />
+                        <span>Lost Sales</span>
                     </button>
                 )}
 

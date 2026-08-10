@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -199,6 +199,12 @@ const SalesPage = () => {
         }
     }
 
+    // The socket handlers are registered once, so they cannot read the current
+    // user out of state — on that first render it is still null, and the
+    // handler would keep believing that for the rest of the session. Kept in
+    // step by the effect next to the currentUserId state below.
+    const currentUserIdRef = useRef(null);
+
     useEffect(() => {
         const socket = io(API_URL || window.location.origin, {
             transports: ['websocket', 'polling'],
@@ -219,6 +225,16 @@ const SalesPage = () => {
 
         socket.on('location_update', () => {
             fetchLocations();
+        });
+
+        // Keeps the Calendar tile honest when a stop is added from another
+        // device or pulled in by the Google sync. The planner grid updates
+        // itself through the schedule cache; this is only the count above it.
+        socket.on('schedule_update', (payload) => {
+            const mine = !payload?.userId
+                || !currentUserIdRef.current
+                || String(payload.userId) === String(currentUserIdRef.current);
+            if (mine) fetchSchedules();
         });
 
         fetchLocations();
@@ -248,6 +264,10 @@ const SalesPage = () => {
             setCurrentUserId(currentUser.id || currentUser._id);
         }
     }, [currentUser]);
+
+    useEffect(() => {
+        currentUserIdRef.current = currentUserId;
+    }, [currentUserId]);
 
     // Sync active CRM tab from URL query params on page refresh
     useEffect(() => {

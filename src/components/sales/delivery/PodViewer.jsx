@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, FileText, Calendar, User, Download, Camera, Link2, Check, RotateCcw, AlertTriangle } from 'lucide-react';
-import { packingListFileName, signedPackingListFileName, downloadPdf } from '../../../utils/packingList';
+import { X, ShieldCheck, FileText, Calendar, User, Download, Camera, Eye, RotateCcw, AlertTriangle } from 'lucide-react';
+import { packingListFileName, signedPackingListFileName, downloadPdf, openPdfInline } from '../../../utils/packingList';
+import { isPickupDelivery, wordingFor } from '../../../utils/deliveryPickup';
 
 /**
  * Read-only ePOD viewer — shows the signed Proof of Delivery record.
@@ -14,15 +15,18 @@ const PodViewer = ({
   isOpen,
   onClose,
   delivery,
+  trucks = [],
   currentUser = null,
   canClearPod = false,
   onClearPod
 }) => {
+  // A signed pickup has to read back as one. Reopening it under "Driver
+  // Signature" would misname the two people who actually signed.
+  const words = wordingFor(isPickupDelivery(delivery, trucks));
   const pod = delivery?.pod || {};
   const hasCustomerSig = Boolean(pod.customerSignature);
   const hasDriverSig = Boolean(pod.driverSignature);
 
-  const [copied, setCopied] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [showClearForm, setShowClearForm] = useState(false);
   const [clearReason, setClearReason] = useState('');
@@ -33,7 +37,6 @@ const PodViewer = ({
       setShowClearForm(false);
       setClearReason('');
       setClearError(null);
-      setCopied(false);
     }
   }, [isOpen, delivery?.id]);
 
@@ -64,17 +67,6 @@ const PodViewer = ({
   const downloadName = signedPackingListFileName(delivery);
   const originalName = packingListFileName(delivery);
 
-  const handleCopyLink = () => {
-    if (!signedUrl) return;
-    try {
-      navigator.clipboard.writeText(signedUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch (err) {
-      console.warn('[PodViewer] clipboard copy failed:', err);
-    }
-  };
-
   const handleConfirmClear = async () => {
     if (clearReason.trim().length < 4) {
       setClearError('Please describe why this signature is being cleared.');
@@ -102,7 +94,7 @@ const PodViewer = ({
           <div className="pod-title-block">
             <h3>
               <ShieldCheck size={20} className="pod-icon" />
-              {isVerified ? 'ePOD — Signed & Completed' : 'Proof of Delivery'}
+              {isVerified ? 'ePOD — Signed & Completed' : words.viewerTitle}
             </h3>
             <span className="pod-subtitle">
               {delivery.soNumber ? `SO# ${delivery.soNumber} · ` : ''}{delivery.customerName}
@@ -131,18 +123,21 @@ const PodViewer = ({
                 )}
               </div>
               <div className="pod-signed-actions">
-                <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="pod-doc-btn primary">
-                  View
-                </a>
+                {/* Not a link: the stored asset is served as an attachment, so
+                    an anchor downloads it however it is written. */}
+                <button
+                  type="button"
+                  className="pod-doc-btn primary"
+                  onClick={() => openPdfInline(signedUrl)}
+                >
+                  <Eye size={13} /> View
+                </button>
                 <button
                   type="button"
                   className="pod-doc-btn"
                   onClick={() => downloadPdf(signedUrl, downloadName)}
                 >
                   <Download size={13} /> Download
-                </button>
-                <button type="button" className="pod-doc-btn" onClick={handleCopyLink}>
-                  {copied ? <><Check size={13} /> Copied</> : <><Link2 size={13} /> Copy link</>}
                 </button>
               </div>
             </div>
@@ -170,14 +165,13 @@ const PodViewer = ({
                 <strong>Packing list attached</strong>
                 <span>No signature captured yet</span>
               </div>
-              <a
-                href={delivery.packingListUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
                 className="pod-view-pdf-btn"
+                onClick={() => openPdfInline(delivery.packingListUrl)}
               >
-                <Download size={13} /> Open PDF
-              </a>
+                <Eye size={13} /> Open PDF
+              </button>
             </div>
           )}
 
@@ -204,31 +198,33 @@ const PodViewer = ({
             <div className="pod-signature-grid">
               <div className="pod-sig-box">
                 <div className="sig-box-header">
-                  <label className="pod-label">Customer Signature</label>
+                  <label className="pod-label">{words.customerSigLabel}</label>
                   {hasCustomerSig && <span className="sig-verified-badge">✓ Signed</span>}
                 </div>
                 {hasCustomerSig ? (
                   <div className="pod-sig-img-wrap">
-                    <img src={pod.customerSignature} alt="Customer signature" className="pod-sig-img" />
+                    <img src={pod.customerSignature} alt={words.customerSigLabel} className="pod-sig-img" />
                   </div>
                 ) : (
-                  <div className="pod-sig-empty">No customer signature on record</div>
+                  <div className="pod-sig-empty">No signature on record</div>
                 )}
                 {pod.signeeName && <span className="sig-hint">Signed by: {pod.signeeName}</span>}
               </div>
 
               <div className="pod-sig-box">
                 <div className="sig-box-header">
-                  <label className="pod-label">Driver Signature</label>
+                  <label className="pod-label">{words.driverSigLabel}</label>
                   {hasDriverSig && <span className="sig-verified-badge">✓ Signed</span>}
                 </div>
                 {hasDriverSig ? (
                   <div className="pod-sig-img-wrap">
-                    <img src={pod.driverSignature} alt="Driver signature" className="pod-sig-img" />
+                    <img src={pod.driverSignature} alt={words.driverSigLabel} className="pod-sig-img" />
                   </div>
                 ) : (
-                  <div className="pod-sig-empty">No driver signature on record</div>
+                  <div className="pod-sig-empty">No signature on record</div>
                 )}
+                {/* "Driver" on both, to match the pad label above it. The
+                    collected/released distinction lives on the certificate. */}
                 <span className="sig-hint">Driver: {resolvedDriver}</span>
               </div>
             </div>
@@ -238,7 +234,7 @@ const PodViewer = ({
           {pod.photos && pod.photos.length > 0 && (
             <div className="pod-section">
               <label className="pod-label">
-                <Camera size={14} /> Delivered Slab Photos ({pod.photos.length})
+                <Camera size={14} /> {words.viewerPhotosLabel} ({pod.photos.length})
               </label>
               <div className="pod-photos-preview-grid">
                 {pod.photos.map((src, idx) => (
@@ -260,8 +256,8 @@ const PodViewer = ({
           {!hasCustomerSig && !pod.signeeName && !delivery.packingListUrl && !wasCleared && (
             <div className="pod-empty-state">
               <ShieldCheck size={40} style={{ opacity: 0.3, color: '#d4af37' }} />
-              <p>No ePOD has been signed for this delivery yet.</p>
-              <span>The driver needs to complete the Delivered / Sign ePOD step.</span>
+              <p>{words.viewerEmpty}</p>
+              <span>{words.viewerEmptyHint}</span>
             </div>
           )}
 

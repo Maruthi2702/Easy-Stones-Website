@@ -349,6 +349,10 @@ const DeliveryScheduleTab = ({
               onEditDelivery={handleOpenEditModal}
               onUpdateTruck={handleUpdateTruck}
               onViewPod={handleOpenPodViewer}
+              // Pickups are signed for at the counter rather than at a jobsite,
+              // so the office captures their ePOD. The board only offers it on
+              // the columns nobody drives.
+              onOpenPod={handleOpenPod}
             />
           )}
 

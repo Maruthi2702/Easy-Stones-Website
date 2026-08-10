@@ -49,7 +49,8 @@ const lostSaleSchema = new mongoose.Schema({
   },
   reason: {
     type: String,
-    enum: ['Out of Stock', 'Price Too High', 'Lead Time', 'Quality / Spec Issue', 'Competitor Discount', 'Customer Cancelled', 'Other'],
+    // Keep in step with REASON_OPTIONS in components/sales/LostSaleModal.jsx.
+    enum: ['Out of Stock', 'Price Too High', 'Lead Time', 'Color / Pattern Match', 'Quality / Spec Issue', 'Competitor Discount', 'Customer Cancelled', 'Other'],
     default: 'Out of Stock'
   },
   location: {

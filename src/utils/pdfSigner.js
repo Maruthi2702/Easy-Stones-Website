@@ -77,6 +77,10 @@ async function embedSig(pdfDoc, dataUrl, maxW, maxH) {
  * @param {Date|string} params.signedAt          submission time (badge + fallback)
  * @param {Date|string} [params.customerSignedAt] when the customer's pen lifted
  * @param {Date|string} [params.driverSignedAt]   when the driver's pen lifted
+ * @param {Object} [params.wording] captions for the certificate. An order the
+ *        customer collected was signed for by a collector and a staff member,
+ *        not a customer and a driver, and the certificate has to say so — see
+ *        src/utils/deliveryPickup.js.
  * @returns {Promise<Uint8Array>}
  */
 export async function stampSignaturesOnPdfBytes({
@@ -89,7 +93,16 @@ export async function stampSignaturesOnPdfBytes({
   signedAt,
   customerSignedAt,
   driverSignedAt,
+  wording = {},
 }) {
+  const {
+    certificateTitle = 'PROOF OF DELIVERY (ePOD) DIGITAL SIGNATURE CERTIFICATE',
+    certCustomerLabel = 'CUSTOMER SIGNATURE',
+    certDriverLabel = 'DRIVER SIGNATURE',
+    certSigneeRole = 'Signee',
+    certDriverRole = 'Driver',
+  } = wording;
+
   // 1. Load PDF
   const pdfBytes = await fetchPdfBytes(pdfUrl);
   const pdfDoc   = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
@@ -151,7 +164,7 @@ export async function stampSignaturesOnPdfBytes({
   });
 
   // Header text
-  lastPage.drawText('PROOF OF DELIVERY (ePOD) DIGITAL SIGNATURE CERTIFICATE', {
+  lastPage.drawText(sanitizeAscii(certificateTitle), {
     x: PANEL_MARGIN + 10,
     y: PANEL_Y + PANEL_HEIGHT - 13,
     size: 8,
@@ -176,7 +189,7 @@ export async function stampSignaturesOnPdfBytes({
     borderWidth: 1,
   });
 
-  lastPage.drawText('CUSTOMER SIGNATURE', {
+  lastPage.drawText(sanitizeAscii(certCustomerLabel), {
     x: CUST_COL_X + 6,
     y: SIG_AREA_Y + SIG_AREA_H - 10,
     size: 6.5,
@@ -193,7 +206,7 @@ export async function stampSignaturesOnPdfBytes({
     });
   }
 
-  const custLabel = sanitizeAscii(`Signee: ${cleanName || 'Customer'} - ${custDate}`);
+  const custLabel = sanitizeAscii(`${certSigneeRole}: ${cleanName || 'Customer'} - ${custDate}`);
   lastPage.drawText(custLabel, {
     x: CUST_COL_X + 6,
     y: SIG_AREA_Y + 3,
@@ -212,7 +225,7 @@ export async function stampSignaturesOnPdfBytes({
     borderWidth: 1,
   });
 
-  lastPage.drawText('DRIVER SIGNATURE', {
+  lastPage.drawText(sanitizeAscii(certDriverLabel), {
     x: DRV_COL_X + 6,
     y: SIG_AREA_Y + SIG_AREA_H - 10,
     size: 6.5,
@@ -228,7 +241,7 @@ export async function stampSignaturesOnPdfBytes({
       height: fitDrv.height,
     });
   } else {
-    lastPage.drawText('[ Driver Signed ]', {
+    lastPage.drawText(sanitizeAscii(`[ ${certDriverRole} Signed ]`), {
       x: DRV_COL_X + 10,
       y: SIG_AREA_Y + SIG_AREA_H / 2 - 3,
       size: 7,
@@ -236,7 +249,7 @@ export async function stampSignaturesOnPdfBytes({
     });
   }
 
-  const drvLabel = sanitizeAscii(`Driver: ${cleanDriver || 'Driver Sign-off'} - ${drvDate}`);
+  const drvLabel = sanitizeAscii(`${certDriverRole}: ${cleanDriver || `${certDriverRole} Sign-off`} - ${drvDate}`);
   lastPage.drawText(drvLabel, {
     x: DRV_COL_X + 6,
     y: SIG_AREA_Y + 3,

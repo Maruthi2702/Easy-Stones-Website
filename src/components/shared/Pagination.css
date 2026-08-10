@@ -46,21 +46,27 @@
     display: none;
 }
 
+/* Only background-COLOR here: the `background` shorthand would reset the
+   global <select> chevron's position and no-repeat back to their initial
+   values, tiling the arrow across the whole control. */
 .spag-rows-select {
-    background: rgba(255, 255, 255, 0.05);
+    background-color: rgba(255, 255, 255, 0.05);
+    background-position: right 0.5rem center;
+    background-size: 12px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    padding: 0.25rem 0.55rem;
+    padding: 0.25rem 1.6rem 0.25rem 0.6rem;
     color: var(--text-secondary, #9ca3af);
     font-size: 0.78rem;
     font-weight: 600;
+    line-height: 1.4;
     outline: none;
     cursor: pointer;
-    transition: background 0.18s, border-color 0.18s, color 0.18s;
+    transition: background-color 0.18s, border-color 0.18s, color 0.18s;
 }
 
 .spag-rows-select:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
     color: var(--text-primary, #e5e7eb);
 }
@@ -166,66 +172,81 @@
 
 /* =============================================================
    Light Theme
+   Light mode is marked with `light-theme-active` on <body>; nothing in the
+   app ever sets a plain `.light-theme` class, so each rule has to carry both
+   selectors — otherwise the bar keeps its dark fill on a white page.
    ============================================================= */
-.light-theme .spag-root {
+.light-theme .spag-root,
+body.light-theme-active .spag-root {
     background: rgba(0, 0, 0, 0.025);
     border-top-color: #e5e7eb;
 }
 
-.light-theme .spag-rows-label {
+.light-theme .spag-rows-label,
+body.light-theme-active .spag-rows-label {
     color: #6b7280;
 }
 
-.light-theme .spag-rows-select {
-    background: #ffffff;
+.light-theme .spag-rows-select,
+body.light-theme-active .spag-rows-select {
+    background-color: #ffffff;
     border-color: #cbd5e1;
     color: #374151;
 }
 
-.light-theme .spag-rows-select:hover {
-    background: #f1f5f9;
+.light-theme .spag-rows-select:hover,
+body.light-theme-active .spag-rows-select:hover {
+    background-color: #f1f5f9;
     border-color: #94a3b8;
     color: #0f172a;
 }
 
-.light-theme .spag-nav-btn {
+.light-theme .spag-nav-btn,
+body.light-theme-active .spag-nav-btn {
     background: #ffffff;
     border-color: #e5e7eb;
     color: #9ca3af;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
 }
 
-.light-theme .spag-nav-btn:hover:not(:disabled) {
+.light-theme .spag-nav-btn:hover:not(:disabled),
+body.light-theme-active .spag-nav-btn:hover:not(:disabled) {
     background: rgba(212, 175, 55, 0.08);
     border-color: rgba(184, 147, 36, 0.45);
     color: #8a6e14;
     box-shadow: 0 3px 10px rgba(212, 175, 55, 0.12);
 }
 
-.light-theme .spag-page-pill {
+.light-theme .spag-page-pill,
+body.light-theme-active .spag-page-pill {
     background: rgba(0, 0, 0, 0.02);
     border-color: #e5e7eb;
 }
 
 .light-theme .spag-page-label,
-.light-theme .spag-page-sep {
+.light-theme .spag-page-sep,
+body.light-theme-active .spag-page-label,
+body.light-theme-active .spag-page-sep {
     color: #9ca3af;
 }
 
-.light-theme .spag-page-input {
+.light-theme .spag-page-input,
+body.light-theme-active .spag-page-input {
     background: rgba(212, 175, 55, 0.08);
     border-color: rgba(184, 147, 36, 0.4);
     color: #8a6e14;
 }
 
-.light-theme .spag-page-input:focus {
+.light-theme .spag-page-input:focus,
+body.light-theme-active .spag-page-input:focus {
     background: rgba(212, 175, 55, 0.14);
     border-color: rgba(184, 147, 36, 0.65);
     box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.12);
     color: #6b5510;
 }
 
-.light-theme .spag-page-total {
+.light-theme .spag-page-total,
+body.light-theme-active .spag-page-total {
     color: #6b7280;
 }
 
@@ -265,11 +286,12 @@
     }
 
     .spag-rows-select {
-        padding: 0.2rem 0.5rem !important;
+        padding: 0.2rem 1.45rem 0.2rem 0.5rem !important;
         font-size: 0.75rem !important;
         height: 28px !important;
         border-radius: 6px !important;
-        background: rgba(255, 255, 255, 0.06) !important;
+        background-color: rgba(255, 255, 255, 0.06) !important;
+        background-position: right 0.4rem center !important;
         border-color: rgba(255, 255, 255, 0.15) !important;
     }
 
@@ -290,6 +312,25 @@
         border-radius: 16px !important;
         background: rgba(255, 255, 255, 0.04) !important;
         border-color: rgba(255, 255, 255, 0.12) !important;
+    }
+
+    /* The translucent-white fills above disappear on a white page. */
+    body.light-theme-active .spag-root {
+        border-top-color: #e5e7eb !important;
+    }
+
+    body.light-theme-active .spag-rows-select {
+        background-color: #ffffff !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    body.light-theme-active .spag-page-pill {
+        background: rgba(0, 0, 0, 0.02) !important;
+        border-color: #e5e7eb !important;
+    }
+
+    body.light-theme-active .spag-label-short {
+        color: #6b7280 !important;
     }
 
     .spag-page-label {

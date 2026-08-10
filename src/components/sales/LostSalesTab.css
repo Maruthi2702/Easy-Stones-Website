@@ -405,13 +405,29 @@ body.light-theme-active .select-filter-wrap select option,
   color: #0f172a;
 }
 
-/* ── PAGINATION WRAPPER ── */
+/* ── PAGINATION WRAPPER ──
+   Reads as the footer of the grid above it rather than a loose grey slab. */
 .lost-sales-pagination-wrapper {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  margin-top: 1rem;
-  padding: 0.5rem 0.25rem;
+  margin-top: 0.75rem;
+  background: rgba(28, 28, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+body.light-theme-active .lost-sales-pagination-wrapper,
+.light-theme-active .lost-sales-pagination-wrapper {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+.lost-sales-pagination-wrapper .spag-root {
+  background: transparent !important;
+  border-top: none !important;
+  padding: 0.55rem 0.9rem !important;
 }
 
 /* ── HIGH DENSITY DATA GRID ── */
@@ -420,8 +436,29 @@ body.light-theme-active .select-filter-wrap select option,
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
-  overflow: hidden;
+  /* Eleven columns don't always fit a narrow laptop. Scroll the grid rather
+     than letting the browser wrap every cell onto three lines. */
+  overflow-x: auto;
+  overflow-y: hidden;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.lost-sales-grid-wrapper.high-capacity::-webkit-scrollbar {
+  height: 8px;
+}
+
+.lost-sales-grid-wrapper.high-capacity::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lost-sales-grid-wrapper.high-capacity::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.3);
+  border-radius: 4px;
+}
+
+body.light-theme-active .lost-sales-grid-wrapper.high-capacity::-webkit-scrollbar-thumb,
+.light-theme-active .lost-sales-grid-wrapper.high-capacity::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
 }
 
 body.light-theme-active .lost-sales-grid-wrapper,
@@ -433,19 +470,42 @@ body.light-theme-active .lost-sales-grid-wrapper,
 
 .lost-sales-table.dense-table {
   width: 100%;
+  /* Fixed layout: each column gets exactly its declared share, so long
+     customer and product names ellipsis at the column edge instead of the
+     browser handing one column extra room the text can't use. The floor is
+     the point below which the nine fixed columns would start squeezing the
+     two text ones — under it the grid scrolls sideways instead. */
+  table-layout: fixed;
+  min-width: 1100px;
   border-collapse: collapse;
   text-align: left;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
 }
+
+/* The eight fixed columns are sized to their widest real content; customer and
+   product split what's left. Sales Rep lives in the expanded row instead of a
+   column of its own, which is what buys the table a width that fits a laptop
+   without sideways scrolling. */
+.lost-sales-table.dense-table .h-expand { width: 28px; }
+.lost-sales-table.dense-table .h-date { width: 94px; }
+.lost-sales-table.dense-table .h-customer { width: 16%; }
+.lost-sales-table.dense-table .h-product { width: 14%; }
+.lost-sales-table.dense-table .h-size { width: 100px; }
+.lost-sales-table.dense-table .h-price { width: 94px; }
+.lost-sales-table.dense-table .h-value { width: 102px; }
+.lost-sales-table.dense-table .h-reason { width: 136px; }
+.lost-sales-table.dense-table .h-location { width: 112px; }
+.lost-sales-table.dense-table .h-actions { width: 98px; text-align: right; }
 
 .lost-sales-table.dense-table th {
   background: rgba(255, 255, 255, 0.03);
-  padding: 0.85rem 1rem;
-  font-size: 0.75rem;
+  padding: 0.7rem 0.65rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: #94a3b8;
+  white-space: nowrap;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -457,9 +517,12 @@ body.light-theme-active .lost-sales-table.dense-table th,
 }
 
 .lost-sales-table.dense-table td {
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 0.65rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 body.light-theme-active .lost-sales-table.dense-table td,
@@ -486,14 +549,13 @@ body.light-theme-active .lost-sale-row:hover,
 }
 
 .col-expand-chevron {
-  width: 24px;
+  padding-right: 0 !important;
   text-align: center;
 }
 
 .col-date {
   color: #94a3b8;
-  font-size: 0.82rem;
-  white-space: nowrap;
+  font-size: 0.8rem;
 }
 
 body.light-theme-active .col-date,
@@ -501,14 +563,20 @@ body.light-theme-active .col-date,
   color: #64748b;
 }
 
-.col-customer {
-  display: flex;
-  flex-direction: column;
+/* `display: flex` on a <td> pulls the cell out of the row box: it shrinks to
+   its own content and drags its bottom border up with it, which is what drew
+   those stray rules under the customer and slab cells. Stack the contents
+   with block-level children instead. */
+.col-customer > span,
+.col-size > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cust-name-text {
   font-weight: 700;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   color: #ffffff;
 }
 
@@ -518,10 +586,15 @@ body.light-theme-active .cust-name-text,
 }
 
 .competitor-sub {
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   color: #f87171;
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
   font-weight: 600;
+}
+
+body.light-theme-active .competitor-sub,
+.light-theme-active .competitor-sub {
+  color: #dc2626;
 }
 
 .col-product {
@@ -529,31 +602,26 @@ body.light-theme-active .cust-name-text,
   color: #e2e8f0;
 }
 
+.prod-name-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 body.light-theme-active .col-product,
 .light-theme-active .col-product {
   color: #334155;
 }
 
-.col-size {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
+/* Slab count and SF/slab moved to the expanded row, so this is the whole
+   cell now rather than a secondary line under a badge. */
 .size-dim {
-  font-size: 0.8rem;
   color: #94a3b8;
 }
 
-.slabs-badge {
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: #60a5fa;
-  background: rgba(59, 130, 246, 0.12);
-  padding: 0.15rem 0.5rem;
-  border-radius: 6px;
-  display: inline-block;
-  width: fit-content;
+body.light-theme-active .size-dim,
+.light-theme-active .size-dim {
+  color: #475569;
 }
 
 .col-price {
@@ -563,35 +631,66 @@ body.light-theme-active .col-product,
 
 .gold-value-text {
   font-weight: 800;
-  font-size: 0.96rem;
+  font-size: 0.92rem;
   color: #d4af37;
+}
+
+body.light-theme-active .gold-value-text,
+.light-theme-active .gold-value-text {
+  color: #a37f13;
 }
 
 /* Reason Badges */
 .reason-badge {
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
+  max-width: 100%;
   padding: 0.25rem 0.65rem;
   border-radius: 6px;
   font-size: 0.76rem;
   font-weight: 700;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .badge-out-of-stock { background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.25); }
 .badge-price-high { background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.25); }
 .badge-lead-time { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.25); }
 .badge-color-match { background: rgba(139, 92, 246, 0.12); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.25); }
+.badge-quality-issue { background: rgba(236, 72, 153, 0.12); color: #ec4899; border: 1px solid rgba(236, 72, 153, 0.25); }
+.badge-competitor { background: rgba(20, 184, 166, 0.12); color: #14b8a6; border: 1px solid rgba(20, 184, 166, 0.25); }
+.badge-cancelled { background: rgba(100, 116, 139, 0.14); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3); }
 .badge-other-reason { background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); }
+
+/* The 12%-alpha fills wash out to near-white on a light page. */
+body.light-theme-active .badge-out-of-stock,
+.light-theme-active .badge-out-of-stock { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+body.light-theme-active .badge-price-high,
+.light-theme-active .badge-price-high { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+body.light-theme-active .badge-lead-time,
+.light-theme-active .badge-lead-time { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+body.light-theme-active .badge-color-match,
+.light-theme-active .badge-color-match { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+body.light-theme-active .badge-quality-issue,
+.light-theme-active .badge-quality-issue { background: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
+body.light-theme-active .badge-competitor,
+.light-theme-active .badge-competitor { background: #f0fdfa; color: #0f766e; border-color: #99f6e4; }
+body.light-theme-active .badge-cancelled,
+.light-theme-active .badge-cancelled { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+body.light-theme-active .badge-other-reason,
+.light-theme-active .badge-other-reason { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
 
 /* Table Action Buttons - Executive Polish */
 .col-actions {
+  text-align: right;
   white-space: nowrap;
+  overflow: visible !important;
 }
 
 .lost-sales-action-btn {
-  width: 34px !important;
-  height: 34px !important;
+  width: 30px !important;
+  height: 30px !important;
   border-radius: 8px !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -700,6 +799,10 @@ body.light-theme-active .lost-sales-action-btn.delete-btn:hover svg,
   background: rgba(0, 0, 0, 0.25) !important;
   padding: 1rem 1.5rem !important;
   border-bottom: 2px solid rgba(212, 175, 55, 0.3) !important;
+  /* The detail panel is the one place that should wrap. */
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
 }
 
 body.light-theme-active .expanded-details-row td,
@@ -1261,6 +1364,35 @@ body.light-theme-active .modal-btn-cancel,
   }
 }
 
+/* ── LOADING STATE ──
+   Local rules: the tab previously borrowed `.spin-icon` from whichever other
+   stylesheet happened to be loaded, and had no styling of its own at all. */
+.lost-sales-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 4rem 2rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+body.light-theme-active .lost-sales-loading,
+.light-theme-active .lost-sales-loading {
+  color: #64748b;
+}
+
+.lost-sales-loading .spin-icon {
+  color: #d4af37;
+  animation: lostSalesSpin 0.9s linear infinite;
+}
+
+@keyframes lostSalesSpin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── PREMIUM GLASSMORPHISM EMPTY STATE ── */
 .lost-sales-empty-state {
   display: flex;
@@ -1275,6 +1407,17 @@ body.light-theme-active .modal-btn-cancel,
   border-radius: 18px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
   animation: fadeIn 0.3s ease-out;
+}
+
+/* Inside the grid it already sits on a card — drop the second one. */
+.lost-sales-grid-wrapper .lost-sales-empty-state,
+body.light-theme-active .lost-sales-grid-wrapper .lost-sales-empty-state,
+.light-theme-active .lost-sales-grid-wrapper .lost-sales-empty-state {
+  margin: 0 !important;
+  padding: 3.25rem 2rem !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .lost-sales-empty-state .empty-icon-wrapper {
@@ -1331,6 +1474,41 @@ body.light-theme-active .modal-btn-cancel,
 
 .btn-add-lost-sale-empty:active {
   transform: translateY(0);
+}
+
+.btn-clear-filters-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-clear-filters-empty:hover {
+  background: rgba(212, 175, 55, 0.14);
+  border-color: #d4af37;
+  color: #d4af37;
+}
+
+body.light-theme-active .btn-clear-filters-empty,
+.light-theme-active .btn-clear-filters-empty {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+body.light-theme-active .btn-clear-filters-empty:hover,
+.light-theme-active .btn-clear-filters-empty:hover {
+  background: #fffdf5;
+  border-color: #d4af37;
+  color: #a37f13;
 }
 
 /* Light Theme Overrides */

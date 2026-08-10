@@ -1,15 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Check, Camera, Upload, FileText, ShieldCheck, Download, Layers } from 'lucide-react';
+import { X, Check, Camera, Upload, FileText, ShieldCheck, Eye, Layers } from 'lucide-react';
 import { formatTitleCase } from '../../../utils/textUtils';
-import { packingListFileName } from '../../../utils/packingList';
+import { packingListFileName, openPdfInline } from '../../../utils/packingList';
+import { isPickupDelivery, wordingFor } from '../../../utils/deliveryPickup';
 import './PodModal.css';
 
 /**
  * Proof of Delivery (ePOD) Modal component
  * Captures Customer Signee Name, Touchscreen Customer Signature, Driver Signature,
  * and 1-4 Delivered Slab Photos.
+ *
+ * A pickup captures the same two marks, but they are not the same two people:
+ * the customer or carrier collecting signs where a customer would, and the
+ * staff member handing the material over signs where the driver would. Only the
+ * wording changes — every rule about what makes an ePOD valid is unchanged.
  */
 const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, onSavePod }) => {
+  const isPickup = isPickupDelivery(delivery, trucks);
+  const words = wordingFor(isPickup);
+
   const [signeeName, setSigneeName] = useState(delivery?.pod?.signeeName || '');
   const [podNotes, setPodNotes] = useState(delivery?.pod?.notes || '');
   const [photos, setPhotos] = useState(delivery?.pod?.photos || []);
@@ -187,15 +196,15 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
 
   const handleSave = async () => {
     if (!signeeName.trim()) {
-      setError('Please enter the customer signee name.');
+      setError(words.errorSignee);
       return;
     }
     if (!hasCustSignature) {
-      setError('Customer signature is required.');
+      setError(words.errorCustomerSig);
       return;
     }
     if (!hasDriverSignature) {
-      setError('Driver signature is required.');
+      setError(words.errorDriverSig);
       return;
     }
 
@@ -207,6 +216,8 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     const driverSigDataUrl = driverCanvasRef.current ? driverCanvasRef.current.toDataURL() : '';
     const signedAt = new Date();
 
+    // On a pickup this is the staff member releasing the material, which is the
+    // logged-in office user — never the truck's driver, who is not involved.
     const resolvedDriverName = (
       currentUser?.name ||
       currentUser?.username ||
@@ -257,19 +268,37 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   // Both signatures are mandatory — an ePOD with only one party's mark isn't
   // proof of anything, and the server will refuse to mark it verified anyway.
   const missingParts = [
-    !signeeName.trim() && 'signee name',
-    !hasCustSignature && 'customer signature',
-    !hasDriverSignature && 'driver signature'
+    !signeeName.trim() && words.missingSignee,
+    !hasCustSignature && words.missingCustomerSig,
+    !hasDriverSignature && words.missingDriverSig
   ].filter(Boolean);
   const isReadyToSubmit = missingParts.length === 0;
+
+  // One subtitle line, the way the delivery modal has always read. A pickup adds
+  // what the counter checks the collector against — the carrier and its PRO
+  // number on contract freight, the vehicle coming for a will call — as further
+  // segments rather than a second line, which orphaned the vehicle under the
+  // customer and made the header look like a wrapped sentence.
+  //
+  // Customer names arrive with trailing punctuation ("1st Ave Kitchen & Bath
+  // INC.,"), which reads as a mistake once something follows it.
+  const subtitle = [
+    `${words.reference} #${delivery.soNumber || delivery.id}`,
+    String(delivery.customerName || '').replace(/[\s,;·]+$/, ''),
+    ...(isPickup ? [
+      delivery.carrierName,
+      delivery.proNumber && `PRO# ${delivery.proNumber}`,
+      delivery.pickupInfo && `Vehicle ${delivery.pickupInfo}`
+    ] : [])
+  ].filter(Boolean).join(' • ');
 
   return (
     <div className="pod-modal-overlay">
       <div className="pod-modal-content">
         <div className="pod-modal-header">
           <div className="pod-title-block">
-            <h3><ShieldCheck size={20} className="pod-icon" /> Electronic Proof of Delivery (ePOD)</h3>
-            <span className="pod-subtitle">Delivery #{delivery.soNumber || delivery.id} • {delivery.customerName}</span>
+            <h3><ShieldCheck size={20} className="pod-icon" /> {words.title}</h3>
+            <span className="pod-subtitle">{subtitle}</span>
           </div>
           <button type="button" className="pod-close-btn" onClick={onClose}><X size={18} /></button>
         </div>
@@ -286,26 +315,27 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
                 <span>{packingListFileName(delivery)}</span>
               </div>
               {/* Opens rather than downloads — the driver is reading it on a
-                  phone. The Download buttons in the viewer save it by name. */}
-              <a
-                href={delivery.packingListUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                  phone. A link cannot do that here: the stored asset is served
+                  as an attachment, so the bytes are re-wrapped as a PDF first.
+                  The Download buttons in the viewer save it by name. */}
+              <button
+                type="button"
                 className="pod-view-pdf-btn"
+                onClick={() => openPdfInline(delivery.packingListUrl)}
               >
-                <Download size={14} /> Open PDF
-              </a>
+                <Eye size={14} /> Open PDF
+              </button>
             </div>
           )}
 
           {/* Signee Customer Information */}
           <div className="pod-section">
-            <label className="pod-label">Customer Signee Full Name <span className="req-star">*</span></label>
+            <label className="pod-label">{words.signeeLabel} <span className="req-star">*</span></label>
             <input
               type="text"
               value={signeeName}
               onChange={(e) => setSigneeName(formatTitleCase(e.target.value))}
-              placeholder="e.g. Marcus Johnson"
+              placeholder={words.signeePlaceholder}
               className="pod-input-field"
             />
           </div>
@@ -315,7 +345,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
             {/* Customer Signature Pad */}
             <div className="pod-sig-box">
               <div className="sig-box-header">
-                <label className="pod-label">Customer Signature <span className="req-star">*</span></label>
+                <label className="pod-label">{words.customerSigLabel} <span className="req-star">*</span></label>
                 <button type="button" className="sig-clear-btn" onClick={() => clearCanvas(custCanvasRef, setHasCustSignature, setCustSignedAt)}>Clear</button>
               </div>
               <canvas
@@ -332,13 +362,13 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
               />
               {formatStamp(custSignedAt)
                 ? <span className="sig-stamp"><Check size={11} /> Signed {formatStamp(custSignedAt)}</span>
-                : <span className="sig-hint">Sign above using touchscreen finger or stylus</span>}
+                : <span className="sig-hint">{words.customerHint}</span>}
             </div>
 
             {/* Driver Signature Pad */}
             <div className="pod-sig-box">
               <div className="sig-box-header">
-                <label className="pod-label">Driver Signature <span className="req-star">*</span></label>
+                <label className="pod-label">{words.driverSigLabel} <span className="req-star">*</span></label>
                 <button type="button" className="sig-clear-btn" onClick={() => clearCanvas(driverCanvasRef, setHasDriverSignature, setDriverSignedAt)}>Clear</button>
               </div>
               <canvas
@@ -355,7 +385,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
               />
               {formatStamp(driverSignedAt)
                 ? <span className="sig-stamp"><Check size={11} /> Signed {formatStamp(driverSignedAt)}</span>
-                : <span className="sig-hint">Driver sign-off confirmation</span>}
+                : <span className="sig-hint">{words.driverHint}</span>}
             </div>
           </div>
 
@@ -363,7 +393,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
           <div className="pod-section">
             <div className="sig-box-header" style={{ marginBottom: '0.45rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <label className="pod-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                <Camera size={15} /> Delivered Slab Inspection Photos
+                <Camera size={15} /> {words.photosLabel}
               </label>
               <label className="pod-upload-btn">
                 <Upload size={14} /> Add Photos
@@ -387,7 +417,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
 
           {/* Delivery Notes */}
           <div className="pod-section">
-            <label className="pod-label">Delivery Completion Notes</label>
+            <label className="pod-label">{words.notesLabel}</label>
             <textarea
               value={podNotes}
               onChange={(e) => setPodNotes(e.target.value)}
@@ -415,7 +445,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
               ? <><Layers size={16} className="spin-icon" /> Signing PDF...</>
               : isSaving
                 ? 'Saving ePOD...'
-                : <><Check size={16} /> Complete Delivery &amp; Sign PDF</>}
+                : <><Check size={16} /> {words.submitLabel}</>}
           </button>
         </div>
       </div>

@@ -1,10 +1,18 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar as CalendarIcon,
     Plus, Trash2, Edit2, AlertCircle, X
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import SearchableSelect from './SearchableSelect';
+import {
+    getCachedPlannerRange,
+    loadPlannerRange,
+    subscribePlannerSchedule,
+    refreshPlannerSchedule,
+    setPlannerUser,
+    plannerRangeKey
+} from '../api/plannerSchedule';
 
 import GoogleStyleDateTimePicker from './GoogleStyleDateTimePicker';
 
@@ -21,6 +29,11 @@ import GoogleStyleDateTimePicker from './GoogleStyleDateTimePicker';
  *
  * Every day carries its own + button. Booking Wednesday should not mean opening
  * a form and re-picking a date the calendar already knew.
+ *
+ * The schedule itself is not held here — it lives in ../api/plannerSchedule,
+ * because the dashboard unmounts this component every time another tab is
+ * shown. See that module for what survives the unmount and how a change made
+ * elsewhere finds its way onto this screen.
  */
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -94,11 +107,49 @@ const defaultStartFor = (day) => {
 
 const EMPTY_FORM = { customerId: '', startTime: '', activityType: 'Visit', notes: '' };
 
-const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onScheduleChange, isDropdownLoading }) => {
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [viewMode, setViewMode] = useState('week');
-    const [scheduleItems, setScheduleItems] = useState([]);
-    const [loading, setLoading] = useState(true);
+/**
+ * The span to fetch, which is not the same as the span to draw: week view
+ * renders five columns but pulls all seven days, because the weekend rail can
+ * only show what was asked for.
+ */
+const rangeFor = (date, mode) => {
+    if (mode === 'day') {
+        const s = startOfDay(date);
+        return { start: s, end: s };
+    }
+    if (mode === 'week') {
+        const s = mondayOf(date);
+        return { start: s, end: addDays(s, 6) };
+    }
+    const first = new Date(date.getFullYear(), date.getMonth(), 1);
+    const last = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    return {
+        start: addDays(startOfDay(first), -first.getDay()),
+        end: addDays(startOfDay(last), 6 - last.getDay())
+    };
+};
+
+/**
+ * Which week you were looking at is part of what you had open. Switching to the
+ * Visits tab and back used to snap the planner to today's week in whatever view
+ * it defaults to, throwing away a deliberate navigation; this remembers it for
+ * as long as the page is loaded.
+ */
+const lastView = { date: null, mode: 'week' };
+
+const cachedItemsForLastView = () => {
+    const date = lastView.date ? new Date(lastView.date) : new Date();
+    const r = rangeFor(date, lastView.mode);
+    return getCachedPlannerRange(dayKey(r.start), dayKey(r.end));
+};
+
+const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onScheduleChange, isDropdownLoading, currentUserId = null }) => {
+    const [currentDate, setCurrentDate] = useState(() => (lastView.date ? new Date(lastView.date) : new Date()));
+    const [viewMode, setViewMode] = useState(lastView.mode);
+    // Anything already fetched this session paints in the first frame — a tab
+    // switch should not cost a round trip before the week reappears.
+    const [scheduleItems, setScheduleItems] = useState(() => cachedItemsForLastView() || []);
+    const [loading, setLoading] = useState(() => cachedItemsForLastView() === null);
     const [loadError, setLoadError] = useState(null);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState(null);
@@ -113,67 +164,76 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
     const today = useMemo(() => startOfDay(new Date()), []);
 
-    /**
-     * The span to fetch, which is not the same as the span to draw: week view
-     * renders five columns but pulls all seven days, because the weekend rail
-     * can only show what was asked for.
-     */
-    const range = useMemo(() => {
-        if (viewMode === 'day') {
-            const s = startOfDay(currentDate);
-            return { start: s, end: s };
-        }
-        if (viewMode === 'week') {
-            const s = mondayOf(currentDate);
-            return { start: s, end: addDays(s, 6) };
-        }
-        const first = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-        const last = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-        return {
-            start: addDays(startOfDay(first), -first.getDay()),
-            end: addDays(startOfDay(last), 6 - last.getDay())
-        };
-    }, [currentDate, viewMode]);
+    const range = useMemo(() => rangeFor(currentDate, viewMode), [currentDate, viewMode]);
 
     const rangeStartKey = dayKey(range.start);
     const rangeEndKey = dayKey(range.end);
 
-    /**
-     * Clicking through months faster than the network answers used to leave
-     * whichever response happened to land last on screen, regardless of which
-     * month it belonged to. Only the newest request is allowed to write.
-     */
-    const requestSeq = useRef(0);
-
     useEffect(() => {
-        const seq = ++requestSeq.current;
-        let alive = true;
-        setLoading(true);
-        setLoadError(null);
+        lastView.date = currentDate.getTime();
+        lastView.mode = viewMode;
+    }, [currentDate, viewMode]);
 
-        fetch(`${API_URL}/api/schedule?start=${rangeStartKey}T00:00:00.000&end=${rangeEndKey}T23:59:59.999`, {
-            credentials: 'include'
-        })
-            .then(res => {
-                if (!res.ok) throw new Error('Could not load the schedule.');
-                return res.json();
-            })
-            .then(data => {
-                if (!alive || seq !== requestSeq.current) return;
-                setScheduleItems(Array.isArray(data) ? data : []);
+    // The broadcast reaches every connected client, so the cache needs to know
+    // whose schedule this is before it can tell our updates from anyone else's.
+    useEffect(() => {
+        setPlannerUser(currentUserId);
+    }, [currentUserId]);
+
+    /**
+     * Load the visible range. What is already cached goes up immediately and the
+     * fetch runs behind it, so navigating back to a week you have seen is a
+     * repaint rather than a reload. Clicking through months faster than the
+     * network answers is safe: each run ignores its own response once the range
+     * has moved on, and the cache keys every week separately.
+     */
+    useEffect(() => {
+        let alive = true;
+        const cached = getCachedPlannerRange(rangeStartKey, rangeEndKey);
+
+        if (cached) {
+            setScheduleItems(cached);
+            setLoadError(null);
+            setLoading(false);
+        } else {
+            setLoading(true);
+            setLoadError(null);
+        }
+
+        loadPlannerRange(rangeStartKey, rangeEndKey)
+            .then(items => {
+                if (!alive) return;
+                setScheduleItems(items);
+                setLoadError(null);
             })
             .catch(err => {
-                if (!alive || seq !== requestSeq.current) return;
+                if (!alive) return;
                 console.error('Error fetching schedule:', err);
-                setLoadError(err.message || 'Could not load the schedule.');
+                // A failed refresh must not blank out a week that is already on
+                // screen — the banner is for having nothing to show.
+                if (!cached) setLoadError(err.message || 'Could not load the schedule.');
             })
             .finally(() => {
-                if (!alive || seq !== requestSeq.current) return;
+                if (!alive) return;
                 setLoading(false);
             });
 
         return () => { alive = false; };
     }, [rangeStartKey, rangeEndKey, refreshKey]);
+
+    /**
+     * Someone else's edit — the same user on a phone, a second browser, a
+     * calendar sync — arrives here without anyone pressing anything.
+     */
+    useEffect(() => {
+        const key = plannerRangeKey(rangeStartKey, rangeEndKey);
+        return subscribePlannerSchedule((updatedKey, items) => {
+            if (updatedKey !== key) return;
+            setScheduleItems(items);
+            setLoadError(null);
+            setLoading(false);
+        });
+    }, [rangeStartKey, rangeEndKey]);
 
     const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
@@ -306,7 +366,9 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
             });
 
             if (response.ok) {
-                refresh();
+                // The server has already broadcast this write, but our own copy
+                // should not wait on the round trip back to hear about it.
+                refreshPlannerSchedule();
                 if (onScheduleChange) onScheduleChange();
                 closeModal();
                 setForm(EMPTY_FORM);
@@ -336,7 +398,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 credentials: 'include'
             });
             if (response.ok) {
-                refresh();
+                refreshPlannerSchedule();
                 if (onScheduleChange) onScheduleChange();
                 setShowDeleteModal(false);
                 setItemToDelete(null);

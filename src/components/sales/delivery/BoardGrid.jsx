@@ -3,6 +3,7 @@ import { Plus, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle,
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
+import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
 
 // Widths the dispatch table is laid out from. A driver column needs roughly this
 // much to keep stop, reference number and status pill on one line; below it the
@@ -45,7 +46,8 @@ const BoardGrid = ({
   onAddDelivery,
   onEditDelivery,
   onUpdateTruck,
-  onViewPod
+  onViewPod,
+  onOpenPod
 }) => {
   const todayStr = formatForDateInput(new Date());
   const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
@@ -143,6 +145,22 @@ const BoardGrid = ({
     // driverless column, pinned last so the drivers still read left to right.
     return [...trucks, WILL_CALL_COLUMN];
   }, [trucks]);
+
+  /**
+   * Which columns hold orders that are collected rather than delivered. Those
+   * are the ones the office signs for at the counter — a will call because the
+   * customer carries it out, contract freight because the carrier's driver
+   * does. Everything else is signed for at the jobsite, on the driver's phone.
+   */
+  const pickupColumnIds = React.useMemo(
+    () => new Set(
+      displayTrucks.filter(t => t.isWillCall || isThirdPartyTruck(t)).map(t => t.id)
+    ),
+    [displayTrucks]
+  );
+
+  const podHandlerFor = (truckId) =>
+    (pickupColumnIds.has(truckId) ? onOpenPod : undefined);
 
   const getDeliveriesForCell = (truckId, dateStr) =>
     cellMap.get(`${truckId || ''}_${dateStr}`) || [];
@@ -288,6 +306,7 @@ const BoardGrid = ({
                           searchQuery={searchQuery}
                           onClick={onEditDelivery}
                           onViewPod={onViewPod}
+                          onOpenPod={podHandlerFor(trk.id)}
                         />
                       ))}
                     </div>
@@ -387,6 +406,7 @@ const BoardGrid = ({
                                 editable={editable}
                                 searchQuery={activeSearch}
                                 onViewPod={onViewPod}
+                                onOpenPod={podHandlerFor(trk.id)}
                               />
                             ))}
                           </div>

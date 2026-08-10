@@ -5,6 +5,9 @@ import CustomSelect from '../../shared/CustomSelect';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { formatTitleCase } from '../../../utils/textUtils';
+// The contract-freight column is recognised in one place, shared with the board
+// and the ePOD certificate — see src/utils/deliveryPickup.js.
+import { isThirdPartyTruck as isThirdParty } from '../../../utils/deliveryPickup';
 import { API_URL } from '../../../config/api';
 
 const ROUTE_OPTIONS = [
@@ -62,14 +65,6 @@ const STATUS_OPTIONS = [
   { value: 'delayed', label: '⚠️ Delayed / Running Late' },
   { value: 'completed', label: '✅ Completed / Delivered' }
 ];
-
-// The contract-freight entry may arrive as the built-in DEFAULT_TRUCKS row or,
-// once real driver accounts exist, as a user record whose name spells it out
-// ("3rd party - delivery"). Match on either so the transfer default and the
-// no-capacity rule below keep working whichever the board is showing.
-const isThirdParty = (trk) =>
-  trk?.id === 'trk_3rd_party' ||
-  /3rd\s*[-–—\s]*party|third\s*[-–—\s]*party/i.test(`${trk?.driver || ''} ${trk?.name || ''} ${trk?.username || ''}`);
 
 const DeliveryModal = ({
   isOpen,

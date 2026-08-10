@@ -84,6 +84,17 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Light theme: a white icon on a transparent header left nothing to tap. */
+body.light-theme-active .fancy-mobile-menu-btn,
+.light-theme-active .fancy-mobile-menu-btn {
+  color: #0f172a;
+}
+
+body.light-theme-active .fancy-mobile-menu-btn:active,
+.light-theme-active .fancy-mobile-menu-btn:active {
+  background: rgba(0, 0, 0, 0.06);
+}
+
 @media (max-width: 1024px) {
   .fancy-mobile-menu-btn {
     display: flex;
@@ -2835,6 +2846,22 @@
   transform: translateY(-1px);
 }
 
+/* Light theme: same problem as the dashboard actions — the white-on-white
+   hover state made the label vanish mid-click. */
+body.light-theme-active .icon-action-btn.secondary,
+.light-theme-active .icon-action-btn.secondary {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #475569;
+}
+
+body.light-theme-active .icon-action-btn.secondary:hover,
+.light-theme-active .icon-action-btn.secondary:hover {
+  background: #f8fafc;
+  border-color: #e5c04a;
+  color: #0f172a;
+}
+
 .add-visit-btn {
   display: flex;
   align-items: center;
@@ -4399,6 +4426,23 @@ body.light-theme-active .reaction-picker-floating,
 .dashboard-actions .btn-primary:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(229, 192, 74, 0.2);
+}
+
+/* Light theme: the translucent-white glass treatment above disappears against
+   the pale page, so give the secondary actions a real surface and dark text. */
+body.light-theme-active .dashboard-actions .btn-secondary,
+.light-theme-active .dashboard-actions .btn-secondary {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme-active .dashboard-actions .btn-secondary:hover,
+.light-theme-active .dashboard-actions .btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #e5c04a;
+  color: #0f172a;
 }
 
 @media (max-width: 1024px) {

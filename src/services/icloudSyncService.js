@@ -190,12 +190,19 @@ const parseIcsEvents = (icsText) => {
   return events;
 };
 
-// Core Helper: Sync iCloud Calendar both ways
+/**
+ * Sync iCloud Calendar both ways.
+ *
+ * Returns whether anything on the planner side actually moved, so the caller
+ * can tell open planners to refetch — a sync that found nothing new should not
+ * make every browser ask again.
+ */
 export const syncICloudCalendar = async (userId) => {
+  let plannerChanged = false;
   try {
     const user = await User.findById(userId);
     if (!user || !user.icloudSyncEnabled || !user.icloudCalendarUrl) {
-      return;
+      return false;
     }
 
     const { icloudUsername, icloudPassword, icloudCalendarUrl } = user;
@@ -269,6 +276,7 @@ export const syncICloudCalendar = async (userId) => {
           status: 'Scheduled'
         });
         await newItem.save();
+        plannerChanged = true;
       }
     }
 
@@ -322,9 +330,11 @@ export const syncICloudCalendar = async (userId) => {
       if (!syncedMatch) {
         schedule.notes = `${schedule.notes || ''}\n\n[Synced to iCloud UID: ${uid}]`;
         await schedule.save();
+        plannerChanged = true;
       }
     }
   } catch (err) {
     console.error(`Error in syncICloudCalendar for user ${userId}:`, err);
   }
+  return plannerChanged;
 };

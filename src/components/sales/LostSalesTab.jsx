@@ -2,10 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   TrendingDown, DollarSign, Layers, Search, Filter, Plus, 
   Trash2, Edit3, MapPin, AlertCircle, RefreshCw, ArrowUpDown,
-  BarChart2, ChevronDown, ChevronUp, FileText, Building, CheckCircle2
+  BarChart2, ChevronDown, ChevronUp, FileText, Building
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
-import LostSaleModal, { getCustomerName } from './LostSaleModal';
+import LostSaleModal, { getCustomerName, REASON_OPTIONS } from './LostSaleModal';
 import Pagination from '../shared/Pagination';
 import CustomSelect from '../shared/CustomSelect';
 import { formatDate } from '../../utils/dateUtils';
@@ -148,6 +148,12 @@ const LostSalesTab = ({
     setIsModalOpen(true);
   };
 
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedReason('All');
+    setSelectedLocationFilter('All');
+  };
+
   // Helper to extract string safely from any prop (string or object)
   const getSafeString = (val, fallback = '') => {
     return getCustomerName(val, fallback);
@@ -236,14 +242,29 @@ const LostSalesTab = ({
   });
 
   const getReasonBadgeClass = (reason) => {
-    switch (reason) {
-      case 'Out of Stock': return 'badge-out-of-stock';
-      case 'Price Too High': return 'badge-price-high';
-      case 'Lead Time': return 'badge-lead-time';
-      case 'Color / Pattern Match': return 'badge-color-match';
-      default: return 'badge-other-reason';
-    }
+    const match = REASON_OPTIONS.find(r => r.id === reason);
+    return match ? match.badgeClass : 'badge-other-reason';
   };
+
+  // The badge shows the short form to keep the column narrow; the expanded row
+  // spells the reason out in full.
+  const getReasonShortLabel = (reason) => {
+    const match = REASON_OPTIONS.find(r => r.id === reason);
+    return match ? match.filterLabel : (reason || 'Other');
+  };
+
+  const getReasonFullLabel = (reason) => {
+    const match = REASON_OPTIONS.find(r => r.id === reason);
+    return match ? match.label : (reason || 'Other');
+  };
+
+  const formatSf = (val) => (val || 0).toLocaleString('en-US', { maximumFractionDigits: 1 });
+
+  const formatSlabs = (count) => `${count || 0} ${count === 1 ? 'Slab' : 'Slabs'}`;
+
+  // "Nothing recorded yet" and "your filters excluded everything" are very
+  // different states, and only the second one is the user's to undo.
+  const hasFilteredEverythingOut = filteredRecords.length === 0 && lostSales.length > 0;
 
   return (
     <div className={`lost-sales-tab-container high-density ${theme}-theme-active`}>
@@ -271,7 +292,7 @@ const LostSalesTab = ({
         </div>
         <div className="kpi-pill blue" title="Total Lost Slabs & Square Feet">
           <Layers size={13} />
-          <span>{totalLostSlabs} Slabs ({totalLostSf.toLocaleString('en-US', { maximumFractionDigits: 0 })} SF)</span>
+          <span>{formatSlabs(totalLostSlabs)} ({totalLostSf.toLocaleString('en-US', { maximumFractionDigits: 0 })} SF)</span>
         </div>
         <div className="kpi-pill red" title="Top Friction Factor">
           <AlertCircle size={13} />
@@ -299,8 +320,8 @@ const LostSalesTab = ({
             </div>
             <div className="kpi-info">
               <span className="kpi-label">Total Lost Slabs</span>
-              <h3 className="kpi-value">{totalLostSlabs.toLocaleString()} Slabs</h3>
-              <span className="kpi-subtext">{totalLostSf.toLocaleString('en-US', { maximumFractionDigits: 1 })} Total SF</span>
+              <h3 className="kpi-value">{formatSlabs(totalLostSlabs)}</h3>
+              <span className="kpi-subtext">{formatSf(totalLostSf)} Total SF</span>
             </div>
           </div>
 
@@ -351,12 +372,7 @@ const LostSalesTab = ({
               onChange={(e) => setSelectedReason(e.target.value)}
               options={[
                 { value: 'All', label: 'All Reasons' },
-                { value: 'Out of Stock', label: 'Out of Stock' },
-                { value: 'Price Too High', label: 'Price Too High' },
-                { value: 'Lead Time', label: 'Lead Time' },
-                { value: 'Color / Pattern Match', label: 'Color Match' },
-                { value: 'Customer Cancelled', label: 'Customer Cancelled' },
-                { value: 'Other', label: 'Other' }
+                ...REASON_OPTIONS.map(r => ({ value: r.id, label: r.filterLabel }))
               ]}
             />
           </div>
@@ -401,29 +417,44 @@ const LostSalesTab = ({
         ) : filteredRecords.length === 0 ? (
           <div className="lost-sales-empty-state">
             <div className="empty-icon-wrapper">
-              <TrendingDown size={32} />
+              {hasFilteredEverythingOut ? <Search size={30} /> : <TrendingDown size={32} />}
             </div>
-            <h4>No Lost Sales Recorded Yet</h4>
-            <p>Track missed opportunities, competitor pricing, and stock gaps in real-time to optimize inventory and pricing strategies.</p>
-            <button className="btn-add-lost-sale-empty" onClick={handleOpenAddModal}>
-              <Plus size={18} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Record Lost Sale
-            </button>
+            {hasFilteredEverythingOut ? (
+              <>
+                <h4>No Matching Lost Sales</h4>
+                <p>{lostSales.length} record{lostSales.length === 1 ? '' : 's'} on file, but none match the current search and filters.</p>
+                <button className="btn-clear-filters-empty" onClick={handleResetFilters}>
+                  Clear Filters
+                </button>
+              </>
+            ) : (
+              <>
+                <h4>No Lost Sales Recorded Yet</h4>
+                <p>Track missed opportunities, competitor pricing, and stock gaps in real-time to optimize inventory and pricing strategies.</p>
+                {canEdit && (
+                  <button className="btn-add-lost-sale-empty" onClick={handleOpenAddModal}>
+                    <Plus size={18} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Record Lost Sale
+                  </button>
+                )}
+              </>
+            )}
           </div>
         ) : (
           <table className="lost-sales-table dense-table">
             <thead>
+              {/* Column widths live in the stylesheet (table-layout: fixed), so
+                  each column is sized once and cells ellipsis at their own edge. */}
               <tr>
-                <th style={{ width: '40px' }}></th>
-                <th>Date</th>
-                <th>Customer</th>
-                <th>Product</th>
-                <th>Slabs & Size</th>
-                <th>Price / SF</th>
-                <th>Total Lost Value</th>
-                <th>Reason</th>
-                <th>Location</th>
-                <th>Sales Rep</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th className="h-expand"></th>
+                <th className="h-date">Date</th>
+                <th className="h-customer">Customer</th>
+                <th className="h-product">Product</th>
+                <th className="h-size">Size</th>
+                <th className="h-price">Price / SF</th>
+                <th className="h-value">Lost Value</th>
+                <th className="h-reason">Reason</th>
+                <th className="h-location">Location</th>
+                <th className="h-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -447,28 +478,28 @@ const LostSalesTab = ({
                       </td>
                       <td className="col-date">{formatDateStr(item.date)}</td>
                       <td className="col-customer">
-                        <span className="cust-name-text">{cName}</span>
+                        <span className="cust-name-text" title={cName}>{cName}</span>
                         {compName && (
-                          <span className="competitor-sub">vs {compName}</span>
+                          <span className="competitor-sub" title={`Lost to ${compName}`}>vs {compName}</span>
                         )}
                       </td>
-                      <td className="col-product">{pName}</td>
+                      <td className="col-product">
+                        <span className="prod-name-text" title={pName}>{pName}</span>
+                      </td>
                       <td className="col-size">
                         <span className="size-dim">{item.lengthInches}" × {item.widthInches}"</span>
-                        <span className="slabs-badge">{item.slabsCount} Slabs ({item.totalSf} SF)</span>
                       </td>
                       <td className="col-price">${(item.pricePerSf || 0).toFixed(2)}/SF</td>
                       <td className="col-total-value">
                         <span className="gold-value-text">{formatCurrency(item.totalLostValue)}</span>
                       </td>
                       <td className="col-reason">
-                        <span className={`reason-badge ${getReasonBadgeClass(item.reason)}`}>
-                          {item.reason}
+                        <span className={`reason-badge ${getReasonBadgeClass(item.reason)}`} title={item.reason}>
+                          {getReasonShortLabel(item.reason)}
                         </span>
                       </td>
-                      <td className="col-location">{locName}</td>
-                      <td className="col-rep">{repName}</td>
-                      <td className="col-actions" style={{ textAlign: 'right' }}>
+                      <td className="col-location" title={locName}>{locName}</td>
+                      <td className="col-actions">
                         {canEdit && (
                           <button
                             type="button"
@@ -495,19 +526,25 @@ const LostSalesTab = ({
                     {/* Inline Expandable Row Details */}
                     {isExpanded && (
                       <tr className="expanded-details-row">
-                        <td colSpan={11}>
+                        <td colSpan={10}>
                           <div className="inline-expanded-content anim-slide-down">
                             <div className="detail-col">
                               <span className="detail-heading"><FileText size={14} /> Notes & Customer Request:</span>
                               <p className="detail-notes-text">{item.notes ? `"${item.notes}"` : 'No additional notes recorded.'}</p>
                             </div>
+                            {/* Only what the row above doesn't already show — showroom
+                                and competitor are columns, so repeating them here
+                                just cost the row width it needed elsewhere. */}
                             <div className="detail-col">
-                              <span className="detail-heading"><Building size={14} /> Competitor & Location Details:</span>
+                              <span className="detail-heading"><Building size={14} /> Opportunity Details:</span>
                               <div className="detail-pills-row">
-                                <span className="detail-pill">Competitor: <strong>{compName || 'N/A'}</strong></span>
-                                <span className="detail-pill">Showroom: <strong>{locName}</strong></span>
-                                <span className="detail-pill">SF/Slab: <strong>{item.sfPerSlab} SF</strong></span>
-                                <span className="detail-pill">Rep: <strong>{repName}</strong></span>
+                                <span className="detail-pill">Reason: <strong>{getReasonFullLabel(item.reason)}</strong></span>
+                                <span className="detail-pill">Sales Rep: <strong>{repName}</strong></span>
+                                <span className="detail-pill">Slabs: <strong>{item.slabsCount || 0}</strong></span>
+                                <span className="detail-pill">Total SF: <strong>{formatSf(item.totalSf)} SF</strong></span>
+                                {compName && (
+                                  <span className="detail-pill">Competitor: <strong>{compName}</strong></span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -526,8 +563,23 @@ const LostSalesTab = ({
       <div className="lost-sales-mobile-cards mobile-only">
         {filteredRecords.length === 0 ? (
           <div className="lost-sales-empty-state">
-            <AlertCircle size={36} />
-            <p>No Lost Sales Found</p>
+            <div className="empty-icon-wrapper">
+              {hasFilteredEverythingOut ? <Search size={28} /> : <TrendingDown size={28} />}
+            </div>
+            {hasFilteredEverythingOut ? (
+              <>
+                <h4>No Matching Lost Sales</h4>
+                <p>Nothing on file matches the current search and filters.</p>
+                <button className="btn-clear-filters-empty" onClick={handleResetFilters}>
+                  Clear Filters
+                </button>
+              </>
+            ) : (
+              <>
+                <h4>No Lost Sales Recorded Yet</h4>
+                <p>Log a missed opportunity to start tracking lost revenue.</p>
+              </>
+            )}
           </div>
         ) : (
           paginatedRecords.map(item => {
@@ -547,7 +599,7 @@ const LostSalesTab = ({
 
                 <div className="card-specs-row">
                   <span>{item.lengthInches}" × {item.widthInches}"</span>
-                  <span>{item.slabsCount} Slabs ({item.totalSf} SF)</span>
+                  <span>{formatSlabs(item.slabsCount)} · {formatSf(item.totalSf)} SF</span>
                   <span>${(item.pricePerSf || 0).toFixed(2)}/SF</span>
                 </div>
 
