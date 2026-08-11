@@ -6,6 +6,7 @@ import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import './AdminPage.css';
 import { formatPhoneInput } from '../utils/phoneUtils';
+import CustomerImportModal from '../components/admin/CustomerImportModal';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -49,6 +50,7 @@ const AdminPage = () => {
     }
   });
   const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [customerSaveStatus, setCustomerSaveStatus] = useState(null);
 
   // User Management State
@@ -869,72 +871,6 @@ const AdminPage = () => {
     }
   };
 
-  const handleBulkUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const originalText = e.target.value; // Store to clear later
-    e.target.value = ''; // Clear input to allow re-upload of same file
-
-    if (!window.confirm(`Upload ${file.name} to import customers?`)) return;
-
-    setLoading(true); // Reuse loading state or add specific one
-
-    try {
-      const response = await fetch(`${API_URL}/api/admin/customers/bulk-upload`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        const warnings = data.results.warnings || [];
-        let message = `Upload Complete!\nAdded: ${data.results.added}\nSkipped: ${data.results.skipped}\nErrors: ${data.results.errors.length}`;
-
-        // Say which columns were read as the branch and the owner. Those two are
-        // matched by heading, so naming them is the quickest way to see that a
-        // sheet's columns were understood the way they were meant.
-        const cols = data.results.columns;
-        if (cols) {
-          message += `\n\nSales Rep column: ${cols.salesRep || 'not found'}`;
-          message += `\nLocation column: ${cols.location || 'not found — imported as Seattle'}`;
-        }
-
-        if (data.results.errors.length > 0) {
-          message += '\n\nFirst 5 Errors:\n' + data.results.errors.slice(0, 5).join('\n');
-        }
-
-        // Rows that imported, but not with everything the sheet asked for.
-        if (warnings.length > 0) {
-          message += `\n\nImported with warnings (${warnings.length}):\n` + warnings.slice(0, 5).join('\n');
-          if (warnings.length > 5) message += `\n…and ${warnings.length - 5} more`;
-        }
-
-        alert(message);
-        // Refresh list
-        const customersResponse = await fetch(`${API_URL}/api/admin/customers`, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
-        if (customersResponse.ok) {
-          const customersData = await customersResponse.json();
-          setCustomers(customersData);
-        }
-      } else {
-        alert(`Upload failed: ${data.message}`);
-      }
-    } catch (error) {
-      console.error('Bulk upload error:', error);
-      alert('Bulk upload failed due to network or server error.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -1017,18 +953,13 @@ const AdminPage = () => {
               <Plus size={18} /> New
             </button>
             {activeTab === 'customers' && (
-              <>
-                <input
-                  type="file"
-                  id="bulk-upload-input"
-                  accept=".xlsx, .xls"
-                  style={{ display: 'none' }}
-                  onChange={handleBulkUpload}
-                />
-                <button className="add-btn" style={{ marginLeft: '10px', backgroundColor: '#10b981' }} onClick={() => document.getElementById('bulk-upload-input').click()}>
-                  <ImageIcon size={18} /> Import Excel
-                </button>
-              </>
+              <button
+                className="add-btn"
+                style={{ marginLeft: '10px', backgroundColor: '#10b981' }}
+                onClick={() => setShowImportModal(true)}
+              >
+                <ImageIcon size={18} /> Import Excel
+              </button>
             )}
           </div>
 
@@ -2153,6 +2084,12 @@ const AdminPage = () => {
           </div>
         )}
       </div>
+
+      <CustomerImportModal
+        show={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImported={fetchCustomers}
+      />
     </div>
   );
 };

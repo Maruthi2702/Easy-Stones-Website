@@ -115,6 +115,58 @@ export const scoreOf = (signals) => {
   return [...s].reduce((total, name) => total + WEIGHT[name], 0);
 };
 
+/** Every signal key a record holds, as 'prefix:key' strings. */
+const keysOf = (record) =>
+  SIGNALS.flatMap(sig => sig.keys(record).map(key => `${sig.prefix}:${key}`));
+
+/**
+ * 'c:acme' → Set(id). Built once, then read either way round: grouped against
+ * itself to find duplicates already in the database, or probed one record at a
+ * time to ask whether a row arriving from a spreadsheet is someone we hold.
+ */
+export const buildSignalIndex = (rows) => {
+  const holders = new Map();
+  for (const row of rows) addToSignalIndex(holders, row, row._id);
+  return holders;
+};
+
+/**
+ * Add one record to an index already built. An import needs this: a sheet can
+ * name the same business on two rows, and the second row can only be recognised
+ * as a repeat if the first is in the index by the time it is checked — even
+ * though the first does not exist in the database yet, and so has no _id of its
+ * own to be found by.
+ */
+export const addToSignalIndex = (index, record, id) => {
+  const key_ = String(id);
+  for (const key of keysOf(record)) {
+    if (!index.has(key)) index.set(key, new Set());
+    index.get(key).add(key_);
+  }
+  return index;
+};
+
+/**
+ * Which indexed records does this one look like?
+ *
+ * Returns [{ id, signals, score }], strongest first. The record need not be in
+ * the index and needs no _id — an unsaved spreadsheet row is a valid probe,
+ * which is the whole point: an import decides create-vs-update on the same
+ * evidence the audit uses to decide same-business-twice.
+ */
+export const matchAgainst = (index, record) => {
+  const hits = new Map();                          // id → Set(signal name)
+  for (const key of keysOf(record)) {
+    for (const id of index.get(key) || []) {
+      if (!hits.has(id)) hits.set(id, new Set());
+      hits.get(id).add(BY_PREFIX[key[0]]);
+    }
+  }
+  return [...hits]
+    .map(([id, signals]) => ({ id, signals: [...signals], score: scoreOf(signals) }))
+    .sort((a, b) => b.score - a.score);
+};
+
 /** Union-find, so a record linked by name to one and by phone to another lands in one group. */
 const makeUnion = () => {
   const parent = new Map();
@@ -131,17 +183,7 @@ const makeUnion = () => {
  * Returns [{ ids: string[], signals: string[], score, size }], strongest first.
  */
 export const groupDuplicates = (rows) => {
-  const holders = new Map();                       // 'c:acme' → Set(id)
-  for (const row of rows) {
-    const id = String(row._id);
-    for (const sig of SIGNALS) {
-      for (const key of sig.keys(row)) {
-        const k = `${sig.prefix}:${key}`;
-        if (!holders.has(k)) holders.set(k, new Set());
-        holders.get(k).add(id);
-      }
-    }
-  }
+  const holders = buildSignalIndex(rows);
 
   const union = makeUnion();
   for (const [, ids] of holders) {

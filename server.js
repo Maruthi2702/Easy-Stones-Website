@@ -41,6 +41,16 @@ import { stampSignaturesOnPdfBytes } from './src/utils/pdfSigner.js';
 // Shared with the client so an import can only assign a customer to someone the
 // Sales Rep dropdown would also have offered.
 import { isSalesRep } from './src/utils/salesReps.js';
+// One definition of "these two records are the same business", shared by the
+// import, the duplicate audit and the merge script.
+import { groupDuplicates, STRONG } from './src/utils/customerMatch.js';
+// The customer import decides what it would do before it does any of it, in a
+// module with no database access, so the whole decision can be exercised
+// against a real spreadsheet without touching a record.
+import {
+  IMPORT_FIELDS, importNormalize, resolveImportMapping, readCustomerSheet,
+  buildImportPlan, importRowsForClient, importLabel
+} from './src/utils/customerImport.js';
 import {
   isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
   PICKUP_WORDING, DELIVERY_WORDING
@@ -51,7 +61,6 @@ import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.j
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { read, utils } from 'xlsx';
 import bcrypt from 'bcryptjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -5669,301 +5678,174 @@ app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, req
   }
 });
 
-// Admin: Get all customers
+// ============================================
+// CUSTOMER IMPORT (Excel)
+// ============================================
 
-// Bulk upload customers
-app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('file'), async (req, res) => {
+/**
+ * The reference data an import is judged against: the branches that exist, the
+ * people who may own an account, and the customers already held.
+ *
+ * Branches are keyed case- and punctuation-insensitively but stored in the
+ * collection's own casing, so 'salt lake city' and 'SALT LAKE CITY ' both file
+ * under 'Salt Lake City' rather than creating look-alike branches.
+ *
+ * Reps are keyed on every name a person goes by in a sheet — display name,
+ * username, tidied username, email — and drawn from the same isSalesRep rule
+ * the Sales Rep dropdown uses, so a name the form would not offer is not one an
+ * import can assign either.
+ */
+const loadImportReferenceData = async () => {
+  const branchByKey = new Map(
+    (await Location.find().select('name').lean()).map(b => [importNormalize(b.name), b.name])
+  );
+
+  const repByKey = new Map();
+  for (const u of (await User.find().select('username displayName email role').lean()).filter(isSalesRep)) {
+    const resolved = { salesRep: u._id, salesRepName: displayNameOf(u) };
+    for (const alias of [u.displayName, u.username, prettifyUsername(u.username), u.email]) {
+      const key = importNormalize(alias);
+      if (key && !repByKey.has(key)) repByKey.set(key, resolved);
+    }
+  }
+
+  const existing = await Customer.find(
+    {},
+    'company contactName email phone address salesRep salesRepName location isActive createdAt'
+  ).lean();
+
+  return { branchByKey, repByKey, existing };
+};
+
+/**
+ * Plan an import from an uploaded file.
+ *
+ * Both the preview and the apply call this. Apply re-reads the same file and
+ * rebuilds the plan against the database as it stands at that moment, rather
+ * than trusting a plan the browser hands back — so a customer added between the
+ * two calls is still matched, and nothing the client edits can decide which
+ * record gets written.
+ */
+const planCustomerImport = async (req) => {
+  // An absent field parses to {}, which every consumer reads as "nothing was
+  // overridden" — the same answer as not asking.
+  const parse = (field) => (req.body[field] ? JSON.parse(req.body[field]) : {});
+  const { headers, rows } = readCustomerSheet(req.file.buffer);
+  const mapping = resolveImportMapping(headers, parse('mapping'));
+  const reference = await loadImportReferenceData();
+
+  // What the admin said the sheet's unrecognised names mean: 'Stephen Watson'
+  // is this user id, 'PDX' is this branch. Folded into the same lookups the
+  // automatic matching uses, so an alias resolves exactly like a real name —
+  // and an alias naming someone who cannot own accounts resolves to nothing,
+  // because only people already in these maps can be named at all.
+  const repById = new Map([...reference.repByKey.values()].map(r => [String(r.salesRep), r]));
+  for (const [given, userId] of Object.entries(parse('repAliases'))) {
+    const rep = repById.get(String(userId));
+    if (rep) reference.repByKey.set(importNormalize(given), rep);
+  }
+
+  const branches = [...new Set(reference.branchByKey.values())];
+  for (const [given, branch] of Object.entries(parse('branchAliases'))) {
+    if (branches.includes(branch)) reference.branchByKey.set(importNormalize(given), branch);
+  }
+
+  return {
+    ...buildImportPlan({ headers, rows, mapping, ...reference, decisions: parse('decisions') }),
+    existing: reference.existing,
+    branches,
+    reps: [...repById]
+      .map(([id, r]) => ({ _id: id, name: r.salesRepName }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  };
+};
+
+/**
+ * Duplicates already sitting in the database, independent of any sheet — the
+ * audit script's findings, surfaced where the person holding the spreadsheet
+ * can act on them. Only groups where two independent signals agree; below that
+ * a group is a question, not a finding, and the list stops being worth reading.
+ */
+const existingDuplicateReport = (existing) => {
+  const byId = new Map(existing.map(c => [String(c._id), c]));
+  return groupDuplicates(existing)
+    .filter(g => g.score >= STRONG)
+    .slice(0, 100)
+    .map(g => ({
+      signals: g.signals,
+      score: g.score,
+      members: g.ids.map(id => ({ id, label: importLabel(byId.get(id)) }))
+    }));
+};
+
+// Preview an import: parse, match, and report what would happen. Writes nothing.
+app.post('/api/admin/customers/import/preview', verifyToken, uploadMemory.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
-    const workbook = read(req.file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
-    // Read with headers (default behavior of sheet_to_json)
-    // This gives us an array of objects where keys are the column headers
-    const data = utils.sheet_to_json(sheet);
-
-    if (!data || data.length === 0) {
-      return res.status(400).json({ message: 'Sheet is empty or could not be parsed' });
-    }
-
-    // Heuristic matching to find correct columns regardless of exact name
-    // We look at the keys of the first row to determine mappings
-    const firstRow = data[0]; // Use first data row keys as schema
-    const keys = Object.keys(firstRow);
-
-    // Each column is claimed by at most one field, and the keywords are tried in
-    // order so a specific one wins over a loose one. Both matter now that sheets
-    // carry a branch and an owner: 'Location' satisfies the address matcher's
-    // 'location', and 'Sales Rep Name' satisfies the contact matcher's 'name',
-    // so without claiming, whichever column happened to come first in the sheet
-    // would be silently imported as a street address or a contact name.
-    const claimed = new Set();
-    const findKey = (keywords) => {
-      for (const w of keywords) {
-        const hit = keys.find(k => !claimed.has(k) && k.toLowerCase().includes(w));
-        if (hit) {
-          claimed.add(hit);
-          return hit;
-        }
-      }
-      return undefined;
-    };
-
-    // Claimed first, ahead of the matchers whose keywords they would satisfy.
-    const salesRepKey = findKey(['sales rep', 'salesrep', 'sales person', 'salesperson', 'account manager', 'account owner', 'assigned to', 'rep']);
-    const locationKey = findKey(['easy stones location', 'es location', 'branch', 'location', 'store', 'office']);
-
-    // Attempt to identify columns based on likely keywords
-    const emailKey = findKey(['email', 'e-mail', 'mail']);
-    const nameKey = findKey(['contact', 'full name', 'name', 'customer']);
-    const companyKey = findKey(['company', 'business', 'organization', 'firm']);
-    const phoneKey = findKey(['phone', 'mobile', 'cell', 'tel']);
-
-    // Address components
-    const addressKey = findKey(['address', 'street']);
-    const cityKey = findKey(['city', 'town']);
-    const stateKey = findKey(['state', 'province', 'region']);
-    const zipKey = findKey(['zip', 'postal', 'code']);
-
-    // CRM Lead & Display fields
-    const levelKey = findKey(['level', 'tier', 'grade']);
-    const typeKey = findKey(['customertype', 'customer type', 'type', 'category']);
-    const statusKey = findKey(['status', 'stage', 'lead status']);
-    const modaDisplayKey = findKey(['modadisplay', 'moda display', 'display']);
-    const modaBinderKey = findKey(['modabinder', 'moda binder', 'binder']);
-
-    console.log('Bulk Upload - Detected Column Mapping:', {
-      email: emailKey,
-      name: nameKey,
-      company: companyKey,
-      phone: phoneKey,
-      address: addressKey,
-      level: levelKey,
-      customerType: typeKey,
-      status: statusKey,
-      modaDisplay: modaDisplayKey,
-      modaBinder: modaBinderKey,
-      salesRep: salesRepKey,
-      location: locationKey
+    const plan = await planCustomerImport(req);
+    res.json({
+      success: true,
+      headers: plan.headers,
+      fields: IMPORT_FIELDS,
+      mapping: plan.mapping,
+      counts: plan.counts,
+      totalRows: plan.totalRows,
+      rows: importRowsForClient(plan.planned),
+      unresolvedReps: plan.unresolvedReps,
+      unresolvedBranches: plan.unresolvedBranches,
+      reps: plan.reps,
+      branches: plan.branches,
+      dbDuplicates: existingDuplicateReport(plan.existing)
     });
+  } catch (error) {
+    console.error('Customer import preview error:', error);
+    res.status(400).json({ message: `Preview failed: ${error.message}` });
+  }
+});
 
-    const results = {
-      added: 0,
-      updated: 0,
-      skipped: 0,
-      errors: [],
-      // A row whose branch or owner could not be recognised is still imported —
-      // losing a customer over a misspelled branch would be worse than filing it
-      // under the default. It is reported here instead of failing silently.
-      warnings: [],
-      columns: { salesRep: salesRepKey || null, location: locationKey || null }
-    };
+/**
+ * Carry out an import. Rows flagged for review are never written — that is the
+ * whole point of flagging them.
+ */
+app.post('/api/admin/customers/import/apply', verifyToken, uploadMemory.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
-    // Helper to normalize strings (lowercase & strip non-alphanumeric characters like spaces/punctuation)
-    const normalizeStr = (str) => {
-      if (!str || typeof str !== 'string') return '';
-      return str.toLowerCase().replace(/[^a-z0-9]/g, '');
-    };
+    const plan = await planCustomerImport(req);
+    const results = { created: 0, updated: 0, skipped: 0, errors: [] };
 
-    // Helper to map level string (defaults to Level - 4 for Excel upload)
-    const parseLevel = (val) => {
-      if (!val) return { levelStr: 'Level - 4', priceNum: 4 };
-      const s = String(val).trim().toLowerCase();
-      if (s.includes('1')) return { levelStr: 'Level - 1', priceNum: 1 };
-      if (s.includes('2')) return { levelStr: 'Level - 2', priceNum: 2 };
-      if (s.includes('3')) return { levelStr: 'Level - 3', priceNum: 3 };
-      if (s.includes('4')) return { levelStr: 'Level - 4', priceNum: 4 };
-      return { levelStr: 'Level - 4', priceNum: 4 };
-    };
-
-    // Helper to map Customer Type
-    const parseType = (val) => {
-      if (!val) return 'Fabricator';
-      const s = String(val).trim().toLowerCase();
-      if (s.includes('contractor')) return 'Contractor';
-      if (s.includes('dealer')) return 'Dealer';
-      if (s.includes('floor')) return 'Floor Covering';
-      if (s.includes('designer')) return 'Designer';
-      if (s.includes('builder')) return 'Builder';
-      if (s.includes('fabricator')) return 'Fabricator';
-      return String(val).trim();
-    };
-
-    // Helper to map Status
-    const parseStatus = (val) => {
-      if (!val) return 'Onboarded';
-      const s = String(val).trim().toLowerCase();
-      if (s.includes('new') || s.includes('lead')) return 'New Lead';
-      if (s.includes('try') || s.includes('onboard')) return 'Trying to Onboard';
-      if (s.includes('contact') || s.includes('discuss')) return 'Contacted / In Discussion';
-      if (s.includes('different') || s.includes('rep')) return 'Different Sales Person';
-      if (s.includes('not interested')) return 'Not Interested';
-      if (s.includes('inactive')) return 'Inactive';
-      if (s.includes('onboarded')) return 'Onboarded';
-      return String(val).trim();
-    };
-
-    // Branches are matched case- and punctuation-insensitively, then stored in
-    // the collection's own casing, so 'salt lake city' and 'SALT LAKE CITY ' both
-    // file under 'Salt Lake City' rather than creating look-alike branches.
-    const branchByKey = new Map(
-      (await Location.find().select('name').lean()).map(b => [normalizeStr(b.name), b.name])
-    );
-
-    /** '' when the sheet gave no branch; null when it gave one nobody recognises. */
-    const resolveBranch = (raw) => {
-      const given = String(raw ?? '').trim();
-      if (!given) return '';
-      return branchByKey.get(normalizeStr(given)) ?? null;
-    };
-
-    // Owners are matched on any of the names a person goes by in a sheet: their
-    // display name, their username, a tidied username, or their email. Built
-    // from the same isSalesRep rule the Sales Rep dropdown uses, so a name the
-    // form would not offer is not one an import can assign either.
-    const repByKey = new Map();
-    for (const u of (await User.find().select('username displayName email role').lean()).filter(isSalesRep)) {
-      const resolved = { salesRep: u._id, salesRepName: displayNameOf(u) };
-      for (const alias of [u.displayName, u.username, prettifyUsername(u.username), u.email]) {
-        const key = normalizeStr(String(alias || ''));
-        if (key && !repByKey.has(key)) repByKey.set(key, resolved);
-      }
-    }
-
-    /** null when the sheet named someone who is not a selectable rep. */
-    const resolveRep = (raw) => {
-      const given = String(raw ?? '').trim();
-      if (!given) return { salesRep: null, salesRepName: '' };
-      return repByKey.get(normalizeStr(given)) ?? null;
-    };
-
-    // Fetch existing customers to check in-memory for fast normalized comparisons
-    const existingCustomersList = await Customer.find().lean();
-
-    // Iterate through all rows
-    for (let i = 0; i < data.length; i++) {
-      const row = data[i];
-
+    for (const row of plan.planned) {
       try {
-        const contactName = (nameKey && row[nameKey] && String(row[nameKey]).trim()) ? String(row[nameKey]).trim() : 'N/A';
-        const company = (companyKey && row[companyKey] && String(row[companyKey]).trim()) ? String(row[companyKey]).trim() : (contactName !== 'N/A' ? contactName : 'N/A');
-        const phone = (phoneKey && row[phoneKey] && String(row[phoneKey]).trim()) ? String(row[phoneKey]).trim() : 'N/A';
-        const street = (addressKey && row[addressKey] && String(row[addressKey]).trim()) ? String(row[addressKey]).trim() : 'N/A';
-        const city = (cityKey && row[cityKey] && String(row[cityKey]).trim()) ? String(row[cityKey]).trim() : 'N/A';
-        const state = (stateKey && row[stateKey] && String(row[stateKey]).trim()) ? String(row[stateKey]).trim() : 'N/A';
-        const zipCode = (zipKey && row[zipKey] && String(row[zipKey]).trim()) ? String(row[zipKey]).trim() : 'N/A';
-
-        const rawLevelVal = (levelKey && row[levelKey]) ? row[levelKey] : null;
-        const { levelStr, priceNum } = parseLevel(rawLevelVal);
-        const parsedType = (typeKey && row[typeKey]) ? parseType(row[typeKey]) : 'Fabricator';
-        const parsedStatus = (statusKey && row[statusKey]) ? parseStatus(row[statusKey]) : 'Onboarded';
-
-        const rawDisplay = (modaDisplayKey && row[modaDisplayKey]) ? String(row[modaDisplayKey]).trim().toLowerCase() : '';
-        const parsedDisplay = (rawDisplay.includes('yes') || rawDisplay === 'y' || rawDisplay === 'true' || rawDisplay === '1') ? 'Yes' : 'No';
-
-        const rawBinder = (modaBinderKey && row[modaBinderKey]) ? String(row[modaBinderKey]).trim() : '0';
-
-        // Branch and owner. A value the sheet gave but nobody recognises is
-        // reported and the row still imports — under the default branch, and
-        // unassigned — because dropping a customer over a misspelled branch
-        // would cost more than filing it where it can be found and corrected.
-        const rowLabel = company !== 'N/A' ? company : contactName;
-
-        const branch = resolveBranch(locationKey ? row[locationKey] : '');
-        if (branch === null) {
-          results.warnings.push(`Row ${i + 2} (${rowLabel}): unknown location "${String(row[locationKey]).trim()}" — imported as Seattle`);
-        }
-
-        const rep = resolveRep(salesRepKey ? row[salesRepKey] : '');
-        if (rep === null) {
-          results.warnings.push(`Row ${i + 2} (${rowLabel}): "${String(row[salesRepKey]).trim()}" is not a selectable sales rep — imported unassigned`);
-        }
-
-        const rawEmail = emailKey ? row[emailKey] : null;
-        let email = '';
-        if (rawEmail && typeof rawEmail === 'string' && rawEmail.includes('@')) {
-          email = rawEmail.toLowerCase().trim();
+        if (row.action === 'create') {
+          await new Customer({
+            ...row.create,
+            password: await bcrypt.hash('Welcome123!', 10)
+          }).save();
+          results.created++;
+        } else if (row.action === 'update') {
+          await Customer.updateOne({ _id: row.targetId }, { $set: row.apply });
+          results.updated++;
         } else {
-          const safeSlug = normalizeStr(company) || normalizeStr(contactName) || `cust_${Date.now()}_${i}`;
-          email = `${safeSlug}@easystones-client.com`;
-        }
-
-        const normEmail = email;
-        const normCompany = normalizeStr(company);
-        const normStreet = normalizeStr(street);
-
-        // Check if customer already exists by real email, valid company name (lowercase, no spaces), or valid street address
-        const isExisting = existingCustomersList.some(c => {
-          // 1. Real Email match (ignore placeholder @easystones-client.com emails)
-          if (normEmail && !normEmail.endsWith('@easystones-client.com') && c.email && c.email.toLowerCase().trim() === normEmail) {
-            return true;
-          }
-          // 2. Company name match (lowercase & no spaces, minimum length 3)
-          if (normCompany && normCompany.length > 2 && normCompany !== 'na' && normCompany !== 'unknown' && c.company) {
-            const dbNormComp = normalizeStr(c.company);
-            if (dbNormComp && dbNormComp.length > 2 && dbNormComp !== 'na' && dbNormComp !== 'unknown' && dbNormComp === normCompany) {
-              return true;
-            }
-          }
-          // 3. Real Street address match (minimum length 5)
-          if (normStreet && normStreet.length > 4 && normStreet !== 'na' && normStreet !== 'unknown' && c.address?.street) {
-            const dbNormStreet = normalizeStr(c.address.street);
-            if (dbNormStreet && dbNormStreet.length > 4 && dbNormStreet !== 'na' && dbNormStreet !== 'unknown' && dbNormStreet === normStreet) {
-              return true;
-            }
-          }
-          return false;
-        });
-
-        if (isExisting) {
           results.skipped++;
-          continue;
-        } else {
-          const hashedPassword = await bcrypt.hash('Welcome123!', 10);
-
-          const newCustomer = new Customer({
-            contactName: contactName,
-            email: email,
-            password: hashedPassword,
-            company: company,
-            phone: phone,
-            address: {
-              street: street,
-              city: city,
-              state: state,
-              zipCode: zipCode
-            },
-            status: parsedStatus,
-            customerType: parsedType,
-            level: levelStr,
-            priceLevel: priceNum,
-            modaDisplay: parsedDisplay,
-            modaBinder: rawBinder,
-            // A blank or unrecognised branch falls through to the schema's own
-            // default rather than being written as '' — an empty branch would
-            // drop the record out of every branch filter.
-            ...(branch ? { location: branch } : {}),
-            ...(rep || {}),
-            isVerified: true
-          });
-
-          await newCustomer.save();
-          existingCustomersList.push(newCustomer.toObject());
-          results.added++;
         }
       } catch (err) {
-        results.errors.push(`Row ${i + 2}: ${err.message}`);
+        results.errors.push(`Row ${row.rowNumber} (${row.label || ''}): ${err.message}`);
       }
     }
 
-    res.json({ success: true, message: 'Bulk upload processing complete', results });
-
+    res.json({
+      success: true,
+      results,
+      counts: plan.counts,
+      rows: importRowsForClient(plan.planned),
+      unresolvedReps: plan.unresolvedReps,
+      unresolvedBranches: plan.unresolvedBranches,
+      dbDuplicates: existingDuplicateReport(plan.existing)
+    });
   } catch (error) {
-    console.error('Bulk upload error:', error);
-    res.status(500).json({ message: `Bulk upload failed: ${error.message}` });
+    console.error('Customer import apply error:', error);
+    res.status(400).json({ message: `Import failed: ${error.message}` });
   }
 });
 
