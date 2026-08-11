@@ -353,7 +353,11 @@ const TRUCK_COLORS = ['#D4AF37', '#2F8F73', '#E1602A', '#3B82F6', '#8B5CF6', '#6
 // Bumped to v2 when driver names started coming from Display Name: entries
 // written by an older build hold the previous names, and a version bump drops
 // them everywhere at once instead of waiting out each browser's TTL.
-const DRIVERS_CACHE_PREFIX = 'drivers_cache_v2:';
+// Bumped to v3 after a build briefly keyed columns by user _id instead of
+// `drv_<username>`: those entries match no delivery's truckId, so a board
+// painting from one shows every column empty. They have to be retired on sight
+// rather than left to expire.
+const DRIVERS_CACHE_PREFIX = 'drivers_cache_v3:';
 const DRIVERS_CACHE_TTL = 10 * 60 * 1000;
 
 /**
@@ -449,7 +453,14 @@ async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocat
     if (drivers.length === 0) return null;
 
     const mapped = drivers.map((u, idx) => ({
-      id: u._id || `drv_${u.username}`,
+      // `drv_<username>`, always — never the user's _id. Every delivery ever
+      // saved carries a truckId in this form, and BoardGrid matches stops to
+      // columns on it exactly, so an id from any other scheme empties the whole
+      // board. This used to read `u._id || ...`, which was safe only for as long
+      // as /api/salesreps happened not to return _id; the day it did, every
+      // column stopped matching its own stops. The username is used verbatim,
+      // spaces and all ('3rd party - delivery'), because that is what is stored.
+      id: `drv_${u.username}`,
       name: u.name || u.username,
       driver: u.name || u.username,
       color: TRUCK_COLORS[idx % TRUCK_COLORS.length],

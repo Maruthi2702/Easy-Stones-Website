@@ -91,8 +91,10 @@ const DriverView = ({
     if (match) return match;
 
     // No driver row on the board yet — stand one up from this user. The id has
-    // to follow the board's own scheme (`drv_<username>`, since /api/salesreps
-    // returns no _id), or the fallback resolves to a driver with no stops.
+    // to follow the board's own scheme (`drv_<username>`, which is what every
+    // saved delivery's truckId holds), or the fallback resolves to a driver
+    // with no stops. Not the user's _id: /api/salesreps does return one now,
+    // and it matches nothing on the board.
     if (currentUser) {
       const username = cleanField(currentUser.username);
       return {
