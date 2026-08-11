@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Truck, ChevronLeft, ChevronRight, Plus, RefreshCw, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search, AlertTriangle } from 'lucide-react';
 import BoardGrid, { WILL_CALL_COLUMN_ID } from './delivery/BoardGrid';
 import DriverView from './delivery/DriverView';
 import DeliveryModal from './delivery/DeliveryModal';
@@ -15,9 +15,12 @@ import {
   subscribeScheduleCache,
   getDeliveryById,
   isWeekCached,
-  getCachedWeekDeliveries
+  getCachedWeekDeliveries,
+  subscribeScheduleConnection,
+  getScheduleConnection,
+  refreshScheduleNow
 } from '../../api/schedule';
-import { formatForDateInput, formatDate } from '../../utils/dateUtils';
+import { formatForDateInput } from '../../utils/dateUtils';
 import { API_URL } from '../../config/api';
 import './DeliveryScheduleTab.css';
 
@@ -79,7 +82,6 @@ const ROLE_SUBTITLES = {
 const DeliveryScheduleTab = ({
   currentUser = null,
   theme = 'dark',
-  locationsList = ['Seattle', 'Spokane', 'Salt Lake City'],
   customerOptions = [],
   sidebarToggle = null
 }) => {
@@ -99,6 +101,10 @@ const DeliveryScheduleTab = ({
   const [pending, setPending] = useState(() => getScheduleCacheSync().pending || []);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(() => !isWeekCached(weekStart));
+  // A week that failed to load used to render as an empty board, which reads
+  // exactly like a week with nothing scheduled on it.
+  const [loadError, setLoadError] = useState(null);
+  const [connection, setConnection] = useState(() => getScheduleConnection().status);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState(null);
@@ -176,8 +182,10 @@ const DeliveryScheduleTab = ({
       setTrucks(data.trucks || []);
       setDeliveries(data.deliveries || []);
       setPending(data.pending || []);
+      setLoadError(null);
     } catch (err) {
       console.error('Error loading schedule data:', err);
+      setLoadError("Couldn't load this week's schedule. Check your connection and refresh.");
     } finally {
       setLoading(false);
     }
@@ -192,12 +200,24 @@ const DeliveryScheduleTab = ({
       if (newTrucks && newTrucks.length > 0) {
         setTrucks(newTrucks);
       }
+      // Data arriving means the connection recovered — clear the stale warning.
+      setLoadError(null);
     });
+
+    const unsubscribeConnection = subscribeScheduleConnection(({ status }) => setConnection(status));
 
     return () => {
       unsubscribe();
+      unsubscribeConnection();
     };
   }, [loadData]);
+
+  const handleRefresh = useCallback(async () => {
+    const list = await refreshScheduleNow();
+    setDeliveries(list);
+    setLoadError(null);
+    return list;
+  }, []);
 
   const handlePrevWeek = () => {
     const prev = new Date(currentMonday);
@@ -260,9 +280,12 @@ const DeliveryScheduleTab = ({
     setEditingDelivery(null);
   };
 
+  // Deliberately rethrows. The driver view puts the failure on screen — a tap
+  // that silently does nothing is worse than one that says it didn't work.
   const handleUpdateStatus = async (id, newStatus) => {
     const updatedList = await updateDeliveryStatus(id, newStatus);
     setDeliveries(updatedList);
+    return updatedList;
   };
 
   const handleUpdateTruck = (id, newName, newDriver) => {
@@ -338,6 +361,15 @@ const DeliveryScheduleTab = ({
         </div>
       ) : (
         <div className="manifest-role-stage">
+          {/* The driver view renders its own, alongside the connection state. */}
+          {loadError && role !== 'driver' && (
+            <div className="manifest-load-error" role="alert">
+              <AlertTriangle size={16} />
+              <span>{loadError}</span>
+              <button type="button" onClick={() => loadData(true)}>Retry</button>
+            </div>
+          )}
+
           {role === 'office' && (
             <BoardGrid
               trucks={trucks}
@@ -388,10 +420,9 @@ const DeliveryScheduleTab = ({
               onUpdateStatus={handleUpdateStatus}
               onOpenPod={handleOpenPod}
               onViewPod={handleOpenPodViewer}
-              onPrevWeek={handlePrevWeek}
-              onNextWeek={handleNextWeek}
-              onTodayWeek={handleTodayWeek}
-              weekRangeText={weekRangeText}
+              connection={connection}
+              onRefresh={handleRefresh}
+              loadError={loadError}
             />
           )}
         </div>

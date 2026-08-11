@@ -29,8 +29,57 @@ const scheduleCache = {
   activeWeekEnd: null,    // 3s poll fallback are scoped to this range only
   trucks: null,
   listeners: new Set(),
-  socket: null
+  socket: null,
+  // 'online' | 'reconnecting' | 'offline'. A driver works out of cell coverage,
+  // so the board has to be able to say whether what it is showing is live —
+  // silently going stale is the failure that gets a stop delivered twice.
+  connection: 'reconnecting',
+  connectionListeners: new Set(),
+  lastSyncedAt: null
 };
+
+function setConnectionStatus(status) {
+  if (scheduleCache.connection === status) return;
+  scheduleCache.connection = status;
+  scheduleCache.connectionListeners.forEach(cb => {
+    try {
+      cb({ status, lastSyncedAt: scheduleCache.lastSyncedAt });
+    } catch {
+      // a listener throwing must not stop the others being told
+    }
+  });
+}
+
+/**
+ * Watch the live-connection state. Returns an unsubscribe function and fires
+ * once immediately, so a component mounting mid-outage renders the truth rather
+ * than waiting for the next transition.
+ */
+export function subscribeScheduleConnection(callback) {
+  scheduleCache.connectionListeners.add(callback);
+  try {
+    callback({ status: scheduleCache.connection, lastSyncedAt: scheduleCache.lastSyncedAt });
+  } catch {
+    // as above
+  }
+  return () => {
+    scheduleCache.connectionListeners.delete(callback);
+  };
+}
+
+export function getScheduleConnection() {
+  return { status: scheduleCache.connection, lastSyncedAt: scheduleCache.lastSyncedAt };
+}
+
+/**
+ * Pull the viewed week again, now. The socket normally keeps the board current;
+ * this is the manual override for when someone doesn't trust what they're
+ * looking at — the one thing a driver reliably reaches for on a bad signal.
+ */
+export async function refreshScheduleNow() {
+  await refreshActiveWeek();
+  return getActiveWeekDeliveries();
+}
 
 function addDaysToDateStr(dateStr, days) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -95,6 +144,7 @@ async function refreshActiveWeek() {
   const pendingChanged = JSON.stringify(pendingList) !== JSON.stringify(scheduleCache.pending);
   if (weekChanged) scheduleCache.weeks.set(scheduleCache.activeWeekStart, list);
   if (pendingChanged) scheduleCache.pending = pendingList;
+  scheduleCache.lastSyncedAt = Date.now();
   if (weekChanged || pendingChanged) notifyScheduleListeners();
 }
 
@@ -107,7 +157,12 @@ let pollIntervalId = null;
 function startPolling() {
   if (pollIntervalId) return;
   pollIntervalId = setInterval(() => {
-    refreshActiveWeek().catch(() => {});
+    // A poll that lands is the board still being current, even with the socket
+    // down — worth saying, because "reconnecting" and "not updating at all" are
+    // very different things to be looking at a delivery list through.
+    refreshActiveWeek()
+      .then(() => setConnectionStatus('reconnecting'))
+      .catch(() => setConnectionStatus('offline'));
   }, 3000);
 }
 
@@ -135,14 +190,35 @@ function initScheduleSocket() {
 
     scheduleCache.socket.on('connect', () => {
       stopPolling();
+      setConnectionStatus('online');
       // Re-sync the currently viewed week on connection / reconnection, in case
       // any updates were missed while offline.
       refreshActiveWeek();
     });
 
     scheduleCache.socket.on('disconnect', () => {
+      setConnectionStatus('reconnecting');
       startPolling();
     });
+
+    scheduleCache.socket.on('connect_error', () => {
+      setConnectionStatus('offline');
+      startPolling();
+    });
+
+    // The socket can take its reconnect delay to notice a tunnel; the browser
+    // knows at once. Trust it for the bad news, but never for the good — only
+    // a completed round trip proves the server is actually reachable again.
+    if (typeof window !== 'undefined') {
+      window.addEventListener('offline', () => setConnectionStatus('offline'));
+      window.addEventListener('online', () => {
+        setConnectionStatus('reconnecting');
+        refreshActiveWeek().catch(() => setConnectionStatus('offline'));
+      });
+      if (window.navigator && window.navigator.onLine === false) {
+        setConnectionStatus('offline');
+      }
+    }
 
     scheduleCache.socket.on('delivery_update', (payload) => {
       if (!payload) return;
@@ -176,7 +252,9 @@ function notifyScheduleListeners() {
         pending: scheduleCache.pending,
         trucks: scheduleCache.trucks || []
       });
-    } catch (e) {}
+    } catch {
+      // one listener throwing must not stop the others being told
+    }
   });
 }
 
@@ -234,6 +312,10 @@ export async function getScheduleDataCached(currentUser = null, weekStart, weekE
   scheduleCache.weeks.set(weekStart, list || []);
   scheduleCache.pending = pendingList || [];
   scheduleCache.pendingLoaded = true;
+  scheduleCache.lastSyncedAt = Date.now();
+  // A completed round trip is the only proof the server is reachable — the
+  // socket may still be mid-handshake at this point.
+  if (scheduleCache.connection === 'offline') setConnectionStatus('reconnecting');
 
   notifyScheduleListeners();
 
@@ -408,7 +490,9 @@ export async function getDeliveriesForRange(startDate, endDate) {
   try {
     localStorage.removeItem('manifest_deliveries');
     localStorage.removeItem('manifest_trucks');
-  } catch (e) {}
+  } catch {
+    // leftovers from the pre-database build; storage may be unavailable
+  }
 
   try {
     const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
@@ -420,14 +504,16 @@ export async function getDeliveriesForRange(startDate, endDate) {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
-    } else {
-      console.warn('[schedule] getDeliveriesForRange response not OK:', res.status);
+      throw new Error('Malformed delivery list response');
     }
+    throw new Error(`Delivery list request failed (${res.status})`);
   } catch (err) {
+    // Deliberately rethrown rather than answered with []. An empty array is
+    // indistinguishable from a day with nothing on it, and a driver shown "no
+    // stops" because of one dropped request is how a delivery gets missed.
     console.error('[schedule] getDeliveriesForRange API error:', err);
+    throw err;
   }
-
-  return [];
 }
 
 // ── GET PENDING DELIVERIES (no agreed date yet) ──
@@ -441,13 +527,13 @@ export async function getPendingDeliveries() {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
-    } else {
-      console.warn('[schedule] getPendingDeliveries response not OK:', res.status);
+      throw new Error('Malformed pending list response');
     }
+    throw new Error(`Pending list request failed (${res.status})`);
   } catch (err) {
     console.error('[schedule] getPendingDeliveries API error:', err);
+    throw err;
   }
-  return [];
 }
 
 // ── SAVE / UPDATE DELIVERY (100% MONGODB DATABASE) ──
@@ -477,7 +563,7 @@ export async function saveDelivery(delivery) {
     console.error('[schedule] saveDelivery API error:', err);
   }
 
-  await refreshActiveWeek();
+  await refreshActiveWeek().catch(() => {});
   return getActiveWeekDeliveries();
 }
 
@@ -524,18 +610,38 @@ export async function deleteDelivery(id) {
     console.error('[schedule] deleteDelivery API error:', err);
   }
 
-  await refreshActiveWeek();
+  await refreshActiveWeek().catch(() => {});
   return getActiveWeekDeliveries();
 }
 
-// ── UPDATE DELIVERY STATUS (100% MONGODB DATABASE) ──
+// ── UPDATE DELIVERY STATUS ──
+// Sends the status alone, not the whole record. Echoing a cached delivery back
+// through POST /api/deliveries meant a driver tapping "Running Late" wrote every
+// other field as their browser last saw it — quietly reverting an address or a
+// time the office had changed in the meantime. It also can't be done offline in
+// any honest way, so a failure is raised rather than swallowed.
 export async function updateDeliveryStatus(id, newStatus) {
-  const currentList = getActiveWeekDeliveries();
-  const item = currentList.find(d => d.id === id);
-  if (item) {
-    const updatedItem = { ...item, status: newStatus };
-    return await saveDelivery(updatedItem);
+  const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+  const res = await fetch(`${API_URL}/api/deliveries/${id}/status`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify({ status: newStatus })
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Couldn't update the stop (${res.status}).`);
   }
-  return currentList;
+
+  const updated = await res.json();
+  if (updated && updated.id) {
+    upsertDeliveryIntoCache(updated);
+    notifyScheduleListeners();
+  }
+  return getActiveWeekDeliveries();
 }
 

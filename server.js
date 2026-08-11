@@ -4528,6 +4528,50 @@ app.post('/api/deliveries', verifyAnyAuth, canWriteDeliveries, async (req, res) 
   }
 });
 
+// PATCH /api/deliveries/:id/status — the driver app's only write besides an ePOD.
+//
+// Separate from POST /api/deliveries because the driver's phone holds a list
+// projection: echoing that whole record back to change one field wrote every
+// other field as the phone last saw it, reverting whatever the office had
+// edited since. Narrowing the write to `status` removes the race entirely.
+//
+// Location scoping applies here as it does everywhere else, so a driver cannot
+// reach a stop belonging to a branch they are not assigned to.
+const DELIVERY_STATUSES = ['pending', 'scheduled', 'completed', 'delayed'];
+
+app.patch('/api/deliveries/:id/status', verifyAnyAuth, canWriteDeliveries, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body || {};
+
+    if (!DELIVERY_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `Status must be one of: ${DELIVERY_STATUSES.join(', ')}` });
+    }
+
+    const updated = await Delivery.findOneAndUpdate(
+      scopeDeliveryQueryToLocations({ id }, req),
+      { $set: { status } },
+      { new: true, projection: DELIVERY_LIST_PROJECTION }
+    ).lean();
+
+    if (!updated) return res.status(404).json({ error: 'Delivery not found' });
+
+    // Completion is not proof. Marking a stop delivered says the material got
+    // there; pod.verified stays whatever the signatures make it, so a card can
+    // still honestly read "No ePOD" on a completed stop.
+    try {
+      io.emit('delivery_update', { type: 'upsert', delivery: updated });
+    } catch {
+      req.app.get('io')?.emit('delivery_update', { type: 'upsert', delivery: updated });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error('[server] update delivery status error:', err);
+    res.status(500).json({ error: 'Server error updating the delivery status' });
+  }
+});
+
 app.delete('/api/deliveries/:id', verifyAnyAuth, canDeleteDeliveries, async (req, res) => {
   try {
     const { id } = req.params;
