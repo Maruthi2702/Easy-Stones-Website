@@ -62,6 +62,99 @@
     border: 1px solid rgba(229, 62, 62, 0.3);
 }
 
+/* Owning sales rep. A name, not a category, so it stays a quiet chip in the
+   Partners blue rather than competing with the gold used for customer data. */
+.sales-rep-badge {
+    padding: 0.2rem 0.55rem;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    background: rgba(99, 179, 237, 0.12);
+    color: #63b3ed;
+    border: 1px solid rgba(99, 179, 237, 0.28);
+}
+
+/* No owner is a gap, not a value — dashed and muted so it reads as one. */
+.sales-rep-badge.unassigned {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-muted);
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+    font-weight: 500;
+}
+
+/* Branch. Tinted per branch so a mixed list is scannable at a glance; any
+   branch added later falls through to this neutral base. */
+.location-badge {
+    padding: 0.2rem 0.55rem;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary, #a0aec0);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.location-badge.seattle {
+    background: rgba(212, 175, 55, 0.12);
+    color: #d4af37;
+    border-color: rgba(212, 175, 55, 0.3);
+}
+.location-badge.spokane {
+    background: rgba(72, 187, 120, 0.12);
+    color: #48bb78;
+    border-color: rgba(72, 187, 120, 0.3);
+}
+.location-badge.salt-lake-city {
+    background: rgba(154, 117, 234, 0.12);
+    color: #9a75ea;
+    border-color: rgba(154, 117, 234, 0.3);
+}
+.location-badge.dallas {
+    background: rgba(237, 137, 54, 0.12);
+    color: #ed8936;
+    border-color: rgba(237, 137, 54, 0.3);
+}
+
+/* The light theme keeps the same hues but needs darker text to stay legible
+   against a pale ground. */
+body.light-theme-active .sales-rep-badge,
+.light-theme .sales-rep-badge {
+    background: rgba(43, 108, 176, 0.1);
+    color: #2b6cb0;
+    border-color: rgba(43, 108, 176, 0.25);
+}
+body.light-theme-active .sales-rep-badge.unassigned,
+.light-theme .sales-rep-badge.unassigned {
+    background: rgba(0, 0, 0, 0.02);
+    color: #718096;
+    border: 1px dashed rgba(0, 0, 0, 0.2);
+}
+body.light-theme-active .location-badge.seattle,
+.light-theme .location-badge.seattle {
+    background: rgba(146, 118, 24, 0.12);
+    color: #8a6d10;
+    border-color: rgba(146, 118, 24, 0.3);
+}
+body.light-theme-active .location-badge.spokane,
+.light-theme .location-badge.spokane {
+    background: rgba(39, 128, 78, 0.1);
+    color: #27804e;
+    border-color: rgba(39, 128, 78, 0.28);
+}
+body.light-theme-active .location-badge.salt-lake-city,
+.light-theme .location-badge.salt-lake-city {
+    background: rgba(107, 70, 193, 0.1);
+    color: #6b46c1;
+    border-color: rgba(107, 70, 193, 0.28);
+}
+body.light-theme-active .location-badge.dallas,
+.light-theme .location-badge.dallas {
+    background: rgba(180, 95, 20, 0.1);
+    color: #b45f14;
+    border-color: rgba(180, 95, 20, 0.28);
+}
+
 
 
 

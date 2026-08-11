@@ -38,6 +38,9 @@ import LostSale from './src/models/LostSale.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
 import { stampSignaturesOnPdfBytes } from './src/utils/pdfSigner.js';
+// Shared with the client so an import can only assign a customer to someone the
+// Sales Rep dropdown would also have offered.
+import { isSalesRep } from './src/utils/salesReps.js';
 import {
   isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
   PICKUP_WORDING, DELIVERY_WORDING
@@ -546,6 +549,31 @@ async function startServer() {
     } catch (migError) {
       console.error('Error running user locations migration:', migError);
     }
+
+    // Database migration: assign every pre-existing customer to Seattle.
+    // The schema default only applies to documents created after it, so without
+    // this the records imported before the branch field existed would carry no
+    // location at all and drop out of every branch filter. Only fills records
+    // that have none, so it is a no-op on every boot after the first and can
+    // never overwrite a branch a rep has chosen.
+    //
+    // salesRep is deliberately left unset. Only a fraction of these records
+    // carry a createdBy, and "whoever typed it in" is not the same fact as "who
+    // owns the account" — a guess would put a wrong name on hundreds of records
+    // nobody would think to check. They read as Unassigned until someone says
+    // otherwise, which is what makes the Unassigned filter worth having.
+    try {
+      const seededLocations = await Customer.updateMany(
+        { $or: [{ location: { $exists: false } }, { location: null }, { location: '' }] },
+        { $set: { location: 'Seattle' } }
+      );
+      if (seededLocations.modifiedCount > 0) {
+        console.log(`🔄 Assigned ${seededLocations.modifiedCount} customers to the Seattle branch`);
+      }
+    } catch (migError) {
+      console.error('Error running customer location migration:', migError);
+    }
+
     // Database seeding: Default Locations
     try {
       const locationCount = await Location.countDocuments();
@@ -937,6 +965,25 @@ const prettifyUsername = (username = '') =>
 
 const displayNameOf = (user) =>
   String(user?.displayName || '').trim() || prettifyUsername(user?.username);
+
+/**
+ * Resolve a customer's owning rep from an id into the { salesRep, salesRepName }
+ * pair the record stores. The name is derived here rather than accepted from the
+ * client so the cached label can never disagree with the account it points at.
+ * An empty or unknown id clears both — that is how an account is handed back.
+ */
+const resolveSalesRep = async (salesRepId) => {
+  if (!salesRepId) return { salesRep: null, salesRepName: '' };
+
+  if (!mongoose.Types.ObjectId.isValid(salesRepId)) {
+    return { salesRep: null, salesRepName: '' };
+  }
+
+  const rep = await User.findById(salesRepId).select('username displayName').lean();
+  return rep
+    ? { salesRep: rep._id, salesRepName: displayNameOf(rep) }
+    : { salesRep: null, salesRepName: '' };
+};
 
 // =============================================================================
 // AUTHENTICATION & AUTHORIZATION MIDDLEWARE
@@ -1617,6 +1664,9 @@ app.get('/api/user/me', authenticate, async (req, res) => {
       email: user.email,
       role: user.role,
       permissions,
+      // Home branch, as distinct from every branch this person may work across.
+      // It is what forms default a new record's branch to.
+      location: user.location || '',
       assignedLocations: user.assignedLocations || ['Seattle']
     });
   } catch (error) {
@@ -2828,6 +2878,9 @@ app.get('/api/salesreps', authenticate, async (req, res) => {
 
     const users = await User.find({}, 'username displayName email role location assignedLocations');
     const formattedUsers = users.map(user => ({
+      // Consumers that store a reference to a person — the customer's owning
+      // rep, for one — need the id, not just the name.
+      _id: user._id,
       username: user.username,
       displayName: user.displayName || '',
       name: displayNameOf(user),   // what every consumer of this list renders
@@ -3340,6 +3393,8 @@ app.get('/api/partners', authenticate, requirePermission('view_customers'), asyn
     const filterTypeExclude = req.query.typeExclude || ''; // comma-separated types to exclude
     const filterCity = req.query.city || '';
     const filterStatus = req.query.status || '';
+    const filterSalesRep = req.query.salesRep || '';
+    const filterLocation = req.query.location || '';
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -3442,6 +3497,39 @@ app.get('/api/partners', authenticate, requirePermission('view_customers'), asyn
       }
     }
 
+    // Owning rep. The literal 'unassigned' is a selectable value, not an id —
+    // it is how someone pulls up the accounts still waiting to be claimed, so
+    // it has to match records where the field is null, missing or was cleared.
+    if (filterSalesRep) {
+      const reps = filterSalesRep.split(',').map(r => r.trim()).filter(Boolean);
+      const wantsUnassigned = reps.some(r => r.toLowerCase() === 'unassigned');
+      const repIds = reps
+        .filter(r => mongoose.Types.ObjectId.isValid(r))
+        .map(r => new mongoose.Types.ObjectId(r));
+
+      const repOrs = [];
+      if (repIds.length > 0) repOrs.push({ salesRep: { $in: repIds } });
+      if (wantsUnassigned) repOrs.push({ salesRep: { $in: [null] } });
+
+      if (repOrs.length > 0) {
+        filterConditions.push(repOrs.length === 1 ? repOrs[0] : { $or: repOrs });
+      }
+    }
+
+    // Branch. Records predating the field are Seattle's — the startup migration
+    // backfills them, but match a missing value to Seattle regardless so a
+    // Seattle filter is right even on a database that has not been migrated yet.
+    if (filterLocation) {
+      const locations = filterLocation.split(',').map(l => l.trim()).filter(Boolean);
+      if (locations.length > 0) {
+        const locationOrs = [{ location: { $in: locations } }];
+        if (locations.some(l => l.toLowerCase() === 'seattle')) {
+          locationOrs.push({ location: { $in: [null, ''] } }, { location: { $exists: false } });
+        }
+        filterConditions.push(locationOrs.length === 1 ? locationOrs[0] : { $or: locationOrs });
+      }
+    }
+
     if (filterConditions.length > 0) {
       query = filterConditions.length === 1 ? filterConditions[0] : { $and: filterConditions };
     }
@@ -3459,108 +3547,81 @@ app.get('/api/partners', authenticate, requirePermission('view_customers'), asyn
       sortStage.normalizedCompany = 1;
     } else if (sortBy === 'city') {
       sortStage.normalizedCity = sortOrder;
+    } else if (sortBy === 'salesRep') {
+      // Unassigned accounts hold '' and so group together at one end, which is
+      // the useful reading of this sort — the backlog in one block.
+      sortStage.salesRepName = sortOrder;
+      sortStage.normalizedCompany = 1;
+    } else if (sortBy === 'location') {
+      sortStage.normalizedLocation = sortOrder;
+      sortStage.normalizedCompany = 1;
     } else {
       sortStage.createdAt = -1; // Default fallback to newest first
     }
 
     const totalCount = await Customer.countDocuments(query);
 
-    let customers;
-    if (limit === -1) {
-      customers = await Customer.aggregate([
-        { $match: query },
-        {
-          $addFields: {
-            sortPriority: {
-              $cond: {
-                if: {
-                  $in: ["$status", ["Different Sales Person", "Not Interested"]]
-                },
-                then: 1,
-                else: 0
-              }
+    // The fields the sort reads but the documents do not carry directly. Held in
+    // one place because the paginated and export pipelines below must agree on
+    // them exactly — when they were written out twice they were one edit away
+    // from sorting the export differently from the page it was exported from.
+    const sortFields = {
+      $addFields: {
+        sortPriority: {
+          $cond: {
+            if: {
+              $in: ["$status", ["Different Sales Person", "Not Interested"]]
             },
-            normalizedCity: {
-              $cond: {
-                if: { $and: [{ $gt: ["$city", null] }, { $ne: ["$city", ""] }] },
-                then: "$city",
-                else: { $ifNull: ["$address.city", ""] }
-              }
-            },
-            normalizedCompany: {
-              $cond: {
-                if: { $and: [{ $gt: ["$company", null] }, { $ne: ["$company", ""] }] },
-                then: "$company",
-                else: {
-                  $cond: {
-                    if: { $and: [{ $gt: ["$name", null] }, { $ne: ["$name", ""] }] },
-                    then: "$name",
-                    else: { $ifNull: ["$contactName", ""] }
-                  }
-                }
-              }
-            }
+            then: 1,
+            else: 0
           }
         },
-        { $sort: sortStage },
-        {
-          $project: {
-            password: 0,
-            contacts: 0,
-            visits: 0,
-            resources: 0
+        normalizedCity: {
+          $cond: {
+            if: { $and: [{ $gt: ["$city", null] }, { $ne: ["$city", ""] }] },
+            then: "$city",
+            else: { $ifNull: ["$address.city", ""] }
+          }
+        },
+        // A record with no branch is a Seattle record that predates the field,
+        // so it sorts with Seattle rather than ahead of everything.
+        normalizedLocation: {
+          $cond: {
+            if: { $and: [{ $gt: ["$location", null] }, { $ne: ["$location", ""] }] },
+            then: "$location",
+            else: "Seattle"
+          }
+        },
+        normalizedCompany: {
+          $cond: {
+            if: { $and: [{ $gt: ["$company", null] }, { $ne: ["$company", ""] }] },
+            then: "$company",
+            else: {
+              $cond: {
+                if: { $and: [{ $gt: ["$name", null] }, { $ne: ["$name", ""] }] },
+                then: "$name",
+                else: { $ifNull: ["$contactName", ""] }
+              }
+            }
           }
         }
-      ]);
-    } else {
-      customers = await Customer.aggregate([
-        { $match: query },
-        {
-          $addFields: {
-            sortPriority: {
-              $cond: {
-                if: {
-                  $in: ["$status", ["Different Sales Person", "Not Interested"]]
-                },
-                then: 1,
-                else: 0
-              }
-            },
-            normalizedCity: {
-              $cond: {
-                if: { $and: [{ $gt: ["$city", null] }, { $ne: ["$city", ""] }] },
-                then: "$city",
-                else: { $ifNull: ["$address.city", ""] }
-              }
-            },
-            normalizedCompany: {
-              $cond: {
-                if: { $and: [{ $gt: ["$company", null] }, { $ne: ["$company", ""] }] },
-                then: "$company",
-                else: {
-                  $cond: {
-                    if: { $and: [{ $gt: ["$name", null] }, { $ne: ["$name", ""] }] },
-                    then: "$name",
-                    else: { $ifNull: ["$contactName", ""] }
-                  }
-                }
-              }
-            }
-          }
-        },
-        { $sort: sortStage },
-        {
-          $project: {
-            password: 0,
-            contacts: 0,
-            visits: 0,
-            resources: 0
-          }
-        },
-        { $skip: skip },
-        { $limit: limit }
-      ]);
-    }
+      }
+    };
+
+    const hideHeavyFields = {
+      $project: {
+        password: 0,
+        contacts: 0,
+        visits: 0,
+        resources: 0
+      }
+    };
+
+    const customers = await Customer.aggregate(
+      limit === -1
+        ? [{ $match: query }, sortFields, { $sort: sortStage }, hideHeavyFields]
+        : [{ $match: query }, sortFields, { $sort: sortStage }, hideHeavyFields, { $skip: skip }, { $limit: limit }]
+    );
 
     res.json({
       partners: customers,
@@ -3585,8 +3646,15 @@ app.post('/api/partners', authenticate, requirePermission('manage_customers'), a
       }
     }
 
+    // Resolved from the id rather than read off the body, so the stored label
+    // always names the account it points at. Listed after the spread for the
+    // same reason — a client-sent salesRepName must not survive.
+    const rep = await resolveSalesRep(req.body.salesRep);
+
     const newCustomer = new Customer({
       ...req.body,
+      ...rep,
+      location: String(req.body.location || '').trim() || 'Seattle',
       priceLevel: priceLevel || req.body.priceLevel || 1,
       contactName: req.body.contactName || req.body.name || 'Unknown', // Map contactName/name to contactName
       marketingEmail: req.body.marketingEmail || req.body.email || '',
@@ -3627,7 +3695,20 @@ app.put('/api/partners/:id', authenticate, requirePermission('manage_customers')
     } else if (req.body.name) {
       updateData.contactName = req.body.name;
     }
-    
+
+    // Only touch the rep when the edit actually carried one, so a partial update
+    // cannot silently unassign an account. When it did, both halves are rewritten
+    // together — including clearing the cached name as the rep is cleared, rather
+    // than leaving a name behind pointing at nobody.
+    delete updateData.salesRepName;
+    if (req.body.salesRep !== undefined) {
+      Object.assign(updateData, await resolveSalesRep(req.body.salesRep));
+    }
+
+    if (req.body.location !== undefined) {
+      updateData.location = String(req.body.location || '').trim() || 'Seattle';
+    }
+
     if (req.body.address) {
       updateData.address = {
         street: req.body.address.street || '',
@@ -5613,18 +5694,36 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
     const firstRow = data[0]; // Use first data row keys as schema
     const keys = Object.keys(firstRow);
 
+    // Each column is claimed by at most one field, and the keywords are tried in
+    // order so a specific one wins over a loose one. Both matter now that sheets
+    // carry a branch and an owner: 'Location' satisfies the address matcher's
+    // 'location', and 'Sales Rep Name' satisfies the contact matcher's 'name',
+    // so without claiming, whichever column happened to come first in the sheet
+    // would be silently imported as a street address or a contact name.
+    const claimed = new Set();
     const findKey = (keywords) => {
-      return keys.find(k => keywords.some(w => k.toLowerCase().includes(w)));
+      for (const w of keywords) {
+        const hit = keys.find(k => !claimed.has(k) && k.toLowerCase().includes(w));
+        if (hit) {
+          claimed.add(hit);
+          return hit;
+        }
+      }
+      return undefined;
     };
+
+    // Claimed first, ahead of the matchers whose keywords they would satisfy.
+    const salesRepKey = findKey(['sales rep', 'salesrep', 'sales person', 'salesperson', 'account manager', 'account owner', 'assigned to', 'rep']);
+    const locationKey = findKey(['easy stones location', 'es location', 'branch', 'location', 'store', 'office']);
 
     // Attempt to identify columns based on likely keywords
     const emailKey = findKey(['email', 'e-mail', 'mail']);
-    const nameKey = findKey(['contact', 'name', 'customer', 'full name']);
+    const nameKey = findKey(['contact', 'full name', 'name', 'customer']);
     const companyKey = findKey(['company', 'business', 'organization', 'firm']);
     const phoneKey = findKey(['phone', 'mobile', 'cell', 'tel']);
 
     // Address components
-    const addressKey = findKey(['address', 'street', 'location']);
+    const addressKey = findKey(['address', 'street']);
     const cityKey = findKey(['city', 'town']);
     const stateKey = findKey(['state', 'province', 'region']);
     const zipKey = findKey(['zip', 'postal', 'code']);
@@ -5641,18 +5740,26 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
       name: nameKey,
       company: companyKey,
       phone: phoneKey,
+      address: addressKey,
       level: levelKey,
       customerType: typeKey,
       status: statusKey,
       modaDisplay: modaDisplayKey,
-      modaBinder: modaBinderKey
+      modaBinder: modaBinderKey,
+      salesRep: salesRepKey,
+      location: locationKey
     });
 
     const results = {
       added: 0,
       updated: 0,
       skipped: 0,
-      errors: []
+      errors: [],
+      // A row whose branch or owner could not be recognised is still imported —
+      // losing a customer over a misspelled branch would be worse than filing it
+      // under the default. It is reported here instead of failing silently.
+      warnings: [],
+      columns: { salesRep: salesRepKey || null, location: locationKey || null }
     };
 
     // Helper to normalize strings (lowercase & strip non-alphanumeric characters like spaces/punctuation)
@@ -5699,6 +5806,40 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
       return String(val).trim();
     };
 
+    // Branches are matched case- and punctuation-insensitively, then stored in
+    // the collection's own casing, so 'salt lake city' and 'SALT LAKE CITY ' both
+    // file under 'Salt Lake City' rather than creating look-alike branches.
+    const branchByKey = new Map(
+      (await Location.find().select('name').lean()).map(b => [normalizeStr(b.name), b.name])
+    );
+
+    /** '' when the sheet gave no branch; null when it gave one nobody recognises. */
+    const resolveBranch = (raw) => {
+      const given = String(raw ?? '').trim();
+      if (!given) return '';
+      return branchByKey.get(normalizeStr(given)) ?? null;
+    };
+
+    // Owners are matched on any of the names a person goes by in a sheet: their
+    // display name, their username, a tidied username, or their email. Built
+    // from the same isSalesRep rule the Sales Rep dropdown uses, so a name the
+    // form would not offer is not one an import can assign either.
+    const repByKey = new Map();
+    for (const u of (await User.find().select('username displayName email role').lean()).filter(isSalesRep)) {
+      const resolved = { salesRep: u._id, salesRepName: displayNameOf(u) };
+      for (const alias of [u.displayName, u.username, prettifyUsername(u.username), u.email]) {
+        const key = normalizeStr(String(alias || ''));
+        if (key && !repByKey.has(key)) repByKey.set(key, resolved);
+      }
+    }
+
+    /** null when the sheet named someone who is not a selectable rep. */
+    const resolveRep = (raw) => {
+      const given = String(raw ?? '').trim();
+      if (!given) return { salesRep: null, salesRepName: '' };
+      return repByKey.get(normalizeStr(given)) ?? null;
+    };
+
     // Fetch existing customers to check in-memory for fast normalized comparisons
     const existingCustomersList = await Customer.find().lean();
 
@@ -5724,6 +5865,22 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
         const parsedDisplay = (rawDisplay.includes('yes') || rawDisplay === 'y' || rawDisplay === 'true' || rawDisplay === '1') ? 'Yes' : 'No';
 
         const rawBinder = (modaBinderKey && row[modaBinderKey]) ? String(row[modaBinderKey]).trim() : '0';
+
+        // Branch and owner. A value the sheet gave but nobody recognises is
+        // reported and the row still imports — under the default branch, and
+        // unassigned — because dropping a customer over a misspelled branch
+        // would cost more than filing it where it can be found and corrected.
+        const rowLabel = company !== 'N/A' ? company : contactName;
+
+        const branch = resolveBranch(locationKey ? row[locationKey] : '');
+        if (branch === null) {
+          results.warnings.push(`Row ${i + 2} (${rowLabel}): unknown location "${String(row[locationKey]).trim()}" — imported as Seattle`);
+        }
+
+        const rep = resolveRep(salesRepKey ? row[salesRepKey] : '');
+        if (rep === null) {
+          results.warnings.push(`Row ${i + 2} (${rowLabel}): "${String(row[salesRepKey]).trim()}" is not a selectable sales rep — imported unassigned`);
+        }
 
         const rawEmail = emailKey ? row[emailKey] : null;
         let email = '';
@@ -5785,6 +5942,11 @@ app.post('/api/admin/customers/bulk-upload', verifyToken, uploadMemory.single('f
             priceLevel: priceNum,
             modaDisplay: parsedDisplay,
             modaBinder: rawBinder,
+            // A blank or unrecognised branch falls through to the schema's own
+            // default rather than being written as '' — an empty branch would
+            // drop the record out of every branch filter.
+            ...(branch ? { location: branch } : {}),
+            ...(rep || {}),
             isVerified: true
           });
 
@@ -6394,7 +6556,7 @@ app.post('/api/migrate-collection', async (req, res) => {
 // Create new sales customer (Maps to global Customer collection)
 app.post('/api/sales/customers', verifyAnyAuth, async (req, res) => {
   try {
-    const { customerName, company, address, phone, email, notes, status, level, customerType, modaDisplay, modaBinder } = req.body;
+    const { customerName, company, address, phone, email, notes, status, level, customerType, modaDisplay, modaBinder, salesRep, location } = req.body;
 
     if (!company) {
       return res.status(400).json({ message: 'Company name is required' });
@@ -6430,6 +6592,8 @@ app.post('/api/sales/customers', verifyAnyAuth, async (req, res) => {
       customerType: customerType || 'Fabricator',
       modaDisplay: modaDisplay || 'No',
       modaBinder: modaBinder || '0',
+      ...(await resolveSalesRep(salesRep)),
+      location: String(location || '').trim() || 'Seattle',
       isVerified: true, // Auto-verify sales-created accounts
       priceLevel: 1,
       isActive: true

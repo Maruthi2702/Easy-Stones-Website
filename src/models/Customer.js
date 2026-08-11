@@ -79,6 +79,30 @@ const customerSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
+  // Who owns the account. Distinct from createdBy, which only records whoever
+  // typed the record in. salesRep is the durable link; salesRepName is the label
+  // the customer list, its filters and its export read, denormalized because
+  // that list is an aggregation and a cached name spares it a $lookup against
+  // users on every page. Always derived server-side from salesRep, never taken
+  // from the client, or the two drift apart the first time a name is edited.
+  salesRep: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  salesRepName: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  // Which Easy Stones branch the account belongs to. A plain String rather than
+  // an enum so a branch added through Admin › Locations works without a schema
+  // change — the same way User.location and LostSale.location already behave.
+  location: {
+    type: String,
+    default: 'Seattle',
+    trim: true
+  },
   company: String,
   phone: String,
   address: {
@@ -136,6 +160,8 @@ customerSchema.index({ isActive: 1, createdAt: -1 }); // Active customer lists
 customerSchema.index({ priceLevel: 1, isActive: 1 }); // Price level filter
 customerSchema.index({ 'visits.date': -1 }); // Visit logs & dashboard max visit calculation
 customerSchema.index({ 'address.city': 1 }); // City filter
+customerSchema.index({ location: 1, status: 1 }); // Branch column & filter
+customerSchema.index({ salesRep: 1, status: 1 }); // Rep ownership filter ("my accounts")
 // No text index: customer and partner search run on $regex, and nothing in the
 // app ever issues a $text query. Carrying one only added write cost on every
 // customer save and collided with the differently-named index already in the

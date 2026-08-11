@@ -6,8 +6,25 @@ import { parseBusinessCard } from '../../utils/cardParser';
 import CustomSelect from '../shared/CustomSelect';
 import './AddCustomerModal.css';
 
-const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, viewingCustomer }) => {
-    const [form, setForm] = useState({
+const AddCustomerModal = ({
+    show, onClose, onSave, isSaving, editingCustomer, viewingCustomer,
+    salesReps = [], locations = [], currentUser = null
+}) => {
+    // A new account is assumed to belong to whoever is entering it, at their own
+    // branch — the two answers that are right most of the time. Both stay
+    // editable, and someone who cannot own accounts (an admin, say) simply
+    // starts out Unassigned rather than being written in as an owner.
+    //
+    // Both resolve to '' until the pickers have loaded, which is what lets the
+    // effect below fill them in when they arrive without clobbering a choice
+    // already made. An empty branch is read as Seattle when it reaches the server.
+    const defaultLocation =
+        locations.find(l => l === currentUser?.location) || locations[0] || '';
+
+    const defaultSalesRep =
+        salesReps.some(r => r._id === currentUser?.id) ? currentUser.id : '';
+
+    const emptyForm = () => ({
         customerName: '',
         company: '',
         address: {
@@ -25,8 +42,12 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
         level: 'Level - 3',
         customerType: 'Fabricator',
         modaDisplay: 'No',
-        modaBinder: '0'
+        modaBinder: '0',
+        salesRep: defaultSalesRep,
+        location: defaultLocation
     });
+
+    const [form, setForm] = useState(emptyForm);
 
     const [scanProgress, setScanProgress] = useState(0);
     const [scanStatus, setScanStatus] = useState('idle'); // 'idle', 'camera', 'processing'
@@ -68,31 +89,36 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                 level: activeCustomer.level || 'Level - 3',
                 customerType: activeCustomer.customerType || 'Fabricator',
                 modaDisplay: activeCustomer.modaDisplay || 'No',
-                modaBinder: activeCustomer.modaBinder || '0'
+                modaBinder: activeCustomer.modaBinder || '0',
+                // Existing records may hold neither: the branch is backfilled to
+                // Seattle, the rep stays empty until someone claims the account.
+                salesRep: activeCustomer.salesRep || '',
+                location: activeCustomer.location || 'Seattle'
             });
         } else if (show) {
-            setForm({
-                customerName: '',
-                company: '',
-                address: {
-                    street: '',
-                    city: '',
-                    state: '',
-                    zipCode: ''
-                },
-                phone: '',
-                email: '',
-                marketingEmail: '',
-                receiveMarketing: true,
-                notes: '',
-                status: 'Onboarded',
-                level: 'Level - 3',
-                customerType: 'Fabricator',
-                modaDisplay: 'No',
-                modaBinder: '0'
-            });
+            setForm(emptyForm());
         }
+        // emptyForm() is intentionally not a dependency: it is rebuilt every
+        // render, and the effect below is what keeps its defaults current.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeCustomer, show]);
+
+    // The rep and branch lists are fetched by the parent and can land after the
+    // form is already open. Fill the two defaults in when they do — but only
+    // where the field is still blank, so this can never overwrite a choice
+    // already made or reset anything else that has been typed.
+    useEffect(() => {
+        if (!show || activeCustomer) return;
+        setForm(prev =>
+            (prev.salesRep || !defaultSalesRep) && (prev.location || !defaultLocation)
+                ? prev
+                : {
+                    ...prev,
+                    salesRep: prev.salesRep || defaultSalesRep,
+                    location: prev.location || defaultLocation
+                }
+        );
+    }, [show, activeCustomer, defaultSalesRep, defaultLocation]);
 
     const startScanner = async () => {
         setScanStatus('camera');
@@ -259,24 +285,7 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
     }, []);
 
     const handleClose = () => {
-        setForm({
-            customerName: '',
-            company: '',
-            address: {
-                street: '',
-                city: '',
-                state: '',
-                zipCode: ''
-            },
-            phone: '',
-            email: '',
-            notes: '',
-            status: 'Onboarded',
-            level: 'Level - 3',
-            customerType: 'Fabricator',
-            modaDisplay: 'No',
-            modaBinder: '0'
-        });
+        setForm(emptyForm());
         onClose();
     };
 
@@ -515,6 +524,38 @@ const AddCustomerModal = ({ show, onClose, onSave, isSaving, editingCustomer, vi
                                     { value: 'Level - 3', label: 'Level 3' },
                                     { value: 'Level - 4', label: 'Level 4' }
                                 ]}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="form-grid-2col">
+                        <div className="form-group">
+                            <label>Sales Rep</label>
+                            <CustomSelect
+                                value={form.salesRep}
+                                onChange={(e) => setForm({ ...form, salesRep: e.target.value })}
+                                disabled={isViewMode}
+                                placeholder="Unassigned"
+                                options={[
+                                    { value: '', label: 'Unassigned' },
+                                    ...salesReps.map(rep => ({
+                                        value: rep._id,
+                                        // The branch is the thing that tells two
+                                        // reps apart at a glance, so it rides
+                                        // along with the name.
+                                        label: rep.location ? `${rep.name} — ${rep.location}` : rep.name
+                                    }))
+                                ]}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Location</label>
+                            <CustomSelect
+                                value={form.location}
+                                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                                disabled={isViewMode}
+                                placeholder="Select location…"
+                                options={locations.map(loc => ({ value: loc, label: loc }))}
                             />
                         </div>
                     </div>

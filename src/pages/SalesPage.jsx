@@ -41,6 +41,7 @@ import DailyReportTab from '../components/sales/dailyreport/DailyReportTab';
 import Pagination from '../components/shared/Pagination';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
+import { toSalesRepList } from '../utils/salesReps';
 
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 
@@ -97,6 +98,7 @@ const SalesPage = () => {
     const [customerRefreshTrigger, setCustomerRefreshTrigger] = useState(0);
     const [resourceRefreshTrigger, setResourceRefreshTrigger] = useState(0);
     const [locations, setLocations] = useState([]);
+    const [salesReps, setSalesReps] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -183,6 +185,23 @@ const SalesPage = () => {
         }
     };
 
+    // Staff who can own a customer account, for the Add Customer form's Sales Rep
+    // picker. Who qualifies is decided in utils/salesReps.js, so this and the
+    // customer list cannot drift apart on it.
+    async function fetchSalesReps() {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/api/salesreps`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                credentials: 'include'
+            });
+            if (!response.ok) return;
+            setSalesReps(toSalesRepList(await response.json()));
+        } catch (error) {
+            console.error('❌ [FETCH] Error fetching sales reps:', error);
+        }
+    }
+
     async function fetchLocations() {
         try {
             const token = localStorage.getItem('token');
@@ -238,6 +257,7 @@ const SalesPage = () => {
         });
 
         fetchLocations();
+        fetchSalesReps();
 
         return () => {
             socket.disconnect();
@@ -3538,6 +3558,20 @@ const SalesPage = () => {
                                         </div>
                                         <div className="info-box">
                                             <div className="info-box-header">
+                                                <UserCheck size={16} />
+                                                <label>Sales Rep</label>
+                                            </div>
+                                            <p>{selectedCustomer.salesRepName || 'Unassigned'}</p>
+                                        </div>
+                                        <div className="info-box">
+                                            <div className="info-box-header">
+                                                <MapPin size={16} />
+                                                <label>Location</label>
+                                            </div>
+                                            <p>{selectedCustomer.location || 'Seattle'}</p>
+                                        </div>
+                                        <div className="info-box">
+                                            <div className="info-box-header">
                                                 <ShieldCheck size={16} />
                                                 <label>Status</label>
                                             </div>
@@ -5187,6 +5221,9 @@ const SalesPage = () => {
                     onClose={() => setShowAddCustomerModal(false)}
                     onSave={handleCreateCustomer}
                     isSaving={isSaving}
+                    salesReps={salesReps}
+                    locations={locations.map(loc => loc.name).filter(Boolean)}
+                    currentUser={currentUser}
                 />
 
                 {/* Dashboard Upload Modal */}

@@ -6,6 +6,8 @@ import {
 import Pagination from '../shared/Pagination';
 import SidebarToggleButton from '../shared/SidebarToggleButton';
 import AddCustomerModal from './AddCustomerModal';
+import { useAuth } from '../../context/AuthContext';
+import { toSalesRepList } from '../../utils/salesReps';
 import { API_URL } from '../../config/api';
 import * as XLSX from 'xlsx';
 import { formatPhoneInput, formatPhoneForDisplay } from '../../utils/phoneUtils';
@@ -19,17 +21,36 @@ const getCompanyInitials = (name) => {
     return (words[0][0] + words[1][0]).toUpperCase();
 };
 
+// Branch chips are tinted per branch so a mixed list is scannable without
+// reading a word. Branches added later get no modifier and fall back to the
+// neutral chip, which is why this slugifies rather than looking up a fixed map.
+const locationClass = (name) =>
+    String(name || 'Seattle').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+// Filtering on a rep is only half the question — "who has nobody yet" is the
+// other half, and it is the list someone works through to clear the backlog.
+const UNASSIGNED = 'unassigned';
+
 // Tabs definition
 const TABS = [
     { key: 'fabricators', label: 'Fabricators', type: 'Fabricator', icon: Wrench, color: '#d4af37' },
     { key: 'partners',    label: 'Partners',    type: '',           icon: Users,  color: '#63b3ed' },
 ];
 
-// Custom MultiSelect Dropdown component
+// Custom MultiSelect Dropdown component.
+// Options are plain strings for the filters whose value is the label — Level,
+// Type, City, Status — or { value, label } where the two differ, which is what
+// the Sales Rep filter needs: it selects by user id but has to read as a name.
 const MultiSelect = ({ options, selectedValues = [], onChange, placeholder, showSearch = false }) => {
     const [isOpen, setIsOpen] = React.useState(false);
     const [searchVal, setSearchVal] = React.useState('');
     const containerRef = React.useRef(null);
+
+    const normalized = options.map(opt =>
+        typeof opt === 'object' && opt !== null
+            ? { value: opt.value, label: opt.label ?? opt.value }
+            : { value: opt, label: String(opt) }
+    );
 
     React.useEffect(() => {
         const handleClickOutside = (event) => {
@@ -49,14 +70,17 @@ const MultiSelect = ({ options, selectedValues = [], onChange, placeholder, show
         onChange(next);
     };
 
+    const labelOf = (value) =>
+        normalized.find(o => o.value === value)?.label ?? String(value);
+
     const displayText = selectedValues.length === 0
         ? placeholder
         : selectedValues.length <= 2
-            ? selectedValues.join(', ')
+            ? selectedValues.map(labelOf).join(', ')
             : `${selectedValues.length} selected`;
 
-    const filteredOptions = options.filter(opt =>
-        opt.toLowerCase().includes(searchVal.toLowerCase())
+    const filteredOptions = normalized.filter(opt =>
+        opt.label.toLowerCase().includes(searchVal.toLowerCase())
     );
 
     return (
@@ -90,13 +114,13 @@ const MultiSelect = ({ options, selectedValues = [], onChange, placeholder, show
                             <div className="spag-multiselect-empty">No results found</div>
                         ) : (
                             filteredOptions.map((opt) => (
-                                <label key={opt} className="spag-multiselect-item">
+                                <label key={opt.value} className="spag-multiselect-item">
                                     <input
                                         type="checkbox"
-                                        checked={selectedValues.includes(opt)}
-                                        onChange={() => handleToggle(opt)}
+                                        checked={selectedValues.includes(opt.value)}
+                                        onChange={() => handleToggle(opt.value)}
                                     />
-                                    <span>{opt}</span>
+                                    <span>{opt.label}</span>
                                 </label>
                             ))
                         )}
@@ -111,6 +135,7 @@ const MultiSelect = ({ options, selectedValues = [], onChange, placeholder, show
 const globalPartnersCache = {};
 
 const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPinned, customerRefreshTrigger }) => {
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState('fabricators');
 
     const [partners, setPartners] = useState([]);
@@ -130,7 +155,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [filterTypes, setFilterTypes] = useState([]);
     const [filterCities, setFilterCities] = useState([]);
     const [filterStatuses, setFilterStatuses] = useState([]);
+    const [filterSalesReps, setFilterSalesReps] = useState([]);
+    const [filterLocations, setFilterLocations] = useState([]);
     const [uniqueCities, setUniqueCities] = useState([]);
+
+    // The staff who can own an account, and the branches an account can sit at.
+    // Both feed the filter panel and the add/edit modal, so they are fetched
+    // once here rather than by each consumer.
+    const [salesReps, setSalesReps] = useState([]);
+    const [locations, setLocations] = useState([]);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(() => {
@@ -200,6 +233,46 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         fetchCities();
     }, []);
 
+    // Load the owner and branch pickers once on mount. Ordered by branch and
+    // then by name so the rep dropdown reads as branch-grouped rather than as
+    // one flat list of everyone in the company.
+    useEffect(() => {
+        const authHeaders = () => {
+            const token = localStorage.getItem('token');
+            return token ? { 'Authorization': `Bearer ${token}` } : {};
+        };
+
+        const fetchSalesReps = async () => {
+            try {
+                const res = await fetch(`${API_URL}/api/salesreps`, {
+                    headers: authHeaders(),
+                    credentials: 'include'
+                });
+                if (!res.ok) return;
+                setSalesReps(toSalesRepList(await res.json()));
+            } catch (err) {
+                console.error('Error fetching sales reps:', err);
+            }
+        };
+
+        const fetchLocations = async () => {
+            try {
+                const res = await fetch(`${API_URL}/api/admin/locations`, {
+                    headers: authHeaders(),
+                    credentials: 'include'
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                setLocations((data || []).map(l => l.name).filter(Boolean));
+            } catch (err) {
+                console.error('Error fetching locations:', err);
+            }
+        };
+
+        fetchSalesReps();
+        fetchLocations();
+    }, []);
+
     const activeTabDef = TABS.find(t => t.key === activeTab);
     // For the Partners tab we want everyone EXCEPT Fabricators
     const fetchPartners = async ({
@@ -209,13 +282,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         type = filterTypes.join(','),
         city = filterCities.join(','),
         status = filterStatuses.join(','),
+        salesRep = filterSalesReps.join(','),
+        location = filterLocations.join(','),
         lim = limit,
         tab = activeTab,
         sortB = sortBy,
         sortO = sortOrder,
         skipCache = false
     } = {}) => {
-        const cacheKey = JSON.stringify({ page, search, level, type, city, status, lim, tab, sortB, sortO });
+        const cacheKey = JSON.stringify({ page, search, level, type, city, status, salesRep, location, lim, tab, sortB, sortO });
 
         // Serve instantly from cache if available (0ms load!)
         if (globalPartnersCache[cacheKey]) {
@@ -240,10 +315,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             if (type)   url.searchParams.append('type', type);
             if (city)   url.searchParams.append('city', city);
             if (status) url.searchParams.append('status', status);
+            if (salesRep) url.searchParams.append('salesRep', salesRep);
+            if (location) url.searchParams.append('location', location);
 
             // If search or any filter is active, fetch across all customers (Fabricators + Partners) globally.
             // Otherwise, filter by tab type.
-            const isFilterActive = search || level || type || city || status;
+            const isFilterActive = search || level || type || city || status || salesRep || location;
             if (!isFilterActive) {
                 if (tab === 'fabricators') {
                     // Fabricators tab: only Fabricator type
@@ -280,12 +357,14 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             type: filterTypes.join(','),
             city: filterCities.join(','),
             status: filterStatuses.join(','),
+            salesRep: filterSalesReps.join(','),
+            location: filterLocations.join(','),
             lim: limit,
             tab: activeTab,
             sortB: sortBy,
             sortO: sortOrder
         });
-    }, [currentPage, debouncedSearch, limit, filterLevels, filterTypes, filterCities, filterStatuses, activeTab, sortBy, sortOrder, customerRefreshTrigger]);
+    }, [currentPage, debouncedSearch, limit, filterLevels, filterTypes, filterCities, filterStatuses, filterSalesReps, filterLocations, activeTab, sortBy, sortOrder, customerRefreshTrigger]);
 
     useEffect(() => {
         if (searchTerm === debouncedSearch) {
@@ -308,6 +387,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         setFilterTypes([]);
         setFilterCities([]);
         setFilterStatuses([]);
+        setFilterSalesReps([]);
+        setFilterLocations([]);
         setSortBy('level');
         setSortOrder('asc');
         setShowFilters(false);
@@ -318,10 +399,18 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         setFilterTypes([]);
         setFilterCities([]);
         setFilterStatuses([]);
+        setFilterSalesReps([]);
+        setFilterLocations([]);
         setCurrentPage(1);
     };
 
-    const activeFilterCount = filterLevels.length + filterTypes.length + filterCities.length + filterStatuses.length;
+    const activeFilterCount = filterLevels.length + filterTypes.length + filterCities.length
+        + filterStatuses.length + filterSalesReps.length + filterLocations.length;
+
+    // The rep filter travels as ids but has to read as names, so the chips and
+    // the multi-select label are mapped back through the directory.
+    const repLabel = (id) =>
+        id === UNASSIGNED ? 'Unassigned' : (salesReps.find(r => r._id === id)?.name || 'Unknown');
 
     const handleSavePartner = async (formData, closeModal) => {
         setIsSaving(true);
@@ -414,13 +503,16 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             const typeParam = filterTypes.join(',');
             const cityParam = filterCities.join(',');
             const statusParam = filterStatuses.join(',');
-            const isSearchingOrFiltering = !!(debouncedSearch || levelParam || typeParam || cityParam || statusParam);
-            
+            const repParam = filterSalesReps.join(',');
+            const locationParam = filterLocations.join(',');
+
             if (debouncedSearch) url.searchParams.append('search', debouncedSearch);
             if (levelParam)     url.searchParams.append('level', levelParam);
             if (typeParam)      url.searchParams.append('type', typeParam);
             if (cityParam)      url.searchParams.append('city', cityParam);
             if (statusParam)    url.searchParams.append('status', statusParam);
+            if (repParam)       url.searchParams.append('salesRep', repParam);
+            if (locationParam)  url.searchParams.append('location', locationParam);
 
             if (activeTab === 'fabricators') {
                 url.searchParams.append('type', 'Fabricator');
@@ -444,6 +536,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     Phone: formatPhoneForDisplay(l.phone),
                     Status: l.status || '-',
                     City: l.city || '-',
+                    'Sales Rep': l.salesRepName || 'Unassigned',
+                    Location: l.location || 'Seattle',
                     Type: l.customerType || '-',
                     Notes: l.notes || '-',
                     Created: new Date(l.createdAt).toLocaleDateString()
@@ -473,12 +567,16 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
             const typeParam = filterTypes.join(',');
             const cityParam = filterCities.join(',');
             const statusParam = filterStatuses.join(',');
+            const repParam = filterSalesReps.join(',');
+            const locationParam = filterLocations.join(',');
             
             if (debouncedSearch) url.searchParams.append('search', debouncedSearch);
             if (levelParam)     url.searchParams.append('level', levelParam);
             if (typeParam)      url.searchParams.append('type', typeParam);
             if (cityParam)      url.searchParams.append('city', cityParam);
             if (statusParam)    url.searchParams.append('status', statusParam);
+            if (repParam)       url.searchParams.append('salesRep', repParam);
+            if (locationParam)  url.searchParams.append('location', locationParam);
 
             if (activeTab === 'fabricators') {
                 url.searchParams.append('type', 'Fabricator');
@@ -675,6 +773,28 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                             />
                         </div>
                         <div className="filter-group">
+                            <label>Sales Rep</label>
+                            <MultiSelect
+                                options={[
+                                    { value: UNASSIGNED, label: 'Unassigned' },
+                                    ...salesReps.map(rep => ({ value: rep._id, label: rep.name }))
+                                ]}
+                                selectedValues={filterSalesReps}
+                                onChange={(vals) => { setFilterSalesReps(vals); setCurrentPage(1); }}
+                                placeholder="All Sales Reps"
+                                showSearch={true}
+                            />
+                        </div>
+                        <div className="filter-group">
+                            <label>Location</label>
+                            <MultiSelect
+                                options={locations}
+                                selectedValues={filterLocations}
+                                onChange={(vals) => { setFilterLocations(vals); setCurrentPage(1); }}
+                                placeholder="All Locations"
+                            />
+                        </div>
+                        <div className="filter-group">
                             <label>Status</label>
                             <MultiSelect
                                 options={[
@@ -715,6 +835,18 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                 <span key={c} className="filter-chip">
                                     {c}
                                     <button onClick={() => { setFilterCities(filterCities.filter(x => x !== c)); setCurrentPage(1); }}><X size={11} /></button>
+                                </span>
+                            ))}
+                            {filterSalesReps.map(id => (
+                                <span key={id} className="filter-chip">
+                                    {repLabel(id)}
+                                    <button onClick={() => { setFilterSalesReps(filterSalesReps.filter(x => x !== id)); setCurrentPage(1); }}><X size={11} /></button>
+                                </span>
+                            ))}
+                            {filterLocations.map(loc => (
+                                <span key={loc} className="filter-chip">
+                                    {loc}
+                                    <button onClick={() => { setFilterLocations(filterLocations.filter(x => x !== loc)); setCurrentPage(1); }}><X size={11} /></button>
                                 </span>
                             ))}
                             {filterStatuses.map(s => (
@@ -783,6 +915,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                                 <MapPin size={11} /> {city}
                                             </span>
                                         )}
+                                        <span className={`card-meta-badge location-badge ${locationClass(partner.location)}`}>
+                                            {partner.location || 'Seattle'}
+                                        </span>
                                     </div>
 
                                     {/* Contact & Phone 2-Row Section */}
@@ -804,6 +939,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                             ) : (
                                                 <span className="mcc-contact-val text-muted">N/A</span>
                                             )}
+                                        </div>
+                                        <div className="mcc-contact-row">
+                                            <span className="mcc-contact-label">Sales Rep:</span>
+                                            <span className={`mcc-contact-val${partner.salesRepName ? '' : ' text-muted'}`}>
+                                                {partner.salesRepName || 'Unassigned'}
+                                            </span>
                                         </div>
                                     </div>
 
@@ -873,6 +1014,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                         <th>Phone</th>
                                         {showTypeColumn && <th>Type</th>}
                                         {renderSortHeader('City', 'city')}
+                                        {renderSortHeader('Sales Rep', 'salesRep')}
+                                        {renderSortHeader('Location', 'location')}
                                         {renderSortHeader('Level', 'level')}
                                         <th>Moda Display</th>
                                         <th>Moda Binder</th>
@@ -884,14 +1027,14 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 11 : 10)} style={{ textAlign: 'center', padding: '3rem' }}>
+                                <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 13 : 12)} style={{ textAlign: 'center', padding: '3rem' }}>
                                     <div className="loader-container">
                                         <div className="loader-spinner"></div>
                                         <span>Loading {isFabTab ? 'fabricators' : 'partners'}...</span>
                                     </div>
                                 </td></tr>
                             ) : sortedPartners.length === 0 ? (
-                                <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 11 : 10)} style={{ textAlign: 'center', padding: '3rem' }}>
+                                <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 13 : 12)} style={{ textAlign: 'center', padding: '3rem' }}>
                                     <div className="empty-state">
                                         <FileText size={48} opacity={0.2} />
                                         <p>No {isFabTab ? 'fabricators' : 'partners'} found.</p>
@@ -936,6 +1079,18 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                                 </td>
                                             )}
                                             <td>{partner.city || partner.address?.city || '-'}</td>
+                                            <td>
+                                                {partner.salesRepName ? (
+                                                    <span className="sales-rep-badge">{partner.salesRepName}</span>
+                                                ) : (
+                                                    <span className="sales-rep-badge unassigned">Unassigned</span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <span className={`location-badge ${locationClass(partner.location)}`}>
+                                                    {partner.location || 'Seattle'}
+                                                </span>
+                                            </td>
                                             <td>{partner.level || partner.segment || '-'}</td>
                                             <td>
                                                 <span className={`moda-badge ${partner.modaDisplay?.toLowerCase()}`}>
@@ -990,6 +1145,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 isSaving={isSaving}
                 editingCustomer={editingPartner}
                 viewingCustomer={viewingPartner}
+                salesReps={salesReps}
+                locations={locations}
+                currentUser={user}
             />
         </div>
     );

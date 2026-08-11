@@ -124,6 +124,31 @@ const planFields = (survivor, losers) => {
     }
   }
 
+  // The owning rep is two fields that have to move together: the reference and
+  // the name cached beside it. Taking them independently could pair one record's
+  // rep id with another record's name, leaving the customer list showing a rep
+  // the profile disagrees with. Handled here rather than in `better` for that
+  // reason — and only when the survivor has no owner, so a merge never
+  // reassigns an account that already belongs to someone.
+  if (!survivor.salesRep) {
+    const from = losers.find(l => l.salesRep);
+    if (from) {
+      set.salesRep = from.salesRep;
+      set.salesRepName = from.salesRepName || '';
+      changes.push(`salesRep: (unassigned) → ${JSON.stringify(from.salesRepName || String(from.salesRep))}`);
+    }
+  }
+
+  // Branch. Only filled when the survivor has none: every record was backfilled
+  // to Seattle, so in practice this only matters for records created since.
+  if (!String(survivor.location || '').trim()) {
+    const from = losers.find(l => String(l.location || '').trim());
+    if (from) {
+      set.location = from.location;
+      changes.push(`location: (blank) → ${JSON.stringify(from.location)}`);
+    }
+  }
+
   return { set, changes };
 };
 

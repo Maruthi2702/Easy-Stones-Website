@@ -893,10 +893,26 @@ const AdminPage = () => {
       const data = await response.json();
 
       if (response.ok) {
+        const warnings = data.results.warnings || [];
         let message = `Upload Complete!\nAdded: ${data.results.added}\nSkipped: ${data.results.skipped}\nErrors: ${data.results.errors.length}`;
+
+        // Say which columns were read as the branch and the owner. Those two are
+        // matched by heading, so naming them is the quickest way to see that a
+        // sheet's columns were understood the way they were meant.
+        const cols = data.results.columns;
+        if (cols) {
+          message += `\n\nSales Rep column: ${cols.salesRep || 'not found'}`;
+          message += `\nLocation column: ${cols.location || 'not found — imported as Seattle'}`;
+        }
 
         if (data.results.errors.length > 0) {
           message += '\n\nFirst 5 Errors:\n' + data.results.errors.slice(0, 5).join('\n');
+        }
+
+        // Rows that imported, but not with everything the sheet asked for.
+        if (warnings.length > 0) {
+          message += `\n\nImported with warnings (${warnings.length}):\n` + warnings.slice(0, 5).join('\n');
+          if (warnings.length > 5) message += `\n…and ${warnings.length - 5} more`;
         }
 
         alert(message);
