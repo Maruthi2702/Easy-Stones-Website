@@ -2456,14 +2456,33 @@ body.light-theme-active .no-stops-subtext,
   color: #94a3b8 !important;
 }
 
+/* Completed, on the light board.
+   The pill was authored against the dark card, where #34d399 sits at 6.14:1 and
+   is left alone. On white that same mint lands at 1.56:1 — the word is there and
+   cannot be read. #15803d over a paler tint measures 4.79:1, clearing the 4.5:1
+   floor for text this size. */
+body.light-theme-active .manifest-status-pill.pill-status-completed,
+.light-theme-active .manifest-status-pill.pill-status-completed {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+/* The status dropdown on a ticket tints itself to match the state it is showing,
+   so it follows the pill rather than keeping the dark theme's mint. */
+body.light-theme-active .status-select.status-completed,
+.light-theme-active .status-select.status-completed {
+  color: #15803d;
+}
+
 /* Status Badges in Light Theme */
 body.light-theme-active .stop-status-badge.completed,
 body.light-theme-active .stop-status-badge.delivered,
 .light-theme-active .stop-status-badge.completed,
 .light-theme-active .stop-status-badge.delivered {
-  background: #ecfdf5 !important;
-  color: #047857 !important;
-  border: 1px solid #a7f3d0 !important;
+  background: #f0fdf4 !important;
+  color: #15803d !important;
+  border: 1px solid #bbf7d0 !important;
 }
 
 body.light-theme-active .stop-status-badge.pending,
