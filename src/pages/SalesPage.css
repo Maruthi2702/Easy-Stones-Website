@@ -5451,10 +5451,11 @@ body.light-theme-active .pl-item--other { border-left-color: #64748b; }
   min-width: 0;
 }
 
-/* Sat and Sun sit back a shade so the working week leads. :not(.is-today)
-   keeps a weekend today from losing its highlight to this. */
-.pl-mrow > .pl-cell:first-child:not(.is-today),
-.pl-mrow > .pl-cell:last-child:not(.is-today) {
+/* Sat and Sun sit back a shade so the working week leads. The :not()s keep a
+   weekend today, and a weekend being dropped onto, from losing their highlight
+   to this — it out-specifies both on its own. */
+.pl-mrow > .pl-cell:first-child:not(.is-today):not(.is-drop),
+.pl-mrow > .pl-cell:last-child:not(.is-today):not(.is-drop) {
   background: var(--pl-weekend-tint);
 }
 
@@ -5576,6 +5577,170 @@ body.light-theme-active .pl-item--other { border-left-color: #64748b; }
 
 .pl-more:hover {
   color: var(--pl-gold);
+}
+
+/* ── drag a stop onto another day ──
+   Placed after the day, rail and month rules on purpose: .is-drop and .is-today
+   are the same weight, so the day being dropped onto has to come last to show
+   through on today. */
+/* The grab cursor is the whole affordance on a week card, which has no click of
+   its own. A month event is left on `pointer`, because there the click opens it
+   and that is the action the cursor should be naming; its drag is in the
+   tooltip instead. */
+.pl-item {
+  cursor: grab;
+}
+
+.pl-item:active {
+  cursor: grabbing;
+}
+
+/* The card is travelling with the cursor, so what stays behind reads as the
+   space it left rather than as a card in its own right. */
+.pl-item.is-dragging,
+.pl-ev.is-dragging {
+  opacity: 0.4;
+}
+
+/* Lift on hover is for a card you might pick up. This one is already picked up,
+   and a second highlight following the cursor only competes with the column
+   the drop is actually going to land in. */
+.pl-item.is-dragging:hover {
+  transform: none;
+  box-shadow: var(--pl-shadow);
+}
+
+/* Solid gold rather than the softer --pl-gold-line the calendar uses for its
+   standing borders: this one is on screen for the second a card is held over
+   the day, and has to be readable at a glance without being hunted for. */
+.pl-col.is-drop,
+.pl-rail-day.is-drop,
+.pl-cell.is-drop {
+  background: var(--pl-gold-soft);
+  /* Inset rather than a border: an outline drawn inside the box cannot shift
+     the day by 2px at the moment it becomes a target. */
+  box-shadow: inset 0 0 0 2px var(--pl-gold-fill);
+}
+
+/* The head paints its own background over the tint otherwise, leaving the top
+   of a column looking untouched while the rest of it lights up. */
+.pl-col.is-drop .pl-colhead {
+  background: transparent;
+}
+
+.pl-rail-day.is-drop {
+  border-radius: 12px;
+}
+
+/* The card is now focusable in its own right — it has to be, or the keyboard
+   has nothing to press Space on — so it needs a focus ring of its own. */
+.pl-item:focus-visible {
+  outline: 2px solid var(--pl-gold-fill);
+  outline-offset: 2px;
+}
+
+/* Held by the keyboard: the card stays put and stays readable, because unlike
+   a drag there is nothing following a cursor to say where it went. The dashed
+   ring is the "in hand" state, and the insertion line says where it will land. */
+.pl-item.is-grabbed {
+  outline: 2px dashed var(--pl-gold-fill);
+  outline-offset: 2px;
+  box-shadow: var(--pl-shadow-hover);
+}
+
+/* ── where it will land ── */
+/* Drawn in the flow rather than over it, so the column opens a gap where the
+   card is going — the line says where, and the space says how much. */
+.pl-slot {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--pl-gold-fill);
+  flex: none;
+  animation: pl-slot-in 0.12s ease-out;
+}
+
+@keyframes pl-slot-in {
+  from { transform: scaleX(0.4); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-slot { animation: none; }
+}
+
+/* ── the week arrows, while a card is in hand ── */
+.pl-navbtn.is-edge {
+  background: var(--pl-gold-fill);
+  border-color: var(--pl-gold-fill);
+  color: var(--pl-gold-ink);
+}
+
+/* ── touch: the card under the finger ──
+   A finger gets no drag image from the browser, and the real card is both
+   underneath the hand and still in its old column. This is the only thing
+   saying what is being carried. */
+.pl-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 220px;
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  background: var(--pl-raised);
+  border: 1px solid var(--pl-gold-fill);
+  box-shadow: var(--pl-shadow-hover);
+  /* Held just above and left of the fingertip, where it is not covered by the
+     hand. And transparent to hit testing, or elementFromPoint would find this
+     and nothing else for the whole drag. */
+  transform: translate3d(-9999px, -9999px, 0);
+  margin: -3.2rem 0 0 -2.2rem;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.pl-ghost-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--pl-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pl-ghost-time {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--pl-text-2);
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A long press is how a drag starts on touch, and the OS answers a long press
+   with a selection handle or a callout unless it is told not to. */
+@media (hover: none) {
+  .pl-item,
+  .pl-ev {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}
+
+/* Spoken, not shown: the running commentary on a keyboard move. */
+.pl-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ── legend: colour is never the only signal ── */

@@ -113,6 +113,44 @@ export function loadPlannerRange(start, end) {
 }
 
 /**
+ * Change one item everywhere it is cached and tell the listeners at once.
+ *
+ * This exists for the drag-to-reschedule move, which has to look immediate:
+ * waiting on the round trip would leave the card sitting on its old day under a
+ * cursor that has already let go of it. Writing through the cache rather than
+ * into component state means the move also survives the unmount when another
+ * tab is opened, and that the refetch which follows the write comes back
+ * matching what is already on screen — so `sameItems` skips the re-render
+ * instead of repainting the week.
+ *
+ * Returns the undo, for when the write turns out to have failed.
+ */
+export function patchPlannerItem(id, patch) {
+  const fields = Object.keys(patch);
+  let restore = null;
+
+  for (const [key, items] of cache.ranges) {
+    let changed = false;
+    const next = items.map(item => {
+      if (String(item._id) !== String(id)) return item;
+      changed = true;
+      // Captured from the first range that has it — the same item in a second
+      // cached range is the same item, so one copy of the old values is enough.
+      if (!restore) restore = Object.fromEntries(fields.map(f => [f, item[f]]));
+      return { ...item, ...patch };
+    });
+    if (!changed) continue;
+    cache.ranges.set(key, next);
+    notify(key);
+  }
+
+  // Nothing was cached under this id, so nothing moved and there is nothing to
+  // put back. The caller still gets an undo it can call unconditionally.
+  if (!restore) return () => {};
+  return () => patchPlannerItem(id, restore);
+}
+
+/**
  * Re-check the visible range. Silent by design: failures leave the cached week
  * on screen rather than replacing it with an error, because this fires on
  * timers and window focus, where the user did not ask for anything.
