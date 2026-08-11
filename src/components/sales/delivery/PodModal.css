@@ -1143,35 +1143,72 @@ body.light-theme-active .pod-danger-zone,
   background: rgba(245, 158, 11, 0.2);
 }
 
-/* Release & Sign, on pickup tickets the office signs for at the counter.
-   Deliberately quieter than the status pill above it — it is an action on a
-   ticket, not the ticket's headline. */
+/* Sign ePOD, on pickup tickets the office signs for at the counter. It sits at
+   the right edge of the footer, after the rep and any notes, and takes the slot
+   the ePOD badge would otherwise use — a ticket shows one or the other, never
+   both, since "Awaiting re-sign" next to "Sign ePOD" says the same thing twice.
+
+   Amber, matching the badge it replaces: an unsigned ticket is a loose end, and
+   should read as one rather than as a neutral action. */
 .ticket-sign-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   font-size: 0.68rem;
   font-weight: 700;
   font-family: inherit;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 5px;
   white-space: nowrap;
   cursor: pointer;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid rgba(56, 189, 248, 0.28);
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.32);
   transition: background 0.15s;
 }
 
 .ticket-sign-btn:hover {
-  background: rgba(56, 189, 248, 0.22);
+  background: rgba(245, 158, 11, 0.24);
+}
+
+/* The footer is space-between, which already puts the rep left, notes in the
+   middle and the proof at the right edge. An auto margin on the proof would
+   swallow the free space and drag notes back against the rep, so it is applied
+   only when the proof is alone in the footer — a transfer, which has no rep and
+   would otherwise leave its badge or button stranded on the left.
+
+   Covers the ePOD badge in all three of its states as well as the Sign button:
+   whichever one a ticket is showing, it belongs in the same slot. */
+.ticket-footer > .ticket-sign-btn:only-child,
+.ticket-footer > .epod-chip:only-child {
+  margin-left: auto;
+}
+
+/* A proof that was captured and then voided is a stronger claim on someone's
+   attention than one never captured: the ticket is completed and is carrying a
+   signature that has been withdrawn. */
+.ticket-sign-btn.is-cleared {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.34);
+}
+
+.ticket-sign-btn.is-cleared:hover {
+  background: rgba(239, 68, 68, 0.24);
 }
 
 body.light-theme-active .ticket-sign-btn,
 .light-theme-active .ticket-sign-btn {
-  color: #0369a1;
-  background: rgba(2, 132, 199, 0.08);
-  border-color: rgba(2, 132, 199, 0.3);
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(180, 83, 9, 0.32);
+}
+
+body.light-theme-active .ticket-sign-btn.is-cleared,
+.light-theme-active .ticket-sign-btn.is-cleared {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(185, 28, 28, 0.32);
 }
 
 

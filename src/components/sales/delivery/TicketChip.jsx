@@ -52,15 +52,23 @@ const TicketChip = ({
   // truck column.
   const refLabel = isTransfer ? '' : '| SO# ';
   const showRep = !isTransfer;
-  // Proof only means something once the delivery is done — an unsigned scheduled
-  // job doesn't need telling that it has no ePOD yet.
-  const showEpod = delivery.status === 'completed';
+  const isSigned = Boolean(delivery.pod?.verified);
+  // Signed once, then voided. It still needs a signature, but more urgently than
+  // one that was never signed at all — the ticket claims to be proven and isn't.
+  const wasCleared = Boolean(delivery.pod?.clearedAt) && !isSigned;
+
   // Nobody drives a pickup, so its signature is captured at the counter by
   // whoever releases it. Offered until there is proof rather than until the
   // ticket is completed: a pickup someone marked complete by hand still has
   // nobody's signature on it, and a cleared ePOD has to be re-signed by the
   // same counter that took the first one.
-  const canSign = Boolean(editable && onOpenPod && !delivery.pod?.verified);
+  const canSign = Boolean(editable && onOpenPod && !isSigned);
+
+  // Proof only means something once the delivery is done — an unsigned scheduled
+  // job doesn't need telling that it has no ePOD yet. Suppressed entirely where
+  // the Sign button is offered: "Awaiting re-sign" beside "Sign ePOD" is the
+  // same sentence twice, and two pills is more than a truck column can hold.
+  const showEpod = delivery.status === 'completed' && !canSign;
   const hasFooter = showRep || Boolean(delivery.notes) || showEpod || canSign;
 
   const handleCopySO = (e, val) => {
@@ -144,14 +152,17 @@ const TicketChip = ({
           </span>
         )}
         {showEpod && <EpodChip delivery={delivery} onViewPod={onViewPod} />}
+        {/* Last, so the footer's space-between reads rep · notes · sign. */}
         {canSign && (
           <button
             type="button"
-            className="ticket-sign-btn"
+            className={`ticket-sign-btn${wasCleared ? ' is-cleared' : ''}`}
             onClick={(e) => { e.stopPropagation(); onOpenPod(delivery); }}
-            title="Capture the signature of whoever is collecting this order"
+            title={wasCleared
+              ? 'The previous signature was cleared — capture a new one'
+              : 'Capture the signature of whoever is collecting this order'}
           >
-            <PenLine size={11} /> Release &amp; Sign
+            <PenLine size={11} /> Sign ePOD
           </button>
         )}
       </div>
