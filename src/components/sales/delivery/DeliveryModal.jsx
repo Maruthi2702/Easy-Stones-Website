@@ -157,7 +157,8 @@ const DeliveryModal = ({
                   label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
                   city,
                   address: street || city,
-                  fullAddress
+                  fullAddress,
+                  salesRepName: c.salesRepName || ''
                 };
               });
               setFetchedCustomerOptions(mapped);
@@ -566,6 +567,12 @@ const DeliveryModal = ({
                     setSelectedCustomerId(foundOpt.value);
                     const autoAddr = foundOpt.city || foundOpt.fullAddress || foundOpt.address || '';
                     if (autoAddr && autoAddr !== '[object Object]') setAddress(autoAddr);
+                    // The rep on the ticket should be whoever owns the account,
+                    // not whoever happens to be typing it in, so picking a
+                    // customer overwrites the default seeded from the current
+                    // user. Accounts with no owner yet leave it as it was —
+                    // blanking the field would be worse than a stale guess.
+                    if (foundOpt.salesRepName) setSalesRepName(foundOpt.salesRepName);
                   } else {
                     setCustomerName(formatTitleCase(val));
                   }

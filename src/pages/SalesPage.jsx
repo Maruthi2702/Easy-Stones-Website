@@ -893,7 +893,10 @@ const SalesPage = () => {
                     label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
                     city: cityPart,
                     address: addrPart || cityPart,
-                    fullAddress: fullAddr
+                    fullAddress: fullAddr,
+                    // The account's owning rep, so a form that picks a customer
+                    // can name the rep without looking the customer up again.
+                    salesRepName: c.salesRepName || ''
                 };
             });
     }, [allCustomersForSelection, customers]);

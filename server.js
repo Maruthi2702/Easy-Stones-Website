@@ -2119,7 +2119,11 @@ app.get('/api/customers/dropdown', authenticate, async (req, res) => {
     if (cached) return res.json(cached);
 
     const customers = await Customer.find({})
-      .select('_id company contactName firstName lastName email customerType city address street state zip shippingAddress shippingCity billingAddress billingCity')
+      // salesRepName rides along so a screen that picks a customer can fill in
+      // the account's owning rep without a second round trip — the delivery
+      // modal does exactly that. The cached label is enough; the id is not
+      // needed, as nothing here writes back to the customer.
+      .select('_id company contactName firstName lastName email customerType city address street state zip shippingAddress shippingCity billingAddress billingCity salesRepName')
       .sort({ company: 1, contactName: 1 })
       .lean();
 
