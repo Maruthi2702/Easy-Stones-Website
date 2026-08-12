@@ -1361,6 +1361,11 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Read before anything is applied: displayNameOf() falls back to the
+    // username, so a change to either field can change the name the rest of the
+    // system shows for this person.
+    const nameBefore = displayNameOf(user);
+
     // Check if new username is already taken by another user
     if (username && username !== user.username) {
       const existingUser = await User.findOne({ username });
@@ -1380,6 +1385,26 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
     if (password) user.password = password; // Will be hashed by pre-save hook
 
     await user.save();
+
+    // Customers cache their owning rep's name so the customer list — an
+    // aggregation that pages over every account — needs no $lookup per row.
+    // Nothing else re-derives that copy, so before this a rename left every
+    // account the person owns labelled with the name they no longer go by, and
+    // the delivery modal now reads that label onto new tickets, carrying the
+    // stale name further. Re-point them here, where the rename happens.
+    const nameAfter = displayNameOf(user);
+    if (nameAfter !== nameBefore) {
+      const { modifiedCount } = await Customer.updateMany(
+        { salesRep: user._id },
+        { $set: { salesRepName: nameAfter } }
+      );
+      if (modifiedCount > 0) {
+        // The dropdown carries salesRepName, and only /api/customers writes bust
+        // its cache — a rename reaches those records from a different route.
+        bustCustomerCaches();
+        console.log(`✏️ Rep renamed ${nameBefore} → ${nameAfter}: relabelled ${modifiedCount} customer record(s)`);
+      }
+    }
 
     // A rename has to reach every open board — see the create route above.
     req.app.get('io')?.emit('truck_update');
