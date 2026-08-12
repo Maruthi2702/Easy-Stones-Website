@@ -836,7 +836,7 @@ const DeliveryModal = ({
                             };
                             reader.readAsDataURL(file);
                           }
-                        } catch (err) {
+                        } catch {
                           const reader = new FileReader();
                           reader.onloadend = () => {
                             setPackingListUrl(reader.result);

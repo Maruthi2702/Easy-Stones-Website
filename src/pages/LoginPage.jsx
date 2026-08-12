@@ -17,7 +17,7 @@ const LoginPage = () => {
         try {
             const saved = localStorage.getItem('checkin_theme');
             return saved === 'dark' ? 'dark' : 'light';
-        } catch (e) {
+        } catch {
             return 'light';
         }
     });
@@ -86,7 +86,7 @@ const LoginPage = () => {
             } else {
                 setError(data.message || 'Invalid credentials');
             }
-        } catch (err) {
+        } catch {
             setError('Login failed. Please try again.');
         } finally {
             setLoading(false);

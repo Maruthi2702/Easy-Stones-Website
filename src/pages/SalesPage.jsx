@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
 import {
     Calendar, MapPin, Phone, Mail, Clock, Plus, Search,
     Filter, X, Upload, Home, ArrowLeft,
@@ -47,12 +46,12 @@ import ErrorBoundary from '../components/shared/ErrorBoundary';
 
 const SalesPage = () => {
     const { user: currentUser, loading: authLoading, logout } = useAuth();
-    const navigate = useNavigate();
+    
     const [theme, setTheme] = useState(() => {
         try {
             const saved = localStorage.getItem('checkin_theme');
             return saved === 'dark' ? 'dark' : 'light';
-        } catch (e) {
+        } catch {
             return 'light';
         }
     });
@@ -62,7 +61,7 @@ const SalesPage = () => {
             try {
                 const saved = localStorage.getItem('checkin_theme');
                 setTheme(saved === 'dark' ? 'dark' : 'light');
-            } catch (e) {}
+            } catch { /* not fatal — carry on */ }
         };
         window.addEventListener('storage', handleThemeChange);
         window.addEventListener('checkin_theme_changed', handleThemeChange);
@@ -95,7 +94,7 @@ const SalesPage = () => {
     }, [theme]);
 
     const [customers, setCustomers] = useState([]);
-    const [customerRefreshTrigger, setCustomerRefreshTrigger] = useState(0);
+    const [customerRefreshTrigger] = useState(0);
     const [resourceRefreshTrigger, setResourceRefreshTrigger] = useState(0);
     const [locations, setLocations] = useState([]);
     const [salesReps, setSalesReps] = useState([]);
@@ -161,7 +160,7 @@ const SalesPage = () => {
     const [checkInTodayCount, setCheckInTodayCount] = useState(0);
     const [checkInMonthCount, setCheckInMonthCount] = useState(0);
     const [checkInAllTimeCount, setCheckInAllTimeCount] = useState(0);
-    const [checkInRefreshTrigger, setCheckInRefreshTrigger] = useState(0);
+    const [checkInRefreshTrigger] = useState(0);
 
     const fetchCheckInStats = async () => {
         try {
@@ -659,7 +658,7 @@ const SalesPage = () => {
             let data = {};
             try {
                 data = await res.json();
-            } catch (jsonErr) {
+            } catch {
                 const txt = await res.text().catch(() => '');
                 data = { message: txt || `Server returned status ${res.status}` };
             }
@@ -705,7 +704,7 @@ const SalesPage = () => {
             let data = {};
             try {
                 data = await res.json();
-            } catch (jsonErr) {
+            } catch {
                 const txt = await res.text().catch(() => '');
                 data = { message: txt || `Server returned status ${res.status}` };
             }
@@ -934,7 +933,7 @@ const SalesPage = () => {
         if (dashboardVisits.length > 0 || dashboardResources.length > 0) return null;
 
         const now = new Date();
-        const localDateStr = formatForDateInput(new Date());
+        
         let start;
         switch (dashboardTimeRange) {
             case '1day':
@@ -1005,7 +1004,7 @@ const SalesPage = () => {
                 (v.notes?.toLowerCase().includes(searchLower)) ||
                 (v.purpose?.toLowerCase().includes(searchLower));
 
-            const isSystemEntry = v.purpose?.toLowerCase().match(/quick note|resource placement|resource update|new tower/i);
+            
 
             // Exclude system entries from visits tab
             const systemEntryExclude = true;
@@ -1175,7 +1174,7 @@ const SalesPage = () => {
     const [isViewingVisit, setIsViewingVisit] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [showCustomerInfo, setShowCustomerInfo] = useState(false);
-    const [isChatFullScreen, setIsChatFullScreen] = useState(false);
+    const [isChatFullScreen] = useState(false);
     const [quickNote, setQuickNote] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
 
@@ -1185,7 +1184,7 @@ const SalesPage = () => {
         try {
             const saved = localStorage.getItem('sidebarPinned');
             return saved !== null ? JSON.parse(saved) : true;
-        } catch (e) {
+        } catch {
             return true;
         }
     });
@@ -1253,7 +1252,7 @@ const SalesPage = () => {
         }
     }, [isPinned]);
 
-    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+    
     const togglePin = () => setIsPinned(!isPinned);
 
     // Form states
@@ -1290,8 +1289,6 @@ const SalesPage = () => {
         url: '',
         uploadedBy: ''
     });
-
-    // Resources tab state
 
 
     const [expandedResourceId, setExpandedResourceId] = useState(null);
@@ -1331,8 +1328,6 @@ const SalesPage = () => {
     const [isExistingFileRemoved, setIsExistingFileRemoved] = useState(false);
     const [currentFolderId, setCurrentFolderId] = useState(null);
     const [folderPath, setFolderPath] = useState([]); // [{id, name}, ...]
-
-    // New Dashboard State
 
 
     // Pagination State
@@ -1391,33 +1386,6 @@ const SalesPage = () => {
     useEffect(() => {
         fetchAllCustomersForDropdown();
     }, [fetchAllCustomersForDropdown]);
-
-    const fetchCurrentUser = async () => {
-        try {
-            // Try to get admin/user info first
-            const userResponse = await fetch(`${API_URL}/api/user/me`, {
-                credentials: 'include'
-            });
-
-            if (userResponse.ok) {
-                const userData = await userResponse.json();
-                setCurrentUserId(userData.id);
-                return;
-            }
-
-            // Try customer endpoint as fallback
-            const customerResponse = await fetch(`${API_URL}/api/customer/me`, {
-                credentials: 'include'
-            });
-
-            if (customerResponse.ok) {
-                const customerData = await customerResponse.json();
-                setCurrentUserId(customerData.id);
-            }
-        } catch (error) {
-            console.error('Error fetching current user:', error);
-        }
-    };
 
 
     // Fetch Sales Dashboard Resources
@@ -2083,7 +2051,7 @@ const SalesPage = () => {
                 body: formData // Content-Type is set automatically
             });
             if (response.ok) {
-                const result = await response.json();
+                await response.json();
 
                 setShowDashboardUploadModal(false);
                 setDashboardUploadForm({ name: '', type: 'file', content: '', file: null });
@@ -2105,15 +2073,7 @@ const SalesPage = () => {
         }
     };
 
-    const handleDashboardDelete = async (resourceId) => {
-        setDeleteConfirmation({
-            isOpen: true,
-            isDeleting: false,
-            type: 'dashboardResource',
-            id: resourceId,
-            message: 'Are you sure you want to delete this resource?'
-        });
-    };
+    
 
     const ensureResourceContent = async (resource) => {
         if (resource.isFolder || resource.type === 'link') return resource;
@@ -2134,61 +2094,6 @@ const SalesPage = () => {
             console.error('Error fetching full resource:', error);
         }
         return resource;
-    };
-
-    const handleDashboardShare = async (resource) => {
-        try {
-            const fullResource = await ensureResourceContent(resource);
-            if (fullResource.type === 'link') {
-                if (navigator.share) {
-                    await navigator.share({
-                        title: fullResource.name,
-                        text: `Check out this resource: ${fullResource.name}`,
-                        url: fullResource.content
-                    });
-                } else {
-                    await navigator.clipboard.writeText(fullResource.content);
-                    alert('Link copied to clipboard!');
-                }
-            } else {
-                // Handle File Sharing
-                if (navigator.share && fullResource.content && (fullResource.content.startsWith('http') || fullResource.content.startsWith('data:') || fullResource.content.startsWith('/uploads/'))) {
-                    // Convert Base64 or URL to Blob/File
-                    const resourceUrl = fullResource.content.startsWith('data:')
-                        ? fullResource.content
-                        : (fullResource.content.startsWith('/') ? `${API_URL}${fullResource.content}` : fullResource.content);
-
-                    const response = await fetch(resourceUrl);
-                    const blob = await response.blob();
-                    const file = new File([blob], fullResource.name, { type: blob.type });
-
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file],
-                            title: fullResource.name,
-                            text: `Check out this file: ${fullResource.name}`
-                        });
-                    } else {
-                        throw new Error('Direct file sharing not supported');
-                    }
-                } else {
-                    throw new Error('Web Share API not supported or invalid content');
-                }
-            }
-        } catch (error) {
-            console.error('Share failed:', error);
-            // Fallback
-            if (resource.type === 'link') {
-                try {
-                    await navigator.clipboard.writeText(resource.content);
-                    alert('Link copied to clipboard (Sharing failed or not supported)');
-                } catch (e) { alert('Failed to copy link'); }
-            } else {
-                if (window.confirm('Direct sharing is not supported on this browser or device. Would you like to download the file instead?')) {
-                    handleDashboardDownload(resource);
-                }
-            }
-        }
     };
 
     const handleDashboardDownload = async (resource) => {
@@ -2216,21 +2121,6 @@ const SalesPage = () => {
         }
     };
 
-    // Visit CRUD operations
-    const handleAddVisit = () => {
-        setEditingVisit(null);
-        setIsViewingVisit(false);
-        setVisitForm({
-            date: formatForDateInput(new Date()),
-            purpose: 'Scheduled in Person Sales Meeting',
-            notes: '',
-            outcome: '',
-            followUp: '',
-            followUpDate: '',
-            nextAction: ''
-        });
-        setShowVisitModal(true);
-    };
 
     const handleEditVisit = async (visit) => {
         if (!visit?.customerId || !visit?._id) {
@@ -2577,9 +2467,7 @@ const SalesPage = () => {
         setCurrentFolderId(folder._id);
     };
 
-    const handleFileClick = (resource) => {
-        handleDashboardPreview(resource);
-    };
+    
 
     const handleEditDashboardResource = (resource) => {
         setEditingDashboardResource(resource);
@@ -2743,7 +2631,7 @@ const SalesPage = () => {
                     if (Array.isArray(imgData)) return imgData[0];
                     if (typeof imgData === 'string') {
                         if (imgData.startsWith('[') && imgData.endsWith(']')) {
-                            try { return JSON.parse(imgData)[0]; } catch (e) { }
+                            try { return JSON.parse(imgData)[0]; } catch { /* not fatal — carry on */ }
                         }
                         return imgData.split(',')[0].trim();
                     }
@@ -2765,7 +2653,7 @@ const SalesPage = () => {
                     if (Array.isArray(imgData)) return imgData[0];
                     if (typeof imgData === 'string') {
                         if (imgData.startsWith('[') && imgData.endsWith(']')) {
-                            try { return JSON.parse(imgData)[0]; } catch (e) { }
+                            try { return JSON.parse(imgData)[0]; } catch { /* not fatal — carry on */ }
                         }
                         return imgData.split(',')[0].trim();
                     }
@@ -2866,7 +2754,7 @@ const SalesPage = () => {
             if (response.ok) {
                 // Refresh data to show new reaction
                 // Using fetchSingleCustomer for now, could be optimized to local state update
-                const data = await response.json();
+                await response.json();
 
                 // Optimistic update or just simpler refetch
                 await fetchSingleCustomer(selectedCustomerId);
@@ -2963,53 +2851,6 @@ const SalesPage = () => {
         }));
     };
 
-    const handlePaste = async (e) => {
-        const items = e.clipboardData.items;
-        const newFiles = [];
-        let hasFile = false;
-
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            if (item.kind === 'file') {
-                const file = item.getAsFile();
-                if (file) {
-                    hasFile = true;
-                    // Check file type
-                    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
-                        continue;
-                    }
-
-                    if (file.size > 25 * 1024 * 1024) {
-                        alert(`Pasted file is too large. Limit is 25MB.`);
-                        continue;
-                    }
-
-                    try {
-                        let processedFile;
-                        if (file.type.startsWith('image/')) {
-                            processedFile = await compressImage(file);
-                        } else if (file.type === 'application/pdf') {
-                            processedFile = await fileToBase64(file);
-                        }
-                        if (processedFile) {
-                            newFiles.push(processedFile);
-                        }
-                    } catch (error) {
-                        console.error(`Error processing pasted file:`, error);
-                    }
-                }
-            }
-        }
-
-        if (hasFile && newFiles.length > 0) {
-            e.preventDefault(); // Prevent default if we successfully handled a file
-            setVisitForm(prev => ({
-                ...prev,
-                image: prev.image ? (Array.isArray(prev.image) ? [...prev.image, ...newFiles] : [prev.image, ...newFiles]) : newFiles
-            }));
-        }
-    };
-
     const handleRemoveVisitImage = (index) => {
         setVisitForm(prev => ({
             ...prev,
@@ -3096,13 +2937,8 @@ const SalesPage = () => {
         setImagePreview(updatedImages.length > 0 ? updatedImages[0] : null);
     };
 
-    const handleRemoveImage = () => {
-        setResourceForm({ ...resourceForm, image: '' });
-        setImagePreview(null);
-    };
+    
 
-
-    // Dashboard Helpers
 
 
     const handleExportVisits = async (customVisits) => {

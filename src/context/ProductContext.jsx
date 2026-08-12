@@ -16,7 +16,7 @@ export const ProductProvider = ({ children }) => {
         try {
             const cached = localStorage.getItem('cached_products');
             return cached ? JSON.parse(cached) : [];
-        } catch (e) {
+        } catch {
             return [];
         }
     });

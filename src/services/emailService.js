@@ -32,7 +32,7 @@ export async function sendEmail({ to, subject, html, replyTo, defaultSenderName,
         }));
       }
 
-      const { data, error } = await resend.emails.send(payload);
+      const {  error } = await resend.emails.send(payload);
       if (error) {
         const errMsg = error.message || JSON.stringify(error);
         console.error(`⚠️ Resend failed to send email to ${to}: ${errMsg}`);
@@ -100,7 +100,7 @@ export async function sendEmail({ to, subject, html, replyTo, defaultSenderName,
 
 // 1. Send Check-In Alert Notification
 export async function sendCheckInAlertEmail(checkIn) {
-  const { name, phone, email, fabricatorCompany, fabricatorPhone, fabricatorName } = checkIn;
+  const { name, phone, email, fabricatorCompany, fabricatorPhone } = checkIn;
   
   const emailHtml = `
     <div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eaeaea; border-radius: 12px; background: #fafafa;">

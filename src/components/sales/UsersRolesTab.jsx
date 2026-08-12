@@ -212,7 +212,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                 const data = await res.json();
                 if (data.token) localStorage.setItem('token', data.token);
             }
-        } catch (e) {
+        } catch {
             // If this fails, fetchWithAuth will fall back to cookie-based auth
         }
     };

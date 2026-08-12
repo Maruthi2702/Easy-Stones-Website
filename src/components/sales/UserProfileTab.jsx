@@ -4,7 +4,7 @@ import { API_URL } from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
 import './UserProfileTab.css';
 
-const UserProfileTab = ({ sidebarToggle, handleGoHome, theme }) => {
+const UserProfileTab = ({ sidebarToggle, theme }) => {
     const { user } = useAuth();
     const [formData, setFormData] = useState({
         currentPassword: '',
@@ -69,7 +69,7 @@ const UserProfileTab = ({ sidebarToggle, handleGoHome, theme }) => {
             } else {
                 setMessage({ type: 'error', text: data.message || 'Failed to update password.' });
             }
-        } catch (error) {
+        } catch {
             setMessage({ type: 'error', text: 'Connection error. Please try again.' });
         } finally {
             setIsSubmitting(false);

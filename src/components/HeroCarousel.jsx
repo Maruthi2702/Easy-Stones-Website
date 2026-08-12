@@ -8,21 +8,15 @@ import './HeroCarousel.css';
 const HeroCarousel = () => {
     const { products, loading } = useProducts();
 
+    // Every hook in this component runs before the loading skeleton returns.
+    // They used to sit below it, so the first render — products still in
+    // flight — called no hooks, and the render after they arrived called two.
+    // React counts hooks per render and throws when the count grows, taking
+    // the whole homepage down at the moment the products land.
+    const [current, setCurrent] = useState(0);
+
     // 1. Explicit Slider Products
     const sliderProducts = products.filter(p => p.showInSlider);
-
-    // Show loading skeleton if fetching and no products
-    if (loading && products.length === 0) {
-        return (
-            <section className="hero-carousel skeleton-loading">
-                <div className="carousel-slide active">
-                    <div className="slide-image-wrapper bg-gray-200 animate-pulse">
-                        <div className="slide-overlay" />
-                    </div>
-                </div>
-            </section>
-        );
-    }
 
     const defaultSlides = [
         {
@@ -56,14 +50,25 @@ const HeroCarousel = () => {
         }))
         : defaultSlides;
 
-    const [current, setCurrent] = useState(0);
-
     useEffect(() => {
         const timer = setInterval(() => {
             setCurrent((prev) => (prev + 1) % slides.length);
         }, 5000);
         return () => clearInterval(timer);
     }, [slides.length]);
+
+    // Show loading skeleton if fetching and no products
+    if (loading && products.length === 0) {
+        return (
+            <section className="hero-carousel skeleton-loading">
+                <div className="carousel-slide active">
+                    <div className="slide-image-wrapper bg-gray-200 animate-pulse">
+                        <div className="slide-overlay" />
+                    </div>
+                </div>
+            </section>
+        );
+    }
 
     const nextSlide = () => setCurrent((prev) => (prev + 1) % slides.length);
     const prevSlide = () => setCurrent((prev) => (prev - 1 + slides.length) % slides.length);

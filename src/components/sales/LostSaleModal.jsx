@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, DollarSign, Calculator, AlertCircle, Save, Calendar, Building, FileText } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
 import CustomSelect from '../shared/CustomSelect';
 import { formatForDateInput } from '../../utils/dateUtils';
+import { REASON_OPTIONS, getCustomerName } from '../../utils/lostSale';
 
 /**
  * The one list of loss reasons. `id` is what gets stored, so it has to match
@@ -10,17 +11,6 @@ import { formatForDateInput } from '../../utils/dateUtils';
  * fails validation on save and the record never lands. The tracker's filter
  * and badge colours read from here too, so all three stay in step.
  */
-export const REASON_OPTIONS = [
-  { id: 'Out of Stock', label: 'Out of Stock', filterLabel: 'Out of Stock', badgeClass: 'badge-out-of-stock' },
-  { id: 'Price Too High', label: 'Price Too High / Competitor', filterLabel: 'Price Too High', badgeClass: 'badge-price-high' },
-  { id: 'Lead Time', label: 'Lead Time / Delivery Delay', filterLabel: 'Lead Time', badgeClass: 'badge-lead-time' },
-  { id: 'Color / Pattern Match', label: 'Color / Pattern Match Issue', filterLabel: 'Color Match', badgeClass: 'badge-color-match' },
-  { id: 'Quality / Spec Issue', label: 'Quality / Defect Concern', filterLabel: 'Quality Issue', badgeClass: 'badge-quality-issue' },
-  { id: 'Competitor Discount', label: 'Competitor Discount', filterLabel: 'Competitor', badgeClass: 'badge-competitor' },
-  { id: 'Customer Cancelled', label: 'Customer Cancelled Project', filterLabel: 'Cancelled', badgeClass: 'badge-cancelled' },
-  { id: 'Other', label: 'Other Reason', filterLabel: 'Other', badgeClass: 'badge-other-reason' }
-];
-
 const DEFAULT_PRODUCTS = [
   'Calacatta Laza 2CM',
   'Calacatta Laza 3CM',
@@ -32,16 +22,6 @@ const DEFAULT_PRODUCTS = [
   'Black Galaxy Granite 3CM',
   'Absolute Black Granite 2CM'
 ];
-
-export const getCustomerName = (c, fallback = 'Unknown Customer') => {
-  if (!c) return fallback;
-  if (typeof c === 'string') return c;
-  if (typeof c === 'object') {
-    const fullName = `${c.firstName || ''} ${c.lastName || ''}`.trim();
-    return c.company || c.contactName || (fullName.length > 0 ? fullName : null) || c.name || c.fabricatorCompany || fallback;
-  }
-  return String(c);
-};
 
 const LostSaleModal = ({
   isOpen,
@@ -98,6 +78,29 @@ const LostSaleModal = ({
     }).filter(Boolean);
   }, [locationsList]);
 
+  // Declared above the effect that calls it. As a plain const below, the effect
+  // closed over a binding that did not exist yet at that point in the module —
+  // it happened to work only because effects run after render, and it silently
+  // captured a stale locationOptions whenever that changed.
+  const resetForm = useCallback(() => {
+    setCustomerName('');
+    setSelectedCustomerId('');
+    setProductName(DEFAULT_PRODUCTS[0]);
+    setIsCustomProduct(false);
+    setLengthInches(126);
+    setWidthInches(63);
+    setSlabsCount(1);
+    setPricePerSf(12.5);
+    setReason('Out of Stock');
+
+    const firstLoc = locationOptions.length > 0 ? locationOptions[0] : 'Seattle';
+    setLocation(firstLoc);
+    setCompetitorName('');
+    setNotes('');
+    setDate(new Date().toISOString().split('T')[0]);
+    setError('');
+  }, [locationOptions]);
+
   useEffect(() => {
     if (initialData) {
       setCustomerName(getCustomerName(initialData.customerName, ''));
@@ -118,26 +121,7 @@ const LostSaleModal = ({
     } else {
       resetForm();
     }
-  }, [initialData, isOpen, locationOptions]);
-
-  const resetForm = () => {
-    setCustomerName('');
-    setSelectedCustomerId('');
-    setProductName(DEFAULT_PRODUCTS[0]);
-    setIsCustomProduct(false);
-    setLengthInches(126);
-    setWidthInches(63);
-    setSlabsCount(1);
-    setPricePerSf(12.5);
-    setReason('Out of Stock');
-
-    const firstLoc = locationOptions.length > 0 ? locationOptions[0] : 'Seattle';
-    setLocation(firstLoc);
-    setCompetitorName('');
-    setNotes('');
-    setDate(new Date().toISOString().split('T')[0]);
-    setError('');
-  };
+  }, [initialData, isOpen, locationOptions, resetForm]);
 
   // Live Calculations
   const l = parseFloat(lengthInches) || 0;

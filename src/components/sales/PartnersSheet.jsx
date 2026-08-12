@@ -10,17 +10,10 @@ import { useAuth } from '../../context/AuthContext';
 import { toSalesRepList } from '../../utils/salesReps';
 import { API_URL } from '../../config/api';
 import * as XLSX from 'xlsx';
-import { formatPhoneInput, formatPhoneForDisplay } from '../../utils/phoneUtils';
+import {  formatPhoneForDisplay } from '../../utils/phoneUtils';
 import './PartnersSheet.css';
 
 // Helper for initials badge
-const getCompanyInitials = (name) => {
-    if (!name) return 'ES';
-    const words = name.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
-    return (words[0][0] + words[1][0]).toUpperCase();
-};
-
 // Branch chips are tinted per branch so a mixed list is scannable without
 // reading a word. Branches added later get no modifier and fall back to the
 // neutral chip, which is why this slugifies rather than looking up a fixed map.
@@ -147,7 +140,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [viewingPartner, setViewingPartner] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
-    const [formErrors, setFormErrors] = useState({});
+    const [, setFormErrors] = useState({});
     const [showFilters, setShowFilters] = useState(false);
 
     // Multi-Select Filter States
@@ -273,7 +266,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         fetchLocations();
     }, []);
 
-    const activeTabDef = TABS.find(t => t.key === activeTab);
+    
     // For the Partners tab we want everyone EXCEPT Fabricators
     const fetchPartners = async ({
         page = currentPage,
@@ -876,7 +869,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     <div className="mobile-customer-cards">
                         {sortedPartners.map(partner => {
                             const companyName = partner.company || partner.name || partner.contactName || 'Customer';
-                            const initials = getCompanyInitials(companyName);
+                            
                             const contactName = (partner.name || partner.contactName) && (partner.name || partner.contactName) !== companyName ? (partner.name || partner.contactName) : null;
                             const phone = partner.phone;
                             const email = partner.email;

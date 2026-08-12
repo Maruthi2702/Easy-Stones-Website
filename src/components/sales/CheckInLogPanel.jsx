@@ -248,8 +248,8 @@ const findCloseInventoryLot = (parsedMaterial, parsedLot, productList) => {
 const correctLotUsingBundle = (lot, bundle) => {
   if (!lot || !bundle) return lot;
   
-  const cleanBundle = bundle.replace(/[\(\)\[\]\{\}]/g, '').trim();
-  const parts = cleanBundle.split(/[\/\\|I]/).map(p => p.trim()).filter(Boolean);
+  const cleanBundle = bundle.replace(/[()[\]{}]/g, '').trim();
+  const parts = cleanBundle.split(/[/\\|I]/).map(p => p.trim()).filter(Boolean);
   
   if (parts.length >= 2) {
     const bundleLotCandidate = parts[1]; // e.g. in "7/13845", this is "13845"
@@ -304,12 +304,10 @@ const findCloseInventorySize = (parsedMaterial, parsedSize, productList) => {
 const CheckInLogPanel = ({
   checkIns = [],
   loading = false,
-  refreshing = false,
   onRefresh,
   searchTerm = '',
   onSearchChange,
   lastUpdated = null,
-  totalCount = 0,
   todayCount: todayCountProp = null,
   monthCount = 0,
   allTimeCount = 0,
@@ -329,7 +327,6 @@ const CheckInLogPanel = ({
   onEdit = null,
   onDelete = null,
   theme: themeProp = null,
-  onToggleTheme = null,
   filterLocation = null,
   onFilterLocationChange = null,
   locations = [],
@@ -350,34 +347,21 @@ const CheckInLogPanel = ({
     try {
       const saved = localStorage.getItem('checkin_theme');
       return saved === 'dark' ? 'dark' : 'light';
-    } catch (e) {
+    } catch {
       return 'light';
     }
   });
 
   const theme = themeProp || internalTheme;
 
-  const handleToggleTheme = () => {
-    if (onToggleTheme) {
-      onToggleTheme();
-    } else {
-      const nextTheme = theme === 'dark' ? 'light' : 'dark';
-      try {
-        localStorage.setItem('checkin_theme', nextTheme);
-        setInternalTheme(nextTheme);
-        window.dispatchEvent(new Event('checkin_theme_changed'));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  };
+  
 
   useEffect(() => {
     const handleStorageChange = () => {
       try {
         const saved = localStorage.getItem('checkin_theme');
         setInternalTheme(saved === 'dark' ? 'dark' : 'light');
-      } catch (e) {}
+      } catch { /* not fatal — carry on */ }
     };
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('checkin_theme_changed', handleStorageChange);
@@ -406,7 +390,7 @@ const CheckInLogPanel = ({
   const [salesReps, setSalesReps] = useState([]);
   const [salesRepEmail, setSalesRepEmail] = useState('');
   const [activeDropdownIndex, setActiveDropdownIndex] = useState(null);
-  const [selMobileTab, setSelMobileTab] = useState('customer'); // 'customer' | 'selections' | 'notes'
+  const [, setSelMobileTab] = useState('customer'); // 'customer' | 'selections' | 'notes'
   const [mobItemCount, setMobItemCount] = useState(2); // how many item cards to show on mobile (default 2)
   const [desktopRowCount, setDesktopRowCount] = useState(4); // how many table rows to show on desktop (default 4)
   const [showSalesRepDropdown, setShowSalesRepDropdown] = useState(false);
@@ -462,7 +446,7 @@ const CheckInLogPanel = ({
     } else {
       try {
         localStorage.removeItem('active_selection_sheet');
-      } catch (e) {}
+      } catch { /* not fatal — carry on */ }
     }
   }, [selectedCheckIn, builderName, builderPhone, salesRep, salesRepEmail, selections, specialNotes]);
 
@@ -809,10 +793,10 @@ const CheckInLogPanel = ({
                                     .replace(/^[iIl1|/\s\\:\-—–]+\s+/, '').trim();
           
           let bundle = '';
-          const bundleMatch = beforeSize.match(/[\(\[\{](.+?)[\)\}\]]/);
+          const bundleMatch = beforeSize.match(/[([{](.+?)[)}\]]/);
           if (bundleMatch) bundle = bundleMatch[1].trim();
           
-          const beforeWithoutBundle = beforeSize.replace(/[\(\[\{].+?[\)\}\]]/g, ' ');
+          const beforeWithoutBundle = beforeSize.replace(/[([{].+?[)}\]]/g, ' ');
           const tokens = beforeWithoutBundle.match(/[a-zA-Z0-9]+/g) || [];
           const numberMatches = tokens
             .map(t => {
@@ -907,7 +891,7 @@ const CheckInLogPanel = ({
       // Fallback: line with the most alphabetical characters
       let maxLetterCount = 0;
       lines.forEach(line => {
-        if (/^\d+$/.test(line.replace(/[\s\-\/]/g, ''))) return;
+        if (/^\d+$/.test(line.replace(/[\s\-/]/g, ''))) return;
         if (sizeMatch && line.includes(sizeStr) && line.replace(sizeStr, '').trim().length < 3) return;
         
         const letterCount = (line.match(/[a-zA-Z]/g) || []).length;
@@ -925,7 +909,7 @@ const CheckInLogPanel = ({
     material = material.replace(/^[/\s|\\:\-—–]+|[/\s|\\:\-—–]+$/g, '').trim()
                        .replace(/^[iIl1|/\s\\:\-—–]+\s+/, '').trim();
 
-    const bundleMatch = fullTextJoined.match(/[\(\[\{](.+?)[\)\}\]]/);
+    const bundleMatch = fullTextJoined.match(/[([{](.+?)[)}\]]/);
     if (bundleMatch) {
       bundle = bundleMatch[1].trim();
     }
@@ -1081,7 +1065,7 @@ const CheckInLogPanel = ({
       // Filter out completely blank rows and strip internal _new flags
       const cleanSelections = selections
         .filter(s => s.material.trim() !== '')
-        .map(({ _new, ...s }) => s);
+        .map(({  ...s }) => s);
 
       const response = await fetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
         method: 'PUT',

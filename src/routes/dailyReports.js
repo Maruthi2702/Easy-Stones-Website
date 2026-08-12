@@ -48,10 +48,7 @@ const moneyOrNull = (value) => {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 };
 
-const money = (value) => {
-  const n = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
-  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
-};
+
 
 /** The branches this user may see. '*' means every branch. */
 const allowedLocations = (req) => {

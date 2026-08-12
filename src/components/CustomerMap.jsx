@@ -22,13 +22,13 @@ const CustomerMap = ({ customers, onCustomerClick, selectedCustomer, onCloseInfo
         googleMapsApiKey: apiKey
     });
 
-    const [map, setMap] = useState(null);
+    const [, setMap] = useState(null);
 
     const onLoad = useCallback(function callback(map) {
         setMap(map);
     }, []);
 
-    const onUnmount = useCallback(function callback(map) {
+    const onUnmount = useCallback(function callback() {
         setMap(null);
     }, []);
 

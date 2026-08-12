@@ -32,6 +32,7 @@ export default defineConfig([
     // them as undefined, which buries the findings that matter.
     files: [
       'server.js',
+      'ensure-indexes.js',
       'scripts/**/*.js',
       'src/routes/**/*.js',
       'src/models/**/*.js',
@@ -39,7 +40,11 @@ export default defineConfig([
       'src/jobs/**/*.js',
       'src/config/**/*.js',
       'src/middleware/**/*.js',
+      // Named one by one rather than the whole of src/utils: most of it is
+      // shared with the browser, and handing those files Node's globals would
+      // let a stray process.env reach the client without the linter objecting.
       'src/utils/dailyReportPdf.js',
+      'src/utils/pdfSigner.js',
     ],
     languageOptions: {
       globals: { ...globals.node },

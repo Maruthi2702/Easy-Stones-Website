@@ -42,7 +42,7 @@ const ContactPage = () => {
             } else {
                 setStatus({ type: 'error', message: data.message || 'Failed to send message. Please try again.' });
             }
-        } catch (error) {
+        } catch {
             setStatus({ type: 'error', message: 'Failed to send message. Please try again.' });
         } finally {
             setIsSubmitting(false);

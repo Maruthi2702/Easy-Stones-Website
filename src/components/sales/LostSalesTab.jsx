@@ -5,7 +5,8 @@ import {
   BarChart2, ChevronDown, ChevronUp, FileText, Building
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
-import LostSaleModal, { getCustomerName, REASON_OPTIONS } from './LostSaleModal';
+import LostSaleModal from './LostSaleModal';
+import { getCustomerName, REASON_OPTIONS } from '../../utils/lostSale';
 import Pagination from '../shared/Pagination';
 import CustomSelect from '../shared/CustomSelect';
 import { formatDate } from '../../utils/dateUtils';

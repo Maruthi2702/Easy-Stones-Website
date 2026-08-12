@@ -43,7 +43,7 @@ const CustomerLoginPage = () => {
         try {
             const saved = localStorage.getItem('checkin_theme');
             return saved === 'dark' ? 'dark' : 'light';
-        } catch (e) {
+        } catch {
             return 'light';
         }
     });
@@ -127,7 +127,7 @@ const CustomerLoginPage = () => {
                 // password on purpose — don't guess which, but do say what to do next.
                 fail('password', data.message || "That didn't match an account. Check both fields and try again.");
             }
-        } catch (error) {
+        } catch {
             setError({
                 field: null,
                 kind: 'network',

@@ -15,7 +15,6 @@ const VisitPostCard = ({
     visit,
     currentUser,
     currentUserId,
-    formatDate,
     handleReaction,
     activeReactionMessageId,
     setActiveReactionMessageId,

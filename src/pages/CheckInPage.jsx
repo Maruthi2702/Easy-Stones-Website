@@ -44,7 +44,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     try {
       const saved = localStorage.getItem('checkin_theme');
       return saved === 'dark' ? 'dark' : 'light';
-    } catch (e) {
+    } catch {
       return 'light';
     }
   });
@@ -57,7 +57,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     try {
       const saved = localStorage.getItem('checkin_draft');
       return saved ? JSON.parse(saved) : { name: '', phone: '', fabricatorCompany: '', fabricatorPhone: '' };
-    } catch (e) {
+    } catch {
       return { name: '', phone: '', fabricatorCompany: '', fabricatorPhone: '' };
     }
   });
@@ -91,7 +91,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
       if (locParam) return locParam;
       const saved = localStorage.getItem('kiosk_location');
       if (saved && !isSelf) return saved;
-    } catch (e) {}
+    } catch { /* not fatal — carry on */ }
     if (user?.assignedLocations) {
       const primaryLoc = user.assignedLocations.find(l => l !== '*');
       if (primaryLoc) return primaryLoc;
@@ -99,21 +99,14 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     return 'Seattle';
   });
 
-  const toggleTheme = () => {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(nextTheme);
-    try {
-      localStorage.setItem('checkin_theme', nextTheme);
-      window.dispatchEvent(new Event('checkin_theme_changed'));
-    } catch (err) {}
-  };
+  
 
   useEffect(() => {
     const sync = () => {
       try {
         const saved = localStorage.getItem('checkin_theme');
         setTheme(saved === 'dark' ? 'dark' : 'light');
-      } catch (e) {}
+      } catch { /* not fatal — carry on */ }
     };
     window.addEventListener('storage', sync);
     window.addEventListener('checkin_theme_changed', sync);
@@ -157,7 +150,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
             if (urlLoc) setSelectedLocation(urlLoc);
           }
         }
-      } catch (err) {}
+      } catch { /* not fatal — carry on */ }
     };
     loadLocations();
   }, [user, isSelf]);
@@ -231,7 +224,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
       });
       if (response.ok) { setStep(8); }
       else { const data = await response.json(); setError(data.message || 'Check-in failed. Please try again.'); }
-    } catch (err) { setError('Network error. Please check your connection.'); }
+    } catch { setError('Network error. Please check your connection.'); }
     finally { setLoading(false); }
   };
 
@@ -244,7 +237,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
         : value;
     setStaffFormData(prev => {
       const next = { ...prev, [name]: v };
-      try { localStorage.setItem('checkin_draft', JSON.stringify(next)); } catch (e) {}
+      try { localStorage.setItem('checkin_draft', JSON.stringify(next)); } catch { /* not fatal — carry on */ }
       return next;
     });
   };
@@ -270,9 +263,9 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
         setSubmittedCustomerName(staffFormData.name || '');
         setSubmitted(true);
         setStaffFormData({ name: '', phone: '', fabricatorCompany: '', fabricatorPhone: '' });
-        try { localStorage.removeItem('checkin_draft'); } catch (e) {}
+        try { localStorage.removeItem('checkin_draft'); } catch { /* not fatal — carry on */ }
       } else { const data = await response.json(); setError(data.message || 'Check-in failed'); }
-    } catch (err) { setError('Network error. Please try again.'); }
+    } catch { setError('Network error. Please try again.'); }
     finally { setLoading(false); }
   };
 

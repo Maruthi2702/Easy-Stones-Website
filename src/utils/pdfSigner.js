@@ -13,6 +13,10 @@ import { PDFDocument, rgb } from 'pdf-lib';
 
 function sanitizeAscii(str) {
   if (!str) return '';
+  // \x00 is one end of the ASCII range, not a stray control character: pdf-lib's
+  // standard fonts are WinAnsi and throw on anything outside it, so a customer
+  // name with an accent has to become a space before it reaches the page.
+  // eslint-disable-next-line no-control-regex
   return String(str).replace(/[^\x00-\x7F]/g, ' ').trim();
 }
 
@@ -43,7 +47,7 @@ async function fetchPdfBytes(url) {
   try {
     res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  } catch (e) {
+  } catch {
     const relative = typeof url === 'string' ? url.replace(/^https?:\/\/[^/]+/, '') : url;
     res = await fetch(relative);
     if (!res.ok) throw new Error(`HTTP ${res.status} (proxy)`);
@@ -89,7 +93,6 @@ export async function stampSignaturesOnPdfBytes({
   driverSignatureDataUrl,
   signeeName,
   driverName,
-  deliveryInfo = '',
   signedAt,
   customerSignedAt,
   driverSignedAt,

@@ -20,7 +20,6 @@ const ResourceModal = ({
     handleResourceImageUpload,
     handleRemoveResourceImage,
     handleDashboardDownload,
-    setFullScreenImage,
     handleOpenGallery,
     onCreateNew,
     isDropdownLoading
@@ -34,7 +33,7 @@ const ResourceModal = ({
             if (data.startsWith('[') && data.endsWith(']')) {
                 try {
                     return JSON.parse(data).filter(Boolean);
-                } catch (e) {
+                } catch {
                     return data.split(',').map(s => s.trim()).filter(Boolean);
                 }
             }

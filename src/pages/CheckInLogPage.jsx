@@ -17,7 +17,7 @@ const CheckInLogPage = () => {
     try {
       const saved = localStorage.getItem('checkin_theme');
       return saved === 'dark' ? 'dark' : 'light';
-    } catch (e) {
+    } catch {
       return 'light';
     }
   });
@@ -38,7 +38,7 @@ const CheckInLogPage = () => {
       try {
         const saved = localStorage.getItem('checkin_theme');
         setTheme(saved === 'dark' ? 'dark' : 'light');
-      } catch (e) {}
+      } catch { /* not fatal — carry on */ }
     };
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('checkin_theme_changed', handleStorageChange);
@@ -60,7 +60,7 @@ const CheckInLogPage = () => {
   const [todayCount, setTodayCount] = useState(0);
   const [monthCount, setMonthCount] = useState(0);
   const [allTimeCount, setAllTimeCount] = useState(0);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [refreshTrigger] = useState(0);
 
   // Default to current month and year
   const currentDate = new Date();

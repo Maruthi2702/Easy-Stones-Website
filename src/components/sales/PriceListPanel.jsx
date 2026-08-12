@@ -175,7 +175,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
         try {
             const saved = localStorage.getItem('cached_editable_pricelist');
             return saved ? JSON.parse(saved) : defaultPriceListData;
-        } catch (e) {
+        } catch {
             return defaultPriceListData;
         }
     });
@@ -236,7 +236,7 @@ const PriceListPanel = ({ sidebarToggle }) => {
             setSheetData(defaultPriceListData);
             try {
                 localStorage.removeItem('cached_editable_pricelist');
-            } catch (e) {}
+            } catch { /* not fatal — carry on */ }
         }
     };
 

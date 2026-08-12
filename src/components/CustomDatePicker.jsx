@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import './CustomDatePicker.css';
 
-const CustomDatePicker = ({ value, onChange, placeholder = 'Select date', required }) => {
+const CustomDatePicker = ({ value, onChange, placeholder = 'Select date' }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [displayDate, setDisplayDate] = useState(new Date());
     const dropdownRef = useRef(null);

@@ -45,7 +45,6 @@ const BoardGrid = ({
   editable = false,
   onAddDelivery,
   onEditDelivery,
-  onUpdateTruck,
   onViewPod,
   onOpenPod
 }) => {
@@ -182,16 +181,23 @@ const BoardGrid = ({
     return isToday ? `${formatted} · today` : formatted;
   };
 
-  // Helper for screenshot pill tab label e.g., "Mon 27"
-  const getPillTabLabel = (dayShort, dateStr) => {
-    if (!dateStr) return dayShort;
-    const parts = dateStr.split('-');
-    if (parts.length < 3) return dayShort;
-    const dayNum = parseInt(parts[2], 10);
-    return `${dayShort} ${dayNum}`;
-  };
 
   const totalStopsSelectedDay = deliveries.filter(d => d.date === selectedDate).length;
+
+  // Above the empty state on purpose. These two used to sit below it, so a
+  // branch with no drivers rendered zero hooks and the same board rendered two
+  // the moment a driver was assigned — React counts hooks per render and throws
+  // when the count changes, blanking the delivery board on the way in.
+  const pillsRef = React.useRef(null);
+
+  useEffect(() => {
+    if (pillsRef.current) {
+      const activePill = pillsRef.current.querySelector('.screenshot-pill-btn.active');
+      if (activePill) {
+        activePill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [selectedDate]);
 
   if (trucks.length === 0) {
     return (
@@ -204,17 +210,6 @@ const BoardGrid = ({
       </div>
     );
   }
-
-  const pillsRef = React.useRef(null);
-
-  useEffect(() => {
-    if (pillsRef.current) {
-      const activePill = pillsRef.current.querySelector('.screenshot-pill-btn.active');
-      if (activePill) {
-        activePill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
-    }
-  }, [selectedDate]);
 
   return (
     <div className="manifest-board-wrapper">

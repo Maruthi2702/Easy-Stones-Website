@@ -106,7 +106,7 @@ export const formatDate = (dateString, options = { month: 'short', day: 'numeric
 
     // Format using local time
     return new Intl.DateTimeFormat('en-US', { ...options }).format(dateObj);
-  } catch (e) {
+  } catch {
     return '-';
   }
 };

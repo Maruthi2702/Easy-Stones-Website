@@ -23,7 +23,7 @@ const AdminPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [customersLoading, setCustomersLoading] = useState(false);
-  const [usersLoading, setUsersLoading] = useState(false);
+  const [, setUsersLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',

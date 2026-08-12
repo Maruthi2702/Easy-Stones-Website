@@ -8,7 +8,7 @@ const Footer = () => {
         try {
             const saved = localStorage.getItem('checkin_theme');
             return saved === 'dark' ? 'dark' : 'light';
-        } catch (e) {
+        } catch {
             return 'light';
         }
     });
@@ -18,7 +18,7 @@ const Footer = () => {
             try {
                 const saved = localStorage.getItem('checkin_theme');
                 setTheme(saved === 'dark' ? 'dark' : 'light');
-            } catch (e) {}
+            } catch { /* not fatal — carry on */ }
         };
         window.addEventListener('storage', handleStorageChange);
         window.addEventListener('checkin_theme_changed', handleStorageChange);

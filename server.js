@@ -835,10 +835,20 @@ app.set('trust proxy', 1);
 
 app.use(cors({
   origin: function (origin, callback) {
+    // No Origin header means a same-origin request, curl, or a server-to-server
+    // call — none of which a browser CORS check ever applies to.
     if (!origin) return callback(null, true);
-    // Allow all origins for now to simplify deployment debugging, or restrict as needed
-    // In production you might want to be stricter
-    return callback(null, true);
+    // credentials: true means a page on any origin that was reflected here could
+    // call this API as whoever's cookie the visitor's browser was holding.
+    // allowedOrigins is our own domains plus FRONTEND_URL; anything else is
+    // refused rather than reflected.
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // false, not an Error: an Error here has no handler downstream and falls
+    // through to Express's default page, which dumps a stack trace — full file
+    // paths — to whoever sent the disallowed origin. false makes the cors
+    // package skip the Access-Control-Allow-Origin header and move on, which is
+    // all a browser needs to block the response; nothing else has to reject it.
+    return callback(null, false);
   },
   credentials: true // Allow cookies
 }));
@@ -925,7 +935,7 @@ app.get('/api/products', async (req, res) => {
             priceLevel = customer.priceLevel;
           }
         }
-      } catch (err) {
+      } catch {
         // Token invalid or expired, use default level 1
       }
     }
@@ -1030,7 +1040,7 @@ const authenticate = async (req, res, next) => {
   let decoded;
   try {
     decoded = jwt.verify(token, JWT_SECRET);
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
   }
 
@@ -1283,7 +1293,7 @@ app.get('/api/auth/token', (req, res) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     res.json({ token, role: decoded.role, username: decoded.username });
-  } catch (err) {
+  } catch {
     res.status(401).json({ error: 'Session expired' });
   }
 });
@@ -1297,7 +1307,7 @@ app.get('/api/admin/users', authenticate, requirePermission('manage_users'), asy
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     res.json(users);
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Failed to fetch users' });
   }
 });
@@ -1433,7 +1443,7 @@ app.delete('/api/admin/users/:id', authenticate, requirePermission('manage_users
     await User.findByIdAndDelete(req.params.id);
     req.app.get('io')?.emit('truck_update');
     res.json({ message: 'User deleted successfully' });
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Failed to delete user' });
   }
 });
@@ -1649,7 +1659,7 @@ app.get('/api/auth/verify', (req, res) => {
           authType: 'admin'
         });
       }
-    } catch (error) {
+    } catch {
       // Admin token invalid, continue
     }
   }
@@ -1667,7 +1677,7 @@ app.get('/api/auth/verify', (req, res) => {
           authType: decoded.type === 'customer' ? 'customer' : 'admin'
         });
       }
-    } catch (error) {
+    } catch {
       // Customer token invalid
     }
   }
@@ -1976,7 +1986,7 @@ const verifyCustomer = (req, res, next) => {
     req.customerId = decoded.id;
     req.accountType = decoded.type;
     next();
-  } catch (error) {
+  } catch {
     res.status(401).json({ message: 'Invalid token.' });
   }
 };
@@ -2017,38 +2027,6 @@ app.get('/api/customer/me', verifyCustomer, async (req, res) => {
 });
 
 // Customer Authentication Middleware
-const customerAuthMiddleware = async (req, res, next) => {
-  try {
-    const token = req.cookies.customerToken;
-
-    if (!token) {
-      return res.status(401).json({ message: 'Authentication required' });
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    if (decoded.type === 'internal') {
-      const user = await User.findById(decoded.id).select('-password');
-      if (!user) {
-        return res.status(401).json({ message: 'User no longer exists' });
-      }
-      req.user = user;
-      req.accountType = 'internal';
-    } else {
-      const customer = await Customer.findById(decoded.id).select('-password');
-      if (!customer) {
-        return res.status(401).json({ message: 'Customer no longer exists' });
-      }
-      req.user = customer;
-      req.accountType = 'customer';
-    }
-
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: 'Invalid or expired token' });
-  }
-};
-
 // Customer Logout
 app.post('/api/customer/logout', (req, res) => {
   res.clearCookie('customerToken', {
@@ -2263,9 +2241,6 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     ]);
 
     // Today's Schedule count
-    // Today's Schedule count - Use UTC aligned "Today"
-    const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0));
-    const todayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
 
     const scheduleCount = await Customer.aggregate([
       { $unwind: "$visits" },
@@ -2290,13 +2265,6 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     ]);
 
     // Strictly filter by current user for dashboard resources
-    // Strictly filter by current user for dashboard resources
-    const resourceUserFilter = {
-      $or: [
-        { "resources.uploadedBy": userId.toString() },
-        { "resources.createdBy": userId.toString() }
-      ]
-    };
 
     const resourceRange = getAggregationRangeMatch(startDate, endDate, "resources");
     const resourceStats = await Customer.aggregate([
@@ -2473,15 +2441,10 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
       startDate = new Date(now.getFullYear(), 0, 1);
     }
 
-    const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: 'admin' } : { id: req.customerId, role: 'customer' };
-    const isAdmin = ['admin', 'director', 'manager'].includes(role);
+    const userId = req.authType === 'admin' ? req.userId : req.customerId;
+    
 
-    const resourceMatchObj = {
-      "resources.uploadedBy": userId.toString(),
-      // Note: mixing OR inside $eq is complex, let's keep it simple or use $or if needed.
-      // Actually, resourceMatch was using $or. 
-      // In $expr, $or is different.
-    };
+    
 
     // For resources, let's stick to the $or match outside $expr if possible, 
     // OR wrap it properly.
@@ -3148,7 +3111,7 @@ app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res) =>
       return res.status(404).json({ message: 'Resource not found' });
     }
     res.json(resource);
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Failed to fetch resource' });
   }
 });
@@ -3176,7 +3139,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       const isImage = req.file.mimetype.startsWith('image/');
       let filename = '';
-      let buffer = req.file.buffer;
+      
 
       if (isImage) {
 
@@ -3212,7 +3175,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
       createdAt: getNowLocalISO()
     });
 
-    const startSave = Date.now();
+    
     await newResource.save();
 
     // Populate before returning
@@ -3315,7 +3278,7 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res)
             // Delete file from disk
             const filePath = path.join(__dirname, 'public', child.content);
             if (fs.existsSync(filePath)) {
-              try { fs.unlinkSync(filePath); } catch (e) { }
+              try { fs.unlinkSync(filePath); } catch { /* not fatal — carry on */ }
             }
           }
           await SalesDashboardResource.findByIdAndDelete(child._id);
@@ -3326,7 +3289,7 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res)
       // Delete file from disk
       const filePath = path.join(__dirname, 'public', resource.content);
       if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch (e) { }
+        try { fs.unlinkSync(filePath); } catch { /* not fatal — carry on */ }
       }
     }
 
@@ -3340,69 +3303,6 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res)
 });
 
 // ============================================
-// UNIFIED CUSTOMER & LEAD MANAGEMENT // One-time merge route to move Lead metadata to Customer records
-app.get('/api/unified-merge', verifyAnyAuth, async (req, res) => {
-  try {
-    const leads = await Lead.find({});
-    let mergedCount = 0;
-    let skippedCount = 0;
-
-    for (const lead of leads) {
-      // Find customer by email (most reliable) or company
-      let customer = await Customer.findOne({ 
-        $or: [
-          { email: lead.email },
-          { company: lead.company, contactName: lead.name }
-        ]
-      });
-
-      if (customer) {
-        // Merge metadata
-        customer.status = lead.status || 'New';
-        customer.customerType = lead.customerType || 'Fabricator';
-        customer.level = lead.level || 'Level - 3';
-        customer.modaDisplay = lead.modaDisplay || 'No';
-        customer.modaBinder = lead.modaBinder || '0';
-        customer.followUpDate = lead.followUpDate;
-        customer.createdBy = lead.createdBy;
-        if (!customer.phone) customer.phone = lead.phone;
-        
-        await customer.save();
-        mergedCount++;
-      } else {
-        // If lead doesn't exist as customer, create them as a new customer
-        const newCustomer = new Customer({
-          contactName: lead.name || 'Unknown',
-          email: lead.email || `temp_${Date.now()}@easystones.com`,
-          company: lead.company,
-          phone: lead.phone,
-          status: lead.status || 'New',
-          customerType: lead.customerType || 'Fabricator',
-          level: lead.level || 'Level - 3',
-          modaDisplay: lead.modaDisplay || 'No',
-          modaBinder: lead.modaBinder || '0',
-          followUpDate: lead.followUpDate,
-          createdBy: lead.createdBy,
-          isVerified: false,
-          isActive: true
-        });
-        await newCustomer.save();
-        mergedCount++;
-      }
-    }
-
-    res.json({ 
-      message: 'Merge completed successfully', 
-      processed: leads.length,
-      merged: mergedCount,
-      skipped: skippedCount
-    });
-  } catch (error) {
-    console.error('Merge error:', error);
-    res.status(500).json({ message: 'Merge failed', error: error.message });
-  }
-});
-
 // GET DISTINCT CITIES (For dropdown checklists)
 app.get('/api/partners/cities', authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
@@ -4001,13 +3901,6 @@ const getFollowUpRangeMatch = (start, end, additionalMatch = {}) => {
   return { $expr: { $and: conds } };
 };
 
-// For face-value date range comparisons (legacy helper, keeping for compatibility if needed)
-const getFaceValueRangeMatch = (start, end) => {
-  if (!start) return {};
-  const range = { $gte: start.toISOString().split('T')[0] };
-  if (end) range.$lte = end.toISOString().split('T')[0];
-  return range;
-};
 
 // Add visit
 app.post('/api/customers/:customerId/visits', authenticate, requirePermission('manage_customers'), async (req, res) => {
@@ -4386,7 +4279,7 @@ app.get('/api/trucks', verifyAnyAuth, canViewDeliveries, async (req, res) => {
   try {
     const trucks = await Truck.find().lean();
     res.json(trucks);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch trucks' });
   }
 });
@@ -4404,7 +4297,7 @@ app.post('/api/trucks', verifyAnyAuth, requirePermission('edit_delivery_schedule
     const updated = await Truck.find().lean();
     req.app.get('io')?.emit('truck_update', updated);
     res.json(updated);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: 'Failed to save trucks' });
   }
 });
@@ -4637,7 +4530,7 @@ app.post('/api/deliveries', verifyAnyAuth, canWriteDeliveries, async (req, res) 
     // merge it into whichever cached week(s) it belongs to.
     try {
       io.emit('delivery_update', { type: 'upsert', delivery: updated });
-    } catch (e) {
+    } catch {
       req.app.get('io')?.emit('delivery_update', { type: 'upsert', delivery: updated });
     }
     res.json(updated);
@@ -4697,7 +4590,7 @@ app.delete('/api/deliveries/:id', verifyAnyAuth, canDeleteDeliveries, async (req
     await Delivery.deleteOne({ id });
     try {
       io.emit('delivery_update', { type: 'delete', id });
-    } catch (e) {
+    } catch {
       req.app.get('io')?.emit('delivery_update', { type: 'delete', id });
     }
     res.json({ success: true, id });
@@ -4783,7 +4676,7 @@ app.delete('/api/deliveries/:id/pod', verifyAnyAuth, canClearPod, async (req, re
     const updated = delivery.toObject();
     try {
       io.emit('delivery_update', { type: 'upsert', delivery: updated });
-    } catch (e) {
+    } catch {
       req.app.get('io')?.emit('delivery_update', { type: 'upsert', delivery: updated });
     }
 
@@ -5154,7 +5047,7 @@ app.get('/api/auth/google/calendar', async (req, res) => {
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
-    } catch (err) {
+    } catch {
       return res.status(401).send('Invalid or expired authentication token');
     }
 
@@ -5207,7 +5100,7 @@ app.get('/api/auth/google/calendar/callback', async (req, res) => {
     let decoded;
     try {
       decoded = jwt.verify(state, JWT_SECRET);
-    } catch (err) {
+    } catch {
       return res.status(401).send('Invalid or expired state token');
     }
 
@@ -5944,7 +5837,7 @@ app.get('/api/admin/customers', verifyToken, async (req, res) => {
       .select('-password -visits -resources -contacts') // Exclude heavy arrays for list view
       .sort({ createdAt: -1 });
     res.json(customers);
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: 'Failed to fetch customers' });
   }
 });

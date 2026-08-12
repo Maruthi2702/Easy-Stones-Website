@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, Info } from 'lucide-react';
 import Header from './components/Header';
 import Footer from './components/Footer';

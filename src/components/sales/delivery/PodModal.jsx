@@ -22,7 +22,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   const [signeeName, setSigneeName] = useState(delivery?.pod?.signeeName || '');
   const [podNotes, setPodNotes] = useState(delivery?.pod?.notes || '');
   const [photos, setPhotos] = useState(delivery?.pod?.photos || []);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [, setUploadingPhoto] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isStampingPdf, setIsStampingPdf] = useState(false);
   const [error, setError] = useState(null);

@@ -21,7 +21,6 @@ const VisitModal = ({
     selectedCustomer,
     customers,
     handleDashboardDownload,
-    setFullScreenImage,
     handleOpenGallery,
     onCreateNew,
     isDropdownLoading
