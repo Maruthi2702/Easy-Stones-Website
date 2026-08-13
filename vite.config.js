@@ -14,6 +14,15 @@ export default defineConfig({
       },
       includeAssets: ['favicon.png', 'logo.png'],
       workbox: {
+        // registerType: 'autoUpdate' only controls how the client *asks* for an
+        // update — without these, a new worker still waits for every tab on the
+        // old one to close before it activates, which is what actually made a
+        // fresh deploy take two or three refreshes to show up. skipWaiting +
+        // clientsClaim let it take over as soon as it installs, so the
+        // controllerchange handler in src/main.jsx fires (and reloads) on its own.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         navigateFallbackDenylist: [/^\/api/, /\/api\//],
         runtimeCaching: [
           {

@@ -11,6 +11,12 @@
     flex-direction: column;
     gap: 0.85rem;
     height: 100%;
+    box-sizing: border-box;
+    /* Matches the inset every other tab uses. The top value is mirrored in
+       .route-planner's height calc below — this shell isn't allowed to
+       scroll, so growing the header by X has to shrink the map by the same
+       X or the bottom of it ends up under sales-main's overflow:hidden. */
+    padding: 1.25rem 1.75rem 0;
     font-family: var(--font-main, 'Inter', system-ui, sans-serif);
 }
 
@@ -33,8 +39,10 @@
     display: grid;
     grid-template-columns: minmax(300px, 360px) 1fr;
     gap: 1rem;
-    height: calc(100vh - 190px);
-    height: calc(100dvh - 190px);
+    /* 190px was the old budget when the shell had no top padding; +20px here
+       keeps the map's bottom edge exactly where it was. */
+    height: calc(100vh - 210px);
+    height: calc(100dvh - 210px);
     min-height: 520px;
     font-family: var(--font-main, 'Inter', system-ui, sans-serif);
 }
@@ -76,6 +84,7 @@
 }
 
 .rp-icon-btn {
+    position: relative;
     background: transparent;
     border: none;
     color: var(--text-secondary, #b0b0b0);
@@ -88,6 +97,23 @@
 .rp-icon-btn:hover {
     background: var(--bg-hover, rgba(255, 255, 255, 0.07));
     color: var(--text-primary, #ffffff);
+}
+
+/* The customer-type filter, tucked behind an icon in the card header rather
+   than its own full-width row — a filter reached far less often than the two
+   beside it. The dot is the only sign it is narrowed until the icon is
+   opened, so it has to read at a glance rather than blend into the icon. */
+.rp-icon-btn.is-filtered { color: var(--accent-primary, #d4af37); }
+
+.rp-icon-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-primary, #d4af37);
+    box-shadow: 0 0 0 2px var(--bg-card, #1c1c1e);
 }
 
 /* ── filters ─────────────────────────────────────────────────────────────── */
@@ -197,19 +223,9 @@
     color: var(--text-secondary, #b0b0b0);
 }
 
-/* The shared CustomSelect renders its own trigger and menu. Its popover is
-   absolutely positioned, and .rp-controls scrolls — an absolutely positioned
-   child is clipped by any scrolling ancestor, and no z-index escapes that, so
-   the list was cut off after the first row. Placing it in the flow instead lets
-   the card grow and the controls column scroll to it. Its own 220px internal
-   scroll still handles a long list. */
-.rp-type-select { width: 100%; }
-
-.rp-type-select .custom-select-popover {
-    position: static;
-    margin-top: 4px;
-    animation: none;
-}
+/* Overrides CustomSelect's own width:100% — this trigger is an icon, not a
+   full-width box, and the card header's flex layout should size it to fit. */
+.rp-type-filter { width: auto; }
 
 /* ── the day ─────────────────────────────────────────────────────────────── */
 
@@ -381,6 +397,32 @@
 }
 
 .rp-map-canvas { width: 100%; height: 100%; }
+
+/* Sits top-right: Google keeps its own controls bottom-right, and the loading
+   badge is centred at the top. */
+.rp-locate {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 5;
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.14));
+    background: var(--bg-card, #1c1c1e);
+    color: var(--text-primary, #ffffff);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.rp-locate:hover {
+    color: var(--accent-primary, #d4af37);
+    border-color: var(--accent-primary, #d4af37);
+}
+
+.rp-locate:active { transform: scale(0.95); }
 
 .rp-badge {
     position: absolute;
@@ -708,6 +750,11 @@ body.light-theme-active .rp-secondary { color: var(--text-secondary); }
 
 /* Portrait tablet and below: stack, map first. */
 @media (max-width: 1024px) {
+    /* Safe to add a top/bottom inset here: .route-planner drops to height:auto
+       on this breakpoint, so it's no longer budgeted against a fixed
+       calc(100vh - …) that padding above would throw off. */
+    .route-planner-shell { padding: 0.75rem 0.85rem; }
+
     .route-planner {
         grid-template-columns: 1fr;
         height: auto;

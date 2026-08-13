@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, Circle, InfoWindow } from '@react-google-maps/api';
-import { MapPin, Navigation, Calendar, Clock, Route, X, Check, AlertTriangle, Users, RefreshCw, Trash2, Phone, Mail } from 'lucide-react';
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import { MapPin, Navigation, Calendar, Clock, Route, X, Check, AlertTriangle, Users, RefreshCw, Trash2, Phone, Mail, LocateFixed, Filter } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import CustomSelect from '../shared/CustomSelect';
 import {
@@ -112,6 +112,8 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
     }, [currentUser]);
 
     const mapRef = useRef(null);
+    const circleRef = useRef(null);
+    const [mapReady, setMapReady] = useState(false);
 
     /**
      * What is already on this rep's calendar, by customer.
@@ -193,6 +195,47 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
         window.google.maps.event.trigger(map, 'resize');
         if (held) map.setCenter(held);
     }, [isActive]);
+
+    /**
+     * The area ring, owned here rather than by the library's <Circle>.
+     *
+     * That component rebuilds its overlay when props change without always
+     * removing the one it replaced, so moving the circle left the old ring
+     * behind and the map ended up with two. One instance, updated in place,
+     * cannot do that.
+     */
+    useEffect(() => {
+        if (!mapReady || !window.google || !mapRef.current) return;
+
+        if (!center) {
+            circleRef.current?.setMap(null);
+            circleRef.current = null;
+            return;
+        }
+
+        if (!circleRef.current) {
+            circleRef.current = new window.google.maps.Circle({ map: mapRef.current });
+        }
+
+        circleRef.current.setOptions({
+            map: mapRef.current,
+            center,
+            radius: radiusMiles * 1609.34,
+            strokeColor: colors.overdue,
+            strokeOpacity: 0.9,
+            strokeWeight: 2,
+            fillColor: colors.overdue,
+            fillOpacity: 0.08,
+            clickable: false
+        });
+    }, [mapReady, center, radiusMiles, colors.overdue]);
+
+    // Leaving the page must take the ring with it, or it survives on the shared
+    // map instance the next time this mounts.
+    useEffect(() => () => {
+        circleRef.current?.setMap(null);
+        circleRef.current = null;
+    }, []);
 
     const myId = String(currentUser?.id || currentUser?._id || '');
 
@@ -333,6 +376,42 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
     };
 
     /**
+     * Bring the map back to where the rep is standing.
+     *
+     * Asks again when the position is not already known: permission is far more
+     * likely to be granted from a button the user just pressed than from a
+     * prompt that appeared on its own as the page loaded.
+     */
+    const goToMyLocation = () => {
+        const show = (point) => {
+            // The ring comes too. This button means "plan around where I am",
+            // not "look at where I am" — leaving the area behind in the last
+            // town would make the run on screen belong to somewhere else.
+            setCenter(point);
+            clearArea();
+            if (!mapRef.current) return;
+            mapRef.current.panTo(point);
+            mapRef.current.setZoom(12);
+        };
+
+        if (origin) { show(origin); return; }
+
+        if (!navigator.geolocation) {
+            setError('This browser cannot report a location.');
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                setOrigin(here);
+                show(here);
+            },
+            () => setError('Location is switched off for this site — turn it on in the browser’s site settings.'),
+            { timeout: 8000 }
+        );
+    };
+
+    /**
      * Open the popup for a customer and bring the map to it. Used by the stop
      * list as well as the pins, so a name in the run and its pin lead to the
      * same one place — there is no second card that can drift from this one.
@@ -343,6 +422,9 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
     };
 
     const handleMapClick = (event) => {
+        // Clicking the map is a move on to something else, so the open customer
+        // goes with it rather than being left behind over the new area.
+        setInfo(null);
         setCenter({ lat: event.latLng.lat(), lng: event.latLng.lng() });
         clearArea();
     };
@@ -448,11 +530,19 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
                     <div className="rp-empty">
                         <MapPin size={40} />
                         <h3>The map needs a Google Maps key</h3>
-                        <p>
-                            Add <code>VITE_GOOGLE_MAPS_API_KEY</code> to <code>.env</code> and restart the dev server.
-                            The same key (or <code>GOOGLE_GEOCODING_API_KEY</code>) is what gives customers their
-                            coordinates in the first place — see <code>scripts/geocode-customers.js</code>.
-                        </p>
+                        {import.meta.env.PROD ? (
+                            <p>
+                                <code>VITE_GOOGLE_MAPS_API_KEY</code> isn't set for this deployment. Add it in the
+                                hosting dashboard's environment variables, then redeploy — this key is baked in when
+                                the app is built, so a restart alone won't pick it up.
+                            </p>
+                        ) : (
+                            <p>
+                                Add <code>VITE_GOOGLE_MAPS_API_KEY</code> to <code>.env</code> and restart the dev server.
+                                The same key (or <code>GOOGLE_GEOCODING_API_KEY</code>) is what gives customers their
+                                coordinates in the first place — see <code>scripts/geocode-customers.js</code>.
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>
@@ -469,6 +559,32 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
                         <header className="rp-card-head">
                             <Users size={15} />
                             <h3>Who to show</h3>
+                            {/* An icon rather than the full select box — this card
+                                is already three filters deep, and the type filter
+                                is reached far less often than the other two. The
+                                app's own popover rather than a native <option>
+                                list: that cannot be styled to match, and a phone
+                                renders it as an unthemed system menu over the map. */}
+                            <CustomSelect
+                                className="rp-type-filter"
+                                value={customerType}
+                                onChange={(e) => setCustomerType(e.target.value)}
+                                options={[
+                                    { value: '', label: 'Every customer type' },
+                                    ...types.map(t => ({ value: t, label: t }))
+                                ]}
+                                menuWidth={210}
+                                menuAlign="right"
+                                triggerClassName={`rp-icon-btn ${customerType ? 'is-filtered' : ''}`}
+                                triggerTitle={customerType ? `Customer type: ${customerType}` : 'Filter by customer type'}
+                                triggerAriaLabel="Filter by customer type"
+                                triggerContent={
+                                    <>
+                                        <Filter size={14} />
+                                        {customerType && <span className="rp-icon-dot" aria-hidden="true" />}
+                                    </>
+                                }
+                            />
                             <button className="rp-icon-btn" onClick={load} title="Reload customer locations">
                                 <RefreshCw size={14} />
                             </button>
@@ -494,20 +610,6 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
                                 </button>
                             ))}
                         </div>
-
-                        {/* The app's own select rather than a native one: an
-                            <option> list cannot be styled to match, and a phone
-                            renders it as an unthemed system menu over the map. */}
-                        <CustomSelect
-                            className="rp-type-select"
-                            value={customerType}
-                            onChange={(e) => setCustomerType(e.target.value)}
-                            options={[
-                                { value: '', label: 'Every customer type' },
-                                ...types.map(t => ({ value: t, label: t }))
-                            ]}
-                            placeholder="Every customer type"
-                        />
                     </section>
 
                     {/* ── the area ──────────────────────────────────────────── */}
@@ -676,6 +778,18 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
                 <div className="rp-map">
                     {loadError && <div className="rp-empty"><p>Google Maps failed to load: {loadError.message}</p></div>}
                     {!loadError && !isLoaded && <div className="rp-empty"><p>Loading the map…</p></div>}
+                    {isLoaded && !loadError && (
+                        <button
+                            type="button"
+                            className="rp-locate"
+                            onClick={goToMyLocation}
+                            title="Centre the map on my location"
+                            aria-label="Centre the map on my location"
+                        >
+                            <LocateFixed size={17} />
+                        </button>
+                    )}
+
                     {loading && <div className="rp-badge">Loading customers…</div>}
                     {!loading && !error && pins.length === 0 && (
                         <div className="rp-badge rp-badge-warn">
@@ -688,25 +802,10 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
                             mapContainerClassName="rp-map-canvas"
                             center={center || origin || FALLBACK_CENTER}
                             zoom={10}
-                            onLoad={(map) => { mapRef.current = map; }}
+                            onLoad={(map) => { mapRef.current = map; setMapReady(true); }}
                             onClick={handleMapClick}
                             options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
                         >
-                            {center && (
-                                <Circle
-                                    center={center}
-                                    radius={radiusMiles * 1609.34}
-                                    options={{
-                                        strokeColor: colors.overdue,
-                                        strokeOpacity: 0.9,
-                                        strokeWeight: 2,
-                                        fillColor: colors.overdue,
-                                        fillOpacity: 0.08,
-                                        clickable: false
-                                    }}
-                                />
-                            )}
-
                             {origin && (
                                 <Marker
                                     position={origin}
