@@ -71,7 +71,7 @@
   border: 1px solid rgba(212, 175, 55, 0.35);
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.85), 0 0 20px rgba(212, 175, 55, 0.12);
-  z-index: 9999;
+  z-index: 2147483647;
   overflow: hidden;
   animation: selectPopoverFade 0.15s ease-out;
 }
