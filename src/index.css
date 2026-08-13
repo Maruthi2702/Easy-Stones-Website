@@ -331,3 +331,52 @@ textarea:not(.no-capitalize) {
 }
 
 
+
+/* ── Rescued from SalesMapPage.css ──────────────────────────────────────────
+   These four were defined only in that page's stylesheet, but are used by
+   PodViewer, UsersRolesTab, PartnersSheet and AdminPage — so they applied only
+   once someone had visited /sales/map and pulled that lazy chunk in, and not
+   otherwise. That page is gone now; the rules move here, where components that
+   use generic class names can actually rely on them. */
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.customer-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.customer-card:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.1);
+}
+
+.customer-form {
+  padding: 1.5rem;
+}

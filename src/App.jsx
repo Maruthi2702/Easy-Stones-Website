@@ -37,7 +37,6 @@ const ContactPage = lazyRetry(() => import('./pages/ContactPage'));
 const WarrantyPage = lazyRetry(() => import('./pages/WarrantyPage'));
 const CustomerLoginPage = lazyRetry(() => import('./pages/CustomerLoginPage'));
 const SalesPage = lazyRetry(() => import('./pages/SalesPage'));
-const SalesMapPage = lazyRetry(() => import('./pages/SalesMapPage'));
 const AdminPage = lazyRetry(() => import('./pages/AdminPage'));
 const LoginPage = lazyRetry(() => import('./pages/LoginPage'));
 const CheckInPage = lazyRetry(() => import('./pages/CheckInPage'));
@@ -146,7 +145,6 @@ function App() {
                 <Routes>
                   <Route path="/" element={<HomeRedirect />} />
                   <Route path="/products" element={<HomePage />} />
-                  <Route path="/sales/map" element={<ProtectedRoute><SalesMapPage /></ProtectedRoute>} />
                   <Route
                     path="/sales"
                     element={
