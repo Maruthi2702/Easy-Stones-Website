@@ -5713,6 +5713,43 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
       fields.image = await processBase64Images(fields.image, 'Resources');
     }
 
+    /**
+     * Re-pointing a resource at a different customer.
+     *
+     * A resource is a subdocument of the customer that holds it, so correcting
+     * one that was filed against the wrong account is a move between two
+     * documents, not a field update. The client PUTs to the customer it should
+     * belong to, so when it is not there, find who actually holds it and carry
+     * it across — keeping its _id, so anything pointing at this resource still
+     * resolves. Before this, that edit answered "Customer or resource not
+     * found" and the mistake could not be corrected at all.
+     */
+    if (!existingResource) {
+      const source = await Customer.findOne({ 'resources._id': resourceId });
+      const moving = source ? source.resources.id(resourceId) : null;
+
+      if (!moving) {
+        return res.status(404).json({ message: 'Customer or resource not found' });
+      }
+
+      const carried = moving.toObject();
+      Object.keys(fields).forEach(key => {
+        if (key === 'date') carried[key] = ensureDateString(fields[key]);
+        else if (key !== '_id') carried[key] = fields[key];
+      });
+      if (fields.resourceType && !fields.title) carried.title = fields.resourceType;
+
+      moving.deleteOne();
+      await source.save();
+
+      customer.resources.push(carried);
+      await customer.save();
+
+      req.app.get('io')?.emit('customer_update');
+      console.log(`↔️ Resource ${resourceId} moved from ${source.company || source._id} to ${customer.company || customer._id}`);
+      return res.json({ success: true, message: 'Resource moved to the selected customer', moved: true });
+    }
+
     Object.keys(fields).forEach(key => {
       // If title is missing but resourceType is present, use resourceType as title
       if (key === 'resourceType' && !fields.title) {
