@@ -9,6 +9,8 @@ import { formatTitleCase } from '../../../utils/textUtils';
 // and the ePOD certificate — see src/utils/deliveryPickup.js.
 import { isThirdPartyTruck as isThirdParty } from '../../../utils/deliveryPickup';
 import { API_URL } from '../../../config/api';
+import { authFetch } from '../../../api/authFetch';
+import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
 
 const ROUTE_OPTIONS = [
   { value: 1, label: 'Stop #1 (1st Stop)' },
@@ -145,10 +147,7 @@ const DeliveryModal = ({
     if (isOpen) {
       // 1. Fetch customer dropdown if empty
       if (!customerOptions || customerOptions.length === 0) {
-        const token = localStorage.getItem('token');
-        fetch(`${API_URL}/api/customers/dropdown`, {
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-        })
+        authFetch(`${API_URL}/api/customers/dropdown`)
           .then(res => res.ok ? res.json() : [])
           .then(data => {
             if (Array.isArray(data)) {
@@ -170,10 +169,7 @@ const DeliveryModal = ({
       }
 
       // 2. Fetch Sales Reps for user location
-      const token = localStorage.getItem('token');
-      fetch(`${API_URL}/api/salesreps`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      })
+      authFetch(`${API_URL}/api/salesreps`)
         .then(res => res.ok ? res.json() : [])
         .then(payload => {
           const list = payload.data || payload || [];
@@ -228,6 +224,58 @@ const DeliveryModal = ({
   const [confirmClose, setConfirmClose] = useState(false);
   const [isReadingPdf, setIsReadingPdf] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [restoredNotice, setRestoredNotice] = useState(false);
+
+  // Scoped by which ticket is open (or 'new') so a draft from editing one
+  // delivery never resurfaces inside a different one.
+  const draftKey = `deliveryModal:${initialData?.id || 'new'}`;
+
+  // Kept current every render so the session-expired listener below can grab
+  // a fresh snapshot without needing every field in its dependency array.
+  const formStateRef = useRef(null);
+  useEffect(() => {
+    formStateRef.current = {
+      date, routeNumber, truckId, customerName, selectedCustomerId, soNumber, address,
+      salesRepName, status, notes, time, deliveryType, transferDestination, pickupInfo,
+      carrierName, proNumber, freightFee, packingListUrl, packingListFilename, numberOfSlabs
+    };
+  });
+
+  // A session dying mid-edit used to mean this form's contents vanished along
+  // with the redirect to /login — stash them so re-opening this same ticket
+  // after logging back in picks up where it left off.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleExpire = () => {
+      if (formStateRef.current) saveDraft(draftKey, formStateRef.current);
+    };
+    window.addEventListener('auth:session-expired', handleExpire);
+    return () => window.removeEventListener('auth:session-expired', handleExpire);
+  }, [isOpen, draftKey]);
+
+  const applyDraft = (draft) => {
+    setDate(draft.date ?? date);
+    setRouteNumber(draft.routeNumber ?? routeNumber);
+    setTruckId(draft.truckId ?? truckId);
+    setCustomerName(draft.customerName ?? customerName);
+    setSelectedCustomerId(draft.selectedCustomerId ?? selectedCustomerId);
+    setSoNumber(draft.soNumber ?? soNumber);
+    setAddress(draft.address ?? address);
+    setSalesRepName(draft.salesRepName ?? salesRepName);
+    setStatus(draft.status ?? status);
+    setNotes(draft.notes ?? notes);
+    setTime(draft.time ?? time);
+    setDeliveryType(draft.deliveryType ?? deliveryType);
+    setTransferDestination(draft.transferDestination ?? transferDestination);
+    setPickupInfo(draft.pickupInfo ?? pickupInfo);
+    setCarrierName(draft.carrierName ?? carrierName);
+    setProNumber(draft.proNumber ?? proNumber);
+    setFreightFee(draft.freightFee ?? freightFee);
+    setPackingListUrl(draft.packingListUrl ?? packingListUrl);
+    setPackingListFilename(draft.packingListFilename ?? packingListFilename);
+    setNumberOfSlabs(draft.numberOfSlabs ?? numberOfSlabs);
+    setIsDirty(true);
+  };
 
   // Re-initialize form whenever the modal opens or the data identity changes
   useEffect(() => {
@@ -238,6 +286,7 @@ const DeliveryModal = ({
     setIsDirty(false);
     setIsSaving(false);
     setIsReadingPdf(false);
+    setRestoredNotice(false);
     if (initialData) {
       const custName = initialData.customerName || '';
       let custId = initialData.customerId || '';
@@ -271,6 +320,13 @@ const DeliveryModal = ({
     } else {
       resetForm();
       initialSnapshot.current = null;
+    }
+
+    const draft = loadDraft(draftKey);
+    if (draft) {
+      applyDraft(draft);
+      clearDraft(draftKey);
+      setRestoredNotice(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialData?.id]);
@@ -487,6 +543,12 @@ const DeliveryModal = ({
 
         {/* Modal Body — same as VisitModal .modal-body */}
         <div className="modal-body">
+
+          {restoredNotice && (
+            <div style={{ background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.3)', borderRadius: '10px', padding: '0.65rem 0.9rem', marginBottom: '1rem', color: '#34d399', fontSize: '0.82rem', fontWeight: 600 }}>
+              We restored what you had entered before your session expired.
+            </div>
+          )}
 
           {error && <div className="modal-error-banner" style={{ marginBottom: '1rem' }}><AlertCircle size={18} /> {error}</div>}
 
@@ -889,10 +951,8 @@ const DeliveryModal = ({
                         try {
                           const formData = new FormData();
                           formData.append('file', file);
-                          const token = localStorage.getItem('token');
-                          const res = await fetch(`${API_URL}/api/deliveries/upload-packing-list`, {
+                          const res = await authFetch(`${API_URL}/api/deliveries/upload-packing-list`, {
                             method: 'POST',
-                            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                             body: formData
                           });
                           if (res.ok) {

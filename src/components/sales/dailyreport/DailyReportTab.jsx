@@ -5,6 +5,7 @@ import {
   MapPin, AlertCircle, Loader2, FileText, Mail, FileSpreadsheet
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
+import { authFetch } from '../../../api/authFetch';
 import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
 import MonthView from './MonthView';
@@ -116,20 +117,6 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const saveTimer = useRef(null);
   const skipAutosave = useRef(true);
 
-  const token = () => localStorage.getItem('token') || localStorage.getItem('adminToken');
-  const authFetch = useCallback((url, options = {}) => {
-    const t = token();
-    return fetch(url, {
-      ...options,
-      credentials: 'include',
-      headers: {
-        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-        ...options.headers,
-        ...(t ? { Authorization: `Bearer ${t}` } : {})
-      }
-    });
-  }, []);
-
   // ── which branches this person may report on ──────────────────────────────
   useEffect(() => {
     let alive = true;
@@ -144,7 +131,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       })
       .catch(err => alive && setError(err.message));
     return () => { alive = false; };
-  }, [authFetch]);
+  }, []);
 
   // ── load the day ──────────────────────────────────────────────────────────
   const loadDay = useCallback(async () => {
@@ -170,7 +157,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     } finally {
       setLoading(false);
     }
-  }, [authFetch, date, location]);
+  }, [date, location]);
 
   useEffect(() => { if (view === 'day') loadDay(); }, [loadDay, view]);
 
@@ -210,7 +197,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     } finally {
       setSaving(false);
     }
-  }, [authFetch, canEdit]);
+  }, [canEdit]);
 
   useEffect(() => {
     if (!report || !canEdit || report.status === 'submitted') return;

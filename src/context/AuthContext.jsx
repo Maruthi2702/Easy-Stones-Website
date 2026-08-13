@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { API_URL } from '../config/api';
+import { resetSessionExpiredGuard } from '../api/authFetch';
 
 const AuthContext = createContext(null);
 
@@ -135,7 +136,21 @@ export const AuthProvider = ({ children }) => {
         };
     }, []);
 
+    // Any authFetch call, anywhere, can discover the session died — this is
+    // what turns that discovery into the same sign-out ProtectedRoute already
+    // reacts to, instead of the page quietly continuing to act logged in.
+    useEffect(() => {
+        const handleSessionExpired = () => {
+            logout();
+        };
+        window.addEventListener('auth:session-expired', handleSessionExpired);
+        return () => {
+            window.removeEventListener('auth:session-expired', handleSessionExpired);
+        };
+    }, []);
+
     const login = (userData) => {
+        resetSessionExpiredGuard();
         localStorage.setItem('auth_login_event', Date.now().toString());
         setUser(userData);
     };

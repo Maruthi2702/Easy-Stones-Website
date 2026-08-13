@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
 import { API_URL } from '../config/api';
+import { authFetch } from '../api/authFetch';
 import { viewerTimeZone } from '../utils/dateUtils';
 import * as XLSX from 'xlsx';
 import { Sun, Moon } from 'lucide-react';
@@ -112,7 +113,7 @@ const CheckInLogPage = () => {
         tz: viewerTimeZone,
         ...(filterLocation && { location: filterLocation })
       });
-      const res = await fetch(`${API_URL}/api/checkin/stats?${params}`, { credentials: 'include' });
+      const res = await authFetch(`${API_URL}/api/checkin/stats?${params}`);
       if (res.status === 401) {
         logout();
         return;
@@ -154,7 +155,7 @@ const CheckInLogPage = () => {
         ...(filterYear && { year: filterYear }),
         ...(filterLocation && { location: filterLocation }),
       });
-      const response = await fetch(`${API_URL}/api/checkin?${params}`, { credentials: 'include' });
+      const response = await authFetch(`${API_URL}/api/checkin?${params}`);
       if (response.status === 401) {
         logout();
         return;

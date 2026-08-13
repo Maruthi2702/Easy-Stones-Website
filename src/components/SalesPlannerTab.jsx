@@ -4,6 +4,7 @@ import {
     Plus, Trash2, Edit2, AlertCircle, X
 } from 'lucide-react';
 import { API_URL } from '../config/api';
+import { authFetch } from '../api/authFetch';
 import SearchableSelect from './SearchableSelect';
 import {
     getCachedPlannerRange,
@@ -449,10 +450,8 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 ? `${API_URL}/api/schedule/${editingItem._id}`
                 : `${API_URL}/api/schedule`;
 
-            const response = await fetch(url, {
+            const response = await authFetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(form)
             });
 
@@ -484,9 +483,8 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     const confirmDelete = async () => {
         if (!itemToDelete) return;
         try {
-            const response = await fetch(`${API_URL}/api/schedule/${itemToDelete}`, {
-                method: 'DELETE',
-                credentials: 'include'
+            const response = await authFetch(`${API_URL}/api/schedule/${itemToDelete}`, {
+                method: 'DELETE'
             });
             if (response.ok) {
                 refreshPlannerSchedule();
@@ -640,10 +638,8 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         announce(`${customerName(item)} moved to ${nextStart.toLocaleDateString('en-US', { weekday: 'long' })}, ${timeLabel(nextStart)}.`);
 
         try {
-            const response = await fetch(`${API_URL}/api/schedule/${item._id}`, {
+            const response = await authFetch(`${API_URL}/api/schedule/${item._id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(patch)
             });
 

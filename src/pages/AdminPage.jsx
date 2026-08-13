@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import './AdminPage.css';
 import { formatPhoneInput } from '../utils/phoneUtils';
 import CustomerImportModal from '../components/admin/CustomerImportModal';
+import { authFetch } from '../api/authFetch';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -76,10 +77,7 @@ const AdminPage = () => {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/admin/products/list`, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
-      });
+      const response = await authFetch(`${API_URL}/api/admin/products/list`);
       if (response.ok) {
         const data = await response.json();
         if (data && data.length > 0) {
@@ -96,10 +94,7 @@ const AdminPage = () => {
   const fetchCustomers = useCallback(async () => {
     try {
       setCustomersLoading(true);
-      const response = await fetch(`${API_URL}/api/admin/customers/list`, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
-      });
+      const response = await authFetch(`${API_URL}/api/admin/customers/list`);
       if (response.ok) {
         const data = await response.json();
         console.log('AdminPage: Fetched customers count:', data?.length);
@@ -121,10 +116,7 @@ const AdminPage = () => {
   const fetchUsers = useCallback(async () => {
     try {
       setUsersLoading(true);
-      const response = await fetch(`${API_URL}/api/admin/users`, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
-      });
+      const response = await authFetch(`${API_URL}/api/admin/users`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
@@ -176,7 +168,7 @@ const AdminPage = () => {
     setIsUploading(true); // Start upload status
 
     try {
-      const response = await fetch(API_ENDPOINTS.UPLOAD, {
+      const response = await authFetch(API_ENDPOINTS.UPLOAD, {
         method: 'POST',
         body: formData,
       });
@@ -222,7 +214,7 @@ const AdminPage = () => {
     setIsUploading(true);
 
     try {
-      const response = await fetch(API_ENDPOINTS.UPLOAD, {
+      const response = await authFetch(API_ENDPOINTS.UPLOAD, {
         method: 'POST',
         body: formData,
       });
@@ -261,9 +253,8 @@ const AdminPage = () => {
     if (!confirmed) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/upload/delete`, {
+      const response = await authFetch(`${API_URL}/api/upload/delete`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageUrl })
       });
 
@@ -320,7 +311,7 @@ const AdminPage = () => {
     formData.append('image', file);
 
     try {
-      const response = await fetch(API_ENDPOINTS.UPLOAD, {
+      const response = await authFetch(API_ENDPOINTS.UPLOAD, {
         method: 'POST',
         body: formData,
       });
@@ -404,10 +395,8 @@ const AdminPage = () => {
     const method = editingUserId ? 'PUT' : 'POST';
 
     try {
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(userFormData)
       });
 
@@ -417,10 +406,7 @@ const AdminPage = () => {
         setEditingUserId(null);
         setUserFormData({ username: '', email: '', password: '', role: 'sales_rep', location: '' });
         // Refresh users
-        const usersRes = await fetch(`${API_URL}/api/admin/users`, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
+        const usersRes = await authFetch(`${API_URL}/api/admin/users`);
         if (usersRes.ok) {
           const data = await usersRes.json();
           setUsers(data);
@@ -443,9 +429,8 @@ const AdminPage = () => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/admin/users/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include'
+      const response = await authFetch(`${API_URL}/api/admin/users/${userId}`, {
+        method: 'DELETE'
       });
 
       if (response.ok) {
@@ -464,10 +449,7 @@ const AdminPage = () => {
 
     // Lazy load: Fetch full product details
     try {
-      const response = await fetch(`${API_URL}/api/admin/products/${id}`, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
-      });
+      const response = await authFetch(`${API_URL}/api/admin/products/${id}`);
       if (response.ok) {
         const fullProduct = await response.json();
         // Update products array with full details
@@ -547,9 +529,8 @@ const AdminPage = () => {
     setSaveStatus(null);
 
     try {
-      const response = await fetch(API_ENDPOINTS.SAVE_PRODUCTS, {
+      const response = await authFetch(API_ENDPOINTS.SAVE_PRODUCTS, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ products: productsToSave }),
       });
 
@@ -595,10 +576,8 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/auth/change-password`, {
+      const response = await authFetch(`${API_URL}/api/auth/change-password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           currentPassword: passwordData.currentPassword,
           newPassword: passwordData.newPassword
@@ -677,10 +656,7 @@ const AdminPage = () => {
 
     // Lazy load: Fetch full customer details
     try {
-      const response = await fetch(`${API_URL}/api/admin/customers/${customer._id}`, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
-      });
+      const response = await authFetch(`${API_URL}/api/admin/customers/${customer._id}`);
       if (response.ok) {
         const fullCustomer = await response.json();
         // Update customers array with full details
@@ -773,10 +749,8 @@ const AdminPage = () => {
         delete dataToSend.password;
       }
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(dataToSend)
       });
 
@@ -786,10 +760,7 @@ const AdminPage = () => {
         setCustomerSaveStatus({ type: 'success', message: `Customer ${isNewCustomer ? 'created' : 'updated'} successfully!` });
 
         // Refresh customers list
-        const customersResponse = await fetch(`${API_URL}/api/admin/customers`, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
+        const customersResponse = await authFetch(`${API_URL}/api/admin/customers`);
         if (customersResponse.ok) {
           const customersData = await customersResponse.json();
           setCustomers(customersData);
@@ -813,9 +784,8 @@ const AdminPage = () => {
   const handleDeleteCustomer = async (id) => {
     if (window.confirm('Are you sure you want to delete this customer? This cannot be undone.')) {
       try {
-        const response = await fetch(`${API_URL}/api/admin/customers/${id}`, {
-          method: 'DELETE',
-          credentials: 'include'
+        const response = await authFetch(`${API_URL}/api/admin/customers/${id}`, {
+          method: 'DELETE'
         });
 
         if (response.ok) {
@@ -841,19 +811,14 @@ const AdminPage = () => {
 
     if (window.confirm(`Are you sure you want to ${action} this customer?`)) {
       try {
-        const response = await fetch(`${API_URL}/api/admin/customers/${id}/status`, {
+        const response = await authFetch(`${API_URL}/api/admin/customers/${id}/status`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify({ isActive: newStatus })
         });
 
         if (response.ok) {
           // Refresh customers list to ensure sync
-          const customersResponse = await fetch(`${API_URL}/api/admin/customers`, {
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include'
-          });
+          const customersResponse = await authFetch(`${API_URL}/api/admin/customers`);
           if (customersResponse.ok) {
             const customersData = await customersResponse.json();
             setCustomers(customersData);

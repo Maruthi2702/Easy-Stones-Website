@@ -7,6 +7,7 @@ import {
     ClipboardList, CheckCheck, RotateCcw, Map, Route
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
 import { prettifyUsername } from '../../utils/textUtils';
 import { clearDriversCache } from '../../api/schedule';
 import './UsersRolesTab.css';
@@ -207,25 +208,17 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
         }
     };
 
-    // Auth-aware fetch helper that passes credentials/cookies correctly
-    const fetchWithAuth = (url, options = {}) => {
-        const token = localStorage.getItem('token');
-        return fetch(url, {
-            ...options,
-            credentials: 'include',
-            headers: {
-                ...options.headers,
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            }
-        });
-    };
+    // Kept as a thin alias so the 9 call sites below don't need touching —
+    // the actual auth/credentials wiring (and session-expiry detection) now
+    // lives in the shared authFetch.
+    const fetchWithAuth = authFetch;
 
     // Ensure we have a token in localStorage - exchanges cookie for JWT if needed
     // This supports existing sessions that pre-date the localStorage token storage
     const ensureToken = async () => {
         if (localStorage.getItem('token')) return; // already have it
         try {
-            const res = await fetch(`${API_URL}/api/auth/token`, { credentials: 'include' });
+            const res = await authFetch(`${API_URL}/api/auth/token`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.token) localStorage.setItem('token', data.token);

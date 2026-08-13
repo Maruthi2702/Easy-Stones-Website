@@ -1,5 +1,6 @@
 import { API_URL } from '../config/api';
 import { io } from 'socket.io-client';
+import { authFetch } from './authFetch';
 
 export const MAX_TRUCK_CAPACITY = 12;
 
@@ -329,11 +330,7 @@ export async function getScheduleDataCached(currentUser = null, weekStart, weekE
 // ── GET TRUCKS ──
 export async function getTrucks() {
   try {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    const res = await fetch(`${API_URL}/api/trucks`, {
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    });
+    const res = await authFetch(`${API_URL}/api/trucks`);
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) return data;
@@ -421,11 +418,7 @@ export async function getDriverUsers(userLocation = null, userAssignedLocations 
 
 async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocations = []) {
   try {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    const res = await fetch(`${API_URL}/api/salesreps`, {
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    });
+    const res = await authFetch(`${API_URL}/api/salesreps`);
     if (!res.ok) throw new Error('Failed to fetch users');
     const payload = await res.json();
     const allUsers = payload.data || payload || [];
@@ -478,14 +471,8 @@ async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocat
 // ── SAVE TRUCKS ──
 export async function saveTrucks(trucks) {
   try {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    await fetch(`${API_URL}/api/trucks`, {
+    await authFetch(`${API_URL}/api/trucks`, {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
       body: JSON.stringify({ trucks })
     });
   } catch (err) {
@@ -506,12 +493,8 @@ export async function getDeliveriesForRange(startDate, endDate) {
   }
 
   try {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
     const params = new URLSearchParams({ startDate, endDate });
-    const res = await fetch(`${API_URL}/api/deliveries?${params.toString()}`, {
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    });
+    const res = await authFetch(`${API_URL}/api/deliveries?${params.toString()}`);
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -530,11 +513,7 @@ export async function getDeliveriesForRange(startDate, endDate) {
 // ── GET PENDING DELIVERIES (no agreed date yet) ──
 export async function getPendingDeliveries() {
   try {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    const res = await fetch(`${API_URL}/api/deliveries?pending=true`, {
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    });
+    const res = await authFetch(`${API_URL}/api/deliveries?pending=true`);
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -548,44 +527,29 @@ export async function getPendingDeliveries() {
 }
 
 // ── SAVE / UPDATE DELIVERY (100% MONGODB DATABASE) ──
+// Deliberately rethrown rather than swallowed to stale cache — the delivery
+// modal awaits this and only closes once it resolves, so a save that fails
+// silently here used to look like a success and discard what was typed.
 export async function saveDelivery(delivery) {
-  try {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    const res = await fetch(`${API_URL}/api/deliveries`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
-      body: JSON.stringify(delivery)
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      if (updated && updated.id) {
-        upsertDeliveryIntoCache(updated);
-        notifyScheduleListeners();
-        return getActiveWeekDeliveries();
-      }
-    } else {
-      console.error('[schedule] saveDelivery API failed with status:', res.status);
-    }
-  } catch (err) {
-    console.error('[schedule] saveDelivery API error:', err);
+  const res = await authFetch(`${API_URL}/api/deliveries`, {
+    method: 'POST',
+    body: JSON.stringify(delivery)
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Could not save the delivery (${res.status}).`);
   }
-
-  await refreshActiveWeek().catch(() => {});
+  const updated = await res.json();
+  if (!updated || !updated.id) throw new Error('Malformed delivery save response');
+  upsertDeliveryIntoCache(updated);
+  notifyScheduleListeners();
   return getActiveWeekDeliveries();
 }
 
 // ── GET SINGLE DELIVERY WITH FULL POD DATA (signatures/photos excluded from list fetches) ──
 export async function getDeliveryById(id) {
   try {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    const res = await fetch(`${API_URL}/api/deliveries/${id}`, {
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    });
+    const res = await authFetch(`${API_URL}/api/deliveries/${id}`);
     if (res.ok) {
       return await res.json();
     }
@@ -599,12 +563,7 @@ export async function getDeliveryById(id) {
 // ── DELETE DELIVERY (100% MONGODB DATABASE) ──
 export async function deleteDelivery(id) {
   try {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    const res = await fetch(`${API_URL}/api/deliveries/${id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    });
+    const res = await authFetch(`${API_URL}/api/deliveries/${id}`, { method: 'DELETE' });
     if (res.ok) {
       removeDeliveryFromCache(id);
       notifyScheduleListeners();
@@ -632,14 +591,8 @@ export async function deleteDelivery(id) {
 // time the office had changed in the meantime. It also can't be done offline in
 // any honest way, so a failure is raised rather than swallowed.
 export async function updateDeliveryStatus(id, newStatus) {
-  const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-  const res = await fetch(`${API_URL}/api/deliveries/${id}/status`, {
+  const res = await authFetch(`${API_URL}/api/deliveries/${id}/status`, {
     method: 'PATCH',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
     body: JSON.stringify({ status: newStatus })
   });
 

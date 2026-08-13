@@ -1,5 +1,6 @@
 import { API_URL } from '../config/api';
 import { io } from 'socket.io-client';
+import { authFetch } from './authFetch';
 
 /**
  * The sales planner's data layer.
@@ -65,9 +66,8 @@ function notify(key) {
 }
 
 async function fetchRange(start, end) {
-  const res = await fetch(
-    `${API_URL}/api/schedule?start=${start}T00:00:00.000&end=${end}T23:59:59.999`,
-    { credentials: 'include' }
+  const res = await authFetch(
+    `${API_URL}/api/schedule?start=${start}T00:00:00.000&end=${end}T23:59:59.999`
   );
   if (!res.ok) throw new Error('Could not load the schedule.');
   const data = await res.json();

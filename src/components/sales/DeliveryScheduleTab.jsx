@@ -22,6 +22,7 @@ import {
 } from '../../api/schedule';
 import { formatForDateInput } from '../../utils/dateUtils';
 import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
 import './DeliveryScheduleTab.css';
 
 function getWeekMonday(date = new Date()) {
@@ -156,13 +157,8 @@ const DeliveryScheduleTab = ({
   // Voiding a proof keeps the delivery completed — the material arrived; only
   // the signature is withdrawn. The board updates from the socket broadcast.
   const handleClearPod = async (delivery, reason) => {
-    const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
-    const res = await fetch(`${API_URL}/api/deliveries/${delivery.id}/pod`, {
+    const res = await authFetch(`${API_URL}/api/deliveries/${delivery.id}/pod`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      },
       body: JSON.stringify({ reason })
     });
     if (!res.ok) {

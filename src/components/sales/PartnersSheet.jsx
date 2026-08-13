@@ -9,6 +9,7 @@ import AddCustomerModal from './AddCustomerModal';
 import { useAuth } from '../../context/AuthContext';
 import { toSalesRepList } from '../../utils/salesReps';
 import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
 import * as XLSX from 'xlsx';
 import {  formatPhoneForDisplay } from '../../utils/phoneUtils';
 import './PartnersSheet.css';
@@ -212,9 +213,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     useEffect(() => {
         const fetchCities = async () => {
             try {
-                const res = await fetch(`${API_URL}/api/partners/cities`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                });
+                const res = await authFetch(`${API_URL}/api/partners/cities`);
                 if (res.ok) {
                     const cities = await res.json();
                     setUniqueCities(cities || []);
@@ -230,17 +229,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     // then by name so the rep dropdown reads as branch-grouped rather than as
     // one flat list of everyone in the company.
     useEffect(() => {
-        const authHeaders = () => {
-            const token = localStorage.getItem('token');
-            return token ? { 'Authorization': `Bearer ${token}` } : {};
-        };
-
         const fetchSalesReps = async () => {
             try {
-                const res = await fetch(`${API_URL}/api/salesreps`, {
-                    headers: authHeaders(),
-                    credentials: 'include'
-                });
+                const res = await authFetch(`${API_URL}/api/salesreps`);
                 if (!res.ok) return;
                 setSalesReps(toSalesRepList(await res.json()));
             } catch (err) {
@@ -250,10 +241,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
 
         const fetchLocations = async () => {
             try {
-                const res = await fetch(`${API_URL}/api/admin/locations`, {
-                    headers: authHeaders(),
-                    credentials: 'include'
-                });
+                const res = await authFetch(`${API_URL}/api/admin/locations`);
                 if (!res.ok) return;
                 const data = await res.json();
                 setLocations((data || []).map(l => l.name).filter(Boolean));
@@ -324,10 +312,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 }
             }
 
-            const response = await fetch(url, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
-            });
+            const response = await authFetch(url);
             if (response.ok) {
                 const data = await response.json();
                 globalPartnersCache[cacheKey] = data; // Update in-memory cache
@@ -421,11 +406,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 quickNote: formData.notes
             };
 
-            const response = await fetch(url, {
+            const response = await authFetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(leadData),
-                credentials: 'include'
+                body: JSON.stringify(leadData)
             });
 
             if (response.ok) {
@@ -458,10 +441,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const handleDeletePartner = async (id) => {
         if (!window.confirm('Are you sure you want to delete this customer?')) return;
         try {
-            const response = await fetch(`${API_URL}/api/partners/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
+            const response = await authFetch(`${API_URL}/api/partners/${id}`, {
+                method: 'DELETE'
             });
             if (response.ok) {
                 fetchPartners({
@@ -513,10 +494,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 url.searchParams.append('typeExclude', 'Fabricator');
             }
 
-            const response = await fetch(url, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
-            });
+            const response = await authFetch(url);
 
             if (response.ok) {
                 const data = await response.json();
@@ -577,10 +555,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 url.searchParams.append('typeExclude', 'Fabricator');
             }
 
-            const response = await fetch(url, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
-            });
+            const response = await authFetch(url);
 
             if (response.ok) {
                 const data = await response.json();

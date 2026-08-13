@@ -14,6 +14,7 @@ import {
 import { io } from 'socket.io-client';
 import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
 import { API_URL } from '../config/api';
+import { authFetch } from '../api/authFetch';
 import { useAuth } from '../context/AuthContext';
 import './SalesPage.css';
 import './SalesPageChat.css';
@@ -172,7 +173,7 @@ const SalesPage = () => {
                 tz: viewerTimeZone,
                 ...(checkInFilterLocation && { location: checkInFilterLocation })
             });
-            const res = await fetch(`${API_URL}/api/checkin/stats?${params}`, { credentials: 'include' });
+            const res = await authFetch(`${API_URL}/api/checkin/stats?${params}`);
             if (res.status === 401) {
                 logout();
                 return;
@@ -193,11 +194,7 @@ const SalesPage = () => {
     // customer list cannot drift apart on it.
     async function fetchSalesReps() {
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${API_URL}/api/salesreps`, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-                credentials: 'include'
-            });
+            const response = await authFetch(`${API_URL}/api/salesreps`);
             if (!response.ok) return;
             setSalesReps(toSalesRepList(await response.json()));
         } catch (error) {
@@ -207,11 +204,7 @@ const SalesPage = () => {
 
     async function fetchLocations() {
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${API_URL}/api/admin/locations`, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-                credentials: 'include'
-            });
+            const response = await authFetch(`${API_URL}/api/admin/locations`);
             if (response.ok) {
                 const data = await response.json();
                 setLocations(data);
@@ -311,9 +304,7 @@ const SalesPage = () => {
         setStatsLoading(true);
         try {
             const localDate = new Date().toLocaleDateString('en-CA');
-            const response = await fetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}&localDate=${localDate}`, {
-                credentials: 'include'
-            });
+            const response = await authFetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}&localDate=${localDate}`);
             if (response.ok) {
                 const data = await response.json();
                 setStats(data);
@@ -331,9 +322,9 @@ const SalesPage = () => {
         try {
             const localDateStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
             const [visitsRes, resourcesRes, followupsRes] = await Promise.all([
-                fetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}`, { credentials: 'include' }),
-                fetch(`${API_URL}/api/dashboard/resources?timeRange=${dashboardTimeRange}&localDate=${localDateStr}`, { credentials: 'include' }),
-                fetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}&filterType=followup`, { credentials: 'include' })
+                authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}`),
+                authFetch(`${API_URL}/api/dashboard/resources?timeRange=${dashboardTimeRange}&localDate=${localDateStr}`),
+                authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}&filterType=followup`)
             ]);
             const visits = await visitsRes.json();
             const resources = await resourcesRes.json();
@@ -365,9 +356,7 @@ const SalesPage = () => {
             end.setMonth(now.getMonth() + 1);
 
             // Use getLocalISOString to avoid UTC conversion logic
-            const response = await fetch(`${API_URL}/api/schedule?start=${getLocalISOString(start)}&end=${getLocalISOString(end)}`, {
-                credentials: 'include'
-            });
+            const response = await authFetch(`${API_URL}/api/schedule?start=${getLocalISOString(start)}&end=${getLocalISOString(end)}`);
             if (response.ok) {
                 const data = await response.json();
                 setAllSchedules(data);
@@ -439,7 +428,7 @@ const SalesPage = () => {
                 ...(checkInFilterYear && { year: checkInFilterYear }),
                 ...(checkInFilterLocation && { location: checkInFilterLocation }),
             });
-            const response = await fetch(`${API_URL}/api/checkin?${params}`, { credentials: 'include' });
+            const response = await authFetch(`${API_URL}/api/checkin?${params}`);
             if (response.status === 401) {
                 logout();
                 return;
@@ -491,10 +480,8 @@ const SalesPage = () => {
     const handleDeleteCheckIn = async (checkIn) => {
         if (window.confirm(`Are you sure you want to delete the check-in record for ${checkIn.name}?`)) {
             try {
-                const response = await fetch(`${API_URL}/api/checkin/${checkIn._id}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                    credentials: 'include'
+                const response = await authFetch(`${API_URL}/api/checkin/${checkIn._id}`, {
+                    method: 'DELETE'
                 });
                 if (response.ok) {
                     fetchCheckIns();
@@ -516,14 +503,9 @@ const SalesPage = () => {
             return;
         }
         try {
-            const response = await fetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
+            const response = await authFetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
                 method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify(checkInForm),
-                credentials: 'include'
+                body: JSON.stringify(checkInForm)
             });
             if (response.ok) {
                 setCheckInModalMode(null);
@@ -555,10 +537,7 @@ const SalesPage = () => {
 
     const fetchGoogleSyncStatus = async () => {
         try {
-            const res = await fetch(`${API_URL}/api/auth/google/calendar/status`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
-            });
+            const res = await authFetch(`${API_URL}/api/auth/google/calendar/status`);
             if (res.ok) {
                 const data = await res.json();
                 setGoogleSyncStatus(data);
@@ -576,10 +555,8 @@ const SalesPage = () => {
     const handleSyncGoogleCalendar = async () => {
         try {
             setIsSyncingGoogle(true);
-            const res = await fetch(`${API_URL}/api/auth/google/calendar/sync`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
+            const res = await authFetch(`${API_URL}/api/auth/google/calendar/sync`, {
+                method: 'POST'
             });
             if (res.ok) {
                 alert('Synchronization completed successfully!');
@@ -600,10 +577,8 @@ const SalesPage = () => {
             return;
         }
         try {
-            const res = await fetch(`${API_URL}/api/auth/google/calendar/disconnect`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
+            const res = await authFetch(`${API_URL}/api/auth/google/calendar/disconnect`, {
+                method: 'POST'
             });
             if (res.ok) {
                 setGoogleSyncStatus({ connected: false, email: '' });
@@ -625,10 +600,7 @@ const SalesPage = () => {
 
     const fetchICloudSyncStatus = async () => {
         try {
-            const res = await fetch(`${API_URL}/api/auth/icloud/status`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
-            });
+            const res = await authFetch(`${API_URL}/api/auth/icloud/status`);
             if (res.ok) {
                 const data = await res.json();
                 setIcloudSyncStatus(data);
@@ -647,13 +619,8 @@ const SalesPage = () => {
         setIsConnectingICloud(true);
         setIcloudError('');
         try {
-            const res = await fetch(`${API_URL}/api/auth/icloud/connect`, {
+            const res = await authFetch(`${API_URL}/api/auth/icloud/connect`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                credentials: 'include',
                 body: JSON.stringify({
                     appleId: icloudAppleId,
                     appSpecificPassword: icloudAppSpecificPassword
@@ -691,13 +658,8 @@ const SalesPage = () => {
         setIsConnectingICloud(true);
         setIcloudError('');
         try {
-            const res = await fetch(`${API_URL}/api/auth/icloud/connect`, {
+            const res = await authFetch(`${API_URL}/api/auth/icloud/connect`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                credentials: 'include',
                 body: JSON.stringify({
                     appleId: icloudAppleId,
                     appSpecificPassword: icloudAppSpecificPassword,
@@ -737,10 +699,8 @@ const SalesPage = () => {
     const handleSyncICloudCalendar = async () => {
         try {
             setIsSyncingICloud(true);
-            const res = await fetch(`${API_URL}/api/auth/icloud/sync`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
+            const res = await authFetch(`${API_URL}/api/auth/icloud/sync`, {
+                method: 'POST'
             });
             if (res.ok) {
                 alert('iCloud Calendar synchronized successfully!');
@@ -761,10 +721,8 @@ const SalesPage = () => {
             return;
         }
         try {
-            const res = await fetch(`${API_URL}/api/auth/icloud/disconnect`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
+            const res = await authFetch(`${API_URL}/api/auth/icloud/disconnect`, {
+                method: 'POST'
             });
             if (res.ok) {
                 setIcloudSyncStatus({ connected: false, email: '', calendarName: '' });
@@ -808,14 +766,8 @@ const SalesPage = () => {
 
         setIsLinkingInProgress(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/customers/${selectedCustomer._id}/associations`, {
+            const res = await authFetch(`${API_URL}/api/customers/${selectedCustomer._id}/associations`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                credentials: 'include',
                 body: JSON.stringify({ partnerId: linkingPartnerId })
             });
 
@@ -842,13 +794,8 @@ const SalesPage = () => {
         }
 
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/customers/${selectedCustomer._id}/associations/${partnerId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
-                credentials: 'include'
+            const res = await authFetch(`${API_URL}/api/customers/${selectedCustomer._id}/associations/${partnerId}`, {
+                method: 'DELETE'
             });
 
             if (!res.ok) {
@@ -1371,10 +1318,7 @@ const SalesPage = () => {
     const fetchAllCustomersForDropdown = useCallback(async () => {
         setIsDropdownLoading(true);
         try {
-            const response = await fetch(`${API_URL}/api/customers/dropdown`, {
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include'
-            });
+            const response = await authFetch(`${API_URL}/api/customers/dropdown`);
 
             if (response.ok) {
                 const data = await response.json();
@@ -1398,10 +1342,7 @@ const SalesPage = () => {
             const query = currentFolderId ? `?parentId=${currentFolderId}` : '';
             const url = `${API_URL}/api/sales-dashboard/resources${query}`;
 
-            const response = await fetch(url, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
-            });
+            const response = await authFetch(url);
             if (response.ok) {
                 const data = await response.json();
 
@@ -1433,12 +1374,8 @@ const SalesPage = () => {
 
             for (let i = 0; i <= maxRetries; i++) {
                 try {
-                    response = await fetch(`${API_URL}/api/sales/customers`, {
+                    response = await authFetch(`${API_URL}/api/sales/customers`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        credentials: 'include',
                         body: JSON.stringify(formData)
                     });
 
@@ -1522,10 +1459,7 @@ const SalesPage = () => {
         }
 
         try {
-            const response = await fetch(`${API_URL}/api/customers?page=${currentPage}&limit=${customersPerPage}&search=${encodeURIComponent(debouncedSearch)}`, {
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include'
-            });
+            const response = await authFetch(`${API_URL}/api/customers?page=${currentPage}&limit=${customersPerPage}&search=${encodeURIComponent(debouncedSearch)}`);
 
             if (response.ok) {
                 const data = await response.json();
@@ -1576,10 +1510,7 @@ const SalesPage = () => {
         }
 
         try {
-            const response = await fetch(`${API_URL}/api/customers/${customerId}`, {
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include'
-            });
+            const response = await authFetch(`${API_URL}/api/customers/${customerId}`);
 
             if (response.ok) {
                 const data = await response.json();
@@ -1844,10 +1775,8 @@ const SalesPage = () => {
 
             const method = editingContact ? 'PUT' : 'POST';
 
-            const response = await fetch(url, {
+            const response = await authFetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(contactForm)
             });
 
@@ -1892,25 +1821,20 @@ const SalesPage = () => {
             let response;
 
             if (type === 'contact') {
-                response = await fetch(`${API_URL}/api/customers/${targetCustomerId}/contacts/${id}`, {
-                    method: 'DELETE',
-                    credentials: 'include'
+                response = await authFetch(`${API_URL}/api/customers/${targetCustomerId}/contacts/${id}`, {
+                    method: 'DELETE'
                 });
             } else if (type === 'visit') {
-                response = await fetch(`${API_URL}/api/customers/${targetCustomerId}/visits/${id}`, {
-                    method: 'DELETE',
-                    credentials: 'include'
+                response = await authFetch(`${API_URL}/api/customers/${targetCustomerId}/visits/${id}`, {
+                    method: 'DELETE'
                 });
             } else if (type === 'resource') {
-                response = await fetch(`${API_URL}/api/customers/${targetCustomerId}/resources/${id}`, {
-                    method: 'DELETE',
-                    credentials: 'include'
+                response = await authFetch(`${API_URL}/api/customers/${targetCustomerId}/resources/${id}`, {
+                    method: 'DELETE'
                 });
             } else if (type === 'dashboardResource') {
-                response = await fetch(`${API_URL}/api/sales-dashboard/resources/${id}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                    credentials: 'include'
+                response = await authFetch(`${API_URL}/api/sales-dashboard/resources/${id}`, {
+                    method: 'DELETE'
                 });
             }
 
@@ -1950,10 +1874,8 @@ const SalesPage = () => {
 
         setIsSavingNote(true);
         try {
-            const response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/quick-note`, {
+            const response = await authFetch(`${API_URL}/api/customers/${selectedCustomerId}/quick-note`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ quickNote })
             });
 
@@ -2052,10 +1974,8 @@ const SalesPage = () => {
 
             const method = editingDashboardResource ? 'PUT' : 'POST';
 
-            const response = await fetch(url, {
+            const response = await authFetch(url, {
                 method: method,
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include',
                 body: formData // Content-Type is set automatically
             });
             if (response.ok) {
@@ -2088,10 +2008,7 @@ const SalesPage = () => {
         if (resource.content) return resource;
 
         try {
-            const response = await fetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                credentials: 'include'
-            });
+            const response = await authFetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`);
             if (response.ok) {
                 const fullResource = await response.json();
                 // Update local list state so we don't have to fetch again
@@ -2152,11 +2069,7 @@ const SalesPage = () => {
 
         setLoadingVisitId(visit._id);
         try {
-            const response = await fetch(`${API_URL}/api/customers/${visit.customerId}/visits/${visit._id}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            });
+            const response = await authFetch(`${API_URL}/api/customers/${visit.customerId}/visits/${visit._id}`);
             const data = await response.json();
 
             if (data && data.visit) {
@@ -2201,11 +2114,7 @@ const SalesPage = () => {
 
         setLoadingVisitId(visit._id);
         try {
-            const response = await fetch(`${API_URL}/api/customers/${visit.customerId}/visits/${visit._id}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            });
+            const response = await authFetch(`${API_URL}/api/customers/${visit.customerId}/visits/${visit._id}`);
             const data = await response.json();
 
 
@@ -2290,10 +2199,8 @@ const SalesPage = () => {
 
             for (let i = 0; i <= maxRetries; i++) {
                 try {
-                    response = await fetch(url, {
+                    response = await authFetch(url, {
                         method,
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
                         body: JSON.stringify(payload)
                     });
 
@@ -2444,13 +2351,8 @@ const SalesPage = () => {
         }
 
         try {
-            const response = await fetch(`${API_URL}/api/sales-dashboard/upload`, {
+            const response = await authFetch(`${API_URL}/api/sales-dashboard/upload`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                credentials: 'include',
                 body: JSON.stringify({
                     name: folderName.trim(),
                     type: 'folder',
@@ -2522,10 +2424,7 @@ const SalesPage = () => {
             let fullResource = resource;
             if (!resource.content && resource.type !== 'link') {
                 try {
-                    const response = await fetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`, {
-                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                        credentials: 'include'
-                    });
+                    const response = await authFetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`);
                     if (response.ok) {
                         fullResource = await response.json();
                         // Update local state to avoid re-fetching immediately (optional optimization)
@@ -2569,11 +2468,7 @@ const SalesPage = () => {
 
         setLoadingResourceId(resource._id);
         try {
-            const response = await fetch(`${API_URL}/api/customers/${resource.customerId}/resources/${resource._id}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            });
+            const response = await authFetch(`${API_URL}/api/customers/${resource.customerId}/resources/${resource._id}`);
             const data = await response.json();
 
             if (data && data.resource) {
@@ -2619,11 +2514,7 @@ const SalesPage = () => {
 
         setLoadingResourceId(resource._id);
         try {
-            const response = await fetch(`${API_URL}/api/customers/${resource.customerId}/resources/${resource._id}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            });
+            const response = await authFetch(`${API_URL}/api/customers/${resource.customerId}/resources/${resource._id}`);
             const data = await response.json();
 
             if (data && data.resource) {
@@ -2701,10 +2592,8 @@ const SalesPage = () => {
             const method = editingResource ? 'PUT' : 'POST';
 
 
-            const response = await fetch(url, {
+            const response = await authFetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify(resourceForm)
             });
 
@@ -2752,10 +2641,8 @@ const SalesPage = () => {
         }
 
         try {
-            const response = await fetch(`${API_URL}/api/customers/${selectedCustomerId}/visits/${visitId}/react`, {
+            const response = await authFetch(`${API_URL}/api/customers/${selectedCustomerId}/visits/${visitId}/react`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ type })
             });
 

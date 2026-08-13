@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, Lock, Shield, MapPin, Eye, EyeOff, Loader2, LayoutDashboard } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
 import { useAuth } from '../../context/AuthContext';
 import './UserProfileTab.css';
 
@@ -45,12 +46,8 @@ const UserProfileTab = ({ sidebarToggle, theme }) => {
 
         setIsSubmitting(true);
         try {
-            const response = await fetch(`${API_URL}/api/auth/change-password`, {
+            const response = await authFetch(`${API_URL}/api/auth/change-password`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
                 body: JSON.stringify({
                     currentPassword: formData.currentPassword,
                     newPassword: formData.newPassword

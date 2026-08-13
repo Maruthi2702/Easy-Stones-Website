@@ -5,6 +5,7 @@ import {
   Send, Loader2, AlertTriangle, ChevronDown, UserCheck
 } from 'lucide-react';
 import { API_URL } from '../config/api';
+import { authFetch } from '../api/authFetch';
 import { formatPhoneInput } from '../utils/phoneUtils';
 import { formatTitleCase } from '../utils/textUtils';
 import { useAuth } from '../context/AuthContext';
@@ -141,7 +142,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
   useEffect(() => {
     const loadLocations = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/admin/locations`, { credentials: 'include' });
+        const res = await authFetch(`${API_URL}/api/admin/locations`);
         if (res.ok) {
           const data = await res.json();
           if (data?.length > 0) {
@@ -155,7 +156,7 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     loadLocations();
   }, [user, isSelf]);
 
-  useEffect(() => { fetch(`${API_URL}/api/salesreps`).catch(() => {}); }, []);
+  useEffect(() => { authFetch(`${API_URL}/api/salesreps`).catch(() => {}); }, []);
 
   // Auto-reset for success
   const [resetTimer, setResetTimer] = useState(6);
@@ -210,9 +211,8 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/checkin`, {
+      const response = await authFetch(`${API_URL}/api/checkin`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(), phone: phone.trim(),
           fabricatorCompany: finalFabCompany || `${visitorType} Visit`,
@@ -252,12 +252,9 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
 
     setLoading(true); setError(null);
     try {
-      const authHeader = localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {};
-      const response = await fetch(`${API_URL}/api/checkin`, {
+      const response = await authFetch(`${API_URL}/api/checkin`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ ...staffFormData, location: selectedLocation, loggedBy: user?.name || user?.username || 'Staff' }),
-        credentials: 'include'
+        body: JSON.stringify({ ...staffFormData, location: selectedLocation, loggedBy: user?.name || user?.username || 'Staff' })
       });
       if (response.ok) {
         setSubmittedCustomerName(staffFormData.name || '');

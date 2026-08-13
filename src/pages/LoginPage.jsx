@@ -13,6 +13,19 @@ const LoginPage = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // Set by authFetch right before it forces a sign-out on a 401 — tells the
+    // user why they landed back here instead of leaving them to guess.
+    useEffect(() => {
+        try {
+            if (sessionStorage.getItem('auth_session_expired')) {
+                setError('Your session expired. Please log in again.');
+                sessionStorage.removeItem('auth_session_expired');
+            }
+        } catch {
+            // storage unavailable — not worth blocking login over
+        }
+    }, []);
+
     const [theme, setTheme] = useState(() => {
         try {
             const saved = localStorage.getItem('checkin_theme');

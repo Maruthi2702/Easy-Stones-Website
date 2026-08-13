@@ -5,6 +5,7 @@ import {
   BarChart2, ChevronDown, ChevronUp, FileText, Building
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
 import LostSaleModal from './LostSaleModal';
 import { getCustomerName, REASON_OPTIONS } from '../../utils/lostSale';
 import Pagination from '../shared/Pagination';
@@ -49,12 +50,7 @@ const LostSalesTab = ({
   const fetchLostSalesFromApi = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      const res = await fetch(`${API_URL}/api/lost-sales`, {
-        headers,
-        credentials: 'include'
-      });
+      const res = await authFetch(`${API_URL}/api/lost-sales`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -84,16 +80,8 @@ const LostSalesTab = ({
       const url = isNew ? `${API_URL}/api/lost-sales` : `${API_URL}/api/lost-sales/${newRecord._id}`;
       const method = isNew ? 'POST' : 'PUT';
 
-      const token = localStorage.getItem('token');
-      const headers = {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      };
-
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method,
-        headers,
-        credentials: 'include',
         body: JSON.stringify(newRecord)
       });
 
@@ -117,13 +105,9 @@ const LostSalesTab = ({
 
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-      const res = await fetch(`${API_URL}/api/lost-sales/${id}`, {
-        method: 'DELETE',
-        headers,
-        credentials: 'include'
+      const res = await authFetch(`${API_URL}/api/lost-sales/${id}`, {
+        method: 'DELETE'
       });
 
       if (res.ok) {

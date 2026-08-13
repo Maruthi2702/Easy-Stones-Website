@@ -15,6 +15,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, AlertTriangle, Check, Loader, Download, Users } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
 import './CustomerImportModal.css';
 
 const FIELD_LABELS = {
@@ -104,8 +105,8 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
             if (Object.keys(nextBranches).length) body.append('branchAliases', JSON.stringify(nextBranches));
             if (Object.keys(nextDecisions).length) body.append('decisions', JSON.stringify(nextDecisions));
 
-            const res = await fetch(`${API_URL}/api/admin/customers/import/preview`, {
-                method: 'POST', credentials: 'include', body
+            const res = await authFetch(`${API_URL}/api/admin/customers/import/preview`, {
+                method: 'POST', body
             });
             if (!res.ok) throw new Error(await describeFailure(res));
             const data = await res.json();
@@ -180,8 +181,8 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
             if (Object.keys(branchAliases).length) body.append('branchAliases', JSON.stringify(branchAliases));
             if (Object.keys(decisions).length) body.append('decisions', JSON.stringify(decisions));
 
-            const res = await fetch(`${API_URL}/api/admin/customers/import/apply`, {
-                method: 'POST', credentials: 'include', body
+            const res = await authFetch(`${API_URL}/api/admin/customers/import/apply`, {
+                method: 'POST', body
             });
             if (!res.ok) throw new Error(await describeFailure(res));
             const data = await res.json();

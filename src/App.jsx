@@ -73,6 +73,7 @@ const HomeRedirect = () => {
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <PageLoader />;
@@ -81,7 +82,16 @@ const ProtectedRoute = ({ children }) => {
   // Check if we have a user and they are from the admin database
   const isAuthorized = user && (user.type === 'internal' || ['admin', 'director', 'manager', 'sales_rep', 'csr', 'kiosk'].includes(user.role));
 
-  return isAuthorized ? children : <Navigate to="/login" replace />;
+  if (isAuthorized) return children;
+
+  // Carry the page (including its ?tab=/?view= state) through login so a
+  // session that died mid-use — not just an unauthenticated visit — comes
+  // back to the same place instead of dumping the user at the dashboard root.
+  const redirectTarget = `${location.pathname}${location.search}`;
+  const loginUrl = redirectTarget && redirectTarget !== '/'
+    ? `/login?redirect=${encodeURIComponent(redirectTarget)}`
+    : '/login';
+  return <Navigate to={loginUrl} replace />;
 };
 
 function App() {

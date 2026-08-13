@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { MapPin, Navigation, Calendar, Clock, Route, X, Check, AlertTriangle, Users, RefreshCw, Trash2, Phone, Mail, LocateFixed, Filter } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
+import { saveDraft, loadDraft, clearDraft } from '../../utils/sessionDraft';
 import CustomSelect from '../shared/CustomSelect';
 import {
     orderStops, planDay, daySummary, visitRecency, byNeglect,
@@ -99,6 +101,49 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(null);
     const [replaceExisting, setReplaceExisting] = useState(false);
+    const [restoredNotice, setRestoredNotice] = useState(false);
+
+    // Kept current every render so the session-expired listener below can grab
+    // a fresh snapshot of the area/day being built without needing every one
+    // of these in its dependency array. Sets aren't JSON-serializable, so they
+    // go out (and come back) as arrays.
+    const dayBuilderRef = useRef(null);
+    useEffect(() => {
+        dayBuilderRef.current = {
+            date, startAt, stopMinutes, origin, replaceExisting,
+            center, radiusMiles, dropped: [...dropped], added: [...added]
+        };
+    });
+
+    // A session dying mid-plan used to mean the area and day someone had just
+    // built vanished along with the redirect to /login — stash it so coming
+    // back here after logging back in picks up where it left off.
+    useEffect(() => {
+        const handleExpire = () => {
+            if (dayBuilderRef.current) saveDraft('routePlannerDay', dayBuilderRef.current);
+        };
+        window.addEventListener('auth:session-expired', handleExpire);
+        return () => window.removeEventListener('auth:session-expired', handleExpire);
+    }, []);
+
+    // Restore a stashed day/area exactly once, on mount — after the map's own
+    // load() effect has a chance to run, this doesn't wait on it, since none
+    // of these fields depend on pins having loaded yet.
+    useEffect(() => {
+        const draft = loadDraft('routePlannerDay');
+        if (!draft) return;
+        if (draft.date) setDate(draft.date);
+        if (draft.startAt) setStartAt(draft.startAt);
+        if (draft.stopMinutes) setStopMinutes(draft.stopMinutes);
+        if (draft.origin) setOrigin(draft.origin);
+        if (draft.replaceExisting) setReplaceExisting(draft.replaceExisting);
+        if (draft.center) setCenter(draft.center);
+        if (draft.radiusMiles) setRadiusMiles(draft.radiusMiles);
+        if (Array.isArray(draft.dropped)) setDropped(new Set(draft.dropped));
+        if (Array.isArray(draft.added)) setAdded(new Set(draft.added));
+        clearDraft('routePlannerDay');
+        setRestoredNotice(true);
+    }, []);
 
     // The server enforces each of these; hiding what a role cannot do keeps the
     // screen honest rather than offering a button that answers 403.
@@ -128,10 +173,8 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
             const from = new Date();
             const to = new Date();
             to.setDate(to.getDate() + 120);
-            const token = localStorage.getItem('token');
-            const res = await fetch(
-                `${API_URL}/api/schedule?start=${todayKey(from)}T00:00:00.000&end=${todayKey(to)}T23:59:59.999`,
-                { headers: token ? { Authorization: `Bearer ${token}` } : {}, credentials: 'include' }
+            const res = await authFetch(
+                `${API_URL}/api/schedule?start=${todayKey(from)}T00:00:00.000&end=${todayKey(to)}T23:59:59.999`
             );
             if (!res.ok) return;
             const rows = await res.json();
@@ -151,11 +194,7 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
         setLoading(true);
         setError('');
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/customers/map`, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-                credentials: 'include'
-            });
+            const res = await authFetch(`${API_URL}/api/customers/map`);
             if (!res.ok) throw new Error(`Map data unavailable (${res.status})`);
             const data = await res.json();
             setPins(Array.isArray(data) ? data : []);
@@ -324,11 +363,8 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
             const fallbackStart = `${date}T${pad(hour || 9)}:${pad(minute || 0)}:00.000`;
             const fallbackEnd = new Date(new Date(fallbackStart).getTime() + (Number(stopMinutes) || 45) * 60000);
 
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/schedule/bulk`, {
+            const res = await authFetch(`${API_URL}/api/schedule/bulk`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                credentials: 'include',
                 body: JSON.stringify({
                     date,
                     items: [{
@@ -357,11 +393,8 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
         setSaving(true);
         setError('');
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/schedule/${booking.id}`, {
-                method: 'DELETE',
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-                credentials: 'include'
+            const res = await authFetch(`${API_URL}/api/schedule/${booking.id}`, {
+                method: 'DELETE'
             });
             if (!res.ok) {
                 const body = await res.json().catch(() => ({}));
@@ -434,14 +467,8 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
         setSaving(true);
         setError('');
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/schedule/bulk`, {
+            const res = await authFetch(`${API_URL}/api/schedule/bulk`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                },
-                credentials: 'include',
                 body: JSON.stringify({
                     date,
                     replace: replaceExisting && can.replace,
@@ -472,11 +499,8 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
         setSaving(true);
         setError('');
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/schedule/route?date=${date}`, {
-                method: 'DELETE',
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
-                credentials: 'include'
+            const res = await authFetch(`${API_URL}/api/schedule/route?date=${date}`, {
+                method: 'DELETE'
             });
             const body = await res.json();
             if (!res.ok) throw new Error(body.message || 'Could not clear the day');
@@ -704,6 +728,12 @@ const RoutePlannerTab = ({ currentUser = null, theme = 'dark', onOpenCustomer = 
                             </button>
                         )}
 
+                        {restoredNotice && (
+                            <p className="rp-saved">
+                                <Check size={14} />
+                                {' '}We restored the area and day you were planning before your session expired.
+                            </p>
+                        )}
                         {saved && (
                             <p className="rp-saved">
                                 <Check size={14} />

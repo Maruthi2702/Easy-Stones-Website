@@ -29,6 +29,21 @@ const CustomerLoginPage = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [capsLock, setCapsLock] = useState(false);
 
+    // Set by authFetch right before it forces a sign-out on a 401 — this is
+    // the actual door ProtectedRoute sends people back through (both customer
+    // and staff routes redirect to /login, not /admin/login), so this is
+    // where that notice has to land.
+    useEffect(() => {
+        try {
+            if (sessionStorage.getItem('auth_session_expired')) {
+                setError({ field: null, kind: 'auth', message: 'Your session expired. Please log in again.' });
+                sessionStorage.removeItem('auth_session_expired');
+            }
+        } catch {
+            // storage unavailable — not worth blocking login over
+        }
+    }, []);
+
     const readCapsLock = (e) => {
         // getModifierState is unavailable on some synthetic/mobile events.
         if (typeof e.getModifierState === 'function') {

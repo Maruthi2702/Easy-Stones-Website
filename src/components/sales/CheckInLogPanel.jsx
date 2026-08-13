@@ -29,6 +29,7 @@ import {
   QrCode, Copy, Check, Smartphone
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
 import { formatTitleCase } from '../../utils/textUtils';
 import { formatInstant, formatInstantTime } from '../../utils/dateUtils';
 import Pagination from '../shared/Pagination';
@@ -454,7 +455,7 @@ const CheckInLogPanel = ({
   useEffect(() => {
     if (selectedCheckIn) {
       // 1. Products
-      fetch(`${API_URL}/api/products`)
+      authFetch(`${API_URL}/api/products`)
         .then(res => res.json())
         .then(data => {
           const list = Array.isArray(data) ? data : (data.data || []);
@@ -463,7 +464,7 @@ const CheckInLogPanel = ({
         .catch(err => console.error('Error fetching products:', err));
 
       // 2. Sales Reps
-      fetch(`${API_URL}/api/salesreps`)
+      authFetch(`${API_URL}/api/salesreps`)
         .then(res => res.json())
         .then(data => {
           const list = data.success ? data.data : (Array.isArray(data) ? data : []);
@@ -1067,12 +1068,8 @@ const CheckInLogPanel = ({
         .filter(s => s.material.trim() !== '')
         .map(({  ...s }) => s);
 
-      const response = await fetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
+      const response = await authFetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
         body: JSON.stringify({
           builderName,
           builderPhone,
@@ -1080,8 +1077,7 @@ const CheckInLogPanel = ({
           specialNotes,
           salesRep,
           salesRepEmail
-        }),
-        credentials: 'include'
+        })
       });
 
       if (response.ok) {
@@ -1105,11 +1101,8 @@ const CheckInLogPanel = ({
     if (!emailAddress.trim()) return;
     setIsSendingEmail(true);
     try {
-      const response = await fetch(`${API_URL}/api/checkin/${selectedCheckIn._id}/send-email`, {
+      const response = await authFetch(`${API_URL}/api/checkin/${selectedCheckIn._id}/send-email`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({ email: emailAddress.trim() })
       });
       if (response.ok) {
