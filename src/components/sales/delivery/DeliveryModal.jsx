@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Trash2, Calendar, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle, Navigation, Activity } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { X, Save, Trash2, Calendar, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle, Navigation, Activity, Layers } from 'lucide-react';
 import SearchableSelect from '../../SearchableSelect';
 import CustomSelect from '../../shared/CustomSelect';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
@@ -75,6 +75,7 @@ const DeliveryModal = ({
   trucks = [],
   deliveries = [],      // used to compute capacity per driver/date
   customerOptions = [],
+  locationsList = ['Seattle', 'Spokane', 'Salt Lake City'],
   currentUser = null
 }) => {
   const [date, setDate] = useState(() => formatForDateInput(new Date()));
@@ -101,6 +102,7 @@ const DeliveryModal = ({
   const [freightFee, setFreightFee] = useState('');
   const [packingListUrl, setPackingListUrl] = useState('');
   const [packingListFilename, setPackingListFilename] = useState('');
+  const [numberOfSlabs, setNumberOfSlabs] = useState('0');
 
   // An inter-branch transfer moves stock between our own showrooms, so the
   // customer/jobsite half of this form does not apply to it.
@@ -204,6 +206,22 @@ const DeliveryModal = ({
 
   const activeCustomerOptions = (customerOptions && customerOptions.length > 0) ? customerOptions : fetchedCustomerOptions;
 
+  // Branch names for the Transfer To dropdown — pulled from the same
+  // admin-managed location list as everywhere else (Users & Roles → Locations),
+  // so a new branch shows up here the moment it's added there instead of
+  // needing a code change. `locationsList` arrives as either Location documents
+  // or plain strings depending on the caller, same as LostSaleModal.
+  const transferDestinationOptions = useMemo(() => {
+    const names = (locationsList || [])
+      .map(loc => (typeof loc === 'object' && loc ? (loc.name || loc.locationName || '') : String(loc || '')))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+    return [
+      { value: '', label: '-- Select destination branch --' },
+      ...names.map(name => ({ value: name, label: `📍 ${name} Showroom` }))
+    ];
+  }, [locationsList]);
+
   // Track initial snapshot for dirty state checking
   const initialSnapshot = useRef(null);
 
@@ -248,6 +266,7 @@ const DeliveryModal = ({
       setFreightFee(initialData.freightFee || '');
       setPackingListUrl(initialData.packingListUrl || '');
       setPackingListFilename(initialData.packingListFilename || '');
+      setNumberOfSlabs(initialData.numberOfSlabs === null || initialData.numberOfSlabs === undefined ? '0' : String(initialData.numberOfSlabs));
       initialSnapshot.current = JSON.stringify(initialData);
     } else {
       resetForm();
@@ -276,6 +295,7 @@ const DeliveryModal = ({
     setFreightFee('');
     setPackingListUrl('');
     setPackingListFilename('');
+    setNumberOfSlabs('0');
     setError('');
     setIsDirty(false);
   };
@@ -367,6 +387,7 @@ const DeliveryModal = ({
       freightFee: isTransfer ? 0 : (Number(freightFee) || 0),
       packingListUrl,
       packingListFilename,
+      numberOfSlabs: numberOfSlabs === '' ? 0 : Number(numberOfSlabs),
       updatedAt: new Date().toISOString()
     };
 
@@ -518,25 +539,30 @@ const DeliveryModal = ({
             </div>
           </div>
 
-            {/* Inter-Branch Transfer: destination + reference number */}
+            {/* Inter-Branch Transfer: destination on its own row, then the
+                reference number paired with No. of Slabs below it. */}
+            {isTransfer && (
+              <div className="form-group" style={{ marginBottom: '1.1rem' }}>
+                <label style={{ color: '#60a5fa' }}>
+                  <MapPin size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  Transfer To <span className="req-star">*</span>
+                </label>
+                <CustomSelect
+                  value={transferDestination}
+                  onChange={(e) => { setTransferDestination(e.target.value); markDirty(); }}
+                  options={transferDestinationOptions}
+                />
+              </div>
+            )}
+
+            {/* No. of Slabs — on a jobsite delivery it sits in the Route row
+                below, and on a will call it sits in the pickup row below.
+                Feeds the matching Slabs total on today's Daily Work Report
+                automatically (see deriveFromSystem in src/routes/dailyReports.js).
+                Optional and defaults to 0, so booking a ticket in advance
+                never stalls on a count nobody has yet. */}
             {isTransfer && (
               <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
-                <div className="form-group">
-                  <label style={{ color: '#60a5fa' }}>
-                    <MapPin size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                    Transfer To <span className="req-star">*</span>
-                  </label>
-                  <CustomSelect
-                    value={transferDestination}
-                    onChange={(e) => { setTransferDestination(e.target.value); markDirty(); }}
-                    options={[
-                      { value: '', label: '-- Select destination branch --' },
-                      { value: 'Seattle', label: '📍 Seattle Showroom' },
-                      { value: 'Spokane', label: '📍 Spokane Showroom' },
-                      { value: 'Salt Lake City', label: '📍 Salt Lake City Showroom' }
-                    ]}
-                  />
-                </div>
                 <div className="form-group">
                   <label style={{ color: '#60a5fa' }}>
                     <Hash size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
@@ -547,6 +573,26 @@ const DeliveryModal = ({
                     value={soNumber}
                     onChange={(e) => { setSoNumber(e.target.value); markDirty(); }}
                     placeholder="e.g. TRF-10482"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>
+                    <Layers size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                    No. of Slabs
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    value={numberOfSlabs}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') { setNumberOfSlabs('0'); markDirty(); return; }
+                      const n = Number(raw);
+                      if (Number.isFinite(n) && n >= 0) { setNumberOfSlabs(String(n)); markDirty(); }
+                    }}
+                    placeholder="e.g. 12"
                   />
                 </div>
               </div>
@@ -583,8 +629,7 @@ const DeliveryModal = ({
             </div>
             )}
 
-            {/* SO / Invoice# & Delivery Address — a will call is collected here,
-                so it has no delivery address and pairs SO# with the rep instead */}
+            {/* SO / Invoice# & Sales Rep */}
             {!isTransfer && !isWillCall && (
             <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
               <div className="form-group">
@@ -594,6 +639,50 @@ const DeliveryModal = ({
                   value={soNumber}
                   onChange={(e) => { setSoNumber(e.target.value); markDirty(); }}
                   placeholder="SO / Invoice #"
+                />
+              </div>
+
+              <div className="form-group">
+                <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Sales Representative</label>
+                <CustomSelect
+                  value={salesRepName}
+                  onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
+                  options={Array.from(new Set([...salesRepsList, salesRepName].filter(Boolean))).map(name => ({ value: name, label: name }))}
+                />
+              </div>
+            </div>
+            )}
+
+            {/* Route, No. of Slabs & Delivery Address */}
+            {!isTransfer && !isWillCall && (
+            <div className="form-grid-3col" style={{ marginBottom: '1.1rem' }}>
+              <div className="form-group">
+                <label><Navigation size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Route (Stop #)</label>
+                <CustomSelect
+                  value={routeNumber}
+                  onChange={(e) => { setRouteNumber(Number(e.target.value)); markDirty(); }}
+                  options={ROUTE_OPTIONS}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>
+                  <Layers size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  No. of Slabs
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={numberOfSlabs}
+                  onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') { setNumberOfSlabs('0'); markDirty(); return; }
+                  const n = Number(raw);
+                  if (Number.isFinite(n) && n >= 0) { setNumberOfSlabs(String(n)); markDirty(); }
+                }}
+                  placeholder="e.g. 12"
                 />
               </div>
 
@@ -633,19 +722,37 @@ const DeliveryModal = ({
             </div>
             )}
 
-            {/* Will Call: pickup vehicle & Status */}
+            {/* Will Call: pickup vehicle, No. of Slabs & Status */}
             {isWillCall && (
-            <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
+            <div className="form-grid-3col" style={{ marginBottom: '1.1rem' }}>
               <div className="form-group">
-                <label style={{ color: '#2dd4bf' }}>
+                <label style={{ color: '#2dd4bf', whiteSpace: 'nowrap' }}>
                   <Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                  Pick Up Vehicle Number
+                  Pick Up Vehicle
                 </label>
                 <input
                   type="text"
                   value={pickupInfo}
                   onChange={(e) => { setPickupInfo(e.target.value); markDirty(); }}
                   placeholder="License #"
+                />
+              </div>
+
+              <div className="form-group">
+                <label><Layers size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />No. of Slabs</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={numberOfSlabs}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === '') { setNumberOfSlabs('0'); markDirty(); return; }
+                    const n = Number(raw);
+                    if (Number.isFinite(n) && n >= 0) { setNumberOfSlabs(String(n)); markDirty(); }
+                  }}
+                  placeholder="e.g. 12"
                 />
               </div>
 
@@ -660,20 +767,11 @@ const DeliveryModal = ({
             </div>
             )}
 
-            {/* Assigned Driver, paired with Route normally and with Status on a transfer */}
+            {/* Assigned Driver, paired with Status on both a jobsite delivery
+                and a transfer — Route already showed above on a jobsite, and a
+                transfer has no route stop to show. */}
             {!isWillCall && (
             <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
-              {!isTransfer && (
-              <div className="form-group">
-                <label><Navigation size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Route (Stop #)</label>
-                <CustomSelect
-                  value={routeNumber}
-                  onChange={(e) => { setRouteNumber(Number(e.target.value)); markDirty(); }}
-                  options={ROUTE_OPTIONS}
-                />
-              </div>
-              )}
-
               <div className="form-group">
                 <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver / Fleet</label>
                 <CustomSelect
@@ -704,16 +802,14 @@ const DeliveryModal = ({
                 />
               </div>
 
-              {isTransfer && (
-                <div className="form-group">
-                  <label><Activity size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Status</label>
-                  <CustomSelect
-                    value={status}
-                    onChange={(e) => { setStatus(e.target.value); markDirty(); }}
-                    options={STATUS_OPTIONS}
-                  />
-                </div>
-              )}
+              <div className="form-group">
+                <label><Activity size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Status</label>
+                <CustomSelect
+                  value={status}
+                  onChange={(e) => { setStatus(e.target.value); markDirty(); }}
+                  options={STATUS_OPTIONS}
+                />
+              </div>
             </div>
             )}
 
@@ -750,30 +846,6 @@ const DeliveryModal = ({
                   />
                 </div>
               </div>
-            )}
-
-            {/* Sales Rep & Status — on a transfer, Status sits beside the driver
-                instead, and on a will call both moved up above the pickup rows */}
-            {!isTransfer && !isWillCall && (
-            <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
-              <div className="form-group">
-                <label><User size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Sales Representative</label>
-                <CustomSelect
-                  value={salesRepName}
-                  onChange={(e) => { setSalesRepName(e.target.value); markDirty(); }}
-                  options={Array.from(new Set([...salesRepsList, salesRepName].filter(Boolean))).map(name => ({ value: name, label: name }))}
-                />
-              </div>
-
-              <div className="form-group">
-                <label><Activity size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Status</label>
-                <CustomSelect
-                  value={status}
-                  onChange={(e) => { setStatus(e.target.value); markDirty(); }}
-                  options={STATUS_OPTIONS}
-                />
-              </div>
-            </div>
             )}
 
             {/* Packing List PDF Attachment Upload */}

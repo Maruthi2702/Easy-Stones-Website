@@ -632,7 +632,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                           ariaLabel={`${label} count`} onChange={(v) => setPath(`${key}.assigned`, v)} />
                       </td>
                       <td className="dr-num">
-                        <ReportCell value={report[key].capacity} disabled={locked}
+                        <ReportCell value={report[key].capacity} derived disabled={locked}
                           ariaLabel={`${label} slabs`} onChange={(v) => setPath(`${key}.capacity`, v)} />
                       </td>
                     </tr>

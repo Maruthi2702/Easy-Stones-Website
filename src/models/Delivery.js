@@ -28,6 +28,11 @@ const deliverySchema = new mongoose.Schema({
   proNumber: { type: String, default: '' },
   freightFee: { type: Number, default: 0 },
 
+  // How many slabs went out on this ticket. Feeds the Daily Work Report's
+  // Slabs totals (see deriveFromSystem in src/routes/dailyReports.js) instead
+  // of those being retyped by hand.
+  numberOfSlabs: { type: Number, min: 0, default: 0 },
+
   // Packing List File — the original the office uploads. Never overwritten by
   // signing: re-signing has to start from a clean copy, so the signed version
   // lives separately under pod.signedPdfUrl.

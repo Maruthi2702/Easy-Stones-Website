@@ -83,6 +83,7 @@ const DeliveryScheduleTab = ({
   currentUser = null,
   theme = 'dark',
   customerOptions = [],
+  locationsList = ['Seattle', 'Spokane', 'Salt Lake City'],
   sidebarToggle = null
 }) => {
   const [role, setRole] = useState(() => getUserRoleFromPermissions(currentUser));
@@ -444,6 +445,7 @@ const DeliveryScheduleTab = ({
         trucks={trucks}
         deliveries={deliveries}
         customerOptions={customerOptions}
+        locationsList={locationsList}
         currentUser={currentUser}
       />
 

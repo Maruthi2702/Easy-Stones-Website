@@ -88,34 +88,42 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     // maths — it is already the branch's day.
     Delivery.find(
       { date, truckId: { $nin: ['', null] } },
-      'deliveryType transferDestination location'
+      'deliveryType transferDestination location numberOfSlabs'
     ).lean()
   ]);
 
   // Deliveries carry no location on most records yet, so an empty location is
   // treated as belonging to the branch being reported on rather than dropped.
   const mine = deliveryRows.filter(d => !d.location || d.location === location || d.location === '*');
+  // A ticket nobody has counted yet contributes nothing rather than blocking
+  // the rest of the day's total.
+  const slabsOf = (d) => (Number.isFinite(d.numberOfSlabs) ? d.numberOfSlabs : 0);
 
-  const jobsite = mine.filter(d => !d.deliveryType || d.deliveryType === 'jobsite').length;
-  const willCall = mine.filter(d => d.deliveryType === 'will_call').length;
+  const jobsiteRows = mine.filter(d => !d.deliveryType || d.deliveryType === 'jobsite');
+  const willCallRows = mine.filter(d => d.deliveryType === 'will_call');
 
   // One line per destination branch, the way the sheet reads: SEA — SLC.
   const byDestination = new Map();
   for (const d of mine.filter(x => x.deliveryType === 'transfer')) {
     const dest = d.transferDestination || 'Unspecified';
-    byDestination.set(dest, (byDestination.get(dest) || 0) + 1);
+    const line = byDestination.get(dest) || { count: 0, slabs: 0 };
+    line.count += 1;
+    line.slabs += slabsOf(d);
+    byDestination.set(dest, line);
   }
-  const transfers = [...byDestination.entries()].map(([dest, count]) => ({
+  const transfers = [...byDestination.entries()].map(([dest, line]) => ({
     fromTo: `${branchCode(location)} — ${branchCode(dest)}`,
-    count,
-    slabs: 0,
+    count: line.count,
+    slabs: line.slabs,
     auto: true
   }));
 
   return {
     visitorCheckIns: checkIns,
-    deliveriesAssigned: jobsite,
-    pickupsAssigned: willCall,
+    deliveriesAssigned: jobsiteRows.length,
+    pickupsAssigned: willCallRows.length,
+    deliveriesSlabs: jobsiteRows.reduce((sum, d) => sum + slabsOf(d), 0),
+    pickupsSlabs: willCallRows.reduce((sum, d) => sum + slabsOf(d), 0),
     transfers
   };
 }
@@ -134,11 +142,26 @@ function applyDerived(report, derived) {
   report.deliveries.assigned = derived.deliveriesAssigned;
   report.pickups.assigned = derived.pickupsAssigned;
 
-  // Keep any slab counts already typed against a route that still exists.
+  // Slabs starts from what the tickets add up to and stays editable from
+  // there — null still means "nobody has counted them", so that's the only
+  // case this fills in. Once a figure is on the report, auto-filled or
+  // hand-corrected, later loads leave it alone rather than overwriting a
+  // correction the next time a ticket on the day changes.
+  if (report.deliveries.capacity === null || report.deliveries.capacity === undefined) {
+    report.deliveries.capacity = derived.deliveriesSlabs;
+  }
+  if (report.pickups.capacity === null || report.pickups.capacity === undefined) {
+    report.pickups.capacity = derived.pickupsSlabs;
+  }
+
+  // Keep any slab counts already on a route that still exists — that covers
+  // both a hand correction and a figure that was itself auto-filled earlier,
+  // which is why this checks presence rather than truthiness. A route that
+  // has never appeared on this report before gets the fresh ticket sum.
   const typedSlabs = new Map(report.transfers.map(t => [t.fromTo, t.slabs]));
   const manual = report.transfers.filter(t => !t.auto);
   report.transfers = [
-    ...derived.transfers.map(t => ({ ...t, slabs: typedSlabs.get(t.fromTo) || 0 })),
+    ...derived.transfers.map(t => ({ ...t, slabs: typedSlabs.has(t.fromTo) ? typedSlabs.get(t.fromTo) : t.slabs })),
     ...manual
   ];
 
@@ -328,7 +351,9 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         derived: {
           visitorCheckIns: derived.visitorCheckIns,
           deliveriesAssigned: derived.deliveriesAssigned,
-          pickupsAssigned: derived.pickupsAssigned
+          pickupsAssigned: derived.pickupsAssigned,
+          deliveriesSlabs: derived.deliveriesSlabs,
+          pickupsSlabs: derived.pickupsSlabs
         },
         // The band a slab count is sane within, so the rule lives on the server
         // rather than being reinvented in the form.
