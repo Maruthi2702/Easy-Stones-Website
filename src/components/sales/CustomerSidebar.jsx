@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Pin, PinOff, Sun, Moon,
-    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown, Truck, ClipboardList
+    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown, Truck, ClipboardList, Map
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -119,6 +119,20 @@ const CustomerSidebar = ({
                     >
                         <Truck size={18} />
                         <span>Delivery Schedule</span>
+                    </button>
+                )}
+
+                {/* Route Planner — requires view_route_planner. No admin-role
+                    fallback here on purpose: this one is granted deliberately
+                    under Users & Roles, so the permission is the only key. */}
+                {user?.permissions?.includes('view_route_planner') && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'route_planner' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('route_planner')}
+                        title="Plan a day of visits by area"
+                    >
+                        <Map size={18} />
+                        <span>Route Planner</span>
                     </button>
                 )}
 

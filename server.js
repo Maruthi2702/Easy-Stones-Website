@@ -145,6 +145,9 @@ const memoryCache = {
   // 100KB list means reading tens of MB. Serve both from memory between changes.
   salesreps: { data: null, lastFetched: 0 },
   customerDropdown: { data: null, lastFetched: 0 },
+  // Same reasoning as the dropdown, more so: the map's source documents carry
+  // the visit logs, so building it uncached reads the heaviest field we hold.
+  customerMap: { data: null, lastFetched: 0 },
   TTL: 10 * 60 * 1000
 };
 
@@ -170,6 +173,8 @@ const bustProductCache = () => {
 const bustCustomerCaches = () => {
   memoryCache.customerDropdown.data = null;
   memoryCache.customerDropdown.lastFetched = 0;
+  memoryCache.customerMap.data = null;
+  memoryCache.customerMap.lastFetched = 0;
 };
 
 const bustUserCaches = () => {
@@ -686,7 +691,12 @@ async function startServer() {
       // who hold every other permission by definition. Only admin and director
       // are topped up; the rest are for you to assign under Users & Roles.
       const NEW_PERMISSION_GRANTS = [
-        { roles: ['admin', 'director'], permissions: ['view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report'] }
+        { roles: ['admin', 'director'], permissions: ['view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report'] },
+        // Route planner: administrators only, deliberately. It reads every
+        // account's location and writes days into a calendar, so who gets it is
+        // a decision to make deliberately under Users & Roles rather than one
+        // that arrives switched on for a whole role.
+        { roles: ['admin'], permissions: ['view_route_planner', 'create_route_plan', 'edit_route_plan', 'delete_route_plan'] }
       ];
 
       for (const grant of NEW_PERMISSION_GRANTS) {
@@ -2135,6 +2145,57 @@ app.get('/api/customers/dropdown', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Error fetching customers for dropdown:', error);
     res.status(500).json({ message: 'Failed to fetch customers', error: error.message });
+  }
+});
+
+/**
+ * Every customer we hold a point for, as pins.
+ *
+ * Carries when each was last visited, because the question a rep actually asks
+ * of a map is not "who is in Bellingham" but "who in Bellingham am I overdue
+ * with" — and that answer is computed here, where the visits already live,
+ * rather than by shipping 300-odd visit logs (with their photos) to the browser
+ * to be reduced to one date each.
+ *
+ * Cached like the dropdown and busted by the same customer writes, which
+ * includes logging a visit — the one write that changes what this returns.
+ */
+app.get('/api/customers/map', authenticate, requirePermission('view_route_planner'), async (req, res) => {
+  try {
+    const cached = cacheHit('customerMap');
+    if (cached) return res.json(cached);
+
+    const pins = await Customer.aggregate([
+      { $match: { 'coordinates.lat': { $ne: null } } },
+      {
+        $project: {
+          company: 1,
+          contactName: 1,
+          phone: 1,
+          email: 1,
+          street: '$address.street',
+          city: '$address.city',
+          state: '$address.state',
+          coordinates: 1,
+          precision: '$geocode.precision',
+          salesRep: 1,
+          salesRepName: 1,
+          customerType: 1,
+          status: 1,
+          level: 1,
+          location: 1,
+          // Visit dates are 'YYYY-MM-DD', so the newest is the largest string.
+          lastVisitAt: { $max: '$visits.date' },
+          visitCount: { $size: { $ifNull: ['$visits', []] } }
+        }
+      },
+      { $sort: { company: 1, contactName: 1 } }
+    ]);
+
+    res.json(cachePut('customerMap', pins));
+  } catch (error) {
+    console.error('Error building customer map:', error);
+    res.status(500).json({ message: 'Failed to load customer map', error: error.message });
   }
 });
 
@@ -4227,6 +4288,126 @@ app.post('/api/schedule', verifyAnyAuth, async (req, res) => {
   } catch (error) {
     console.error('Create schedule error:', error);
     res.status(500).json({ message: 'Failed to create schedule entry' });
+  }
+});
+
+/**
+ * Create a whole day of stops in one call.
+ *
+ * Planning a route is a single decision — these twelve customers, Tuesday, in
+ * this order — and one request per stop turns it into twelve chances to half-fail.
+ * Written with insertMany so the day either lands or it does not.
+ *
+ * The order and the times come from the client because that is where the route
+ * was laid out; what the server will not accept is a stop for a customer that
+ * does not exist, so the ids are checked before anything is written.
+ */
+app.post('/api/schedule/bulk', authenticate, requirePermission('create_route_plan'), async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { items, replace = false, date = '' } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'No stops to schedule' });
+    }
+
+    // Replacing a day is an edit of what is already there, so it is gated
+    // separately from creating one: someone may be trusted to plan a day
+    // without being trusted to overwrite one already planned.
+    if (replace && !req.user.permissions.includes('edit_route_plan')) {
+      return res.status(403).json({
+        message: 'Access denied. Replacing a planned day needs the "edit_route_plan" permission.'
+      });
+    }
+    // A day is a day. A four-figure paste is a bug or a misuse, and either way
+    // should not become four thousand documents.
+    if (items.length > 50) {
+      return res.status(400).json({ message: 'A single day cannot hold more than 50 stops' });
+    }
+
+    const wanted = items.map(item => item.customerId).filter(Boolean);
+    if (wanted.length !== items.length) {
+      return res.status(400).json({ message: 'Every stop needs a customer' });
+    }
+    if (items.some(item => !item.startTime)) {
+      return res.status(400).json({ message: 'Every stop needs a start time' });
+    }
+
+    const known = await Customer.find({ _id: { $in: wanted } }).select('_id').lean();
+    if (known.length !== new Set(wanted.map(String)).size) {
+      return res.status(400).json({ message: 'One or more stops name a customer that no longer exists' });
+    }
+
+    // Only ever the planner's own stops for that date, never a meeting someone
+    // typed in by hand — re-planning a day is not permission to erase the rest
+    // of it. The date is matched on the stored 'YYYY-MM-DDTHH:mm:ss.000' prefix.
+    let replaced = 0;
+    if (replace && date) {
+      const { deletedCount } = await Schedule.deleteMany({
+        userId,
+        source: 'route_planner',
+        startTime: { $regex: `^${date}` }
+      });
+      replaced = deletedCount;
+    }
+
+    const created = await Schedule.insertMany(
+      items.map(item => ({
+        userId,
+        customerId: item.customerId,
+        startTime: item.startTime,
+        endTime: item.endTime,
+        activityType: item.activityType || 'Visit',
+        notes: item.notes || '',
+        source: 'route_planner'
+      })),
+      { ordered: true }
+    );
+
+    // One signal for the day rather than one per stop: every open planner
+    // reloads the range once instead of redrawing twelve times.
+    emitScheduleUpdate({ type: 'bulk', userId, count: created.length });
+
+    const populated = await Schedule.find({ _id: { $in: created.map(item => item._id) } })
+      .populate('customerId', 'contactName company')
+      .sort({ startTime: 1 });
+
+    console.log(`🗺️ Route planned: ${created.length} stops for user ${userId}${replaced ? ` (replaced ${replaced})` : ''}`);
+    res.status(201).json({ stops: populated, replaced });
+  } catch (error) {
+    console.error('Bulk schedule error:', error);
+    res.status(500).json({ message: 'Failed to schedule the route', error: error.message });
+  }
+});
+
+/**
+ * Clear a planned day.
+ *
+ * Removes only what the route planner put on that date, leaving anything
+ * entered by hand alone — the same rule the replace path follows, for the same
+ * reason: undoing a plan is not permission to empty a calendar.
+ */
+app.delete('/api/schedule/route', authenticate, requirePermission('delete_route_plan'), async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { date } = req.query;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) {
+      return res.status(400).json({ message: 'A date (YYYY-MM-DD) is required' });
+    }
+
+    const { deletedCount } = await Schedule.deleteMany({
+      userId,
+      source: 'route_planner',
+      startTime: { $regex: `^${date}` }
+    });
+
+    emitScheduleUpdate({ type: 'bulk', userId, count: deletedCount });
+    console.log(`🗺️ Route cleared: ${deletedCount} planned stops on ${date} for user ${userId}`);
+    res.json({ deleted: deletedCount, date });
+  } catch (error) {
+    console.error('Clear route error:', error);
+    res.status(500).json({ message: 'Failed to clear the planned day', error: error.message });
   }
 });
 

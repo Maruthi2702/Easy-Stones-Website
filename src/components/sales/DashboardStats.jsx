@@ -106,7 +106,6 @@ const DashboardStats = ({
                     <div className="stat-value">{statsLoading ? '...' : todayScheduleCount}</div>
                 </div>
 
-
             </div>
         </>
     );

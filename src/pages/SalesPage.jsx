@@ -21,6 +21,7 @@ import './SalesPageChatImage.css';
 import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
 import SalesPlannerTab from '../components/SalesPlannerTab';
+import RoutePlannerTab from '../components/sales/RoutePlannerTab';
 import CustomDatePicker from '../components/CustomDatePicker';
 import { formatForDateInput, formatDate, formatInstant, getLocalISOString, viewerTimeZone } from '../utils/dateUtils';
 import DashboardStats from '../components/sales/DashboardStats';
@@ -104,6 +105,9 @@ const SalesPage = () => {
     const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
     const [customerOriginTab, setCustomerOriginTab] = useState(null);
     const [allCustomersForSelection, setAllCustomersForSelection] = useState([]);
+    // Latches on the first visit to the route planner and never clears, so the
+    // map it builds survives navigating away and back. See where it renders.
+    const [routePlannerOpened, setRoutePlannerOpened] = useState(false);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -1696,6 +1700,10 @@ const SalesPage = () => {
             fetchSingleCustomer(selectedCustomerId);
         }
     }, [selectedCustomerId]);
+
+    useEffect(() => {
+        if (crmTab === 'route_planner') setRoutePlannerOpened(true);
+    }, [crmTab]);
 
     const handleSelectCustomer = (customer, explicitOrigin) => {
         if (customer) {
@@ -3295,6 +3303,29 @@ const SalesPage = () => {
                         </ErrorBoundary>
                     );
                 })()}
+
+                {/* Kept mounted once opened, and hidden rather than unmounted when
+                    you navigate away. Google bills a map load per map instance
+                    created, so unmounting would buy a fresh one every time you came
+                    back. Nothing runs while it is hidden — the fetch and the
+                    geolocation both happen on mount. */}
+                {!authLoading && currentUser?.permissions && routePlannerOpened && currentUser.permissions.includes('view_route_planner') && (
+                    <div style={{ display: crmTab === 'route_planner' ? 'block' : 'none' }}>
+                        <ErrorBoundary key="route-planner-view">
+                            <RoutePlannerTab
+                                currentUser={currentUser}
+                                theme={theme}
+                                isActive={crmTab === 'route_planner'}
+                                // The planner holds ids, and handleSelectCustomer takes a
+                                // record — its shell path fetches the rest from the id.
+                                onOpenCustomer={(id) => handleSelectCustomer({ _id: id }, 'route_planner')}
+                                sidebarToggle={(!isSidebarOpen || isMobile) ? (
+                                    <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+                                ) : null}
+                            />
+                        </ErrorBoundary>
+                    </div>
+                )}
 
                 {!authLoading && currentUser?.permissions && crmTab === 'customers' && currentUser.permissions.includes('view_customers') && (
                     <ErrorBoundary key={selectedCustomerId || 'no-customer'}>

@@ -4,7 +4,7 @@ import {
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
     FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard, Eraser,
-    ClipboardList, CheckCheck, RotateCcw
+    ClipboardList, CheckCheck, RotateCcw, Map, Route
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { prettifyUsername } from '../../utils/textUtils';
@@ -101,6 +101,24 @@ const PAGE_PERMISSIONS = [
             // Separate from Delete on purpose: voiding a proof the wrong customer
             // signed is a different level of trust from removing the job itself.
             { key: 'clear_pod_signatures', label: 'Clear POD', icon: Eraser, desc: 'Delete the signed packing list and reset signatures for re-signing' }
+        ]
+    },
+    {
+        id: 'route_planner',
+        page: 'Route Planner',
+        icon: Map,
+        description: 'Plan a day of visits by area from the customer map',
+        color: '#c33a3a',
+        actions: [
+            // View is the heavy one: the map shows every account's location and
+            // how long since anyone called on it, which is the shape of the whole
+            // territory in a single screen.
+            { key: 'view_route_planner', label: 'View', icon: Eye, desc: 'Open the map and see accounts, locations and how overdue each visit is' },
+            { key: 'create_route_plan', label: 'Plan', icon: Route, desc: 'Put a planned run of stops onto the calendar' },
+            // Separate from Plan on purpose: overwriting a day someone already
+            // planned is a different act from adding one.
+            { key: 'edit_route_plan', label: 'Replace', icon: Pencil, desc: 'Replace a day that was already planned with a new run' },
+            { key: 'delete_route_plan', label: 'Clear', icon: Trash2, desc: 'Clear the planned stops from a day (hand-added entries are left alone)' }
         ]
     },
     {

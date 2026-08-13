@@ -36,9 +36,19 @@ const scheduleSchema = new mongoose.Schema({
     default: 'Scheduled',
     index: true
   },
-  linkedVisitId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Customer.visits' 
+  linkedVisitId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer.visits'
+  },
+  // Who put this on the calendar. The route planner can replace or clear a day
+  // it laid out, and that must never reach an entry someone typed in by hand on
+  // the same date — so the two are told apart here rather than by guessing from
+  // the times.
+  source: {
+    type: String,
+    enum: ['manual', 'route_planner'],
+    default: 'manual',
+    index: true
   }
 }, { 
   timestamps: true,
