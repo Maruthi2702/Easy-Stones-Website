@@ -111,6 +111,38 @@ const customerSchema = new mongoose.Schema({
     state: String,
     zipCode: String
   },
+  // Where the account actually is, so a rep can plan a day by area instead of
+  // keeping a private pin board. Derived from address by the geocoder, never
+  // typed — see geocodeCustomerAddress() in server.js.
+  coordinates: {
+    lat: { type: Number, default: null },
+    lng: { type: Number, default: null }
+  },
+  geocode: {
+    // 'ok' means we hold a point for this address. 'failed' means the geocoder
+    // ran and found nothing, which is a data problem worth showing someone —
+    // distinct from 'pending', which only means we have not asked yet.
+    status: {
+      type: String,
+      enum: ['pending', 'ok', 'failed'],
+      default: 'pending'
+    },
+    // How exact the point is. A city-level hit and a rooftop hit look identical
+    // on a map, so route planning has to be able to tell them apart: driving to
+    // a city centroid wastes the stop. Mirrors Google's location_type.
+    precision: {
+      type: String,
+      enum: ['rooftop', 'range', 'geometric', 'approximate', ''],
+      default: ''
+    },
+    formattedAddress: { type: String, default: '' },
+    // The address the point was derived from. Compared on save so an edit that
+    // leaves the address alone does not spend a geocoding call, and one that
+    // changes it always re-runs.
+    addressKey: { type: String, default: '' },
+    updatedAt: { type: Date, default: null },
+    error: { type: String, default: '' }
+  },
   isVerified: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
   priceLevel: { type: Number, default: 1, min: 1, max: 4 },

@@ -41,6 +41,7 @@ import { stampSignaturesOnPdfBytes } from './src/utils/pdfSigner.js';
 // Shared with the client so an import can only assign a customer to someone the
 // Sales Rep dropdown would also have offered.
 import { isSalesRep } from './src/utils/salesReps.js';
+import { geocodeAddress, geocodePatchFor } from './src/utils/geocode.js';
 // One definition of "these two records are the same business", shared by the
 // import, the duplicate audit and the merge script.
 import { groupDuplicates, STRONG } from './src/utils/customerMatch.js';
@@ -3589,20 +3590,28 @@ app.post('/api/partners', authenticate, requirePermission('manage_customers'), a
     // same reason — a client-sent salesRepName must not survive.
     const rep = await resolveSalesRep(req.body.salesRep);
 
+    const address = {
+      street: req.body.address?.street || '',
+      city: req.body.address?.city || req.body.city || '',
+      state: req.body.address?.state || '',
+      zipCode: req.body.address?.zipCode || ''
+    };
+
+    // Derived here rather than accepted from the body, for the same reason the
+    // rep is: a point the client made up would put a pin somewhere nobody can
+    // account for. An address that cannot be resolved still saves.
+    const geo = await geocodeAddress(address);
+
     const newCustomer = new Customer({
       ...req.body,
       ...rep,
+      ...geo,
       location: String(req.body.location || '').trim() || 'Seattle',
       priceLevel: priceLevel || req.body.priceLevel || 1,
       contactName: req.body.contactName || req.body.name || 'Unknown', // Map contactName/name to contactName
       marketingEmail: req.body.marketingEmail || req.body.email || '',
       receiveMarketing: req.body.receiveMarketing !== undefined ? req.body.receiveMarketing : true,
-      address: {
-        street: req.body.address?.street || '',
-        city: req.body.address?.city || req.body.city || '',
-        state: req.body.address?.state || '',
-        zipCode: req.body.address?.zipCode || ''
-      },
+      address,
       password: '', // Leads don't have passwords yet
       isVerified: false,
       createdBy: req.userId
@@ -3647,6 +3656,20 @@ app.put('/api/partners/:id', authenticate, requirePermission('manage_customers')
       updateData.location = String(req.body.location || '').trim() || 'Seattle';
     }
 
+    // The point and the label for it are derived from the address, never taken
+    // from the body — a client-sent pin would sit somewhere nobody can account for.
+    delete updateData.coordinates;
+    delete updateData.geocode;
+
+    // Needed twice below: the stored address, because findByIdAndUpdate replaces
+    // a nested object wholesale and a city-only edit would otherwise drop the
+    // street; and the key the stored point came from, because re-geocoding is
+    // only worth paying for when the address actually moved.
+    const existing = await Customer.findById(req.params.id).select('address geocode').lean();
+    if (!existing) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
     if (req.body.address) {
       updateData.address = {
         street: req.body.address.street || '',
@@ -3656,9 +3679,14 @@ app.put('/api/partners/:id', authenticate, requirePermission('manage_customers')
       };
     } else if (req.body.city) {
       updateData.address = {
-        ...updateData.address,
+        ...existing.address,
         city: req.body.city
       };
+    }
+
+    if (updateData.address) {
+      const geo = await geocodePatchFor(updateData.address, existing.geocode?.addressKey || '');
+      if (geo) Object.assign(updateData, geo);
     }
 
     const updatedCustomer = await Customer.findByIdAndUpdate(

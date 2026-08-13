@@ -31,3 +31,11 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      # Maps & geocoding. Unrelated to the OAuth pair above — a different key
+      # entirely, with Maps JavaScript API and Geocoding API enabled on it.
+      # VITE_ vars are read at build time, not run time, so changing this one
+      # needs a redeploy rather than a restart.
+      - key: VITE_GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: GOOGLE_GEOCODING_API_KEY
+        sync: false
