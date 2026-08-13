@@ -76,8 +76,17 @@
      decided by this number alone. Must stay at the app's max (matches
      .modal-overlay in index.css) or a modal opened above/around a CustomSelect
      will silently swallow clicks on its options. Do not lower this without
-     grepping every `z-index` in src/**/*.css first. */
-  z-index: 2147483647;
+     grepping every `z-index` in src/**\/*.css first.
+
+     A CSS comment ends at the earliest star-then-slash it finds, scanning
+     byte by byte, with no escape mechanism — the backslash above between the
+     two stars and the following slash is there purely to break up that
+     two-character pair. An earlier edit here left that glob unescaped, and
+     it closed the comment three words early. Everything after — the z-index
+     declaration included — became one malformed line and was discarded by
+     the parser, so this popover briefly served with no z-index at all. Run
+     the block through any CSS parser before touching this comment again. */
+  z-index: 2147483647 !important;
   overflow: hidden;
   animation: selectPopoverFade 0.15s ease-out;
 }
