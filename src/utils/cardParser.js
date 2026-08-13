@@ -24,9 +24,16 @@ export const parseBusinessCard = (text) => {
         }
     };
 
-    // Detection markers for specific IDs
-    const isDL = text.toLowerCase().includes('driver license') || text.toLowerCase().includes('dl') || /\bLN\b|\bFN\b/.test(text) || /\b[128]\s[A-Z]/.test(text);
-    const isSSN = text.toLowerCase().includes('social security') || /\b\d{3}-\d{2}-\d{4}\b/.test(text);
+    // Detection markers for specific IDs.
+    // Deliberately conservative: `.includes('dl')` and `/\b[128]\s[A-Z]/` used to
+    // fire on ordinary business cards (e.g. "Middle", "Handle", a suite number
+    // like "Ste 2 A"), hijacking the whole scan into the ID-only branch below
+    // and wiping out company/phone/email. Require an explicit license phrase,
+    // or both the LN and FN field codes together, before treating this as an ID.
+    const lowerText = text.toLowerCase();
+    const isDL = lowerText.includes('driver license') || lowerText.includes("driver's license") || lowerText.includes('driver licence') || lowerText.includes('operator license')
+        || (/\bLN\b/.test(text) && /\bFN\b/.test(text));
+    const isSSN = lowerText.includes('social security') || /\b\d{3}-\d{2}-\d{4}\b/.test(text);
 
     // 1. Specific Document Logic: Driver License
     if (isDL) {
@@ -70,10 +77,32 @@ export const parseBusinessCard = (text) => {
         return result;
     }
 
-    // 3. Structured Contact Card Parser (e.g., iPhone / Android Contact Screenshot)
+    // 3. Structured Contact Card Parser (e.g., iPhone / Android Contact Screenshot,
+    // or a plain printed business card that never has "mobile/home/work" labels)
     const filteredHeaderLines = [];
     let isHeaderSection = true;
     const contactLabels = ['mobile', 'home', 'work', 'main', 'notes', 'pager', 'fax', 'other'];
+
+    // A printed business card never trips the contactLabels check above, so
+    // isHeaderSection stays true for the *entire* card and every line —
+    // phone, email, address included — used to land in filteredHeaderLines.
+    // That's what let a stray email hijack the whole name/company split
+    // further down. Keep contact-info lines out of the header candidate pool.
+    const quickEmailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+    const quickPhoneRegex = /\d{3}[-.\s)]\s?\d{3}[-.\s]\d{4}/;
+    const quickUrlRegex = /(www\.|https?:\/\/|\.(com|net|org|io|co)\b)/i;
+    const quickZipLineRegex = /\b[A-Za-z]{2}\s+\d{5}(-\d{4})?\b/;
+    // Matches "1234 Industrial Way" as well as numbered street names like
+    // "900 5th Ave" or "42nd St", where a plain \d+\s+[a-zA-Z] miss the digit
+    // that starts the street-name token itself.
+    const streetLineRegex = /^\d+\s+(\d+(st|nd|rd|th)\.?\s+)?[a-zA-Z]/i;
+    const isContactInfoLine = (line) => (
+        quickEmailRegex.test(line)
+        || quickPhoneRegex.test(line)
+        || quickUrlRegex.test(line)
+        || quickZipLineRegex.test(line)
+        || streetLineRegex.test(line)
+    );
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -87,8 +116,8 @@ export const parseBusinessCard = (text) => {
             const isTime = /^\d{1,2}:\d{2}$/.test(line);
             const isNoiseLabel = ['edit', 'back', 'done', 'cancel', 'save', 'contacts', 'keypad', 'calls'].includes(lineLower);
             const isSignalBattery = /^\d+%\s*$/.test(line) || lineLower.includes('lte') || lineLower.includes('5g') || lineLower.includes('wi-fi');
-            
-            if (!isTime && !isNoiseLabel && !isSignalBattery && line.length > 2) {
+
+            if (!isTime && !isNoiseLabel && !isSignalBattery && line.length > 2 && !isContactInfoLine(line)) {
                 filteredHeaderLines.push(line);
             }
         } else {
@@ -113,26 +142,27 @@ export const parseBusinessCard = (text) => {
         }
     }
 
-    // Parse Name & Company from header lines
+    // Parse Name & Company from header lines.
+    // Job-title lines ("Sales Manager", "Owner") are neither the name nor the
+    // company and must be dropped rather than landing in one of those fields
+    // by position. The company is usually the ALL-CAPS logo line or a line
+    // with a business suffix; whatever's left that reads like "First Last" is
+    // the name.
+    const companySuffixRegex = /\b(inc|llc|llp|corp|co|company|group|industries|enterprises|ltd|stone|granite|marble|quartz|tile|countertops?|supply|supplies)\b\.?/i;
+    const titleKeywordRegex = /\b(manager|owner|president|ceo|cfo|coo|director|sales|representative|rep|founder|partner|vice president|vp|estimator|designer|consultant|specialist)\b/i;
+    const isAllCapsLine = (l) => /^[A-Z0-9\s&.,'-]{4,}$/.test(l);
+    const isNameShaped = (l) => /^[A-Za-z.'-]+(\s+[A-Za-z.'-]+){1,3}$/.test(l) && !isAllCapsLine(l);
+
     if (filteredHeaderLines.length > 0) {
-        const joinedHeader = filteredHeaderLines.join(' ');
-        let cleanHeader = joinedHeader.replace(/^[A-Z\s-]{4,}\b/, '').trim();
-        
-        if (cleanHeader.includes('@')) {
-            const parts = cleanHeader.split('@');
-            if (parts.length === 2) {
-                result.customerName = parts[0].trim();
-                result.company = parts[1].trim();
-            }
-        } else {
-            const nameCandidates = filteredHeaderLines.filter(l => !/^[A-Z\s-]{4,}$/.test(l));
-            if (nameCandidates.length > 0) {
-                result.customerName = nameCandidates[0];
-                if (nameCandidates.length > 1) {
-                    result.company = nameCandidates[1];
-                }
-            }
-        }
+        const nonTitleLines = filteredHeaderLines.filter(l => !titleKeywordRegex.test(l));
+
+        const nameLine = nonTitleLines.find(isNameShaped);
+        const companyLine = nonTitleLines.find(l => l !== nameLine && companySuffixRegex.test(l))
+            || nonTitleLines.find(l => l !== nameLine && isAllCapsLine(l))
+            || nonTitleLines.find(l => l !== nameLine);
+
+        result.customerName = nameLine || '';
+        result.company = companyLine || '';
     }
 
     // Strip out generic "Contact Photo & Poster" iOS system labels and single letter profile icons
@@ -178,8 +208,19 @@ export const parseBusinessCard = (text) => {
     }
 
     if (!result.address.street) {
-        const streetLine = lines.find(l => /^\d+\s+[a-zA-Z]+/.test(l) && !l.includes(result.phone || '___'));
+        const streetLine = lines.find(l => streetLineRegex.test(l) && !l.includes(result.phone || '___'));
         if (streetLine) result.address.street = streetLine;
+    }
+
+    // Printed cards commonly put the street on one line and "City, ST ZIP" on
+    // the next rather than joining them with commas — pull the following line
+    // in before the comma-split logic below runs, so it's not left blank.
+    if (result.address.street && !result.address.street.includes(',')) {
+        const streetIdx = lines.indexOf(result.address.street);
+        const nextLine = streetIdx !== -1 ? lines[streetIdx + 1] : undefined;
+        if (nextLine && /^[A-Za-z .'-]+,?\s+[A-Za-z]{2}\s+\d{5}(-\d{4})?$/.test(nextLine)) {
+            result.address.street = `${result.address.street}, ${nextLine}`;
+        }
     }
 
     // Process address components (e.g. "22230 84th Ave S, Kent, WA 98032")
