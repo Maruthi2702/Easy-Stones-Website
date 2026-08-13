@@ -71,6 +71,12 @@
   border: 1px solid rgba(212, 175, 55, 0.35);
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.85), 0 0 20px rgba(212, 175, 55, 0.12);
+  /* CRITICAL: this is portaled to document.body (see CustomSelect.jsx), so it
+     is a DOM sibling of every modal overlay, not a descendant — stacking is
+     decided by this number alone. Must stay at the app's max (matches
+     .modal-overlay in index.css) or a modal opened above/around a CustomSelect
+     will silently swallow clicks on its options. Do not lower this without
+     grepping every `z-index` in src/**/*.css first. */
   z-index: 2147483647;
   overflow: hidden;
   animation: selectPopoverFade 0.15s ease-out;

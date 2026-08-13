@@ -146,6 +146,11 @@ const CustomSelect = ({
         )}
       </button>
 
+      {/* Portaled to document.body — a sibling of every modal overlay, not a
+          descendant, so nothing here inherits "on top of my modal" for free
+          anymore. .custom-select-popover's z-index (CustomSelect.css) is what
+          keeps it above modals opened around a CustomSelect; if a click on an
+          option silently does nothing inside some new modal, check that. */}
       {isOpen && coords && createPortal(
         <div
           ref={popoverRef}
