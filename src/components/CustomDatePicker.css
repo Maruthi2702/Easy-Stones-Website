@@ -176,6 +176,59 @@
     }
 }
 
+/* Light Theme — the dropdown had no light-theme rules at all, so it always
+   rendered in its dark defaults even when the rest of the page (including
+   the .datepicker-input trigger, styled elsewhere) had switched to light. */
+body.light-theme-active .datepicker-dropdown {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+body.light-theme-active .datepicker-header .nav-btn {
+    color: #64748b;
+}
+
+body.light-theme-active .datepicker-header .nav-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+body.light-theme-active .month-year {
+    color: #0f172a;
+}
+
+body.light-theme-active .weekday {
+    color: #94a3b8;
+}
+
+body.light-theme-active .day {
+    color: #1e293b;
+}
+
+body.light-theme-active .day:hover {
+    background: #f1f5f9;
+}
+
+body.light-theme-active .day.other-month {
+    color: #cbd5e1;
+}
+
+body.light-theme-active .datepicker-footer {
+    border-top: 1px solid #e2e8f0;
+}
+
+body.light-theme-active .today-btn {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+}
+
+body.light-theme-active .today-btn:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
 /* --- Added for Google Style Layout & Time Picker --- */
 
 .google-style-picker {

@@ -4869,42 +4869,42 @@ const SalesPage = () => {
                 {/* Link Partner Modal */}
                 {showLinkPartnerModal && (
                     <div className="modal-overlay">
-                        <div className="modal-content" style={{ maxWidth: '500px', maxHeight: '420px', minHeight: '300px' }}>
-                            <div className="modal-header">
+                        <div className="modal-content" style={{ maxWidth: '500px', minHeight: '300px', overflow: 'visible' }}>
+                            <div className="modal-header" style={{ borderRadius: '12px 12px 0 0' }}>
                                 <h2>LINK PARTNER</h2>
-                                <button 
-                                    type="button" 
-                                    className="close-btn" 
+                                <button
+                                    type="button"
+                                    className="close-btn"
                                     onClick={() => { setShowLinkPartnerModal(false); setLinkingPartnerId(''); }}
                                 >
                                     <X size={20} />
                                 </button>
                             </div>
-                            <form onSubmit={handleLinkPartner} className="selection-modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem', overflow: 'visible' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Select Partner to Link</label>
-                                    <SearchableSelect
-                                        options={linkableCustomerOptions}
-                                        value={linkingPartnerId}
-                                        onChange={(val) => setLinkingPartnerId(val)}
-                                        placeholder="Search by company or contact name..."
-                                        isLoading={isDropdownLoading}
-                                    />
+                            <form onSubmit={handleLinkPartner} style={{ display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
+                                <div className="modal-body" style={{ overflow: 'visible' }}>
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label>Select Partner to Link</label>
+                                        <SearchableSelect
+                                            options={linkableCustomerOptions}
+                                            value={linkingPartnerId}
+                                            onChange={(val) => setLinkingPartnerId(val)}
+                                            placeholder="Search by company or contact name..."
+                                            isLoading={isDropdownLoading}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
-                                    <button 
-                                        type="button" 
-                                        className="cancel-btn" 
+                                <div className="modal-footer" style={{ borderRadius: '0 0 12px 12px' }}>
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
                                         onClick={() => { setShowLinkPartnerModal(false); setLinkingPartnerId(''); }}
-                                        style={{ padding: '0.5rem 1rem', borderRadius: '6px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', cursor: 'pointer' }}
                                     >
                                         Cancel
                                     </button>
-                                    <button 
-                                        type="submit" 
-                                        className="save-btn" 
+                                    <button
+                                        type="submit"
+                                        className="btn-primary"
                                         disabled={!linkingPartnerId || isLinkingInProgress}
-                                        style={{ padding: '0.5rem 1.25rem', borderRadius: '6px', background: 'var(--accent-primary, #d4af37)', border: 'none', color: '#000', fontWeight: 'bold', cursor: 'pointer' }}
                                     >
                                         {isLinkingInProgress ? 'Linking...' : 'Link Partner'}
                                     </button>

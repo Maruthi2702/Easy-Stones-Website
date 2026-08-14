@@ -429,9 +429,8 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
   margin-bottom: 0;
   display: flex;
   flex-direction: column;
-  background: #1C1C1E;
-  /* Darker background */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card, #1C1C1E);
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
   position: sticky;
   top: 0;
   z-index: 40;
@@ -470,7 +469,7 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
 .customer-header .customer-name {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--text-primary, #FFFFFF);
   margin: 0;
   letter-spacing: 0.02em;
   margin-right: 2.5rem;
@@ -487,17 +486,17 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
   gap: 0.5rem;
   align-items: center;
   margin-top: 0;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.2));
   padding: 4px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.05));
   justify-self: center;
 }
 
 .header-tab {
   background: transparent;
   border: none;
-  color: #9CA3AF;
+  color: var(--text-secondary, #9CA3AF);
   font-size: 0.88rem;
   font-weight: 500;
   cursor: pointer;
@@ -516,15 +515,15 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
 }
 
 .header-tab:hover {
-  color: #FFFFFF;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary, #FFFFFF);
+  background: var(--border-color, rgba(255, 255, 255, 0.05));
 }
 
 .header-tab.active {
   color: #000000 !important;
-  background: #E5C04A !important;
+  background: var(--accent-primary, #d4af37) !important;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(229, 192, 74, 0.2);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.25);
 }
 
 /* Gold underline override */
@@ -544,18 +543,18 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9CA3AF;
+  color: var(--text-secondary, #9CA3AF);
   transition: all 0.2s;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border-hover, rgba(255, 255, 255, 0.2));
   border-radius: 50%;
   background: transparent;
   cursor: pointer;
 }
 
 .info-toggle-btn:hover {
-  color: var(--accent-color);
-  border-color: var(--accent-color);
-  background: rgba(229, 192, 74, 0.1);
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  background: rgba(212, 175, 55, 0.1);
 }
 
 /* Customer Info Section */
@@ -1017,8 +1016,8 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
     position: relative;
     /* Not sticky anymore as parent is fixed height */
     z-index: 10;
-    background: #1C1C1E;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-card, #1C1C1E);
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
   }
 
   .header-main {
@@ -1059,10 +1058,10 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
     justify-content: space-between;
     gap: 0.25rem;
     margin-top: 0.75rem;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--bg-secondary, rgba(0, 0, 0, 0.25));
     padding: 4px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
   }
 
   .header-tab {
@@ -1076,7 +1075,7 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
     font-size: 0.75rem;
     font-weight: 500;
     border-radius: 8px;
-    color: #9CA3AF;
+    color: var(--text-secondary, #9CA3AF);
   }
 
   .header-tab svg {
@@ -1088,7 +1087,7 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
 
   .header-tab.active {
     color: #000000 !important;
-    background: #E5C04A !important;
+    background: var(--accent-primary, #d4af37) !important;
     font-weight: 600;
   }
 
@@ -1113,7 +1112,7 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
   .header-tab.active::after {
     width: 60%;
     left: 20%;
-    background: #E5C04A;
+    background: var(--accent-primary, #d4af37);
     /* Gold */
   }
 
@@ -2858,7 +2857,7 @@ body.light-theme-active .icon-action-btn.secondary,
 body.light-theme-active .icon-action-btn.secondary:hover,
 .light-theme-active .icon-action-btn.secondary:hover {
   background: #f8fafc;
-  border-color: #e5c04a;
+  border-color: var(--accent-primary, #d4af37);
   color: #0f172a;
 }
 
@@ -2866,7 +2865,7 @@ body.light-theme-active .icon-action-btn.secondary:hover,
   display: flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, #F5D060 0%, #E5C04A 100%);
+  background: linear-gradient(135deg, var(--accent-tertiary, #e6c25e) 0%, var(--accent-primary, #d4af37) 100%);
   color: #000000;
   border: none;
   padding: 8px 18px;
@@ -2875,12 +2874,12 @@ body.light-theme-active .icon-action-btn.secondary:hover,
   font-size: 0.88rem;
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(229, 192, 74, 0.15);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.15);
 }
 
 .add-visit-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(229, 192, 74, 0.3);
+  box-shadow: 0 6px 16px rgba(212, 175, 55, 0.3);
   filter: brightness(1.05);
 }
 
@@ -3008,8 +3007,7 @@ body.light-theme-active .icon-action-btn.secondary:hover,
 
 /* Feed Container */
 .channel-feed {
-  background: #141414;
-  /* Main background dark */
+  background: var(--bg-secondary, #141414);
   flex: 1;
   overflow-y: auto;
   padding: 0;
@@ -3066,18 +3064,14 @@ body.light-theme-active .icon-action-btn.secondary:hover,
 
 /* ── LIGHT THEME STYLES FOR VISIT / CUSTOMER POST CARDS ── */
 body.light-theme-active .visit-post-card,
-.light-theme-active .visit-post-card,
-body.light-theme .visit-post-card,
-.sales-container.light-theme .visit-post-card {
+.light-theme-active .visit-post-card {
   background: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03) !important;
 }
 
 body.light-theme-active .visit-post-card:hover,
-.light-theme-active .visit-post-card:hover,
-body.light-theme .visit-post-card:hover,
-.sales-container.light-theme .visit-post-card:hover {
+.light-theme-active .visit-post-card:hover {
   background: #ffffff !important;
   border-color: #d4af37 !important;
   box-shadow: 0 10px 28px rgba(212, 175, 55, 0.18), 0 2px 8px rgba(15, 23, 42, 0.06) !important;
@@ -3213,7 +3207,7 @@ body.light-theme-active .reaction-picker-floating,
   height: 42px;
   border-radius: 50%;
   background: linear-gradient(135deg, rgba(212, 175, 55, 0.3) 0%, rgba(212, 175, 55, 0.1) 100%);
-  color: #E5C04A;
+  color: var(--accent-primary, #d4af37);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3320,7 +3314,7 @@ body.light-theme-active .reaction-picker-floating,
 
 .post-purpose-badge.meeting {
   background: rgba(212, 175, 55, 0.1);
-  color: #E5C04A;
+  color: var(--accent-primary, #d4af37);
   border: 1px solid rgba(212, 175, 55, 0.35);
   box-shadow: 0 0 10px rgba(212, 175, 55, 0.1);
 }
@@ -3463,52 +3457,6 @@ body.light-theme-active .reaction-picker-floating,
   border-color: #d4af37;
   color: #fff;
   transform: translateY(-1px);
-}
-
-.post-detail-row.outcome .detail-label {
-  color: #4ade80;
-  font-weight: 600;
-}
-
-.post-detail-row.next-action {
-  background: rgba(30, 144, 255, 0.1);
-  border: 1px solid rgba(30, 144, 255, 0.2);
-}
-
-.post-detail-row.next-action .detail-label {
-  color: #3b82f6;
-  font-weight: 600;
-}
-
-.post-detail-row.follow-up {
-  background: rgba(59, 130, 246, 0.1);
-  /* Blue background */
-  border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-.post-detail-row.follow-up .detail-label {
-  color: #3b82f6;
-  /* Blue label */
-  font-weight: 600;
-}
-
-.post-detail-row.manager-comment,
-.post-detail-row.hq-comment {
-  background: rgba(239, 68, 68, 0.15);
-  /* Red background */
-  border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.post-detail-row.manager-comment .detail-label,
-.post-detail-row.hq-comment .detail-label {
-  color: #ef4444;
-  /* Bright red label */
-  font-weight: 600;
-}
-
-.post-detail-row .detail-value {
-  color: #FFFFFF !important;
-  font-weight: 500;
 }
 
 .post-images.gallery-layout {

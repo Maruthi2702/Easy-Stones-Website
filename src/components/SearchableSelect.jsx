@@ -147,6 +147,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
 
                             {onCreateNew && (
                                 <div
+                                    className="searchable-select-create-new"
                                     onClick={(e) => { e.stopPropagation(); setIsOpen(false); onCreateNew(); }}
                                     style={{
                                         padding: '10px 12px',

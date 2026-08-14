@@ -2318,13 +2318,13 @@ body.light-theme-active .searchable-select-search input:focus {
     box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15) !important;
 }
 
-body.light-theme-active .searchable-select-dropdown [style*="color: #E5C04A"] {
+body.light-theme-active .searchable-select-create-new {
     background-color: #ffffff !important;
     border-bottom: 1px solid #e2e8f0 !important;
     color: #b48a1c !important;
 }
 
-body.light-theme-active .searchable-select-dropdown [style*="color: #E5C04A"]:hover {
+body.light-theme-active .searchable-select-create-new:hover {
     background-color: rgba(212, 175, 55, 0.1) !important;
 }
 
