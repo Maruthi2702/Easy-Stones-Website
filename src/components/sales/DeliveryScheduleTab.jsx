@@ -10,6 +10,7 @@ import {
   saveDelivery,
   deleteDelivery,
   updateDeliveryStatus,
+  updateDeliveryAssignment,
   getScheduleDataCached,
   getScheduleCacheSync,
   subscribeScheduleCache,
@@ -285,6 +286,14 @@ const DeliveryScheduleTab = ({
     return updatedList;
   };
 
+  // Drag-and-drop move on the dispatch board: which driver/column/day a
+  // ticket belongs to, nothing else (stop numbers are left as-is).
+  const handleMoveDelivery = async (id, assignment) => {
+    const updatedList = await updateDeliveryAssignment(id, assignment);
+    setDeliveries(updatedList);
+    return updatedList;
+  };
+
   const handleUpdateTruck = (id, newName, newDriver) => {
     // Only update local state — drivers are sourced from the Users tab.
     // Permanent driver edits should be done via Users & Roles → edit user.
@@ -377,6 +386,7 @@ const DeliveryScheduleTab = ({
               onAddDelivery={handleOpenAddModal}
               onEditDelivery={handleOpenEditModal}
               onUpdateTruck={handleUpdateTruck}
+              onMoveDelivery={handleMoveDelivery}
               onViewPod={handleOpenPodViewer}
               // Pickups are signed for at the counter rather than at a jobsite,
               // so the office captures their ePOD. The board only offers it on

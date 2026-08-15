@@ -4793,6 +4793,53 @@ app.patch('/api/deliveries/:id/status', verifyAnyAuth, canWriteDeliveries, async
   }
 });
 
+// PATCH /api/deliveries/:id/assignment — the dispatch board's drag-and-drop move.
+//
+// Same reasoning as /status above: dragging a card only ever changes which
+// slot (truck/column, day) a delivery sits in, so this writes just those
+// three fields instead of echoing the board's cached copy of the whole
+// record back through POST /api/deliveries.
+const DELIVERY_TYPES = ['jobsite', 'transfer', 'will_call'];
+
+app.patch('/api/deliveries/:id/assignment', verifyAnyAuth, canWriteDeliveries, async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { truckId, deliveryType, date } = req.body || {};
+
+    if (!DELIVERY_TYPES.includes(deliveryType)) {
+      return res.status(400).json({ error: `deliveryType must be one of: ${DELIVERY_TYPES.join(', ')}` });
+    }
+    if (deliveryType === 'will_call') {
+      // A will call is never on a truck, regardless of what the client sent.
+      truckId = '';
+    } else if (!truckId) {
+      return res.status(400).json({ error: 'truckId is required unless deliveryType is will_call' });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
+      return res.status(400).json({ error: 'date must be a YYYY-MM-DD string' });
+    }
+
+    const updated = await Delivery.findOneAndUpdate(
+      scopeDeliveryQueryToLocations({ id }, req),
+      { $set: { truckId, deliveryType, date } },
+      { new: true, projection: DELIVERY_LIST_PROJECTION }
+    ).lean();
+
+    if (!updated) return res.status(404).json({ error: 'Delivery not found' });
+
+    try {
+      io.emit('delivery_update', { type: 'upsert', delivery: updated });
+    } catch {
+      req.app.get('io')?.emit('delivery_update', { type: 'upsert', delivery: updated });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error('[server] update delivery assignment error:', err);
+    res.status(500).json({ error: 'Server error updating the delivery assignment' });
+  }
+});
+
 app.delete('/api/deliveries/:id', verifyAnyAuth, canDeleteDeliveries, async (req, res) => {
   try {
     const { id } = req.params;

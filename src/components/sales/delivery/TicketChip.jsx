@@ -34,6 +34,7 @@ const TicketChip = ({
   onOpenPod
 }) => {
   const [copied, setCopied] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   if (!delivery) return null;
 
@@ -64,6 +65,10 @@ const TicketChip = ({
   // same counter that took the first one.
   const canSign = Boolean(editable && onOpenPod && !isSigned);
 
+  // A signed-for delivery keeps its driver/column fixed — dragging it to
+  // reassign after the fact would misrepresent who actually delivered it.
+  const canDrag = Boolean(editable && delivery.status !== 'completed');
+
   // Proof only means something once the delivery is done — an unsigned scheduled
   // job doesn't need telling that it has no ePOD yet. Suppressed entirely where
   // the Sign button is offered: "Awaiting re-sign" beside "Sign ePOD" is the
@@ -85,10 +90,18 @@ const TicketChip = ({
 
   return (
     <div
-      className={`manifest-ticket-chip ${editable ? 'clickable' : ''} status-border-${delivery.status || 'scheduled'}`}
+      className={`manifest-ticket-chip ${editable ? 'clickable' : ''} ${isDragging ? 'dragging' : ''} status-border-${delivery.status || 'scheduled'}`}
       style={{ borderLeftColor: truckColor }}
       onClick={() => onClick && onClick(delivery)}
       title={editable ? 'Click to edit delivery' : delivery.customerName}
+      draggable={canDrag}
+      onDragStart={(e) => {
+        if (!canDrag) return;
+        e.dataTransfer.setData('text/plain', delivery.id);
+        e.dataTransfer.effectAllowed = 'move';
+        setIsDragging(true);
+      }}
+      onDragEnd={() => setIsDragging(false)}
     >
       <div className="ticket-header">
         <span className="ticket-time-mono">

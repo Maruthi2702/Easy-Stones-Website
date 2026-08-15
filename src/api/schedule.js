@@ -609,3 +609,25 @@ export async function updateDeliveryStatus(id, newStatus) {
   return getActiveWeekDeliveries();
 }
 
+// ── UPDATE DELIVERY ASSIGNMENT (drag-and-drop move on the dispatch board) ──
+// Sends only truckId/deliveryType/date, the same reasoning as updateDeliveryStatus
+// above — a dragged card shouldn't echo the board's cached copy of every other field.
+export async function updateDeliveryAssignment(id, { truckId, deliveryType, date }) {
+  const res = await authFetch(`${API_URL}/api/deliveries/${id}/assignment`, {
+    method: 'PATCH',
+    body: JSON.stringify({ truckId, deliveryType, date })
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Couldn't move the stop (${res.status}).`);
+  }
+
+  const updated = await res.json();
+  if (updated && updated.id) {
+    upsertDeliveryIntoCache(updated);
+    notifyScheduleListeners();
+  }
+  return getActiveWeekDeliveries();
+}
+

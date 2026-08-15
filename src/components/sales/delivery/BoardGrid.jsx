@@ -45,6 +45,7 @@ const BoardGrid = ({
   editable = false,
   onAddDelivery,
   onEditDelivery,
+  onMoveDelivery,
   onViewPod,
   onOpenPod
 }) => {
@@ -96,6 +97,36 @@ const BoardGrid = ({
 
   const [internalSearch] = useState('');
   const activeSearch = searchQuery || internalSearch;
+
+  // Which cell (truck x day) a dragged ticket is currently hovering over, for
+  // the drop-target highlight. Table view only — the cards view has no cells.
+  const [dragOverCellKey, setDragOverCellKey] = useState(null);
+
+  const handleDropOnCell = (trk, dateStr, e) => {
+    e.preventDefault();
+    setDragOverCellKey(null);
+    if (!onMoveDelivery) return;
+
+    const deliveryId = e.dataTransfer.getData('text/plain');
+    const delivery = deliveries.find(d => d.id === deliveryId);
+    if (!delivery) return;
+
+    // Dropped back on the slot it started in — nothing to change.
+    if (columnIdFor(delivery) === trk.id && delivery.date === dateStr) return;
+
+    let truckId = trk.id;
+    let deliveryType = delivery.deliveryType;
+    if (trk.isWillCall) {
+      truckId = '';
+      deliveryType = 'will_call';
+    } else if (delivery.deliveryType === 'will_call') {
+      // Leaving Will Call must become a real stop on the new column.
+      deliveryType = 'jobsite';
+    }
+    // else: normal column -> normal column, deliveryType unchanged (preserves 'transfer')
+
+    onMoveDelivery(delivery.id, { truckId, deliveryType, date: dateStr });
+  };
 
   // Filter deliveries by search query. Location scoping now happens server-side
   // against the user's assignedLocations; filtering again here would re-hide
@@ -366,8 +397,22 @@ const BoardGrid = ({
                       const rawCount = getRawCapacity(trk.id, dateStr);
                       const capClass = getCapacityColorClass(rawCount);
 
+                      const cellKey = `${trk.id}_${dateStr}`;
+
                       return (
-                        <td key={trk.id} className="dispatch-cell">
+                        <td
+                          key={trk.id}
+                          className={`dispatch-cell ${dragOverCellKey === cellKey ? 'drop-target' : ''}`}
+                          onDragOver={(e) => {
+                            if (!onMoveDelivery) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDragEnter={() => onMoveDelivery && setDragOverCellKey(cellKey)}
+                          onDragLeave={() => onMoveDelivery &&
+                            setDragOverCellKey(prev => (prev === cellKey ? null : prev))}
+                          onDrop={(e) => handleDropOnCell(trk, dateStr, e)}
+                        >
                           <div className="cell-header-bar">
                             <span
                               className={`cell-capacity-pill ${trk.isWillCall ? 'capacity-ok-green' : capClass}`}

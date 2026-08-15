@@ -699,6 +699,15 @@ body.light-theme-active .truck-name,
   height: 100%;
 }
 
+/* Highlighted while a dragged ticket is hovering over this cell as a
+   candidate drop target — see BoardGrid's onDragEnter/onDragLeave. */
+.dispatch-cell.drop-target {
+  outline: 2px dashed #d4af37;
+  outline-offset: -2px;
+  background: rgba(212, 175, 55, 0.08);
+  border-radius: 6px;
+}
+
 .cell-header-bar {
   display: flex;
   align-items: center;
@@ -786,6 +795,10 @@ body.light-theme-active .manifest-ticket-chip,
 .manifest-ticket-chip.clickable:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.manifest-ticket-chip.dragging {
+  opacity: 0.5;
 }
 
 .ticket-header {
