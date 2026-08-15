@@ -8,6 +8,7 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
+import { money } from './summaryFigures';
 import MonthView from './MonthView';
 import AllBranchesDay from './AllBranchesDay';
 import DaySummary from './DaySummary';
@@ -26,6 +27,13 @@ import './DailyReport.css';
 
 /** The branch selector's every-branch option — never a real branch name. */
 const ALL = 'all';
+
+// Resend has no verified domain to send transactional mail from yet, so its
+// default onboarding@resend.dev sender only delivers to the account's own
+// signup address — every other recipient bounces. Sending falls through to
+// the Gmail SMTP account instead (see emailService.js) until a domain is set
+// up as RESEND_FROM_EMAIL.
+const EMAIL_EXPORT_ENABLED = true;
 
 const isoOf = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -375,13 +383,14 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
         hint: view === 'month' ? `${scopeLabel} · ${monthLabel}` : `${longDate(date)} · ${location}`,
         onSelect: downloadPdf
       },
-      {
+      // Hidden until we have a domain to send from — see EMAIL_EXPORT_ENABLED.
+      ...(EMAIL_EXPORT_ENABLED ? [{
         key: 'email',
         icon: Mail,
         label: 'Email as PDF…',
         hint: 'send it to one or more people',
         onSelect: () => setEmailOpen(true)
-      }
+      }] : [])
     ] : []),
     {
       key: 'csv',
@@ -792,7 +801,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                   <tr className="dr-total">
                     <td>Total</td>
                     <td className="dr-num">{paymentsUnsaid ? '—' : totals.payCount}</td>
-                    <td className="dr-num">{paymentsUnsaid ? '—' : `$${totals.payAmount.toFixed(2)}`}</td>
+                    <td className="dr-num">{paymentsUnsaid ? '—' : money(totals.payAmount)}</td>
                   </tr>
                 </tbody>
               </table>
