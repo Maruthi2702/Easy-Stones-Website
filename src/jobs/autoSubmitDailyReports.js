@@ -1,5 +1,6 @@
 import DailyReport from '../models/DailyReport.js';
 import { BRANCH_NAMES, branchNow, shiftDate } from '../config/branches.js';
+import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
 
 /**
  * Submit the day for anyone who went home without doing it.
@@ -45,6 +46,14 @@ export async function autoSubmitDueDays(now = new Date()) {
     for (let back = 1; back <= LOOKBACK_DAYS; back++) dates.push(shiftDate(date, -back));
     if (minutes >= CUTOFF_MINUTES) dates.push(date);
 
+    // Seattle's evening email needs the actual documents to attach, and
+    // updateMany reports only a count — so the drafts about to close are
+    // captured here, before the atomic update decides which of them really
+    // were still drafts to claim.
+    const candidateIds = location === 'Seattle'
+      ? (await DailyReport.find({ location, date: { $in: dates }, status: 'draft' }, '_id').lean()).map(d => d._id)
+      : [];
+
     // Conditional on status inside the update, so two instances ticking at the
     // same second can't both claim the same day.
     const result = await DailyReport.updateMany(
@@ -61,6 +70,14 @@ export async function autoSubmitDueDays(now = new Date()) {
 
     if (result.modifiedCount > 0) {
       submitted.push({ location, count: result.modifiedCount });
+
+      if (candidateIds.length) {
+        // Re-filtered on status: only the ones this call actually flipped —
+        // not a draft another instance had already claimed between the two
+        // queries above.
+        const closed = await DailyReport.find({ _id: { $in: candidateIds }, status: 'submitted' }).lean();
+        for (const report of closed) notifyDailyReportSubmission(report);
+      }
     }
   }
 

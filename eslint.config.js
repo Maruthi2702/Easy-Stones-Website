@@ -44,6 +44,7 @@ export default defineConfig([
       // shared with the browser, and handing those files Node's globals would
       // let a stray process.env reach the client without the linter objecting.
       'src/utils/dailyReportPdf.js',
+      'src/utils/dailyReportSubmissionEmail.js',
       'src/utils/pdfSigner.js',
       // Holds the geocoding key and calls Google with it — server-side only,
       // which is exactly why it is named here rather than covered by a glob.

@@ -5,6 +5,7 @@ import { sendEmail } from '../services/emailService.js';
 import Delivery from '../models/Delivery.js';
 import { BRANCH_NAMES, branchCode, isBranch } from '../config/branches.js';
 import OfficeCheckIn from '../models/OfficeCheckIn.js';
+import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
 
 /**
  * Daily Work Report API.
@@ -463,6 +464,11 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       if (logActivity) {
         logActivity(req, 'daily_report_submitted', `${location} · ${date}`);
       }
+
+      // Not awaited — the person submitting shouldn't wait on an email round
+      // trip, and a failed send shouldn't turn a successful submit into an
+      // error. notifyDailyReportSubmission no-ops for every branch but Seattle.
+      notifyDailyReportSubmission(report.toObject());
 
       res.json({ report: report.toObject() });
     } catch (error) {
