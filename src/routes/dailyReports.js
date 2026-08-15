@@ -86,8 +86,14 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     }),
     // A delivery's date is a plain calendar string, so this needs no timezone
     // maths — it is already the branch's day.
+    //
+    // A will call never carries a truckId — the customer collects it, so it
+    // rides on no truck — which is why the board's own week query (server.js)
+    // carves out the same exception. Without it every pick-up ticket fails
+    // the truckId check and the report's Pick-ups count and slabs sit at 0
+    // regardless of how many pickups actually happened that day.
     Delivery.find(
-      { date, truckId: { $nin: ['', null] } },
+      { date, $or: [{ truckId: { $nin: ['', null] } }, { deliveryType: 'will_call' }] },
       'deliveryType transferDestination location numberOfSlabs'
     ).lean()
   ]);
