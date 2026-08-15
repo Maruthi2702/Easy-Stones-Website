@@ -36,6 +36,28 @@ export const withinRadius = (stop, center, miles) =>
   hasPoint(stop) && milesBetween(stop.coordinates, center) <= miles;
 
 /**
+ * Ray-casting point-in-polygon test for the lasso tool's freehand path.
+ * Treats lat/lng as flat x/y — wrong near the poles or across the
+ * antimeridian, but exactly right at the scale this runs at (a rep's
+ * mouse-drawn outline over one metro area), and needs no Maps Geometry
+ * library (see MapCanvas's radius-draw effect for why this screen avoids
+ * pulling in extra libraries).
+ */
+export const pointInPolygon = (point, path) => {
+  if (!point || !Array.isArray(path) || path.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = path.length - 1; i < path.length; j = i++) {
+    const a = path[i];
+    const b = path[j];
+    const crosses = (a.lat > point.lat) !== (b.lat > point.lat);
+    if (!crosses) continue;
+    const xAtLat = a.lng + ((point.lat - a.lat) / (b.lat - a.lat)) * (b.lng - a.lng);
+    if (point.lng < xAtLat) inside = !inside;
+  }
+  return inside;
+};
+
+/**
  * Is this point good enough to drive to?
  *
  * Everything except 'approximate'. A rooftop hit is the building; an

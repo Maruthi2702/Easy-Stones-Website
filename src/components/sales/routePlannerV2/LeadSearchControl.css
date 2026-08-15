@@ -1,0 +1,187 @@
+.rpv2-lead-pill {
+    position: relative;
+    flex-shrink: 0;
+}
+
+/* Same 34px glass-circle treatment as the other nav-column icons. */
+.rpv2-lead-trigger {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(28, 28, 30, 0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #b0b0b0;
+    cursor: pointer;
+    padding: 0;
+}
+
+.rpv2-lead-trigger:hover { color: #ffffff; border-color: rgba(255, 255, 255, 0.32); }
+
+.rpv2-lead-trigger.is-on {
+    color: #d4af37;
+    border-color: #d4af37;
+    background: rgba(212, 175, 55, 0.14);
+}
+
+/* Portaled to document.body (LeadSearchControl.jsx) — position/left/top/width
+   are set inline from the trigger's measured screen coordinates, since
+   .rpv2-drawer's own overflow-y:auto would otherwise clip this the moment
+   it tried to render past the drawer's 56px width (see the comment in the
+   .jsx file). z-index matches CustomSelect's portaled popover (the app's
+   max, .custom-select-popover in CustomSelect.css) for the same reason:
+   once portaled, this is a DOM sibling of every modal overlay, not a
+   descendant, so stacking above one is no longer automatic — do not lower
+   this without grepping every z-index in src/**/*.css first. */
+.rpv2-lead-flyout {
+    background: rgba(20, 20, 20, 0.96);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.35);
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    z-index: 2147483647;
+    font-family: inherit;
+}
+
+.rpv2-lead-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+}
+
+.rpv2-lead-icon { color: #b0b0b0; flex-shrink: 0; }
+
+.rpv2-lead-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-family: inherit;
+    flex: 1;
+    min-width: 0;
+}
+
+.rpv2-lead-input::placeholder { color: #7d7c77; }
+
+.rpv2-lead-clear {
+    background: transparent;
+    border: none;
+    color: #7d7c77;
+    cursor: pointer;
+    display: flex;
+    padding: 0.15rem;
+    border-radius: 5px;
+    flex-shrink: 0;
+}
+
+.rpv2-lead-clear:hover { color: #ffffff; background: rgba(255, 255, 255, 0.1); }
+
+.rpv2-lead-search-btn {
+    background: var(--accent-primary, #d4af37);
+    color: #1a1a19;
+    border: none;
+    border-radius: 999px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rpv2-lead-search-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.rpv2-lead-search-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.rpv2-lead-spin { animation: rpv2-lead-spin 0.8s linear infinite; }
+
+@keyframes rpv2-lead-spin {
+    to { transform: rotate(360deg); }
+}
+
+.rpv2-lead-recent {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 0.4rem;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.rpv2-lead-recent-row {
+    display: flex;
+    align-items: center;
+    border-radius: 6px;
+}
+
+.rpv2-lead-recent-row:hover { background: rgba(255, 255, 255, 0.07); }
+
+.rpv2-lead-recent-term {
+    flex: 1;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-family: inherit;
+    padding: 0.45rem 0.5rem;
+    cursor: pointer;
+}
+
+.rpv2-lead-recent-remove {
+    background: transparent;
+    border: none;
+    color: #7d7c77;
+    cursor: pointer;
+    display: flex;
+    padding: 0.4rem;
+    margin-right: 0.15rem;
+    border-radius: 5px;
+    flex-shrink: 0;
+}
+
+.rpv2-lead-recent-remove:hover { color: #d03b3b; background: rgba(208, 59, 59, 0.12); }
+
+body.light-theme-active .rpv2-lead-trigger {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #161514;
+}
+
+body.light-theme-active .rpv2-lead-trigger.is-on {
+    color: #8a6b1f;
+    border-color: #b08d57;
+}
+
+body.light-theme-active .rpv2-lead-flyout {
+    background: rgba(255, 255, 255, 0.98);
+    border-color: #e1e0d9;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.18);
+}
+
+body.light-theme-active .rpv2-lead-row {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.12);
+}
+
+body.light-theme-active .rpv2-lead-icon { color: #8a897f; }
+body.light-theme-active .rpv2-lead-input { color: #161514; }
+body.light-theme-active .rpv2-lead-input::placeholder { color: #8a897f; }
+
+body.light-theme-active .rpv2-lead-recent { border-top-color: rgba(0, 0, 0, 0.1); }
+body.light-theme-active .rpv2-lead-recent-row:hover { background: #f0efec; }
+body.light-theme-active .rpv2-lead-recent-term { color: #161514; }

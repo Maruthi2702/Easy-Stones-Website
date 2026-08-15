@@ -49,13 +49,27 @@ re-verified against every *other* container the same shared component
 appears in, especially modals — not just the container where the bug you're
 fixing was noticed.
 
-## No automated test suite exists yet
+## Automated tests are narrow — most verification is still manual
 
-There is no `test` script in `package.json` and no test runner installed.
-Verification currently means running the app (`npm run dev` / `npm start`)
-and exercising the actual screen by hand, or, when real login credentials
-aren't available in the current environment, reproducing the specific DOM/CSS
-mechanism in isolation (see how the CustomSelect fix above was verified).
-Flag this gap to the user if a change is high-risk enough to want real
-regression coverage — don't assume "it builds" or "lint passes" means the
-feature works.
+`npm test` runs Vitest (`vite.config.js`'s `test` block, `src/**/*.test.js`).
+As of 2026-08-15 that covers exactly one thing: the pure, no-DOM business
+logic in `src/utils/routePlan.js` and
+`src/components/sales/routePlannerV2/helpers.js` (great-circle distance,
+point-in-polygon, stop ordering/scheduling math, recency bucketing, the
+small formatting/localStorage helpers). Nothing else in the app has test
+coverage — no components, no routes, no server.js endpoints.
+
+That means passing `npm test` only proves the math didn't regress; it says
+nothing about whether a screen actually renders or behaves correctly.
+Verification for everything else is still running the app (`npm run dev` /
+`npm start`) and exercising the actual screen by hand, or, when real login
+credentials aren't available in the current environment, reproducing the
+specific DOM/CSS mechanism in isolation (see how the CustomSelect fix above
+was verified). Flag this gap to the user if a change is high-risk enough to
+want real regression coverage — don't assume "tests pass" or "it builds"
+means the feature works, especially for anything touching a React component,
+a page, or the map/Google Maps integration.
+
+When adding a new pure/testable function elsewhere in the app, consider
+adding it to this same narrow layer (a `<module>.test.js` beside the module)
+rather than leaving it untested by default now that the harness exists.

@@ -1,0 +1,62 @@
+/* Gold-accented rather than the neutral .rpv2-panel-icon-btn treatment
+   Edit/Delete/Close use — this is the panel's one committing action, so it
+   reads as a small CTA chip, not another muted utility icon. */
+.rpv2-area-schedule-trigger {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 7px;
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    background: rgba(212, 175, 55, 0.1);
+    color: #d4af37;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.rpv2-area-schedule-trigger:hover {
+    background: rgba(212, 175, 55, 0.2);
+    border-color: rgba(212, 175, 55, 0.7);
+}
+
+/* Flips to the app's one CTA gradient while open — same gradient as the
+   "Put N stops on..." button in the section it opens, so an open section
+   reads unambiguously as "you're inside the scheduling action". */
+.rpv2-area-schedule-trigger.is-open {
+    background: linear-gradient(135deg, #d4af37, #dd6a58);
+    border-color: transparent;
+    color: #1a1a19;
+}
+
+.rpv2-area-schedule-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 3px;
+    border-radius: 999px;
+    background: #dd6a58;
+    color: #ffffff;
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 2px rgba(20, 20, 20, 0.92);
+}
+
+body.light-theme-active .rpv2-area-schedule-trigger {
+    border-color: #b08d57;
+    background: rgba(212, 175, 55, 0.14);
+    color: #8a6b1f;
+}
+
+body.light-theme-active .rpv2-area-schedule-trigger:hover { background: rgba(212, 175, 55, 0.24); }
+
+body.light-theme-active .rpv2-area-schedule-trigger.is-open { color: #1a1a19; }
+
+body.light-theme-active .rpv2-area-schedule-badge { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.98); }

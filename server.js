@@ -41,7 +41,7 @@ import { stampSignaturesOnPdfBytes } from './src/utils/pdfSigner.js';
 // Shared with the client so an import can only assign a customer to someone the
 // Sales Rep dropdown would also have offered.
 import { isSalesRep } from './src/utils/salesReps.js';
-import { geocodeAddress, geocodePatchFor } from './src/utils/geocode.js';
+import { geocodeAddress, geocodePatchFor, addressKeyOf, GEOCODE_PRECISION } from './src/utils/geocode.js';
 // One definition of "these two records are the same business", shared by the
 // import, the duplicate audit and the merge script.
 import { groupDuplicates, STRONG } from './src/utils/customerMatch.js';
@@ -6606,7 +6606,7 @@ app.post('/api/migrate-collection', async (req, res) => {
 // Create new sales customer (Maps to global Customer collection)
 app.post('/api/sales/customers', verifyAnyAuth, async (req, res) => {
   try {
-    const { customerName, company, address, phone, email, notes, status, level, customerType, modaDisplay, modaBinder, salesRep, location } = req.body;
+    const { customerName, company, address, phone, email, notes, status, level, customerType, modaDisplay, modaBinder, salesRep, location, coordinates, precision } = req.body;
 
     if (!company) {
       return res.status(400).json({ message: 'Company name is required' });
@@ -6624,18 +6624,32 @@ app.post('/api/sales/customers', verifyAnyAuth, async (req, res) => {
     // Generate a random secure password
     const customerPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).toUpperCase().slice(-4) + "1!";
 
+    // Optional point supplied by the caller — the route planner's "save this
+    // Places search result as a lead" flow sends the coordinates Google
+    // already returned, so this skips a redundant geocoding call (see
+    // geocodePatchFor in src/utils/geocode.js, which stays the path for
+    // every other create/edit route that only has an address to go on).
+    // Validated here since it's client-supplied and, unlike the geocoder
+    // response, never checked against a real address lookup.
+    const lat = Number(coordinates?.lat);
+    const lng = Number(coordinates?.lng);
+    const hasValidPoint = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+    const validPrecision = Object.values(GEOCODE_PRECISION).includes(precision) ? precision : GEOCODE_PRECISION.APPROXIMATE;
+
+    const addressFields = {
+      street: address?.street || '',
+      city: address?.city || '',
+      state: address?.state || '',
+      zipCode: address?.zipCode || ''
+    };
+
     const newCustomer = new Customer({
       contactName: customerName || company, // Fallback to company if no contact name
       email: customerEmail,
       password: customerPassword,
       company: company,
       phone: phone || '',
-      address: {
-        street: address?.street || '',
-        city: address?.city || '',
-        state: address?.state || '',
-        zipCode: address?.zipCode || ''
-      },
+      address: addressFields,
       quickNote: notes || '',
       status: status || 'New',
       level: level || 'Level - 3',
@@ -6646,7 +6660,18 @@ app.post('/api/sales/customers', verifyAnyAuth, async (req, res) => {
       location: String(location || '').trim() || 'Seattle',
       isVerified: true, // Auto-verify sales-created accounts
       priceLevel: 1,
-      isActive: true
+      isActive: true,
+      ...(hasValidPoint && {
+        coordinates: { lat, lng },
+        geocode: {
+          status: 'ok',
+          precision: validPrecision,
+          formattedAddress: '',
+          addressKey: addressKeyOf(addressFields),
+          updatedAt: new Date(),
+          error: ''
+        }
+      })
     });
 
     await newCustomer.save();

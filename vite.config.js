@@ -73,4 +73,10 @@ export default defineConfig({
       }
     },
   },
+  // Unit tests only cover pure logic (no React rendering, no real DOM), so
+  // the default 'node' environment is enough — see src/utils/routePlan.test.js
+  // and src/components/sales/routePlannerV2/helpers.test.js.
+  test: {
+    include: ['src/**/*.test.js']
+  }
 })

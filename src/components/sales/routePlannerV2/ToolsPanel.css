@@ -1,0 +1,94 @@
+/* ── the Tools panel ──────────────────────────────────────────────────────
+   Same .rpv2-panel shell as every other fixed right-column panel
+   (MapCanvas.css) — only the bits unique to this one (the Radius/Lasso
+   mode row, the schedule button's count pill) get their own rules here.
+   The expandable form itself reuses AreaScheduleSection.css as-is. */
+
+.rpv2-tools-body {
+    padding: 0 1.1rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    flex-shrink: 0;
+}
+
+.rpv2-tools-mode-row {
+    display: flex;
+    gap: 0.5rem;
+    align-self: flex-start;
+}
+
+.rpv2-tools-mode-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1.1rem;
+    border-radius: 999px;
+    border: 1px solid var(--cd2-line);
+    background: var(--cd2-hover);
+    color: var(--cd2-ink);
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.rpv2-tools-mode-btn:hover { border-color: #2a78d6; }
+
+/* Blue rather than the app's gold accent — matches the "you are here" dot
+   and the in-progress draw circle itself, so the button reads as "this is
+   what's currently live on the map" rather than claiming the same colour
+   the primary Schedule action below uses. */
+.rpv2-tools-mode-btn.is-armed {
+    background: rgba(42, 120, 214, 0.16);
+    border-color: #2a78d6;
+    color: #2a78d6;
+}
+
+.rpv2-tools-hint {
+    margin: 0;
+    font-size: 0.76rem;
+    line-height: 1.4;
+    color: var(--cd2-muted);
+}
+
+.rpv2-tools-selected-head {
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--cd2-line);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--cd2-muted);
+}
+
+.rpv2-tools-list { padding-top: 0.2rem; }
+
+/* The schedule toggle is a plain .is-primary button (.rpv2-panel-actions in
+   MapCanvas.css — same gold-gradient CTA every other panel's committing
+   action uses), so it fills this footer the same way "Create Route" used
+   to rather than sitting undersized in a mostly-empty bar. */
+.rpv2-tools-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+/* Stop count on the schedule button — inline, not AreaScheduleTrigger's
+   floating corner dot, since that only reads well pinned to a small square
+   icon, not this row-height text button. */
+.rpv2-tools-schedule-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(26, 26, 25, 0.22);
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}

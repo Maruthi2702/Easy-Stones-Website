@@ -1,0 +1,118 @@
+/**
+ * Route planner — full-bleed map, every control floats over it. The shell
+ * height mirrors .sales-main's own budget (SalesPage.css) exactly, since
+ * this screen has no internal header row or padding of its own to account
+ * for — the map fills the whole tab.
+ */
+
+.rpv2-outer {
+    height: calc(100vh - 82px);
+    height: calc(100dvh - 82px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-primary, #121212);
+}
+
+.rpv2-empty-shell {
+    max-width: 46ch;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--text-secondary, #b0b0b0);
+    padding: 2rem;
+}
+
+.rpv2-empty-shell h3 { margin: 0; color: var(--text-primary, #ffffff); }
+.rpv2-empty-shell p { margin: 0; line-height: 1.55; font-size: 0.85rem; }
+
+.rpv2-empty-shell code {
+    font-size: 0.74rem;
+    background: rgba(127, 127, 127, 0.18);
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+}
+
+.rpv2-shell {
+    position: relative;
+    height: calc(100vh - 82px);
+    height: calc(100dvh - 82px);
+    overflow: hidden;
+    font-family: var(--font-main, 'Inter', system-ui, sans-serif);
+    background: #121212;
+}
+
+/* Same glass-pill circular treatment as FilterButton.css's .rpv2-filter-btn
+   — kept as a plain rule here rather than a separate file since it's reused
+   as-is for the filter-panel toggle button beside it. */
+.rpv2-locate-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(28, 28, 30, 0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #b0b0b0;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.rpv2-locate-btn:hover { color: #d4af37; border-color: #d4af37; }
+.rpv2-locate-btn:active { transform: scale(0.95); }
+
+body.light-theme-active .rpv2-locate-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #161514;
+}
+
+/* Same 34px glass-circle treatment as .rpv2-locate-btn beside it, plus the
+   same "is-on" gold-accent state .rpv2-drawer-list-btn/.rpv2-lead-trigger
+   use for their own toggles, since this one stays visually armed while
+   traffic is showing rather than just flashing on click. */
+.rpv2-traffic-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(28, 28, 30, 0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #b0b0b0;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.rpv2-traffic-btn:hover { color: #ffffff; border-color: rgba(255, 255, 255, 0.32); }
+.rpv2-traffic-btn:active { transform: scale(0.95); }
+
+.rpv2-traffic-btn.is-on {
+    color: #d4af37;
+    border-color: #d4af37;
+    background: rgba(212, 175, 55, 0.14);
+}
+
+body.light-theme-active .rpv2-traffic-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #161514;
+}
+
+body.light-theme-active .rpv2-traffic-btn:hover { border-color: rgba(0, 0, 0, 0.3); }
+
+body.light-theme-active .rpv2-traffic-btn.is-on {
+    color: #8a6b1f;
+    border-color: #b08d57;
+}
+

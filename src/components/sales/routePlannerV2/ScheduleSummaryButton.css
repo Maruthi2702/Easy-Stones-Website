@@ -1,0 +1,63 @@
+.rpv2-schedule-summary {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.rpv2-schedule-summary-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(28, 28, 30, 0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #d4af37;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+
+.rpv2-schedule-summary-btn:hover { border-color: rgba(255, 255, 255, 0.32); }
+
+.rpv2-schedule-summary-popover {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    /* Opens rightward, not leftward — this sits in the drawer's left-side
+       icon wrapper, so anchoring the popover's right edge here would run it
+       off the left of the screen instead of over the drawer. */
+    left: 0;
+    min-width: 200px;
+    background: rgba(20, 20, 20, 0.96);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    padding: 0.75rem 0.85rem;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.35);
+    z-index: 30;
+}
+
+.rpv2-schedule-summary-date {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #d4af37;
+    margin-bottom: 0.4rem;
+}
+
+body.light-theme-active .rpv2-schedule-summary-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #8a6b1f;
+}
+
+body.light-theme-active .rpv2-schedule-summary-btn:hover { border-color: rgba(0, 0, 0, 0.3); }
+
+body.light-theme-active .rpv2-schedule-summary-popover {
+    background: rgba(255, 255, 255, 0.98);
+    border-color: #e1e0d9;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.18);
+}
+
+body.light-theme-active .rpv2-schedule-summary-date { color: #8a6b1f; }

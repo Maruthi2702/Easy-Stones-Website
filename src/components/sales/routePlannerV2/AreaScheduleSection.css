@@ -1,0 +1,164 @@
+/* A gold-tinted card between the panel head and the scrollable customer
+   list — in normal document flow, not position:absolute, so opening it
+   pushes the list down instead of floating over and hiding part of it. */
+.rpv2-area-schedule-section {
+    flex-shrink: 0;
+    margin: 0 1.1rem 0.9rem;
+    padding: 0.9rem 1rem 1rem;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(212, 175, 55, 0.1), rgba(212, 175, 55, 0.03));
+    border: 1px solid rgba(212, 175, 55, 0.28);
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.rpv2-area-schedule-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem 0.7rem;
+}
+
+/* Date first and full-width — it benefits most from the room (the native
+   picker needs it) and reads as the headline field; Start/Mins-per-stop,
+   both narrow, share the row underneath it. */
+.rpv2-area-schedule-field:first-child { grid-column: 1 / -1; }
+
+.rpv2-area-schedule-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.rpv2-area-schedule-field span {
+    font-size: 0.62rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #b0b0b0;
+}
+
+.rpv2-area-schedule-field input {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    border-radius: 7px;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.82rem;
+    font-family: inherit;
+    width: 100%;
+}
+
+.rpv2-area-schedule-field input:focus {
+    outline: none;
+    border-color: rgba(212, 175, 55, 0.6);
+}
+
+.rpv2-area-schedule-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.rpv2-area-schedule-summary strong {
+    color: #d4af37;
+    font-weight: 700;
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.rpv2-area-schedule-summary span {
+    font-size: 0.7rem;
+    color: #8a8a86;
+}
+
+.rpv2-area-schedule-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.76rem;
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.rpv2-area-schedule-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.rpv2-area-schedule-primary {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    background: linear-gradient(135deg, #d4af37, #dd6a58);
+    color: #1a1a19;
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 0.6rem;
+    border: none;
+    border-radius: 9px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.rpv2-area-schedule-primary:hover:not(:disabled) { filter: brightness(1.06); }
+.rpv2-area-schedule-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Icon-only — sits right beside the primary button rather than taking a
+   full text label, since "Clear" is the rare/destructive action here, not
+   the one this section exists for. */
+.rpv2-area-schedule-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: #b0b0b0;
+    border-radius: 9px;
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.rpv2-area-schedule-secondary:hover:not(:disabled) { border-color: #d03b3b; color: #d03b3b; }
+.rpv2-area-schedule-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.rpv2-area-schedule-hint {
+    margin: 0;
+    font-size: 0.74rem;
+    line-height: 1.4;
+    color: #8a8a86;
+}
+
+.rpv2-area-schedule-saved {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    font-size: 0.74rem;
+    line-height: 1.4;
+    color: #3ec93e;
+}
+
+body.light-theme-active .rpv2-area-schedule-section {
+    background: linear-gradient(180deg, rgba(212, 175, 55, 0.12), rgba(212, 175, 55, 0.03));
+    border-color: rgba(176, 141, 87, 0.4);
+}
+
+body.light-theme-active .rpv2-area-schedule-field span,
+body.light-theme-active .rpv2-area-schedule-summary span,
+body.light-theme-active .rpv2-area-schedule-hint { color: #6b6a63; }
+
+body.light-theme-active .rpv2-area-schedule-field input {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: #e1e0d9;
+    color: #161514;
+}
+
+body.light-theme-active .rpv2-area-schedule-check { color: #161514; }
+
+body.light-theme-active .rpv2-area-schedule-secondary { color: #6b6a63; }

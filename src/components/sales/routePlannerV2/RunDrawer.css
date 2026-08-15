@@ -1,0 +1,93 @@
+.rpv2-drawer {
+    position: absolute;
+    /* Flush to the left edge and rounded only on the right — a dock, not a
+       floating card — starting below .rpv2-topbar (RoutePlannerV2.css) so
+       it never overlaps the radius control up there. Anchored top+bottom
+       rather than sized to content so it reads as a fixed rail regardless
+       of how many controls end up in it. */
+    top: 4.5rem;
+    bottom: 1rem;
+    left: 0;
+    width: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.85rem 0;
+    overflow-y: auto;
+    background: rgba(20, 20, 20, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-left: none;
+    border-radius: 0 16px 16px 0;
+    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.25);
+    color: #ffffff;
+    font-family: var(--font-main, 'Inter', system-ui, sans-serif);
+    z-index: 10;
+}
+
+/* SidebarToggleButton's own CSS sets margin-right for sitting beside a title
+   in a row (see every other place it's used) — this is the one place it
+   sits alone in a centred column instead, so only the margin is overridden
+   here, scoped to this container rather than touching the shared file. */
+.rpv2-drawer .sidebar-toggle-btn {
+    margin-right: 0;
+}
+
+/* Same 34px glass-circle treatment as .rpv2-locate-btn and the other
+   areaControls icons beside it, so the icon-only controls in this column
+   read as a set. */
+.rpv2-drawer-list-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(28, 28, 30, 0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #b0b0b0;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.rpv2-drawer-list-btn:hover { border-color: rgba(255, 255, 255, 0.32); color: #ffffff; }
+
+.rpv2-drawer-list-btn.is-on {
+    color: #d4af37;
+    border-color: #d4af37;
+    background: rgba(212, 175, 55, 0.14);
+}
+
+/* ── light theme ─────────────────────────────────────────────────────────── */
+
+body.light-theme-active .rpv2-drawer {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: #e1e0d9;
+    color: #161514;
+    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.1);
+}
+
+body.light-theme-active .rpv2-drawer-list-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #161514;
+}
+
+body.light-theme-active .rpv2-drawer-list-btn:hover { border-color: rgba(0, 0, 0, 0.3); }
+
+body.light-theme-active .rpv2-drawer-list-btn.is-on {
+    color: #8a6b1f;
+    border-color: #b08d57;
+}
+
+/* ── screen sizes ────────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+    .rpv2-drawer { top: 4rem; width: 48px; gap: 0.5rem; padding: 0.6rem 0; }
+    .rpv2-drawer-list-btn { width: 30px; height: 30px; }
+}
