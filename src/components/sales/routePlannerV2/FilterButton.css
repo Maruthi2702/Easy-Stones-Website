@@ -28,13 +28,21 @@
 .rpv2-filter-bars span {
     display: block;
     height: 1.5px;
-    background: var(--accent-primary, #d4af37);
+    background: #b0b0b0;
     border-radius: 1px;
 }
 
 .rpv2-filter-bars span:nth-child(1) { width: 14px; }
 .rpv2-filter-bars span:nth-child(2) { width: 9px; }
 .rpv2-filter-bars span:nth-child(3) { width: 4px; }
+
+.rpv2-filter-btn:hover .rpv2-filter-bars span { background: #ffffff; }
+
+/* Same "is-on" gold-accent state .rpv2-drawer-list-btn/.rpv2-lead-trigger
+   use — the bars themselves need it too, not just the border/dot, or the
+   icon reads as already-filtered before a filter has actually narrowed
+   anything. */
+.rpv2-filter-btn.is-filtered .rpv2-filter-bars span { background: var(--accent-primary, #d4af37); }
 
 .rpv2-filter-dot {
     position: absolute;
@@ -52,6 +60,18 @@ body.light-theme-active .rpv2-filter-btn {
     border-color: rgba(0, 0, 0, 0.12);
 }
 
+body.light-theme-active .rpv2-filter-bars span { background: #161514; }
+
+body.light-theme-active .rpv2-filter-btn:hover .rpv2-filter-bars span { background: #000000; }
+
+body.light-theme-active .rpv2-filter-btn.is-filtered { border-color: #b08d57; }
+
+body.light-theme-active .rpv2-filter-btn.is-filtered .rpv2-filter-bars span,
+body.light-theme-active .rpv2-filter-dot {
+    background: #8a6b1f;
+}
+
 body.light-theme-active .rpv2-filter-dot {
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 1);
 }
+

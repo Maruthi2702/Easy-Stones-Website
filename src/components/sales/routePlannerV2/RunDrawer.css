@@ -1,13 +1,18 @@
 .rpv2-drawer {
     position: absolute;
     /* Flush to the left edge and rounded only on the right — a dock, not a
-       floating card — starting below .rpv2-topbar (RoutePlannerV2.css) so
-       it never overlaps the radius control up there. Anchored top+bottom
-       rather than sized to content so it reads as a fixed rail regardless
-       of how many controls end up in it. */
-    top: 4.5rem;
-    bottom: 1rem;
+       floating card. Height is intrinsic (sized to however many icons are
+       actually in it) rather than stretched to the viewport — a stretched
+       rail left a tall stripe of empty rounded background below the last
+       icon whenever the column didn't have enough controls to fill it.
+       Centred vertically (top: 50% + translateY) instead of anchored under
+       the header, so it sits mid-side regardless of icon count. max-height/
+       overflow-y stay as a safety net for a short viewport or a column that
+       grows past what fits, not the normal case. */
+    top: 50%;
     left: 0;
+    transform: translateY(-50%);
+    max-height: calc(100% - 2rem);
     width: 56px;
     display: flex;
     flex-direction: column;
@@ -88,6 +93,6 @@ body.light-theme-active .rpv2-drawer-list-btn.is-on {
 /* ── screen sizes ────────────────────────────────────────────────────────── */
 
 @media (max-width: 720px) {
-    .rpv2-drawer { top: 4rem; width: 48px; gap: 0.5rem; padding: 0.6rem 0; }
+    .rpv2-drawer { max-height: calc(100% - 2rem); width: 48px; gap: 0.5rem; padding: 0.6rem 0; }
     .rpv2-drawer-list-btn { width: 30px; height: 30px; }
 }
