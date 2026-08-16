@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GoogleMap, Marker, DirectionsRenderer, TrafficLayer } from '@react-google-maps/api';
-import { MapPin, Phone, Mail, AlertTriangle, Calendar, X, Sparkles, Pencil, Trash2, Copy, Check } from 'lucide-react';
-import { FALLBACK_CENTER, RECENCY_DARK_TEXT, LEAD_PIN_COLOR, whenLabel, real, nameOf, isPlaceholderEmail } from './helpers';
+import { MapPin, Phone, Mail, AlertTriangle, Calendar, X, Sparkles, Pencil, Trash2, Copy, Check, Lasso, LocateFixed } from 'lucide-react';
+import { FALLBACK_CENTER, RECENCY_DARK_TEXT, LEAD_PIN_COLOR, OPEN_PIN_COLOR, whenLabel, real, nameOf, isPlaceholderEmail } from './helpers';
 import { isRoutablePrecision, milesBetween, pointInPolygon } from '../../../utils/routePlan';
 import FilterPanel from './FilterPanel';
 import ToolsPanel from './ToolsPanel';
+import CustomersPanel from './CustomersPanel';
+import SchedulePanel from './SchedulePanel';
 import './MapCanvas.css';
 
 const hexToRgba = (hex, alpha) => {
@@ -98,6 +100,7 @@ const MapCanvas = ({
     isLoaded, loadError,
     showTraffic,
     origin,
+    myPosition,
     unselectedPins, orderById,
     info, onSelectPin, onCloseInfo, onEditCustomer, loadingEditCustomer, onDeleteCustomer,
     leadResults, leadInfo, onSelectLead, onCloseLeadInfo, onSaveLead, savingLead, canSaveLead, leadError,
@@ -108,12 +111,15 @@ const MapCanvas = ({
     salesRepOptions, activeSalesReps, repCounts, onToggleSalesRep, onToggleAllSalesReps,
     date, onDateChange, startAt, onStartAtChange, stopMinutes, onStopMinutesChange,
     day, summary, onScheduleDay, saved,
-    scheduled, can, saving, onAddOne, onRemoveOne, onOpenCustomer,
+    scheduled, can, saving, onAddOne, onRemoveOne, onOpenCustomer, onAddVisit, onAddResource,
     loading, pinsCount, error,
     onMapClick,
-    showToolsPanel, onCloseToolsPanel, drawMode, onArmRadius, onArmLasso, onRadiusSelect, onLassoSelect,
+    showToolsPanel, onCloseToolsPanel, drawMode, onArmRadius, onArmLasso, onLocateMe, onRadiusSelect, onLassoSelect,
     selectionShape,
-    selectedPins, onRemoveSelectedPoint
+    selectedPins, onRemoveSelectedPoint, onReorderStop,
+    showCustomersPanel, onCloseCustomersPanel, allCustomers, onSelectCustomer,
+    showSchedulePanel, onCloseSchedulePanel, visitsByDate, onSelectScheduledVisit, onScheduleMonthChange, onDeleteScheduledVisit, scheduleMonthLoading,
+    customerOptions, onSaveScheduledVisit, savingVisit
 }) => {
     // The Tools panel's draw-gesture overlays — independent Circle/Polygon
     // instances, live only while drawMode is 'radius'/'lasso' and a drag is
@@ -374,19 +380,21 @@ const MapCanvas = ({
         selectionShapeRef.current = null;
     }, []);
 
-    // Requests the actual driving route through `day`'s stops, in the same
-    // order as their numbered pins (day[i].order === orderById's values —
-    // both come from the same orderStops() call upstream). optimizeWaypoints
-    // is off on purpose: that order is already ours, and letting Google
-    // re-sequence the waypoints would desync the line from the numbers
-    // sitting on top of it.
-    useEffect(() => {
-        if (!mapReady || !window.google) { setDirections(null); return; }
-
-        if (day.length === 0 || (!origin && day.length < 2)) {
-            setDirections(null);
-            return;
-        }
+    // What a Directions request for `day`'s stops would look like — a plain
+    // derived value, computed synchronously from props/state alone, kept
+    // separate from the effect below that actually fires it. This is what
+    // lets that effect skip ever calling setDirections(null) itself to
+    // reflect the params going invalid (day cleared, too few stops, over
+    // the API's waypoint cap): with the render gated on this instead (see
+    // the DirectionsRenderer below), a stale `directions` value sitting
+    // unused in state when the request is null is harmless — nothing ever
+    // reads it — rather than needing to be actively reset. Same order as
+    // the numbered pins (day[i].order === orderById's values, both from the
+    // same orderStops() call upstream); optimizeWaypoints is off on purpose
+    // — that order is already ours, and letting Google re-sequence the
+    // waypoints would desync the line from the numbers sitting on top of it.
+    const directionsRequest = useMemo(() => {
+        if (day.length === 0 || (!origin && day.length < 2)) return null;
 
         const routeOrigin = origin || day[0].coordinates;
         const routeStops = origin ? day : day.slice(1);
@@ -396,13 +404,20 @@ const MapCanvas = ({
         // The Directions API caps a single request at 25 points (origin +
         // destination + 23 waypoints) — bail instead of silently dropping
         // stops off an unusually large day.
-        if (waypoints.length > 23) { setDirections(null); return; }
+        if (waypoints.length > 23) return null;
+
+        return { origin: routeOrigin, destination, waypoints };
+    }, [day, origin]);
+
+    // The only genuinely async part — everything about whether to request
+    // at all already lives in directionsRequest above, so this effect's one
+    // job is making the call and recording its result.
+    useEffect(() => {
+        if (!mapReady || !window.google || !directionsRequest) return;
 
         let cancelled = false;
         new window.google.maps.DirectionsService().route({
-            origin: routeOrigin,
-            destination,
-            waypoints,
+            ...directionsRequest,
             optimizeWaypoints: false,
             travelMode: window.google.maps.TravelMode.DRIVING
         }, (result, status) => {
@@ -410,7 +425,7 @@ const MapCanvas = ({
         });
 
         return () => { cancelled = true; };
-    }, [mapReady, day, origin]);
+    }, [mapReady, directionsRequest]);
 
     // Builds this pin's icon. Stable across renders unless colors/theme
     // actually change, so the clustering effect below can depend on it
@@ -429,10 +444,32 @@ const MapCanvas = ({
     // gives an icon its "printed, deliberate" look on a map (see how every
     // pin in the Badger Maps reference has one, regardless of anything else
     // about the app around it).
-    const markerIcon = useCallback((pin, order) => {
+    const markerIcon = useCallback((pin, order, isOpen = false) => {
         if (!window.google) return undefined;
         const inRoute = Boolean(order);
         const ring = '#20201f';
+
+        // The one pin whose detail panel (info, below) is currently open —
+        // same silhouette as a route stop, but a fixed coral fill and a
+        // hollow ring instead of a stop number, so it reads as "this is the
+        // one you have open" rather than blending into whatever recency
+        // colour or stop number it would otherwise be wearing. Takes
+        // priority over both the plain-dot and numbered-pin cases below
+        // regardless of `order` — closing the panel (isOpen goes back to
+        // false) falls straight through to whichever of those this pin
+        // would normally render as.
+        if (isOpen) {
+            const size = 34;
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
+                `<path d="${PIN_PATH}" fill="${OPEN_PIN_COLOR}" stroke="${ring}" stroke-width="1.4"/>` +
+                `<circle cx="12" cy="9" r="3.3" fill="none" stroke="#ffffff" stroke-width="1.8"/>` +
+                `</svg>`;
+            return {
+                url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+                scaledSize: new window.google.maps.Size(size, size),
+                anchor: new window.google.maps.Point(size / 2, size * (22 / 24))
+            };
+        }
 
         if (!inRoute) {
             return {
@@ -489,6 +526,39 @@ const MapCanvas = ({
                 </div>
             )}
 
+            {/* Mobile-only shortcuts (see .rpv2-map-fabs), floating directly
+                on the map the way a phone map app puts them, for a
+                one-handed reach instead of a trip to the drawer. Lasso only
+                arms drawing here — it deliberately does NOT open Tools, so
+                a rep can trace the outline first and open Tools afterward to
+                review the selection and schedule it, rather than the panel
+                popping up (and eating map space) before they've drawn
+                anything. Desktop already has both one click away in the
+                side rail, so this stays hidden there. */}
+            {isLoaded && !loadError && (
+                <div className="rpv2-map-fabs">
+                    <button
+                        type="button"
+                        className={`rpv2-map-fab ${drawMode === 'lasso' ? 'is-on' : ''}`}
+                        onClick={onArmLasso}
+                        title="Lasso-select customers"
+                        aria-label="Lasso-select customers"
+                        aria-pressed={drawMode === 'lasso'}
+                    >
+                        <Lasso size={20} />
+                    </button>
+                    <button
+                        type="button"
+                        className="rpv2-map-fab"
+                        onClick={onLocateMe}
+                        title="Centre the map on my location"
+                        aria-label="Centre the map on my location"
+                    >
+                        <LocateFixed size={20} />
+                    </button>
+                </div>
+            )}
+
             {isLoaded && !loadError && (
                 <GoogleMap
                     mapContainerClassName={`rpv2-map-canvas ${drawMode ? 'is-drawing' : ''}`}
@@ -498,9 +568,9 @@ const MapCanvas = ({
                     onClick={onMapClick}
                     options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
                 >
-                    {origin && (
+                    {(myPosition || origin) && (
                         <Marker
-                            position={origin}
+                            position={myPosition || origin}
                             title="You"
                             icon={{
                                 path: window.google.maps.SymbolPath.CIRCLE,
@@ -519,13 +589,19 @@ const MapCanvas = ({
                         below it. */}
                     {showTraffic && <TrafficLayer />}
 
-                    {/* suppressMarkers: we already draw our own numbered/
-                        recency-coloured pins for every stop; Google's own
-                        A/B/C markers would just duplicate them.
-                        preserveViewport: a route recomputing (adding/
-                        dropping a stop) shouldn't yank the map back to fit
-                        the new line — the rep's own pan/zoom wins. */}
-                    {directions && (
+                    {/* Gated on directionsRequest too, not just directions —
+                        directions itself only ever updates from inside the
+                        effect's async callback, so the instant the request
+                        goes invalid (day cleared, etc.) it would otherwise
+                        still be holding the previous route's stale result
+                        for a render or two. suppressMarkers: we already draw
+                        our own numbered/recency-coloured pins for every
+                        stop; Google's own A/B/C markers would just
+                        duplicate them. preserveViewport: a route
+                        recomputing (adding/dropping a stop) shouldn't yank
+                        the map back to fit the new line — the rep's own
+                        pan/zoom wins. */}
+                    {directions && directionsRequest && (
                         <DirectionsRenderer
                             directions={directions}
                             options={{
@@ -542,7 +618,7 @@ const MapCanvas = ({
                             <Marker
                                 key={pin._id}
                                 position={pin.coordinates}
-                                icon={markerIcon(pin, order)}
+                                icon={markerIcon(pin, order, info?._id === pin._id)}
                                 title={`${nameOf(pin)} — ${pin.recency.label}`}
                                 onClick={() => onSelectPin(pin)}
                             />
@@ -557,7 +633,7 @@ const MapCanvas = ({
                         <Marker
                             key={pin._id}
                             position={pin.coordinates}
-                            icon={markerIcon(pin)}
+                            icon={markerIcon(pin, undefined, info?._id === pin._id)}
                             title={`${nameOf(pin)} — ${pin.recency.label}`}
                             onClick={() => onSelectPin(pin)}
                         />
@@ -647,7 +723,7 @@ const MapCanvas = ({
                                 you'd actually be calling/emailing at that number
                                 and address, so it reads better beside them. */}
                             {real(info.contactName) && real(info.company) && (
-                                <div className="rpv2-panel-sub">{real(info.contactName)}</div>
+                                <div className="rpv2-panel-contact-name">{real(info.contactName)}</div>
                             )}
                             {real(info.phone) && (
                                 <div className="rpv2-contact-row">
@@ -766,6 +842,21 @@ const MapCanvas = ({
                         )}
                     </div>
 
+                    {(onAddVisit || onAddResource) && (
+                        <div className="rpv2-panel-actions">
+                            {onAddVisit && (
+                                <button type="button" onClick={() => onAddVisit(info)}>
+                                    Add visit
+                                </button>
+                            )}
+                            {onAddResource && (
+                                <button type="button" onClick={() => onAddResource(info)}>
+                                    Add resource
+                                </button>
+                            )}
+                        </div>
+                    )}
+
                     <div className="rpv2-panel-actions">
                         {scheduled.has(String(info._id)) ? (
                             <button className="is-drop" disabled={saving} onClick={() => onRemoveOne(info)}>
@@ -851,6 +942,7 @@ const MapCanvas = ({
                     orderById={orderById}
                     colors={colors}
                     onRemovePoint={onRemoveSelectedPoint}
+                    onReorderStop={onReorderStop}
                     onSelectPin={onSelectPin}
                     can={can}
                     saving={saving}
@@ -872,6 +964,14 @@ const MapCanvas = ({
                 />
             )}
 
+            {showCustomersPanel && (
+                <CustomersPanel
+                    onClose={onCloseCustomersPanel}
+                    pins={allCustomers}
+                    onSelectCustomer={onSelectCustomer}
+                />
+            )}
+
             {showFilterPanel && (
                 <FilterPanel
                     onClose={onCloseFilterPanel}
@@ -890,6 +990,20 @@ const MapCanvas = ({
                     repCounts={repCounts}
                     onToggleSalesRep={onToggleSalesRep}
                     onToggleAllSalesReps={onToggleAllSalesReps}
+                />
+            )}
+
+            {showSchedulePanel && (
+                <SchedulePanel
+                    onClose={onCloseSchedulePanel}
+                    visitsByDate={visitsByDate}
+                    onSelectVisit={onSelectScheduledVisit}
+                    onMonthChange={onScheduleMonthChange}
+                    onDeleteVisit={onDeleteScheduledVisit}
+                    monthLoading={scheduleMonthLoading}
+                    customerOptions={customerOptions}
+                    onSaveVisit={onSaveScheduledVisit}
+                    savingVisit={savingVisit}
                 />
             )}
         </div>

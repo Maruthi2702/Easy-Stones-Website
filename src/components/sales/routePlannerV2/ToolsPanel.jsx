@@ -1,5 +1,5 @@
-import React from 'react';
-import { Target, Circle, Lasso, X, CalendarPlus, ChevronUp } from 'lucide-react';
+import React, { useState } from 'react';
+import { Target, Circle, Lasso, X, CalendarPlus, ChevronUp, GripVertical } from 'lucide-react';
 import { nameOf } from './helpers';
 import AreaScheduleSection from './AreaScheduleSection';
 import './ToolsPanel.css';
@@ -32,12 +32,19 @@ import './ToolsPanel.css';
 const ToolsPanel = ({
     onClose,
     mode, onArmRadius, onArmLasso,
-    selectedPins, orderById, colors, onRemovePoint, onSelectPin,
+    selectedPins, orderById, colors, onRemovePoint, onReorderStop, onSelectPin,
     can, saving,
     date, onDateChange, startAt, onStartAtChange, stopMinutes, onStopMinutesChange,
     day, summary, onScheduleDay, replaceExisting, onReplaceExistingChange, onClearPlannedDay, saved,
     scheduleOpen, onToggleSchedule
-}) => (
+}) => {
+    // Which stop is mid-drag, and which row it's currently hovering over —
+    // both null outside a drag. Local to this panel: the drop only needs to
+    // report the two ids involved (see onReorderStop), not the whole gesture.
+    const [dragId, setDragId] = useState(null);
+    const [overId, setOverId] = useState(null);
+
+    return (
     <div className="rpv2-panel" data-dialog="tools">
         <div className="rpv2-panel-head">
             <div className="rpv2-panel-head-top">
@@ -90,31 +97,71 @@ const ToolsPanel = ({
                 list. */}
             {[...selectedPins]
                 .sort((a, b) => (orderById.get(a._id) ?? Infinity) - (orderById.get(b._id) ?? Infinity))
-                .map(pin => (
-                <div key={pin._id} className="rpv2-panel-list-row">
-                    <span className="rpv2-panel-list-dot" style={{ background: colors[pin.recency.key] }} aria-hidden="true" />
+                .map(pin => {
+                    // Only routed stops (the ones a "Stop N" badge shows for)
+                    // are draggable — a pin orderStops couldn't place has no
+                    // position in the day to drop it into.
+                    const canDrag = Boolean(onReorderStop) && orderById.has(pin._id);
+                    return (
                     <div
-                        className="rpv2-panel-list-body"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => onSelectPin(pin, 'tools')}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPin(pin, 'tools'); } }}
+                        key={pin._id}
+                        className={[
+                            'rpv2-panel-list-row',
+                            dragId === pin._id ? 'is-dragging' : '',
+                            overId === pin._id && dragId && dragId !== pin._id ? 'is-drop-target' : ''
+                        ].filter(Boolean).join(' ')}
+                        draggable={canDrag}
+                        onDragStart={(e) => {
+                            if (!canDrag) return;
+                            e.dataTransfer.setData('text/plain', pin._id);
+                            e.dataTransfer.effectAllowed = 'move';
+                            setDragId(pin._id);
+                        }}
+                        onDragEnd={() => { setDragId(null); setOverId(null); }}
+                        onDragOver={(e) => {
+                            if (!canDrag || !dragId || dragId === pin._id) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                            setOverId(pin._id);
+                        }}
+                        onDragLeave={() => setOverId(prev => (prev === pin._id ? null : prev))}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            if (!canDrag || !dragId || dragId === pin._id) return;
+                            onReorderStop(dragId, pin._id);
+                            setDragId(null);
+                            setOverId(null);
+                        }}
                     >
-                        <span className="rpv2-panel-list-name">{nameOf(pin)}</span>
-                        <span className="rpv2-panel-list-meta">{[pin.city, pin.customerType].filter(Boolean).join(' · ')}</span>
+                        {canDrag && (
+                            <span className="rpv2-panel-list-drag" aria-hidden="true" title="Drag to reorder">
+                                <GripVertical size={14} />
+                            </span>
+                        )}
+                        <span className="rpv2-panel-list-dot" style={{ background: colors[pin.recency.key] }} aria-hidden="true" />
+                        <div
+                            className="rpv2-panel-list-body"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => onSelectPin(pin, 'tools')}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPin(pin, 'tools'); } }}
+                        >
+                            <span className="rpv2-panel-list-name">{nameOf(pin)}</span>
+                            <span className="rpv2-panel-list-meta">{[pin.city, pin.customerType].filter(Boolean).join(' · ')}</span>
+                        </div>
+                        {orderById.has(pin._id) && <span className="rpv2-panel-stop">Stop {orderById.get(pin._id)}</span>}
+                        <button
+                            type="button"
+                            className="rpv2-panel-icon-btn is-danger"
+                            onClick={() => onRemovePoint(pin)}
+                            title="Remove from selection"
+                            aria-label={`Remove ${nameOf(pin)} from the selection`}
+                        >
+                            <X size={14} />
+                        </button>
                     </div>
-                    {orderById.has(pin._id) && <span className="rpv2-panel-stop">Stop {orderById.get(pin._id)}</span>}
-                    <button
-                        type="button"
-                        className="rpv2-panel-icon-btn is-danger"
-                        onClick={() => onRemovePoint(pin)}
-                        title="Remove from selection"
-                        aria-label={`Remove ${nameOf(pin)} from the selection`}
-                    >
-                        <X size={14} />
-                    </button>
-                </div>
-            ))}
+                    );
+                })}
         </div>
 
         {scheduleOpen && (
@@ -150,6 +197,7 @@ const ToolsPanel = ({
             </button>
         </div>
     </div>
-);
+    );
+};
 
 export default ToolsPanel;

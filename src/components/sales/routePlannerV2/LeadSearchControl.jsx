@@ -34,9 +34,19 @@ const LeadSearchControl = ({ query, onQueryChange, onSearch, searching, recent, 
         const el = rootRef.current;
         if (!el) return;
         const rect = el.getBoundingClientRect();
-        const width = window.innerWidth <= 720 ? 220 : 260;
+        const isMobile = window.innerWidth <= 720;
+        const width = isMobile ? 220 : 260;
         const left = Math.min(rect.right + 10, window.innerWidth - width - 8);
-        setCoords({ left, top: rect.top - 8, width });
+        if (isMobile) {
+            // Below 720px the run drawer docks along the bottom edge
+            // (RunDrawer.css), so the trigger sits near the bottom of the
+            // screen — anchoring from `top` the way the desktop side-rail
+            // case does would push most of this flyout off-screen below the
+            // viewport. Anchor from the bottom instead so it opens upward.
+            setCoords({ left, bottom: window.innerHeight - rect.top + 8, width });
+        } else {
+            setCoords({ left, top: rect.top - 8, width });
+        }
     }, []);
 
     useEffect(() => {
@@ -93,7 +103,12 @@ const LeadSearchControl = ({ query, onQueryChange, onSearch, searching, recent, 
                 <div
                     ref={flyoutRef}
                     className="rpv2-lead-flyout"
-                    style={{ position: 'fixed', left: coords.left, top: coords.top, width: coords.width }}
+                    style={{
+                        position: 'fixed',
+                        left: coords.left,
+                        width: coords.width,
+                        ...(coords.top != null ? { top: coords.top } : { bottom: coords.bottom })
+                    }}
                 >
                     <div className="rpv2-lead-row">
                         <Search size={14} className="rpv2-lead-icon" aria-hidden="true" />

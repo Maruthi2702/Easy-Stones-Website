@@ -1,0 +1,44 @@
+/* Sits inside .rpv2-panel-head (MapCanvas.css), below the title row, rather
+   than in .rpv2-panel-list above the rows — always visible while scrolling
+   the list beneath it, same idea as a sticky search bar. Uses the panel's
+   own --cd2-* tokens (this renders inside .rpv2-map, unlike LeadSearchControl's
+   portaled flyout, which can't reach them and hardcodes colors instead). */
+.rpv2-customers-search-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    background: var(--cd2-hover);
+    border: 1px solid var(--cd2-line);
+}
+
+.rpv2-customers-search-icon { color: var(--cd2-muted); flex-shrink: 0; }
+
+.rpv2-customers-search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    outline: none;
+    color: var(--cd2-ink);
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+
+.rpv2-customers-search-input::placeholder { color: var(--cd2-muted); }
+
+.rpv2-customers-search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--cd2-muted);
+    cursor: pointer;
+    padding: 0.15rem;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.rpv2-customers-search-clear:hover { color: var(--cd2-ink); background: var(--cd2-line); }

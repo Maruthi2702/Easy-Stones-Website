@@ -554,7 +554,12 @@ const SalesPage = () => {
     const handleSyncGoogleCalendar = async () => {
         try {
             setIsSyncingGoogle(true);
-            const res = await authFetch(`${API_URL}/api/auth/google/calendar/sync`, {
+            // tz: the server builds each outbound event's UTC instant from
+            // this — schedule.startTime is a naive wall-clock string with no
+            // zone of its own, so without it the server would read "9:00"
+            // as 9:00 in ITS OWN zone (UTC) rather than the rep's, landing
+            // the event hours off once it reaches their phone.
+            const res = await authFetch(`${API_URL}/api/auth/google/calendar/sync?tz=${encodeURIComponent(viewerTimeZone)}`, {
                 method: 'POST'
             });
             if (res.ok) {
@@ -663,7 +668,11 @@ const SalesPage = () => {
                     appleId: icloudAppleId,
                     appSpecificPassword: icloudAppSpecificPassword,
                     calendarUrl: selectedCal.url,
-                    calendarName: selectedCal.name
+                    calendarName: selectedCal.name,
+                    // Picking a calendar here also triggers this connection's
+                    // first sync cycle server-side — same tz reasoning as
+                    // handleSyncICloudCalendar's own query param.
+                    tz: viewerTimeZone
                 })
             });
             let data = {};
@@ -698,7 +707,8 @@ const SalesPage = () => {
     const handleSyncICloudCalendar = async () => {
         try {
             setIsSyncingICloud(true);
-            const res = await authFetch(`${API_URL}/api/auth/icloud/sync`, {
+            // tz: same reasoning as handleSyncGoogleCalendar's own tz param.
+            const res = await authFetch(`${API_URL}/api/auth/icloud/sync?tz=${encodeURIComponent(viewerTimeZone)}`, {
                 method: 'POST'
             });
             if (res.ok) {
@@ -2290,6 +2300,53 @@ const SalesPage = () => {
         setShowResourceModal(true);
     };
 
+    // Route planner's info panel triggers these for whichever pin is open.
+    // Takes the pin itself (company/contactName included) rather than just
+    // an id — `customers` here is the Customers tab's current page, not the
+    // full directory, so looking a route-planner pin up in it would miss
+    // most customers and silently blank the resource's Client label.
+    const handleAddVisitForPin = (pin) => {
+        setEditingVisit(null);
+        setIsViewingVisit(false);
+
+        const localDate = formatForDateInput(new Date());
+
+        setVisitForm({
+            date: localDate,
+            purpose: 'Scheduled in Person Sales Meeting',
+            notes: '',
+            outcome: '',
+            followUp: '',
+            followUpDate: '',
+            managerComment: '',
+            headquartersComment: '',
+            image: [],
+            customerId: pin?._id || ''
+        });
+        setShowVisitModal(true);
+    };
+    const handleAddResourceForPin = (pin) => {
+        setEditingResource(null);
+        setIsViewingResource(false);
+        setImagePreview(null);
+
+        setResourceForm({
+            title: '',
+            date: formatForDateInput(new Date()),
+            customerId: pin?._id || '',
+            customer: pin ? (pin.company || pin.contactName || '') : '',
+            location: '',
+            resourceType: '',
+            image: [],
+            description: '',
+            notes: '',
+            status: 'Active',
+            url: '',
+            uploadedBy: ''
+        });
+        setShowResourceModal(true);
+    };
+
 
     const handleDeleteVisit = async (visitId, customerId = null) => {
         setDeleteConfirmation({
@@ -3203,6 +3260,8 @@ const SalesPage = () => {
                                 theme={theme}
                                 isActive={crmTab === 'route_planner'}
                                 onOpenCustomer={(id) => handleSelectCustomer({ _id: id }, 'route_planner')}
+                                onAddVisit={handleAddVisitForPin}
+                                onAddResource={handleAddResourceForPin}
                                 sidebarToggle={(!isSidebarOpen || isMobile) ? (
                                     <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
                                 ) : null}

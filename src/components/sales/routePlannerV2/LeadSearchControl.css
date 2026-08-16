@@ -36,7 +36,7 @@
    max, .custom-select-popover in CustomSelect.css) for the same reason:
    once portaled, this is a DOM sibling of every modal overlay, not a
    descendant, so stacking above one is no longer automatic — do not lower
-   this without grepping every z-index in src/**/*.css first. */
+   this without grepping every z-index in the app's CSS files first. */
 .rpv2-lead-flyout {
     background: rgba(20, 20, 20, 0.96);
     backdrop-filter: blur(8px);

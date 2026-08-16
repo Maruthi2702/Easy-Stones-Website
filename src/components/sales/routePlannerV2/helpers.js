@@ -25,6 +25,13 @@ export const RECENCY_DARK_TEXT = new Set(['overdue', 'due']);
 
 export const FALLBACK_CENTER = { lat: 47.6062, lng: -122.3321 };
 
+// The one pin whose detail panel (.rpv2-panel[data-dialog="customer"]) is
+// currently open — a warm coral, fixed regardless of theme/recency for the
+// same reason LEAD_PIN_COLOR below is: it has to read as its own state
+// against every recency color and against the origin's blue, not blend into
+// whichever one the pin would otherwise be wearing.
+export const OPEN_PIN_COLOR = '#e2543f';
+
 export const pad = (n) => String(n).padStart(2, '0');
 
 export const todayKey = (d = new Date()) =>
@@ -46,11 +53,52 @@ export const whenLabel = (startTime) => {
     });
 };
 
+/** A month's calendar cells for SchedulePanel: one entry per grid square,
+ * `null` for the blanks before the 1st (so every week column stays aligned
+ * to its weekday, Sunday-first), a real Date for every day of the month. */
+export const buildMonthGrid = (monthDate) => {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const startWeekday = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < startWeekday; i += 1) cells.push(null);
+    for (let day = 1; day <= daysInMonth; day += 1) cells.push(new Date(year, month, day));
+    return cells;
+};
+
 export const real = (value) => (isFillerName(value) ? '' : String(value).trim());
 
 export const nameOf = (pin) => real(pin.company) || real(pin.contactName) || 'Unknown';
 
 export { isPlaceholderEmail };
+
+/** CustomersPanel's directory search: name/city/sales-rep substring match,
+ * name-starts-with ranked ahead of a mid-string hit (so typing "sea" surfaces
+ * "Seattle Stone Co" above "Northwest Seating"), alphabetical after that. An
+ * empty query returns every pin, alphabetically — same shape either way, so
+ * the panel doesn't need a separate "browse all" branch from "search". */
+export const searchCustomerPins = (pins, query = '') => {
+    const q = query.trim().toLowerCase();
+    const matches = q
+        ? pins.filter(p => {
+            const name = nameOf(p).toLowerCase();
+            const city = real(p.city).toLowerCase();
+            const rep = real(p.salesRepName).toLowerCase();
+            return name.includes(q) || city.includes(q) || rep.includes(q);
+        })
+        : pins;
+    return matches.slice().sort((a, b) => {
+        const an = nameOf(a).toLowerCase();
+        const bn = nameOf(b).toLowerCase();
+        if (q) {
+            const aStarts = an.startsWith(q) ? 0 : 1;
+            const bStarts = bn.startsWith(q) ? 0 : 1;
+            if (aStarts !== bStarts) return aStarts - bStarts;
+        }
+        return an.localeCompare(bn);
+    });
+};
 
 // ── lead generation (search-this-area → save as a Customer) ────────────────
 

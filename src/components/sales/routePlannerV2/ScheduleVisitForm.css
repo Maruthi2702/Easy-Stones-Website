@@ -1,0 +1,53 @@
+/* SchedulePanel swaps its whole body to this form (see ScheduleVisitForm.jsx
+   for why) — it fills the same flex space the calendar+visit-list normally
+   occupy, so it needs to be a flex column itself with its own scroll,
+   rather than relying on .rpv2-panel's outer scroll. */
+.rpv2-schedule-form {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.rpv2-schedule-form-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.rpv2-schedule-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.rpv2-schedule-form-field > span {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--cd2-muted);
+}
+
+.rpv2-schedule-form-notes {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--cd2-line);
+    border-radius: 8px;
+    background: var(--cd2-hover);
+    color: var(--cd2-ink);
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    resize: vertical;
+}
+
+.rpv2-schedule-form-notes::placeholder { color: var(--cd2-muted); }
+.rpv2-schedule-form-notes:focus { outline: none; border-color: #d4af37; }
+
+.rpv2-schedule-form-actions { flex-shrink: 0; }

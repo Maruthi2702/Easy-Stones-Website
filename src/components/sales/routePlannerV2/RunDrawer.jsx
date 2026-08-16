@@ -1,5 +1,5 @@
 import React from 'react';
-import { Target } from 'lucide-react';
+import { Target, Calendar, Users } from 'lucide-react';
 import './RunDrawer.css';
 
 /**
@@ -22,7 +22,10 @@ import './RunDrawer.css';
  */
 const RunDrawer = ({
     sidebarToggle,
+    filterControl,
     showToolsPanel, onToggleToolsPanel,
+    showCustomersPanel, onToggleCustomersPanel,
+    showSchedulePanel, onToggleSchedulePanel,
     areaControls
 }) => (
     <nav className="rpv2-drawer" aria-label="Map controls">
@@ -33,6 +36,11 @@ const RunDrawer = ({
             .rpv2-drawer's own CSS below adjusts its margin for this column,
             not the component itself. */}
         {sidebarToggle}
+
+        {/* FilterButton, pulled out of areaControls so it sits second in the
+            column/row (Dashboard, Filter, Tools, Customers, Calendar) instead
+            of after Tools/Calendar where areaControls used to render it. */}
+        {filterControl}
 
         {/* Opens the Tools panel — draw a Radius or Lasso to build up a
             selection, view/reorder it, and schedule or bulk-update it from
@@ -47,6 +55,39 @@ const RunDrawer = ({
             aria-pressed={showToolsPanel}
         >
             <Target size={16} />
+        </button>
+
+        {/* Opens Customers — a searchable directory of every customer on
+            the map (name, city, sales rep), not just whatever's currently
+            selected or filtered in Tools. A second lens onto the same pins
+            the map already has, same relationship ToolsPanel/SchedulePanel
+            have to their own underlying data. */}
+        <button
+            type="button"
+            className={`rpv2-drawer-list-btn ${showCustomersPanel ? 'is-on' : ''}`}
+            onClick={onToggleCustomersPanel}
+            title="Customers — search every customer by name, city, or rep"
+            aria-label="Customers"
+            aria-pressed={showCustomersPanel}
+        >
+            <Users size={16} />
+        </button>
+
+        {/* Opens Schedule — a month calendar plus that day's scheduled
+            visits, a read-only lens on the same /api/schedule data Tools
+            writes to. On every screen size, unlike the map's own Lasso/
+            locate shortcuts (MapCanvas's .rpv2-map-fabs, mobile only) —
+            this is a nav item in its own right, not a shortcut for
+            something already one click away elsewhere. */}
+        <button
+            type="button"
+            className={`rpv2-drawer-list-btn ${showSchedulePanel ? 'is-on' : ''}`}
+            onClick={onToggleSchedulePanel}
+            title="Schedule — your calendar and scheduled visits"
+            aria-label="Schedule"
+            aria-pressed={showSchedulePanel}
+        >
+            <Calendar size={16} />
         </button>
 
         {areaControls}

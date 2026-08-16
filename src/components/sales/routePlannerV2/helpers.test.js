@@ -7,8 +7,10 @@ import {
   todayKey,
   friendlyDate,
   whenLabel,
+  buildMonthGrid,
   real,
   nameOf,
+  searchCustomerPins,
   isPlaceholderEmail,
   parseAddressComponents,
   loadRecentLeadSearches,
@@ -57,6 +59,28 @@ describe('whenLabel', () => {
   });
 });
 
+describe('buildMonthGrid', () => {
+  it('pads the front of the grid with null up to the 1st\'s weekday', () => {
+    const grid = buildMonthGrid(new Date(2026, 7, 1)); // August 2026
+    const firstWeekday = new Date(2026, 7, 1).getDay();
+    expect(grid.slice(0, firstWeekday).every(cell => cell === null)).toBe(true);
+    expect(grid[firstWeekday]).toEqual(new Date(2026, 7, 1));
+  });
+
+  it('includes every day of the month in order, with no trailing padding', () => {
+    const grid = buildMonthGrid(new Date(2026, 1, 1)); // February 2026 — not a leap year
+    const days = grid.filter(Boolean);
+    expect(days).toHaveLength(28);
+    expect(days[0]).toEqual(new Date(2026, 1, 1));
+    expect(days[27]).toEqual(new Date(2026, 1, 28));
+  });
+
+  it('handles a leap-year February', () => {
+    const grid = buildMonthGrid(new Date(2028, 1, 1));
+    expect(grid.filter(Boolean)).toHaveLength(29);
+  });
+});
+
 describe('real', () => {
   it('passes through a genuine value untouched (trimmed)', () => {
     expect(real('  Acme Stone Co.  ')).toBe('Acme Stone Co.');
@@ -86,6 +110,41 @@ describe('nameOf', () => {
 
   it('falls back to "Unknown" when both are filler/blank', () => {
     expect(nameOf({ company: '', contactName: 'none' })).toBe('Unknown');
+  });
+});
+
+describe('searchCustomerPins', () => {
+  const pins = [
+    { _id: '1', company: 'Northwest Seating', city: 'Tacoma', salesRepName: 'Dana' },
+    { _id: '2', company: 'Seattle Stone Co', city: 'Seattle', salesRepName: 'Amir' },
+    { _id: '3', company: 'Acme Countertops', city: 'Bellevue', salesRepName: 'Dana' },
+    { _id: '4', contactName: 'Jane Doe', city: 'Spokane', salesRepName: 'Amir' }
+  ];
+
+  it('returns every pin, alphabetically by name, for a blank query', () => {
+    expect(searchCustomerPins(pins, '').map(p => p._id)).toEqual(['3', '4', '1', '2']);
+  });
+
+  it('matches on name, city, or sales rep, case-insensitively', () => {
+    expect(searchCustomerPins(pins, 'seattle').map(p => p._id)).toEqual(['2']);
+    expect(searchCustomerPins(pins, 'SPOKANE').map(p => p._id)).toEqual(['4']);
+    expect(searchCustomerPins(pins, 'amir').map(p => p._id)).toEqual(['4', '2']);
+  });
+
+  it('ranks a name that starts with the query above one that only contains it', () => {
+    // Both "Seattle Stone Co" and "Northwest Seating" contain "sea", but
+    // only the former starts with it.
+    expect(searchCustomerPins(pins, 'sea').map(p => p._id)).toEqual(['2', '1']);
+  });
+
+  it('returns an empty list when nothing matches', () => {
+    expect(searchCustomerPins(pins, 'nonexistent')).toEqual([]);
+  });
+
+  it('does not mutate the input array', () => {
+    const copy = [...pins];
+    searchCustomerPins(pins, 'stone');
+    expect(pins).toEqual(copy);
   });
 });
 

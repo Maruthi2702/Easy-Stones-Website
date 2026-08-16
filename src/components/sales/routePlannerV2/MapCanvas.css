@@ -37,6 +37,53 @@
     border-radius: 4px;
 }
 
+/* Mobile-only floating shortcuts (Lasso / locate) that sit directly on the
+   map — see MapCanvas.jsx for why. Hidden above 720px: RunDrawer's side
+   rail already puts both one click away there, so a second copy would just
+   be visual clutter on the wider layout. White glass regardless of theme —
+   these read as map-native controls (Google Maps' own locate button is
+   always this look) rather than app chrome, so they don't switch with
+   light/dark theme the way .rpv2-locate-btn etc. do. */
+.rpv2-map-fabs { display: none; }
+
+@media (max-width: 720px) {
+    .rpv2-map-fabs {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+        position: absolute;
+        right: 0.85rem;
+        /* Clears RunDrawer's mobile bottom bar (~52px tall) with room to
+           spare rather than sitting flush against it. */
+        bottom: 5rem;
+        z-index: 8;
+    }
+
+    .rpv2-map-fab {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.97);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+        color: #1a1a19;
+        cursor: pointer;
+        padding: 0;
+        flex-shrink: 0;
+    }
+
+    .rpv2-map-fab:active { transform: scale(0.94); }
+
+    .rpv2-map-fab.is-on {
+        background: #d4af37;
+        border-color: #d4af37;
+        color: #1a1a19;
+    }
+}
+
 .rpv2-map-empty {
     position: absolute;
     inset: 0;
@@ -166,7 +213,13 @@ body.light-theme-active .rpv2-map {
 .rpv2-panel-icon-btn {
     background: transparent;
     border: none;
-    color: var(--cd2-muted);
+    /* ink-2, not muted — this is a bare glyph with no chip/border behind it
+       (unlike the edit/delete pair below, which get a circular background),
+       so it's the icon's only source of contrast. muted (~4.5:1 on the dark
+       surface, worse once the copy buttons' own opacity was stacked on top)
+       read as barely-there, especially for the copy buttons, which have no
+       hover on a touch device to reveal them. */
+    color: var(--cd2-ink-2);
     cursor: pointer;
     display: flex;
     padding: 0.2rem;
@@ -213,7 +266,12 @@ body.light-theme-active .rpv2-map {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 1rem 1.1rem;
+    /* Top trimmed well below the other three sides — .rpv2-panel-head
+       already carries its own 1rem of bottom padding, so a full 1rem here
+       on top of that stacked with .rpv2-panel-contact/.rpv2-panel-sub's own
+       margins into a ~3rem gap before the contact name, reading as a much
+       bigger break than "company name, then who to ask for" should have. */
+    padding: 0.5rem 1.1rem 1rem;
     color: var(--cd2-ink);
     font-size: 0.85rem;
     line-height: 1.5;
@@ -283,9 +341,26 @@ body.light-theme-active .rpv2-map {
     color: #d03b3b;
 }
 
+/* Also the lead-result panel's place-types line and its "not in your CRM
+   yet" footnote (MapCanvas.jsx) — kept as a plain muted sub-line for those,
+   which is why the customer panel's contact name (below) is its own class
+   rather than a size/weight bump here. */
 .rpv2-panel-sub {
     font-size: 0.8rem;
     color: var(--cd2-ink-2);
+    margin-top: 0.15rem;
+}
+
+/* The named contact, e.g. "Natalie Collins" — used to share .rpv2-panel-sub
+   above, which made it smaller (0.8rem) and dimmer (ink-2) than the
+   phone/email rows below it (.rpv2-contact-link, 0.82rem), so the person
+   you'd actually be calling read as less important than their own phone
+   number. Sized past both the contact rows and the facts grid's dt/dd,
+   second only to the company name itself. */
+.rpv2-panel-contact-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--cd2-ink);
     margin-top: 0.15rem;
 }
 
@@ -293,7 +368,7 @@ body.light-theme-active .rpv2-map {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    margin: 0.85rem 0 0.15rem;
+    margin: 0.2rem 0 0.15rem;
 }
 
 /* Direct-child combinator — phone/email are no longer bare <a> children of
@@ -515,7 +590,7 @@ body.light-theme-active .rpv2-panel-avatar {
     padding: 0.4rem 0.6rem 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: 0.5rem;
 }
 
 .rpv2-panel-list-empty {

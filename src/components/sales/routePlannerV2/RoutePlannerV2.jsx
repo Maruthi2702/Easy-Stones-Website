@@ -10,7 +10,7 @@ import {
     hasPoint, localISO, milesBetween, pointInPolygon, RECENCY_BUCKETS, DEFAULT_DAY
 } from '../../../utils/routePlan';
 import {
-    RECENCY_COLORS, todayKey, pad, nameOf,
+    RECENCY_COLORS, todayKey, pad, nameOf, whenLabel,
     parseAddressComponents, loadRecentLeadSearches, saveRecentLeadSearch, removeRecentLeadSearch
 } from './helpers';
 import MapCanvas from './MapCanvas';
@@ -36,7 +36,7 @@ const PANEL_WIDTH = 360;
 // would otherwise need explaining away in every useMemo that calls it.
 const repKey = (salesRep) => String(salesRep || '') || 'unassigned';
 
-const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = null, sidebarToggle = null, isActive = true }) => {
+const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = null, onAddVisit = null, onAddResource = null, sidebarToggle = null, isActive = true }) => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     const { isLoaded, loadError } = useJsApiLoader({ id: 'google-map-script', googleMapsApiKey: apiKey || '' });
 
@@ -76,6 +76,10 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // add/remove via Selected Points — until the rep clears it or acts on
     // it via Mass Update or Create Route.
     const [showToolsPanel, setShowToolsPanel] = useState(false);
+    // CustomersPanel — a searchable directory over the full `pins` list
+    // (unfiltered by Filter/Tools), mutually exclusive with the other
+    // panels below the same way they already are with each other.
+    const [showCustomersPanel, setShowCustomersPanel] = useState(false);
     const [drawMode, setDrawMode] = useState(null);
     const [selectedIds, setSelectedIds] = useState(new Set());
     // The circle/lasso boundary that produced the current selectedIds — kept
@@ -84,6 +88,14 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // to "why these customers". Replaced by the next draw, cleared alongside
     // selectedIds by clearSelection.
     const [selectionShape, setSelectionShape] = useState(null);
+    // A rep's manual drag-to-reorder of the Tools panel's stop list,
+    // overriding the orderStops geography-based order below until the
+    // selection itself changes — same ids, same set, just a different
+    // sequence through them. Reset to null (falls back to the computed
+    // order) whenever selectedIds changes, since a new draw/add/remove
+    // invalidates whatever arrangement was tuned for the old set.
+    const [manualOrderIds, setManualOrderIds] = useState(null);
+    useEffect(() => { setManualOrderIds(null); }, [selectedIds]);
 
     const [info, setInfo] = useState(null);
     // Which panel (if any) showDetails hid to make room for `info` in the
@@ -93,11 +105,35 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // pin on the map.
     const [returnPanel, setReturnPanel] = useState(null);
     const [scheduled, setScheduled] = useState(new Map());
+    const [showSchedulePanel, setShowSchedulePanel] = useState(false);
+    // Every schedule row SchedulePanel's calendar has ever fetched, keyed by
+    // its own _id (not deduped by customer like `scheduled` above — a day
+    // can have several visits for different customers, or even the same
+    // one twice). Accumulates across loadScheduled's initial fetch and
+    // loadScheduleMonth's per-month fetches below, since either can cover
+    // overlapping ranges; keying by _id makes re-fetching a range that
+    // overlaps an earlier one a harmless no-op merge instead of a dupe.
+    const [scheduleById, setScheduleById] = useState(new Map());
+    // Which 'YYYY-MM' months loadScheduleMonth has already fetched, so
+    // paging SchedulePanel's calendar back and forth doesn't re-request the
+    // same range every time. A ref rather than state — it's read/written
+    // inside loadScheduleMonth itself and never drives a render on its own.
+    const fetchedMonthsRef = useRef(new Set());
+    // A count, not a boolean — paging quickly through several uncached
+    // months can leave more than one loadScheduleMonth request in flight
+    // at once, and the spinner SchedulePanel shows off this should only
+    // clear once every one of them has actually landed.
+    const [monthFetchesInFlight, setMonthFetchesInFlight] = useState(0);
+    // Separate from `saving` below — that one covers the Tools panel's
+    // route-day scheduling flow; this is ScheduleVisitForm's own
+    // add/edit save, a different action with its own button/disabled state.
+    const [savingVisit, setSavingVisit] = useState(false);
 
     const [date, setDate] = useState(todayKey());
     const [startAt, setStartAt] = useState('09:00');
     const [stopMinutes, setStopMinutes] = useState(DEFAULT_DAY.stopMinutes);
     const [origin, setOrigin] = useState(null);
+    const [myPosition, setMyPosition] = useState(null);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(null);
     const [replaceExisting, setReplaceExisting] = useState(false);
@@ -176,14 +212,60 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             );
             if (!res.ok) return;
             const rows = await res.json();
+            const list = Array.isArray(rows) ? rows : [];
             const byCustomer = new Map();
-            (Array.isArray(rows) ? rows : []).forEach(row => {
+            list.forEach(row => {
                 const id = String(row.customerId?._id || row.customerId || '');
                 if (id && !byCustomer.has(id)) byCustomer.set(id, { id: row._id, startTime: row.startTime });
             });
             setScheduled(byCustomer);
+            // Deliberately NOT marked in fetchedMonthsRef — this window
+            // starts at today, not the 1st, so the current month is only
+            // partially covered. loadScheduleMonth needs to still be free
+            // to fetch that same month in full (see the mount effect below)
+            // rather than seeing it here and assuming it's already done.
+            setScheduleById(prev => {
+                const next = new Map(prev);
+                list.forEach(row => next.set(String(row._id), row));
+                return next;
+            });
         } catch {
             /* the planner still works without it; the dialog just cannot say "booked" */
+        }
+    }, []);
+
+    // SchedulePanel's calendar can be paged to any month, but the fetch
+    // above only ever covers today → +120 days — flipping back to an
+    // earlier month (or even earlier days within the current one) would
+    // otherwise always render empty even though real visits are sitting
+    // right there in the database. This fetches and merges in whichever
+    // month the calendar is actually showing, on demand, tracked per-month
+    // (fetchedMonthsRef) so revisiting the same month doesn't re-request it.
+    const loadScheduleMonth = useCallback(async (monthDate) => {
+        const key = `${monthDate.getFullYear()}-${pad(monthDate.getMonth() + 1)}`;
+        if (fetchedMonthsRef.current.has(key)) return;
+        fetchedMonthsRef.current.add(key);
+        setMonthFetchesInFlight(n => n + 1);
+        try {
+            const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+            const end = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+            const res = await authFetch(
+                `${API_URL}/api/schedule?start=${todayKey(start)}T00:00:00.000&end=${todayKey(end)}T23:59:59.999`
+            );
+            if (!res.ok) { fetchedMonthsRef.current.delete(key); return; }
+            const rows = await res.json();
+            const list = Array.isArray(rows) ? rows : [];
+            setScheduleById(prev => {
+                const next = new Map(prev);
+                list.forEach(row => next.set(String(row._id), row));
+                return next;
+            });
+        } catch {
+            // Lets the next visit to this month retry instead of leaving it
+            // permanently marked "fetched" over a failed request.
+            fetchedMonthsRef.current.delete(key);
+        } finally {
+            setMonthFetchesInFlight(n => n - 1);
         }
     }, []);
 
@@ -204,6 +286,11 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
 
     useEffect(() => { load(); }, [load]);
     useEffect(() => { loadScheduled(); }, [loadScheduled]);
+    // Backfills the current month's days before today — SchedulePanel opens
+    // on this month by default, and loadScheduled above only ever covers
+    // today onward, so without this the first half of the current month
+    // would show as empty until the rep manually paged away and back.
+    useEffect(() => { loadScheduleMonth(new Date()); }, [loadScheduleMonth]);
 
     // The rep/branch pickers AddCustomerModal needs for its edit form — same
     // two endpoints and shapes PartnersSheet.jsx already fetches this from.
@@ -236,8 +323,40 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 setOrigin(here);
             },
             () => { /* denied — the fallback centre still works */ },
-            { timeout: 8000 }
+            { enableHighAccuracy: true, timeout: 8000 }
         );
+    }, []);
+
+    // The blue "You" dot on the map (see MapCanvas) — kept separate from
+    // `origin` on purpose. `origin` anchors route planning/the Directions
+    // request above and the map's initial centring, so it only updates once
+    // per session (or on an explicit "locate me" click) — a rep panning
+    // around to look at other stops shouldn't have the camera yanked back,
+    // and the Directions API shouldn't get re-billed every time the phone
+    // reports a new fix. This polls for the device's live position instead,
+    // purely for display, so the dot itself still moves with the rep while
+    // they drive.
+    //
+    // Deliberately setInterval + getCurrentPosition rather than
+    // watchPosition: this app installs as a PWA (see vite.config.js), and
+    // Mobile Safari has a long-standing bug where watchPosition quietly
+    // stops delivering updates after the screen locks or the app
+    // backgrounds even briefly in standalone mode — it fires once and then
+    // never again until the page is reloaded, which is exactly the "frozen
+    // dot" this effect exists to fix. Re-polling on a plain timer sidesteps
+    // that instead of depending on it.
+    useEffect(() => {
+        if (!navigator.geolocation) return;
+        const poll = () => {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => setMyPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                () => { /* denied/unavailable — the dot just stays at its last known spot */ },
+                { enableHighAccuracy: true, timeout: 8000 }
+            );
+        };
+        poll();
+        const intervalId = setInterval(poll, 15000);
+        return () => clearInterval(intervalId);
     }, []);
 
     // This component stays mounted behind display:none when you navigate
@@ -289,7 +408,18 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         if (!selectedPins.length) return [];
         const [hour, minute] = startAt.split(':').map(Number);
         const routeOrigin = origin || selectedPins[0].coordinates;
-        const ordered = orderStops(selectedPins, routeOrigin);
+        // manualOrderIds only ever covers the routable subset orderStops
+        // would itself produce (unplaceable pins never get a drag handle in
+        // ToolsPanel), so a valid override is compared against that same
+        // subset rather than selectedPins as a whole.
+        const placeable = selectedPins.filter(hasPoint);
+        const byId = new Map(placeable.map(p => [p._id, p]));
+        const manualIsValid = manualOrderIds
+            && manualOrderIds.length === placeable.length
+            && manualOrderIds.every(id => byId.has(id));
+        const ordered = manualIsValid
+            ? manualOrderIds.map(id => byId.get(id))
+            : orderStops(selectedPins, routeOrigin);
         return planDay(ordered, {
             date: new Date(`${date}T00:00:00`),
             startHour: hour || 9,
@@ -297,7 +427,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             stopMinutes: Number(stopMinutes) || DEFAULT_DAY.stopMinutes,
             origin: routeOrigin
         });
-    }, [selectedPins, startAt, date, stopMinutes, origin]);
+    }, [selectedPins, startAt, date, stopMinutes, origin, manualOrderIds]);
 
     const summary = useMemo(() => daySummary(day), [day]);
 
@@ -387,6 +517,36 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         return map;
     }, [day]);
 
+    // SchedulePanel's calendar: every scheduled visit fetched so far
+    // (loadScheduled's initial window plus whatever loadScheduleMonth has
+    // pulled in), grouped by the day it falls on. YYYY-MM-DD, same key
+    // shape todayKey() produces, so a grid cell's date maps straight in.
+    // Sorted explicitly per day rather than trusting fetch order — each
+    // individual /api/schedule response comes back startTime-ascending, but
+    // scheduleById merges several overlapping fetches together, so that
+    // per-request ordering doesn't carry over to the merged result.
+    const visitsByDate = useMemo(() => {
+        const map = new Map();
+        scheduleById.forEach(row => {
+            if (!row.startTime) return;
+            const key = todayKey(new Date(row.startTime));
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(row);
+        });
+        map.forEach(list => list.sort((a, b) => new Date(a.startTime) - new Date(b.startTime)));
+        return map;
+    }, [scheduleById]);
+
+    const pinById = useMemo(() => new Map(pins.map(p => [String(p._id), p])), [pins]);
+
+    // ScheduleVisitForm's customer picker — the same customers already
+    // loaded for the map (pins), reshaped into SearchableSelect's
+    // {value,label} pairs rather than a second fetch of the same data.
+    const customerOptions = useMemo(
+        () => pins.map(p => ({ value: p._id, label: nameOf(p) })).sort((a, b) => a.label.localeCompare(b.label)),
+        [pins]
+    );
+
     const addOneToCalendar = async (customer) => {
         if (saving) return;
         setSaving(true);
@@ -439,15 +599,11 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         }
     };
 
+    // Always takes a fresh fix rather than panning to whatever `origin`/
+    // `myPosition` already hold — an explicit tap on this button is the rep
+    // saying "where am I *right now*", so a cached point (even one only a
+    // few seconds stale from the poll above) isn't good enough here.
     const goToMyLocation = () => {
-        const show = (point) => {
-            if (!mapRef.current) return;
-            mapRef.current.panTo(point);
-            mapRef.current.setZoom(12);
-        };
-
-        if (origin) { show(origin); return; }
-
         if (!navigator.geolocation) {
             setError('This browser cannot report a location.');
             return;
@@ -456,10 +612,13 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             (pos) => {
                 const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                 setOrigin(here);
-                show(here);
+                setMyPosition(here);
+                if (!mapRef.current) return;
+                mapRef.current.panTo(here);
+                mapRef.current.setZoom(12);
             },
             () => setError('Location is switched off for this site — turn it on in the browser’s site settings.'),
-            { timeout: 8000 }
+            { enableHighAccuracy: true, timeout: 8000 }
         );
     };
 
@@ -467,12 +626,15 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // which takes this as onSelectPin — doesn't rebuild every cluster marker
     // whenever RoutePlannerV2 re-renders for an unrelated reason.
     // `origin` names the panel this popup is replacing in the right column
-    // ('tools'), so closeInfo knows what to bring back — left null for a
-    // plain pin click on the map, which has nothing to return to.
+    // ('tools' | 'customers' | 'schedule'), so closeInfo knows what to bring
+    // back — left null for a plain pin click on the map, which has nothing
+    // to return to.
     const showDetails = useCallback((customer, origin = null) => {
         setLeadInfo(null);
         setShowFilterPanel(false);
         setShowToolsPanel(false);
+        setShowCustomersPanel(false);
+        setShowSchedulePanel(false);
         setReturnPanel(origin);
         setInfo(customer);
         if (!mapRef.current || !customer?.coordinates) return;
@@ -485,13 +647,17 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     }, []);
 
     // Closes the customer detail popup the way a "back" action would: if it
-    // was opened from a row inside Tools (see showDetails), Tools reopens
-    // instead of leaving the right column empty — otherwise dismissing the
-    // popup silently dropped whichever panel it had replaced, with no way
-    // back to it short of redrawing a selection from scratch.
+    // was opened from a row inside Tools, Customers, or Schedule (see
+    // showDetails/showScheduledVisit), that panel reopens instead of leaving
+    // the right column empty — otherwise dismissing the popup silently
+    // dropped whichever panel it had replaced, with no way back to it short
+    // of redrawing a selection, re-searching, or re-finding the same day on
+    // the calendar.
     const closeInfo = useCallback(() => {
         setInfo(null);
         if (returnPanel === 'tools') setShowToolsPanel(true);
+        if (returnPanel === 'customers') setShowCustomersPanel(true);
+        if (returnPanel === 'schedule') setShowSchedulePanel(true);
         setReturnPanel(null);
     }, [returnPanel]);
 
@@ -503,6 +669,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         setReturnPanel(null);
         setShowFilterPanel(false);
         setShowToolsPanel(false);
+        setShowCustomersPanel(false);
+        setShowSchedulePanel(false);
         setLeadInfo(place);
         if (!mapRef.current || !place?.coordinates) return;
         mapRef.current.panTo(place.coordinates);
@@ -511,7 +679,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
 
     const toggleFilterPanel = () => {
         setShowFilterPanel(prev => {
-            if (!prev) { setInfo(null); setReturnPanel(null); setLeadInfo(null); setShowToolsPanel(false); }
+            if (!prev) { setInfo(null); setReturnPanel(null); setLeadInfo(null); setShowToolsPanel(false); setShowCustomersPanel(false); setShowSchedulePanel(false); }
             return !prev;
         });
     };
@@ -519,7 +687,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     const toggleToolsPanel = () => {
         setShowToolsPanel(prev => {
             if (!prev) {
-                setInfo(null); setReturnPanel(null); setLeadInfo(null); setShowFilterPanel(false);
+                setInfo(null); setReturnPanel(null); setLeadInfo(null); setShowFilterPanel(false); setShowCustomersPanel(false); setShowSchedulePanel(false);
             } else {
                 // Leaving the panel also leaves draw mode — otherwise the
                 // map would stay armed for a drag/freehand draw with no
@@ -528,6 +696,114 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             }
             return !prev;
         });
+    };
+
+    const toggleCustomersPanel = () => {
+        setShowCustomersPanel(prev => {
+            if (!prev) { setInfo(null); setReturnPanel(null); setLeadInfo(null); setShowFilterPanel(false); setShowToolsPanel(false); setShowSchedulePanel(false); }
+            return !prev;
+        });
+    };
+
+    const toggleSchedulePanel = () => {
+        setShowSchedulePanel(prev => {
+            if (!prev) {
+                setInfo(null); setReturnPanel(null); setLeadInfo(null); setShowFilterPanel(false); setShowToolsPanel(false); setShowCustomersPanel(false);
+                // Same reasoning as toggleToolsPanel's else-branch: switching
+                // to Schedule while Tools had a draw armed shouldn't leave
+                // the map stuck expecting a drag gesture with no panel left
+                // to disarm it from.
+                setDrawMode(null);
+            }
+            return !prev;
+        });
+    };
+
+    // Opens a scheduled visit's customer from SchedulePanel's day list —
+    // the schedule row only carries the populated {contactName, company}
+    // subset (see server.js's /api/schedule populate), not the full pin
+    // (coordinates, recency, etc.) showDetails/MapCanvas need, so this looks
+    // the real record up in `pins` by id first. Silently no-ops if the
+    // customer isn't on the map (no coordinates, or removed since the visit
+    // was booked) rather than opening a detail panel with nothing to show.
+    const showScheduledVisit = useCallback((visit) => {
+        const id = String(visit.customerId?._id || visit.customerId || '');
+        const pin = pinById.get(id);
+        if (!pin) return;
+        showDetails({ ...pin, recency: visitRecency(pin.lastVisitAt) }, 'schedule');
+    }, [pinById, showDetails]);
+
+    // Opens a customer from CustomersPanel's directory — unlike
+    // showScheduledVisit above, CustomersPanel already hands back the full
+    // pin (it iterates raw `pins` directly, not a populated-subset schedule
+    // row), so this only needs to attach recency before handing off to
+    // showDetails, the same enrichment `visible`/`selectedPins` apply
+    // elsewhere in this file.
+    const showCustomerFromList = useCallback(
+        (pin) => showDetails({ ...pin, recency: visitRecency(pin.lastVisitAt) }, 'customers'),
+        [showDetails]
+    );
+
+    // SchedulePanel's per-card delete — same DELETE /api/schedule/:id
+    // removeFromCalendar already uses, just addressed by the schedule row's
+    // own _id rather than looked up via the `scheduled` (one-per-customer)
+    // map, since a card here can be any of a customer's several visits, not
+    // just their next upcoming one. Removed from scheduleById immediately
+    // (that's the only thing SchedulePanel's calendar actually reads, and
+    // it can hold rows outside loadScheduled's own today→+120-day window,
+    // which a re-fetch there wouldn't touch) — loadScheduled still gets
+    // called after so `scheduled` (and anything else keyed off it, like the
+    // customer detail panel's "booked" badge) stays in sync too.
+    const deleteScheduledVisit = async (visit) => {
+        const label = nameOf({ company: visit.customerId?.company, contactName: visit.customerId?.contactName });
+        if (!window.confirm(`Remove ${label}'s ${whenLabel(visit.startTime)} visit from the schedule?`)) return;
+        try {
+            const res = await authFetch(`${API_URL}/api/schedule/${visit._id}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error(body.message || 'Could not remove this visit');
+            }
+            setScheduleById(prev => {
+                const next = new Map(prev);
+                next.delete(String(visit._id));
+                return next;
+            });
+            await loadScheduled();
+        } catch (err) {
+            setError(err.message || 'Could not remove this visit');
+        }
+    };
+
+    // Add/edit from ScheduleVisitForm — POST for a new visit, PUT (by the
+    // row's own _id) to edit an existing one, the same two /api/schedule
+    // verbs the rest of this screen already uses (addOneToCalendar/
+    // scheduleStops for POST, removeFromCalendar/deleteScheduledVisit's
+    // DELETE sibling). Returns the saved doc on success so SchedulePanel
+    // can navigate to whichever day it landed on, or null on failure —
+    // the error is already surfaced via `error` above either way, so the
+    // caller doesn't need to handle a thrown exception too.
+    const saveScheduleVisit = async (form, visitId) => {
+        setSavingVisit(true);
+        setError('');
+        try {
+            const method = visitId ? 'PUT' : 'POST';
+            const url = visitId ? `${API_URL}/api/schedule/${visitId}` : `${API_URL}/api/schedule`;
+            const res = await authFetch(url, { method, body: JSON.stringify(form) });
+            const body = await res.json();
+            if (!res.ok) throw new Error(body.message || 'Could not save this visit');
+            setScheduleById(prev => {
+                const next = new Map(prev);
+                next.set(String(body._id), body);
+                return next;
+            });
+            await loadScheduled();
+            return body;
+        } catch (err) {
+            setError(err.message || 'Could not save this visit');
+            return null;
+        } finally {
+            setSavingVisit(false);
+        }
     };
 
     const armRadiusTool = () => setDrawMode(m => (m === 'radius' ? null : 'radius'));
@@ -570,6 +846,23 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             return next;
         });
     };
+
+    // Drag-to-reorder in ToolsPanel: takes the currently-displayed stop
+    // order (`day`, whichever produced it) as the base rather than
+    // recomputing from scratch, so dragging one stop just slots it in next
+    // to wherever it was dropped instead of resetting every other stop back
+    // to its geography-optimal position too.
+    const reorderStop = useCallback((draggedId, targetId) => {
+        if (draggedId === targetId) return;
+        const base = day.map(stop => stop._id);
+        const from = base.indexOf(draggedId);
+        const to = base.indexOf(targetId);
+        if (from === -1 || to === -1) return;
+        const next = [...base];
+        next.splice(from, 1);
+        next.splice(to, 0, draggedId);
+        setManualOrderIds(next);
+    }, [day]);
 
     const clearSelection = () => { setSelectedIds(new Set()); setSelectionShape(null); };
 
@@ -862,16 +1155,22 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         );
     }
 
+    // Rendered as its own slot (not part of areaControls below) so RunDrawer
+    // can place it right after the sidebar toggle — Dashboard, Filter,
+    // Tools, Calendar — instead of after Tools/Calendar with the rest of
+    // the area controls.
+    const filterControl = (
+        <FilterButton open={showFilterPanel} active={filtersActive} onClick={toggleFilterPanel} />
+    );
+
     // Everything that used to float in a separate top bar now lives in the
     // run drawer's collapsed row instead (built once here and handed down
     // as a prop, rather than drilling another dozen individual props
     // through RunDrawer just to re-render the exact same elements one file
-    // over). Order matters here: data controls (filter/lead search) first,
-    // then locate at the very bottom — adjusting the map itself is the last
-    // step, not the first.
+    // over). Order matters here: lead search first, then locate at the very
+    // bottom — adjusting the map itself is the last step, not the first.
     const areaControls = (
         <>
-            <FilterButton open={showFilterPanel} active={filtersActive} onClick={toggleFilterPanel} />
             {isLoaded && !loadError && (
                 <LeadSearchControl
                     query={leadQuery}
@@ -918,6 +1217,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 loadError={loadError}
                 showTraffic={showTraffic}
                 origin={origin}
+                myPosition={myPosition}
                 unselectedPins={unselectedPins}
                 orderById={orderById}
                 info={info}
@@ -969,26 +1269,49 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 onAddOne={addOneToCalendar}
                 onRemoveOne={removeFromCalendar}
                 onOpenCustomer={onOpenCustomer}
+                onAddVisit={onAddVisit}
+                onAddResource={onAddResource}
                 loading={loading}
                 pinsCount={pins.length}
                 error={error}
                 onMapClick={handleMapClick}
                 showToolsPanel={showToolsPanel}
                 onCloseToolsPanel={toggleToolsPanel}
+                showCustomersPanel={showCustomersPanel}
+                onCloseCustomersPanel={toggleCustomersPanel}
+                allCustomers={pins}
+                onSelectCustomer={showCustomerFromList}
                 drawMode={drawMode}
                 onArmRadius={armRadiusTool}
                 onArmLasso={armLassoTool}
+                onLocateMe={goToMyLocation}
                 onRadiusSelect={handleRadiusSelect}
                 onLassoSelect={handleLassoSelect}
                 selectionShape={selectionShape}
                 selectedPins={selectedPins}
                 onRemoveSelectedPoint={removeSelectedPoint}
+                onReorderStop={reorderStop}
+                showSchedulePanel={showSchedulePanel}
+                onCloseSchedulePanel={toggleSchedulePanel}
+                visitsByDate={visitsByDate}
+                onSelectScheduledVisit={showScheduledVisit}
+                onScheduleMonthChange={loadScheduleMonth}
+                scheduleMonthLoading={monthFetchesInFlight > 0}
+                onDeleteScheduledVisit={deleteScheduledVisit}
+                customerOptions={customerOptions}
+                onSaveScheduledVisit={saveScheduleVisit}
+                savingVisit={savingVisit}
             />
 
             <RunDrawer
                 sidebarToggle={sidebarToggle}
+                filterControl={filterControl}
                 showToolsPanel={showToolsPanel}
                 onToggleToolsPanel={toggleToolsPanel}
+                showCustomersPanel={showCustomersPanel}
+                onToggleCustomersPanel={toggleCustomersPanel}
+                showSchedulePanel={showSchedulePanel}
+                onToggleSchedulePanel={toggleSchedulePanel}
                 areaControls={areaControls}
             />
 

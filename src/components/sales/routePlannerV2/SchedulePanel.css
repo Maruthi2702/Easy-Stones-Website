@@ -1,0 +1,443 @@
+/* SchedulePanel's month grid sits in the same .rpv2-panel shell as
+   Tools/Filter (MapCanvas.css), reusing its .rpv2-panel-list/-empty for the
+   day's visit list's scroll container/empty state. The visit cards below
+   (.rpv2-schedule-card and friends) intentionally match the Dashboard's own
+   bordered .pl-item cards (SalesPage.css) — bordered container, coloured
+   dot + name, one combined "time · type" meta line instead of a separate
+   pill badge — using this screen's own --cd2-* panel tokens in place of
+   .pl-item's --pl-* ones. One deliberate difference: .pl-item only reveals
+   its edit/delete icons on hover (.pl-acts opacity:0 until :hover/
+   :focus-within), which works on a mouse-driven dashboard but would make
+   those actions undiscoverable on this screen, used almost entirely on a
+   phone (see the touch-target comment near the bottom of this file) — so
+   .rpv2-schedule-card-acts stays visible all the time instead. */
+
+/* Scoped to this one panel via the [data-dialog="schedule"] attribute
+   MapCanvas.jsx already sets, rather than editing the shared rule in
+   MapCanvas.css — .rpv2-panel-head-title's flex:1 is what lets
+   .rpv2-panel-close sit flush right in every OTHER panel (Tools, Filter,
+   the customer/lead detail panels), so changing it there would shift their
+   close buttons too. Here specifically, flex:1 would stretch the title's
+   own box to fill the header row, pushing the today-badge (its very next
+   sibling) all the way over next to the close button instead of right
+   after the "Schedule" text — shrinking it back to content width keeps the
+   badge snug against the title while .rpv2-panel-close's own margin-left:
+   auto still claims the rest of the row for itself. */
+.rpv2-panel[data-dialog="schedule"] .rpv2-panel-head-title { flex: 0 1 auto; }
+
+/* Always a real button now (used to be a plain span shown only when
+   todayCount > 0) — it doubles as a "jump back to today" shortcut, so it
+   needs to stay clickable even on a day with nothing scheduled. Neutral
+   outline by default; the solid maroon fill only kicks in once there's an
+   actual count to report, so an empty "Today" doesn't read as an alert. */
+.rpv2-schedule-today-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    font-family: inherit;
+    white-space: nowrap;
+    border: 1px solid var(--cd2-line);
+    background: transparent;
+    color: var(--cd2-ink-2);
+    cursor: pointer;
+}
+
+.rpv2-schedule-today-badge:hover { background: var(--cd2-hover); color: var(--cd2-ink); }
+
+.rpv2-schedule-today-badge.has-count {
+    border-color: transparent;
+    background: #7a1f2b;
+    color: #ffffff;
+}
+
+.rpv2-schedule-today-badge.has-count:hover { filter: brightness(1.1); }
+
+/* Everything below the header (calendar, day list) plus the add/edit
+   overlay's own positioning context — a plain wrapper standing in for
+   .rpv2-panel's own flex-column layout (flex:1/min-height:0, same as
+   these children had as .rpv2-panel's direct children before), so it
+   drops in without changing how the calendar/list themselves are sized. */
+.rpv2-schedule-body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Add/edit as a sheet over the calendar+list rather than replacing them —
+   see SchedulePanel.jsx's own header comment for why (they stay mounted
+   underneath the whole time, so closing this just reveals them again).
+   A solid surface fill, not a translucent one: this is a real form to fill
+   out, not a confirmation glancing past something behind it. */
+.rpv2-schedule-form-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    background: var(--cd2-surface);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+    animation: rpv2-schedule-form-in 0.18s ease-out;
+}
+
+@keyframes rpv2-schedule-form-in {
+    from { transform: translateY(14px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rpv2-schedule-form-overlay { animation: none; }
+}
+
+.rpv2-schedule-cal {
+    padding: 0.75rem 1.1rem 0.4rem;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--cd2-line);
+}
+
+/* No longer width-capped — that cap existed only because cell HEIGHT used
+   to be aspect-ratio: 1 (tied to column width), so an uncapped grid on a
+   wide/full-width mobile panel grew tall enough to crowd out the visit
+   list below it. .rpv2-schedule-cal-cell's height is now a flat rem value
+   regardless of column width (see below), so letting these stretch to the
+   panel's full content width just widens the cells, without affecting
+   height at all — safe to fill the screen now. */
+.rpv2-schedule-cal-grid-wrap { position: relative; }
+
+/* Two flex items now: the prev/label/next nav group and the collapse
+   toggle. The nav group takes flex:1 with its own space-between so the
+   month label stays centred over the grid below it exactly as before —
+   the toggle sits after it rather than as a third item in that same row,
+   which would've pulled the centring off toward the left. */
+.rpv2-schedule-cal-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+}
+
+.rpv2-schedule-cal-nav {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.rpv2-schedule-cal-head span {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--cd2-ink);
+}
+
+.rpv2-schedule-cal-head button {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--cd2-line);
+    border-radius: 999px;
+    color: var(--cd2-ink-2);
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.rpv2-schedule-cal-head button:hover { background: var(--cd2-hover); color: var(--cd2-ink); }
+
+.rpv2-schedule-cal-weekdays,
+.rpv2-schedule-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+}
+
+.rpv2-schedule-cal-weekdays span {
+    text-align: center;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cd2-muted);
+    padding-bottom: 0.4rem;
+}
+
+.rpv2-schedule-cal-cell {
+    position: relative;
+    /* Fixed, not aspect-ratio: 1 — aspect-ratio ties height to the column's
+       own width, which would make cells grow taller as the grid above is
+       now allowed to stretch full-width. A flat height keeps every row the
+       same size regardless of how wide a column ends up. */
+    height: 2.15rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-family: inherit;
+    color: var(--cd2-ink);
+    cursor: pointer;
+}
+
+.rpv2-schedule-cal-cell.is-empty { cursor: default; }
+
+/* :not(.is-selected) isn't just belt-and-suspenders — without it this rule's
+   specificity (0,0,3,0: the class + :not()'s own argument + :hover) beats
+   .is-selected's plain (0,0,2,0), so hovering — or a touch that leaves
+   :hover "stuck", which mobile browsers commonly do after a tap — would
+   paint over and hide the selected day's gold highlight entirely. */
+.rpv2-schedule-cal-cell:not(.is-empty):not(.is-selected):hover { background: var(--cd2-hover); }
+
+.rpv2-schedule-cal-cell.is-today { font-weight: 700; color: #d4af37; }
+
+/* Same primary gradient as .rpv2-panel-actions button.is-primary — one
+   "this is the committed/active thing" colour across the screen. */
+.rpv2-schedule-cal-cell.is-selected {
+    background: linear-gradient(135deg, #d4af37, #dd6a58);
+    color: #1a1a19;
+    font-weight: 700;
+}
+
+.rpv2-schedule-cal-dot {
+    position: absolute;
+    bottom: 4px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #d4af37;
+}
+
+.rpv2-schedule-cal-cell.is-selected .rpv2-schedule-cal-dot { background: #1a1a19; }
+
+/* Covers a real gap: paging to a month loadScheduleMonth hasn't fetched
+   yet (RoutePlannerV2.jsx) otherwise renders as an ordinary-looking empty
+   grid for however long the request takes — no dots, nothing visually
+   "wrong" about it — which reads as "there's really nothing this month"
+   rather than "still loading". Semi-opaque rather than a full opaque
+   block so the day numbers stay faintly visible underneath while it spins,
+   instead of the grid appearing to vanish and reappear. */
+.rpv2-schedule-cal-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--cd2-surface);
+    opacity: 0.82;
+    border-radius: 8px;
+    color: var(--cd2-muted);
+    pointer-events: none;
+}
+
+.rpv2-schedule-spin { animation: rpv2-schedule-spin 0.8s linear infinite; }
+
+@keyframes rpv2-schedule-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rpv2-schedule-spin { animation: none; }
+}
+
+.rpv2-schedule-list-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.75rem 1.1rem 0.4rem;
+    flex-shrink: 0;
+}
+
+.rpv2-schedule-list-date {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--cd2-ink);
+}
+
+.rpv2-schedule-list-count {
+    font-size: 0.76rem;
+    color: var(--cd2-muted);
+    white-space: nowrap;
+}
+
+.rpv2-schedule-list-head-right {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.rpv2-schedule-add-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid var(--cd2-line);
+    background: transparent;
+    color: var(--cd2-ink-2);
+    cursor: pointer;
+    padding: 0;
+}
+
+.rpv2-schedule-add-btn:hover { background: var(--cd2-hover); color: #d4af37; border-color: #d4af37; }
+
+/* Extra breathing room over the shared .rpv2-panel-list's tighter default
+   (MapCanvas.css) — right for standalone filled cards, but that base
+   gap/padding is also ToolsPanel's own list, so it's overridden here
+   rather than changed at the source. */
+.rpv2-schedule-visits {
+    gap: 0.85rem;
+    padding: 0.7rem 1.1rem 1rem;
+}
+
+/* Bordered card — a thin outline all the way round plus a heavier
+   colour-coded left edge, same combination as .pl-item (SalesPage.css).
+   align-items: flex-start (not center) so the edit/delete icons sit
+   pinned near the top of the card regardless of how tall the note line
+   below makes it, rather than re-centering against the card's full
+   height every time a card gains or loses a note. */
+.rpv2-schedule-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    background: var(--cd2-hover);
+    border: 1px solid var(--cd2-line);
+    border-left: 4px solid var(--accent, var(--cd2-line));
+    border-radius: 14px;
+    padding: 0.85rem 0.8rem 0.85rem 0.95rem;
+}
+
+/* Visit/Call/Drop-off are the schema's own enum (src/models/Schedule.js);
+   "other" is also the fallback for anything outside it — legacy data can
+   still carry a value the enum no longer allows (e.g. an old "Follow-up"
+   activity saved before validation existed), and it should still render
+   with its real label, just in this catch-all colour rather than crashing
+   or going unstyled. */
+.rpv2-schedule-card--visit { --accent: #4ade80; }
+.rpv2-schedule-card--call { --accent: #3b82f6; }
+.rpv2-schedule-card--dropoff { --accent: #d4af37; }
+.rpv2-schedule-card--other { --accent: #dd6a58; }
+
+/* Light theme deepens the accent — the dark-theme values above are
+   light-on-dark (readable on the near-black card); on white the same hue
+   needs to darken to keep the same contrast, same reasoning as the
+   calendar's is-today. */
+body.light-theme-active .rpv2-schedule-card--visit { --accent: #16a34a; }
+body.light-theme-active .rpv2-schedule-card--call { --accent: #2563eb; }
+body.light-theme-active .rpv2-schedule-card--dropoff { --accent: #b08d57; }
+body.light-theme-active .rpv2-schedule-card--other { --accent: #c9573f; }
+
+.rpv2-schedule-card-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.rpv2-schedule-card-top {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.rpv2-schedule-card-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--accent);
+}
+
+.rpv2-schedule-card-name {
+    min-width: 0;
+    color: var(--cd2-ink);
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rpv2-schedule-card-info:hover .rpv2-schedule-card-name { color: #d4af37; }
+
+.rpv2-schedule-card-meta {
+    font-size: 0.76rem;
+    color: var(--cd2-muted);
+    font-weight: 500;
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Stronger than a typical footnote — for a visit booked under a generic
+   placeholder customer (name resolves to "General Visit", company/contact
+   left blank on the actual record), this note is often the ONLY thing that
+   identifies who the visit is actually with, e.g. a business name typed in
+   free-text instead of a real linked customer. var(--cd2-muted) at 0.72rem
+   read as decoration easy to skim past; ink-2 + semi-bold plus letting it
+   wrap (rather than truncating with an ellipsis) makes sure that name is
+   both legible and never cut off. */
+.rpv2-schedule-card-note {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--cd2-ink-2);
+    line-height: 1.3;
+    margin-top: 6px;
+}
+
+/* Small top margin nudges these into vertical alignment with the name
+   text above — .rpv2-schedule-card is align-items: flex-start now, so
+   without it the icons would sit flush with the card's own top edge
+   instead of the name's visual centre. */
+.rpv2-schedule-card-acts {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.05rem;
+}
+
+.rpv2-schedule-card-edit,
+.rpv2-schedule-card-delete {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--cd2-muted);
+    cursor: pointer;
+}
+
+.rpv2-schedule-card-edit:hover { color: #d4af37; background: var(--cd2-hover); }
+.rpv2-schedule-card-delete:hover { color: #d03b3b; background: rgba(208, 59, 59, 0.12); }
+
+/* 2.15rem (~34px) is fine for a mouse but under the ~44px comfortable
+   touch-target minimum — this screen is used almost entirely on a phone
+   (see MapCanvas's own mobile-only Lasso/locate shortcuts), so day cells
+   get bumped up specifically below the 720px breakpoint the rest of this
+   screen already keys off (RunDrawer.css, MapCanvas.css), rather than
+   growing them everywhere and wasting space on desktop where a mouse
+   doesn't need it. */
+@media (max-width: 720px) {
+    .rpv2-schedule-cal-cell { height: 2.75rem; }
+}

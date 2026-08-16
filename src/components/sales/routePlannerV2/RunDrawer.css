@@ -92,7 +92,55 @@ body.light-theme-active .rpv2-drawer-list-btn.is-on {
 
 /* ── screen sizes ────────────────────────────────────────────────────────── */
 
+/* Below 720px the column becomes a bottom tab bar — the layout a mobile app
+   actually uses — instead of a shrunk copy of the side rail. Flush to the
+   bottom and both side edges with only the top corners rounded, same "dock,
+   not a floating card" idea as the desktop rail just rotated onto the
+   opposite edge; icons run in a row and space out across the full width
+   instead of stacking. */
 @media (max-width: 720px) {
-    .rpv2-drawer { max-height: calc(100% - 2rem); width: 48px; gap: 0.5rem; padding: 0.6rem 0; }
+    .rpv2-drawer {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        transform: none;
+        flex-direction: row;
+        justify-content: space-evenly;
+        width: auto;
+        max-height: none;
+        overflow-y: visible;
+        overflow-x: auto;
+        gap: 0.5rem;
+        padding: 0.6rem 0.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-bottom: none;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.25);
+    }
     .rpv2-drawer-list-btn { width: 30px; height: 30px; }
+
+    /* Redeclared rather than reused: the light-theme rule above still casts
+       its shadow rightward (6px 0 …) for the desktop side rail, so this
+       screen size needs its own upward-pointing (0 -6px …) version. */
+    body.light-theme-active .rpv2-drawer { box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.1); }
+
+    /* Search, traffic, and locate drop out of the bottom bar on mobile —
+       locate is now covered by the map's own floating button (MapCanvas.css's
+       .rpv2-map-fabs), and search/traffic stay reachable on desktop's side
+       rail rather than crowding this row. Hidden here rather than not
+       rendered at all, so RoutePlannerV2.jsx doesn't need to know the
+       viewport size itself.
+       Selectors are scoped under .rpv2-drawer (not bare .rpv2-traffic-btn/
+       .rpv2-locate-btn) on purpose — those two also get a plain, non-media
+       `display: flex` rule from RoutePlannerV2.css, which loads AFTER this
+       file (it's RoutePlannerV2.jsx's own last import, after the RunDrawer
+       import that pulls this file in). Same specificity + later source
+       order would let that rule win and silently cancel this one; the extra
+       ancestor is what keeps this rule on top regardless of import order. */
+    .rpv2-drawer .rpv2-lead-pill,
+    .rpv2-drawer .rpv2-traffic-btn,
+    .rpv2-drawer .rpv2-locate-btn {
+        display: none;
+    }
 }
