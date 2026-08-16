@@ -229,6 +229,27 @@ body.light-theme-active .today-btn:hover {
     border-color: #94a3b8;
 }
 
+/* The trigger itself had the same gap the comment above already flagged for
+   the dropdown — color: #fff text on background: rgba(255,255,255,0.05)
+   (a near-transparent overlay, not an actual dark fill) renders as
+   literally invisible white-on-white once the page behind it is light,
+   not just low-contrast. Confirmed by rendering GoogleStyleDateTimePicker
+   directly with body.light-theme-active set: the trigger showed as a
+   blank box with no visible date text at all. */
+body.light-theme-active .datepicker-input {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    color: #0f172a;
+}
+
+body.light-theme-active .datepicker-input:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+body.light-theme-active .datepicker-input .placeholder { color: #94a3b8; }
+body.light-theme-active .datepicker-input .has-value { color: #0f172a; }
+
 /* --- Added for Google Style Layout & Time Picker --- */
 
 .google-style-picker {
@@ -416,4 +437,25 @@ body.light-theme-active .today-btn:hover {
     background: var(--gradient-primary, #FFD700);
     color: #000000;
     font-weight: bold;
+}
+
+/* Same invisible-trigger bug as .datepicker-input above, for the time half
+   of GoogleStyleDateTimePicker's row (.picker-button — "9:00 AM" etc.) and
+   the "at" separator between them — this whole Google-style section had no
+   light-theme rules at all. The dropdown popup itself (.time-dropdown-portal
+   and its columns) is left dark-on-dark deliberately: unlike the trigger,
+   it's a solid #1c1c1e fill with light text, so it's merely a dark popover
+   in an otherwise light page rather than actually unreadable — a cosmetic
+   mismatch, not the invisible-text bug this fixes. */
+body.light-theme-active .picker-separator { color: #64748b; }
+
+body.light-theme-active .picker-button {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    color: #0f172a;
+}
+
+body.light-theme-active .picker-button:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
 }
