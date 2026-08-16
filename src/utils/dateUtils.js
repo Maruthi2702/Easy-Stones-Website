@@ -28,6 +28,49 @@ export const viewerTimeZone = (() => {
   }
 })();
 
+/**
+ * A Schedule entry's startTime/endTime is a naive wall-clock string (no
+ * zone) meaning whatever time the rep who created it actually meant, in
+ * their own zone — fine to display (new Date(str) in that same rep's own
+ * browser resolves it right back), but ambiguous the moment something
+ * OTHER than that rep's browser has to interpret it. That's exactly what
+ * the calendar sync functions do (server.js's syncGoogleCalendar,
+ * src/services/icloudSyncService.js): they run on the server, whose own
+ * runtime zone (UTC in production) is not the rep's — reading the naive
+ * string as if the server's zone applied silently shifts every synced
+ * event by however many hours separate the two, which is why a rep in
+ * Seattle picking 9:00 AM was seeing 2:00 AM on their phone's calendar.
+ *
+ * Turns the naive string into the true UTC instant it actually means in
+ * `timeZone`, via a double round-trip through Intl's own timezone database
+ * (so DST is handled correctly) rather than a hardcoded offset.
+ */
+export const zonedTimeToUtc = (naiveLocalString, timeZone) => {
+  if (!naiveLocalString) return null;
+  const zone = timeZone || 'America/Los_Angeles';
+  const iso = naiveLocalString.endsWith('Z') ? naiveLocalString : `${naiveLocalString}Z`;
+  const asIfUtc = new Date(iso);
+  if (Number.isNaN(asIfUtc.getTime())) return null;
+
+  // What clock face does that same instant show in `zone`? Re-reading
+  // those parts as UTC again gives the offset between the two zones at
+  // this particular date (so DST is accounted for automatically).
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).formatToParts(asIfUtc);
+  const get = (type) => Number(parts.find(p => p.type === type)?.value);
+  // Some engines format midnight's hour as "24" under hour12:false —
+  // normalize back to 0 so Date.UTC doesn't roll into the next day.
+  const hour = get('hour') % 24;
+  const inZoneAsUtc = Date.UTC(get('year'), get('month') - 1, get('day'), hour, get('minute'), get('second'));
+
+  const offsetMs = asIfUtc.getTime() - inZoneAsUtc;
+  return new Date(asIfUtc.getTime() + offsetMs);
+};
+
 // Helper to treat UTC strings as Local (stripping Z)
 const parseAsLocal = (date) => {
     if (!date) return null;

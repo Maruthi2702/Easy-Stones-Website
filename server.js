@@ -57,6 +57,7 @@ import {
   PICKUP_WORDING, DELIVERY_WORDING
 } from './src/utils/deliveryPickup.js';
 import { signedPackingListFileName } from './src/utils/packingList.js';
+import { zonedTimeToUtc } from './src/utils/dateUtils.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import path from 'path';
@@ -5125,7 +5126,7 @@ const refreshGoogleAccessToken = async (user) => {
 };
 
 // Core Helper: Perform Two-Way synchronization between MongoDB Schedules and Google Calendar
-const syncGoogleCalendar = async (userId) => {
+const syncGoogleCalendar = async (userId, timeZone) => {
   try {
     const user = await User.findById(userId);
     if (!user || !user.googleCalendarSyncEnabled || !user.googleAccessToken) {
@@ -5240,17 +5241,34 @@ const syncGoogleCalendar = async (userId) => {
       status: { $ne: 'Cancelled' }
     }).populate('customerId', 'contactName company');
 
+    // schedule.startTime/endTime are naive wall-clock strings (no zone) —
+    // whatever time the rep meant in THEIR OWN zone, not the server's. This
+    // function runs server-side, so `new Date(schedule.startTime)` would
+    // read that clock face as if it were the server's zone (UTC in
+    // production) instead, shifting every synced event by however many
+    // hours separate the two — see zonedTimeToUtc's own comment
+    // (dateUtils.js) for the full story. `timeZone` is the rep's own IANA
+    // zone, sent by the client alongside the sync request (viewerTimeZone
+    // in SalesPage.jsx); falls back to the company's own default (Seattle —
+    // see User.js's assignedLocations) if a caller doesn't supply one.
+    const zone = timeZone || 'America/Los_Angeles';
+
     for (const schedule of appSchedules) {
       const syncedMatch = schedule.notes && schedule.notes.match(/Synced to Google ID: ([a-zA-Z0-9_]+)/);
-      const clientName = schedule.customerId 
-        ? (schedule.customerId.company || schedule.customerId.contactName || 'Unnamed Customer') 
+      const clientName = schedule.customerId
+        ? (schedule.customerId.company || schedule.customerId.contactName || 'Unnamed Customer')
         : 'Unknown Customer';
-      
+
+      const startUtc = zonedTimeToUtc(schedule.startTime, zone);
+      const endUtc = schedule.endTime
+        ? zonedTimeToUtc(schedule.endTime, zone)
+        : new Date(startUtc.getTime() + 3600000);
+
       const eventPayload = {
         summary: `${schedule.activityType || 'Visit'} - ${clientName}`,
         description: `${schedule.notes || ''}\n\n[EasyStones ID: ${schedule._id}]`,
-        start: { dateTime: new Date(schedule.startTime).toISOString() },
-        end: { dateTime: new Date(schedule.endTime || new Date(schedule.startTime).getTime() + 3600000).toISOString() }
+        start: { dateTime: startUtc.toISOString(), timeZone: zone },
+        end: { dateTime: endUtc.toISOString(), timeZone: zone }
       };
 
       if (syncedMatch) {
@@ -5446,7 +5464,7 @@ app.get('/api/auth/google/calendar/status', verifyAnyAuth, async (req, res) => {
 app.post('/api/auth/google/calendar/sync', verifyAnyAuth, async (req, res) => {
   try {
     const userId = req.userId || req.customerId;
-    await syncGoogleCalendar(userId);
+    await syncGoogleCalendar(userId, req.query.tz);
     res.json({ success: true, message: 'Google Calendar synchronized successfully' });
   } catch (error) {
     console.error('Google calendar sync trigger error:', error);
@@ -5480,7 +5498,7 @@ app.post('/api/auth/google/calendar/disconnect', verifyAnyAuth, async (req, res)
 app.post('/api/auth/icloud/connect', verifyAnyAuth, async (req, res) => {
   try {
     const userId = req.userId || req.customerId;
-    const { appleId, appSpecificPassword, calendarUrl, calendarName } = req.body;
+    const { appleId, appSpecificPassword, calendarUrl, calendarName, tz } = req.body;
 
     if (!appleId || !appSpecificPassword) {
       return res.status(400).json({ message: 'Apple ID and App-Specific Password are required' });
@@ -5505,7 +5523,7 @@ app.post('/api/auth/icloud/connect', verifyAnyAuth, async (req, res) => {
       await user.save();
 
       // Trigger initial sync cycle
-      if (await syncICloudCalendar(userId)) {
+      if (await syncICloudCalendar(userId, tz)) {
         emitScheduleUpdate({ type: 'sync', userId });
       }
 
@@ -5545,7 +5563,7 @@ app.get('/api/auth/icloud/status', verifyAnyAuth, async (req, res) => {
 app.post('/api/auth/icloud/sync', verifyAnyAuth, async (req, res) => {
   try {
     const userId = req.userId || req.customerId;
-    if (await syncICloudCalendar(userId)) {
+    if (await syncICloudCalendar(userId, req.query.tz)) {
       emitScheduleUpdate({ type: 'sync', userId });
     }
     res.json({ success: true, message: 'iCloud Calendar synchronized successfully' });

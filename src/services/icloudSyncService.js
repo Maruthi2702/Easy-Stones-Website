@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Schedule from '../models/Schedule.js';
 import Customer from '../models/Customer.js';
 import https from 'https';
+import { zonedTimeToUtc } from '../utils/dateUtils.js';
 
 // Resolves relative CalDAV paths (like /123456/principal/) to full URLs
 const resolveUrl = (baseUrl, href) => {
@@ -196,8 +197,18 @@ const parseIcsEvents = (icsText) => {
  * Returns whether anything on the planner side actually moved, so the caller
  * can tell open planners to refetch — a sync that found nothing new should not
  * make every browser ask again.
+ *
+ * `timeZone` is the rep's own IANA zone (sent by the client alongside the
+ * sync request — viewerTimeZone in SalesPage.jsx), needed for the outbound
+ * app-schedule → iCloud direction below: schedule.startTime/endTime are
+ * naive wall-clock strings meaning whatever time the rep meant in THEIR OWN
+ * zone, but this function runs server-side, so reading them with a plain
+ * `new Date(...)` would treat that clock face as the server's own zone
+ * (UTC in production) instead — see zonedTimeToUtc's own comment
+ * (dateUtils.js) for the full story of why that silently shifted every
+ * synced event by several hours on the rep's actual phone.
  */
-export const syncICloudCalendar = async (userId) => {
+export const syncICloudCalendar = async (userId, timeZone) => {
   let plannerChanged = false;
   try {
     const user = await User.findById(userId);
@@ -287,23 +298,33 @@ export const syncICloudCalendar = async (userId) => {
       status: { $ne: 'Cancelled' }
     }).populate('customerId', 'contactName company');
 
+    // Formats an already-real instant (a Date, or a raw epoch ms number —
+    // both unambiguous) as iCal's UTC date-time. schedule.startTime/endTime
+    // themselves are NOT instants — see zonedTimeToUtc's own comment
+    // (dateUtils.js) for why passing them through this directly used to
+    // shift every synced event by however many hours separate the server's
+    // own zone (UTC in production) from the rep's — they're converted via
+    // zonedTimeToUtc first, below, before ever reaching this formatter.
     const formatIcsDate = (dateVal) => {
       const d = new Date(dateVal);
       return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
     };
+    const zone = timeZone || 'America/Los_Angeles';
 
     for (const schedule of appSchedules) {
       const syncedMatch = schedule.notes && schedule.notes.match(/Synced to iCloud UID: ([a-zA-Z0-9_-]+)/);
       const uid = syncedMatch ? syncedMatch[1] : `${schedule._id}-easystones`;
-      
-      const clientName = schedule.customerId 
-        ? (schedule.customerId.company || schedule.customerId.contactName || 'Unnamed Customer') 
+
+      const clientName = schedule.customerId
+        ? (schedule.customerId.company || schedule.customerId.contactName || 'Unnamed Customer')
         : 'Unknown Customer';
-      
+
       const summary = `${schedule.activityType || 'Visit'} - ${clientName}`;
       const description = `${schedule.notes || ''}\\n\\n[EasyStones ID: ${schedule._id}]`;
-      const startStr = formatIcsDate(schedule.startTime);
-      const endStr = formatIcsDate(schedule.endTime || new Date(schedule.startTime).getTime() + 3600000);
+      const startUtc = zonedTimeToUtc(schedule.startTime, zone);
+      const endUtc = schedule.endTime ? zonedTimeToUtc(schedule.endTime, zone) : new Date(startUtc.getTime() + 3600000);
+      const startStr = formatIcsDate(startUtc);
+      const endStr = formatIcsDate(endUtc);
 
       // Construct raw VCALENDAR event
       const icsEvent = [
