@@ -1407,7 +1407,11 @@ const SalesPage = () => {
             }
 
             const newCustomer = await response.json();
-            await fetchCustomers();
+            // silent=true: fetchCustomers' own cache has no bearing on
+            // whether the customer we JUST created shows up — skip straight
+            // to a fresh fetch instead of possibly redisplaying the
+            // pre-create cached page.
+            await fetchCustomers(true);
             await fetchAllCustomersForDropdown(); // Refresh dropdown options
             closeModal();
             handleSelectCustomer(newCustomer);
@@ -2234,7 +2238,7 @@ const SalesPage = () => {
             if (selectedCustomerId && targetCustomerId === selectedCustomerId) {
                 await fetchSingleCustomer(selectedCustomerId);
             } else {
-                await fetchCustomers();
+                await fetchCustomers(true);
             }
 
             await fetchDashboardData();
@@ -2657,7 +2661,7 @@ const SalesPage = () => {
                 if (selectedCustomerId && targetCustomerId === selectedCustomerId) {
                     await fetchSingleCustomer(selectedCustomerId);
                 } else {
-                    await fetchCustomers();
+                    await fetchCustomers(true);
                 }
 
                 // Refresh dashboard data and stats

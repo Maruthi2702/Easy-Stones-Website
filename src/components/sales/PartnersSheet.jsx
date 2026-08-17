@@ -420,7 +420,11 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     city: filterCities.join(','),
                     status: filterStatuses.join(','),
                     lim: limit,
-                    tab: activeTab
+                    tab: activeTab,
+                    // globalPartnersCache has no expiry — without this, a save
+                    // right after viewing this same page/filter combo just
+                    // redisplays the pre-save cache entry instead of fetching.
+                    skipCache: true
                 });
                 closeModal();
                 setEditingPartner(null);
@@ -453,7 +457,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                     city: filterCities.join(','),
                     status: filterStatuses.join(','),
                     lim: limit,
-                    tab: activeTab
+                    tab: activeTab,
+                    skipCache: true
                 });
             } else {
                 const errorData = await response.json();

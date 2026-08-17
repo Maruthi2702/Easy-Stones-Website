@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GoogleMap, Marker, DirectionsRenderer, TrafficLayer } from '@react-google-maps/api';
-import { MapPin, Phone, Mail, AlertTriangle, Calendar, X, Sparkles, Pencil, Trash2, Copy, Check, Lasso, LocateFixed } from 'lucide-react';
-import { FALLBACK_CENTER, RECENCY_DARK_TEXT, LEAD_PIN_COLOR, OPEN_PIN_COLOR, whenLabel, real, nameOf, isPlaceholderEmail } from './helpers';
+import { MapPin, Phone, Mail, AlertTriangle, Calendar, CalendarPlus, CalendarX, FolderPlus, ExternalLink, X, Sparkles, Pencil, Trash2, Copy, Check, Lasso, LocateFixed } from 'lucide-react';
+import { FALLBACK_CENTER, RECENCY_DARK_TEXT, LEAD_PIN_COLOR, OPEN_PIN_COLOR, whenLabel, real, nameOf, isPlaceholderEmail, statusTone } from './helpers';
 import { isRoutablePrecision, milesBetween, pointInPolygon } from '../../../utils/routePlan';
 import FilterPanel from './FilterPanel';
 import ToolsPanel from './ToolsPanel';
@@ -690,30 +690,57 @@ const MapCanvas = ({
                         </div>
                         <div className="rpv2-panel-name-row">
                             <strong className="rpv2-panel-name">{nameOf(info)}</strong>
-                            {/* Gated by manage_customers, same as the Users &
-                                Roles checkbox labelled "Edit / Add" — this is
-                                the one permission the /api/partners/:id PUT
-                                and DELETE routes both actually check, so a
-                                role missing it never sees a button that would
-                                just fail server-side anyway. */}
-                            {can.manageCustomers && (
+                            {/* Edit and delete are gated by separate Users & Roles
+                                permissions now — "Edit / Add" (manage_customers) and
+                                "Delete" (delete_customers) — rather than one checkbox
+                                covering both, so a role can be granted one without the
+                                other. The wrapper's own either/or condition already
+                                covers delete's requirement, so the button inside just
+                                renders unconditionally once the wrapper is showing; the
+                                DELETE route accepts either permission too (see
+                                RoutePlannerV2.jsx's comment on can.deleteCustomers), so
+                                a manage_customers-only role still gets a working button
+                                rather than losing it now that delete has its own flag. */}
+                            {(can.manageCustomers || can.deleteCustomers) && (
                                 <div className="rpv2-panel-name-actions">
-                                    <button
-                                        type="button"
-                                        className="rpv2-panel-icon-btn"
-                                        onClick={() => onEditCustomer(info)}
-                                        disabled={loadingEditCustomer}
-                                        title="Edit customer"
-                                        aria-label="Edit customer"
-                                    >
-                                        <Pencil size={15} />
-                                    </button>
+                                    {can.manageCustomers && (
+                                        <button
+                                            type="button"
+                                            className="rpv2-panel-icon-btn"
+                                            onClick={() => onEditCustomer(info)}
+                                            disabled={loadingEditCustomer}
+                                            title="Edit customer"
+                                            aria-label="Edit customer"
+                                        >
+                                            <Pencil size={15} />
+                                        </button>
+                                    )}
                                     <button type="button" className="rpv2-panel-icon-btn is-danger" onClick={() => onDeleteCustomer(info)} title="Delete customer" aria-label="Delete customer">
                                         <Trash2 size={15} />
                                     </button>
                                 </div>
                             )}
                         </div>
+                        {/* Its own line under the name rather than buried as one row
+                            of the facts grid below — a lead/customer's pipeline stage
+                            is the thing a rep scans for first, so it gets the same
+                            visual weight as the recency badge up top, not the same
+                            treatment as "Moda Binders". Level rides along on the same
+                            row (right-aligned) rather than back in the grid — it's the
+                            other fact a rep checks in the same glance as pipeline stage. */}
+                        {(real(info.status) || real(info.level)) && (
+                            <div className="rpv2-panel-status-row">
+                                {real(info.status) && (
+                                    <div className={`rpv2-panel-status rpv2-status-${statusTone(info.status)}`}>
+                                        <span className="rpv2-panel-status-dot" aria-hidden="true" />
+                                        {real(info.status)}
+                                    </div>
+                                )}
+                                {real(info.level) && (
+                                    <span className="rpv2-panel-level">{real(info.level)}</span>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="rpv2-panel-body">
@@ -796,8 +823,6 @@ const MapCanvas = ({
                                 { label: 'Sales Rep', value: real(info.salesRepName) },
                                 { label: 'Visits', value: `${info.visitCount}` },
                                 { label: 'Type', value: real(info.customerType) },
-                                { label: 'Status', value: real(info.status) },
-                                { label: 'Level', value: real(info.level) },
                                 { label: 'Moda Display', value: real(info.modaDisplay) || 'No' },
                                 { label: 'Moda Binders', value: real(info.modaBinder) || '0' },
                                 // Always rendered, unlike the facts above — Notes is free text
@@ -815,10 +840,7 @@ const MapCanvas = ({
                                                 {value}
                                             </dd>
                                         ) : (
-                                            <dd className={[
-                                                label === 'Status' && value === 'New Lead' ? 'is-new-lead' : '',
-                                                isEmptyNotes ? 'is-empty' : ''
-                                            ].filter(Boolean).join(' ')}>
+                                            <dd className={isEmptyNotes ? 'is-empty' : ''}>
                                                 {isEmptyNotes ? 'No notes on file' : value}
                                             </dd>
                                         )}
@@ -846,11 +868,13 @@ const MapCanvas = ({
                         <div className="rpv2-panel-actions">
                             {onAddVisit && (
                                 <button type="button" onClick={() => onAddVisit(info)}>
+                                    <CalendarPlus size={15} />
                                     Add visit
                                 </button>
                             )}
                             {onAddResource && (
                                 <button type="button" onClick={() => onAddResource(info)}>
+                                    <FolderPlus size={15} />
                                     Add resource
                                 </button>
                             )}
@@ -860,16 +884,19 @@ const MapCanvas = ({
                     <div className="rpv2-panel-actions">
                         {scheduled.has(String(info._id)) ? (
                             <button className="is-drop" disabled={saving} onClick={() => onRemoveOne(info)}>
+                                <CalendarX size={15} />
                                 Remove from schedule
                             </button>
                         ) : can.plan ? (
                             <button disabled={saving} onClick={() => onAddOne(info)}>
+                                <Calendar size={15} />
                                 Add to calendar
                             </button>
                         ) : null}
                         {onOpenCustomer && (
                             <button className="is-primary" onClick={() => { onOpenCustomer(info._id); onCloseInfo(); }}>
                                 Open record
+                                <ExternalLink size={15} />
                             </button>
                         )}
                     </div>

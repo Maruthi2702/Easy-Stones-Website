@@ -153,9 +153,11 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
 
     // Edit/delete for an existing customer from the detail panel — reusing
     // AddCustomerModal and the /api/partners/:id routes exactly as
-    // PartnersSheet.jsx does, rather than building a second edit form. Both
-    // routes check manage_customers server-side, which is why that's the
-    // one permission gating the edit/delete icons in MapCanvas (can.manageCustomers).
+    // PartnersSheet.jsx does, rather than building a second edit form. Edit
+    // (PUT) checks manage_customers; delete (DELETE) accepts either
+    // manage_customers or delete_customers, so a role can be granted delete
+    // without full edit/add rights — see can.manageCustomers/can.deleteCustomers
+    // gating the two icons separately in MapCanvas.
     const [editingCustomer, setEditingCustomer] = useState(null);
     const [savingCustomerEdit, setSavingCustomerEdit] = useState(false);
     const [loadingEditCustomer, setLoadingEditCustomer] = useState(false);
@@ -196,7 +198,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             plan: held.includes('create_route_plan'),
             replace: held.includes('edit_route_plan'),
             clear: held.includes('delete_route_plan'),
-            manageCustomers: held.includes('manage_customers')
+            manageCustomers: held.includes('manage_customers'),
+            deleteCustomers: held.includes('delete_customers')
         };
     }, [currentUser]);
 
@@ -284,7 +287,15 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         }
     }, []);
 
-    useEffect(() => { load(); }, [load]);
+    // Keyed on isActive, not just mount: this view stays mounted-but-hidden
+    // while another tab is open (see the comment on its usage in
+    // SalesPage.jsx — avoids re-billing a Google Maps load), so a plain
+    // mount-only fetch would leave every pin frozen at whatever `pins` was
+    // the last time this tab was visible — an edit made elsewhere (Customers
+    // tab, a visit/resource save) would never show up here short of a full
+    // page reload. Refetching every time the tab becomes active again keeps
+    // it current without needing every other screen to know this one exists.
+    useEffect(() => { if (isActive) load(); }, [isActive, load]);
     useEffect(() => { loadScheduled(); }, [loadScheduled]);
     // Backfills the current month's days before today — SchedulePanel opens
     // on this month by default, and loadScheduled above only ever covers

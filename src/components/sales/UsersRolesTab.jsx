@@ -218,7 +218,15 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     const ensureToken = async () => {
         if (localStorage.getItem('token')) return; // already have it
         try {
-            const res = await authFetch(`${API_URL}/api/auth/token`);
+            // Plain fetch, deliberately not authFetch/fetchWithAuth: this
+            // route 401s whenever there's no adminToken cookie to exchange,
+            // which is a normal, recoverable case (the catch below falls
+            // back to cookie-based auth, and the users/roles fetches right
+            // after this often succeed off that same cookie anyway) — not
+            // proof the session is dead. Routing it through authFetch made
+            // that expected 401 trip the app-wide session-expired listener
+            // and log the rep out of an otherwise-valid session.
+            const res = await fetch(`${API_URL}/api/auth/token`, { credentials: 'include' });
             if (res.ok) {
                 const data = await res.json();
                 if (data.token) localStorage.setItem('token', data.token);

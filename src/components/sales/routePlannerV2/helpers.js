@@ -23,6 +23,22 @@ export const RECENCY_COLORS = {
 // much contrast — these need dark ink instead.
 export const RECENCY_DARK_TEXT = new Set(['overdue', 'due']);
 
+// Maps Customer.js's fixed status enum to a tone for the detail panel's
+// status line (MapCanvas.jsx) — only the two ends of the funnel get a
+// strong color (Onboarded = won, Not Interested = lost); the live pipeline
+// stages share one "in progress" accent, and the two administrative states
+// (rep reassigned, gone quiet) fall through to the muted default rather than
+// being marked as either a win or a loss.
+export const STATUS_TONE = {
+    'Onboarded': 'success',
+    'Not Interested': 'danger',
+    'New Lead': 'accent',
+    'Trying to Onboard': 'accent',
+    'Contacted / In Discussion': 'accent'
+};
+
+export const statusTone = (status) => STATUS_TONE[status] || 'muted';
+
 export const FALLBACK_CENTER = { lat: 47.6062, lng: -122.3321 };
 
 // The one pin whose detail panel (.rpv2-panel[data-dialog="customer"]) is

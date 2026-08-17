@@ -1298,7 +1298,11 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 // Token exchange - returns the token from the cookie so the frontend can use it in Authorization headers
 // This allows existing sessions to work without re-login
 app.get('/api/auth/token', (req, res) => {
-  const token = req.cookies.adminToken;
+  // Same precedence as authenticate() above (adminToken for the legacy
+  // staff login, customerToken for staff/customers via the unified login) —
+  // checking only adminToken meant every unified-login staff session 401'd
+  // here permanently, since they never get that cookie at all.
+  const token = req.cookies.adminToken || req.cookies.customerToken;
   if (!token) {
     return res.status(401).json({ error: 'No active session' });
   }
@@ -2174,6 +2178,7 @@ app.get('/api/customers/map', authenticate, requirePermission('view_route_planne
           contactName: 1,
           phone: 1,
           email: 1,
+          marketingEmail: 1,
           street: '$address.street',
           city: '$address.city',
           state: '$address.state',
@@ -2185,6 +2190,9 @@ app.get('/api/customers/map', authenticate, requirePermission('view_route_planne
           status: 1,
           level: 1,
           location: 1,
+          modaDisplay: 1,
+          modaBinder: 1,
+          notes: '$quickNote',
           // Visit dates are 'YYYY-MM-DD', so the newest is the largest string.
           lastVisitAt: { $max: '$visits.date' },
           visitCount: { $size: { $ifNull: ['$visits', []] } }
@@ -2660,8 +2668,11 @@ app.post('/api/customers/:customerId/associations', authenticate, requirePermiss
   }
 });
 
-// Remove customer association (bi-directional unlinking)
-app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, requirePermission('manage_customers'), async (req, res) => {
+// Remove customer association (bi-directional unlinking) — manage_customers
+// kept alongside delete_customers, same reasoning as /api/partners/:id DELETE
+// above: the client here has no permission check of its own, so dropping it
+// would silently break this for any role that predates delete_customers.
+app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
   try {
     const { customerId, partnerId } = req.params;
 
@@ -3769,8 +3780,12 @@ app.put('/api/partners/:id', authenticate, requirePermission('manage_customers')
   }
 });
 
-// Delete a lead (Customer)
-app.delete('/api/partners/:id', authenticate, requirePermission('manage_customers'), async (req, res) => {
+// Delete a lead (Customer) — manage_customers kept alongside delete_customers
+// so PartnersSheet.jsx's delete button (which has no client-side permission
+// check of its own, unlike the route planner's icon) keeps working for every
+// role that already had manage_customers before delete_customers existed as
+// its own permission.
+app.delete('/api/partners/:id', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
   try {
     const customer = await Customer.findByIdAndDelete(req.params.id);
 
@@ -4156,7 +4171,7 @@ app.put('/api/customers/:customerId/visits/:visitId', authenticate, requirePermi
 
 // Delete visit
 // Delete visit
-app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
 
@@ -5874,7 +5889,7 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
 });
 
 // Delete resource
-app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
 
