@@ -56,7 +56,7 @@ const Header = () => {
     <header className={`header glass-panel ${theme}-theme`}>
       <div className="container header-content">
         <Link to="/" className="logo">
-          <img src="/logo.png" alt="Easy Stones" className="logo-image" />
+          <img src={theme === 'dark' ? '/logo-dark.png' : '/logo.png'} alt="Easy Stones" className="logo-image" />
         </Link>
 
         <nav className="nav-desktop">
