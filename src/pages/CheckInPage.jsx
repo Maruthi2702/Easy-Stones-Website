@@ -148,6 +148,17 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     return () => document.body.classList.remove('light-theme-active');
   }, [theme]);
 
+  // The staff form sits in the normal page flow, under the site's own header,
+  // and the "Check In Now" button is often below the fold — so this fires
+  // scrolled partway down. Without resetting it, the success message renders
+  // above the fold too, but the page stays scrolled to where the (now gone)
+  // form used to be, leaving the visitor's confirmation off-screen.
+  useEffect(() => {
+    if (submitted) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [submitted]);
+
   // Auto-return to check-in form after 10 seconds on successful submission
   useEffect(() => {
     let timer;
