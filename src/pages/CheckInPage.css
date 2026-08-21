@@ -1062,6 +1062,9 @@ body.light-theme-active .checkin-container .checkin-card {
 }
 
 .form-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   color: #fbbf24;
   font-size: 1.15rem;
   font-weight: 800;
@@ -1117,11 +1120,30 @@ body.light-theme-active .checkin-container .input-field label {
   color: #ef4444;
 }
 
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 1rem;
+  color: #64748b;
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+.input-with-icon:focus-within .input-icon {
+  color: #d4af37;
+}
+
 .input-field input {
+  width: 100%;
   background: rgba(255, 255, 255, 0.05);
   border: 1.5px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
-  padding: 0.85rem 1.1rem;
+  padding: 0.85rem 1.1rem 0.85rem 2.85rem;
   color: #ffffff;
   font-size: 1rem;
   outline: none;
@@ -1138,6 +1160,63 @@ body.light-theme-active .checkin-container .input-field input {
 .input-field input:focus {
   border-color: #d4af37;
   box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
+}
+
+.checkin-form-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.75rem;
+  min-height: 1.6rem;
+  animation: kiosk-fadeIn 0.3s ease forwards;
+}
+
+/* A quiet utility action, not a second call-to-action — no border or fill
+   competing with the gold submit button; just a hover cue. */
+.checkin-clear-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: none;
+  padding: 0.3rem 0.4rem;
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.checkin-clear-btn:hover {
+  color: #d4af37;
+}
+
+.checkin-container.light-theme .checkin-clear-btn:hover,
+body.light-theme-active .checkin-container .checkin-clear-btn:hover {
+  border-color: #b8860b;
+  color: #b8860b;
+}
+
+.checkin-lookup-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: -0.6rem 0 1.15rem;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+.checkin-lookup-note--found {
+  color: #d4af37;
+}
+
+.checkin-container.light-theme .checkin-lookup-note,
+body.light-theme-active .checkin-container .checkin-lookup-note {
+  color: #64748b;
+}
+
+.checkin-container.light-theme .checkin-lookup-note--found,
+body.light-theme-active .checkin-container .checkin-lookup-note--found {
+  color: #b8860b;
 }
 
 .waiver-section {

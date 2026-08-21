@@ -69,6 +69,7 @@ import {
 } from './src/utils/deliveryPickup.js';
 import { signedPackingListFileName } from './src/utils/packingList.js';
 import { zonedTimeToUtc } from './src/utils/dateUtils.js';
+import { stripPhone, formatPhoneForDisplay } from './src/utils/phoneUtils.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import path from 'path';
@@ -2802,6 +2803,46 @@ app.post('/api/checkin', authenticate, async (req, res) => {
   } catch (error) {
     console.error('❌ Check-in error:', error);
     res.status(500).json({ message: 'Check-in failed. Please try again.' });
+  }
+});
+
+// GET /api/checkin/lookup?phone=... — has this phone number checked in before?
+// Powers the staff form's autofill: type a returning visitor's number and
+// their name/fabricator info comes back instead of being retyped. Open to
+// anyone who can submit a check-in (same `authenticate`-only gate as the POST
+// above) rather than gated behind view_checkins, since this is part of
+// filling the form out, not the check-in log/report those permissions guard.
+// Registered ahead of GET /api/checkin/:id so 'lookup' is never read as an id.
+app.get('/api/checkin/lookup', authenticate, async (req, res) => {
+  try {
+    const digits = stripPhone(req.query.phone);
+    if (digits.length < 10) {
+      return res.json({ found: false });
+    }
+    // Every number this form has ever saved went through formatPhoneInput on
+    // the way in, so the last 10 digits reformatted the same way is an exact
+    // match — no fuzzy matching needed.
+    const formatted = formatPhoneForDisplay(digits.slice(-10));
+
+    const lastVisit = await OfficeCheckIn.findOne(
+      { phone: formatted },
+      'name fabricatorCompany fabricatorPhone location createdAt'
+    ).sort({ createdAt: -1 }).lean();
+
+    if (!lastVisit) {
+      return res.json({ found: false });
+    }
+
+    res.json({
+      found: true,
+      name: lastVisit.name || '',
+      fabricatorCompany: lastVisit.fabricatorCompany || '',
+      fabricatorPhone: lastVisit.fabricatorPhone || '',
+      lastVisit: { location: lastVisit.location, date: lastVisit.createdAt }
+    });
+  } catch (error) {
+    console.error('❌ Check-in lookup error:', error);
+    res.status(500).json({ message: 'Could not look up that number.' });
   }
 });
 

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Phone, Building, CheckCircle2, ShieldCheck,
   Sun, Moon, ChevronRight, ChevronLeft, Home, Hammer, Palette, HardHat, Wrench, Store,
-  Send, Loader2, AlertTriangle, ChevronDown, UserCheck
+  Send, Loader2, AlertTriangle, ChevronDown, UserCheck, RotateCcw
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
@@ -75,6 +75,28 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
   const [submitted, setSubmitted] = useState(false);
   const [submittedCustomerName, setSubmittedCustomerName] = useState('');
   const [error, setError] = useState(null);
+
+  // Staff form only: whoever checked in on this phone before, so the front
+  // desk doesn't retype a returning visitor's info. 'found' drives the
+  // welcome-back note; the fields themselves stay plain and editable either
+  // way — this only ever pre-fills them.
+  const [lookupStatus, setLookupStatus] = useState(null); // null | 'checking' | 'found'
+  const [lookupVisit, setLookupVisit] = useState(null);   // { location, date }
+  const lookedUpPhoneRef = useRef('');
+
+  // Enter advances field-to-field instead of submitting early — without this,
+  // the browser's default "Enter submits the form" fires the moment someone
+  // hits Enter after typing just their name, and they see a validation error
+  // for fields they hadn't gotten to yet.
+  const nameInputRef = useRef(null);
+  const phoneInputRef = useRef(null);
+  const companyInputRef = useRef(null);
+  const companyPhoneInputRef = useRef(null);
+  const focusOnEnter = (ref) => (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    ref.current?.focus();
+  };
 
   const [availableLocations, setAvailableLocations] = useState(['Seattle', 'Spokane', 'Salt Lake City']);
   
@@ -230,16 +252,71 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
 
   const handleStaffChange = (e) => {
     const { name, value } = e.target;
-    let v = (name === 'phone' || name === 'fabricatorPhone') 
-      ? formatPhoneInput(value) 
-      : (name === 'name' || name === 'fabricatorCompany') 
-        ? formatTitleCase(value) 
+    let v = (name === 'phone' || name === 'fabricatorPhone')
+      ? formatPhoneInput(value)
+      : (name === 'name' || name === 'fabricatorCompany')
+        ? formatTitleCase(value)
         : value;
+    // The phone number changed out from under whatever was last looked up —
+    // the welcome-back note would otherwise keep pointing at a stale match.
+    if (name === 'phone' && v !== staffFormData.phone) {
+      setLookupStatus(null);
+      setLookupVisit(null);
+    }
     setStaffFormData(prev => {
       const next = { ...prev, [name]: v };
       try { localStorage.setItem('checkin_draft', JSON.stringify(next)); } catch { /* not fatal — carry on */ }
       return next;
     });
+  };
+
+  /**
+   * Fires when the phone field loses focus. A finished 10-digit number that
+   * matches a previous visit fills in name/company/company phone — the
+   * fields stay ordinary text inputs, so anything wrong about a returning
+   * visitor (new name, switched fabricator) is a normal edit, not a special
+   * "override" step.
+   */
+  const handleStaffPhoneBlur = async () => {
+    const digits = staffFormData.phone.replace(/\D/g, '');
+    if (digits.length < 10 || digits === lookedUpPhoneRef.current) return;
+    lookedUpPhoneRef.current = digits;
+
+    setLookupStatus('checking');
+    try {
+      const res = await authFetch(`${API_URL}/api/checkin/lookup?phone=${encodeURIComponent(digits)}`);
+      const data = res.ok ? await res.json() : { found: false };
+      if (!data.found) { setLookupStatus(null); setLookupVisit(null); return; }
+
+      setStaffFormData(prev => {
+        const next = {
+          ...prev,
+          name: data.name || prev.name,
+          fabricatorCompany: data.fabricatorCompany || prev.fabricatorCompany,
+          fabricatorPhone: data.fabricatorPhone || prev.fabricatorPhone
+        };
+        try { localStorage.setItem('checkin_draft', JSON.stringify(next)); } catch { /* not fatal — carry on */ }
+        return next;
+      });
+      setLookupVisit(data.lastVisit || null);
+      setLookupStatus('found');
+    } catch {
+      // A failed lookup just means no autofill — the form still works as a
+      // blank one, so this stays silent rather than becoming a form error.
+      setLookupStatus(null);
+    }
+  };
+
+  /** Wipes the form back to blank — the way out of a wrong autofill, or to
+   *  start the next visitor without submitting the current one. */
+  const handleClearStaffForm = () => {
+    setStaffFormData({ name: '', phone: '', fabricatorCompany: '', fabricatorPhone: '' });
+    setLookupStatus(null);
+    setLookupVisit(null);
+    lookedUpPhoneRef.current = '';
+    setError(null);
+    try { localStorage.removeItem('checkin_draft'); } catch { /* not fatal — carry on */ }
+    nameInputRef.current?.focus();
   };
 
   const handleStaffSubmit = async (e) => {
@@ -260,6 +337,9 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
         setSubmittedCustomerName(staffFormData.name || '');
         setSubmitted(true);
         setStaffFormData({ name: '', phone: '', fabricatorCompany: '', fabricatorPhone: '' });
+        setLookupStatus(null);
+        setLookupVisit(null);
+        lookedUpPhoneRef.current = '';
         try { localStorage.removeItem('checkin_draft'); } catch { /* not fatal — carry on */ }
       } else { const data = await response.json(); setError(data.message || 'Check-in failed'); }
     } catch { setError('Network error. Please try again.'); }
@@ -489,27 +569,71 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
           </div>
         ) : (
           <form onSubmit={handleStaffSubmit} className="checkin-form">
+            {Object.values(staffFormData).some(Boolean) && (
+              <div className="checkin-form-toolbar">
+                <button type="button" className="checkin-clear-btn" onClick={handleClearStaffForm}>
+                  <RotateCcw size={13} /> Clear form
+                </button>
+              </div>
+            )}
             <div className="form-sections-container">
               <div className="form-section">
-                <h3>Customer Information</h3>
+                <h3><User size={16} /> Customer Information</h3>
                 <div className="input-field">
-                  <label><User size={16} /> Name <span className="required">*</span></label>
-                  <input type="text" name="name" value={staffFormData.name} onChange={handleStaffChange} placeholder="Enter your full name" required />
+                  <label>Name <span className="required">*</span></label>
+                  <div className="input-with-icon">
+                    <User size={16} className="input-icon" />
+                    <input
+                      ref={nameInputRef} type="text" name="name" value={staffFormData.name} onChange={handleStaffChange}
+                      placeholder="Enter full name" required autoFocus
+                      onKeyDown={focusOnEnter(phoneInputRef)}
+                    />
+                  </div>
                 </div>
                 <div className="input-field">
-                  <label><Phone size={16} /> Phone Number <span className="required">*</span></label>
-                  <input type="tel" name="phone" value={staffFormData.phone} onChange={handleStaffChange} placeholder="(555) 000-0000" required />
+                  <label>Phone Number <span className="required">*</span></label>
+                  <div className="input-with-icon">
+                    <Phone size={16} className="input-icon" />
+                    <input
+                      ref={phoneInputRef} type="tel" name="phone" value={staffFormData.phone}
+                      onChange={handleStaffChange} onBlur={handleStaffPhoneBlur} placeholder="(555) 000-0000" required
+                      onKeyDown={focusOnEnter(companyInputRef)}
+                    />
+                  </div>
                 </div>
+                {lookupStatus === 'checking' && (
+                  <p className="checkin-lookup-note anim-fade-in">
+                    <Loader2 size={14} className="animate-spin" /> Checking for a previous visit…
+                  </p>
+                )}
+                {lookupStatus === 'found' && (
+                  <p className="checkin-lookup-note checkin-lookup-note--found anim-fade-in">
+                    <UserCheck size={14} /> Welcome back{lookupVisit?.date ? ` — last visited ${new Date(lookupVisit.date).toLocaleDateString()}${lookupVisit.location ? ` (${lookupVisit.location})` : ''}` : ''}. Filled in below — edit anything that's changed.
+                  </p>
+                )}
               </div>
               <div className="form-section">
-                <h3>Fabricator / Contractor Info</h3>
+                <h3><Building size={16} /> Fabricator / Contractor Info</h3>
                 <div className="input-field">
-                  <label><Building size={16} /> Company/Contact Name <span className="required">*</span></label>
-                  <input type="text" name="fabricatorCompany" value={staffFormData.fabricatorCompany} onChange={handleStaffChange} placeholder="Enter company/contact name" required />
+                  <label>Company/Contact Name <span className="required">*</span></label>
+                  <div className="input-with-icon">
+                    <Building size={16} className="input-icon" />
+                    <input
+                      ref={companyInputRef} type="text" name="fabricatorCompany" value={staffFormData.fabricatorCompany}
+                      onChange={handleStaffChange} placeholder="Enter company/contact name" required
+                      onKeyDown={focusOnEnter(companyPhoneInputRef)}
+                    />
+                  </div>
                 </div>
                 <div className="input-field">
-                  <label><Phone size={16} /> Company Phone Number <span className="required">*</span></label>
-                  <input type="tel" name="fabricatorPhone" value={staffFormData.fabricatorPhone} onChange={handleStaffChange} placeholder="(555) 000-0000" required />
+                  <label>Company Phone Number <span className="required">*</span></label>
+                  <div className="input-with-icon">
+                    <Phone size={16} className="input-icon" />
+                    <input
+                      ref={companyPhoneInputRef} type="tel" name="fabricatorPhone" value={staffFormData.fabricatorPhone}
+                      onChange={handleStaffChange} placeholder="(555) 000-0000" required
+                    />
+                  </div>
                 </div>
               </div>
             </div>
