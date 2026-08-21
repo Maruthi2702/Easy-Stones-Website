@@ -650,11 +650,57 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   padding-right: calc(var(--dr-cellpad) + 0.5rem + 1px);
 }
 
+/* Same reasoning as the numeric inset above, mirrored on the left: the
+   Transfers row leads with a direction icon (12px + 0.3rem gap) before the
+   From select's own border and padding even start, so 'From — To' sat
+   noticeably left of where 'Seattle' actually begins inside its box. */
+.dr-route-th {
+  padding-left: calc(var(--dr-cellpad) + 12px + 0.3rem + 0.5rem + 1px);
+}
+
 .dr-none {
   padding: 0.9rem var(--dr-cellpad) !important;
   text-align: center;
   color: var(--dr-text-3);
   font-size: 0.78rem;
+}
+
+/* Outgoing vs incoming on a Transfers row — a small mark beside the route
+   cell rather than its own column, so the table doesn't grow a column that's
+   blank on every outbound row. */
+.dr-direction {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-right: 0.3rem;
+  color: var(--dr-text-3);
+}
+
+/* From/To as two branch pickers rather than one freeform field — see
+   splitFromTo/composeFromTo in DailyReportTab.jsx for why a typed route
+   ("sea slc", no separator) couldn't be trusted to match the auto rows'
+   'CODE — CODE' format. */
+.dr-route-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* .dr-cell.dr-select (not just .dr-select) so this beats the base .dr-cell
+   width rule below on specificity rather than depending on which one
+   happens to come later in the file — that's what silently clipped these
+   to 72px before. */
+.dr-cell.dr-select {
+  width: 128px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dr-select:disabled { cursor: default; }
+
+.dr-route-sep {
+  color: var(--dr-text-3);
+  font-size: 0.76rem;
+  flex: none;
 }
 
 /* Computed, never typed — the class of error where a row is added and the SUM
@@ -988,6 +1034,9 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   .dr-datepick { flex: 1; justify-content: center; }
   .dr-table { --dr-cellpad: 0.6rem; }
   .dr-cell { width: 62px; }
+  /* Full branch names ('Salt Lake City') need more room than the generic
+     narrow-cell width above gives every other field on this breakpoint. */
+  .dr-cell.dr-select { width: 92px; }
 }
 
 /* ── Email dialog ────────────────────────────────────────────────────────── */

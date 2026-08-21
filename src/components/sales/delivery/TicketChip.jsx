@@ -67,7 +67,12 @@ const TicketChip = ({
 
   // A signed-for delivery keeps its driver/column fixed — dragging it to
   // reassign after the fact would misrepresent who actually delivered it.
-  const canDrag = Boolean(editable && delivery.status !== 'completed');
+  // A card showing its expected-arrival date rather than its real ship date
+  // (see the list route in server.js) can't be dragged either — a truck
+  // reassignment PATCH always writes the ship date, which would silently
+  // overwrite it with whatever day the card was dropped on. Still fully
+  // editable via its own modal, where both dates are what they really are.
+  const canDrag = Boolean(editable && delivery.status !== 'completed' && !delivery.isIncomingView);
 
   // Proof only means something once the delivery is done — an unsigned scheduled
   // job doesn't need telling that it has no ePOD yet. Suppressed entirely where

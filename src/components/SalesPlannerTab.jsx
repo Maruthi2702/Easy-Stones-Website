@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar as CalendarIcon,
-    Plus, Trash2, Edit2, AlertCircle, X
+    Plus, Trash2, Edit2, AlertCircle, X, Check, AlertTriangle
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
@@ -1063,42 +1063,62 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         return drag.source === 'keyboard' ? ' is-grabbed' : ' is-dragging';
     };
 
-    const renderItem = (item) => (
-        <div
-            key={item._id}
-            className={`pl-item pl-item--${activityModifier(item.activityType)}${itemState(item)}`}
-            title={`${customerName(item)} — drag to another day, or press Space to move it with the arrow keys`}
-            {...dragProps(item)}
-        >
-            <div className="pl-item-top">
-                <span
-                    className="pl-typedot"
-                    style={{ background: activityColor(item.activityType) }}
-                    aria-hidden="true"
-                />
-                <button
-                    type="button"
-                    className="pl-name"
-                    onClick={() => onSelectCustomer && onSelectCustomer(item.customerId)}
-                    title={`Open ${customerName(item)}`}
-                >
-                    {customerName(item)}
-                </button>
-                <div className="pl-acts">
-                    <button type="button" className="pl-act" onClick={() => openEdit(item)} aria-label="Edit activity">
-                        <Edit2 size={13} />
+    // 'Completed'/'linkedVisitId' only get set once an actual visit is logged
+    // against this stop (see the Add Visit handler in server.js) — everything
+    // else just sits at the 'Scheduled' default whether or not it happened.
+    // A 'Scheduled' stop whose day has already passed reads as missed rather
+    // than silently staying indistinguishable from one still coming up.
+    const visitFlag = (item) => {
+        if (item.status === 'Completed') return 'done';
+        if (item.status === 'Scheduled' && dayKey(new Date(item.startTime)) < dayKey(new Date())) return 'missed';
+        return null;
+    };
+
+    const renderItem = (item) => {
+        const flag = visitFlag(item);
+        return (
+            <div
+                key={item._id}
+                className={`pl-item pl-item--${activityModifier(item.activityType)}${itemState(item)}${flag ? ` is-${flag}` : ''}`}
+                title={`${customerName(item)} — drag to another day, or press Space to move it with the arrow keys`}
+                {...dragProps(item)}
+            >
+                <div className="pl-item-top">
+                    <span
+                        className="pl-typedot"
+                        style={{ background: activityColor(item.activityType) }}
+                        aria-hidden="true"
+                    />
+                    <button
+                        type="button"
+                        className="pl-name"
+                        onClick={() => onSelectCustomer && onSelectCustomer(item.customerId)}
+                        title={`Open ${customerName(item)}`}
+                    >
+                        {customerName(item)}
                     </button>
-                    <button type="button" className="pl-act pl-act--danger" onClick={() => handleDelete(item._id)} aria-label="Delete activity">
-                        <Trash2 size={13} />
-                    </button>
+                    <div className="pl-acts">
+                        <button type="button" className="pl-act" onClick={() => openEdit(item)} aria-label="Edit activity">
+                            <Edit2 size={13} />
+                        </button>
+                        <button type="button" className="pl-act pl-act--danger" onClick={() => handleDelete(item._id)} aria-label="Delete activity">
+                            <Trash2 size={13} />
+                        </button>
+                    </div>
                 </div>
+                <div className="pl-meta">
+                    {timeLabel(item.startTime)} · {item.activityType || 'Visit'}
+                    {flag === 'done' && (
+                        <span className="pl-visit-flag pl-visit-flag--done"><Check size={11} /> Visited</span>
+                    )}
+                    {flag === 'missed' && (
+                        <span className="pl-visit-flag pl-visit-flag--missed"><AlertTriangle size={11} /> Missed</span>
+                    )}
+                </div>
+                {item.notes && <div className="pl-note" title={item.notes}>{item.notes}</div>}
             </div>
-            <div className="pl-meta">
-                {timeLabel(item.startTime)} · {item.activityType || 'Visit'}
-            </div>
-            {item.notes && <div className="pl-note" title={item.notes}>{item.notes}</div>}
-        </div>
-    );
+        );
+    };
 
     /**
      * A day's cards with the insertion line threaded between them, so the gap a
@@ -1226,24 +1246,29 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                                             <Plus size={12} />
                                         </button>
                                     </div>
-                                    {shown.map(item => (
-                                        <button
-                                            key={item._id}
-                                            type="button"
-                                            className={`pl-ev${itemState(item)}`}
-                                            onClick={() => openEdit(item)}
-                                            title={`${timeLabel(item.startTime)} · ${customerName(item)} — drag to another day, or press Space to move it with the arrow keys`}
-                                            {...dragProps(item)}
-                                        >
-                                            <span
-                                                className="pl-typedot"
-                                                style={{ background: activityColor(item.activityType) }}
-                                                aria-hidden="true"
-                                            />
-                                            <span className="pl-evtime">{timeLabel(item.startTime)}</span>
-                                            <span className="pl-evname">{customerName(item)}</span>
-                                        </button>
-                                    ))}
+                                    {shown.map(item => {
+                                        const flag = visitFlag(item);
+                                        return (
+                                            <button
+                                                key={item._id}
+                                                type="button"
+                                                className={`pl-ev${itemState(item)}${flag ? ` is-${flag}` : ''}`}
+                                                onClick={() => openEdit(item)}
+                                                title={`${timeLabel(item.startTime)} · ${customerName(item)}${flag === 'done' ? ' · Visited' : flag === 'missed' ? ' · Missed' : ''} — drag to another day, or press Space to move it with the arrow keys`}
+                                                {...dragProps(item)}
+                                            >
+                                                <span
+                                                    className="pl-typedot"
+                                                    style={{ background: activityColor(item.activityType) }}
+                                                    aria-hidden="true"
+                                                />
+                                                <span className="pl-evtime">{timeLabel(item.startTime)}</span>
+                                                <span className="pl-evname">{customerName(item)}</span>
+                                                {flag === 'done' && <Check size={10} className="pl-ev-flag pl-ev-flag--done" aria-hidden="true" />}
+                                                {flag === 'missed' && <AlertTriangle size={10} className="pl-ev-flag pl-ev-flag--missed" aria-hidden="true" />}
+                                            </button>
+                                        );
+                                    })}
                                     {items.length > shown.length && (
                                         <button
                                             type="button"

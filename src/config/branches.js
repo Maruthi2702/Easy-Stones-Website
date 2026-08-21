@@ -7,11 +7,26 @@
  * the auto-submit job can't drift into disagreeing about which branches exist.
  */
 
+// Keys must match Location.name exactly, including 'New york' (as stored —
+// see the Location collection) rather than the properly-cased 'New York':
+// isBranch/branchCode/branchZone below all look up by exact string, so a
+// "corrected" key here would just silently miss on lookup for that branch.
 export const BRANCHES = {
   'Seattle':        { code: 'SEA', timeZone: 'America/Los_Angeles' },
   'Spokane':        { code: 'SPO', timeZone: 'America/Los_Angeles' },
   'Salt Lake City': { code: 'SLC', timeZone: 'America/Denver' },
-  'Dallas':         { code: 'DAL', timeZone: 'America/Chicago' }
+  'Dallas':         { code: 'DAL', timeZone: 'America/Chicago' },
+  'Houston':        { code: 'HOU', timeZone: 'America/Chicago' },
+  // Panhandle Florida, not the rest of the state — Fort Walton Beach sits
+  // west of the Apalachicola River, which is Central time, not Eastern.
+  'FWB':            { code: 'FWB', timeZone: 'America/Chicago' },
+  'Atlanta':        { code: 'ATL', timeZone: 'America/New_York' },
+  'Charleston':     { code: 'CHS', timeZone: 'America/New_York' },
+  'Charlotte':      { code: 'CLT', timeZone: 'America/New_York' },
+  'Greensboro':     { code: 'GSO', timeZone: 'America/New_York' },
+  'Raleigh':        { code: 'RAL', timeZone: 'America/New_York' },
+  'Richmond':       { code: 'RIC', timeZone: 'America/New_York' },
+  'New york':       { code: 'NYC', timeZone: 'America/New_York' }
 };
 
 export const BRANCH_NAMES = Object.keys(BRANCHES);

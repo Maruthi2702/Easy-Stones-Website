@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  Users, Truck, ArrowLeftRight, Package, Wallet, ClipboardList,
+  Users, Truck, ArrowLeftRight, ArrowDownToLine, ArrowUpFromLine, Package, Wallet, ClipboardList,
   ChevronLeft, ChevronRight, ChevronDown, Plus, X, Check, Lock, Unlock,
   MapPin, AlertCircle, Loader2, FileText, Mail, FileSpreadsheet
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
+import { branchCode } from '../../../config/branches.js';
 import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
 import { money } from './summaryFigures';
+import { groupContainers, groupSlabs } from '../../../utils/dailyReportContainers';
 import MonthView from './MonthView';
 import AllBranchesDay from './AllBranchesDay';
 import DaySummary from './DaySummary';
@@ -81,6 +83,23 @@ const said = (...values) => values.some(v => v !== null && v !== undefined && v 
 
 /** A total is only a dash when nothing underneath it has been said at all. */
 const total = (value, ...sources) => (said(...sources) ? value : '—');
+
+/**
+ * A transfer's route is stored as one opaque string ('SEA — SLC') — the
+ * format the server already produces for auto rows and matches lines
+ * against across saves (see lineKey in dailyReports.js) — so splitting it
+ * into two dropdowns is purely a frontend input concern; nothing downstream
+ * (the model, the PDF/CSV export, ticket matching) needs to know it's really
+ * two branch codes. A free-typed legacy value that doesn't split cleanly
+ * (a stray hyphen, no separator at all) just starts both dropdowns blank
+ * until re-picked, rather than guessing at what was meant.
+ */
+const splitFromTo = (fromTo) => {
+  const [from, to] = String(fromTo || '').split('—').map(s => s.trim());
+  return [from || '', to || ''];
+};
+
+const composeFromTo = (from, to) => (from || to) ? `${from} — ${to}` : '';
 
 const emptyReport = (date, location) => ({
   date,
@@ -253,10 +272,15 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   /**
    * A slab count far outside what this branch usually sees. A question, never a
    * block — a genuine 520-slab container should still save.
+   *
+   * Checked per physical container, not per line: one PO split across a
+   * couple of colors is a few small lines that are each "odd" on their own
+   * but ordinary once added back together, so the threshold has to look at
+   * the group's total, not any single line inside it.
    */
-  const oddContainers = (report?.containers || [])
-    .map(c => c.slabs)
-    .filter(v => outOfBandValue(v));
+  const containerGroups = groupContainers(report?.containers || []);
+  const oddContainerGroups = containerGroups.filter(g => outOfBandValue(groupSlabs(g)));
+  const oddContainerLines = new Set(oddContainerGroups.flatMap(g => g.lines));
 
   function outOfBandValue(value) {
     if (!slabRange || value === null || value === undefined || value === '') return false;
@@ -301,8 +325,14 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       visitors: n(v.homeowners) + n(v.fabricators) + n(v.designers),
       assigned: n(report.deliveries.assigned) + n(report.pickups.assigned),
       capacity: n(report.deliveries.capacity) + n(report.pickups.capacity),
-      transferCount: report.transfers.reduce((s, t) => s + n(t.count), 0),
-      transferSlabs: report.transfers.reduce((s, t) => s + n(t.slabs), 0),
+      // Outbound only — matches what these figures have always meant, so the
+      // day-glance tile's number doesn't quietly start including material
+      // coming the other way. Incoming has its own subtotal in the section
+      // below instead of being folded into this one.
+      transferCount: report.transfers.filter(t => t.direction !== 'in').reduce((s, t) => s + n(t.count), 0),
+      transferSlabs: report.transfers.filter(t => t.direction !== 'in').reduce((s, t) => s + n(t.slabs), 0),
+      transferCountIn: report.transfers.filter(t => t.direction === 'in').reduce((s, t) => s + n(t.count), 0),
+      transferSlabsIn: report.transfers.filter(t => t.direction === 'in').reduce((s, t) => s + n(t.slabs), 0),
       containerSlabs: report.containers.reduce((s, c) => s + n(c.slabs), 0),
       payCount: ['cash', 'card', 'check'].reduce((s, k) => s + n(report.payments[k].count), 0),
       payAmount: ['cash', 'card', 'check'].reduce((s, k) => s + n(report.payments[k].amount), 0)
@@ -669,19 +699,33 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
             >
               <table className="dr-table">
                 <thead>
-                  <tr><th>From — To</th><th className="dr-num">Count</th><th className="dr-num">Slabs</th><th className="dr-x" /></tr>
+                  <tr><th className="dr-route-th">From — To</th><th className="dr-num">Count</th><th className="dr-num">Slabs</th><th className="dr-x" /></tr>
                 </thead>
                 <tbody>
                   {report.transfers.length === 0 && (
                     <tr><td colSpan={4} className="dr-none">No transfers today.</td></tr>
                   )}
-                  {report.transfers.map((t, i) => (
+                  {report.transfers.map((t, i) => {
+                    const [fromCode, toCode] = splitFromTo(t.fromTo);
+                    return (
                     <tr key={i}>
-                      <td>
-                        <ReportCell value={t.fromTo} type="text" align="left" width={150}
-                          derived={t.auto} disabled={locked || t.auto} placeholder="From — To"
-                          ariaLabel="Transfer route"
-                          onChange={(v) => patch(r => { r.transfers[i].fromTo = v; return r; })} />
+                      <td className="dr-route-cell">
+                        <span className="dr-direction" title={t.direction === 'in' ? 'Incoming' : 'Outgoing'}>
+                          {t.direction === 'in' ? <ArrowDownToLine size={12} /> : <ArrowUpFromLine size={12} />}
+                        </span>
+                        <select className={`dr-cell dr-select ${t.auto ? 'is-derived' : ''}`}
+                          value={fromCode} disabled={locked || t.auto} aria-label="Transfer from"
+                          onChange={(e) => patch(r => { r.transfers[i].fromTo = composeFromTo(e.target.value, toCode); return r; })}>
+                          <option value="">From</option>
+                          {locations.map(l => <option key={l} value={branchCode(l)}>{l}</option>)}
+                        </select>
+                        <span className="dr-route-sep" aria-hidden="true">—</span>
+                        <select className={`dr-cell dr-select ${t.auto ? 'is-derived' : ''}`}
+                          value={toCode} disabled={locked || t.auto} aria-label="Transfer to"
+                          onChange={(e) => patch(r => { r.transfers[i].fromTo = composeFromTo(fromCode, e.target.value); return r; })}>
+                          <option value="">To</option>
+                          {locations.map(l => <option key={l} value={branchCode(l)}>{l}</option>)}
+                        </select>
                       </td>
                       <td className="dr-num">
                         <ReportCell value={t.count} derived={t.auto} disabled={locked} ariaLabel="Transfer count"
@@ -694,17 +738,24 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                           onChange={(v) => patch(r => { r.transfers[i].slabs = v; return r; })} />
                       </td>
                       <td className="dr-x">
-                        {!locked && !t.auto && (
+                        {!locked && (
                           <button className="dr-rowdel" aria-label="Remove transfer"
                             onClick={() => patch(r => { r.transfers.splice(i, 1); return r; })}><X size={13} /></button>
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   <tr className="dr-total">
-                    <td>Total</td>
+                    <td>Outgoing</td>
                     <td className="dr-num">{totals.transferCount}</td>
                     <td className="dr-num">{totals.transferSlabs}</td>
+                    <td className="dr-x" />
+                  </tr>
+                  <tr className="dr-total">
+                    <td>Incoming</td>
+                    <td className="dr-num">{totals.transferCountIn}</td>
+                    <td className="dr-num">{totals.transferSlabsIn}</td>
                     <td className="dr-x" />
                   </tr>
                 </tbody>
@@ -716,10 +767,10 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
               title="Containers"
               icon={Package}
               source={{ kind: 'typed', label: 'entered here' }}
-              footnote={oddContainers.length
-                ? `${oddContainers.join(' and ')} ${oddContainers.length === 1 ? 'is' : 'are'} well outside the usual ${slabRange.low}–${slabRange.high} slabs${slabRange.fromHistory ? ' for this branch' : ' for a container'}. Keep it if that's right.`
+              footnote={oddContainerGroups.length
+                ? `${oddContainerGroups.map(groupSlabs).join(' and ')} ${oddContainerGroups.length === 1 ? 'is' : 'are'} well outside the usual ${slabRange.low}–${slabRange.high} slabs${slabRange.fromHistory ? ' for this branch' : ' for a container'}. Keep it if that's right.`
                 : 'Leave the PO# blank to continue the one above.'}
-              footnoteTone={oddContainers.length ? 'warn' : undefined}
+              footnoteTone={oddContainerGroups.length ? 'warn' : undefined}
               action={!locked && (
                 <button className="dr-addrow-btn" onClick={addContainer}><Plus size={12} /> Add</button>
               )}
@@ -746,7 +797,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                       </td>
                       <td className="dr-num">
                         <ReportCell value={c.slabs} disabled={locked} ariaLabel="Container slabs"
-                          className={outOfBand(c.slabs) ? 'is-odd' : ''}
+                          className={oddContainerLines.has(c) ? 'is-odd' : ''}
                           onKeyDown={rowKeys('containers', i, addContainer, !c.poNumber && !c.material && !n(c.slabs))}
                           onChange={(v) => patch(r => { r.containers[i].slabs = v; return r; })} />
                       </td>

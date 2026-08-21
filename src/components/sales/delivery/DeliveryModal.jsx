@@ -97,7 +97,16 @@ const DeliveryModal = ({
 
   // New Classification & 3rd Party States
   const [deliveryType, setDeliveryType] = useState('jobsite');
+  // Defaults to your own branch (today's implicit behavior), but is editable
+  // — someone at the receiving branch can log a transfer on the shipping
+  // branch's behalf if it never got entered from that side.
+  const [transferOrigin, setTransferOrigin] = useState('');
   const [transferDestination, setTransferDestination] = useState('');
+  // Transfer-only: the day it's due at transferDestination, distinct from
+  // `date` (when it leaves here). Drives the inbound line on the destination
+  // branch's Daily Work Report (see deriveFromSystem in
+  // src/routes/dailyReports.js) rather than the ship date.
+  const [expectedArrivalDate, setExpectedArrivalDate] = useState('');
   const [pickupInfo, setPickupInfo] = useState('');
   const [carrierName, setCarrierName] = useState('');
   const [proNumber, setProNumber] = useState('');
@@ -202,7 +211,7 @@ const DeliveryModal = ({
 
   const activeCustomerOptions = (customerOptions && customerOptions.length > 0) ? customerOptions : fetchedCustomerOptions;
 
-  // Branch names for the Transfer To dropdown — pulled from the same
+  // Branch names for the Transfer From/To dropdowns — pulled from the same
   // admin-managed location list as everywhere else (Users & Roles → Locations),
   // so a new branch shows up here the moment it's added there instead of
   // needing a code change. `locationsList` arrives as either Location documents
@@ -213,7 +222,7 @@ const DeliveryModal = ({
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b));
     return [
-      { value: '', label: '-- Select destination branch --' },
+      { value: '', label: '-- Select branch --' },
       ...names.map(name => ({ value: name, label: `📍 ${name} Showroom` }))
     ];
   }, [locationsList]);
@@ -236,7 +245,7 @@ const DeliveryModal = ({
   useEffect(() => {
     formStateRef.current = {
       date, routeNumber, truckId, customerName, selectedCustomerId, soNumber, address,
-      salesRepName, status, notes, time, deliveryType, transferDestination, pickupInfo,
+      salesRepName, status, notes, time, deliveryType, transferOrigin, transferDestination, expectedArrivalDate, pickupInfo,
       carrierName, proNumber, freightFee, packingListUrl, packingListFilename, numberOfSlabs
     };
   });
@@ -266,7 +275,9 @@ const DeliveryModal = ({
     setNotes(draft.notes ?? notes);
     setTime(draft.time ?? time);
     setDeliveryType(draft.deliveryType ?? deliveryType);
+    setTransferOrigin(draft.transferOrigin ?? transferOrigin);
     setTransferDestination(draft.transferDestination ?? transferDestination);
+    setExpectedArrivalDate(draft.expectedArrivalDate ?? expectedArrivalDate);
     setPickupInfo(draft.pickupInfo ?? pickupInfo);
     setCarrierName(draft.carrierName ?? carrierName);
     setProNumber(draft.proNumber ?? proNumber);
@@ -308,7 +319,9 @@ const DeliveryModal = ({
       setNotes(initialData.notes || '');
       setTime(initialData.time || '09:00 AM');
       setDeliveryType(initialData.deliveryType || 'jobsite');
+      setTransferOrigin(initialData.location || currentUser?.location || '');
       setTransferDestination(initialData.transferDestination || '');
+      setExpectedArrivalDate(formatForDateInput(initialData.expectedArrivalDate));
       setPickupInfo(initialData.pickupInfo || '');
       setCarrierName(initialData.carrierName || '');
       setProNumber(initialData.proNumber || '');
@@ -344,7 +357,9 @@ const DeliveryModal = ({
     setNotes('');
     setTime('09:00 AM');
     setDeliveryType('jobsite');
+    setTransferOrigin(currentUser?.location || '');
     setTransferDestination('Spokane');
+    setExpectedArrivalDate('');
     setPickupInfo('');
     setCarrierName('');
     setProNumber('');
@@ -405,13 +420,24 @@ const DeliveryModal = ({
     }
 
     if (isTransfer) {
+      if (!transferOrigin) {
+        setError('Please choose the branch this transfer is coming from.');
+        return;
+      }
       if (!transferDestination) {
         setError('Please choose the branch this transfer is going to.');
         return;
       }
+      if (transferOrigin === transferDestination) {
+        setError('Transfer From and Transfer To can\u2019t be the same branch.');
+        return;
+      }
       // A transfer has no customer, but customerName is required and is what the
-      // board chip renders, so name it after the destination.
-      finalCustomerName = `Transfer \u2192 ${transferDestination}`;
+      // board chip renders \u2014 naming both ends rather than just the
+      // destination, since this same ticket is now visible on both branches'
+      // boards and "Transfer \u2192 Seattle" tells Seattle nothing new about a
+      // ticket sitting on Seattle's own board.
+      finalCustomerName = `Transfer: ${transferOrigin} \u2192 ${transferDestination}`;
     } else if (!finalCustomerName) {
       setError('Please select or enter a Customer Name.');
       return;
@@ -434,9 +460,10 @@ const DeliveryModal = ({
       salesRepName: salesRepName.trim(),
       status,
       notes: notes.trim(),
-      location: initialData?.location || currentUser?.location || '',
+      location: isTransfer ? transferOrigin : (initialData?.location || currentUser?.location || ''),
       deliveryType,
       transferDestination,
+      expectedArrivalDate: isTransfer ? expectedArrivalDate : '',
       pickupInfo: isTransfer ? '' : pickupInfo.trim(),
       carrierName: isTransfer ? '' : carrierName.trim(),
       proNumber: isTransfer ? '' : proNumber.trim(),
@@ -590,6 +617,12 @@ const DeliveryModal = ({
                   if (nextType === 'transfer' && thirdPartyTruck && isNewTicket && truckId) {
                     setTruckId(thirdPartyTruck.id);
                   }
+                  // A starting guess, not a link — pre-fill the arrival date from
+                  // the ship date once, same as the truck prefill above, and leave
+                  // it free to diverge from there for a route that takes longer.
+                  if (nextType === 'transfer' && isNewTicket && !expectedArrivalDate) {
+                    setExpectedArrivalDate(date);
+                  }
                   markDirty();
                 }}
                 options={[
@@ -601,18 +634,53 @@ const DeliveryModal = ({
             </div>
           </div>
 
-            {/* Inter-Branch Transfer: destination on its own row, then the
-                reference number paired with No. of Slabs below it. */}
+            {/* Inter-Branch Transfer: From/To paired on one row, then the
+                reference number paired with No. of Slabs below it. From
+                defaults to your own branch — most tickets never need it
+                touched — but is editable so the receiving branch can log a
+                transfer itself if the shipping branch never enters it. */}
+            {isTransfer && (
+              <div className="delivery-form-2col" style={{ marginBottom: '1.1rem' }}>
+                <div className="form-group">
+                  <label style={{ color: '#60a5fa' }}>
+                    <MapPin size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                    Transfer From <span className="req-star">*</span>
+                  </label>
+                  <CustomSelect
+                    value={transferOrigin}
+                    onChange={(e) => { setTransferOrigin(e.target.value); markDirty(); }}
+                    options={transferDestinationOptions}
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ color: '#60a5fa' }}>
+                    <MapPin size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                    Transfer To <span className="req-star">*</span>
+                  </label>
+                  <CustomSelect
+                    value={transferDestination}
+                    onChange={(e) => { setTransferDestination(e.target.value); markDirty(); }}
+                    options={transferDestinationOptions}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* When it's due at the destination — separate from the ship date
+                above. Drives the inbound line on the destination branch's own
+                Daily Work Report (see deriveFromSystem in
+                src/routes/dailyReports.js). Left blank is fine; it just means
+                that branch won't see it coming until this is filled in. */}
             {isTransfer && (
               <div className="form-group" style={{ marginBottom: '1.1rem' }}>
                 <label style={{ color: '#60a5fa' }}>
-                  <MapPin size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                  Transfer To <span className="req-star">*</span>
+                  <Calendar size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  Expected Arrival
                 </label>
-                <CustomSelect
-                  value={transferDestination}
-                  onChange={(e) => { setTransferDestination(e.target.value); markDirty(); }}
-                  options={transferDestinationOptions}
+                <input
+                  type="date"
+                  value={expectedArrivalDate}
+                  onChange={(e) => { setExpectedArrivalDate(e.target.value); markDirty(); }}
                 />
               </div>
             )}

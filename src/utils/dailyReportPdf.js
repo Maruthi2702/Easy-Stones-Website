@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { groupContainers } from './dailyReportContainers.js';
 
 /**
  * The Daily Work Report as paper.
@@ -237,8 +238,14 @@ export async function buildDayPdf(report) {
   const slabsOut = Number(report.deliveries?.capacity || 0) + Number(report.pickups?.capacity || 0);
   const transfers = report.transfers || [];
   const containers = report.containers || [];
-  const transferSlabs = transfers.reduce((s, t) => s + Number(t.slabs || 0), 0);
-  const transferCount = transfers.reduce((s, t) => s + Number(t.count || 0), 0);
+  const outboundTransfers = transfers.filter(t => t.direction !== 'in');
+  const inboundTransfers = transfers.filter(t => t.direction === 'in');
+  // Outgoing only, same as the glance tile in the tab — the detailed table
+  // below lists both directions with their own subtotals.
+  const transferSlabs = outboundTransfers.reduce((s, t) => s + Number(t.slabs || 0), 0);
+  const transferCount = outboundTransfers.reduce((s, t) => s + Number(t.count || 0), 0);
+  const inboundTransferSlabs = inboundTransfers.reduce((s, t) => s + Number(t.slabs || 0), 0);
+  const inboundTransferCount = inboundTransfers.reduce((s, t) => s + Number(t.count || 0), 0);
   const containerSlabs = containers.reduce((s, x) => s + Number(x.slabs || 0), 0);
   const pay = report.payments || {};
   const payCount = ['cash', 'card', 'check'].reduce((s, k) => s + Number(pay[k]?.count || 0), 0);
@@ -253,7 +260,7 @@ export async function buildDayPdf(report) {
   y = drawGlance(c, fonts, y, [
     { label: 'Visitors', value: int(visitors), sub: `${int(v.homeowners || 0)} homeowners` },
     { label: 'Orders', value: int(assigned), sub: `${int(report.deliveries?.assigned)} out · ${int(report.pickups?.assigned)} picked up` },
-    { label: 'Containers', value: int(containers.length), sub: containerSlabs ? `${int(containerSlabs)} slabs` : 'no slabs counted' },
+    { label: 'Containers', value: int(groupContainers(containers).length), sub: containerSlabs ? `${int(containerSlabs)} slabs` : 'no slabs counted' },
     { label: 'Transfers', value: int(transferCount), sub: transferSlabs ? `${int(transferSlabs)} slabs` : 'no slabs counted' },
     { label: 'Payments', value: money(payAmount), sub: `${payCount} transaction${payCount === 1 ? '' : 's'}` }
   ]);
@@ -284,8 +291,14 @@ export async function buildDayPdf(report) {
     head: ['From — To', 'Count', 'Slabs'],
     cols: [{ align: 'left', width: colW - 110 }, { align: 'right', width: 55 }, { align: 'right', width: 55 }],
     rows: transfers.length
-      ? [...transfers.map(t => ({ cells: [t.fromTo || '—', int(t.count), int(t.slabs)] })),
-         { cells: ['Total', int(transferCount), int(transferSlabs)], total: true }]
+      ? [
+          ...outboundTransfers.map(t => ({ cells: [`OUT  ${t.fromTo || '—'}`, int(t.count), int(t.slabs)] })),
+          { cells: ['Outgoing total', int(transferCount), int(transferSlabs)], total: true },
+          ...inboundTransfers.map(t => ({
+            cells: [`IN  ${t.fromTo || '—'}${t.received ? ' (received)' : ''}`, int(t.count), int(t.slabs)]
+          })),
+          { cells: ['Incoming total', int(inboundTransferCount), int(inboundTransferSlabs)], total: true }
+        ]
       : [{ cells: ['No transfers recorded'], span: true },
          { cells: ['Total', '0', '0'], total: true }]
   });

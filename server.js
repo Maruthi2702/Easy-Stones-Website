@@ -2,11 +2,21 @@ import dotenv from 'dotenv';
 dotenv.config();
 // Trigger restart for schema update (v2)
 
+import dns from 'dns';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import mongoose from 'mongoose';
+
+// Node's own DNS resolver (c-ares) mishandles a scoped/link-local IPv6
+// nameserver (fe80::...%en0) — common on a phone hotspot or some routers'
+// IPv6 RA setup — for SRV lookups specifically, failing with
+// 'querySrv EBADRESP' and killing the mongodb+srv:// connection at boot,
+// even though `dig`/the OS resolver handle the exact same query fine.
+// Pointing Node at public resolvers sidesteps that host-network quirk
+// entirely rather than depending on whatever nameserver DHCP handed out.
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 // MOVED TO TOP to ensure settings apply to all models
 mongoose.set('debug', process.env.NODE_ENV === 'development'); // Only log queries in development
@@ -37,6 +47,7 @@ import Truck from './src/models/Truck.js';
 import LostSale from './src/models/LostSale.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
+import { scrapeErpCustomers, scrapeErpInventory, scrapeErpSales } from './src/services/erpImportService.js';
 import { stampSignaturesOnPdfBytes } from './src/utils/pdfSigner.js';
 // Shared with the client so an import can only assign a customer to someone the
 // Sales Rep dropdown would also have offered.
@@ -4079,6 +4090,27 @@ app.post('/api/customers/:customerId/visits', authenticate, requirePermission('m
     req.app.get('io').emit('visit_updated', { customerId });
     res.status(201).json({ success: true, visit: visitData });
 
+    // Background: close the loop with whatever this customer was scheduled
+    // for that day, so the planner can show a stop actually got done instead
+    // of just sitting at 'Scheduled' forever. Matched on the date prefix,
+    // not a Date-object comparison — startTime is stored as a naive
+    // '<date>T...' local string (see the calendar-sync timezone fix), so
+    // parsing it as a Date and re-comparing would risk exactly the kind of
+    // day-shift that fix was for. Only 'Scheduled' entries are touched, so
+    // this can't resurrect a Cancelled stop or relink an already-Completed one.
+    try {
+      const linkedSchedule = await Schedule.findOneAndUpdate(
+        { customerId, status: 'Scheduled', startTime: { $regex: `^${processedDate}` } },
+        { $set: { status: 'Completed', linkedVisitId: visitId } },
+        { new: true }
+      );
+      if (linkedSchedule) {
+        emitScheduleUpdate({ type: 'upsert', userId: linkedSchedule.userId, id: String(linkedSchedule._id) });
+      }
+    } catch (linkError) {
+      console.error('Failed to link visit to schedule:', linkError);
+    }
+
     // Background: Log the activity
     try {
       await ActivityLog.create({
@@ -4224,6 +4256,44 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAn
   } catch (error) {
     console.error('Delete visit error:', error);
     res.status(500).json({ message: 'Failed to delete visit' });
+  }
+});
+
+// One-time backfill for schedule entries created before the visit↔schedule
+// link above existed: a rep may have already logged a visit for a stop that
+// was scheduled before this feature shipped, and that Schedule doc has been
+// sitting at the 'Scheduled' default ever since with nothing to correct it
+// retroactively. Same matching rule as the live hook in POST .../visits —
+// same-customer, same-day. Only touches entries still 'Scheduled', so this
+// is safe to run more than once; nothing already Completed or Cancelled is
+// revisited.
+app.post('/api/admin/schedule/backfill-completed', authenticate, requirePermission('manage_customers'), async (req, res) => {
+  try {
+    const pending = await Schedule.find({ status: 'Scheduled' }).select('_id customerId startTime userId');
+    let linked = 0;
+    for (const entry of pending) {
+      const day = String(entry.startTime).slice(0, 10);
+      const customerWithVisit = await Customer.findOne(
+        { _id: entry.customerId, 'visits.date': day },
+        { 'visits.$': 1 }
+      ).lean();
+      const visit = customerWithVisit?.visits?.[0];
+      if (!visit) continue;
+
+      const updated = await Schedule.findOneAndUpdate(
+        { _id: entry._id, status: 'Scheduled' },
+        { $set: { status: 'Completed', linkedVisitId: visit._id } },
+        { new: true }
+      );
+      if (updated) {
+        linked++;
+        emitScheduleUpdate({ type: 'upsert', userId: updated.userId, id: String(updated._id) });
+      }
+    }
+    res.json({ success: true, checked: pending.length, linked });
+  } catch (error) {
+    console.error('Schedule backfill error:', error);
+    res.status(500).json({ message: `Backfill failed: ${error.message}` });
   }
 });
 
@@ -4552,15 +4622,38 @@ app.use('/api/daily-reports', createDailyReportsRouter({
   requirePermission
 }));
 
-const scopeDeliveryQueryToLocations = (query, req) => {
+// `dateRange` ({ start, end }) is only supplied by the week-range list query
+// below. When present, each location-matching clause gets its own date field
+// instead of one shared condition applied outside the $or — a transfer's ship
+// date is what the origin branch's week view means, but its expected-arrival
+// date is what the destination branch's week view means, and they can fall in
+// different weeks entirely.
+const scopeDeliveryQueryToLocations = (query, req, dateRange) => {
   const userLocations = req.user?.assignedLocations || [];
-  if (userLocations.includes('*')) return query;
+  const inRange = (field) => dateRange ? { [field]: { $gte: dateRange.start, $lte: dateRange.end } } : {};
+
+  if (userLocations.includes('*')) {
+    if (!dateRange) return query;
+    // Sees every branch, but a transfer still needs its own date lens for a
+    // week view to be complete — otherwise one shipping next week but landing
+    // this week would be invisible from an admin's view either way.
+    return { ...query, $or: [inRange('date'), { deliveryType: 'transfer', ...inRange('expectedArrivalDate') }] };
+  }
+
   return {
     ...query,
     $or: [
-      { location: { $in: [...userLocations, '', '*'] } },
-      { location: { $exists: false } },
-      { location: null }
+      { location: { $in: [...userLocations, '', '*'] }, ...inRange('date') },
+      { location: { $exists: false }, ...inRange('date') },
+      { location: null, ...inRange('date') },
+      // An inbound transfer belongs to the branch it's headed to as much as
+      // the branch that shipped it — visible (and, via every route that
+      // shares this helper, editable/deletable) from both sides, so a
+      // receiving branch isn't stuck waiting on the shipper to fix a wrong
+      // date or cancel it themselves. Matched by expected-arrival date, not
+      // ship date — see the list route below for how that's also reflected
+      // in which day the card renders on.
+      { deliveryType: 'transfer', transferDestination: { $in: userLocations }, ...inRange('expectedArrivalDate') }
     ]
   };
 };
@@ -4586,18 +4679,56 @@ app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) =>
       // { $in: ['', null] } also matches documents with no truckId field at all.
       baseQuery = { truckId: { $in: ['', null] }, deliveryType: { $ne: 'will_call' } };
     } else if (startDate && endDate) {
-      // Wrapped in $and for the same reason: the location scoping owns the
-      // top-level $or, so this one has to live where it cannot be overwritten.
+      // The date range now lives in scopeDeliveryQueryToLocations's own $or
+      // (see below) rather than as a bare condition here, so it can apply to
+      // a different field for an inbound transfer than for everything else.
+      // Still wrapped in $and for the same reason as before: the location
+      // scoping owns the top-level $or.
       baseQuery = {
-        date: { $gte: startDate, $lte: endDate },
         $and: [{ $or: [{ truckId: { $nin: ['', null] } }, { deliveryType: 'will_call' }] }]
       };
     } else {
       baseQuery = {};
     }
-    const query = scopeDeliveryQueryToLocations(baseQuery, req);
+    const dateRange = (startDate && endDate) ? { start: startDate, end: endDate } : undefined;
+    const query = scopeDeliveryQueryToLocations(baseQuery, req, dateRange);
     const list = await Delivery.find(query, DELIVERY_LIST_PROJECTION).sort({ createdAt: -1 }).lean();
-    res.json(list);
+
+    // A transfer's stored `date` is its ship date — correct for the origin
+    // branch's own week view, but meaningless to a branch that only relates
+    // to it as the destination. Show those by expected arrival instead, so
+    // the card renders on the day it's actually relevant to for whoever's
+    // looking. This has to key off who the viewer actually is, not just
+    // "whichever date happens to fall in this range" — a transfer shipping
+    // Monday and arriving Wednesday of the same week has *both* dates in
+    // range, and the destination branch still needs to see Wednesday, not
+    // silently fall back to Monday because that also matched. Only this list
+    // response is reshaped this way; the single-ticket fetch that populates
+    // the edit modal always shows the real stored ship date.
+    const inWeek = (d) => Boolean(d && startDate && endDate && d >= startDate && d <= endDate);
+    const userLocations = req.user?.assignedLocations || [];
+    const viewerIsAdmin = userLocations.includes('*');
+    const shaped = dateRange
+      ? list.map(d => {
+          if (d.deliveryType !== 'transfer') return d;
+          const viewerIsOrigin = viewerIsAdmin || !d.location || userLocations.includes(d.location);
+          if (!viewerIsOrigin) {
+            // Related to this ticket only as the destination — always the
+            // arrival date, regardless of whether the ship date also
+            // happens to fall in this same week.
+            return d.expectedArrivalDate ? { ...d, date: d.expectedArrivalDate, isIncomingView: true } : d;
+          }
+          // Origin (or admin, or an unowned ticket): the ship date is what's
+          // shown normally. Falls back to the arrival date only when the
+          // ship date itself isn't actually in the displayed week — an
+          // admin browsing the week it's due, not the week it left.
+          if (inWeek(d.date)) return d;
+          if (inWeek(d.expectedArrivalDate)) return { ...d, date: d.expectedArrivalDate, isIncomingView: true };
+          return d;
+        })
+      : list;
+
+    res.json(shaped);
   } catch (err) {
     console.error('[server] get deliveries error:', err);
     res.status(500).json({ error: 'Server error fetching deliveries' });
@@ -4853,6 +4984,47 @@ app.patch('/api/deliveries/:id/assignment', verifyAnyAuth, canWriteDeliveries, a
   } catch (err) {
     console.error('[server] update delivery assignment error:', err);
     res.status(500).json({ error: 'Server error updating the delivery assignment' });
+  }
+});
+
+// PATCH /api/deliveries/:id/receive — the destination branch confirming a
+// transfer actually arrived. Lives on the ticket itself so it's one source of
+// truth, re-derived fresh into the destination's Daily Work Report every time
+// it's opened (see deriveFromSystem in src/routes/dailyReports.js).
+//
+// Deliberately not scoped with scopeDeliveryQueryToLocations — that checks
+// `location`, the origin branch, which is the wrong side of this ticket for
+// this action. Only someone assigned to transferDestination (or an admin
+// with '*') may confirm receipt.
+app.patch('/api/deliveries/:id/receive', verifyAnyAuth, canWriteDeliveries, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const delivery = await Delivery.findOne({ id, deliveryType: 'transfer' });
+    if (!delivery) return res.status(404).json({ error: 'Transfer ticket not found' });
+
+    const userLocations = req.user?.assignedLocations || [];
+    const canReceive = userLocations.includes('*') || userLocations.includes(delivery.transferDestination);
+    if (!canReceive) {
+      return res.status(403).json({ error: 'Only the receiving branch can confirm this transfer arrived.' });
+    }
+
+    const { name: performedByName } = await getPerformerInfo(req);
+    delivery.receivedAt = new Date();
+    delivery.receivedBy = performedByName || '';
+    await delivery.save();
+
+    const updated = await Delivery.findOne({ id }, DELIVERY_LIST_PROJECTION).lean();
+
+    try {
+      io.emit('delivery_update', { type: 'upsert', delivery: updated });
+    } catch {
+      req.app.get('io')?.emit('delivery_update', { type: 'upsert', delivery: updated });
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error('[server] mark transfer received error:', err);
+    res.status(500).json({ error: 'Server error marking the transfer received' });
   }
 });
 
@@ -6094,6 +6266,30 @@ app.post('/api/admin/customers/import/apply', verifyToken, uploadMemory.single('
   } catch (error) {
     console.error('Customer import apply error:', error);
     res.status(400).json({ message: `Import failed: ${error.message}` });
+  }
+});
+
+// ERP import — scrapes the ERP's web UI directly via Playwright (no API
+// available). Returns rows for review only; nothing here writes to Mongo,
+// since erpImportService.js's selectors are still placeholders pending the
+// real ERP's markup. Wiring the reviewed rows into Customer/Product/sales
+// writes is follow-up work, same shape as /api/admin/customers/import/apply
+// above.
+app.post('/api/admin/erp-import/:type', authenticate, requirePermission('manage_customers'), async (req, res) => {
+  const scrapers = {
+    customers: scrapeErpCustomers,
+    inventory: scrapeErpInventory,
+    sales: scrapeErpSales
+  };
+  const scrape = scrapers[req.params.type];
+  if (!scrape) return res.status(400).json({ message: `Unknown import type: ${req.params.type}` });
+
+  try {
+    const rows = await scrape();
+    res.json({ success: true, count: rows.length, rows });
+  } catch (error) {
+    console.error('ERP import error:', error);
+    res.status(500).json({ message: `ERP import failed: ${error.message}` });
   }
 });
 

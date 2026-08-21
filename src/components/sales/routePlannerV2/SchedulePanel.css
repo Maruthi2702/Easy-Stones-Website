@@ -385,6 +385,31 @@ body.light-theme-active .rpv2-schedule-card--other { --accent: #c9573f; }
     font-variant-numeric: tabular-nums;
 }
 
+/* Did the stop actually happen? Same colors as .rpv2-status-success/-danger
+   in MapCanvas.css's pipeline-status line, so "done"/"missed" reads the same
+   accent across both route planner panels. */
+.rpv2-schedule-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+.rpv2-schedule-flag--done {
+    color: #0ca30c;
+    background: rgba(12, 163, 12, 0.12);
+}
+
+.rpv2-schedule-flag--missed {
+    color: #d03b3b;
+    background: rgba(208, 59, 59, 0.12);
+}
+
 /* Stronger than a typical footnote — for a visit booked under a generic
    placeholder customer (name resolves to "General Visit", company/contact
    left blank on the actual record), this note is often the ONLY thing that

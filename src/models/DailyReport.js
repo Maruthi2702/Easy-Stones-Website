@@ -12,12 +12,29 @@ import mongoose from 'mongoose';
  */
 
 const transferLineSchema = new mongoose.Schema({
-  fromTo: { type: String, default: '' },   // 'SEA — SLC'
+  fromTo: { type: String, default: '' },   // 'SEA — SLC', origin first regardless of direction
   count: { type: Number, default: 0 },
   slabs: { type: Number, default: 0 },
   // Set when the line was built from transfer tickets rather than typed, so the
   // UI can mark it and a re-open can refresh it.
-  auto: { type: Boolean, default: false }
+  auto: { type: Boolean, default: false },
+  // 'out' if this branch is shipping it, 'in' if this branch is receiving it.
+  // Defaults to 'out' so every line stored before this field existed keeps its
+  // original meaning without a migration.
+  direction: { type: String, enum: ['out', 'in'], default: 'out' },
+  // Mirrored from the Delivery ticket at derive time — see receivedAt/receivedBy
+  // on the Delivery model. Only meaningful on an 'in' line; frozen at whatever
+  // it was the moment the report is submitted, like every other derived figure.
+  received: { type: Boolean, default: false },
+  receivedAt: { type: Date, default: null },
+  receivedBy: { type: String, default: '' },
+  // Which Delivery ticket(s) an 'in' line rolls up, so "mark received" in the
+  // UI has something to act on. Must be declared here even though it's really
+  // transient (freshly recomputed on every load, never hand-typed) — Mongoose
+  // silently drops any field assigned to a subdocument that isn't in its
+  // schema, so without this the derived array would arrive at the client with
+  // ticketIds stripped and the button would have nothing to call.
+  ticketIds: { type: [String], default: [] }
 }, { _id: false });
 
 const containerLineSchema = new mongoose.Schema({

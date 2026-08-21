@@ -6,6 +6,8 @@ import Delivery from '../models/Delivery.js';
 import { BRANCH_NAMES, branchCode, isBranch } from '../config/branches.js';
 import OfficeCheckIn from '../models/OfficeCheckIn.js';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
+import { groupContainers, groupSlabs } from '../utils/dailyReportContainers.js';
+import { groupTransferTickets, groupTicketSlabs, groupReceived } from '../utils/dailyReportTransfers.js';
 
 /**
  * Daily Work Report API.
@@ -80,7 +82,7 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
   dayStart.setUTCMinutes(dayStart.getUTCMinutes() - tzOffsetMinutes);
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
-  const [checkIns, deliveryRows] = await Promise.all([
+  const [checkIns, deliveryRows, incomingRows] = await Promise.all([
     OfficeCheckIn.countDocuments({
       location,
       createdAt: { $gte: dayStart, $lt: dayEnd }
@@ -96,6 +98,13 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     Delivery.find(
       { date, $or: [{ truckId: { $nin: ['', null] } }, { deliveryType: 'will_call' }] },
       'deliveryType transferDestination location numberOfSlabs'
+    ).lean(),
+    // Inbound transfers key off a different date (when they're due here, not
+    // when they left origin) and the opposite location field — a ticket some
+    // other branch owns, addressed to this one.
+    Delivery.find(
+      { deliveryType: 'transfer', expectedArrivalDate: date, transferDestination: location },
+      'id location numberOfSlabs receivedAt receivedBy'
     ).lean()
   ]);
 
@@ -109,21 +118,43 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
   const jobsiteRows = mine.filter(d => !d.deliveryType || d.deliveryType === 'jobsite');
   const willCallRows = mine.filter(d => d.deliveryType === 'will_call');
 
-  // One line per destination branch, the way the sheet reads: SEA — SLC.
-  const byDestination = new Map();
-  for (const d of mine.filter(x => x.deliveryType === 'transfer')) {
-    const dest = d.transferDestination || 'Unspecified';
-    const line = byDestination.get(dest) || { count: 0, slabs: 0 };
-    line.count += 1;
-    line.slabs += slabsOf(d);
-    byDestination.set(dest, line);
-  }
-  const transfers = [...byDestination.entries()].map(([dest, line]) => ({
-    fromTo: `${branchCode(location)} — ${branchCode(dest)}`,
-    count: line.count,
-    slabs: line.slabs,
-    auto: true
+  // One line per counterpart branch, the way the sheet reads: SEA — SLC. The
+  // outbound side groups by where it's going; the inbound side groups by
+  // where it came from — same shape, so both share groupTransferTickets.
+  const outbound = groupTransferTickets(
+    mine.filter(d => d.deliveryType === 'transfer'),
+    (d) => d.transferDestination
+  ).map(g => ({
+    fromTo: `${branchCode(location)} — ${branchCode(g.key)}`,
+    count: g.tickets.length,
+    slabs: groupTicketSlabs(g),
+    auto: true,
+    direction: 'out'
   }));
+
+  const inbound = groupTransferTickets(incomingRows, (d) => d.location).map(g => {
+    // Usually one ticket per line — this just picks the latest confirmation
+    // when a couple of tickets from the same origin land on the same day.
+    const receivedTicket = g.tickets.reduce((latest, t) => {
+      if (!t.receivedAt) return latest;
+      return (!latest || t.receivedAt > latest.receivedAt) ? t : latest;
+    }, null);
+    return {
+      fromTo: `${branchCode(g.key)} — ${branchCode(location)}`,
+      count: g.tickets.length,
+      slabs: groupTicketSlabs(g),
+      auto: true,
+      direction: 'in',
+      received: groupReceived(g),
+      receivedAt: receivedTicket?.receivedAt || null,
+      receivedBy: receivedTicket?.receivedBy || '',
+      // Transient — which ticket(s) this line rolls up, so "mark received" on
+      // the report has something to PATCH. Not part of the stored schema: the
+      // save route below rebuilds transfer lines field-by-field and never
+      // echoes this back, so nothing persists it by accident.
+      ticketIds: g.tickets.map(t => t.id).filter(Boolean)
+    };
+  });
 
   return {
     visitorCheckIns: checkIns,
@@ -131,7 +162,7 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     pickupsAssigned: willCallRows.length,
     deliveriesSlabs: jobsiteRows.reduce((sum, d) => sum + slabsOf(d), 0),
     pickupsSlabs: willCallRows.reduce((sum, d) => sum + slabsOf(d), 0),
-    transfers
+    transfers: [...outbound, ...inbound]
   };
 }
 
@@ -164,11 +195,14 @@ function applyDerived(report, derived) {
   // Keep any slab counts already on a route that still exists — that covers
   // both a hand correction and a figure that was itself auto-filled earlier,
   // which is why this checks presence rather than truthiness. A route that
-  // has never appeared on this report before gets the fresh ticket sum.
-  const typedSlabs = new Map(report.transfers.map(t => [t.fromTo, t.slabs]));
+  // has never appeared on this report before gets the fresh ticket sum. Keyed
+  // by direction as well as the route string — out and in are different lines
+  // even when (hypothetically) they'd render the same "SEA — SLC" text.
+  const lineKey = (t) => `${t.direction || 'out'}:${t.fromTo}`;
+  const typedSlabs = new Map(report.transfers.map(t => [lineKey(t), t.slabs]));
   const manual = report.transfers.filter(t => !t.auto);
   report.transfers = [
-    ...derived.transfers.map(t => ({ ...t, slabs: typedSlabs.has(t.fromTo) ? typedSlabs.get(t.fromTo) : t.slabs })),
+    ...derived.transfers.map(t => ({ ...t, slabs: typedSlabs.has(lineKey(t)) ? typedSlabs.get(lineKey(t)) : t.slabs })),
     ...manual
   ];
 
@@ -191,11 +225,15 @@ const TYPICAL_CONTAINER_SLABS = 100;
 async function slabExpectation(locations) {
   const docs = await DailyReport.find(
     { location: { $in: locations } },
-    'containers.slabs'
+    'containers.poNumber containers.slabs'
   ).sort({ date: -1 }).limit(60).lean();
 
+  // Grouped back into physical containers first — a container split across a
+  // few colors would otherwise contribute several small per-line samples
+  // instead of the one real container-sized figure, dragging the "typical"
+  // size down and making every split shipment look odd going forward too.
   const seen = docs
-    .flatMap(d => (d.containers || []).map(c => c.slabs))
+    .flatMap(d => groupContainers(d.containers || []).map(groupSlabs))
     .filter(v => Number.isFinite(v) && v > 0)
     .sort((a, b) => a - b);
 
@@ -223,10 +261,16 @@ const summarise = (r) => ({
   pickups: r.pickups?.assigned || 0,
   // A transfer line is a route, and its `count` is how many went down it — the
   // figure the tiles quote is the transfers, not the lines they are grouped on.
-  // A container has no such count: one line is one container.
-  transferCount: (r.transfers || []).reduce((sum, t) => sum + (t.count || 0), 0),
-  transferSlabs: (r.transfers || []).reduce((sum, t) => sum + (t.slabs || 0), 0),
-  containerCount: (r.containers || []).length,
+  // Outbound only — a report's own transfer figures have always meant "what
+  // this branch shipped"; inbound lines are a newer, separate concept and
+  // folding them in here would quietly inflate a number month views and the
+  // CSV export already rely on meaning one direction.
+  transferCount: (r.transfers || []).filter(t => t.direction !== 'in').reduce((sum, t) => sum + (t.count || 0), 0),
+  transferSlabs: (r.transfers || []).filter(t => t.direction !== 'in').reduce((sum, t) => sum + (t.slabs || 0), 0),
+  // A container line with a blank PO# continues the one above it (a container
+  // that arrived with a couple of different colors on it), so the count is
+  // the number of distinct containers, not the number of lines.
+  containerCount: groupContainers(r.containers || []).length,
   containerSlabs: (r.containers || []).reduce((sum, c) => sum + (c.slabs || 0), 0),
   payments: ['cash', 'card', 'check'].reduce((sum, k) => sum + (r.payments?.[k]?.amount || 0), 0),
   submittedBy: r.submittedBy || '',
@@ -408,7 +452,13 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           fromTo: String(t.fromTo || '').trim(),
           count: num(t.count),
           slabs: num(t.slabs),
-          auto: Boolean(t.auto)
+          auto: Boolean(t.auto),
+          direction: t.direction === 'in' ? 'in' : 'out',
+          // Mirrored back from what the last load derived — this endpoint
+          // never sets receipt itself, that's PATCH /api/deliveries/:id/receive.
+          received: Boolean(t.received),
+          receivedAt: t.receivedAt ? new Date(t.receivedAt) : null,
+          receivedBy: String(t.receivedBy || '').trim()
         })).filter(t => t.fromTo || t.count || t.slabs),
         containers: (body.containers || []).map(c => ({
           poNumber: String(c.poNumber || '').trim(),
@@ -566,8 +616,8 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           r.deliveries?.assigned || 0, r.deliveries?.capacity || 0,
           r.pickups?.assigned || 0, r.pickups?.capacity || 0,
           r.returns || 0, r.sinks || 0,
-          (r.transfers || []).map(t => t.fromTo).join(' / '),
-          (r.transfers || []).reduce((n, t) => n + (t.count || 0), 0),
+          (r.transfers || []).filter(t => t.direction !== 'in').map(t => t.fromTo).join(' / '),
+          (r.transfers || []).filter(t => t.direction !== 'in').reduce((n, t) => n + (t.count || 0), 0),
           s.transferSlabs,
           (r.containers || []).length, s.containerSlabs,
           r.payments?.cash?.count || 0, (r.payments?.cash?.amount || 0).toFixed(2),

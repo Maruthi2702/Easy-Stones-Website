@@ -23,6 +23,16 @@ const deliverySchema = new mongoose.Schema({
   // New Delivery Classification & 3rd Party Freight Fields
   deliveryType: { type: String, enum: ['jobsite', 'transfer', 'will_call'], default: 'jobsite' },
   transferDestination: { type: String, default: '' },
+  // Transfer-only. `date` is when it leaves `location`; this is the day it's
+  // due at `transferDestination` — often a day or more later, and the date
+  // the inbound line is derived onto the destination branch's own report
+  // (see deriveFromSystem in src/routes/dailyReports.js).
+  expectedArrivalDate: { type: String, default: '' },
+  // Set once the destination branch confirms the material actually arrived.
+  // Lives on the ticket itself (not just on a report line) so it's a single
+  // source of truth re-derived fresh on every report load.
+  receivedAt: { type: Date, default: null },
+  receivedBy: { type: String, default: '' },
   pickupInfo: { type: String, default: '' },
   carrierName: { type: String, default: '' },
   proNumber: { type: String, default: '' },

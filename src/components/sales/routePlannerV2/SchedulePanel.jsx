@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Calendar, Check, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { buildMonthGrid, todayKey, nameOf, real } from './helpers';
 import ScheduleVisitForm from './ScheduleVisitForm';
 import './SchedulePanel.css';
@@ -18,6 +18,16 @@ const timeLabel = (startTime) => {
 // logic, and the two screens don't otherwise share a module.
 const ACTIVITY_MODIFIER = { Visit: 'visit', Call: 'call', 'Drop-off': 'dropoff' };
 const activityModifier = (type) => ACTIVITY_MODIFIER[type] || 'other';
+
+// 'Completed'/linkedVisitId only get set once an Add Visit actually lands
+// against this stop (see server.js's POST /api/customers/:id/visits) —
+// otherwise a 'Scheduled' entry whose day has already passed reads as missed
+// rather than staying visually identical to one still coming up.
+const visitFlag = (visit) => {
+    if (visit.status === 'Completed') return 'done';
+    if (visit.status === 'Scheduled' && todayKey(new Date(visit.startTime)) < todayKey()) return 'missed';
+    return null;
+};
 
 /**
  * "Schedule" — a month calendar plus the selected day's scheduled visits,
@@ -229,14 +239,23 @@ const SchedulePanel = ({
                 {dayVisits.map(visit => {
                     const label = nameOf({ company: visit.customerId?.company, contactName: visit.customerId?.contactName });
                     const note = real(visit.notes);
+                    const flag = visitFlag(visit);
                     return (
-                        <div key={visit._id} className={`rpv2-schedule-card rpv2-schedule-card--${activityModifier(visit.activityType)}`}>
+                        <div key={visit._id} className={`rpv2-schedule-card rpv2-schedule-card--${activityModifier(visit.activityType)}${flag ? ` is-${flag}` : ''}`}>
                             <button type="button" className="rpv2-schedule-card-info" onClick={() => onSelectVisit(visit)}>
                                 <div className="rpv2-schedule-card-top">
                                     <span className="rpv2-schedule-card-dot" aria-hidden="true" />
                                     <span className="rpv2-schedule-card-name">{label}</span>
                                 </div>
-                                <div className="rpv2-schedule-card-meta">{timeLabel(visit.startTime)} · {visit.activityType || 'Visit'}</div>
+                                <div className="rpv2-schedule-card-meta">
+                                    {timeLabel(visit.startTime)} · {visit.activityType || 'Visit'}
+                                    {flag === 'done' && (
+                                        <span className="rpv2-schedule-flag rpv2-schedule-flag--done"><Check size={11} /> Visited</span>
+                                    )}
+                                    {flag === 'missed' && (
+                                        <span className="rpv2-schedule-flag rpv2-schedule-flag--missed"><AlertTriangle size={11} /> Missed</span>
+                                    )}
+                                </div>
                                 {note && <div className="rpv2-schedule-card-note" title={note}>{note}</div>}
                             </button>
                             <div className="rpv2-schedule-card-acts">

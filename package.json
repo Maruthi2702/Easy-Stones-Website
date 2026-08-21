@@ -33,6 +33,7 @@
     "multer": "^2.0.2",
     "nodemailer": "^7.0.11",
     "pdf-lib": "^1.17.1",
+    "playwright": "^1.62.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^6.30.2",

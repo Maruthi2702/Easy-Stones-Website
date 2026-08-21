@@ -1,6 +1,7 @@
 import React from 'react';
 import { Users, Truck, Package, ArrowLeftRight, Wallet, Check } from 'lucide-react';
 import { moneyShort } from './summaryFigures';
+import { groupContainers } from '../../../utils/dailyReportContainers';
 
 /**
  * The day at a glance — the five figures anyone asks about, above the form
@@ -35,8 +36,15 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false })
 
   const v = report.visitors;
   const submitted = report.status === 'submitted';
-  const containerLines = report.containers.filter(hasContent).length;
+  // A container can land with a couple of different colors on it, entered as
+  // consecutive lines with the PO# left blank on the ones after the first —
+  // grouped back into physical containers so a three-color shipment reads as
+  // one container, not three.
+  const containerCount = groupContainers(report.containers.filter(hasContent)).length;
+  // Either direction counts toward "this section has something in it" — but
+  // the tile below quotes outgoing only, so it needs its own narrower count.
   const transferLines = report.transfers.filter(hasContent).length;
+  const outboundTransferLines = report.transfers.filter(t => t.direction !== 'in' && hasContent(t)).length;
 
   const tiles = [
     {
@@ -69,8 +77,8 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false })
       key: 'containers',
       icon: Package,
       label: 'Containers',
-      value: containerLines,
-      sub: containerLines
+      value: containerCount,
+      sub: containerCount
         ? (totals.containerSlabs ? plural(totals.containerSlabs, 'slab') : 'no slabs counted')
         : 'none recorded'
     },
@@ -79,10 +87,12 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false })
       icon: ArrowLeftRight,
       label: 'Transfers',
       // The lines are routes; the counts on them are the transfers themselves.
+      // Outgoing only — incoming has its own subtotal in the section itself,
+      // this tile's meaning is unchanged from before inbound existed.
       value: totals.transferCount,
-      sub: transferLines
+      sub: outboundTransferLines
         ? [
-            plural(transferLines, 'route'),
+            plural(outboundTransferLines, 'route'),
             totals.transferSlabs ? plural(totals.transferSlabs, 'slab') : null
           ].filter(Boolean).join(' · ')
         : 'none recorded'
@@ -106,7 +116,7 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false })
     { name: 'visitors', filled: said(v.fabricators, v.designers) || totals.visitors > 0 },
     { name: 'deliveries', filled: said(report.deliveries.capacity, report.pickups.capacity, report.returns, report.sinks) || totals.assigned > 0 },
     { name: 'transfers', filled: transferLines > 0 },
-    { name: 'containers', filled: containerLines > 0 },
+    { name: 'containers', filled: containerCount > 0 },
     { name: 'payments', filled: said(p.cash.count, p.cash.amount, p.card.count, p.card.amount, p.check.count, p.check.amount) }
   ];
   const done = sections.filter(s => s.filled).length;

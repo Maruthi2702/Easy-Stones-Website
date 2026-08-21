@@ -5211,6 +5211,53 @@ body.light-theme-active .pl-item--other { border-left-color: #64748b; }
   text-overflow: ellipsis;
 }
 
+/* ── did the stop actually happen? (pl-meta's trailing badge) ──
+   Reuses --pl-danger* for missed rather than inventing a new colour, since
+   that is already the app's "something needs attention" signal everywhere
+   else. Green has no equivalent shared token, so it is a literal here — same
+   value as .pl-item--visit's border, which is already themed light/dark. */
+.pl-visit-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.pl-visit-flag--done {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+}
+
+.pl-visit-flag--missed {
+  color: var(--pl-danger-ink);
+  background: var(--pl-danger-bg);
+}
+
+body.light-theme-active .pl-visit-flag--done {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+body.light-theme-active .pl-visit-flag--missed {
+  color: var(--pl-danger);
+}
+
+/* Month view: no room for a text badge, so just a small icon after the name. */
+.pl-ev-flag {
+  flex: none;
+  margin-left: 1px;
+}
+
+.pl-ev-flag--done { color: #4ade80; }
+.pl-ev-flag--missed { color: var(--pl-danger); }
+
+body.light-theme-active .pl-ev-flag--done { color: #16a34a; }
+
 /* ── empty day: the other place you can add from ── */
 .pl-empty {
   display: flex;
