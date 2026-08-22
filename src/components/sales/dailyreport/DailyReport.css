@@ -688,11 +688,25 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 /* .dr-cell.dr-select (not just .dr-select) so this beats the base .dr-cell
    width rule below on specificity rather than depending on which one
    happens to come later in the file — that's what silently clipped these
-   to 72px before. */
+   to 72px before.
+
+   index.css's global `select` rule (see the comment on .dr-locpick select
+   above) bakes in a background-image chevron sized and positioned for a
+   normal-width select, plus 2rem of right padding to make room for it.
+   .dr-cell's own tighter padding wins over that (a class beats a bare
+   element selector), which pulled the reserved space out from under the
+   chevron without removing the chevron itself — the mismatch rendered as a
+   smear of icon fragments instead of one clean arrow. Stripped completely,
+   the same way .dr-locpick select is, rather than patched one property at
+   a time. */
 .dr-cell.dr-select {
   width: 128px;
   text-align: left;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: none;
 }
 
 .dr-select:disabled { cursor: default; }
