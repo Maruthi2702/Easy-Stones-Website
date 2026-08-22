@@ -5,6 +5,7 @@ import { sendEmail } from '../services/emailService.js';
 import Delivery from '../models/Delivery.js';
 import { BRANCH_NAMES, branchCode, isBranch } from '../config/branches.js';
 import OfficeCheckIn from '../models/OfficeCheckIn.js';
+import Location from '../models/Location.js';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
 import { groupContainers, groupSlabs } from '../utils/dailyReportContainers.js';
 import { groupTransferTickets, groupTicketSlabs, groupReceived } from '../utils/dailyReportTransfers.js';
@@ -297,12 +298,27 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   const canReopen = [authenticate, requirePermission('reopen_daily_report')];
 
   /** The branches this user may pick between — drives the location selector. */
-  router.get('/locations', canView, (req, res) => {
-    const allowed = allowedLocations(req);
-    res.json({
-      locations: allowed === '*' ? BRANCH_NAMES : allowed,
-      canExportAll: allowed === '*'
-    });
+  router.get('/locations', canView, async (req, res) => {
+    try {
+      const allowed = allowedLocations(req);
+      // Every branch the company has — not scoped to assignedLocations, and
+      // deliberately so. A transfer's From/To picker is answering "where is
+      // this going", not "whose report may I open"; a Seattle-only rep still
+      // needs to pick Atlanta as a destination even though Atlanta's own
+      // report is none of their business. This is names only, the same list
+      // the delivery board already hands to every logged-in user for the
+      // same reason (see GET /api/admin/locations in server.js) — no figures
+      // or report data from those branches comes with it.
+      const allLocationDocs = await Location.find().sort({ name: 1 }).lean();
+      res.json({
+        locations: allowed === '*' ? BRANCH_NAMES : allowed,
+        allLocations: allLocationDocs.map(l => l.name),
+        canExportAll: allowed === '*'
+      });
+    } catch (error) {
+      console.error('[daily-reports] locations failed:', error);
+      res.status(500).json({ message: 'Could not load branches.' });
+    }
   });
 
   /** GET /api/daily-reports?month=YYYY-MM&location=Seattle — the month view. */

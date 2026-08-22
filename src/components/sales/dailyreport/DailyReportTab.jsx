@@ -125,6 +125,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const [view, setView] = useState('day');           // 'day' | 'month'
   const [date, setDate] = useState(todayISO);
   const [locations, setLocations] = useState([]);
+  // Every branch the company has, for the Transfer row's From/To pickers —
+  // deliberately not scoped to `locations` above. Which branch's own report
+  // this person may open is an access question; which branch a transfer can
+  // go to isn't, so a Seattle-only user still needs Atlanta on this list.
+  const [allLocations, setAllLocations] = useState([]);
   const [location, setLocation] = useState('');
   const [canExportAll, setCanExportAll] = useState(false);
 
@@ -153,6 +158,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
         if (!alive) return;
         const list = data.locations || [];
         setLocations(list);
+        setAllLocations(data.allLocations || []);
         setCanExportAll(Boolean(data.canExportAll));
         setLocation(prev => prev || list[0] || '');
       })
@@ -717,14 +723,14 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                           value={fromCode} disabled={locked || t.auto} aria-label="Transfer from"
                           onChange={(e) => patch(r => { r.transfers[i].fromTo = composeFromTo(e.target.value, toCode); return r; })}>
                           <option value="">From</option>
-                          {locations.map(l => <option key={l} value={branchCode(l)}>{l}</option>)}
+                          {allLocations.map(l => <option key={l} value={branchCode(l)}>{l}</option>)}
                         </select>
                         <span className="dr-route-sep" aria-hidden="true">—</span>
                         <select className={`dr-cell dr-select ${t.auto ? 'is-derived' : ''}`}
                           value={toCode} disabled={locked || t.auto} aria-label="Transfer to"
                           onChange={(e) => patch(r => { r.transfers[i].fromTo = composeFromTo(fromCode, e.target.value); return r; })}>
                           <option value="">To</option>
-                          {locations.map(l => <option key={l} value={branchCode(l)}>{l}</option>)}
+                          {allLocations.map(l => <option key={l} value={branchCode(l)}>{l}</option>)}
                         </select>
                       </td>
                       <td className="dr-num">
