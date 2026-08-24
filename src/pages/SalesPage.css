@@ -6580,3 +6580,71 @@ body.light-theme-active .pl-ev-flag--done { color: #16a34a; }
   color: var(--accent-primary, #d4af37) !important;
   border-color: rgba(212, 175, 55, 0.25) !important;
 }
+
+/* ── LIGHT THEME STYLES FOR PARTNER NETWORK CARDS ── */
+body.light-theme-active .network-category-title,
+.light-theme-active .network-category-title {
+  color: #0f172a !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+body.light-theme-active .network-empty-state,
+.light-theme-active .network-empty-state {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme-active .network-empty-state h4,
+.light-theme-active .network-empty-state h4 {
+  color: #0f172a !important;
+}
+
+body.light-theme-active .partner-card,
+.light-theme-active .partner-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03) !important;
+}
+
+body.light-theme-active .partner-card:hover,
+.light-theme-active .partner-card:hover {
+  background: #ffffff !important;
+  border-color: #d4af37 !important;
+  box-shadow: 0 10px 28px rgba(212, 175, 55, 0.18), 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+}
+
+body.light-theme-active .partner-company,
+.light-theme-active .partner-company {
+  color: #0f172a !important;
+}
+
+body.light-theme-active .partner-badge:not(.onboarded):not(.new-lead):not(.trying-to-onboard):not(.contacted---in-discussion):not(.type-badge),
+.light-theme-active .partner-badge:not(.onboarded):not(.new-lead):not(.trying-to-onboard):not(.contacted---in-discussion):not(.type-badge) {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme-active .partner-card-body,
+.light-theme-active .partner-card-body {
+  border-top-color: #f1f5f9 !important;
+  border-bottom-color: #f1f5f9 !important;
+}
+
+body.light-theme-active .partner-field .field-value,
+.light-theme-active .partner-field .field-value {
+  color: #0f172a !important;
+}
+
+body.light-theme-active .partner-action-btn.view-btn,
+.light-theme-active .partner-action-btn.view-btn {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+body.light-theme-active .partner-action-btn.view-btn:hover,
+.light-theme-active .partner-action-btn.view-btn:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
