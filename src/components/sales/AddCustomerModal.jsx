@@ -644,6 +644,7 @@ const AddCustomerModal = ({
                             placeholder="Any additional notes..."
                             disabled={isViewMode}
                             rows="3"
+                            autoCapitalize="sentences"
                         />
                     </div>
                 </div>

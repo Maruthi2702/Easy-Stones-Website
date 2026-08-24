@@ -3495,6 +3495,7 @@ const SalesPage = () => {
                                                 placeholder="Write a quick note or follow-up note for this customer..."
                                                 value={quickNote}
                                                 onChange={(e) => setQuickNote(e.target.value)}
+                                                autoCapitalize="sentences"
                                             />
                                             <div className="quick-notes-footer">
                                                 <span className="quick-notes-meta">

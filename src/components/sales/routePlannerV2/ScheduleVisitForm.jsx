@@ -77,6 +77,7 @@ const ScheduleVisitForm = ({
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder="Optional"
                         rows={3}
+                        autoCapitalize="sentences"
                     />
                 </label>
             </div>

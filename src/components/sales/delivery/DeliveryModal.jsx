@@ -1096,6 +1096,7 @@ const DeliveryModal = ({
                 onChange={(e) => { setNotes(e.target.value); markDirty(); }}
                 placeholder=""
                 rows={4}
+                autoCapitalize="sentences"
               />
             </div>
 

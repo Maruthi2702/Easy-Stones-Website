@@ -323,10 +323,19 @@ body.light-theme-active .sel-mob-dropdown .sel-mob-dropdown-item:hover {
   color: #b3922b !important;
 }
 
-/* ── Global Title-Case Formatting for Form Text Inputs ── */
+/* ── Global Title-Case Formatting for Form Text Inputs ──
+   textarea is intentionally excluded: every textarea in this app is a
+   free-text notes/prose field, where per-word title-casing is wrong, and
+   this is a display-only CSS transform that never touches the real value —
+   the visible text while typing silently disagreed with what got saved.
+   Worse, that render/value mismatch also confuses mobile predictive text,
+   autocorrect-suggestion taps, and dictation, since they act on the real
+   input buffer while the user sees something else on screen. Sentence
+   capitalization for notes fields is handled per-field via the native
+   autoCapitalize="sentences" attribute instead, which capitalizes the
+   actual keystroke rather than just the rendering. */
 input[type="text"]:not(.no-capitalize):not([name="email"]):not([name="username"]):not([name="password"]),
-input:not([type]):not(.no-capitalize),
-textarea:not(.no-capitalize) {
+input:not([type]):not(.no-capitalize) {
   text-transform: capitalize;
 }
 

@@ -94,6 +94,7 @@ const VisitModal = ({
                                 onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
                                 placeholder="Additional notes"
                                 rows="4"
+                                autoCapitalize="sentences"
                             />
                         </div>
                     )}
@@ -107,6 +108,7 @@ const VisitModal = ({
                                         onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
                                         placeholder="Visit outcome"
                                         rows="3"
+                                        autoCapitalize="sentences"
                                     />
                                 </div>
                             )}
@@ -124,6 +126,7 @@ const VisitModal = ({
                                     onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
                                     placeholder="Followup Notes"
                                     rows="3"
+                                    autoCapitalize="sentences"
                                 />
                             </div>
                         </div>
