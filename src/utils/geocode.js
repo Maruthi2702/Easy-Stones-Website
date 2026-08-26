@@ -125,3 +125,51 @@ export const geocodePatchFor = async (address, storedKey = '') => {
   if (query && query === storedKey) return null;
   return geocodeAddress(address);
 };
+
+/**
+ * City/state for a bare 5-digit ZIP — the Add Customer form's autofill.
+ * Reverse of geocodeAddress above (postal code in, place names out, no
+ * coordinates), so it gets its own small result shape rather than reusing
+ * the coordinate-shaped one: 'invalid' (not 5 digits, no call made),
+ * 'not_found' (Google has no such ZIP), 'pending' (network/quota/config —
+ * worth a retry), or 'ok' with { city, state }.
+ */
+export const zipToCityState = async (zip) => {
+  const cleanZip = String(zip || '').trim();
+  if (!/^\d{5}$/.test(cleanZip)) {
+    return { status: 'invalid', error: 'ZIP code must be 5 digits' };
+  }
+  if (!hasGeocodingKey()) {
+    return { status: 'pending', error: 'GOOGLE_GEOCODING_API_KEY not configured' };
+  }
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json`
+      + `?components=${encodeURIComponent(`postal_code:${cleanZip}|country:US`)}`
+      + `&key=${geocodingKey()}`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const body = await response.json();
+
+    if (body.status === 'OK' && body.results?.[0]) {
+      const components = body.results[0].address_components || [];
+      const find = (type) => components.find(c => c.types.includes(type));
+      // Some ZIPs (rural areas, some PO boxes) have no 'locality' — postal_town
+      // and sublocality are the same field under different names elsewhere.
+      const city = find('locality')?.long_name
+        || find('postal_town')?.long_name
+        || find('sublocality')?.long_name
+        || '';
+      const state = find('administrative_area_level_1')?.short_name || '';
+      if (!city && !state) return { status: 'not_found', error: 'No city/state on record for this ZIP' };
+      return { status: 'ok', city, state };
+    }
+
+    const retryable = body.status !== 'ZERO_RESULTS' && body.status !== 'INVALID_REQUEST';
+    return {
+      status: retryable ? 'pending' : 'not_found',
+      error: body.error_message || body.status || 'no result'
+    };
+  } catch (error) {
+    return { status: 'pending', error: String(error?.message || error) };
+  }
+};

@@ -3,7 +3,10 @@ import { X, Loader, Scan, Upload, Plus, Camera } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import { formatPhoneInput } from '../../utils/phoneUtils';
 import { parseBusinessCard } from '../../utils/cardParser';
+import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
 import CustomSelect from '../shared/CustomSelect';
+import AlertModal from '../shared/AlertModal';
 import './AddCustomerModal.css';
 
 const AddCustomerModal = ({
@@ -55,6 +58,51 @@ const AddCustomerModal = ({
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const dropdownRef = useRef(null);
+
+    // ZIP → City/State autofill. Only offers a value into a blank field —
+    // never overwrites something the rep already typed — and only ever the
+    // last blur wins, since a rep who fixes a typo shouldn't have a stale
+    // lookup from the first attempt land after the corrected one.
+    const [zipLookupError, setZipLookupError] = useState('');
+    const zipLookupSeqRef = useRef(0);
+
+    const handleZipBlur = async () => {
+        const zip = form.address.zipCode.trim();
+        if (!/^\d{5}$/.test(zip)) return; // partial/blank — nothing to look up yet
+
+        const seq = ++zipLookupSeqRef.current;
+        try {
+            const res = await authFetch(`${API_URL}/api/geocode/zip/${zip}`);
+            if (seq !== zipLookupSeqRef.current) return; // a newer ZIP was entered meanwhile
+
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                setZipLookupError(
+                    res.status === 404
+                        ? `We couldn't find a city/state for ZIP ${zip}. Please enter them manually.`
+                        : (body.message || 'Could not look up that ZIP code right now. Please enter city/state manually.')
+                );
+                return;
+            }
+
+            const { city, state } = await res.json();
+            setForm(prev => {
+                if (prev.address.zipCode.trim() !== zip) return prev; // stale response
+                return {
+                    ...prev,
+                    address: {
+                        ...prev.address,
+                        city: prev.address.city.trim() ? prev.address.city : (city || prev.address.city),
+                        state: prev.address.state.trim() ? prev.address.state : (state || prev.address.state)
+                    }
+                };
+            });
+        } catch {
+            if (seq === zipLookupSeqRef.current) {
+                setZipLookupError('Could not look up that ZIP code right now. Please enter city/state manually.');
+            }
+        }
+    };
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -630,6 +678,7 @@ const AddCustomerModal = ({
                                 type="text"
                                 value={form.address.zipCode}
                                 onChange={(e) => setForm({ ...form, address: { ...form.address, zipCode: e.target.value } })}
+                                onBlur={handleZipBlur}
                                 placeholder="ZIP"
                                 disabled={isViewMode}
                             />
@@ -669,6 +718,12 @@ const AddCustomerModal = ({
                     )}
                 </div>
             </div>
+            <AlertModal
+                open={Boolean(zipLookupError)}
+                title="ZIP Code"
+                message={zipLookupError}
+                onClose={() => setZipLookupError('')}
+            />
         </div>
     );
 };

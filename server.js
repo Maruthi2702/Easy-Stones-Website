@@ -72,6 +72,7 @@ import { zonedTimeToUtc } from './src/utils/dateUtils.js';
 import { stripPhone, formatPhoneForDisplay } from './src/utils/phoneUtils.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
+import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import path from 'path';
 import fs from 'fs';
@@ -1753,6 +1754,7 @@ app.get('/api/user/me', authenticate, async (req, res) => {
 // more filter groups are expected to land here over time (see
 // src/routes/routePlannerFilters.js).
 app.use('/api/user/me/route-planner-filters', createRoutePlannerFiltersRouter({ authenticate }));
+app.use('/api/geocode', createGeocodeRouter({ authenticate }));
 
 // Contact form endpoint
 app.post('/api/contact', async (req, res) => {
