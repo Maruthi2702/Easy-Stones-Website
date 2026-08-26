@@ -494,19 +494,115 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             .sort((a, b) => a.label.localeCompare(b.label));
     }, [salesReps, repCounts]);
 
-    // Seeds "just me" the first time myId is known, without clobbering a
-    // toggle the rep already made — same pattern as the types sync effect
-    // below. Every other rep starts absent (reads as hidden, per visible's
-    // filter above), reproducing the old mineOnly=true default without
-    // needing to know the full rep list up front.
+    // Seeds the rep filter once, without clobbering a toggle the rep already
+    // made this session (filtersSeededRef guards that, same intent as the
+    // `key in prev` check the old version used). A saved preference
+    // (currentUser.routePlannerFilters, set by the PUT below) wins when one
+    // exists; otherwise the default is role-based rather than uniformly
+    // "just me", since an admin or manager landing on an empty map with
+    // nothing checked reads as broken, not as a starting point to build from:
+    //   - admin: every rep on
+    //   - manager/director: every rep sharing one of their assignedLocations
+    //     (falling back to `location` for a rep with none recorded)
+    //   - sales_rep (or anyone else): just themselves, the prior default
+    // Admin/manager both need the full roster, not just salesRepOptions
+    // (which only lists reps with a pin on the map right now), so this waits
+    // on `salesReps` before computing those two branches.
+    const filtersSeededRef = useRef(false);
     useEffect(() => {
-        if (!myId) return;
-        setActiveSalesReps(prev => (myId in prev ? prev : { ...prev, [myId]: true }));
-    }, [myId]);
+        if (filtersSeededRef.current || !myId) return;
+
+        // undefined/null means "never saved one" (a brand-new user's
+        // routePlannerFilters is just {}) — distinct from a saved, empty {}
+        // meaning "I want nobody checked", which must not fall through to
+        // the role default below.
+        const saved = currentUser?.routePlannerFilters?.activeSalesReps;
+        if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+            setActiveSalesReps(saved);
+            filtersSeededRef.current = true;
+            return;
+        }
+
+        const role = String(currentUser?.role || '').toLowerCase();
+        if (role === 'admin') {
+            if (salesReps.length === 0) return; // wait for the roster
+            // 'unassigned' isn't a real staff member so it never appears in
+            // salesReps — included explicitly, since "all reps" for an admin
+            // should mean every pin, not every pin with an owner.
+            const next = { unassigned: true };
+            salesReps.forEach(r => { next[String(r._id)] = true; });
+            setActiveSalesReps(next);
+            filtersSeededRef.current = true;
+        } else if (role === 'manager' || role === 'director') {
+            if (salesReps.length === 0) return; // wait for the roster
+            const myLocations = new Set(
+                (currentUser?.assignedLocations?.length ? currentUser.assignedLocations : [currentUser?.location])
+                    .filter(Boolean)
+            );
+            const next = { [myId]: true }; // never hide the manager's own accounts
+            salesReps.forEach(r => {
+                const repLocations = r.assignedLocations?.length ? r.assignedLocations : [r.location];
+                if (repLocations.some(loc => myLocations.has(loc))) next[String(r._id)] = true;
+            });
+            setActiveSalesReps(next);
+            filtersSeededRef.current = true;
+        } else {
+            setActiveSalesReps(prev => (myId in prev ? prev : { ...prev, [myId]: true }));
+            filtersSeededRef.current = true;
+        }
+    }, [myId, currentUser, salesReps]);
+
+    // Persists every change back to the user's record so the next visit
+    // loads it instead of recomputing the role default. Fires immediately,
+    // not debounced: each toggle (including "Toggle all on/off", which is
+    // one state update, not one per row) is already a single request, and a
+    // debounce here previously meant refreshing within that window — exactly
+    // what testing "did this persist" looks like — silently discarded the
+    // pending save. Skipped until the seed effect above has run once, so the
+    // load-then-immediately-re-save round trip only happens on first mount,
+    // not on every render.
+    useEffect(() => {
+        if (!filtersSeededRef.current || !myId) return;
+        authFetch(`${API_URL}/api/user/me/route-planner-filters`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ activeSalesReps })
+        }).catch(() => {
+            // Best-effort — losing a saved filter preference isn't worth
+            // surfacing an error over; the in-session toggle still works.
+        });
+    }, [activeSalesReps, myId]);
+
+    // Loads a saved Customer Type filter once, same "don't clobber an
+    // in-session toggle" guard as the sales-rep seed effect. Unlike that one
+    // there's no role-based default to compute — when nothing's saved yet,
+    // the sync effect below already defaults every type to shown.
+    const typesSeededRef = useRef(false);
+    useEffect(() => {
+        if (typesSeededRef.current || !myId) return;
+        const saved = currentUser?.routePlannerFilters?.activeTypes;
+        if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+            setActiveTypes(saved);
+        }
+        typesSeededRef.current = true;
+    }, [myId, currentUser]);
+
+    // Persists every change, same immediate (non-debounced) save as the
+    // sales-rep filter and for the same reason — a refresh shortly after
+    // toggling must not lose it.
+    useEffect(() => {
+        if (!typesSeededRef.current || !myId) return;
+        authFetch(`${API_URL}/api/user/me/route-planner-filters`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ activeTypes })
+        }).catch(() => {});
+    }, [activeTypes, myId]);
 
     // New types (including '(blank)', once any pin lacks one) default to
     // shown the first time they're seen, without clobbering a toggle the
-    // rep already made on an existing one.
+    // rep already made on an existing one — or a saved preference loaded
+    // above, since that ends up in the same `prev` this reads.
     useEffect(() => {
         // types (below) already filters out falsy customerType — '(blank)'
         // is added back here as its own filterable bucket, matching how
@@ -521,6 +617,29 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             return changed ? next : prev;
         });
     }, [types]);
+
+    // Days Since Last Visit filter — same load-once / save-immediately pair
+    // as Customer Type above. No sync-new-buckets effect needed here, since
+    // the four recency buckets are fixed (never/overdue/due/recent), not
+    // data-driven like customer types.
+    const bucketsSeededRef = useRef(false);
+    useEffect(() => {
+        if (bucketsSeededRef.current || !myId) return;
+        const saved = currentUser?.routePlannerFilters?.activeBuckets;
+        if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+            setActiveBuckets(saved);
+        }
+        bucketsSeededRef.current = true;
+    }, [myId, currentUser]);
+
+    useEffect(() => {
+        if (!bucketsSeededRef.current || !myId) return;
+        authFetch(`${API_URL}/api/user/me/route-planner-filters`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ activeBuckets })
+        }).catch(() => {});
+    }, [activeBuckets, myId]);
 
     const orderById = useMemo(() => {
         const map = new Map();

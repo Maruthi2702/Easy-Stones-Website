@@ -83,6 +83,15 @@ const userSchema = new mongoose.Schema({
   icloudSyncEnabled: {
     type: Boolean,
     default: false
+  },
+  // Route Planner's "Sales Rep Filter" toggle state, saved per-user so it
+  // survives leaving and reopening the panel instead of resetting to the
+  // role-based default every time. Mixed rather than a fixed sub-schema
+  // since it's keyed by rep id ('unassigned' included) — a set that grows
+  // as staff are added, not a known list of fields.
+  routePlannerFilters: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   }
 }, {
   timestamps: true

@@ -71,6 +71,7 @@ import { signedPackingListFileName } from './src/utils/packingList.js';
 import { zonedTimeToUtc } from './src/utils/dateUtils.js';
 import { stripPhone, formatPhoneForDisplay } from './src/utils/phoneUtils.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
+import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import path from 'path';
 import fs from 'fs';
@@ -1739,13 +1740,19 @@ app.get('/api/user/me', authenticate, async (req, res) => {
       // Home branch, as distinct from every branch this person may work across.
       // It is what forms default a new record's branch to.
       location: user.location || '',
-      assignedLocations: user.assignedLocations || ['Seattle']
+      assignedLocations: user.assignedLocations || ['Seattle'],
+      routePlannerFilters: user.routePlannerFilters || {}
     });
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ message: 'Failed to fetch user data' });
   }
 });
+
+// Route Planner's saved filter preferences — kept in its own file since
+// more filter groups are expected to land here over time (see
+// src/routes/routePlannerFilters.js).
+app.use('/api/user/me/route-planner-filters', createRoutePlannerFiltersRouter({ authenticate }));
 
 // Contact form endpoint
 app.post('/api/contact', async (req, res) => {
