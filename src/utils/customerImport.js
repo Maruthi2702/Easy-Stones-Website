@@ -44,7 +44,7 @@ export const IMPORT_COLUMNS = [
   ['location', ['easy stones location', 'es location', 'branch', 'location', 'store', 'office']],
   ['email', ['email', 'e-mail', 'mail']],
   ['contactName', ['contact', 'full name', 'customer name', 'customer', 'name']],
-  ['company', ['company', 'business', 'organization', 'firm', 'account', 'name']],
+  ['company', ['company', 'business', 'organization', 'firm', 'name', 'account']],
   ['phone', ['phone', 'mobile', 'cell', 'tel']],
   ['street', ['address', 'street']],
   ['city', ['city', 'town']],
