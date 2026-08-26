@@ -676,8 +676,16 @@ const AddCustomerModal = ({
                             />
                             <input
                                 type="text"
+                                inputMode="numeric"
+                                maxLength={5}
                                 value={form.address.zipCode}
-                                onChange={(e) => setForm({ ...form, address: { ...form.address, zipCode: e.target.value } })}
+                                onChange={(e) => {
+                                    // Digits only, capped at 5 — a pasted ZIP+4 (98908-1234)
+                                    // or a 9-digit paste is trimmed down to the base ZIP
+                                    // rather than rejected outright.
+                                    const digits = e.target.value.replace(/\D/g, '').slice(0, 5);
+                                    setForm({ ...form, address: { ...form.address, zipCode: digits } });
+                                }}
                                 onBlur={handleZipBlur}
                                 placeholder="ZIP"
                                 disabled={isViewMode}
