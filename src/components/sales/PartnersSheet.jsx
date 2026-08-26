@@ -656,6 +656,17 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                className="table-search-clear"
+                                onClick={() => setSearchTerm('')}
+                                title="Clear search"
+                                aria-label="Clear search"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
                     </div>
                     <div className="sheet-actions-group">
                         <button className="sheet-action-btn" onClick={exportToExcel} title="Export to Excel">

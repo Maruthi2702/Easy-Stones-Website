@@ -296,7 +296,7 @@
 }
 
 .table-search input {
-    padding: 0.5rem 1rem 0.5rem 2.5rem;
+    padding: 0.5rem 2.25rem 0.5rem 2.5rem;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -304,6 +304,31 @@
     font-size: 0.9rem;
     width: 250px;
     transition: all 0.2s;
+}
+
+.table-search-clear {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.table-search-clear:hover {
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 1;
 }
 
 .table-search input:focus {
