@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Users, Truck, ArrowLeftRight, ArrowDownToLine, ArrowUpFromLine, Package, Wallet, ClipboardList,
   ChevronLeft, ChevronRight, ChevronDown, Plus, X, Check, Lock, Unlock,
-  MapPin, AlertCircle, Loader2, FileText, Mail, FileSpreadsheet
+  MapPin, AlertCircle, Loader2, FileText, Mail, FileSpreadsheet, Eye
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
@@ -414,6 +414,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     : `${API_URL}/api/daily-reports/${date}/pdf?location=${encodeURIComponent(location)}&tzOffset=${-new Date().getTimezoneOffset()}`;
 
   const downloadPdf = () => window.open(pdfUrl, '_blank', 'noopener');
+  const viewPdf = () => window.open(`${pdfUrl}&disposition=inline`, '_blank', 'noopener');
 
   const emailReport = async ({ to, message }) => {
     const url = view === 'month'
@@ -459,7 +460,14 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
         label: 'Email as PDF…',
         hint: 'send it to one or more people',
         onSelect: () => setEmailOpen(true)
-      }] : [])
+      }] : []),
+      {
+        key: 'pdf-view',
+        icon: Eye,
+        label: 'View as PDF',
+        hint: 'open it in a new tab, no download',
+        onSelect: viewPdf
+      }
     ] : []),
     {
       key: 'csv',

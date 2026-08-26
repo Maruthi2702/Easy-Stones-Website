@@ -708,8 +708,9 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       const report = await resolveDay(req, res);
       if (!report) return;
       const bytes = await buildDayPdf(report);
+      const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${dayPdfFileName(report)}"`);
+      res.setHeader('Content-Disposition', `${disposition}; filename="${dayPdfFileName(report)}"`);
       res.send(Buffer.from(bytes));
     } catch (error) {
       console.error('[daily-reports] day pdf failed:', error);
@@ -723,8 +724,9 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       const data = await resolveMonth(req, res);
       if (!data) return;
       const bytes = await buildMonthPdf(data);
+      const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${monthPdfFileName(data.month, data.scopeLabel)}"`);
+      res.setHeader('Content-Disposition', `${disposition}; filename="${monthPdfFileName(data.month, data.scopeLabel)}"`);
       res.send(Buffer.from(bytes));
     } catch (error) {
       console.error('[daily-reports] month pdf failed:', error);
