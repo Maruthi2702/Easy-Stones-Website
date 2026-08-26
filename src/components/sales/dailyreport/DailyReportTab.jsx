@@ -148,6 +148,15 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   const saveTimer = useRef(null);
   const skipAutosave = useRef(true);
+  // Which of the system-derived slab figures this person has actually typed
+  // into this session, as opposed to ones just sitting on screen because
+  // deriveFromSystem filled them in. Reset on every load. Without this,
+  // autosaving an unrelated edit (a visitor count, a payment) would write the
+  // whole report — capacity and transfer slabs included — and freeze them at
+  // whatever they happened to be at that moment, so a delivery added later in
+  // the day would never make it into the total. See buildSavePayload below.
+  const touchedCapacity = useRef(new Set());   // 'deliveries' | 'pickups'
+  const touchedTransferSlabs = useRef(new Set()); // `${direction}:${fromTo}`
 
   // ── which branches this person may report on ──────────────────────────────
   useEffect(() => {
@@ -181,6 +190,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       if (!res.ok) throw new Error((await res.json()).message || 'Could not load that day.');
       const data = await res.json();
       skipAutosave.current = true;
+      touchedCapacity.current = new Set();
+      touchedTransferSlabs.current = new Set();
       setReport({ ...emptyReport(date, location), ...data.report });
       setSlabRange(data.slabRange || null);
       setDirty(false);
@@ -202,6 +213,28 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const loadDayRef = useRef(loadDay);
   useEffect(() => { loadDayRef.current = loadDay; }, [loadDay]);
 
+  /**
+   * Strips the derived-but-never-typed figures back out of a save payload.
+   *
+   * `report` state already has capacity and auto transfer slabs filled in by
+   * the server's last derive, so they display correctly — but that fill-in
+   * isn't a human saying "this is right," and saving it verbatim would tell
+   * the server otherwise. Blanking anything the user hasn't actually touched
+   * keeps those figures live (re-derived from the schedule/tickets on every
+   * load) until someone hand-corrects them, instead of freezing at whatever
+   * they were the moment an unrelated field on the same report got edited.
+   */
+  const buildSavePayload = (r) => {
+    const body = structuredClone(r);
+    if (!touchedCapacity.current.has('deliveries')) body.deliveries.capacity = null;
+    if (!touchedCapacity.current.has('pickups')) body.pickups.capacity = null;
+    body.transfers = body.transfers.filter(t => {
+      if (!t.auto) return true;
+      return touchedTransferSlabs.current.has(`${t.direction || 'out'}:${t.fromTo}`);
+    });
+    return body;
+  };
+
   // ── autosave the draft ────────────────────────────────────────────────────
   const save = useCallback(async (payload) => {
     if (!canEdit || payload.status === 'submitted') return;
@@ -209,7 +242,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     try {
       const res = await authFetch(`${API_URL}/api/daily-reports/${payload.date}`, {
         method: 'PUT',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(buildSavePayload(payload))
       });
       // 409 means the day was locked under us — someone else submitted it, or
       // the clock reached 11:59 while this form was still open. Show it as it
@@ -665,7 +698,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                       </td>
                       <td className="dr-num">
                         <ReportCell value={report[key].capacity} derived disabled={locked}
-                          ariaLabel={`${label} slabs`} onChange={(v) => setPath(`${key}.capacity`, v)} />
+                          ariaLabel={`${label} slabs`}
+                          onChange={(v) => { touchedCapacity.current.add(key); setPath(`${key}.capacity`, v); }} />
                       </td>
                     </tr>
                   ))}
@@ -741,7 +775,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                         <ReportCell value={t.slabs} disabled={locked} ariaLabel="Transfer slabs"
                           className={outOfBand(t.slabs) ? 'is-odd' : ''}
                           onKeyDown={rowKeys('transfers', i, addTransfer, !t.fromTo && !n(t.count) && !n(t.slabs))}
-                          onChange={(v) => patch(r => { r.transfers[i].slabs = v; return r; })} />
+                          onChange={(v) => patch(r => {
+                            touchedTransferSlabs.current.add(`${t.direction || 'out'}:${t.fromTo}`);
+                            r.transfers[i].slabs = v;
+                            return r;
+                          })} />
                       </td>
                       <td className="dr-x">
                         {!locked && (
