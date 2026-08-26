@@ -1085,6 +1085,66 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   word-break: break-word;
 }
 
+/* ── PDF preview dialog ──────────────────────────────────────────────────── */
+.dr-pdf-preview {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 900px;
+  height: calc(100vh - 3rem);
+  margin: auto;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--dr-surface);
+  border: 1px solid var(--dr-line);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.dr-pdf-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--dr-line);
+  flex-shrink: 0;
+}
+
+.dr-pdf-preview-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--dr-text);
+}
+
+.dr-pdf-preview-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.dr-pdf-preview-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.dr-pdf-preview-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.dr-pdf-preview-loading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--dr-text-2);
+  font-size: 0.85rem;
+}
+
 /* ── Unsaid figures, and figures worth a second look ─────────────────────── */
 
 /* An empty numeric field shows an em dash: it has not been answered, which is
