@@ -3275,8 +3275,9 @@ const SalesPage = () => {
                 )}
 
                 {!authLoading && currentUser?.permissions && crmTab === 'customers' && currentUser.permissions.includes('view_customers') && (
-                    <ErrorBoundary key={selectedCustomerId || 'no-customer'}>
-                        {selectedCustomer ? (
+                    <>
+                    {selectedCustomer && (
+                        <ErrorBoundary key={selectedCustomerId}>
                         <>
                             {/* Customer Header - Hide in full screen chat */}
                             {!isChatFullScreen && (
@@ -3767,18 +3768,31 @@ const SalesPage = () => {
                                 )}
                             </div>
                         </>
-                    ) : (
-                        <div className="sales-dashboard-v2">
-                            <PartnersSheet 
-                                onSelectCustomer={handleSelectCustomer} 
-                                onToggleSidebar={() => setIsSidebarOpen(true)}
-                                isSidebarOpen={isSidebarOpen}
-                                isPinned={isPinned}
-                                customerRefreshTrigger={customerRefreshTrigger}
-                            />
-                        </div>
+                        </ErrorBoundary>
                     )}
-                </ErrorBoundary>
+                    {/* Kept mounted at all times (hidden via CSS, not
+                        conditionally rendered) whenever a customer is open.
+                        This used to live in the ) : ( branch of the
+                        ErrorBoundary above, whose key changed with
+                        selectedCustomerId — deselecting a customer changed
+                        that key from the id back to 'no-customer', which
+                        force-remounted this list and wiped every filter/tab/
+                        search it held (reported: Partners tab + Type=Builder
+                        filter gone after opening and closing a customer). */}
+                    <div style={{ display: selectedCustomer ? 'none' : 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+                        <ErrorBoundary key="customers-list">
+                            <div className="sales-dashboard-v2">
+                                <PartnersSheet
+                                    onSelectCustomer={handleSelectCustomer}
+                                    onToggleSidebar={() => setIsSidebarOpen(true)}
+                                    isSidebarOpen={isSidebarOpen}
+                                    isPinned={isPinned}
+                                    customerRefreshTrigger={customerRefreshTrigger}
+                                />
+                            </div>
+                        </ErrorBoundary>
+                    </div>
+                    </>
             )}
 
             {!authLoading && currentUser?.permissions && crmTab === 'dashboard' && currentUser.permissions.includes('view_dashboard') && (
