@@ -44,7 +44,7 @@ export const IMPORT_COLUMNS = [
   ['location', ['easy stones location', 'es location', 'branch', 'location', 'store', 'office']],
   ['email', ['email', 'e-mail', 'mail']],
   ['contactName', ['contact', 'full name', 'customer name', 'customer', 'name']],
-  ['company', ['company', 'business', 'organization', 'firm', 'account', 'name']],
+  ['company', ['company', 'business', 'organization', 'firm', 'name', 'account']],
   ['phone', ['phone', 'mobile', 'cell', 'tel']],
   ['street', ['address', 'street']],
   ['city', ['city', 'town']],
@@ -96,11 +96,78 @@ export const resolveImportMapping = (headers, override = {}) => {
 };
 
 /**
+ * SPS's own export, downloaded straight from its web CRM rather than
+ * re-saved through Excel, is not a real workbook: it's an HTML document
+ * (Excel's lenient HTML+XML dialect) with the real data table nested
+ * inside a decorative outer one, and only one closing </table> for the
+ * three that get opened. `xlsx`'s HTML reader takes the nesting at face
+ * value and grabs the outer, decorative table — its <td> content, not the
+ * customer grid — which is why every column comes back unmapped.
+ *
+ * <tr>/<td>/<th> tags themselves are well-formed even though the table
+ * nesting isn't, so scanning for rows directly (rather than resolving the
+ * broken table structure) still finds the real grid: the header row is
+ * whichever row is made entirely of <th> cells, and the true one is the
+ * widest, since decorative rows elsewhere in the document aren't real
+ * column headers with this many fields.
+ */
+const parseHtmlWorkbook = (text) => {
+  const stripTags = (s) => s
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+
+  const cellsOf = (rowHtml, tag) =>
+    [...rowHtml.matchAll(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi'))]
+      .map(c => stripTags(c[1]));
+
+  const rows = [...text.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)]
+    .map(m => {
+      const th = cellsOf(m[1], 'th');
+      const td = cellsOf(m[1], 'td');
+      return th.length && !td.length
+        ? { type: 'header', cells: th }
+        : td.length ? { type: 'data', cells: td } : null;
+    })
+    .filter(Boolean);
+
+  const headerRow = rows
+    .filter(r => r.type === 'header')
+    .sort((a, b) => b.cells.length - a.cells.length)[0];
+  if (!headerRow) return null;
+
+  const rawHeaders = headerRow.cells;
+  const headerRowIndex = rows.indexOf(headerRow);
+  const dataRows = rows.slice(headerRowIndex + 1)
+    .filter(r => r.type === 'data' && r.cells.length === rawHeaders.length)
+    .map(r => Object.fromEntries(rawHeaders.map((h, i) => [h, r.cells[i] ?? ''])));
+
+  const headers = [...new Set(rawHeaders.map(h => h.trim()).filter(Boolean))];
+  return { headers, rows: dataRows };
+};
+
+/** Real xlsx (zip) starts with 'PK'; real binary xls (OLE) starts with D0CF11E0. */
+const isBinaryWorkbook = (buffer) =>
+  (buffer[0] === 0x50 && buffer[1] === 0x4b) ||
+  (buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0);
+
+/**
  * Headings come from the header row itself, not from the keys of the first data
  * row. A sheet whose first customer happens to have no contact name would
  * otherwise lose the Contact Name column for every row beneath it.
  */
 export const readCustomerSheet = (buffer) => {
+  if (!isBinaryWorkbook(buffer)) {
+    const parsed = parseHtmlWorkbook(buffer.toString('utf8'));
+    if (parsed && parsed.rows.length) return parsed;
+  }
+
   const workbook = read(buffer, { type: 'buffer' });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) throw new Error('The file has no readable sheet');

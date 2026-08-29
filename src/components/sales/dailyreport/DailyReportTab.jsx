@@ -16,6 +16,7 @@ import MonthView from './MonthView';
 import AllBranchesDay from './AllBranchesDay';
 import DaySummary from './DaySummary';
 import EmailReportDialog from './EmailReportDialog';
+import PdfPreviewDialog from './PdfPreviewDialog';
 import ExportMenu from './ExportMenu';
 import './DailyReport.css';
 
@@ -143,6 +144,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenReason, setReopenReason] = useState('');
   const [emailOpen, setEmailOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   // What a slab count usually looks like for this branch — the server works it
   // out so the rule isn't reinvented here.
   const [slabRange, setSlabRange] = useState(null);
@@ -397,7 +399,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     : `${API_URL}/api/daily-reports/${date}/pdf?location=${encodeURIComponent(location)}&tzOffset=${-new Date().getTimezoneOffset()}`;
 
   const downloadPdf = () => window.open(pdfUrl, '_blank', 'noopener');
-  const viewPdf = () => window.open(`${pdfUrl}&disposition=inline`, '_blank', 'noopener');
+  const viewPdf = () => setPreviewOpen(true);
 
   const emailReport = async ({ to, message }) => {
     const url = view === 'month'
@@ -448,7 +450,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
         key: 'pdf-view',
         icon: Eye,
         label: 'View as PDF',
-        hint: 'open it in a new tab, no download',
+        hint: 'preview it here, no download',
         onSelect: viewPdf
       }
     ] : []),
@@ -917,6 +919,14 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
         subtitle={view === 'month'
           ? `The month for ${location}.`
           : `${location}${report?.status === 'draft' ? ' — this day is still a draft and will be marked as one.' : '.'}`}
+        filename={pdfName}
+      />
+
+      <PdfPreviewDialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        url={pdfUrl}
+        title={view === 'month' ? `${monthOf(date)} · ${scopeLabel}` : `${longDate(date)} · ${location}`}
         filename={pdfName}
       />
 
