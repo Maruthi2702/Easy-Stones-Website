@@ -173,8 +173,14 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
  * A submitted report is never re-derived: its numbers are the record of what
  * was true when it was signed off, and a delivery edited next week must not
  * rewrite last Tuesday.
+ *
+ * Exported for dailyReports.test.js — this is the contract a save payload
+ * must respect (null-only fill, existing transfer lines keep their stored
+ * slabs). The 2026-08-28 incident happened one layer up, in how the frontend
+ * built what it sent here, but this function is what that payload has to be
+ * correct against, so it gets the same regression coverage.
  */
-function applyDerived(report, derived) {
+export function applyDerived(report, derived) {
   if (report.status === 'submitted') return report;
 
   report.visitors.homeowners = derived.visitorCheckIns;

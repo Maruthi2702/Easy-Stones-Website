@@ -49,15 +49,51 @@ re-verified against every *other* container the same shared component
 appears in, especially modals — not just the container where the bug you're
 fixing was noticed.
 
+## Incident: submitting a Daily Work Report wiped its own slabs/transfers (2026-08-28)
+
+The Daily Work Report's Deliveries/Pick-ups slabs and transfer-line slabs are
+meant to auto-update from the schedule (`deriveFromSystem` /
+`applyDerived` in `src/routes/dailyReports.js`) until a person hand-corrects
+one — `capacity: null` means "nobody's counted it yet," and a submitted
+report is never re-derived again, since it's the permanent record of what was
+true when it was signed off.
+
+A fix for a *different* bug (slabs freezing permanently the first time
+someone edited an unrelated field, because autosave PUT the whole report
+verbatim) added stripping in the frontend: an untouched derived figure got
+blanked back to `null`/removed before every save, so it would keep
+re-deriving instead of freezing. That stripping ran on *every* save,
+including the one `submitDay` fires immediately before locking the day.
+`/submit` never re-derives — it just flips `status` on whatever the last PUT
+stored — so the strip-for-drafts logic permanently wiped Deliveries/Pick-ups
+slabs and transfer lines off of every report submitted while that code was
+live, the instant it was signed off. Several already-submitted Seattle
+reports had to be reconstructed from the underlying `Delivery` records by
+hand.
+
+**The general lesson:** a transform meant to keep a *draft* editable
+(“don't persist this until a human confirms it”) is a different rule from
+what a *final, frozen* save needs (“persist exactly what's on screen, because
+nothing will ever fill this in again”). Before reusing one save path for both
+“autosave” and “finalize,” check whether anything downstream of finalize ever
+gets a second chance to fix what was sent — if not, finalize needs the real
+values, not the draft's placeholder-stripped ones. See
+`buildSaveBody`/`buildDraftPayload` in
+`src/components/sales/dailyreport/savePayload.js` and their tests for the
+fix, and `applyDerived`'s tests in `src/routes/dailyReports.test.js` for the
+merge contract those payloads have to be correct against.
+
 ## Automated tests are narrow — most verification is still manual
 
 `npm test` runs Vitest (`vite.config.js`'s `test` block, `src/**/*.test.js`).
-As of 2026-08-15 that covers exactly one thing: the pure, no-DOM business
-logic in `src/utils/routePlan.js` and
-`src/components/sales/routePlannerV2/helpers.js` (great-circle distance,
-point-in-polygon, stop ordering/scheduling math, recency bucketing, the
-small formatting/localStorage helpers). Nothing else in the app has test
-coverage — no components, no routes, no server.js endpoints.
+As of 2026-08-28 that covers the pure, no-DOM business logic in
+`src/utils/routePlan.js` and `src/components/sales/routePlannerV2/helpers.js`
+(great-circle distance, point-in-polygon, stop ordering/scheduling math,
+recency bucketing, small formatting/localStorage helpers), plus the Daily
+Work Report's derive/save-payload rules (`src/routes/dailyReports.js`'s
+`applyDerived`, `src/components/sales/dailyreport/savePayload.js`) added
+after the incident above. Nothing else in the app has test coverage — no
+rendered components, no other routes, no other server.js endpoints.
 
 That means passing `npm test` only proves the math didn't regress; it says
 nothing about whether a screen actually renders or behaves correctly.

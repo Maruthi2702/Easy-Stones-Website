@@ -11,6 +11,7 @@ import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
 import { money } from './summaryFigures';
 import { groupContainers, groupSlabs } from '../../../utils/dailyReportContainers';
+import { buildSaveBody } from './savePayload';
 import MonthView from './MonthView';
 import AllBranchesDay from './AllBranchesDay';
 import DaySummary from './DaySummary';
@@ -213,36 +214,18 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const loadDayRef = useRef(loadDay);
   useEffect(() => { loadDayRef.current = loadDay; }, [loadDay]);
 
-  /**
-   * Strips the derived-but-never-typed figures back out of a save payload.
-   *
-   * `report` state already has capacity and auto transfer slabs filled in by
-   * the server's last derive, so they display correctly — but that fill-in
-   * isn't a human saying "this is right," and saving it verbatim would tell
-   * the server otherwise. Blanking anything the user hasn't actually touched
-   * keeps those figures live (re-derived from the schedule/tickets on every
-   * load) until someone hand-corrects them, instead of freezing at whatever
-   * they were the moment an unrelated field on the same report got edited.
-   */
-  const buildSavePayload = (r) => {
-    const body = structuredClone(r);
-    if (!touchedCapacity.current.has('deliveries')) body.deliveries.capacity = null;
-    if (!touchedCapacity.current.has('pickups')) body.pickups.capacity = null;
-    body.transfers = body.transfers.filter(t => {
-      if (!t.auto) return true;
-      return touchedTransferSlabs.current.has(`${t.direction || 'out'}:${t.fromTo}`);
-    });
-    return body;
-  };
-
   // ── autosave the draft ────────────────────────────────────────────────────
-  const save = useCallback(async (payload) => {
+  const save = useCallback(async (payload, { freeze = false } = {}) => {
     if (!canEdit || payload.status === 'submitted') return;
     setSaving(true);
     try {
       const res = await authFetch(`${API_URL}/api/daily-reports/${payload.date}`, {
         method: 'PUT',
-        body: JSON.stringify(buildSavePayload(payload))
+        body: JSON.stringify(buildSaveBody(payload, {
+          touchedCapacity: touchedCapacity.current,
+          touchedTransferSlabs: touchedTransferSlabs.current,
+          freeze
+        }))
       });
       // 409 means the day was locked under us — someone else submitted it, or
       // the clock reached 11:59 while this form was still open. Show it as it
@@ -380,7 +363,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   const submitDay = async () => {
     clearTimeout(saveTimer.current);
-    await save(report);
+    await save(report, { freeze: true });
     const res = await authFetch(`${API_URL}/api/daily-reports/${date}/submit`, {
       method: 'POST',
       body: JSON.stringify({ location })
