@@ -380,6 +380,7 @@ const DeliveryScheduleTab = ({
             <BoardGrid
               trucks={trucks}
               deliveries={deliveries}
+              pending={pending}
               weekDates={weekDates}
               searchQuery={searchQuery}
               editable={true}

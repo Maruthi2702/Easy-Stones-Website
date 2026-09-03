@@ -40,6 +40,10 @@ const DAYS_OF_WEEK = [
 const BoardGrid = ({
   trucks = [],
   deliveries = [],
+  // Orders with no driver assigned yet — rendered separately by
+  // PendingDeliveries, not part of `deliveries`. A drag can originate from
+  // there, so the drop handler below has to be able to find it too.
+  pending = [],
   weekDates = [],
   searchQuery = '',
   editable = false,
@@ -108,7 +112,7 @@ const BoardGrid = ({
     if (!onMoveDelivery) return;
 
     const deliveryId = e.dataTransfer.getData('text/plain');
-    const delivery = deliveries.find(d => d.id === deliveryId);
+    const delivery = deliveries.find(d => d.id === deliveryId) || pending.find(d => d.id === deliveryId);
     if (!delivery) return;
 
     // Dropped back on the slot it started in — nothing to change.
