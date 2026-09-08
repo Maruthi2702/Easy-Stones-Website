@@ -4,7 +4,7 @@ import {
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
     FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard, Eraser,
-    ClipboardList, CheckCheck, RotateCcw, Map, Route
+    ClipboardList, CheckCheck, RotateCcw, Map, Route, ArrowLeftRight
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
@@ -120,6 +120,19 @@ const PAGE_PERMISSIONS = [
             // planned is a different act from adding one.
             { key: 'edit_route_plan', label: 'Replace', icon: Pencil, desc: 'Replace a day that was already planned with a new run' },
             { key: 'delete_route_plan', label: 'Clear', icon: Trash2, desc: 'Clear the planned stops from a day (hand-added entries are left alone)' }
+        ]
+    },
+    {
+        id: 'crossover_sheet',
+        page: 'Crossover Sheet',
+        icon: ArrowLeftRight,
+        description: "Distributor color names mapped to their Easy Stones equivalent",
+        color: '#f59e0b',
+        actions: [
+            { key: 'view_crossover_sheet', label: 'View', icon: Eye, desc: 'View the crossover sheet' },
+            { key: 'add_crossover_sheet', label: 'Add', icon: Plus, desc: 'Add new crossover entries' },
+            { key: 'edit_crossover_sheet', label: 'Edit', icon: Pencil, desc: 'Edit existing crossover entries' },
+            { key: 'delete_crossover_sheet', label: 'Delete', icon: Trash2, desc: 'Delete crossover entries' }
         ]
     },
     {

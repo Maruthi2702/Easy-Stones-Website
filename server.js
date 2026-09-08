@@ -45,6 +45,7 @@ import OfficeCheckIn from './src/models/OfficeCheckIn.js';
 import Delivery from './src/models/Delivery.js';
 import Truck from './src/models/Truck.js';
 import LostSale from './src/models/LostSale.js';
+import CrossoverSheet from './src/models/CrossoverSheet.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
 import { scrapeErpCustomers, scrapeErpInventory, scrapeErpSales } from './src/services/erpImportService.js';
@@ -544,7 +545,8 @@ async function startServer() {
       ['Customer', Customer], ['Product', Product], ['User', User],
       ['OfficeCheckIn', OfficeCheckIn], ['ActivityLog', ActivityLog], ['Schedule', Schedule],
       ['Delivery', Delivery], ['Truck', Truck], ['LostSale', LostSale],
-      ['Location', Location], ['Role', Role], ['DailyReport', DailyReport]
+      ['Location', Location], ['Role', Role], ['DailyReport', DailyReport],
+      ['CrossoverSheet', CrossoverSheet]
     ];
     const indexResults = await Promise.allSettled(
       indexTargets.map(([, model]) => model.createIndexes())
@@ -631,7 +633,8 @@ async function startServer() {
             'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
-            'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report'
+            'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report',
+            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet'
           ],
           isSystem: true
         },
@@ -643,7 +646,8 @@ async function startServer() {
             'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
-            'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report'
+            'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report',
+            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet'
           ],
           isSystem: true
         },
@@ -655,7 +659,8 @@ async function startServer() {
             'view_checkins', 'manage_checkins', 'send_checkin_email', 'delete_checkins',
             'view_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
-            'view_daily_report', 'edit_daily_report', 'submit_daily_report'
+            'view_daily_report', 'edit_daily_report', 'submit_daily_report',
+            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet'
           ],
           isSystem: true
         },
@@ -666,7 +671,8 @@ async function startServer() {
             'view_dashboard', 'view_customers', 'manage_customers',
             'view_checkins', 'manage_checkins', 'send_checkin_email',
             'view_pricelist', 'manage_users', 'view_product_prices',
-            'view_lost_sales', 'edit_lost_sales'
+            'view_lost_sales', 'edit_lost_sales',
+            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet'
           ],
           isSystem: true
         },
@@ -675,7 +681,7 @@ async function startServer() {
           displayName: 'CSR',
           permissions: [
             'view_checkins', 'send_checkin_email', 'view_pricelist',
-            'view_lost_sales'
+            'view_lost_sales', 'view_crossover_sheet'
           ],
           isSystem: true
         },
@@ -711,7 +717,10 @@ async function startServer() {
         // account's location and writes days into a calendar, so who gets it is
         // a decision to make deliberately under Users & Roles rather than one
         // that arrives switched on for a whole role.
-        { roles: ['admin'], permissions: ['view_route_planner', 'create_route_plan', 'edit_route_plan', 'delete_route_plan'] }
+        { roles: ['admin'], permissions: ['view_route_planner', 'create_route_plan', 'edit_route_plan', 'delete_route_plan'] },
+        { roles: ['admin', 'director', 'manager'], permissions: ['view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet'] },
+        { roles: ['sales_rep'], permissions: ['view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet'] },
+        { roles: ['csr'], permissions: ['view_crossover_sheet'] }
       ];
 
       for (const grant of NEW_PERMISSION_GRANTS) {
@@ -6660,6 +6669,91 @@ app.delete('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
   } catch (error) {
     console.error('Error deleting lost sale:', error);
     res.status(500).json({ message: 'Failed to delete lost sale record' });
+  }
+});
+
+// ── CROSSOVER SHEET API ROUTES ──
+// Maps a distributor's color name to its Easy Stones equivalent, and how
+// close the match is, so staff can quote a swap when a customer's usual
+// distributor color isn't available.
+
+// GET /api/crossover-sheet: Fetch all crossover entries
+app.get('/api/crossover-sheet', authenticate, requirePermission('view_crossover_sheet'), async (req, res) => {
+  try {
+    const list = await CrossoverSheet.find().sort({ distributorName: 1, distributorColorName: 1 }).lean();
+    res.json(list);
+  } catch (error) {
+    console.error('Error fetching crossover sheet:', error);
+    res.status(500).json({ message: 'Failed to fetch crossover sheet' });
+  }
+});
+
+// POST /api/crossover-sheet: Create a crossover entry
+app.post('/api/crossover-sheet', authenticate, requirePermission('add_crossover_sheet'), async (req, res) => {
+  try {
+    const data = req.body;
+
+    const entry = new CrossoverSheet({
+      distributorName: data.distributorName,
+      distributorColorName: data.distributorColorName,
+      easyStonesName: data.easyStonesName,
+      matchType: data.matchType || 'Similar',
+      notes: data.notes || '',
+      addedByName: req.user?.displayName || req.user?.contactName || 'Sales Rep',
+      addedById: req.user?.id || null
+    });
+
+    await entry.save();
+    req.app.get('io')?.emit('crossover_sheet_update');
+    res.status(201).json(entry);
+  } catch (error) {
+    console.error('Error creating crossover entry:', error);
+    res.status(500).json({ message: 'Failed to create crossover entry', error: error.message });
+  }
+});
+
+// PUT /api/crossover-sheet/:id: Update a crossover entry
+app.put('/api/crossover-sheet/:id', authenticate, requirePermission('edit_crossover_sheet'), async (req, res) => {
+  try {
+    const data = req.body;
+    const updateObj = {
+      distributorName: data.distributorName,
+      distributorColorName: data.distributorColorName,
+      easyStonesName: data.easyStonesName,
+      matchType: data.matchType,
+      notes: data.notes || ''
+    };
+
+    const updated = await CrossoverSheet.findByIdAndUpdate(
+      req.params.id,
+      updateObj,
+      { new: true, runValidators: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Crossover entry not found' });
+    }
+
+    req.app.get('io')?.emit('crossover_sheet_update');
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating crossover entry:', error);
+    res.status(500).json({ message: 'Failed to update crossover entry', error: error.message });
+  }
+});
+
+// DELETE /api/crossover-sheet/:id: Delete a crossover entry
+app.delete('/api/crossover-sheet/:id', authenticate, requirePermission('delete_crossover_sheet'), async (req, res) => {
+  try {
+    const deleted = await CrossoverSheet.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Crossover entry not found' });
+    }
+    req.app.get('io')?.emit('crossover_sheet_update');
+    res.json({ success: true, message: 'Crossover entry deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting crossover entry:', error);
+    res.status(500).json({ message: 'Failed to delete crossover entry' });
   }
 });
 

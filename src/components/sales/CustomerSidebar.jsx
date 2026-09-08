@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Pin, PinOff, Sun, Moon,
-    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown, Truck, ClipboardList, Map
+    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown, Truck, ClipboardList, Map, ArrowLeftRight
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -168,6 +168,18 @@ const CustomerSidebar = ({
                     >
                         <TrendingDown size={18} />
                         <span>Lost Sales</span>
+                    </button>
+                )}
+
+                {/* Crossover Sheet — requires view_crossover_sheet */}
+                {(user?.permissions?.includes('view_crossover_sheet') || user?.role === 'admin' || !user) && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'crossover_sheet' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('crossover_sheet')}
+                        title="Distributor color crossover reference"
+                    >
+                        <ArrowLeftRight size={18} />
+                        <span>Crossover Sheet</span>
                     </button>
                 )}
 

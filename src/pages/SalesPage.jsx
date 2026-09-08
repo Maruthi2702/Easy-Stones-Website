@@ -37,6 +37,7 @@ import PriceListPanel from '../components/sales/PriceListPanel';
 import UsersRolesTab from '../components/sales/UsersRolesTab';
 import UserProfileTab from '../components/sales/UserProfileTab';
 import LostSalesTab from '../components/sales/LostSalesTab';
+import CrossoverSheetTab from '../components/sales/CrossoverSheetTab';
 import DeliveryScheduleTab from '../components/sales/DeliveryScheduleTab';
 import DailyReportTab from '../components/sales/dailyreport/DailyReportTab';
 import Pagination from '../components/shared/Pagination';
@@ -135,6 +136,7 @@ const SalesPage = () => {
         if (perms.includes('view_pricelist')) return 'pricelist';
         if (perms.includes('view_customers')) return 'customers';
         if (perms.includes('view_lost_sales')) return 'lost_sales';
+        if (perms.includes('view_crossover_sheet')) return 'crossover_sheet';
         if (perms.includes('view_delivery_schedule')) return 'delivery_schedule';
         return 'checkin'; // safe fallback
     };
@@ -3212,6 +3214,21 @@ const SalesPage = () => {
                                 theme={theme}
                                 onCreateNew={() => setShowAddCustomerModal(true)}
                                 isDropdownLoading={isDropdownLoading}
+                                sidebarToggle={sidebarToggle}
+                            />
+                        </ErrorBoundary>
+                    );
+                })()}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'crossover_sheet' && (() => {
+                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+                    ) : null;
+
+                    return (
+                        <ErrorBoundary key="crossover-sheet-view">
+                            <CrossoverSheetTab
+                                currentUser={currentUser}
                                 sidebarToggle={sidebarToggle}
                             />
                         </ErrorBoundary>

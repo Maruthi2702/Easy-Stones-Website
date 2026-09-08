@@ -13,6 +13,7 @@ import Truck from './src/models/Truck.js';
 import LostSale from './src/models/LostSale.js';
 import Location from './src/models/Location.js';
 import Role from './src/models/Role.js';
+import CrossoverSheet from './src/models/CrossoverSheet.js';
 
 const mongoOptions = {
   serverSelectionTimeoutMS: 5000,
@@ -31,7 +32,8 @@ const MODELS = [
   ['Truck', Truck],
   ['LostSale', LostSale],
   ['Location', Location],
-  ['Role', Role]
+  ['Role', Role],
+  ['CrossoverSheet', CrossoverSheet]
 ];
 
 async function ensureIndexes() {
