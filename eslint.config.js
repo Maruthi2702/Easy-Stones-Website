@@ -23,7 +23,11 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // ignoreRestSiblings: destructuring a field out just to omit it from a
+      // ...rest copy (e.g. `const { assetValue, ...rest } = row`) is a
+      // deliberate discard, not an unused variable — without this every such
+      // omit pattern in the codebase reports an error on the omitted name.
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', ignoreRestSiblings: true }],
     },
   },
   {
