@@ -46,6 +46,9 @@ import Delivery from './src/models/Delivery.js';
 import Truck from './src/models/Truck.js';
 import LostSale from './src/models/LostSale.js';
 import CrossoverSheet from './src/models/CrossoverSheet.js';
+import InventoryItem from './src/models/InventoryItem.js';
+import InventorySalesRecord from './src/models/InventorySalesRecord.js';
+import { SLAB_STATUS_BUCKET } from './src/utils/inventoryStatus.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
 import { scrapeErpCustomers, scrapeErpInventory, scrapeErpSales } from './src/services/erpImportService.js';
@@ -64,6 +67,7 @@ import {
   IMPORT_FIELDS, importNormalize, resolveImportMapping, readCustomerSheet,
   buildImportPlan, importRowsForClient, importLabel
 } from './src/utils/customerImport.js';
+import { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './src/utils/inventoryImport.js';
 import {
   isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
   PICKUP_WORDING, DELIVERY_WORDING
@@ -634,7 +638,8 @@ async function startServer() {
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
             'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report',
-            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet'
+            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet',
+            'view_inventory_analysis', 'import_inventory_analysis', 'view_inventory_prices'
           ],
           isSystem: true
         },
@@ -647,7 +652,8 @@ async function startServer() {
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
             'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report',
-            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet'
+            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet',
+            'view_inventory_analysis', 'import_inventory_analysis', 'view_inventory_prices'
           ],
           isSystem: true
         },
@@ -660,7 +666,8 @@ async function startServer() {
             'view_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
             'view_daily_report', 'edit_daily_report', 'submit_daily_report',
-            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet'
+            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet',
+            'view_inventory_analysis', 'import_inventory_analysis'
           ],
           isSystem: true
         },
@@ -672,7 +679,8 @@ async function startServer() {
             'view_checkins', 'manage_checkins', 'send_checkin_email',
             'view_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales',
-            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet'
+            'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet',
+            'view_inventory_analysis'
           ],
           isSystem: true
         },
@@ -681,7 +689,7 @@ async function startServer() {
           displayName: 'CSR',
           permissions: [
             'view_checkins', 'send_checkin_email', 'view_pricelist',
-            'view_lost_sales', 'view_crossover_sheet'
+            'view_lost_sales', 'view_crossover_sheet', 'view_inventory_analysis'
           ],
           isSystem: true
         },
@@ -720,7 +728,13 @@ async function startServer() {
         { roles: ['admin'], permissions: ['view_route_planner', 'create_route_plan', 'edit_route_plan', 'delete_route_plan'] },
         { roles: ['admin', 'director', 'manager'], permissions: ['view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet'] },
         { roles: ['sales_rep'], permissions: ['view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet'] },
-        { roles: ['csr'], permissions: ['view_crossover_sheet'] }
+        { roles: ['csr'], permissions: ['view_crossover_sheet'] },
+        { roles: ['admin', 'director', 'manager'], permissions: ['view_inventory_analysis', 'import_inventory_analysis'] },
+        { roles: ['sales_rep', 'csr'], permissions: ['view_inventory_analysis'] },
+        // Slab/lot cost and asset-value figures are a separate, narrower grant
+        // from seeing the Inventory Analysis page itself — default to admin
+        // and director only; assign it to other roles under Users & Roles.
+        { roles: ['admin', 'director'], permissions: ['view_inventory_prices'] }
       ];
 
       for (const grant of NEW_PERMISSION_GRANTS) {
@@ -6349,6 +6363,400 @@ app.post('/api/admin/erp-import/:type', authenticate, requirePermission('manage_
   } catch (error) {
     console.error('ERP import error:', error);
     res.status(500).json({ message: `ERP import failed: ${error.message}` });
+  }
+});
+
+// ============================================
+// INVENTORY ANALYSIS
+// ============================================
+// Two SPS exports feed this feature (see src/utils/inventoryImport.js):
+// - "stock": a full mirror of on-hand slabs/lots, wiped and replaced whole on
+//   every import since it's a point-in-time snapshot, not a ledger.
+// - "sales": per-product sold totals for a location+date-range period, kept
+//   alongside prior periods (re-importing the same period+location replaces
+//   just that combination) so velocity/reorder math has something to divide by.
+
+// Shared by /summary and /items so the two never drift apart on what a
+// given search/category/location/status combination actually matches.
+const buildInventoryItemQuery = ({ search = '', category = '', location = '', status = '', product = '' } = {}) => {
+  const query = {};
+  if (product) query.product = product;
+  if (category) query.category = category;
+  if (location) query.location = location;
+  if (status === 'available') query.slabStatus = '';
+  else if (status) query.slabStatus = status;
+  if (search) {
+    const re = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    query.$or = [{ product: re }, { sku: re }, { supplier: re }, { block: re }, { serialNumber: re }];
+  }
+  return query;
+};
+
+app.get('/api/inventory-analysis/summary', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
+  try {
+    const filterQuery = buildInventoryItemQuery(req.query);
+    const now = new Date();
+
+    // Independent reads against the same collection — run them concurrently
+    // instead of five serialized round trips (this fires on every filter
+    // change, debounced but still per-keystroke-adjacent).
+    const [[totals], byCategory, agingBuckets, distinctProducts, latest] = await Promise.all([
+      InventoryItem.aggregate([
+        { $match: filterQuery },
+        { $group: {
+            _id: null,
+            totalItems: { $sum: 1 },
+            totalAssetValue: { $sum: '$assetValue' },
+            totalAvailableQty: { $sum: '$availableQuantity' }
+        } }
+      ]),
+      InventoryItem.aggregate([
+        { $match: filterQuery },
+        { $group: {
+            _id: '$category',
+            items: { $sum: 1 },
+            assetValue: { $sum: '$assetValue' },
+            availableQty: { $sum: '$availableQuantity' }
+        } },
+        { $sort: { assetValue: -1 } },
+        { $project: { _id: 0, category: { $ifNull: ['$_id', 'Uncategorized'] }, items: 1, assetValue: 1, availableQty: 1 } }
+      ]),
+      InventoryItem.aggregate([
+        { $match: { ...filterQuery, receivedDate: { $ne: null } } },
+        { $project: {
+            assetValue: 1,
+            ageDays: { $divide: [{ $subtract: [now, '$receivedDate'] }, 1000 * 60 * 60 * 24] }
+        } },
+        { $bucket: {
+            groupBy: '$ageDays',
+            boundaries: [0, 30, 60, 90, 180, 365, Infinity],
+            default: 'unknown',
+            output: { count: { $sum: 1 }, assetValue: { $sum: '$assetValue' } }
+        } }
+      ]),
+      InventoryItem.distinct('product', filterQuery),
+      // "Last synced" always reflects the most recent import overall, not the
+      // filtered subset — a filter narrowing to zero rows shouldn't make the
+      // sync timestamp disappear.
+      InventoryItem.findOne().sort({ importedAt: -1 }).select('importedAt importedByName').lean()
+    ]);
+
+    // Asset value is cost-basis data, gated separately from the page itself
+    // (view_inventory_analysis) — strip it server-side rather than just
+    // hiding it in the UI, since it's sitting right there in the response.
+    const canViewPrices = req.user.permissions.includes('view_inventory_prices');
+
+    res.json({
+      totalItems: totals?.totalItems || 0,
+      totalAssetValue: canViewPrices ? (totals?.totalAssetValue || 0) : null,
+      totalAvailableQty: totals?.totalAvailableQty || 0,
+      distinctProductCount: distinctProducts.length,
+      byCategory: canViewPrices ? byCategory : byCategory.map(({ assetValue, ...rest }) => rest),
+      agingBuckets: canViewPrices ? agingBuckets : agingBuckets.map(({ assetValue, ...rest }) => rest),
+      lastImportedAt: latest?.importedAt || null,
+      lastImportedByName: latest?.importedByName || ''
+    });
+  } catch (error) {
+    console.error('Inventory analysis summary error:', error);
+    res.status(500).json({ message: 'Failed to load inventory summary' });
+  }
+});
+
+app.get('/api/inventory-analysis/filters', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
+  try {
+    const [categories, locations, statuses] = await Promise.all([
+      InventoryItem.distinct('category'),
+      InventoryItem.distinct('location'),
+      InventoryItem.distinct('slabStatus')
+    ]);
+    res.json({
+      categories: categories.filter(Boolean).sort(),
+      locations: locations.filter(Boolean).sort(),
+      statuses: statuses.filter(Boolean).sort()
+    });
+  } catch (error) {
+    console.error('Inventory analysis filters error:', error);
+    res.status(500).json({ message: 'Failed to load filters' });
+  }
+});
+
+app.get('/api/inventory-analysis/items', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 25));
+    const query = buildInventoryItemQuery(req.query);
+
+    const [items, total] = await Promise.all([
+      InventoryItem.find(query).sort({ receivedDate: 1 }).skip((page - 1) * limit).limit(limit).lean(),
+      InventoryItem.countDocuments(query)
+    ]);
+
+    const canViewPrices = req.user.permissions.includes('view_inventory_prices');
+    const sanitizedItems = canViewPrices
+      ? items
+      : items.map(({ assetValue, unitFobCost, unitLandedCost, purchaseCost, ...rest }) => rest);
+
+    res.json({ items: sanitizedItems, total, page, totalPages: Math.ceil(total / limit) || 1 });
+  } catch (error) {
+    console.error('Inventory analysis items error:', error);
+    res.status(500).json({ message: 'Failed to load inventory items' });
+  }
+});
+
+// Stock Detail, grouped by product — one row per product with rolled-up
+// totals instead of one row per slab. Paginated by distinct product (not by
+// raw slab count), so a page of 25 always means 25 products regardless of
+// how many slabs each has. Expanding a group in the UI re-fetches that
+// product's individual slabs from GET /api/inventory-analysis/items?product=…
+// rather than shipping every slab of every product up front.
+app.get('/api/inventory-analysis/items/grouped', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const filterQuery = buildInventoryItemQuery(req.query);
+
+    const [result] = await InventoryItem.aggregate([
+      { $match: filterQuery },
+      { $group: {
+          _id: '$product',
+          category: { $first: '$category' },
+          units: { $first: '$units' },
+          slabCount: { $sum: 1 },
+          totalOnHand: { $sum: '$instockQty' },
+          totalAvailable: { $sum: '$availableQuantity' },
+          totalAssetValue: { $sum: '$assetValue' },
+          locations: { $addToSet: '$location' },
+          oldestReceivedDate: { $min: '$receivedDate' },
+          statuses: { $push: '$slabStatus' }
+      } },
+      { $sort: { oldestReceivedDate: 1 } },
+      { $facet: {
+          data: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+          totalCount: [{ $count: 'count' }]
+      } }
+    ]);
+
+    const canViewPrices = req.user.permissions.includes('view_inventory_prices');
+    const groups = (result?.data || []).map(g => {
+      const statusCounts = { available: 0, hold: 0, so: 0, transfer: 0, other: 0 };
+      g.statuses.forEach(s => { statusCounts[SLAB_STATUS_BUCKET(s)]++; });
+      return {
+        product: g._id,
+        category: g.category,
+        units: g.units,
+        slabCount: g.slabCount,
+        totalOnHand: g.totalOnHand,
+        totalAvailable: g.totalAvailable,
+        totalAssetValue: canViewPrices ? g.totalAssetValue : null,
+        locations: g.locations.filter(Boolean).sort(),
+        oldestReceivedDate: g.oldestReceivedDate,
+        statusCounts
+      };
+    });
+
+    const total = result?.totalCount?.[0]?.count || 0;
+    res.json({ groups, total, page, totalPages: Math.ceil(total / limit) || 1 });
+  } catch (error) {
+    console.error('Inventory analysis grouped items error:', error);
+    res.status(500).json({ message: 'Failed to load grouped inventory' });
+  }
+});
+
+// Reorder / velocity view — joins on-hand quantity (InventoryItem) against
+// the most recent sold-quantity period per product+location
+// (InventorySalesRecord) to estimate days of supply left. Products with no
+// matching sales record (name didn't match, or no sales export imported yet)
+// are still returned with velocity/daysOfSupply as null rather than dropped,
+// since "we don't know" is a different, more honest state than "infinite".
+app.get('/api/inventory-analysis/velocity', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
+  try {
+    const { location = '' } = req.query;
+
+    const stockMatch = location ? { location } : {};
+    const onHand = await InventoryItem.aggregate([
+      { $match: stockMatch },
+      { $group: {
+          _id: { product: '$product', location: '$location' },
+          availableQuantity: { $sum: '$availableQuantity' },
+          assetValue: { $sum: '$assetValue' },
+          units: { $first: '$units' },
+          category: { $first: '$category' }
+      } }
+    ]);
+
+    const salesMatch = location ? { location } : {};
+    const latestPerKey = await InventorySalesRecord.aggregate([
+      { $match: salesMatch },
+      { $sort: { periodEnd: -1 } },
+      { $group: {
+          _id: { product: '$product', location: '$location' },
+          quantitySold: { $first: '$quantitySold' },
+          periodStart: { $first: '$periodStart' },
+          periodEnd: { $first: '$periodEnd' }
+      } }
+    ]);
+    const salesByKey = new Map(latestPerKey.map(s => [`${s._id.product}::${s._id.location}`, s]));
+    const canViewPrices = req.user.permissions.includes('view_inventory_prices');
+
+    const rows = onHand.map(item => {
+      const key = `${item._id.product}::${item._id.location}`;
+      const sale = salesByKey.get(key);
+      let velocityPerDay = null;
+      let daysOfSupply = null;
+      if (sale) {
+        const periodDays = Math.max(1, (new Date(sale.periodEnd) - new Date(sale.periodStart)) / (1000 * 60 * 60 * 24));
+        velocityPerDay = sale.quantitySold / periodDays;
+        daysOfSupply = velocityPerDay > 0 ? item.availableQuantity / velocityPerDay : null;
+      }
+      return {
+        product: item._id.product,
+        location: item._id.location,
+        category: item.category,
+        units: item.units,
+        availableQuantity: item.availableQuantity,
+        assetValue: canViewPrices ? item.assetValue : null,
+        quantitySoldInPeriod: sale?.quantitySold ?? null,
+        periodStart: sale?.periodStart ?? null,
+        periodEnd: sale?.periodEnd ?? null,
+        velocityPerDay,
+        daysOfSupply
+      };
+    });
+
+    rows.sort((a, b) => {
+      if (a.daysOfSupply === null) return 1;
+      if (b.daysOfSupply === null) return -1;
+      return a.daysOfSupply - b.daysOfSupply;
+    });
+
+    res.json({ rows });
+  } catch (error) {
+    console.error('Inventory analysis velocity error:', error);
+    res.status(500).json({ message: 'Failed to load velocity analysis' });
+  }
+});
+
+app.post('/api/inventory-analysis/import/stock/preview', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const { headers, mapping, missingRequired, rows } = parseInventoryStockWorkbook(req.file.buffer);
+    res.json({ success: true, headers, mapping, missingRequired, totalRows: rows.length, sample: rows.slice(0, 10) });
+  } catch (error) {
+    console.error('Inventory stock import preview error:', error);
+    res.status(400).json({ message: `Preview failed: ${error.message}` });
+  }
+});
+
+app.post('/api/inventory-analysis/import/stock/apply', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const { missingRequired, rows } = parseInventoryStockWorkbook(req.file.buffer);
+    if (missingRequired.length) {
+      return res.status(400).json({ message: `Missing required column(s): ${missingRequired.join(', ')}` });
+    }
+    if (!rows.length) {
+      return res.status(400).json({ message: 'No data rows found in file' });
+    }
+
+    const importedAt = new Date();
+    const importedByName = req.user?.displayName || req.user?.contactName || req.user?.username || '';
+    const importedById = req.user?.id || null;
+    const docs = rows.map(r => ({ ...r, importedAt, importedByName, importedById }));
+
+    // Insert the new snapshot BEFORE removing the old one. This used to
+    // delete everything first — if insertMany then threw partway through
+    // (a bad row, a dropped connection), the whole InventoryItems collection
+    // was left empty with no way back, the same class of data-loss incident
+    // as the Daily Work Report bug documented in CLAUDE.md. `importedAt` is
+    // identical for every row in this batch, so it doubles as a batch tag:
+    // on failure, only this batch's (possibly partial) rows are removed and
+    // the previous snapshot is untouched.
+    try {
+      await InventoryItem.insertMany(docs, { ordered: false });
+    } catch (insertErr) {
+      await InventoryItem.deleteMany({ importedAt }).catch(() => {});
+      throw insertErr;
+    }
+    await InventoryItem.deleteMany({ importedAt: { $ne: importedAt } });
+
+    req.app.get('io')?.emit('inventory_analysis_update');
+    res.json({ success: true, count: docs.length, importedAt });
+  } catch (error) {
+    console.error('Inventory stock import apply error:', error);
+    res.status(400).json({ message: `Import failed: ${error.message}` });
+  }
+});
+
+app.post('/api/inventory-analysis/import/sales/preview', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const { headers, mapping, missingRequired, rows, detected } = parseInventorySalesWorkbook(req.file.buffer);
+    res.json({ success: true, headers, mapping, missingRequired, totalRows: rows.length, sample: rows.slice(0, 10), detected });
+  } catch (error) {
+    console.error('Inventory sales import preview error:', error);
+    res.status(400).json({ message: `Preview failed: ${error.message}` });
+  }
+});
+
+app.post('/api/inventory-analysis/import/sales/apply', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const { missingRequired, rows } = parseInventorySalesWorkbook(req.file.buffer);
+    if (missingRequired.length) {
+      return res.status(400).json({ message: `Missing required column(s): ${missingRequired.join(', ')}` });
+    }
+    if (!rows.length) {
+      return res.status(400).json({ message: 'No data rows found in file' });
+    }
+
+    const location = String(req.body.location || '').trim();
+    const periodStart = req.body.periodStart ? new Date(req.body.periodStart) : null;
+    const periodEnd = req.body.periodEnd ? new Date(req.body.periodEnd) : null;
+    if (!location) return res.status(400).json({ message: 'Location is required' });
+    if (!periodStart || !periodEnd || Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime())) {
+      return res.status(400).json({ message: 'A valid period start and end date are required' });
+    }
+    // A reversed range doesn't fail loudly downstream — the velocity endpoint
+    // floors (periodEnd - periodStart) at 1 day, so a swapped start/end would
+    // silently read the whole period's total as "sold in one day" and make
+    // every product's days-of-supply look ~N times too low.
+    if (periodStart >= periodEnd) {
+      return res.status(400).json({ message: 'Period start must be before period end' });
+    }
+
+    const importedAt = new Date();
+    const importedByName = req.user?.displayName || req.user?.contactName || req.user?.username || '';
+    const importedById = req.user?.id || null;
+
+    // Re-importing the same period+location is a correction, not a
+    // duplicate — replace just that slice rather than every period on file.
+    // The unique (product, location, periodStart, periodEnd) index means the
+    // new rows can't be inserted ahead of the old ones the way the stock
+    // import does it, so this keeps an in-memory backup of the slice being
+    // replaced and restores it if insertMany throws partway — a failed
+    // re-import falls back to the last-known-good data instead of leaving
+    // that period+location empty.
+    const previousDocs = await InventorySalesRecord.find({ location, periodStart, periodEnd }).lean();
+    await InventorySalesRecord.deleteMany({ location, periodStart, periodEnd });
+    try {
+      await InventorySalesRecord.insertMany(
+        rows.map(r => ({ ...r, location, periodStart, periodEnd, importedAt, importedByName, importedById })),
+        { ordered: false }
+      );
+    } catch (insertErr) {
+      await InventorySalesRecord.deleteMany({ location, periodStart, periodEnd }).catch(() => {});
+      if (previousDocs.length) {
+        const restoreDocs = previousDocs.map(({ _id, __v, ...rest }) => rest);
+        await InventorySalesRecord.insertMany(restoreDocs, { ordered: false }).catch(() => {});
+      }
+      throw insertErr;
+    }
+
+    req.app.get('io')?.emit('inventory_analysis_update');
+    res.json({ success: true, count: rows.length, location, periodStart, periodEnd });
+  } catch (error) {
+    console.error('Inventory sales import apply error:', error);
+    res.status(400).json({ message: `Import failed: ${error.message}` });
   }
 });
 

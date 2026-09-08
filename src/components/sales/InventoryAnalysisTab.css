@@ -1,0 +1,1355 @@
+/* ── INVENTORY ANALYSIS TAB ── */
+
+.invan-tab-container {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: calc(100vh - 82px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 1.25rem 1.75rem;
+  padding-bottom: 4rem;
+  box-sizing: border-box;
+  color: #f8fafc;
+  font-family: inherit;
+}
+
+.invan-tab-container::-webkit-scrollbar { width: 8px; height: 8px; }
+.invan-tab-container::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.15); }
+.invan-tab-container::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.35); border-radius: 4px; }
+.invan-tab-container::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.65); }
+
+body.light-theme-active .invan-tab-container,
+.light-theme-active .invan-tab-container {
+  color: #0f172a;
+}
+
+.invan-btn-text-short { display: none; }
+.invan-btn-text-full { display: inline; }
+
+/* ── HEADER ── */
+.invan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.invan-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.invan-title-text {
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.invan-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.invan-subtitle {
+  margin: 0.3rem 0 1rem 0;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  max-width: 90ch;
+}
+
+.invan-last-synced { color: #cbd5e1; font-weight: 600; }
+
+body.light-theme-active .invan-subtitle,
+.light-theme-active .invan-subtitle {
+  color: #64748b;
+}
+
+body.light-theme-active .invan-last-synced,
+.light-theme-active .invan-last-synced {
+  color: #334155;
+}
+
+.invan-btn-import {
+  background: linear-gradient(135deg, #d4af37 0%, #c5a028 100%);
+  color: #000000;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.25);
+}
+
+.invan-btn-import:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(212, 175, 55, 0.4);
+}
+
+.invan-btn-import.secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  box-shadow: none;
+}
+
+.invan-btn-import.secondary:hover {
+  background: rgba(212, 175, 55, 0.15);
+  border-color: #d4af37;
+  color: #d4af37;
+}
+
+body.light-theme-active .invan-btn-import.secondary,
+.light-theme-active .invan-btn-import.secondary {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.invan-btn-import-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.75rem;
+  background: linear-gradient(135deg, #d4af37, #c5a028);
+  color: #000000;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.25);
+}
+
+/* ── SUMMARY CARDS ── */
+.invan-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.85rem;
+  margin-bottom: 1.1rem;
+}
+
+@media (max-width: 900px) {
+  .invan-summary-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.invan-summary-card {
+  background: rgba(28, 28, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 0.95rem 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+body.light-theme-active .invan-summary-card,
+.light-theme-active .invan-summary-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+.invan-summary-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(212, 175, 55, 0.15);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: #d4af37;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.invan-summary-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.invan-summary-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+body.light-theme-active .invan-summary-label,
+.light-theme-active .invan-summary-label {
+  color: #64748b;
+}
+
+/* ── AGING PANEL ── */
+.invan-aging-panel {
+  background: rgba(28, 28, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.1rem;
+}
+
+body.light-theme-active .invan-aging-panel,
+.light-theme-active .invan-aging-panel {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+.invan-aging-panel h4 {
+  margin: 0 0 0.85rem 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #cbd5e1;
+}
+
+body.light-theme-active .invan-aging-panel h4,
+.light-theme-active .invan-aging-panel h4 {
+  color: #334155;
+}
+
+.invan-aging-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.invan-aging-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 150px;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .invan-aging-row { grid-template-columns: 90px 1fr 110px; }
+}
+
+.invan-aging-label {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+body.light-theme-active .invan-aging-label,
+.light-theme-active .invan-aging-label {
+  color: #64748b;
+}
+
+.invan-aging-track {
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+body.light-theme-active .invan-aging-track,
+.light-theme-active .invan-aging-track {
+  background: #f1f5f9;
+}
+
+.invan-aging-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #d4af37, #c5a028);
+  border-radius: 6px;
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+
+.invan-aging-count {
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+body.light-theme-active .invan-aging-count,
+.light-theme-active .invan-aging-count {
+  color: #334155;
+}
+
+/* ── VIEW TOGGLE ── */
+.invan-view-toggle {
+  display: inline-flex;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+body.light-theme-active .invan-view-toggle,
+.light-theme-active .invan-view-toggle {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+.invan-view-toggle button {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.invan-view-toggle button.active {
+  background: linear-gradient(135deg, #d4af37 0%, #c5a028 100%);
+  color: #000000;
+}
+
+body.light-theme-active .invan-view-toggle button,
+.light-theme-active .invan-view-toggle button {
+  color: #64748b;
+}
+
+/* Higher specificity than the light-theme rule above on purpose: without it,
+   body.light-theme-active .invan-view-toggle button (2 classes + 2 elements)
+   would beat .invan-view-toggle button.active (2 classes + 1 element) and
+   leave the active tab's text gray instead of black on its gold background. */
+body.light-theme-active .invan-view-toggle button.active,
+.light-theme-active .invan-view-toggle button.active {
+  color: #000000;
+}
+
+/* ── FILTER BAR ── */
+.invan-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.invan-search-box {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+
+.invan-search-box .invan-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+}
+
+.invan-search-box input {
+  width: 100%;
+  height: 40px;
+  padding: 0 2rem 0 2.4rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 0.88rem;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+body.light-theme-active .invan-search-box input,
+.light-theme-active .invan-search-box input {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.invan-search-box input:focus {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
+}
+
+.invan-clear-search-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.invan-select-filter-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 190px;
+}
+
+.invan-select-filter-wrap .invan-filter-icon {
+  position: absolute;
+  left: 10px;
+  color: #d4af37;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.invan-select-filter-wrap .spag-select-trigger,
+.invan-select-filter-wrap button {
+  padding-left: 2.1rem;
+}
+
+/* ── DATA GRID ── */
+.invan-grid-wrapper {
+  background: rgba(28, 28, 30, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+body.light-theme-active .invan-grid-wrapper,
+.light-theme-active .invan-grid-wrapper {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+.invan-table {
+  width: 100%;
+  table-layout: fixed;
+  min-width: 1300px;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.86rem;
+}
+
+.invan-velocity-table { min-width: 900px; }
+.invan-velocity-table .h-vproduct { width: 28%; }
+.invan-velocity-table .h-vlocation { width: 16%; }
+.invan-velocity-table .h-vqty { width: 15%; }
+.invan-velocity-table .h-vsold { width: 15%; }
+.invan-velocity-table .h-vvel { width: 13%; }
+.invan-velocity-table .h-vdays { width: 13%; }
+
+.invan-table th {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.7rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.light-theme-active .invan-table th,
+.light-theme-active .invan-table th {
+  background: #f8fafc;
+  color: #64748b;
+  border-bottom-color: #e2e8f0;
+}
+
+.invan-table td {
+  padding: 0.65rem 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.light-theme-active .invan-table td,
+.light-theme-active .invan-table td {
+  border-bottom-color: #f1f5f9;
+}
+
+.invan-table tbody tr:hover {
+  background: rgba(212, 175, 55, 0.04);
+}
+
+body.light-theme-active .invan-table tbody tr:hover,
+.light-theme-active .invan-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.invan-col-product {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+body.light-theme-active .invan-col-product,
+.light-theme-active .invan-col-product {
+  color: #0f172a;
+}
+
+.invan-age-old {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+/* ── STOCK DETAIL, GROUPED BY PRODUCT ──
+   One row per product (name/category/rolled-up totals/status), expanding on
+   click to that product's individual slabs. Both the group row and the slab
+   row use named grid-areas rather than column position, the same technique
+   used for the mobile breakpoint elsewhere in this file — it's what lets a
+   column disappear (mobile) or a style change (which status is shown) without
+   every other element silently shifting into the wrong slot. */
+.invan-group-head {
+  display: grid;
+  grid-template-columns: 26px 2.1fr 1.1fr 0.8fr 0.95fr 0.95fr 1fr 1.5fr;
+  grid-template-areas: "chev prod cat slabs onhand avail value status";
+  gap: 0.75rem;
+  padding: 0.7rem 1.1rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+/* Value column requires view_inventory_prices — when absent, both the head
+   and the row drop to a 7-column template with no "value" area rather than
+   leaving an empty gap. */
+.invan-group-head.no-price, .invan-group-row.no-price {
+  grid-template-columns: 26px 2.1fr 1.1fr 0.8fr 0.95fr 0.95fr 1.5fr;
+  grid-template-areas: "chev prod cat slabs onhand avail status";
+}
+.invan-group-head span:nth-child(n+4) { text-align: right; }
+.invan-group-head span:last-child { text-align: left; }
+.invan-group-head .ga-chev { grid-area: chev; }
+.invan-group-head .ga-prod { grid-area: prod; }
+.invan-group-head .ga-cat { grid-area: cat; }
+.invan-group-head .ga-slabs { grid-area: slabs; }
+.invan-group-head .ga-onhand { grid-area: onhand; }
+.invan-group-head .ga-avail { grid-area: avail; }
+.invan-group-head .ga-value { grid-area: value; }
+.invan-group-head .ga-status { grid-area: status; }
+
+body.light-theme-active .invan-group-head,
+.light-theme-active .invan-group-head {
+  background: #f8fafc;
+  color: #64748b;
+  border-bottom-color: #e2e8f0;
+}
+
+.invan-group { border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.invan-group:last-child { border-bottom: none; }
+
+body.light-theme-active .invan-group,
+.light-theme-active .invan-group {
+  border-bottom-color: #f1f5f9;
+}
+
+.invan-group-row {
+  display: grid;
+  grid-template-columns: 26px 2.1fr 1.1fr 0.8fr 0.95fr 0.95fr 1fr 1.5fr;
+  grid-template-areas: "chev prod cat slabs onhand avail value status";
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 1.1rem;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.invan-group-row:hover { background: rgba(212, 175, 55, 0.04); }
+.invan-group-row:focus-visible { outline: 2px solid #d4af37; outline-offset: -2px; }
+
+body.light-theme-active .invan-group-row:hover,
+.light-theme-active .invan-group-row:hover {
+  background: #f8fafc;
+}
+
+.invan-chevron {
+  color: #64748b;
+  transition: transform 0.18s ease;
+  flex-shrink: 0;
+}
+.invan-group.open .invan-chevron { transform: rotate(90deg); color: #d4af37; }
+
+.invan-group-product { min-width: 0; display: flex; flex-direction: column; }
+.invan-group-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.invan-group-sub {
+  font-size: 0.75rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.1rem;
+}
+
+body.light-theme-active .invan-group-name,
+.light-theme-active .invan-group-name {
+  color: #0f172a;
+}
+
+.invan-gnum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.87rem;
+  font-weight: 700;
+}
+.invan-gnum .unit { color: #64748b; font-size: 0.74rem; font-weight: 500; margin-left: 0.15rem; }
+.invan-gnum-zero { color: #64748b; }
+
+/* Status readout: a dominant-status headline plus a proportional bar that
+   only appears when a product's slabs actually span more than one status —
+   a solid one-color bar would just repeat the headline. */
+.invan-status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.invan-status-headline {
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.invan-status-headline.available { color: #10b981; }
+.invan-status-headline.hold { color: #f59e0b; }
+.invan-status-headline.so { color: #3b82f6; }
+.invan-status-headline.transfer { color: #a78bfa; }
+.invan-status-headline.other { color: #94a3b8; }
+
+.invan-status-bar {
+  width: 88px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  display: flex;
+}
+body.light-theme-active .invan-status-bar,
+.light-theme-active .invan-status-bar {
+  background: #e2e8f0;
+}
+.invan-status-bar .seg { height: 100%; }
+.invan-status-bar .seg.available { background: #10b981; }
+.invan-status-bar .seg.hold { background: #f59e0b; }
+.invan-status-bar .seg.so { background: #3b82f6; }
+.invan-status-bar .seg.transfer { background: #a78bfa; }
+.invan-status-bar .seg.other { background: #94a3b8; }
+
+/* Per-slab status pill, used inside the expanded detail rows. */
+.invan-status-pill {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.invan-status-pill.available { background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); }
+.invan-status-pill.hold { background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.25); }
+.invan-status-pill.so { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.25); }
+.invan-status-pill.transfer { background: rgba(167, 139, 250, 0.12); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.25); }
+.invan-status-pill.other { background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25); }
+
+body.light-theme-active .invan-status-pill.available, .light-theme-active .invan-status-pill.available { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+body.light-theme-active .invan-status-pill.hold, .light-theme-active .invan-status-pill.hold { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+body.light-theme-active .invan-status-pill.so, .light-theme-active .invan-status-pill.so { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+body.light-theme-active .invan-status-pill.transfer, .light-theme-active .invan-status-pill.transfer { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+body.light-theme-active .invan-status-pill.other, .light-theme-active .invan-status-pill.other { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+
+/* Expanded slab detail — CSS-only accordion via grid-template-rows so it
+   animates open/closed without JS measuring heights. */
+.invan-slabs-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+.invan-group.open .invan-slabs-wrap { grid-template-rows: 1fr; }
+.invan-slabs-inner { overflow: hidden; }
+
+.invan-slabs {
+  margin: 0 1.1rem 0.9rem;
+  border-left: 2px solid #d4af37;
+  border-radius: 0 8px 8px 0;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+body.light-theme-active .invan-slabs,
+.light-theme-active .invan-slabs {
+  background: #f8fafc;
+}
+
+.invan-slab-head, .invan-slab-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 1.1fr 1fr 0.85fr 0.85fr 0.95fr 0.95fr 0.7fr 0.95fr;
+  grid-template-areas: "sp serial dims loc onhand avail value recv age status";
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.55rem 1rem;
+}
+/* Value column requires view_inventory_prices — see the matching .no-price
+   rule on .invan-group-head/.invan-group-row above for why this is a
+   separate template rather than an empty area. */
+.invan-slab-head.no-price, .invan-slab-row.no-price {
+  grid-template-columns: 24px 1fr 1.1fr 1fr 0.85fr 0.85fr 0.95fr 0.7fr 0.95fr;
+  grid-template-areas: "sp serial dims loc onhand avail recv age status";
+}
+.sa-sp { grid-area: sp; }
+.sa-serial { grid-area: serial; }
+.sa-dims { grid-area: dims; }
+.sa-loc { grid-area: loc; }
+.sa-onhand { grid-area: onhand; }
+.sa-avail { grid-area: avail; }
+.sa-value { grid-area: value; }
+.sa-recv { grid-area: recv; }
+.sa-age { grid-area: age; }
+.sa-status { grid-area: status; }
+
+.invan-slab-head {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.invan-slab-head .sa-onhand, .invan-slab-head .sa-avail, .invan-slab-head .sa-value,
+.invan-slab-head .sa-recv, .invan-slab-head .sa-age { text-align: right; }
+.invan-slab-head .sa-status { text-align: left; }
+
+body.light-theme-active .invan-slab-head,
+.light-theme-active .invan-slab-head {
+  border-bottom-color: #e2e8f0;
+}
+
+.invan-slab-row {
+  font-size: 0.82rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.invan-slab-row:last-child { border-bottom: none; }
+.invan-slab-row .num { text-align: right; font-variant-numeric: tabular-nums; }
+.invan-slab-row .num .unit { color: #64748b; font-size: 0.74rem; font-weight: 500; margin-left: 0.15rem; }
+.invan-slab-serial { font-weight: 600; font-variant-numeric: tabular-nums; }
+.invan-slab-loc { color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+body.light-theme-active .invan-slab-row,
+.light-theme-active .invan-slab-row {
+  border-bottom-color: #f1f5f9;
+}
+
+.invan-slabs-status {
+  padding: 0.75rem 1.1rem;
+  font-size: 0.82rem;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.invan-slabs-retry {
+  background: none;
+  border: none;
+  color: #d4af37;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .invan-chevron, .invan-slabs-wrap { transition: none; }
+}
+
+/* Mobile: group/slab rows collapse from one wide row to a compact 2-3 line
+   card via the same named-area technique, so hidden columns never leave
+   grid trying to auto-place a leftover visible item into the wrong slot. */
+@media (max-width: 900px) {
+  .invan-group-head, .invan-slab-head { display: none; }
+
+  /* Repeats the .no-price compound selector at the same specificity as the
+     desktop override above (grid-template-columns/areas on
+     ".invan-group-row.no-price") so this mobile layout wins the tie on
+     matching viewports instead of losing to the more-specific desktop rule. */
+  .invan-group-row, .invan-group-row.no-price {
+    grid-template-columns: 22px 1fr auto;
+    grid-template-areas:
+      "chev prod prod"
+      ".    slabs value"
+      ".    status status";
+    row-gap: 0.4rem;
+    padding: 0.9rem 1rem;
+  }
+  .invan-group-row .ga-cat,
+  .invan-group-row .ga-onhand,
+  .invan-group-row .ga-avail { display: none; }
+  .invan-group-row .ga-slabs { justify-self: start; }
+  .invan-group-row .ga-value { justify-self: end; }
+  .invan-status-cell { align-items: flex-end; }
+
+  .invan-slab-row, .invan-slab-row.no-price {
+    grid-template-columns: 18px 1fr auto;
+    grid-template-areas:
+      "sp serial serial"
+      ".  dims   avail"
+      ".  status status";
+    row-gap: 0.3rem;
+    padding: 0.6rem 0.9rem;
+  }
+  .invan-slab-row .sa-loc,
+  .invan-slab-row .sa-onhand,
+  .invan-slab-row .sa-value,
+  .invan-slab-row .sa-recv,
+  .invan-slab-row .sa-age { display: none; }
+  .invan-slab-row .sa-avail { justify-self: end; }
+}
+
+/* ── DAYS OF SUPPLY BADGES ── */
+.invan-days-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.invan-days-badge.good {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.invan-days-badge.medium {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.invan-days-badge.low {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.invan-days-badge.unknown {
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.light-theme-active .invan-days-badge.good,
+.light-theme-active .invan-days-badge.good {
+  background: #ecfdf5; color: #047857; border-color: #a7f3d0;
+}
+body.light-theme-active .invan-days-badge.medium,
+.light-theme-active .invan-days-badge.medium {
+  background: #fffbeb; color: #b45309; border-color: #fde68a;
+}
+body.light-theme-active .invan-days-badge.low,
+.light-theme-active .invan-days-badge.low {
+  background: #fef2f2; color: #b91c1c; border-color: #fecaca;
+}
+body.light-theme-active .invan-days-badge.unknown,
+.light-theme-active .invan-days-badge.unknown {
+  background: #f1f5f9; color: #64748b; border-color: #e2e8f0;
+}
+
+/* ── LOADING / EMPTY STATE ── */
+.invan-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 4rem 2rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.invan-spin-icon {
+  color: #d4af37;
+  animation: invanSpin 0.9s linear infinite;
+}
+
+@keyframes invanSpin { to { transform: rotate(360deg); } }
+
+.invan-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3.25rem 2rem;
+  text-align: center;
+}
+
+.invan-empty-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: #d4af37;
+  margin-bottom: 1.25rem;
+}
+
+.invan-empty-state h4 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+}
+
+.invan-empty-state p {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  max-width: 440px;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.5;
+}
+
+body.light-theme-active .invan-empty-state p,
+.light-theme-active .invan-empty-state p {
+  color: #64748b;
+}
+
+.invan-pagination-wrapper {
+  margin-top: 1rem;
+}
+
+/* Applied while a filter change is re-fetching but stale data is still on
+   screen — dims in place instead of blanking the section, so the search box
+   and filter bar never lose focus or jump. */
+.invan-refetching {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+/* ── MOBILE CARDS (Stock Detail + Reorder & Velocity) ── */
+.desktop-only { display: block; }
+.mobile-only { display: none; }
+
+.invan-mobile-cards {
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.85rem;
+}
+
+.invan-card-mobile {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+body.light-theme-active .invan-card-mobile,
+.light-theme-active .invan-card-mobile {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.invan-card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.invan-card-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #ffffff;
+}
+
+body.light-theme-active .invan-card-title,
+.light-theme-active .invan-card-title {
+  color: #0f172a;
+}
+
+
+.invan-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+body.light-theme-active .invan-card-meta,
+.light-theme-active .invan-card-meta {
+  color: #64748b;
+}
+
+.invan-card-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem 0.85rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+body.light-theme-active .invan-card-stat-grid,
+.light-theme-active .invan-card-stat-grid {
+  border-top-color: #e2e8f0;
+}
+
+.invan-card-stat-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.invan-card-stat-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+/* ── MOBILE ── */
+@media (max-width: 900px) {
+  .invan-tab-container {
+    max-height: calc(100vh - 60px);
+    padding: 0.75rem 0.85rem;
+    padding-bottom: 5rem;
+  }
+
+  .invan-title-text { font-size: 1.1rem; }
+
+  .invan-btn-text-full { display: none; }
+  .invan-btn-text-short { display: inline; }
+
+  .invan-filter-bar { flex-direction: column; align-items: stretch; }
+  .invan-search-box { min-width: 100%; }
+  .invan-select-filter-wrap { width: 100%; }
+
+  .desktop-only { display: none !important; }
+  .mobile-only { display: flex !important; }
+}
+
+/* ── IMPORT MODAL ── */
+.invan-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(10px);
+  /* Matches .modal-overlay-backdrop's app-wide value (see CustomSelect.css
+     comment) so its popover — mounted at document.body — still stacks above
+     this overlay when opened from inside it. */
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+.invan-modal-content {
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #1c1c1e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(212, 175, 55, 0.08);
+  padding: 1.75rem 2rem;
+  color: #ffffff;
+  box-sizing: border-box;
+  position: relative;
+}
+
+body.light-theme-active .invan-modal-content,
+.light-theme-active .invan-modal-content {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.15);
+}
+
+.invan-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 1.25rem;
+}
+
+body.light-theme-active .invan-modal-header,
+.light-theme-active .invan-modal-header {
+  border-bottom-color: #f1f5f9;
+}
+
+.invan-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.invan-modal-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(212, 175, 55, 0.15);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: #d4af37;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.invan-modal-title-wrap h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.invan-modal-sub-text {
+  margin: 0.2rem 0 0 0;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+body.light-theme-active .invan-modal-sub-text,
+.light-theme-active .invan-modal-sub-text {
+  color: #64748b;
+}
+
+.invan-modal-close-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.invan-modal-close-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.invan-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.invan-modal-warning-banner {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.invan-modal-error-banner {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.invan-preview-summary {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.invan-modal-loading {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.invan-form-grid-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.1rem;
+}
+
+@media (max-width: 640px) {
+  .invan-form-grid-3col { grid-template-columns: 1fr; }
+}
+
+.invan-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.invan-form-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+body.light-theme-active .invan-form-group label,
+.light-theme-active .invan-form-group label {
+  color: #334155;
+}
+
+.invan-req-star { color: #ef4444; font-weight: 800; }
+
+.invan-text-input,
+.invan-file-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 0.9rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+body.light-theme-active .invan-text-input,
+body.light-theme-active .invan-file-input,
+.light-theme-active .invan-text-input,
+.light-theme-active .invan-file-input {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.invan-text-input:focus {
+  border-color: #d4af37;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
+}
+
+.invan-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.85rem;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.light-theme-active .invan-modal-footer,
+.light-theme-active .invan-modal-footer {
+  border-top-color: #f1f5f9;
+}
+
+.invan-btn-cancel {
+  padding: 0.75rem 1.4rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+body.light-theme-active .invan-btn-cancel,
+.light-theme-active .invan-btn-cancel {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.invan-btn-save {
+  padding: 0.75rem 1.6rem;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #d4af37 0%, #c5a028 100%);
+  color: #000000;
+  font-weight: 800;
+  font-size: 0.92rem;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.3);
+  transition: all 0.2s ease;
+}
+
+.invan-btn-save:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(212, 175, 55, 0.45);
+}
+
+.invan-btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.anim-scale-in { animation: invanScaleIn 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+@keyframes invanScaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.anim-fade-in { animation: invanFadeIn 0.2s ease; }
+@keyframes invanFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

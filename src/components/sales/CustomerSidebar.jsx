@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Pin, PinOff, Sun, Moon,
-    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown, Truck, ClipboardList, Map, ArrowLeftRight
+    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown, Truck, ClipboardList, Map, ArrowLeftRight, Boxes
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -180,6 +180,18 @@ const CustomerSidebar = ({
                     >
                         <ArrowLeftRight size={18} />
                         <span>Crossover Sheet</span>
+                    </button>
+                )}
+
+                {/* Inventory Analysis — requires view_inventory_analysis */}
+                {(user?.permissions?.includes('view_inventory_analysis') || user?.role === 'admin' || !user) && (
+                    <button
+                        className={`sidebar-nav-link ${crmTab === 'inventory_analysis' ? 'active' : ''}`}
+                        onClick={() => handleLinkClick('inventory_analysis')}
+                        title="Stock levels, aging, and reorder analysis"
+                    >
+                        <Boxes size={18} />
+                        <span>Inventory Analysis</span>
                     </button>
                 )}
 

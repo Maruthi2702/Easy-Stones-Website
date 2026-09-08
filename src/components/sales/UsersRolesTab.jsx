@@ -4,7 +4,7 @@ import {
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
     FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard, Eraser,
-    ClipboardList, CheckCheck, RotateCcw, Map, Route, ArrowLeftRight
+    ClipboardList, CheckCheck, RotateCcw, Map, Route, ArrowLeftRight, Boxes, Upload, DollarSign
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
@@ -133,6 +133,20 @@ const PAGE_PERMISSIONS = [
             { key: 'add_crossover_sheet', label: 'Add', icon: Plus, desc: 'Add new crossover entries' },
             { key: 'edit_crossover_sheet', label: 'Edit', icon: Pencil, desc: 'Edit existing crossover entries' },
             { key: 'delete_crossover_sheet', label: 'Delete', icon: Trash2, desc: 'Delete crossover entries' }
+        ]
+    },
+    {
+        id: 'inventory_analysis',
+        page: 'Inventory Analysis',
+        icon: Boxes,
+        description: 'Stock levels, aging, and reorder analysis from SPS exports',
+        color: '#0891b2',
+        actions: [
+            { key: 'view_inventory_analysis', label: 'View', icon: Eye, desc: 'View stock levels, aging, and reorder analysis' },
+            { key: 'import_inventory_analysis', label: 'Import', icon: Upload, desc: 'Import new SPS inventory/sales exports (replaces current stock data)' },
+            // Separate from View on purpose: seeing stock levels and seeing what
+            // that stock cost/is worth are different levels of trust.
+            { key: 'view_inventory_prices', label: 'View Prices', icon: DollarSign, desc: 'See dollar value/cost figures on lots and slabs' }
         ]
     },
     {
@@ -359,7 +373,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             });
 
             if (!res.ok) {
-                const errData = await res.json();
+                const errData = await res.json().catch(() => ({}));
                 throw new Error(errData.message || 'Failed to save permissions');
             }
 
@@ -394,7 +408,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             });
 
             if (!res.ok) {
-                const errData = await res.json();
+                const errData = await res.json().catch(() => ({}));
                 throw new Error(errData.message || 'Failed to create role');
             }
 
@@ -425,7 +439,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             });
 
             if (!res.ok) {
-                const errData = await res.json();
+                const errData = await res.json().catch(() => ({}));
                 throw new Error(errData.message || 'Failed to delete role');
             }
 
@@ -505,7 +519,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             });
 
             if (!res.ok) {
-                const errData = await res.json();
+                const errData = await res.json().catch(() => ({}));
                 throw new Error(errData.message || `Failed to ${modalMode} user`);
             }
 

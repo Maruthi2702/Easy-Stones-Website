@@ -38,6 +38,7 @@ import UsersRolesTab from '../components/sales/UsersRolesTab';
 import UserProfileTab from '../components/sales/UserProfileTab';
 import LostSalesTab from '../components/sales/LostSalesTab';
 import CrossoverSheetTab from '../components/sales/CrossoverSheetTab';
+import InventoryAnalysisTab from '../components/sales/InventoryAnalysisTab';
 import DeliveryScheduleTab from '../components/sales/DeliveryScheduleTab';
 import DailyReportTab from '../components/sales/dailyreport/DailyReportTab';
 import Pagination from '../components/shared/Pagination';
@@ -99,6 +100,7 @@ const SalesPage = () => {
     const [customers, setCustomers] = useState([]);
     const [customerRefreshTrigger] = useState(0);
     const [resourceRefreshTrigger, setResourceRefreshTrigger] = useState(0);
+    const [inventoryAnalysisRefreshTrigger, setInventoryAnalysisRefreshTrigger] = useState(0);
     const [locations, setLocations] = useState([]);
     const [salesReps, setSalesReps] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -241,6 +243,14 @@ const SalesPage = () => {
 
         socket.on('location_update', () => {
             fetchLocations();
+        });
+
+        // Fired by server.js after an Inventory Analysis stock/sales import.
+        // Without this, only the importer's own browser (via the modal's
+        // onComplete callback) ever saw the new data — everyone else's open
+        // Inventory Analysis tab stayed on the pre-import snapshot.
+        socket.on('inventory_analysis_update', () => {
+            setInventoryAnalysisRefreshTrigger(prev => prev + 1);
         });
 
         // Keeps the Calendar tile honest when a stop is added from another
@@ -3230,6 +3240,22 @@ const SalesPage = () => {
                             <CrossoverSheetTab
                                 currentUser={currentUser}
                                 sidebarToggle={sidebarToggle}
+                            />
+                        </ErrorBoundary>
+                    );
+                })()}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'inventory_analysis' && (() => {
+                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+                    ) : null;
+
+                    return (
+                        <ErrorBoundary key="inventory-analysis-view">
+                            <InventoryAnalysisTab
+                                currentUser={currentUser}
+                                sidebarToggle={sidebarToggle}
+                                refreshSignal={inventoryAnalysisRefreshTrigger}
                             />
                         </ErrorBoundary>
                     );
