@@ -536,14 +536,24 @@ body.light-theme-active .invan-col-product,
 }
 .invan-group-head span:nth-child(n+4) { text-align: right; }
 .invan-group-head span:last-child { text-align: left; }
-.invan-group-head .ga-chev { grid-area: chev; }
-.invan-group-head .ga-prod { grid-area: prod; }
-.invan-group-head .ga-cat { grid-area: cat; }
-.invan-group-head .ga-slabs { grid-area: slabs; }
-.invan-group-head .ga-onhand { grid-area: onhand; }
-.invan-group-head .ga-avail { grid-area: avail; }
-.invan-group-head .ga-value { grid-area: value; }
-.invan-group-head .ga-status { grid-area: status; }
+/* Named for both the header row and the data row — on desktop the two
+   templates list areas in the same order the DOM children already come in,
+   so leaving these header-only used to look harmless: plain grid
+   auto-placement landed everything in the right spot by coincidence. Mobile
+   breaks that coincidence (ga-cat/ga-onhand/ga-avail are display:none'd,
+   changing which columns the remaining children fall into), so without an
+   explicit grid-area on .invan-group-row's own children, the mobile
+   3-row card template below was never actually reachable — slabs/value/
+   status just auto-placed into whatever columns were left, which is what
+   produced the scrambled, clipped-looking mobile cards. */
+.invan-group-head .ga-chev, .invan-group-row .ga-chev { grid-area: chev; }
+.invan-group-head .ga-prod, .invan-group-row .ga-prod { grid-area: prod; }
+.invan-group-head .ga-cat, .invan-group-row .ga-cat { grid-area: cat; }
+.invan-group-head .ga-slabs, .invan-group-row .ga-slabs { grid-area: slabs; }
+.invan-group-head .ga-onhand, .invan-group-row .ga-onhand { grid-area: onhand; }
+.invan-group-head .ga-avail, .invan-group-row .ga-avail { grid-area: avail; }
+.invan-group-head .ga-value, .invan-group-row .ga-value { grid-area: value; }
+.invan-group-head .ga-status, .invan-group-row .ga-status { grid-area: status; }
 
 body.light-theme-active .invan-group-head,
 .light-theme-active .invan-group-head {
