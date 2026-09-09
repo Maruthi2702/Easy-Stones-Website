@@ -21,6 +21,17 @@ function Highlight({ text = '', query = '' }) {
   );
 }
 
+// SPS has no public URL that opens a specific Sales Order by its SO# — its
+// search box resolves SO# -> internal record ID client-side, then navigates
+// there itself (confirmed by watching it happen: typing an SO# shows a
+// matching autocomplete result, and clicking it lands on
+// vSaleOrder.aspx?ID=<internal id>, a different number from the SO#). So this
+// can only get the user to SPS's search box with the number already on their
+// clipboard, not open the order directly. A named target reuses the same
+// tab across repeated clicks instead of piling up a new one per SO copied.
+const SPS_SEARCH_URL = 'https://easystones.stoneprofits.com/vSalesHome.aspx';
+const SPS_TAB_NAME = 'easystones_sps';
+
 const TicketChip = ({
   delivery,
   truckColor = '#D4AF37',
@@ -91,6 +102,11 @@ const TicketChip = ({
     } catch (err) {
       console.warn('Clipboard copy failed:', err);
     }
+    // window.open must stay in the same synchronous click handler as the
+    // triggering click, not chained after an awaited clipboard write —
+    // Safari in particular only allows a popup opened during the original
+    // user-gesture call stack, not one opened from a .then() a tick later.
+    window.open(SPS_SEARCH_URL, SPS_TAB_NAME);
   };
 
   return (
