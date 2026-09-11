@@ -1000,6 +1000,25 @@ body.light-theme-active .invan-empty-state p,
 .desktop-only { display: block; }
 .mobile-only { display: none; }
 
+/* .desktop-only exists only to be switched off below the mobile breakpoint,
+   but its "display: block" also overrides whatever display the element set
+   for itself: it's a bare class selector declared in four stylesheets
+   (here, ProductGrid, LostSalesTab, CrossoverSheetTab) and CSS is global
+   once imported, so it lands later in the cascade than the component rules
+   above and wins the tie. That silently flattened all three elements here
+   that carry the class — the two header rows lost "display: grid" (which is
+   why their column labels ran together as inline text instead of lining up
+   over the columns) and the velocity <table> lost table layout, taking its
+   column widths with it.
+
+   Scoped by compound selector rather than by fixing ".desktop-only" itself:
+   the class is shared with components on the public product page, and this
+   file's rules are not the only ones declaring it, so redefining it here
+   would reach screens this change has no business touching. */
+.invan-group-head.desktop-only,
+.invan-slab-head.desktop-only { display: grid; }
+.invan-velocity-table.desktop-only { display: table; }
+
 .invan-mobile-cards {
   flex-direction: column;
   gap: 0.85rem;
