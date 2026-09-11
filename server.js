@@ -6538,7 +6538,9 @@ app.get('/api/inventory-analysis/items/grouped', authenticate, requirePermission
 
     const canViewPrices = req.user.permissions.includes('view_inventory_prices');
     const groups = (result?.data || []).map(g => {
-      const statusCounts = { available: 0, hold: 0, so: 0, transfer: 0, other: 0 };
+      // Keys must cover every bucket SLAB_STATUS_BUCKET can return, or that
+      // bucket's ++ would land on undefined and ship NaN to the UI.
+      const statusCounts = { available: 0, hold: 0, so: 0, pickticket: 0, packinglist: 0, transfer: 0, other: 0 };
       g.statuses.forEach(s => { statusCounts[SLAB_STATUS_BUCKET(s)]++; });
       return {
         product: g._id,

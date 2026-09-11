@@ -38,8 +38,19 @@ const ageDays = (dateStr) => {
 // generalizes SPS's raw slabStatus strings into these four buckets (plus
 // "other" for anything unrecognized) so the UI never has to special-case
 // SPS's literal codes.
-const STATUS_ORDER = ['available', 'hold', 'so', 'transfer', 'other'];
-const STATUS_LABEL = { available: 'Available', hold: 'Hold', so: 'On SO', transfer: 'Transfer', other: 'Other' };
+// Ordered roughly by how far along the outbound path a slab is — available,
+// then spoken for, then being staged to leave, then gone — so the proportional
+// status bar reads left-to-right as progress rather than an arbitrary order.
+const STATUS_ORDER = ['available', 'hold', 'so', 'pickticket', 'packinglist', 'transfer', 'other'];
+const STATUS_LABEL = {
+  available: 'Available',
+  hold: 'Hold',
+  so: 'On SO',
+  pickticket: 'Pick Ticket',
+  packinglist: 'Packing List',
+  transfer: 'Transfer',
+  other: 'Other'
+};
 
 const dominantStatus = (counts) => {
   const present = STATUS_ORDER.filter(k => counts[k] > 0);

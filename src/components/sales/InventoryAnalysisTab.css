@@ -645,6 +645,8 @@ body.light-theme-active .invan-group-name,
 .invan-status-headline.available { color: #10b981; }
 .invan-status-headline.hold { color: #f59e0b; }
 .invan-status-headline.so { color: #3b82f6; }
+.invan-status-headline.pickticket { color: #06b6d4; }
+.invan-status-headline.packinglist { color: #f472b6; }
 .invan-status-headline.transfer { color: #a78bfa; }
 .invan-status-headline.other { color: #94a3b8; }
 
@@ -664,6 +666,8 @@ body.light-theme-active .invan-status-bar,
 .invan-status-bar .seg.available { background: #10b981; }
 .invan-status-bar .seg.hold { background: #f59e0b; }
 .invan-status-bar .seg.so { background: #3b82f6; }
+.invan-status-bar .seg.pickticket { background: #06b6d4; }
+.invan-status-bar .seg.packinglist { background: #f472b6; }
 .invan-status-bar .seg.transfer { background: #a78bfa; }
 .invan-status-bar .seg.other { background: #94a3b8; }
 
@@ -679,12 +683,16 @@ body.light-theme-active .invan-status-bar,
 .invan-status-pill.available { background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); }
 .invan-status-pill.hold { background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.25); }
 .invan-status-pill.so { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.25); }
+.invan-status-pill.pickticket { background: rgba(6, 182, 212, 0.12); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.25); }
+.invan-status-pill.packinglist { background: rgba(244, 114, 182, 0.12); color: #f472b6; border: 1px solid rgba(244, 114, 182, 0.25); }
 .invan-status-pill.transfer { background: rgba(167, 139, 250, 0.12); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.25); }
 .invan-status-pill.other { background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25); }
 
 body.light-theme-active .invan-status-pill.available, .light-theme-active .invan-status-pill.available { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
 body.light-theme-active .invan-status-pill.hold, .light-theme-active .invan-status-pill.hold { background: #fffbeb; color: #b45309; border-color: #fde68a; }
 body.light-theme-active .invan-status-pill.so, .light-theme-active .invan-status-pill.so { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+body.light-theme-active .invan-status-pill.pickticket, .light-theme-active .invan-status-pill.pickticket { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+body.light-theme-active .invan-status-pill.packinglist, .light-theme-active .invan-status-pill.packinglist { background: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
 body.light-theme-active .invan-status-pill.transfer, .light-theme-active .invan-status-pill.transfer { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
 body.light-theme-active .invan-status-pill.other, .light-theme-active .invan-status-pill.other { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
 
