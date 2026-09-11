@@ -720,8 +720,8 @@ body.light-theme-active .invan-slabs,
 
 .invan-slab-head, .invan-slab-row {
   display: grid;
-  grid-template-columns: 24px 1fr 1.1fr 1fr 0.85fr 0.85fr 0.95fr 0.95fr 0.7fr 0.95fr;
-  grid-template-areas: "sp serial dims loc onhand avail value recv age status";
+  grid-template-columns: 24px 1fr 1.1fr 1fr 0.85fr 0.85fr 0.95fr 0.95fr 0.95fr 0.7fr 0.95fr;
+  grid-template-areas: "sp serial dims loc onhand avail rate value recv age status";
   gap: 0.6rem;
   align-items: center;
   padding: 0.55rem 1rem;
@@ -739,6 +739,7 @@ body.light-theme-active .invan-slabs,
 .sa-loc { grid-area: loc; }
 .sa-onhand { grid-area: onhand; }
 .sa-avail { grid-area: avail; }
+.sa-rate { grid-area: rate; }
 .sa-value { grid-area: value; }
 .sa-recv { grid-area: recv; }
 .sa-age { grid-area: age; }
@@ -752,8 +753,8 @@ body.light-theme-active .invan-slabs,
   color: #64748b;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
-.invan-slab-head .sa-onhand, .invan-slab-head .sa-avail, .invan-slab-head .sa-value,
-.invan-slab-head .sa-recv, .invan-slab-head .sa-age { text-align: right; }
+.invan-slab-head .sa-onhand, .invan-slab-head .sa-avail, .invan-slab-head .sa-rate,
+.invan-slab-head .sa-value, .invan-slab-head .sa-recv, .invan-slab-head .sa-age { text-align: right; }
 .invan-slab-head .sa-status { text-align: left; }
 
 body.light-theme-active .invan-slab-head,
@@ -768,6 +769,9 @@ body.light-theme-active .invan-slab-head,
 .invan-slab-row:last-child { border-bottom: none; }
 .invan-slab-row .num { text-align: right; font-variant-numeric: tabular-nums; }
 .invan-slab-row .num .unit { color: #64748b; font-size: 0.74rem; font-weight: 500; margin-left: 0.15rem; }
+/* The rate's unit is a "/SF" suffix, not a separate word like the quantity
+   columns' "SF" — the shared 0.15rem gap renders it as "$28.00 /SF". */
+.invan-slab-row .sa-rate .unit { margin-left: 0; }
 .invan-slab-serial { font-weight: 600; font-variant-numeric: tabular-nums; }
 .invan-slab-loc { color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -826,21 +830,43 @@ body.light-theme-active .invan-slab-row,
   .invan-group-row .ga-value { justify-self: end; }
   .invan-status-cell { align-items: flex-end; }
 
+  /* Rate and value stay on mobile even though the other numeric columns are
+     dropped — quoting a slab off a phone on the warehouse floor is the whole
+     reason this figure is here, so it's the last thing that should be hidden
+     for space. The .no-price variant renders neither cell, leaving those two
+     areas simply empty rather than needing a separate template. */
+  /* Three content lines rather than four: identity + money on top, the three
+     spec figures on one line, disposition on the bottom. Slabs arrive in lots
+     that differ only by serial, so a tall card multiplies into a long scroll
+     of near-duplicates — height per row is the thing worth spending on.
+     Dimensions stay despite the squeeze: they decide whether a piece covers a
+     run, which no other figure here answers.
+
+     Age rides the status line because a pill leaves that row half empty
+     anyway. "Received" stays hidden — age carries the judgement (including
+     the >365d highlight) where the raw date still needs subtracting from
+     today, which is the arithmetic this panel exists to save. */
   .invan-slab-row, .invan-slab-row.no-price {
-    grid-template-columns: 18px 1fr auto;
+    grid-template-columns: 18px 1fr auto auto;
     grid-template-areas:
-      "sp serial serial"
-      ".  dims   avail"
-      ".  status status";
+      "sp serial serial value"
+      ".  dims   avail  rate"
+      ".  status status age";
     row-gap: 0.3rem;
+    column-gap: 0.5rem;
     padding: 0.6rem 0.9rem;
   }
   .invan-slab-row .sa-loc,
   .invan-slab-row .sa-onhand,
+  .invan-slab-row .sa-recv { display: none; }
+  .invan-slab-row .sa-avail,
   .invan-slab-row .sa-value,
-  .invan-slab-row .sa-recv,
-  .invan-slab-row .sa-age { display: none; }
-  .invan-slab-row .sa-avail { justify-self: end; }
+  .invan-slab-row .sa-rate,
+  .invan-slab-row .sa-age { justify-self: end; }
+  .invan-slab-row .sa-dims { justify-self: start; }
+  /* The one figure that should read as the answer, not as another number in
+     a row of them — it is what gets quoted. */
+  .invan-slab-row .sa-value { font-weight: 700; font-size: 0.92rem; }
 }
 
 /* ── DAYS OF SUPPLY BADGES ── */

@@ -13,6 +13,10 @@ import './InventoryAnalysisTab.css';
 
 const fmtMoney = (n) => `$${Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 const fmtNum = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 1 });
+// Rates keep their cents, unlike the whole-dollar extended amounts: a lot
+// priced at $12.94/SF vs $13/SF is a real difference once it's multiplied by
+// a few hundred feet, and this figure exists to be quoted from directly.
+const fmtRate = (n) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Matches the $bucket boundaries in GET /api/inventory-analysis/summary.
 // $bucket omits empty buckets from its output entirely, so buckets are
@@ -525,6 +529,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                                     <span className="sa-loc">Location</span>
                                     <span className="sa-onhand">On Hand</span>
                                     <span className="sa-avail">Available</span>
+                                    {canViewPrices && <span className="sa-rate">Unit Cost</span>}
                                     {canViewPrices && <span className="sa-value">Value</span>}
                                     <span className="sa-recv">Received</span>
                                     <span className="sa-age">Age</span>
@@ -541,6 +546,11 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                                         <span className="sa-loc invan-slab-loc" title={s.location}>{s.location || '—'}</span>
                                         <span className="sa-onhand num">{fmtNum(s.instockQty)}<span className="unit">{s.units}</span></span>
                                         <span className={`sa-avail num${s.availableQuantity === 0 ? ' invan-gnum-zero' : ''}`}>{fmtNum(s.availableQuantity)}<span className="unit">{s.units}</span></span>
+                                        {canViewPrices && (
+                                          <span className="sa-rate num">
+                                            {fmtRate(s.unitLandedCost)}<span className="unit">/{s.units || 'ea'}</span>
+                                          </span>
+                                        )}
                                         {canViewPrices && <span className="sa-value num">{fmtMoney(s.assetValue)}</span>}
                                         <span className="sa-recv num">{s.receivedDate ? new Date(s.receivedDate).toLocaleDateString() : '—'}</span>
                                         <span className={`sa-age num${sAge !== null && sAge > 365 ? ' invan-age-old' : ''}`}>{sAge !== null ? `${sAge}d` : '—'}</span>
