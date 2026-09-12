@@ -643,7 +643,10 @@ body.light-theme-active .invan-group-name,
   white-space: nowrap;
 }
 .invan-status-headline.available { color: #10b981; }
-.invan-status-headline.hold { color: #f59e0b; }
+/* Red rather than amber: a held slab can't be sold, which is the same kind of
+   "no" as zero stock, not a caution. Amber stays with the aging highlight,
+   where it means old-but-sellable — two states that shouldn't share a colour. */
+.invan-status-headline.hold { color: #ef4444; }
 .invan-status-headline.so { color: #3b82f6; }
 .invan-status-headline.pickticket { color: #06b6d4; }
 .invan-status-headline.packinglist { color: #f472b6; }
@@ -664,7 +667,7 @@ body.light-theme-active .invan-status-bar,
 }
 .invan-status-bar .seg { height: 100%; }
 .invan-status-bar .seg.available { background: #10b981; }
-.invan-status-bar .seg.hold { background: #f59e0b; }
+.invan-status-bar .seg.hold { background: #ef4444; }
 .invan-status-bar .seg.so { background: #3b82f6; }
 .invan-status-bar .seg.pickticket { background: #06b6d4; }
 .invan-status-bar .seg.packinglist { background: #f472b6; }
@@ -681,7 +684,7 @@ body.light-theme-active .invan-status-bar,
   white-space: nowrap;
 }
 .invan-status-pill.available { background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); }
-.invan-status-pill.hold { background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.25); }
+.invan-status-pill.hold { background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.25); }
 .invan-status-pill.so { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.25); }
 .invan-status-pill.pickticket { background: rgba(6, 182, 212, 0.12); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.25); }
 .invan-status-pill.packinglist { background: rgba(244, 114, 182, 0.12); color: #f472b6; border: 1px solid rgba(244, 114, 182, 0.25); }
@@ -689,7 +692,7 @@ body.light-theme-active .invan-status-bar,
 .invan-status-pill.other { background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25); }
 
 body.light-theme-active .invan-status-pill.available, .light-theme-active .invan-status-pill.available { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
-body.light-theme-active .invan-status-pill.hold, .light-theme-active .invan-status-pill.hold { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+body.light-theme-active .invan-status-pill.hold, .light-theme-active .invan-status-pill.hold { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
 body.light-theme-active .invan-status-pill.so, .light-theme-active .invan-status-pill.so { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 body.light-theme-active .invan-status-pill.pickticket, .light-theme-active .invan-status-pill.pickticket { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
 body.light-theme-active .invan-status-pill.packinglist, .light-theme-active .invan-status-pill.packinglist { background: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
