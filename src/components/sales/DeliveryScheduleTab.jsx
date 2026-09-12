@@ -21,39 +21,18 @@ import {
   getScheduleConnection,
   refreshScheduleNow
 } from '../../api/schedule';
-import { formatForDateInput } from '../../utils/dateUtils';
+import {
+  getWeekMonday,
+  getWeekDates,
+  visibleWeekDates,
+  formatWeekRangeText
+} from '../../utils/deliveryWeek';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import './DeliveryScheduleTab.css';
 
-function getWeekMonday(date = new Date()) {
-  const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? 1 : 1);
-  const monday = new Date(d);
-  monday.setDate(diff);
-  return monday;
-}
-
-function getWeekDates(mondayDate) {
-  const dates = [];
-  const base = new Date(mondayDate);
-  for (let i = 0; i < 5; i++) {
-    const d = new Date(base);
-    d.setDate(base.getDate() + i);
-    dates.push(formatForDateInput(d));
-  }
-  return dates;
-}
-
-function formatWeekRangeText(dates) {
-  if (!dates || dates.length < 5) return '';
-  const d1 = new Date(dates[0] + 'T00:00:00');
-  const d5 = new Date(dates[4] + 'T00:00:00');
-  const m1 = d1.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const m5 = d5.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return `${m1} — ${m5}`;
-}
+// getWeekMonday / getWeekDates / formatWeekRangeText now live in
+// utils/deliveryWeek.js, alongside the rules about which days a week shows.
 
 const getUserRoleFromPermissions = (user) => {
   if (!user) return 'office';
@@ -95,9 +74,12 @@ const DeliveryScheduleTab = ({
   }, [currentUser]);
 
   const [currentMonday, setCurrentMonday] = useState(() => getWeekMonday(new Date()));
+  // Seven dates, Monday to Sunday. The fetch spans all of them so a weekend
+  // delivery is actually retrieved; which of them get drawn is decided below,
+  // once we know what the week contains.
   const weekDates = getWeekDates(currentMonday);
   const weekStart = weekDates[0];
-  const weekEnd = weekDates[4];
+  const weekEnd = weekDates[weekDates.length - 1];
 
   const [trucks, setTrucks] = useState(() => getScheduleCacheSync().trucks || []);
   const [deliveries, setDeliveries] = useState(() => getCachedWeekDeliveries(weekStart));
@@ -302,7 +284,13 @@ const DeliveryScheduleTab = ({
     ));
   };
 
-  const weekRangeText = formatWeekRangeText(weekDates);
+  // Mon–Fri always; Saturday or Sunday only once something is scheduled on
+  // it, so a normal week looks exactly as it always has. Pending orders are
+  // excluded on purpose — they have no agreed date yet and live in their own
+  // list, so one shouldn't conjure a weekend column onto the board.
+  const datesWithDeliveries = new Set(deliveries.map(d => d.date).filter(Boolean));
+  const visibleDates = visibleWeekDates(weekDates, datesWithDeliveries);
+  const weekRangeText = formatWeekRangeText(visibleDates);
 
   return (
     <div className={`delivery-schedule-container high-density ${theme}-theme-active`}>
@@ -381,7 +369,7 @@ const DeliveryScheduleTab = ({
               trucks={trucks}
               deliveries={deliveries}
               pending={pending}
-              weekDates={weekDates}
+              weekDates={visibleDates}
               searchQuery={searchQuery}
               editable={true}
               onAddDelivery={handleOpenAddModal}
@@ -400,7 +388,7 @@ const DeliveryScheduleTab = ({
             <BoardGrid
               trucks={trucks}
               deliveries={deliveries}
-              weekDates={weekDates}
+              weekDates={visibleDates}
               searchQuery={searchQuery}
               editable={false}
               onEditDelivery={null}
@@ -423,7 +411,7 @@ const DeliveryScheduleTab = ({
             <DriverView
               trucks={trucks}
               deliveries={deliveries}
-              weekDates={weekDates}
+              weekDates={visibleDates}
               currentUser={currentUser}
               onUpdateStatus={handleUpdateStatus}
               onOpenPod={handleOpenPod}

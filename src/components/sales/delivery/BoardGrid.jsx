@@ -4,6 +4,9 @@ import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
+// Day names come from the dates themselves — the board renders whichever days
+// the week actually shows, which is Mon-Fri plus any weekend day in use.
+import { dayLabel } from '../../../utils/deliveryWeek';
 
 // Widths the dispatch table is laid out from. A driver column needs roughly this
 // much to keep stop, reference number and status pill on one line; below it the
@@ -28,14 +31,6 @@ const WILL_CALL_COLUMN = {
 
 const columnIdFor = (d) =>
   d?.deliveryType === 'will_call' ? WILL_CALL_COLUMN_ID : (d?.truckId || '');
-
-const DAYS_OF_WEEK = [
-  { name: 'Monday',    short: 'Mon', index: 1 },
-  { name: 'Tuesday',  short: 'Tue', index: 2 },
-  { name: 'Wednesday',short: 'Wed', index: 3 },
-  { name: 'Thursday', short: 'Thu', index: 4 },
-  { name: 'Friday',   short: 'Fri', index: 5 }
-];
 
 const BoardGrid = ({
   trucks = [],
@@ -254,20 +249,19 @@ const BoardGrid = ({
 
           {/* Day Selector Pills Bar */}
           <div className="ux-day-pills-bar" ref={pillsRef}>
-            {DAYS_OF_WEEK.map((dayObj, idx) => {
-              const dateStr = weekDates[idx] || '';
+            {weekDates.map((dateStr) => {
               const isSelected = selectedDate === dateStr;
               const isToday = dateStr === todayStr;
               const dayStopsCount = deliveries.filter(d => d.date === dateStr).length;
 
               return (
                 <button
-                  key={dayObj.short}
+                  key={dateStr}
                   type="button"
                   className={`ux-day-pill-card ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
                   onClick={() => setSelectedDate(dateStr)}
                 >
-                  <span className="ux-pill-day-name">{dayObj.short.toUpperCase()}</span>
+                  <span className="ux-pill-day-name">{dayLabel(dateStr).short.toUpperCase()}</span>
                   <span className="ux-pill-date-num">{dateStr ? dateStr.split('-')[2] : ''}</span>
                   <span className="ux-pill-stops-count">
                     {isSelected ? 'Active' : (dayStopsCount > 0 ? `${dayStopsCount} ${dayStopsCount === 1 ? 'stop' : 'stops'}` : '0 stops')}
@@ -383,15 +377,14 @@ const BoardGrid = ({
             </thead>
 
             <tbody>
-              {DAYS_OF_WEEK.map((dayObj, idx) => {
-                const dateStr = weekDates[idx] || '';
+              {weekDates.map((dateStr) => {
                 const isToday = dateStr === todayStr;
 
                 return (
-                  <tr key={dayObj.short} className={`day-grid-row ${isToday ? 'today-row' : ''}`}>
+                  <tr key={dateStr} className={`day-grid-row ${isToday ? 'today-row' : ''}`}>
                     <td className={`day-info-cell ${isToday ? 'today-cell' : ''}`}>
                       <div className="day-label-wrap">
-                        <span className="day-name">{dayObj.name}</span>
+                        <span className="day-name">{dayLabel(dateStr).name}</span>
                         <span className="day-date">{formatDaySubtext(dateStr)}</span>
                       </div>
                     </td>
@@ -432,8 +425,8 @@ const BoardGrid = ({
                                 className="cell-add-btn"
                                 onClick={() => onAddDelivery && onAddDelivery(trk.id, dateStr)}
                                 title={trk.isWillCall
-                                  ? `Add will call pickup — ${dayObj.name}`
-                                  : `Add delivery — ${trk.driver} on ${dayObj.name}`}
+                                  ? `Add will call pickup — ${dayLabel(dateStr).name}`
+                                  : `Add delivery — ${trk.driver} on ${dayLabel(dateStr).name}`}
                               >
                                 <Plus size={14} />
                               </button>

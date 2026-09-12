@@ -5,16 +5,11 @@ import {
 } from 'lucide-react';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { openPdfInline } from '../../../utils/packingList';
+// Day names derive from the dates themselves, so the strip follows whichever
+// days the week is showing rather than a fixed Mon-Fri list.
+import { dayLabel } from '../../../utils/deliveryWeek';
 import StatusPill from './StatusPill';
 import './DriverView.css';
-
-const DAYS_OF_WEEK = [
-  { name: 'Monday',    short: 'Mon', index: 1 },
-  { name: 'Tuesday',   short: 'Tue', index: 2 },
-  { name: 'Wednesday', short: 'Wed', index: 3 },
-  { name: 'Thursday',  short: 'Thu', index: 4 },
-  { name: 'Friday',    short: 'Fri', index: 5 }
-];
 
 /**
  * "09:00 AM" → 540. Used only for ordering, so anything unparseable sorts last
@@ -224,23 +219,23 @@ const DriverView = ({
 
       {/* ── Week strip ─────────────────────────────────────────────────── */}
       <div className="dv-daybar" role="tablist" aria-label="Days this week">
-        {DAYS_OF_WEEK.map((dayObj, idx) => {
-          const dateStr = weekDates[idx] || '';
+        {weekDates.map((dateStr) => {
           const isSelected = selectedDate === dateStr;
           const isToday = dateStr === todayStr;
           const count = (stopsByDate.get(dateStr) || []).length;
+          const label = dayLabel(dateStr);
 
           return (
             <button
-              key={dayObj.short}
+              key={dateStr}
               type="button"
               role="tab"
               aria-selected={isSelected}
-              aria-label={`${dayObj.name}, ${count} ${count === 1 ? 'stop' : 'stops'}`}
+              aria-label={`${label.name}, ${count} ${count === 1 ? 'stop' : 'stops'}`}
               className={`dv-day ${isSelected ? 'is-active' : ''} ${isToday ? 'is-today' : ''}`}
               onClick={() => setSelectedDate(dateStr)}
             >
-              <span className="dv-day-name">{dayObj.short.toUpperCase()}</span>
+              <span className="dv-day-name">{label.short.toUpperCase()}</span>
               <span className="dv-day-num">{dateStr ? dateStr.split('-')[2] : '—'}</span>
               <span className="dv-day-count">
                 {isToday && isSelected ? 'Today' : count === 1 ? '1 stop' : `${count} stops`}

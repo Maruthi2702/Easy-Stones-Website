@@ -3185,3 +3185,18 @@ body.light-theme-active .pending-order-note,
 .light-theme-active .pending-order-note {
   color: #475569;
 }
+
+/* Amber rather than red: a weekend date is unusual, not invalid, and the
+   form still saves it. Loud enough to catch a slipped date, quiet enough
+   not to look like a rejection. */
+.weekend-date-note {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #f59e0b;
+  text-transform: none;
+  letter-spacing: 0;
+}

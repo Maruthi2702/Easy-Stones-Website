@@ -8,6 +8,7 @@ import { formatTitleCase } from '../../../utils/textUtils';
 // The contract-freight column is recognised in one place, shared with the board
 // and the ePOD certificate — see src/utils/deliveryPickup.js.
 import { isThirdPartyTruck as isThirdParty } from '../../../utils/deliveryPickup';
+import { isWeekendDate, dayLabel } from '../../../utils/deliveryWeek';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
@@ -598,6 +599,15 @@ const DeliveryModal = ({
               {isPendingOrder && (
                 <span className="pending-order-note">
                   No driver assigned — this stays in Pending Delivery until you pick one.
+                </span>
+              )}
+              {/* Weekend work is rare but real, so this informs rather than
+                  blocks — it exists to catch a mistyped date, not to argue
+                  with someone who meant it. */}
+              {isWeekendDate(date) && (
+                <span className="weekend-date-note">
+                  <AlertTriangle size={12} aria-hidden="true" />
+                  {dayLabel(date).name} — weekend delivery
                 </span>
               )}
             </div>

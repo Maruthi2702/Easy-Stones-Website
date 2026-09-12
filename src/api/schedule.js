@@ -1,6 +1,7 @@
 import { API_URL } from '../config/api';
 import { io } from 'socket.io-client';
 import { authFetch } from './authFetch';
+import { DAYS_IN_WEEK } from '../utils/deliveryWeek';
 
 export const MAX_TRUCK_CAPACITY = 12;
 
@@ -118,7 +119,13 @@ function upsertDeliveryIntoCache(delivery) {
     return;
   }
   for (const weekStart of scheduleCache.weeks.keys()) {
-    const weekEnd = addDaysToDateStr(weekStart, 4);
+    // Spans the whole week, Monday to Sunday. This used to stop at +4
+    // (Friday), which silently dropped a weekend delivery on its way into the
+    // cache: the record saved and broadcast fine, matched no cached week
+    // here, and so never reached the board until a full reload refetched the
+    // range. The fetch range agreeing about weekends isn't enough on its own
+    // — this merge path has to agree too.
+    const weekEnd = addDaysToDateStr(weekStart, DAYS_IN_WEEK - 1);
     if (delivery.date >= weekStart && delivery.date <= weekEnd) {
       scheduleCache.weeks.set(weekStart, [...scheduleCache.weeks.get(weekStart), delivery]);
       break;
