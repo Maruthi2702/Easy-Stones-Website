@@ -528,9 +528,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                                     <span className="sa-dims">Dimensions</span>
                                     <span className="sa-loc">Location</span>
                                     <span className="sa-onhand">On Hand</span>
-                                    <span className="sa-avail">Available</span>
-                                    {canViewPrices && <span className="sa-rate">Unit Cost</span>}
-                                    {canViewPrices && <span className="sa-value">Value</span>}
+                                    {canViewPrices && <span className="sa-landed">Landed Cost</span>}
                                     <span className="sa-recv">Received</span>
                                     <span className="sa-age">Age</span>
                                     <span className="sa-status">Status</span>
@@ -545,13 +543,15 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                                         <span className="sa-dims">{s.dimensions || '—'}</span>
                                         <span className="sa-loc invan-slab-loc" title={s.location}>{s.location || '—'}</span>
                                         <span className="sa-onhand num">{fmtNum(s.instockQty)}<span className="unit">{s.units}</span></span>
-                                        <span className={`sa-avail num${s.availableQuantity === 0 ? ' invan-gnum-zero' : ''}`}>{fmtNum(s.availableQuantity)}<span className="unit">{s.units}</span></span>
+                                        {/* Rate and slab total in one cell: they're the same
+                                            fact at two scales, and quoting means reading
+                                            them together rather than across the row. */}
                                         {canViewPrices && (
-                                          <span className="sa-rate num">
+                                          <span className="sa-landed num">
                                             {fmtRate(s.unitLandedCost)}<span className="unit">/{s.units || 'ea'}</span>
+                                            <span className="invan-slab-total">{fmtMoney(s.assetValue)}</span>
                                           </span>
                                         )}
-                                        {canViewPrices && <span className="sa-value num">{fmtMoney(s.assetValue)}</span>}
                                         <span className="sa-recv num">{s.receivedDate ? new Date(s.receivedDate).toLocaleDateString() : '—'}</span>
                                         <span className={`sa-age num${sAge !== null && sAge > 365 ? ' invan-age-old' : ''}`}>{sAge !== null ? `${sAge}d` : '—'}</span>
                                         <span className="sa-status"><span className={`invan-status-pill ${sBucket}`}>{STATUS_LABEL[sBucket]}</span></span>

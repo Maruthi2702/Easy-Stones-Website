@@ -677,9 +677,9 @@ body.light-theme-active .invan-status-bar,
 /* Per-slab status pill, used inside the expanded detail rows. */
 .invan-status-pill {
   display: inline-block;
-  padding: 0.2rem 0.6rem;
+  padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  font-size: 0.74rem;
+  font-size: 0.69rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -710,7 +710,10 @@ body.light-theme-active .invan-status-pill.other, .light-theme-active .invan-sta
 .invan-slabs-inner { overflow: hidden; }
 
 .invan-slabs {
-  margin: 0 1.1rem 0.9rem;
+  margin: 0 1.1rem 0.7rem;
+  /* Clips the zebra bands to the rounded corner now that they, not the row
+     borders, paint the full width. */
+  overflow: hidden;
   border-left: 2px solid #d4af37;
   border-radius: 0 8px 8px 0;
   background: rgba(255, 255, 255, 0.02);
@@ -723,27 +726,55 @@ body.light-theme-active .invan-slabs,
 
 .invan-slab-head, .invan-slab-row {
   display: grid;
-  grid-template-columns: 24px 1fr 1.1fr 1fr 0.85fr 0.85fr 0.95fr 0.95fr 0.95fr 0.7fr 0.95fr;
-  grid-template-areas: "sp serial dims loc onhand avail rate value recv age status";
-  gap: 0.6rem;
+  /* Equal columns, and every cell right-aligned (see the desktop block
+     below). Unequal widths mixed with left-aligned text beside right-aligned
+     numbers made the spacing wildly uneven: a left-aligned cell followed by a
+     right-aligned one puts both columns' slack at the same boundary, while
+     the reverse puts none there. Measured, the gaps ran from 18px to 182px
+     across one row. Equalising the widths alone doesn't fix it — the
+     alignment is what drives it.
+     The leading "sp" track is 0 here on purpose: it once mirrored the group
+     row's 26px chevron column as an indent, but it lines up with nothing (the
+     table is already inset by .invan-slabs' margin + padding) and the nesting
+     is carried by that inset and the gold border-left. With every cell
+     right-aligned, the column's slack all piled up before Serial# and read as
+     dead space. The track and the "sp" area are kept rather than deleted —
+     .sa-sp still exists in the DOM because the mobile template below uses it
+     as a real 18px hanging indent, and an item with no area would auto-place
+     and scramble the row.
+     Serial is the one column that is not a full 1fr: it holds a short id, so
+     at an equal share (~195px on a wide screen) most of the track was empty,
+     and because every cell is right-aligned that emptiness sat between the
+     gold rail and the text as a second, larger gap than the 0 "sp" track ever
+     was. minmax() rather than a fixed width so it still has room at the 901px
+     end of the desktop range; a fr on both ends keeps it identical between
+     the header grid and each row grid, which content sizing (max-content)
+     would not — they are separate grid containers, not subgrids, so any
+     content-based track would be measured per row and the columns would stop
+     lining up. */
+  grid-template-columns: 0px minmax(88px, 0.6fr) repeat(7, 1fr);
+  grid-template-areas: "sp serial dims loc onhand landed recv age status";
+  gap: 0.3rem;
   align-items: center;
-  padding: 0.55rem 1rem;
+  padding: 0.3rem 1rem;
 }
 /* Value column requires view_inventory_prices — see the matching .no-price
    rule on .invan-group-head/.invan-group-row above for why this is a
    separate template rather than an empty area. */
 .invan-slab-head.no-price, .invan-slab-row.no-price {
-  grid-template-columns: 24px 1fr 1.1fr 1fr 0.85fr 0.85fr 0.95fr 0.7fr 0.95fr;
-  grid-template-areas: "sp serial dims loc onhand avail recv age status";
+  /* 9 tracks for the 9 named areas. This used to declare one track too many
+     (a 10th, unnamed 1fr), which grid kept as an empty column on the right —
+     so users without view_inventory_prices lost a tenth of the row's width to
+     nothing. */
+  grid-template-columns: 0px minmax(88px, 0.6fr) repeat(6, 1fr);
+  grid-template-areas: "sp serial dims loc onhand recv age status";
 }
 .sa-sp { grid-area: sp; }
 .sa-serial { grid-area: serial; }
 .sa-dims { grid-area: dims; }
 .sa-loc { grid-area: loc; }
 .sa-onhand { grid-area: onhand; }
-.sa-avail { grid-area: avail; }
-.sa-rate { grid-area: rate; }
-.sa-value { grid-area: value; }
+.sa-landed { grid-area: landed; }
 .sa-recv { grid-area: recv; }
 .sa-age { grid-area: age; }
 .sa-status { grid-area: status; }
@@ -756,9 +787,6 @@ body.light-theme-active .invan-slabs,
   color: #64748b;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
-.invan-slab-head .sa-onhand, .invan-slab-head .sa-avail, .invan-slab-head .sa-rate,
-.invan-slab-head .sa-value, .invan-slab-head .sa-recv, .invan-slab-head .sa-age { text-align: right; }
-.invan-slab-head .sa-status { text-align: left; }
 
 body.light-theme-active .invan-slab-head,
 .light-theme-active .invan-slab-head {
@@ -766,22 +794,39 @@ body.light-theme-active .invan-slab-head,
 }
 
 .invan-slab-row {
-  font-size: 0.82rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 0.8rem;
 }
-.invan-slab-row:last-child { border-bottom: none; }
+
+/* Alternating shading instead of a rule between every row. At eleven columns
+   the job is tracking one slab from serial across to status, which a band
+   does and a hairline doesn't — and it separates rows without adding a line
+   of its own weight to an already dense grid.
+   The header occupies the first child slot, so odd children are the 2nd,
+   4th… data rows: the first row stays unshaded. */
+.invan-slab-row:nth-child(odd) { background: rgba(255, 255, 255, 0.025); }
+
+body.light-theme-active .invan-slab-row:nth-child(odd),
+.light-theme-active .invan-slab-row:nth-child(odd) {
+  background: rgba(15, 23, 42, 0.035);
+}
 .invan-slab-row .num { text-align: right; font-variant-numeric: tabular-nums; }
 .invan-slab-row .num .unit { color: #64748b; font-size: 0.74rem; font-weight: 500; margin-left: 0.15rem; }
 /* The rate's unit is a "/SF" suffix, not a separate word like the quantity
    columns' "SF" — the shared 0.15rem gap renders it as "$28.00 /SF". */
-.invan-slab-row .sa-rate .unit { margin-left: 0; }
+.invan-slab-row .sa-landed .unit { margin-left: 0; }
+
+/* The slab's own total, carried alongside the per-unit rate it comes from.
+   Bracketed and set apart so the two read as one fact at two scales rather
+   than two competing numbers. */
+.invan-slab-total {
+  margin-left: 0.4rem;
+  font-weight: 700;
+}
+.invan-slab-total::before { content: '('; }
+.invan-slab-total::after { content: ')'; }
 .invan-slab-serial { font-weight: 600; font-variant-numeric: tabular-nums; }
 .invan-slab-loc { color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-body.light-theme-active .invan-slab-row,
-.light-theme-active .invan-slab-row {
-  border-bottom-color: #f1f5f9;
-}
 
 .invan-slabs-status {
   padding: 0.75rem 1.1rem;
@@ -801,6 +846,17 @@ body.light-theme-active .invan-slab-row,
   cursor: pointer;
   text-decoration: underline;
   padding: 0;
+}
+
+/* One alignment for every column, so each boundary carries the same amount of
+   slack and the spacing reads evenly the whole way across. Mixing left- and
+   right-aligned cells is what made it lurch between 18px and 182px; grouping
+   gutters were tried here too and only added to the unevenness.
+   Desktop only: on mobile these cells become a stacked card where serial,
+   dimensions and the status pill all belong on the left. */
+@media (min-width: 901px) {
+  .invan-slab-head > span,
+  .invan-slab-row > span { text-align: right; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -850,26 +906,29 @@ body.light-theme-active .invan-slab-row,
      the >365d highlight) where the raw date still needs subtracting from
      today, which is the arithmetic this panel exists to save. */
   .invan-slab-row, .invan-slab-row.no-price {
-    grid-template-columns: 18px 1fr auto auto;
+    grid-template-columns: 18px 1fr auto;
     grid-template-areas:
-      "sp serial serial value"
-      ".  dims   avail  rate"
-      ".  status status age";
+      "sp serial serial"
+      ".  dims   onhand"
+      ".  landed landed"
+      ".  status age";
     row-gap: 0.3rem;
     column-gap: 0.5rem;
     padding: 0.6rem 0.9rem;
   }
+  /* On Hand takes the slot Available used to occupy. It was the only square
+     footage on a mobile card, so dropping the Available column would
+     otherwise have left the card with no size at all — the one figure a quote
+     can't be built without. */
   .invan-slab-row .sa-loc,
-  .invan-slab-row .sa-onhand,
   .invan-slab-row .sa-recv { display: none; }
-  .invan-slab-row .sa-avail,
-  .invan-slab-row .sa-value,
-  .invan-slab-row .sa-rate,
+  .invan-slab-row .sa-onhand,
   .invan-slab-row .sa-age { justify-self: end; }
   .invan-slab-row .sa-dims { justify-self: start; }
-  /* The one figure that should read as the answer, not as another number in
-     a row of them — it is what gets quoted. */
-  .invan-slab-row .sa-value { font-weight: 700; font-size: 0.92rem; }
+  /* The money line spans the card: rate and slab total travel together, and
+     splitting them across a gap would undo the point of merging them. */
+  .invan-slab-row .sa-landed { justify-self: start; text-align: left; }
+  .invan-slab-row .sa-landed .invan-slab-total { font-size: 0.92rem; }
 }
 
 /* ── DAYS OF SUPPLY BADGES ── */
