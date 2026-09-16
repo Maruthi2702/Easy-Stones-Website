@@ -111,6 +111,7 @@ const emptyReport = (date, location) => ({
   deliveries: { assigned: 0, capacity: null },
   pickups: { assigned: 0, capacity: null },
   returns: null,
+  returnsSlabs: null,
   sinks: null,
   transfers: [],
   containers: [],
@@ -701,13 +702,23 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                     <td className="dr-num">{totals.assigned}</td>
                     <td className="dr-num">{totals.capacity}</td>
                   </tr>
+                  {/* Returns sit below the Total on purpose: they came back in,
+                      so adding them to a total of what went out would misstate
+                      both. Both cells fill themselves in from the day's return
+                      tickets when there are any, and stay typeable either way —
+                      a return that never got a ticket still belongs on the
+                      sheet. */}
                   <tr>
                     <td>Returns</td>
                     <td className="dr-num">
-                      <ReportCell value={report.returns} disabled={locked} ariaLabel="Returns"
+                      <ReportCell value={report.returns} derived disabled={locked} ariaLabel="Returns"
                         onChange={(v) => setPath('returns', v)} />
                     </td>
-                    <td />
+                    <td className="dr-num">
+                      <ReportCell value={report.returnsSlabs} derived disabled={locked}
+                        ariaLabel="Returns slabs"
+                        onChange={(v) => setPath('returnsSlabs', v)} />
+                    </td>
                   </tr>
                   <tr>
                     <td>Sinks</td>

@@ -11,6 +11,7 @@
  * from here. They have to agree: a ticket the board offers to sign must be one
  * the certificate labels as collected.
  */
+import { isWillCall, isReturn, isCounterReturn } from './deliveryTypes.js';
 
 export const THIRD_PARTY_TRUCK_ID = 'trk_3rd_party';
 
@@ -28,15 +29,24 @@ export const isThirdPartyTruck = (trk) => Boolean(
   )
 );
 
-export const isWillCall = (delivery) => delivery?.deliveryType === 'will_call';
+// Re-exported rather than redefined: deliveryTypes.js owns what each type
+// means and where it lives, and two copies of this predicate would be two
+// things to keep in step.
+export { isWillCall, isReturn, isCounterReturn };
 
 /**
  * Is this order collected rather than delivered? Needs the truck list, because
  * a will call announces itself on the delivery while contract freight is only
  * knowable from the column the ticket sits in.
+ *
+ * A customer drop-off counts too — material handed back over the counter with
+ * no driver involved is signed for by the office, exactly like a will call.
+ * A return one of our drivers goes out for is not: that one is signed on the
+ * driver's phone at the customer's place, like any other stop.
  */
 export const isPickupDelivery = (delivery, trucks = []) =>
   isWillCall(delivery) ||
+  isCounterReturn(delivery) ||
   isThirdPartyTruck((trucks || []).find(t => t.id === delivery?.truckId));
 
 /**
@@ -111,4 +121,58 @@ export const DELIVERY_WORDING = {
   certDriverRole: 'Driver'
 };
 
+/**
+ * A return runs the other way down the same form.
+ *
+ * On every other ticket we release material and the customer takes it. On a
+ * return the customer releases it and we take it — so the two signature roles
+ * swap meaning even though the boxes are identical. PICKUP_WORDING can't be
+ * reused: it reads "COLLECTED BY / customer, RELEASED BY / us", which on a
+ * return names both parties as the opposite of what they did, on a document
+ * that is then treated as proof.
+ *
+ * The form labels stay the ones staff already know, for the reason given
+ * above PICKUP_WORDING. What changes is the framing and the certificate — and
+ * the photos, which matter more here than anywhere else: they are the only
+ * record of what condition the material came back in, and the whole argument
+ * later is usually about exactly that.
+ */
+export const RETURN_WORDING = {
+  title: 'Return Receipt (ePOD)',
+  reference: 'Return',
+  signeeLabel: 'Customer Signee Full Name',
+  signeePlaceholder: 'e.g. Marcus Johnson',
+  customerSigLabel: 'Customer Signature',
+  driverSigLabel: 'Received By Signature',
+  driverHint: 'Confirms what was taken back',
+  customerHint: 'Sign above using touchscreen finger or stylus',
+  photosLabel: 'Returned Slab Condition Photos',
+  submitLabel: 'Complete Return & Sign PDF',
+  notesLabel: 'Return Condition Notes',
+  viewerTitle: 'Return Receipt',
+  viewerPhotosLabel: 'Returned Slab Photos',
+  viewerEmpty: 'No return receipt has been signed for this return yet.',
+  viewerEmptyHint: 'Whoever takes the material back captures it with Release & Sign on the ticket.',
+  missingSignee: 'signee name',
+  missingCustomerSig: 'customer signature',
+  missingDriverSig: 'receiver signature',
+  errorSignee: 'Please enter the customer signee name.',
+  errorCustomerSig: 'Customer signature is required.',
+  errorDriverSig: 'Receiver signature is required.',
+  certificateTitle: 'RETURN RECEIPT (ePOD) DIGITAL SIGNATURE CERTIFICATE',
+  certCustomerLabel: 'RETURNED BY',
+  certDriverLabel: 'RECEIVED BY',
+  certSigneeRole: 'Returned by',
+  certDriverRole: 'Received by'
+};
+
 export const wordingFor = (isPickup) => (isPickup ? PICKUP_WORDING : DELIVERY_WORDING);
+
+/**
+ * The wording for an actual ticket. Prefer this over wordingFor: a return has
+ * to be recognised before the pickup/delivery question is even asked, since it
+ * can arrive either way (a driver collects it, or the customer drops it off)
+ * and both are returns.
+ */
+export const wordingForTicket = (delivery, trucks = []) =>
+  isReturn(delivery) ? RETURN_WORDING : wordingFor(isPickupDelivery(delivery, trucks));

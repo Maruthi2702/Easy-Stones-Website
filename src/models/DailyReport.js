@@ -83,7 +83,12 @@ const dailyReportSchema = new mongoose.Schema({
 
   deliveries: { type: countPairSchema, default: () => ({}) },
   pickups: { type: countPairSchema, default: () => ({}) },
+  // How many orders came back, and how many slabs they were. Auto-filled from
+  // the day's return tickets when there are any, and hand-editable either way —
+  // see applyDerived in src/routes/dailyReports.js for why a quiet day is left
+  // blank rather than written as 0.
   returns: { type: Number, default: null },
+  returnsSlabs: { type: Number, default: null },
   sinks: { type: Number, default: null },
 
   transfers: { type: [transferLineSchema], default: [] },

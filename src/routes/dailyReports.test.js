@@ -6,6 +6,8 @@ const baseReport = (overrides = {}) => ({
   visitors: { homeowners: 0 },
   deliveries: { assigned: 0, capacity: null },
   pickups: { assigned: 0, capacity: null },
+  returns: null,
+  returnsSlabs: null,
   transfers: [],
   ...overrides
 });
@@ -16,6 +18,8 @@ const baseDerived = (overrides = {}) => ({
   pickupsAssigned: 1,
   deliveriesSlabs: 27,
   pickupsSlabs: 4,
+  returnsCount: 0,
+  returnsSlabs: 0,
   transfers: [],
   ...overrides
 });
@@ -95,5 +99,54 @@ describe('applyDerived', () => {
     expect(report.transfers).toEqual([
       { fromTo: 'SEA — SLC', count: 1, slabs: 50, auto: true, direction: 'out' }
     ]);
+  });
+});
+
+// Returns arrived with the 'return' delivery type. They follow a stricter
+// fill rule than the capacity fields above, because `returns` is an older
+// hand-typed box and on this sheet a blank and a 0 are different answers.
+describe('applyDerived — returns', () => {
+  it('fills both cells from the day’s return tickets', () => {
+    const report = baseReport();
+    applyDerived(report, baseDerived({ returnsCount: 2, returnsSlabs: 7 }));
+    expect(report.returns).toBe(2);
+    expect(report.returnsSlabs).toBe(7);
+  });
+
+  it('leaves a quiet day blank rather than answering "none" on the branch’s behalf', () => {
+    const report = baseReport();
+    applyDerived(report, baseDerived({ returnsCount: 0, returnsSlabs: 0 }));
+    expect(report.returns).toBeNull();
+    expect(report.returnsSlabs).toBeNull();
+  });
+
+  it('never overwrites a figure somebody typed', () => {
+    const report = baseReport({ returns: 4, returnsSlabs: 9 });
+    applyDerived(report, baseDerived({ returnsCount: 2, returnsSlabs: 7 }));
+    expect(report.returns).toBe(4);
+    expect(report.returnsSlabs).toBe(9);
+  });
+
+  it('keeps a typed 0 — "no returns today" is an answer, not a blank', () => {
+    const report = baseReport({ returns: 0, returnsSlabs: 0 });
+    applyDerived(report, baseDerived({ returnsCount: 2, returnsSlabs: 7 }));
+    expect(report.returns).toBe(0);
+    expect(report.returnsSlabs).toBe(0);
+  });
+
+  it('fills the slab count even when the tickets carry no slab numbers yet', () => {
+    const report = baseReport();
+    applyDerived(report, baseDerived({ returnsCount: 3, returnsSlabs: 0 }));
+    expect(report.returns).toBe(3);
+    // Nobody has counted the slabs on those three tickets, so this stays blank
+    // rather than asserting they came back empty.
+    expect(report.returnsSlabs).toBeNull();
+  });
+
+  it('leaves a submitted report’s returns exactly as signed off', () => {
+    const report = baseReport({ status: 'submitted', returns: 1, returnsSlabs: 2 });
+    applyDerived(report, baseDerived({ returnsCount: 9, returnsSlabs: 9 }));
+    expect(report.returns).toBe(1);
+    expect(report.returnsSlabs).toBe(2);
   });
 });

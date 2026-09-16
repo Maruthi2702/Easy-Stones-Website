@@ -21,7 +21,12 @@ const deliverySchema = new mongoose.Schema({
   driver: { type: String, default: '' },
 
   // New Delivery Classification & 3rd Party Freight Fields
-  deliveryType: { type: String, enum: ['jobsite', 'transfer', 'will_call'], default: 'jobsite' },
+  // 'return' is material coming back to us rather than going out: either a
+  // driver collects it (an ordinary stop in that driver's column) or the
+  // customer brings it back themselves (no driver, so it shares the board's
+  // Will Call column). src/utils/deliveryTypes.js owns which is which — keep
+  // this enum and DELIVERY_TYPES there in step.
+  deliveryType: { type: String, enum: ['jobsite', 'transfer', 'will_call', 'return'], default: 'jobsite' },
   transferDestination: { type: String, default: '' },
   // Transfer-only. `date` is when it leaves `location`; this is the day it's
   // due at `transferDestination` — often a day or more later, and the date

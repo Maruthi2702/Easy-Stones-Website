@@ -4,6 +4,7 @@ import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
+import { columnIdFor, isReturn, WILL_CALL_COLUMN_ID } from '../../../utils/deliveryTypes';
 // Day names come from the dates themselves — the board renders whichever days
 // the week actually shows, which is Mon-Fri plus any weekend day in use.
 import { dayLabel } from '../../../utils/deliveryWeek';
@@ -19,18 +20,30 @@ const MIN_TABLE_WIDTH = 1100;
 // A will call is collected by the customer, so it belongs to no driver and to no
 // truck's daily load. It gets a column of its own at the end of the board rather
 // than sitting under whoever happened to be selected when the ticket was made.
-export const WILL_CALL_COLUMN_ID = '__will_call__';
-
+// The ids themselves live in deliveryTypes.js — the board is not the only thing
+// that needs to name these columns, and re-exporting them from a component file
+// costs Fast Refresh.
 const WILL_CALL_COLUMN = {
   id: WILL_CALL_COLUMN_ID,
   driver: 'Will Call',
-  name: 'Customer Pickup',
+  // Same as `driver` on purpose. The header renders `name` underneath as a
+  // subtitle only when the two differ, which is how a truck shows its driver —
+  // so matching them drops the second line here without the column having to be
+  // special-cased in the markup. It used to read "Customer Pickup", which said
+  // nothing "Will Call" doesn't already say, and now that customer-returned
+  // slabs share this column it was not even true of everything in it.
+  name: 'Will Call',
   color: '#2dd4bf',
   isWillCall: true
 };
 
-const columnIdFor = (d) =>
-  d?.deliveryType === 'will_call' ? WILL_CALL_COLUMN_ID : (d?.truckId || '');
+// A column nobody drives. The daily truck load is meaningless for it, so it
+// shows a plain count rather than a count against MAX_TRUCK_CAPACITY.
+const isCounterColumn = (trk) => Boolean(trk?.isWillCall);
+
+// What one ticket in this column is called, so the empty state and the add
+// button read naturally.
+const columnNoun = (trk) => (trk?.isWillCall ? 'pickup' : 'stop');
 
 const BoardGrid = ({
   trucks = [],
@@ -116,13 +129,20 @@ const BoardGrid = ({
     let truckId = trk.id;
     let deliveryType = delivery.deliveryType;
     if (trk.isWillCall) {
+      // Nobody of ours moves it any more. A return stays a return — the
+      // customer is bringing the slabs back themselves, which is still material
+      // coming in, and relabelling it a will call here would quietly reverse
+      // the direction of the ticket and drop it off the report's Returns line.
       truckId = '';
-      deliveryType = 'will_call';
+      if (!isReturn(delivery)) deliveryType = 'will_call';
     } else if (delivery.deliveryType === 'will_call') {
       // Leaving Will Call must become a real stop on the new column.
       deliveryType = 'jobsite';
     }
-    // else: normal column -> normal column, deliveryType unchanged (preserves 'transfer')
+    // else: normal column -> normal column, deliveryType unchanged. That
+    // preserves 'transfer', and preserves 'return' too — dragging a drop-off
+    // onto a driver means that driver is going out to collect it, which is
+    // still a return, just one we now do the driving for.
 
     onMoveDelivery(delivery.id, { truckId, deliveryType, date: dateStr });
   };
@@ -170,16 +190,20 @@ const BoardGrid = ({
 
   const displayTrucks = React.useMemo(() => {
     // No "Unassigned" column: an order without a driver belongs to the Pending
-    // list beneath the board, not to a column of its own. Will Call is the one
-    // driverless column, pinned last so the drivers still read left to right.
+    // list beneath the board, not to a column of its own. Will Call is the only
+    // driverless column, pinned last so the drivers still read left to right —
+    // it holds customer pickups and the occasional slab a customer brings back
+    // themselves, both being orders that move without one of our drivers.
     return [...trucks, WILL_CALL_COLUMN];
   }, [trucks]);
 
   /**
-   * Which columns hold orders that are collected rather than delivered. Those
-   * are the ones the office signs for at the counter — a will call because the
-   * customer carries it out, contract freight because the carrier's driver
-   * does. Everything else is signed for at the jobsite, on the driver's phone.
+   * Which columns hold orders that change hands at the counter rather than at
+   * a jobsite. Those are the ones the office signs for — a will call because
+   * the customer carries it out, contract freight because the carrier's driver
+   * does, a returned slab because the customer walks it back in. Everything
+   * else is signed for at the jobsite, on the driver's phone, including a
+   * return one of our own drivers goes out to collect.
    */
   const pickupColumnIds = React.useMemo(
     () => new Set(
@@ -296,19 +320,22 @@ const BoardGrid = ({
                     </div>
 
                     <div className="ux-driver-actions">
-                      {/* Will calls are collected by the customer, so the daily
-                          truck load does not apply — count them, don't cap them. */}
+                      {/* Will calls and drop-offs are moved by the customer, so
+                          the daily truck load does not apply — count them,
+                          don't cap them. */}
                       <span className={`ux-capacity-badge ${capCount > 0 ? 'has-stops' : 'empty'}`}>
-                        {trk.isWillCall ? capCount : `${capCount}/${MAX_TRUCK_CAPACITY}`}
+                        {isCounterColumn(trk) ? capCount : `${capCount}/${MAX_TRUCK_CAPACITY}`}
                       </span>
                       {editable && (
                         <button
                           type="button"
                           className="ux-btn-add-stop"
                           onClick={() => onAddDelivery && onAddDelivery(trk.id, selectedDate)}
-                          title={trk.isWillCall ? 'Add a customer pickup' : `Add stop for ${trk.driver}`}
+                          title={isCounterColumn(trk)
+                            ? `Add a customer ${columnNoun(trk)}`
+                            : `Add stop for ${trk.driver}`}
                         >
-                          <Plus size={14} /> {trk.isWillCall ? 'Add pickup' : 'Add stop'}
+                          <Plus size={14} /> Add {columnNoun(trk)}
                         </button>
                       )}
                     </div>
@@ -317,7 +344,7 @@ const BoardGrid = ({
                   {/* Driver Delivery Ticket Cards */}
                   {trkDeliveries.length === 0 ? (
                     <div className="ux-no-stops-text">
-                      {trk.isWillCall ? 'No pickups scheduled' : 'No stops scheduled'}
+                      No {columnNoun(trk)}s scheduled
                     </div>
                   ) : (
                     <div className="ux-tickets-list">
@@ -412,20 +439,20 @@ const BoardGrid = ({
                         >
                           <div className="cell-header-bar">
                             <span
-                              className={`cell-capacity-pill ${trk.isWillCall ? 'capacity-ok-green' : capClass}`}
-                              title={trk.isWillCall
-                                ? `${rawCount} customer ${rawCount === 1 ? 'pickup' : 'pickups'} booked`
+                              className={`cell-capacity-pill ${isCounterColumn(trk) ? 'capacity-ok-green' : capClass}`}
+                              title={isCounterColumn(trk)
+                                ? `${rawCount} customer ${columnNoun(trk)}${rawCount === 1 ? '' : 's'} booked`
                                 : `${rawCount} of ${MAX_TRUCK_CAPACITY} deliveries booked`}
                             >
-                              {trk.isWillCall ? rawCount : `${rawCount}/${MAX_TRUCK_CAPACITY}`}
+                              {isCounterColumn(trk) ? rawCount : `${rawCount}/${MAX_TRUCK_CAPACITY}`}
                             </span>
                             {editable && (
                               <button
                                 type="button"
                                 className="cell-add-btn"
                                 onClick={() => onAddDelivery && onAddDelivery(trk.id, dateStr)}
-                                title={trk.isWillCall
-                                  ? `Add will call pickup — ${dayLabel(dateStr).name}`
+                                title={isCounterColumn(trk)
+                                  ? `Add customer ${columnNoun(trk)} — ${dayLabel(dateStr).name}`
                                   : `Add delivery — ${trk.driver} on ${dayLabel(dateStr).name}`}
                               >
                                 <Plus size={14} />

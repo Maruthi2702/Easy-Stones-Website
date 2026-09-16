@@ -327,7 +327,7 @@ export async function buildDayPdf(report) {
       { cells: ['Deliveries', int(report.deliveries?.assigned), int(report.deliveries?.capacity)] },
       { cells: ['Pick-ups', int(report.pickups?.assigned), int(report.pickups?.capacity)] },
       { cells: ['Total', int(assigned), int(slabsOut)], total: true },
-      { cells: ['Returns', orDash(report.returns), ''], muted: !Number(report.returns) },
+      { cells: ['Returns', orDash(report.returns), orDash(report.returnsSlabs)], muted: !Number(report.returns) },
       { cells: ['Sinks', orDash(report.sinks), ''], muted: !Number(report.sinks) }
     ]
   });

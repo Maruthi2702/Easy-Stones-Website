@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Check, Camera, Upload, FileText, ShieldCheck, Eye, Layers } from 'lucide-react';
 import { formatTitleCase } from '../../../utils/textUtils';
 import { packingListFileName, openPdfInline } from '../../../utils/packingList';
-import { isPickupDelivery, wordingFor } from '../../../utils/deliveryPickup';
+import { isPickupDelivery, wordingForTicket } from '../../../utils/deliveryPickup';
 import './PodModal.css';
 
 /**
@@ -17,7 +17,10 @@ import './PodModal.css';
  */
 const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, onSavePod }) => {
   const isPickup = isPickupDelivery(delivery, trucks);
-  const words = wordingFor(isPickup);
+  // wordingForTicket, not wordingFor: a return has to be recognised before the
+  // pickup/delivery question, because it can arrive either way and its two
+  // signature roles mean the opposite of everything else's.
+  const words = wordingForTicket(delivery, trucks);
 
   const [signeeName, setSigneeName] = useState(delivery?.pod?.signeeName || '');
   const [podNotes, setPodNotes] = useState(delivery?.pod?.notes || '');

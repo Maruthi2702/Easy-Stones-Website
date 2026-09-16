@@ -769,6 +769,14 @@ body.light-theme-active .truck-name,
 
 /* Ticket Chip Component — dark-glass in dark mode, white in light */
 .manifest-ticket-chip {
+  /* The card is its own query container, so the header below can size its type
+     to the space the card actually has. Viewport width is the wrong measure
+     here: the same phone shows one full-width card in the cards view while a
+     desktop shows eight narrow columns side by side, so a media query would
+     shrink the text on the roomy layout and leave it overflowing on the tight
+     one. */
+  container-type: inline-size;
+  container-name: ticket;
   background: rgba(30, 36, 52, 0.92);
   border-radius: 8px;
   border-left: 4px solid #d4af37;
@@ -805,18 +813,30 @@ body.light-theme-active .manifest-ticket-chip,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* Stop #, reference number and status stay on one line. Everything in this row
-     is sized to fit a narrow truck column; if a reference number is long enough
-     to still not fit, it ellipsises rather than pushing the pill out. */
   flex-wrap: nowrap;
   gap: 0.3rem;
 }
 
+/* Stop, reference and status share one row at every width. Nothing here wraps
+   and nothing is clipped — when the card is too narrow to hold all three, the
+   container queries below step the type down instead. The alternatives were
+   both worse: truncating loses an SO# people type into SPS, and wrapping makes
+   the layout depend on how long the status word happens to be, so a PENDING
+   card and the SCHEDULED card under it end up shaped differently. */
 .ticket-time-mono {
   white-space: nowrap;
   min-width: 0;
   overflow: hidden;
-  font-size: 0.66rem;
+  /* Was 0.66rem, which made the SO# the smallest text on the card — smaller
+     than the address under it — despite being the thing people lean in to read
+     and copy into SPS all day. Now level with the customer name — fractionally
+     above it, in fact, which reads fine because the two are different weights
+     and families: the stop number and SO# are what the board gets scanned for,
+     at arm's length from a warehouse desk.
+     The status pill is deliberately left at its own size — it is the widest
+     fixed object in the row, and every point it grows comes straight out of
+     the space the reference number needs to stay whole. */
+  font-size: 0.86rem;
   font-weight: 700;
   font-family: 'SF Mono', monospace;
   color: #94a3b8;
@@ -825,9 +845,112 @@ body.light-theme-active .manifest-ticket-chip,
   gap: 0.22rem;
 }
 
+
+
 body.light-theme-active .ticket-time-mono,
 .light-theme-active .ticket-time-mono {
   color: #475569;
+}
+
+/* Return tickets read red across the board — material coming back to us, not
+   going out. The header deliberately stays neutral so every card's top line
+   matches; the red lives on the card's left edge (painted inline from
+   TicketChip, since an inline style beats a rule here) and on this line under
+   the address. Shaped like .ticket-address so it reads as part of the same
+   block rather than as a badge stuck on. */
+.ticket-return-flag {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+/* Light mode needs both halves restated with !important, and not because of
+   specificity — the light theme block further down this file sets
+   `border: 1px solid #e2e8f0 !important` and `color: #334155 !important` on
+   every chip, and an !important declaration beats an inline style. That
+   shorthand `border` is also why no ticket shows its truck colour in light
+   mode today: the 4px left accent is overwritten wholesale, for every chip on
+   the board. Fixing that generally would restyle every ticket, so this brings
+   back only the one that has to be unmissable. */
+body.light-theme-active .manifest-ticket-chip.return-chip,
+.light-theme-active .manifest-ticket-chip.return-chip {
+  /* Only the colour now: every card in light mode carries the same 4px edge, so
+     there is no width difference left to compensate for. Still stated here
+     because #ef4444 (the inline accent, tuned for dark) is too light on white. */
+  border-left-color: #dc2626 !important;
+}
+
+body.light-theme-active .ticket-return-flag,
+.light-theme-active .ticket-return-flag {
+  /* Darker than the dark-mode red: #f87171 on white fails contrast. The
+     !important matches the light theme's own blanket rules further down, which
+     colour every line inside a chip and would otherwise grey this one out. */
+  color: #b91c1c !important;
+}
+
+/* Divides the stop number from the reference number, so the two read as two
+   facts rather than one long string. Muted and never shrinking: it is
+   punctuation, so it should be the quietest thing in the row, but it must not
+   be what disappears when the row gets tight. */
+.ticket-header-sep {
+  flex-shrink: 0;
+  opacity: 0.45;
+  font-weight: 400;
+  padding: 0 0.1rem;
+}
+
+/* The stop number is fixed and tiny; it never gives up space. Only the
+   reference can shrink, and only once the type has already stepped down as far
+   as it goes — see the note on .so-num-highlight. */
+.ticket-stop-label {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Type steps down as the card narrows, so all three stay on one row.
+   Sized against the worst realistic case — a "SCHEDULED" pill beside a long
+   reference — and measured at each step rather than guessed. The pill shrinks
+   with the text: it is the widest fixed object in the row, so leaving it alone
+   would undo most of what the smaller type buys.
+   Every selector is scoped under .manifest-ticket-chip on purpose. Bare
+   .manifest-status-pill would tie correctness to where this block sits in the
+   file — the base rule is declared further down at equal specificity and would
+   simply win — and it would shrink pills on screens that are not cards. */
+/* The pill grows with the header, but only on board cards. StatusPill is also
+   used by the driver app, which has its own layout and never asked for bigger
+   type — a bare .manifest-status-pill rule would have changed it there too. */
+.manifest-ticket-chip .manifest-status-pill {
+  font-size: 0.68rem;
+}
+
+/* Thresholds are content-box widths, which is what a container query measures —
+   about 24px narrower than the card itself once its padding and border are
+   taken off. Cutting them against card width instead put every 290px column a
+   whole step lower than intended, which is how the header ended up smaller than
+   the address sitting under it. */
+@container ticket (max-width: 310px) {
+  .manifest-ticket-chip .ticket-time-mono { font-size: 0.78rem; }
+  .manifest-ticket-chip .manifest-status-pill { font-size: 0.6rem; padding: 0.12rem 0.34rem; }
+  .manifest-ticket-chip .so-header-inline-text { padding: 0.1rem 0.24rem; }
+}
+
+@container ticket (max-width: 270px) {
+  .manifest-ticket-chip .ticket-time-mono { font-size: 0.7rem; gap: 0.16rem; }
+  .manifest-ticket-chip .manifest-status-pill { font-size: 0.54rem; padding: 0.1rem 0.28rem; gap: 0.12rem; }
+  .manifest-ticket-chip .so-header-inline-text { padding: 0.08rem 0.2rem; gap: 0.12rem; }
+}
+
+@container ticket (max-width: 240px) {
+  .manifest-ticket-chip .ticket-time-mono { font-size: 0.62rem; gap: 0.12rem; }
+  .manifest-ticket-chip .manifest-status-pill { font-size: 0.48rem; padding: 0.08rem 0.24rem; }
+  .manifest-ticket-chip .so-header-inline-text { padding: 0.06rem 0.16rem; }
 }
 
 .ticket-customer {
@@ -1167,6 +1290,53 @@ body.light-theme-active .delivery-modal-content label,
 .delivery-modal-content .form-group textarea {
   min-height: 42px;
   font-size: 0.9rem !important;
+}
+
+/* ── Currency field ──────────────────────────────────────────────────────
+   A money box reads as one, before anyone parses the number in it: the "$"
+   sits inside the field rather than only in the label, and the figure is
+   right-aligned with tabular figures so a column of charges lines up on the
+   decimal point instead of drifting with each digit's natural width.
+   The symbol is painted here rather than typed into the value — it is never
+   part of what gets saved, and a caret must not be able to land behind it.
+   Positioned, not a flex sibling, so the input keeps the full-width sizing
+   and min-height every other field in this modal gets from the rules above. */
+.delivery-modal-content .amount-input-wrap {
+  position: relative;
+  display: block;
+}
+
+.delivery-modal-content .amount-input-prefix {
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #94a3b8;
+  /* The symbol must never eat a click meant for the field behind it — the
+     left edge is exactly where people aim to put the caret before a figure. */
+  pointer-events: none;
+}
+
+body.light-theme-active .delivery-modal-content .amount-input-prefix,
+.light-theme-active .delivery-modal-content .amount-input-prefix {
+  color: #64748b;
+}
+
+.delivery-modal-content .amount-input-wrap input {
+  /* Every other field in this modal is a direct flex child of .form-group and
+     gets its full width from that stretch. This one is a block inside the
+     wrapper instead, and an <input> left to itself falls back to its default
+     ~20-character size — so the width has to be asked for explicitly or the
+     freight box renders half the width of the two fields above it.
+     border-box is global (src/index.css), so the padding below stays inside
+     this 100% rather than overflowing the column. */
+  width: 100%;
+  /* Clears the symbol. Any less and a five-figure charge touches it. */
+  padding-left: 1.5rem !important;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Textarea has auto height but at least 4 rows */
@@ -2111,7 +2281,6 @@ body.light-theme-active .stop-location-text,
 .so-header-inline-text {
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   min-width: 0;
   font-weight: 700;
   color: #d4af37;
@@ -2120,7 +2289,10 @@ body.light-theme-active .stop-location-text,
   display: inline-flex;
   align-items: center;
   gap: 0.18rem;
-  padding: 0.05rem 0.18rem;
+  /* Roomier than it looks: this is a target people hit many times a day to copy
+     an SO# into SPS, and it was a 0.05rem sliver. The extra height still fits
+     inside the status pill's, so no card on the board grows by a pixel. */
+  padding: 0.12rem 0.3rem;
   border-radius: 4px;
   transition: all 0.15s ease-in-out;
 }
@@ -2135,9 +2307,34 @@ body.light-theme-active .stop-location-text,
   background: rgba(34, 197, 94, 0.15) !important;
 }
 
+/* Shown in full for every reference this board actually carries.
+   Measured against the live data: 92% of tickets hold a 5-8 character number,
+   and those fit whole at every column width once the type has stepped down.
+   The tail is the problem — the field also collects hand-typed lists like
+   "146998,147002,147004,147030,146995", and one ticket holds 71 characters.
+   Nothing renders 71 characters legibly beside a stop number and a status pill,
+   so those and only those ellipsise: the row stays intact, hovering shows the
+   whole string, and clicking still copies every character of it. */
+.so-num-highlight {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .so-copy-icon {
   opacity: 0.65;
   transition: opacity 0.15s ease, transform 0.15s ease;
+  /* Never the thing that gets dropped. It is the only sign this number can be
+     copied at all, and it was the first casualty in a narrow truck column —
+     the affordance disappeared exactly where the card was hardest to read. */
+  flex-shrink: 0;
+}
+
+/* Same for the leading icon and the "Stop #N" label: fixed, tiny, and load
+   bearing. Only the reference number should ever shrink. */
+.ticket-stop-label > svg {
+  flex-shrink: 0;
 }
 
 .so-header-inline-text:hover .so-copy-icon {
@@ -2410,10 +2607,8 @@ body.light-theme-active .day-date-sub,
 
 /* Delivery Tickets & Stop Cards */
 body.light-theme-active .screenshot-stop-item,
-body.light-theme-active .manifest-ticket-chip,
 body.light-theme-active .screenshot-driver-card,
 .light-theme-active .screenshot-stop-item,
-.light-theme-active .manifest-ticket-chip,
 .light-theme-active .screenshot-driver-card {
   background: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
@@ -2421,11 +2616,44 @@ body.light-theme-active .screenshot-driver-card,
   color: #0f172a !important;
 }
 
+/* The ticket chip is carved out of the rule above so its left edge can keep the
+   driver's colour.
+   It used to be in there, and two things went wrong at once. The `border`
+   shorthand resets all four sides, so the 4px accent from .manifest-ticket-chip
+   became 1px grey; and an !important declaration outranks an author inline
+   style — the one place that intuition runs backwards — so the per-truck colour
+   TicketChip sets inline was computed, applied and silently discarded. Light
+   mode therefore showed a uniform grey box on every card while dark mode showed
+   the driver colours correctly.
+   The fix is to name the three sides that should be grey and leave border-left
+   alone apart from its width and style, so nothing !important ever touches its
+   colour and the inline value wins again. */
+body.light-theme-active .manifest-ticket-chip,
+.light-theme-active .manifest-ticket-chip {
+  background: #ffffff !important;
+  border-top: 1px solid #e2e8f0 !important;
+  border-right: 1px solid #e2e8f0 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  border-left-width: 4px !important;
+  border-left-style: solid !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  color: #0f172a !important;
+}
+
 body.light-theme-active .screenshot-stop-item:hover,
-body.light-theme-active .manifest-ticket-chip:hover,
-.light-theme-active .screenshot-stop-item:hover,
-.light-theme-active .manifest-ticket-chip:hover {
+.light-theme-active .screenshot-stop-item:hover {
   border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Hover darkens the three grey sides only. `border-color` would have taken the
+   accent with it and greyed out the driver colour on the card being pointed at
+   — the one card whose colour the user is most likely to be checking. */
+body.light-theme-active .manifest-ticket-chip:hover,
+.light-theme-active .manifest-ticket-chip:hover {
+  border-top-color: #cbd5e1 !important;
+  border-right-color: #cbd5e1 !important;
+  border-bottom-color: #cbd5e1 !important;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
 }
 

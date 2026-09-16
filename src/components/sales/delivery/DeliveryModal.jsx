@@ -5,9 +5,13 @@ import CustomSelect from '../../shared/CustomSelect';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { formatTitleCase } from '../../../utils/textUtils';
+// A currency box has to take back what it hands out: "1,400" typed, pasted or
+// left over from a previous blur must still save as the number 1400, not as 0.
+import { parseAmount, formatAmount, sanitizeAmountInput } from '../../../utils/money';
 // The contract-freight column is recognised in one place, shared with the board
 // and the ePOD certificate — see src/utils/deliveryPickup.js.
 import { isThirdPartyTruck as isThirdParty } from '../../../utils/deliveryPickup';
+import { defaultStatusFor } from '../../../utils/deliveryTypes';
 import { isWeekendDate, dayLabel } from '../../../utils/deliveryWeek';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
@@ -126,10 +130,30 @@ const DeliveryModal = ({
   // pickup date, rather than under a driver who is not doing the run.
   const isWillCall = deliveryType === 'will_call';
 
+  // A return keeps the jobsite layout — it has an address, a stop on someone's
+  // route and a slab count, because a driver may well be going out to collect
+  // it. What differs is that it can also have no driver at all, which means the
+  // customer is bringing it back themselves.
+  const isReturnOrder = deliveryType === 'return';
+
   // Transfers go out on contract freight rather than our own trucks, so picking
-  // that type pre-selects the 3rd-party carrier.
+  // that type pre-selects the 3rd-party carrier. `find` is right here — a
+  // default only needs one of them — but it is the wrong question to ask about
+  // what is currently selected; see below.
   const thirdPartyTruck = trucks.find(isThirdParty);
-  const isThirdPartySelected = Boolean(thirdPartyTruck && truckId === thirdPartyTruck.id);
+
+  // Whether the *selected* column is contract freight, not whether it happens
+  // to be the first contract-freight column in the list.
+  //
+  // There is more than one: the built-in `trk_3rd_party` row, plus any driver
+  // user whose name spells it out ('3rd party - delivery'), which arrives as
+  // `drv_<username>` — and there is one of those per location. Comparing
+  // truckId against `trucks.find(isThirdParty)` therefore recognised exactly
+  // one of them, so picking any other 3rd-party column hid the carrier fields
+  // and a real freight ticket was saved with no carrier, no PRO/BOL and no
+  // charge against it, with nothing on screen to say they were missing.
+  const selectedTruck = trucks.find(t => t.id === truckId);
+  const isThirdPartySelected = isThirdParty(selectedTruck);
 
   // A new ticket arrives pre-filled with whichever column the + was clicked in
   // (or the first driver from the toolbar button), so that driver was never a
@@ -316,6 +340,14 @@ const DeliveryModal = ({
       setSoNumber(initialData.soNumber || initialData.invoiceNumber || '');
       setAddress(initialData.address || '');
       setSalesRepName(initialData.salesRepName || currentUser?.name || 'Admin');
+      // An existing ticket's status is shown exactly as stored. Deriving it
+      // here instead would silently rewrite history on open: a ticket someone
+      // deliberately left as Pending — "the customer hasn't confirmed yet",
+      // even though a driver is penciled in — would come back as Scheduled and
+      // persist that on the next save, with nothing on screen to say it had
+      // changed. New tickets have no such intent to preserve, so those still
+      // get the derived default (see the else branch's resetForm and
+      // handleOpenAddModal).
       setStatus(initialData.status || 'pending');
       setNotes(initialData.notes || '');
       setTime(initialData.time || '09:00 AM');
@@ -326,7 +358,11 @@ const DeliveryModal = ({
       setPickupInfo(initialData.pickupInfo || '');
       setCarrierName(initialData.carrierName || '');
       setProNumber(initialData.proNumber || '');
-      setFreightFee(initialData.freightFee || '');
+      // Formatted on the way in so a stored 1400 opens as "1,400.00" rather
+      // than as a bare figure the field would only tidy up once touched.
+      // A falsy value stays blank: the model defaults freightFee to 0, and
+      // "0.00" in the box would claim someone had priced this at nothing.
+      setFreightFee(initialData.freightFee ? formatAmount(initialData.freightFee) : '');
       setPackingListUrl(initialData.packingListUrl || '');
       setPackingListFilename(initialData.packingListFilename || '');
       setNumberOfSlabs(initialData.numberOfSlabs === null || initialData.numberOfSlabs === undefined ? '0' : String(initialData.numberOfSlabs));
@@ -468,7 +504,10 @@ const DeliveryModal = ({
       pickupInfo: isTransfer ? '' : pickupInfo.trim(),
       carrierName: isTransfer ? '' : carrierName.trim(),
       proNumber: isTransfer ? '' : proNumber.trim(),
-      freightFee: isTransfer ? 0 : (Number(freightFee) || 0),
+      // parseAmount, not Number: by the time this runs the field holds a
+      // formatted string ("1,400.00"), and Number() reads that as NaN, which
+      // `|| 0` then quietly turned into a $0 freight charge.
+      freightFee: isTransfer ? 0 : (parseAmount(freightFee) ?? 0),
       packingListUrl,
       packingListFilename,
       numberOfSlabs: numberOfSlabs === '' ? 0 : Number(numberOfSlabs),
@@ -598,7 +637,15 @@ const DeliveryModal = ({
               />
               {isPendingOrder && (
                 <span className="pending-order-note">
-                  No driver assigned — this stays in Pending Delivery until you pick one.
+                  {isReturnOrder
+                    // A driverless return is not waiting for anything — it is
+                    // the customer bringing it back themselves. Which of the
+                    // two it is depends entirely on whether a date is set, so
+                    // the note has to say so at the moment that choice is made.
+                    ? (date
+                        ? 'No driver — the customer is bringing this back themselves, so it sits in the board’s Will Call column.'
+                        : 'No driver and no date — this waits in Pending Delivery. Add a date to make it a customer drop-off, or pick a driver to go and collect it.')
+                    : 'No driver assigned — this stays in Pending Delivery until you pick one.'}
                 </span>
               )}
               {/* Weekend work is rare but real, so this informs rather than
@@ -638,7 +685,8 @@ const DeliveryModal = ({
                 options={[
                   { value: 'jobsite', label: '🚚 Delivery' },
                   { value: 'transfer', label: '🔄 Inter-Branch Transfer' },
-                  { value: 'will_call', label: '🏭 Will Call Pickup' }
+                  { value: 'will_call', label: '🏭 Will Call Pickup' },
+                  { value: 'return', label: '↩️ Return Pickup' }
                 ]}
               />
             </div>
@@ -916,7 +964,20 @@ const DeliveryModal = ({
                 <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver / Fleet</label>
                 <CustomSelect
                   value={truckId}
-                  onChange={(e) => { setTruckId(e.target.value); markDirty(); }}
+                  onChange={(e) => {
+                    const nextTruckId = e.target.value;
+                    setTruckId(nextTruckId);
+                    // Picking a driver schedules the order; taking the driver
+                    // back off returns it to Pending. This applies to existing
+                    // tickets too, unlike the on-open default above, and the
+                    // difference is intent: opening a ticket is not a decision
+                    // about it, whereas assigning a driver is exactly that, and
+                    // the new status is on screen to be overridden before
+                    // anything is saved. Assigning a driver to something in the
+                    // Pending list is the whole point of the list.
+                    setStatus(defaultStatusFor({ ...initialData, deliveryType, date, truckId: nextTruckId, status }));
+                    markDirty();
+                  }}
                   options={[
                     // Our own drivers first, then contract freight, and Pending
                     // Delivery last — the list reads as "who is taking this",
@@ -977,13 +1038,31 @@ const DeliveryModal = ({
                   />
                 </div>
                 <div className="form-group">
-                  <label style={{ color: '#c084fc' }}>Freight Charge ($)</label>
-                  <input
-                    type="number"
-                    value={freightFee}
-                    onChange={(e) => { setFreightFee(e.target.value); markDirty(); }}
-                    placeholder="e.g. 350"
-                  />
+                  <label style={{ color: '#c084fc' }}>Freight Charge</label>
+                  {/* type="text", not type="number". A number input refuses to
+                      hold a grouped figure at all — assigning "1,400.00" to one
+                      silently blanks it — so the field could never show the
+                      amount back the way an invoice writes it. It also brings
+                      spinner arrows and scroll-wheel editing, which on a money
+                      box next to a scrolling form is a way to change a freight
+                      charge by accident. inputMode keeps the numeric keypad on
+                      a tablet, which is the only part worth keeping. */}
+                  <div className="amount-input-wrap">
+                    <span className="amount-input-prefix" aria-hidden="true">$</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={freightFee}
+                      onChange={(e) => { setFreightFee(sanitizeAmountInput(e.target.value)); markDirty(); }}
+                      // Formatted on blur rather than on every keystroke:
+                      // reformatting mid-type moves the caret out from under
+                      // whoever is typing, so "1400" becomes "1,400" and the
+                      // next digit lands in the wrong place.
+                      onBlur={() => setFreightFee(formatAmount(freightFee))}
+                      placeholder="0.00"
+                      aria-label="Freight charge in dollars"
+                    />
+                  </div>
                 </div>
               </div>
             )}

@@ -70,8 +70,11 @@ import {
 import { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './src/utils/inventoryImport.js';
 import {
   isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
-  PICKUP_WORDING, DELIVERY_WORDING
+  PICKUP_WORDING, DELIVERY_WORDING, RETURN_WORDING
 } from './src/utils/deliveryPickup.js';
+import {
+  DELIVERY_TYPES as SHARED_DELIVERY_TYPES, isReturn
+} from './src/utils/deliveryTypes.js';
 import { signedPackingListFileName } from './src/utils/packingList.js';
 import { zonedTimeToUtc } from './src/utils/dateUtils.js';
 import { stripPhone, formatPhoneForDisplay } from './src/utils/phoneUtils.js';
@@ -384,6 +387,10 @@ const derivePodVerified = (pod, hasPackingList) => Boolean(
  * account the ticket was filed under.
  */
 const certificateWordingFor = async ({ deliveryType, truckId }) => {
+  // Checked before anything else: a return is a return whether a driver went
+  // out for it or the customer brought it back, and its certificate names the
+  // two parties the opposite way round from every other ticket.
+  if (isReturn({ deliveryType })) return RETURN_WORDING;
   if (isWillCall({ deliveryType })) return PICKUP_WORDING;
 
   const id = String(truckId || '');
@@ -4744,21 +4751,46 @@ app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) =>
     // A will call is not pending, though it never gets a driver: the customer
     // collects it on a known date, so it belongs to its week under the board's
     // Will Call column. Both queries account for it so it lands in exactly one.
+    // A customer drop-off (a return with a date and no driver) works the same
+    // way, under the board's Drop-Off column — but only once it has a date. A
+    // return with no date yet has no day to be drawn on, so that one does wait
+    // in Pending like any other undated order.
+    //
+    // These two branches are complements and have to stay that way: the JS
+    // side of the same rule is isPendingDelivery in src/utils/deliveryTypes.js,
+    // which has tests asserting every ticket lands in exactly one view. A
+    // ticket that matches neither query is not an error anywhere — it just
+    // stops existing as far as the app is concerned.
     const { startDate, endDate, pending } = req.query;
     let baseQuery;
     if (pending === 'true') {
       // $in rather than $or: the location scoping below contributes its own $or,
       // and a second one on the same object would replace this filter outright.
       // { $in: ['', null] } also matches documents with no truckId field at all.
-      baseQuery = { truckId: { $in: ['', null] }, deliveryType: { $ne: 'will_call' } };
+      // $nor (not a second $or) carves out the dated drop-offs for the same
+      // reason.
+      baseQuery = {
+        truckId: { $in: ['', null] },
+        deliveryType: { $ne: 'will_call' },
+        $nor: [{ deliveryType: 'return', date: { $nin: ['', null] } }]
+      };
     } else if (startDate && endDate) {
       // The date range now lives in scopeDeliveryQueryToLocations's own $or
       // (see below) rather than as a bare condition here, so it can apply to
       // a different field for an inbound transfer than for everything else.
       // Still wrapped in $and for the same reason as before: the location
       // scoping owns the top-level $or.
+      // A bare { deliveryType: 'return' } is enough for the drop-off side: an
+      // undated return can't fall inside any date range, so it stays out of
+      // every week on its own and is left to the Pending branch above.
       baseQuery = {
-        $and: [{ $or: [{ truckId: { $nin: ['', null] } }, { deliveryType: 'will_call' }] }]
+        $and: [{
+          $or: [
+            { truckId: { $nin: ['', null] } },
+            { deliveryType: 'will_call' },
+            { deliveryType: 'return' }
+          ]
+        }]
       };
     } else {
       baseQuery = {};
@@ -5019,7 +5051,9 @@ app.patch('/api/deliveries/:id/status', verifyAnyAuth, canWriteDeliveries, async
 // slot (truck/column, day) a delivery sits in, so this writes just those
 // three fields instead of echoing the board's cached copy of the whole
 // record back through POST /api/deliveries.
-const DELIVERY_TYPES = ['jobsite', 'transfer', 'will_call'];
+// Imported rather than restated, so the whitelist can't drift from the model
+// enum or from the placement rules the board and Pending list share.
+const DELIVERY_TYPES = SHARED_DELIVERY_TYPES;
 
 app.patch('/api/deliveries/:id/assignment', verifyAnyAuth, canWriteDeliveries, async (req, res) => {
   try {

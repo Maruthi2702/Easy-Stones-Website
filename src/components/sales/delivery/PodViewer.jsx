@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, FileText, Calendar, User, Download, Camera, Eye, RotateCcw, AlertTriangle } from 'lucide-react';
 import { packingListFileName, signedPackingListFileName, downloadPdf, openPdfInline } from '../../../utils/packingList';
-import { isPickupDelivery, wordingFor } from '../../../utils/deliveryPickup';
+import { wordingForTicket } from '../../../utils/deliveryPickup';
 
 /**
  * Read-only ePOD viewer — shows the signed Proof of Delivery record.
@@ -22,7 +22,7 @@ const PodViewer = ({
 }) => {
   // A signed pickup has to read back as one. Reopening it under "Driver
   // Signature" would misname the two people who actually signed.
-  const words = wordingFor(isPickupDelivery(delivery, trucks));
+  const words = wordingForTicket(delivery, trucks);
   const pod = delivery?.pod || {};
   const hasCustomerSig = Boolean(pod.customerSignature);
   const hasDriverSig = Boolean(pod.driverSignature);

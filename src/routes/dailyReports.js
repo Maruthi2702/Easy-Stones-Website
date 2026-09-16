@@ -96,8 +96,19 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     // carves out the same exception. Without it every pick-up ticket fails
     // the truckId check and the report's Pick-ups count and slabs sit at 0
     // regardless of how many pickups actually happened that day.
+    //
+    // A customer drop-off (a return with no driver) needs the same carve-out,
+    // for exactly the same reason. A return a driver goes out for already
+    // passes the truckId check.
     Delivery.find(
-      { date, $or: [{ truckId: { $nin: ['', null] } }, { deliveryType: 'will_call' }] },
+      {
+        date,
+        $or: [
+          { truckId: { $nin: ['', null] } },
+          { deliveryType: 'will_call' },
+          { deliveryType: 'return' }
+        ]
+      },
       'deliveryType transferDestination location numberOfSlabs'
     ).lean(),
     // Inbound transfers key off a different date (when they're due here, not
@@ -118,6 +129,12 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
 
   const jobsiteRows = mine.filter(d => !d.deliveryType || d.deliveryType === 'jobsite');
   const willCallRows = mine.filter(d => d.deliveryType === 'will_call');
+  // Returns are material coming back in, so they are deliberately not folded
+  // into the Deliveries or Pick-ups totals — those two are what went out, and
+  // a day that shipped nothing but took four slabs back should not read as a
+  // day that shipped four. Both kinds count here: whether a driver collected
+  // it or the customer walked it in, the same material arrived.
+  const returnRows = mine.filter(d => d.deliveryType === 'return');
 
   // One line per counterpart branch, the way the sheet reads: SEA — SLC. The
   // outbound side groups by where it's going; the inbound side groups by
@@ -163,6 +180,8 @@ async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     pickupsAssigned: willCallRows.length,
     deliveriesSlabs: jobsiteRows.reduce((sum, d) => sum + slabsOf(d), 0),
     pickupsSlabs: willCallRows.reduce((sum, d) => sum + slabsOf(d), 0),
+    returnsCount: returnRows.length,
+    returnsSlabs: returnRows.reduce((sum, d) => sum + slabsOf(d), 0),
     transfers: [...outbound, ...inbound]
   };
 }
@@ -198,6 +217,28 @@ export function applyDerived(report, derived) {
   if (report.pickups.capacity === null || report.pickups.capacity === undefined) {
     report.pickups.capacity = derived.pickupsSlabs;
   }
+
+  // Returns are filled in only when there is actually something to report.
+  //
+  // This is deliberately stricter than the two above, because `returns` is an
+  // older hand-typed field, and on this sheet null and 0 are different facts:
+  // null is "nobody has said", 0 is "somebody said none" (see the comment on
+  // the schema). Filling a plain 0 in on every quiet day would answer the
+  // question on the branch's behalf, turning every blank sheet into one that
+  // claims no returns came back — and it would do it before anyone had looked.
+  // Writing only a real, non-zero ticket count keeps the blank meaning blank
+  // and still saves the typing on the days it matters.
+  //
+  // Unlike the capacity fields, these are not stripped back out by
+  // buildDraftPayload, so once a figure lands it stops tracking later ticket
+  // edits. That is the safe direction for a field people have been typing into
+  // by hand for months: an auto-fill that goes stale can be corrected on the
+  // sheet, whereas a strip would quietly wipe a number somebody entered.
+  const fillReturn = (value, count) =>
+    ((value === null || value === undefined) && count > 0 ? count : value);
+
+  report.returns = fillReturn(report.returns, derived.returnsCount);
+  report.returnsSlabs = fillReturn(report.returnsSlabs, derived.returnsSlabs);
 
   // Keep any slab counts already on a route that still exists — that covers
   // both a hand correction and a figure that was itself auto-filled earlier,
@@ -426,7 +467,9 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           deliveriesAssigned: derived.deliveriesAssigned,
           pickupsAssigned: derived.pickupsAssigned,
           deliveriesSlabs: derived.deliveriesSlabs,
-          pickupsSlabs: derived.pickupsSlabs
+          pickupsSlabs: derived.pickupsSlabs,
+          returnsCount: derived.returnsCount,
+          returnsSlabs: derived.returnsSlabs
         },
         // The band a slab count is sane within, so the rule lives on the server
         // rather than being reinvented in the form.
@@ -469,6 +512,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         deliveries: { assigned: num(body.deliveries?.assigned), capacity: numOrNull(body.deliveries?.capacity) },
         pickups: { assigned: num(body.pickups?.assigned), capacity: numOrNull(body.pickups?.capacity) },
         returns: numOrNull(body.returns),
+        returnsSlabs: numOrNull(body.returnsSlabs),
         sinks: numOrNull(body.sinks),
         transfers: (body.transfers || []).map(t => ({
           fromTo: String(t.fromTo || '').trim(),

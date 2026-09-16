@@ -8,6 +8,7 @@ import { openPdfInline } from '../../../utils/packingList';
 // Day names derive from the dates themselves, so the strip follows whichever
 // days the week is showing rather than a fixed Mon-Fri list.
 import { dayLabel } from '../../../utils/deliveryWeek';
+import { isCounterReturn } from '../../../utils/deliveryTypes';
 import StatusPill from './StatusPill';
 import './DriverView.css';
 
@@ -137,6 +138,11 @@ const DriverView = ({
       // The customer collects a will call themselves, so it is on nobody's run —
       // including older ones still carrying the truckId they were created under.
       if (del.deliveryType === 'will_call') return false;
+      // A customer drop-off is the same story: they bring it back to us, so no
+      // driver goes anywhere. A return WITH a driver is the opposite — that is
+      // a real stop on this run and falls through to the checks below, because
+      // somebody has to actually drive out and collect it.
+      if (isCounterReturn(del)) return false;
       if (truckIds.has(cleanField(del.truckId).toLowerCase())) return true;
       // Names are compared whole. A "contains" match put Jose's stops on Jose
       // M's manifest, which is the one mistake a driver's day cannot absorb.

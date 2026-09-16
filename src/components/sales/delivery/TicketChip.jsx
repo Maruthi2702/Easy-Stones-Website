@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine } from 'lucide-react';
+import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine, Undo2 } from 'lucide-react';
 import StatusPill from './StatusPill';
 import EpodChip from './EpodChip';
 
@@ -32,6 +32,14 @@ function Highlight({ text = '', query = '' }) {
 const SPS_SEARCH_URL = 'https://easystones.stoneprofits.com/vSalesHome.aspx';
 const SPS_TAB_NAME = 'easystones_sps';
 
+// Returns are the one ticket on the board where material comes back to us
+// instead of going out, and the cost of missing that is a driver loading a
+// truck for a stop they were meant to collect from. Red because it has to be
+// readable as "not a normal delivery" from across the room, before anyone
+// reads a word of the card. Matches the red used for Hold in Inventory
+// Analysis, so the two screens mean the same thing by it.
+const RETURN_ACCENT = '#ef4444';
+
 const TicketChip = ({
   delivery,
   truckColor = '#D4AF37',
@@ -59,10 +67,15 @@ const TicketChip = ({
   // A will call is collected by the customer: it is nobody's stop on a route, so
   // the header says so instead of claiming a stop number it does not have.
   const isWillCall = delivery.deliveryType === 'will_call';
-  // The title line already reads "Transfer -> <branch>", so the header says
-  // "Transfer# 14322" rather than repeating the word and wrapping in a narrow
-  // truck column.
-  const refLabel = isTransfer ? '' : '| SO# ';
+  // A return runs the other way — material coming back to us. Called out under
+  // the address rather than in the header, because "Stop #2" on a driver's run
+  // gives no hint that the truck is collecting rather than dropping off, and
+  // that is the one thing the driver needs to know before they get there.
+  const isReturnTicket = delivery.deliveryType === 'return';
+  // A transfer's header already carries the word, so the number follows it bare
+  // ("Transfer# 18311") rather than saying it twice — which on the narrowest
+  // columns is the difference between the number fitting and not.
+  const refLabel = isTransfer ? '' : 'SO# ';
   const showRep = !isTransfer;
   const isSigned = Boolean(delivery.pod?.verified);
   // Signed once, then voided. It still needs a signature, but more urgently than
@@ -111,8 +124,12 @@ const TicketChip = ({
 
   return (
     <div
-      className={`manifest-ticket-chip ${editable ? 'clickable' : ''} ${isDragging ? 'dragging' : ''} status-border-${delivery.status || 'scheduled'}`}
-      style={{ borderLeftColor: truckColor }}
+      className={`manifest-ticket-chip ${editable ? 'clickable' : ''} ${isDragging ? 'dragging' : ''} ${isReturnTicket ? 'return-chip' : ''} status-border-${delivery.status || 'scheduled'}`}
+      // The accent has to be set here rather than left to .return-chip in CSS:
+      // this inline colour is what paints the truck's colour on every other
+      // ticket, and an inline style beats any stylesheet rule, so a CSS-only
+      // version would simply never show.
+      style={{ borderLeftColor: isReturnTicket ? RETURN_ACCENT : truckColor }}
       onClick={() => onClick && onClick(delivery)}
       title={editable ? 'Click to edit delivery' : delivery.customerName}
       draggable={canDrag}
@@ -126,25 +143,49 @@ const TicketChip = ({
     >
       <div className="ticket-header">
         <span className="ticket-time-mono">
+          {/* Wrapped so it can be told not to shrink. As a bare text node it
+              became an anonymous flex item, which flexbox is free to squeeze —
+              and "Stop #1" losing characters to make room for a reference
+              number is the wrong way round. */}
+          <span className="ticket-stop-label">
           {isTransfer ? (
             <><Repeat size={11} style={{ marginRight: 2 }} />{soVal ? 'Transfer#' : 'Transfer'}</>
           ) : isWillCall ? (
             <><PackageCheck size={11} style={{ marginRight: 2 }} /> Will Call</>
+          ) : isReturnTicket && !delivery.truckId ? (
+            // A drop-off is on nobody's route, so it has no stop number to
+            // claim — same reason a will call says what it is instead. A return
+            // a driver IS collecting falls through to the ordinary "Stop #N"
+            // below, because it genuinely is one of their stops, and the
+            // headers across the board read the same because of it. What kind
+            // of stop it is gets said under the address instead.
+            <><Undo2 size={11} style={{ marginRight: 2 }} /> Drop-Off</>
           ) : (
             <><Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}</>
+          )}
+          </span>
+          {soVal && (
+            // A divider of its own rather than a character inside the label
+            // below: sitting inside the copy chip, it would light up with the
+            // hover background and read as part of the number you are about to
+            // copy. aria-hidden because it is punctuation between two things a
+            // screen reader already announces separately.
+            <span className="ticket-header-sep" aria-hidden="true">|</span>
           )}
           {soVal && (
             <span
               className={`so-header-inline-text ${copied ? 'copied' : ''}`}
               onClick={(e) => handleCopySO(e, soVal)}
-              title={copied ? 'Copied to clipboard!' : `Click to copy ${isTransfer ? 'Transfer#' : 'SO#'}`}
+              title={copied
+                ? 'Copied to clipboard!'
+                : `Click to copy ${isTransfer ? 'Transfer#' : 'SO#'} ${soVal}`}
             >
               {refLabel}
               <span className="so-num-highlight">{soVal}</span>
               {copied ? (
-                <Check size={11} className="so-copy-icon success" />
+                <Check size={13} className="so-copy-icon success" />
               ) : (
-                <Copy size={11} className="so-copy-icon" />
+                <Copy size={13} className="so-copy-icon" />
               )}
             </span>
           )}
@@ -169,6 +210,18 @@ const TicketChip = ({
         <p className="ticket-address">
           <MapPin size={12} />
           <Highlight text={delivery.address} query={searchQuery} />
+        </p>
+      )}
+
+      {/* Under the address rather than in the header, so every card's top line
+          reads the same way. It still has to be impossible to miss — a driver
+          loading a truck for a stop they were meant to collect from is the
+          mistake this exists to prevent — which is what the red here and the
+          red edge on the card are carrying now that the header is neutral. */}
+      {isReturnTicket && (
+        <p className="ticket-return-flag">
+          <Undo2 size={12} />
+          Return pickup
         </p>
       )}
 

@@ -2,6 +2,7 @@ import { API_URL } from '../config/api';
 import { io } from 'socket.io-client';
 import { authFetch } from './authFetch';
 import { DAYS_IN_WEEK } from '../utils/deliveryWeek';
+import { isPendingDelivery } from '../utils/deliveryTypes';
 
 export const MAX_TRUCK_CAPACITY = 12;
 
@@ -95,10 +96,11 @@ function getActiveWeekDeliveries() {
 }
 
 // Pending means no driver assigned yet — such an order has no truck column to
-// sit in, so it waits in the Pending list until one is chosen. A will call is
-// the exception: the customer collects it, so it never gets a driver and sits
-// in the board's own Will Call column on its pickup date instead.
-const isPendingDelivery = (d) => !d || (!d.truckId && d.deliveryType !== 'will_call');
+// sit in, so it waits in the Pending list until one is chosen. Will calls and
+// customer drop-offs are the exceptions, since neither ever gets a driver.
+// The rule itself (and its tests) live in src/utils/deliveryTypes.js, shared
+// with the board so the two cannot drift; it must also stay the complement of
+// the server's week query in GET /api/deliveries.
 
 // Merge a single created/updated delivery into whichever cached week(s) it
 // belongs to (and remove it from any cached week it no longer belongs to,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search, AlertTriangle } from 'lucide-react';
-import BoardGrid, { WILL_CALL_COLUMN_ID } from './delivery/BoardGrid';
+import BoardGrid from './delivery/BoardGrid';
+import { WILL_CALL_COLUMN_ID, defaultStatusFor } from '../../utils/deliveryTypes';
 import DriverView from './delivery/DriverView';
 import DeliveryModal from './delivery/DeliveryModal';
 import PodModal from './delivery/PodModal';
@@ -226,17 +227,23 @@ const DeliveryScheduleTab = ({
   };
 
   const handleOpenAddModal = (truckId = null, dateStr = null) => {
-    // The Will Call column is not a truck — adding from it opens a pickup ticket
-    // with no driver, which is what a customer collection is.
+    // Will Call is not a truck — adding from it opens a ticket with no driver,
+    // which is what a customer collecting material actually is. A slab the
+    // customer is bringing back shares that column, but it is created by
+    // choosing Return Pickup in the modal rather than by which column the Add
+    // button sat in, since the common case by far is a driver going out for it.
     const isWillCallColumn = truckId === WILL_CALL_COLUMN_ID;
-    setEditingDelivery({
+    const draft = {
       truckId: isWillCallColumn ? '' : (truckId || trucks[0]?.id || 'trk_1'),
       deliveryType: isWillCallColumn ? 'will_call' : 'jobsite',
       date: dateStr || weekDates[0],
       time: '09:00 AM',
-      salesRepName: currentUser?.name || 'Admin',
-      status: 'pending'
-    });
+      salesRepName: currentUser?.name || 'Admin'
+    };
+    // Adding from a truck column prefills that driver, so the ticket is already
+    // scheduled — this used to open as Pending regardless, which is why tickets
+    // sat on a driver's run labelled as waiting for one.
+    setEditingDelivery({ ...draft, status: defaultStatusFor(draft) });
     setIsModalOpen(true);
   };
 
@@ -291,10 +298,16 @@ const DeliveryScheduleTab = ({
   };
 
   // The reverse of the move above: dragging a ticket off the board and onto
-  // the Pending list gives its driver back. Pending is defined as "no truckId
-  // and not a will call" (isPendingDelivery in src/api/schedule.js), so
-  // clearing truckId is the whole change — the week query and the pending
-  // query are complements, and the ticket swaps sides on its own.
+  // the Pending list gives its driver back. Pending is defined in
+  // src/utils/deliveryTypes.js, so clearing truckId is the whole change — the
+  // week query and the pending query are complements, and the ticket swaps
+  // sides on its own.
+  //
+  // A return is the one case where it lands somewhere else: a dated return
+  // with no driver is a customer bringing slabs back, not a pending order, so
+  // it moves to the board's Will Call column instead of into this list. That is
+  // the right outcome (nobody is driving it any more) and the card visibly
+  // moves, so nothing looks like it was swallowed.
   const handleMoveToPending = async (id) => {
     const delivery = deliveries.find(d => d.id === id);
     if (!delivery) return;
