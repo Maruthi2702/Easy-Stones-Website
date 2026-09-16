@@ -5032,8 +5032,18 @@ app.patch('/api/deliveries/:id/assignment', verifyAnyAuth, canWriteDeliveries, a
     if (deliveryType === 'will_call') {
       // A will call is never on a truck, regardless of what the client sent.
       truckId = '';
-    } else if (!truckId) {
-      return res.status(400).json({ error: 'truckId is required unless deliveryType is will_call' });
+    } else if (typeof truckId !== 'string') {
+      // An empty string is allowed and meaningful: it is the board's reverse
+      // move, dragging a ticket off a truck column and back into Pending.
+      // GET /api/deliveries?pending=true is exactly "truckId in ['', null]
+      // and not a will call", so clearing the truck is what puts a ticket
+      // back on that list. A missing/undefined truckId still fails — that's a
+      // malformed request rather than a deliberate un-assignment, and
+      // silently clearing the truck on one would strand the ticket off the
+      // week view with no visible sign of where it went.
+      return res.status(400).json({
+        error: 'truckId must be a string — "" moves the delivery back to Pending'
+      });
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
       return res.status(400).json({ error: 'date must be a YYYY-MM-DD string' });

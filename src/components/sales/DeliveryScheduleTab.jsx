@@ -268,12 +268,55 @@ const DeliveryScheduleTab = ({
     return updatedList;
   };
 
+  // A rejected move used to fail completely silently: nothing awaits or
+  // catches the drop handlers below, so a 4xx from the server became an
+  // unhandled rejection and the card simply snapped back with no explanation.
+  // That is indistinguishable from "drag and drop is broken" — which is how
+  // it was reported. Put the reason on screen instead.
+  const reportMoveFailure = (err) => {
+    console.error('[schedule] move failed:', err);
+    setLoadError(err?.message || "Couldn't move that delivery.");
+  };
+
   // Drag-and-drop move on the dispatch board: which driver/column/day a
   // ticket belongs to, nothing else (stop numbers are left as-is).
   const handleMoveDelivery = async (id, assignment) => {
-    const updatedList = await updateDeliveryAssignment(id, assignment);
-    setDeliveries(updatedList);
-    return updatedList;
+    try {
+      const updatedList = await updateDeliveryAssignment(id, assignment);
+      setDeliveries(updatedList);
+      return updatedList;
+    } catch (err) {
+      reportMoveFailure(err);
+    }
+  };
+
+  // The reverse of the move above: dragging a ticket off the board and onto
+  // the Pending list gives its driver back. Pending is defined as "no truckId
+  // and not a will call" (isPendingDelivery in src/api/schedule.js), so
+  // clearing truckId is the whole change — the week query and the pending
+  // query are complements, and the ticket swaps sides on its own.
+  const handleMoveToPending = async (id) => {
+    const delivery = deliveries.find(d => d.id === id);
+    if (!delivery) return;
+
+    try {
+      const updatedList = await updateDeliveryAssignment(id, {
+        truckId: '',
+        // A will call has no driver by definition, so it can never be pending —
+        // it has to become an ordinary stop on the way out. Same conversion the
+        // board already makes in the other direction, when a will call is
+        // dragged from its column onto a truck.
+        deliveryType: delivery.deliveryType === 'will_call' ? 'jobsite' : (delivery.deliveryType || 'jobsite'),
+        // Kept, not cleared: it's the last date that was agreed, and re-assigning
+        // a driver shouldn't have to rediscover it. (The endpoint requires a
+        // real YYYY-MM-DD either way.)
+        date: delivery.date
+      });
+      setDeliveries(updatedList);
+      return updatedList;
+    } catch (err) {
+      reportMoveFailure(err);
+    }
   };
 
   const handleUpdateTruck = (id, newName, newDriver) => {
@@ -404,6 +447,7 @@ const DeliveryScheduleTab = ({
               onAddPending={handleOpenAddPending}
               onEditDelivery={handleOpenEditModal}
               onViewPod={handleOpenPodViewer}
+              onMoveToPending={role === 'office' ? handleMoveToPending : undefined}
             />
           )}
 
