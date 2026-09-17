@@ -24,12 +24,19 @@
  *              driver's column), or the customer brings it back themselves
  *              (no driver, so it sits in the board's Will Call column — the
  *              column for orders that move without one of our drivers, which
- *              is exactly what a customer-returned slab is)
+ *              is exactly what a customer-returned slab is). Which of the two
+ *              it is has to be said explicitly (the `customerDropOff` flag) —
+ *              see isCounterReturn below for why.
  *
- * A return with no date yet is the one case that waits in Pending, for the
- * same reason a jobsite does: there is no day to draw it on. Without that
- * carve-out it would match neither query and go invisible, which is exactly
- * the bug described above.
+ * A driverless return waits in Pending, same as a driverless jobsite, until
+ * either a driver is picked or `customerDropOff` is set. It used to be
+ * inferred from whether a date was set instead: any driverless return with a
+ * date was assumed to be a customer drop-off, which silently moved a return
+ * someone had merely scheduled — driver still undecided — into the Will Call
+ * column the moment a date was entered, including when dragging a ticket
+ * back onto the Pending list (clearing truckId but leaving its date behind).
+ * `customerDropOff` makes that call explicit instead of guessing from a field
+ * that means something else.
  */
 
 export const DELIVERY_TYPES = ['jobsite', 'transfer', 'will_call', 'return'];
@@ -44,9 +51,13 @@ export const isReturn = (delivery) => delivery?.deliveryType === 'return';
  * rather than in Pending. It keeps its own type rather than becoming a will
  * call — the material is still coming back in, which is what the red flag on
  * the card and the Returns line on the Daily Work Report are counting.
+ *
+ * Requires the explicit `customerDropOff` flag, not just "no driver and a
+ * date" — a return can just as well be sitting in Pending with a date filled
+ * in while nobody has decided who's collecting it yet.
  */
 export const isCounterReturn = (delivery) =>
-  isReturn(delivery) && !delivery?.truckId && Boolean(delivery?.date);
+  isReturn(delivery) && !delivery?.truckId && Boolean(delivery?.date) && Boolean(delivery?.customerDropOff);
 
 /**
  * Waiting on a driver, with no place on the board yet.

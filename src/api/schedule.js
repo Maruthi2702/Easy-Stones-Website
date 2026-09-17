@@ -621,10 +621,39 @@ export async function updateDeliveryStatus(id, newStatus) {
 // ── UPDATE DELIVERY ASSIGNMENT (drag-and-drop move on the dispatch board) ──
 // Sends only truckId/deliveryType/date, the same reasoning as updateDeliveryStatus
 // above — a dragged card shouldn't echo the board's cached copy of every other field.
-export async function updateDeliveryAssignment(id, { truckId, deliveryType, date }) {
+/**
+ * Persist a whole cell's stop order in one request.
+ *
+ * `updates` is [{ id, routeNumber }] covering every ticket in the cell, not
+ * just the one that moved — dropping a card at the top renumbers everything
+ * below it, and sending only the dragged ticket would leave two stops claiming
+ * the same number.
+ */
+export async function reorderDeliveries(updates) {
+  if (!Array.isArray(updates) || !updates.length) return getActiveWeekDeliveries();
+
+  const res = await authFetch(`${API_URL}/api/deliveries/order`, {
+    method: 'PATCH',
+    body: JSON.stringify({ updates })
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Couldn't save the new stop order (${res.status}).`);
+  }
+
+  const updated = await res.json();
+  if (Array.isArray(updated)) {
+    updated.forEach(d => d && d.id && upsertDeliveryIntoCache(d));
+    notifyScheduleListeners();
+  }
+  return getActiveWeekDeliveries();
+}
+
+export async function updateDeliveryAssignment(id, { truckId, deliveryType, date, customerDropOff }) {
   const res = await authFetch(`${API_URL}/api/deliveries/${id}/assignment`, {
     method: 'PATCH',
-    body: JSON.stringify({ truckId, deliveryType, date })
+    body: JSON.stringify({ truckId, deliveryType, date, customerDropOff })
   });
 
   if (!res.ok) {

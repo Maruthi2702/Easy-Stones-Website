@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText } from 'lucide-react';
+import { Plus, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText, ArrowUpToLine, ArrowDownToLine, Link2 } from 'lucide-react';
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
 import { columnIdFor, isReturn, WILL_CALL_COLUMN_ID } from '../../../utils/deliveryTypes';
+import { groupStops, applyStopMove, flattenGroups, sameStopOrder } from '../../../utils/stopGrouping';
 // Day names come from the dates themselves — the board renders whichever days
 // the week actually shows, which is Mon-Fri plus any weekend day in use.
 import { dayLabel } from '../../../utils/deliveryWeek';
@@ -45,6 +46,17 @@ const isCounterColumn = (trk) => Boolean(trk?.isWillCall);
 // button read naturally.
 const columnNoun = (trk) => (trk?.isWillCall ? 'pickup' : 'stop');
 
+// The order a cell reads in: explicit stop number first, then time as the
+// tie-break for everything still sitting on the default of 1. Shared by the
+// render and by the drag handler, so the list a drop is calculated against is
+// the same list the dispatcher is looking at.
+const compareStops = (a, b) => {
+  const rA = Number(a.routeNumber) || 1;
+  const rB = Number(b.routeNumber) || 1;
+  if (rA !== rB) return rA - rB;
+  return (a.time || '').localeCompare(b.time || '');
+};
+
 const BoardGrid = ({
   trucks = [],
   deliveries = [],
@@ -58,6 +70,9 @@ const BoardGrid = ({
   onAddDelivery,
   onEditDelivery,
   onMoveDelivery,
+  // Saves a whole cell's stop order at once. Without it the board still moves
+  // cards between columns, it just cannot fix their running order.
+  onReorderDeliveries,
   onViewPod,
   onOpenPod
 }) => {
@@ -114,6 +129,212 @@ const BoardGrid = ({
   // the drop-target highlight. Table view only — the cards view has no cells.
   const [dragOverCellKey, setDragOverCellKey] = useState(null);
 
+  // Which ticket the pointer is over mid-drag, and which third of it —
+  // 'before'/'after' to insert as a new stop there, 'merge' to join that
+  // ticket's stop. Separate from dragOverCellKey: that highlights the whole
+  // cell for a plain move, this marks one zone on one card.
+  const [dropSlot, setDropSlot] = useState(null);
+
+  /**
+   * Which of a card's three drop zones the pointer is in. Top and bottom
+   * thirds insert a new stop before/after; the middle third means "same stop
+   * as this one" — see the note atop stopGrouping.js for why that distinction
+   * exists: several invoices for one customer are routinely delivered as a
+   * single stop, and a plain "insert here" gesture cannot express joining one.
+   */
+  const stopZoneFor = (e) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - box.top;
+    const third = box.height / 3;
+    if (y < third) return 'before';
+    if (y > third * 2) return 'after';
+    return 'merge';
+  };
+
+  /**
+   * Drop onto one card in a cell: reorder by stop (see stopGrouping.js),
+   * moving the ticket here first if it came from somewhere else.
+   *
+   * `cellStops` — [{ id, routeNumber }] for the cell, in on-screen order — is
+   * built at the render site and handed in rather than read from the
+   * `deliveries` prop or the cellMap memo here. Reading either inside this
+   * handler is enough on its own to stop React Compiler preserving that
+   * memo's optimization for the whole board; passing plain data in avoids it
+   * and is the more honest source besides — it is exactly the order the
+   * dispatcher is looking at.
+   */
+  const handleDropOnStop = (trk, dateStr, targetId, mode, cellStops, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropSlot(null);
+    setDragOverCellKey(null);
+
+    const deliveryId = e.dataTransfer.getData('text/plain');
+    if (!deliveryId || deliveryId === targetId) return;
+
+    const arrivedFromElsewhere = !cellStops.some(s => s.id === deliveryId);
+    const groups = groupStops(cellStops);
+    const nextGroups = applyStopMove(groups, deliveryId, targetId, mode);
+    const nextStops = flattenGroups(nextGroups);
+
+    const saveOrder = () => {
+      if (!arrivedFromElsewhere && sameStopOrder(cellStops, nextStops)) return;
+      return onReorderDeliveries && onReorderDeliveries(nextStops);
+    };
+
+    if (!arrivedFromElsewhere) {
+      saveOrder();
+      return;
+    }
+
+    // Came from another column, another day, or the Pending list: it has to be
+    // assigned here before its position here means anything. Chained rather
+    // than awaited — an async handler closing over these props is enough on
+    // its own to stop React Compiler optimizing the whole board.
+    if (!onMoveDelivery) return;
+    // Type comes off the drag itself (see TicketChip's onDragStart), so this
+    // handler never reads the deliveries/pending props.
+    const dragged = { id: deliveryId, deliveryType: e.dataTransfer.getData('application/x-delivery-type') || 'jobsite' };
+    Promise.resolve(onMoveDelivery(deliveryId, assignmentFor(trk, dragged, dateStr)))
+      .then(saveOrder)
+      // The move reports its own failure; without it landing there is no cell
+      // for this ticket to be ordered within.
+      .catch(() => {});
+  };
+
+  /**
+   * The truck/type/date a ticket needs to sit in this column, shared by the
+   * plain cell drop and the drop-at-a-position one so the two cannot disagree
+   * about what dropping somewhere means.
+   */
+  const assignmentFor = (trk, delivery, dateStr) => {
+    let truckId = trk.id;
+    let deliveryType = delivery.deliveryType;
+    // Carried through unchanged by default; only the branches below that
+    // actually change who's collecting a return touch it.
+    let customerDropOff = delivery.customerDropOff;
+    if (trk.isWillCall) {
+      // Nobody of ours moves it any more. A return stays a return — the
+      // customer is bringing the slabs back themselves, which is still material
+      // coming in, and relabelling it a will call here would quietly reverse
+      // the direction of the ticket and drop it off the report's Returns line.
+      truckId = '';
+      if (!isReturn(delivery)) {
+        deliveryType = 'will_call';
+      } else {
+        // Dropping a return here, with no driver, is exactly what it means to
+        // mark it a customer drop-off rather than a still-undecided return —
+        // see isCounterReturn in src/utils/deliveryTypes.js.
+        customerDropOff = true;
+      }
+    } else if (delivery.deliveryType === 'will_call') {
+      // Leaving Will Call must become a real stop on the new column.
+      deliveryType = 'jobsite';
+    } else {
+      // A real driver is now doing the collecting, not the customer — clears
+      // a stale flag so it doesn't resurface as a drop-off if this driver is
+      // ever unassigned again later.
+      customerDropOff = false;
+    }
+    // else: normal column -> normal column, deliveryType unchanged. That
+    // preserves 'transfer', and preserves 'return' too — dragging a return
+    // onto a driver means that driver is going out to collect it, which is
+    // still a return, just one we now do the driving for.
+    return { truckId, deliveryType, customerDropOff, date: dateStr };
+  };
+
+  /**
+   * One cell's cards, each wrapped in a slot that accepts a drop on its top,
+   * middle or bottom third. The wrapper exists purely to own those handlers —
+   * TicketChip is used in the pending list and elsewhere, and ordering is
+   * meaningless there.
+   */
+  /** What each drop zone means, spelled out — the icon+colour language alone
+   * (a gold line vs a blue ring) reads fine once you know it, but nothing
+   * about a 2px box-shadow teaches a first-time user what dropping there will
+   * do. Shown as a label riding along with the cursor's exact position, not a
+   * legend somewhere else on screen the eye has to leave the drag for. */
+  const DROP_HINTS = {
+    before: { icon: ArrowUpToLine, text: 'New stop before this one' },
+    after: { icon: ArrowDownToLine, text: 'New stop after this one' },
+    merge: { icon: Link2, text: 'Same stop as this delivery' }
+  };
+
+  const renderCellTickets = (trk, dateStr, cellDeliveries, listClassName) => {
+    const cellKey = `${trk.id}_${dateStr}`;
+    // Same condition as the component-level `canReorder` used for the legend
+    // below — named separately only so this local scope doesn't shadow it.
+    const cellCanReorder = Boolean(editable && onReorderDeliveries);
+    // Plain {id, routeNumber} pairs, not the delivery objects — see the note on
+    // handleDropOnStop above for why the handler needs data rather than a
+    // reference into `deliveries`/`cellDeliveries`.
+    const cellStops = cellDeliveries.map(d => ({ id: d.id, routeNumber: Number(d.routeNumber) || 1 }));
+    const groupOf = new Map();
+    groupStops(cellStops).forEach((ids, gi) => ids.forEach(id => groupOf.set(id, { gi, size: ids.length })));
+
+    return (
+      <div className={listClassName}>
+        {cellDeliveries.map((del) => {
+          const active = dropSlot && dropSlot.cellKey === cellKey && dropSlot.targetId === del.id
+            ? dropSlot.mode
+            : null;
+          // A shared stop gets a quiet marker rather than a redesigned card —
+          // just enough that "these four belong together" reads at a glance,
+          // without changing how a lone stop looks (still the vast majority).
+          const group = groupOf.get(del.id);
+          const sharedStopClass = group && group.size > 1 ? ' shared-stop' : '';
+          return (
+            <div
+              key={del.id}
+              className={`ticket-slot${sharedStopClass}${active === 'before' ? ' drop-above' : ''}${active === 'after' ? ' drop-below' : ''}${active === 'merge' ? ' drop-merge' : ''}`}
+              title={group && group.size > 1 ? `Same stop as ${group.size - 1} other invoice${group.size > 2 ? 's' : ''}` : undefined}
+              onDragOver={cellCanReorder ? (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+                const mode = stopZoneFor(e);
+                setDropSlot(prev => (prev && prev.cellKey === cellKey && prev.targetId === del.id && prev.mode === mode)
+                  ? prev
+                  : { cellKey, targetId: del.id, mode });
+              } : undefined}
+              onDrop={cellCanReorder
+                ? (e) => handleDropOnStop(trk, dateStr, del.id, stopZoneFor(e), cellStops, e)
+                : undefined}
+            >
+              {active && (() => {
+                const { icon: HintIcon, text } = DROP_HINTS[active];
+                return (
+                  // pointer-events: none — this sits directly over the same
+                  // element that owns onDragOver/onDrop, and intercepting the
+                  // pointer here would fire those events against the label
+                  // instead of the slot, freezing the indicator on whatever
+                  // zone the cursor first crossed into.
+                  <div className={`drop-hint drop-hint-${active}`}>
+                    <HintIcon size={12} />
+                    {text}
+                  </div>
+                );
+              })()}
+              <TicketChip
+                delivery={del}
+                truckColor={trk.color}
+                onClick={onEditDelivery}
+                editable={editable}
+                searchQuery={activeSearch}
+                onViewPod={onViewPod}
+                onOpenPod={podHandlerFor(trk.id)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Dropped on the cell itself rather than on one of its cards — the empty
+  // strip below the last stop, or an empty cell entirely. Ticket-level drops
+  // (handleDropOnStop above) cover everything else; this only has to decide
+  // what "just put it in this cell somewhere" means.
   const handleDropOnCell = (trk, dateStr, e) => {
     e.preventDefault();
     setDragOverCellKey(null);
@@ -123,28 +344,32 @@ const BoardGrid = ({
     const delivery = deliveries.find(d => d.id === deliveryId) || pending.find(d => d.id === deliveryId);
     if (!delivery) return;
 
-    // Dropped back on the slot it started in — nothing to change.
-    if (columnIdFor(delivery) === trk.id && delivery.date === dateStr) return;
+    const assignment = assignmentFor(trk, delivery, dateStr);
+    const existing = getDeliveriesForCell(trk.id, dateStr).filter(d => d.id !== deliveryId);
 
-    let truckId = trk.id;
-    let deliveryType = delivery.deliveryType;
-    if (trk.isWillCall) {
-      // Nobody of ours moves it any more. A return stays a return — the
-      // customer is bringing the slabs back themselves, which is still material
-      // coming in, and relabelling it a will call here would quietly reverse
-      // the direction of the ticket and drop it off the report's Returns line.
-      truckId = '';
-      if (!isReturn(delivery)) deliveryType = 'will_call';
-    } else if (delivery.deliveryType === 'will_call') {
-      // Leaving Will Call must become a real stop on the new column.
-      deliveryType = 'jobsite';
+    // Dropped back on the cell it started in with nothing else to land on —
+    // nothing to change. (A drop onto a specific card is handled by
+    // handleDropOnStop before it ever reaches here.)
+    if (!existing.length && columnIdFor(delivery) === trk.id && delivery.date === dateStr) return;
+
+    if (!existing.length) {
+      onMoveDelivery(delivery.id, assignment);
+      return;
     }
-    // else: normal column -> normal column, deliveryType unchanged. That
-    // preserves 'transfer', and preserves 'return' too — dragging a drop-off
-    // onto a driver means that driver is going out to collect it, which is
-    // still a return, just one we now do the driving for.
 
-    onMoveDelivery(delivery.id, { truckId, deliveryType, date: dateStr });
+    // The cell already holds stops — land after the last one rather than
+    // leaving the dropped ticket's routeNumber whatever it happened to arrive
+    // with, which could collide with an existing stop or default it to 1 and
+    // jump the whole queue.
+    const cellStops = existing.map(d => ({ id: d.id, routeNumber: Number(d.routeNumber) || 1 }));
+    const nextStops = flattenGroups([...groupStops(cellStops), [delivery.id]]);
+    const saveOrder = () => onReorderDeliveries && onReorderDeliveries(nextStops);
+
+    if (columnIdFor(delivery) === trk.id && delivery.date === dateStr) {
+      saveOrder();
+      return;
+    }
+    Promise.resolve(onMoveDelivery(delivery.id, assignment)).then(saveOrder).catch(() => {});
   };
 
   // Filter deliveries by search query. Location scoping now happens server-side
@@ -177,14 +402,7 @@ const BoardGrid = ({
       map.get(key).push(d);
     }
     // Sort each cell's list by routeNumber ascending (Stop #1, Stop #2...), then by time
-    for (const list of map.values()) {
-      list.sort((a, b) => {
-        const rA = Number(a.routeNumber) || 1;
-        const rB = Number(b.routeNumber) || 1;
-        if (rA !== rB) return rA - rB;
-        return (a.time || '').localeCompare(b.time || '');
-      });
-    }
+    for (const list of map.values()) list.sort(compareStops);
     return map;
   }, [filteredDeliveries]);
 
@@ -265,8 +483,21 @@ const BoardGrid = ({
     );
   }
 
+  const canReorder = Boolean(editable && onReorderDeliveries);
+
   return (
     <div className="manifest-board-wrapper">
+      {/* Taught once, up front, rather than only mid-drag when attention is on
+          the cursor and there is nowhere to put an explanation without it
+          fighting for the same space as the pointer. The per-card label during
+          an actual drag (see DROP_HINTS) repeats this at the exact spot it
+          applies, for whoever skips reading a banner the first time. */}
+      {canReorder && (
+        <p className="reorder-hint">
+          <ArrowUpToLine size={12} /> Drop above or below a stop to reorder it &nbsp;·&nbsp;
+          <Link2 size={12} /> drop onto a stop to combine it as the same delivery
+        </p>
+      )}
       {viewMode === 'cards' ? (
         /* ── UX REDESIGN MOBILE LAYOUT ── */
         <div className="ux-mobile-schedule-container">
@@ -347,20 +578,7 @@ const BoardGrid = ({
                       No {columnNoun(trk)}s scheduled
                     </div>
                   ) : (
-                    <div className="ux-tickets-list">
-                      {trkDeliveries.map(del => (
-                        <TicketChip
-                          key={del.id}
-                          delivery={del}
-                          truckColor={trk.color || '#D4AF37'}
-                          editable={editable}
-                          searchQuery={searchQuery}
-                          onClick={onEditDelivery}
-                          onViewPod={onViewPod}
-                          onOpenPod={podHandlerFor(trk.id)}
-                        />
-                      ))}
-                    </div>
+                    renderCellTickets(trk, selectedDate, trkDeliveries, 'ux-tickets-list')
                   )}
                 </div>
               );
@@ -433,8 +651,11 @@ const BoardGrid = ({
                             e.dataTransfer.dropEffect = 'move';
                           }}
                           onDragEnter={() => onMoveDelivery && setDragOverCellKey(cellKey)}
-                          onDragLeave={() => onMoveDelivery &&
-                            setDragOverCellKey(prev => (prev === cellKey ? null : prev))}
+                          onDragLeave={() => {
+                            if (!onMoveDelivery) return;
+                            setDragOverCellKey(prev => (prev === cellKey ? null : prev));
+                            setDropSlot(prev => (prev && prev.cellKey === cellKey ? null : prev));
+                          }}
                           onDrop={(e) => handleDropOnCell(trk, dateStr, e)}
                         >
                           <div className="cell-header-bar">
@@ -460,20 +681,7 @@ const BoardGrid = ({
                             )}
                           </div>
 
-                          <div className="cell-tickets-list">
-                            {cellDeliveries.map(del => (
-                              <TicketChip
-                                key={del.id}
-                                delivery={del}
-                                truckColor={trk.color}
-                                onClick={onEditDelivery}
-                                editable={editable}
-                                searchQuery={activeSearch}
-                                onViewPod={onViewPod}
-                                onOpenPod={podHandlerFor(trk.id)}
-                              />
-                            ))}
-                          </div>
+                          {renderCellTickets(trk, dateStr, cellDeliveries, 'cell-tickets-list')}
                         </td>
                       );
                     })}

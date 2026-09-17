@@ -34,20 +34,24 @@ describe('type predicates', () => {
 });
 
 describe('isCounterReturn', () => {
-  it('is a return with a date and no driver', () => {
-    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: '' }))).toBe(true);
+  it('is a return with a date, no driver, and the customerDropOff flag set', () => {
+    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: '', customerDropOff: true }))).toBe(true);
   });
 
-  it('is not a return a driver is collecting', () => {
-    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: 'trk_1' }))).toBe(false);
+  it('is not a return with a date and no driver unless customerDropOff is set — driver just hasn’t been picked yet', () => {
+    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: '' }))).toBe(false);
+  });
+
+  it('is not a return a driver is collecting, even if customerDropOff lingers on the record', () => {
+    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: 'trk_1', customerDropOff: true }))).toBe(false);
   });
 
   it('is not a return with no date yet — that one is still Pending', () => {
-    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: '', date: '' }))).toBe(false);
+    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: '', date: '', customerDropOff: true }))).toBe(false);
   });
 
   it('is not a jobsite with no driver', () => {
-    expect(isCounterReturn(ticket({ truckId: '' }))).toBe(false);
+    expect(isCounterReturn(ticket({ truckId: '', customerDropOff: true }))).toBe(false);
   });
 });
 
@@ -65,11 +69,15 @@ describe('isPendingDelivery', () => {
   });
 
   it('never puts a dated customer drop-off in Pending — it has a day of its own', () => {
-    expect(isPendingDelivery(ticket({ deliveryType: 'return', truckId: '' }))).toBe(false);
+    expect(isPendingDelivery(ticket({ deliveryType: 'return', truckId: '', customerDropOff: true }))).toBe(false);
   });
 
   it('keeps a dateless return in Pending, so it cannot go invisible', () => {
-    expect(isPendingDelivery(ticket({ deliveryType: 'return', truckId: '', date: '' }))).toBe(true);
+    expect(isPendingDelivery(ticket({ deliveryType: 'return', truckId: '', date: '', customerDropOff: true }))).toBe(true);
+  });
+
+  it('keeps a dated return in Pending until customerDropOff is set — driver just hasn’t been picked yet', () => {
+    expect(isPendingDelivery(ticket({ deliveryType: 'return', truckId: '' }))).toBe(true);
   });
 
   it('treats a missing delivery as pending rather than throwing', () => {
@@ -83,7 +91,11 @@ describe('columnIdFor', () => {
   });
 
   it('shares the Will Call column with a customer drop-off — both move without a driver', () => {
-    expect(columnIdFor(ticket({ deliveryType: 'return', truckId: '' }))).toBe(WILL_CALL_COLUMN_ID);
+    expect(columnIdFor(ticket({ deliveryType: 'return', truckId: '', customerDropOff: true }))).toBe(WILL_CALL_COLUMN_ID);
+  });
+
+  it('has no column for a dated, driverless return that isn’t flagged as a drop-off — it belongs in Pending', () => {
+    expect(columnIdFor(ticket({ deliveryType: 'return', truckId: '' }))).toBe('');
   });
 
   it('puts a will call in the Will Call column even if a truckId lingers on the record', () => {
@@ -105,8 +117,10 @@ describe('board and Pending are complements', () => {
     ticket({ truckId: '' }),
     ticket({ deliveryType: 'will_call', truckId: '' }),
     ticket({ deliveryType: 'return', truckId: 'trk_2' }),
+    ticket({ deliveryType: 'return', truckId: '', customerDropOff: true }),
     ticket({ deliveryType: 'return', truckId: '' }),
     ticket({ deliveryType: 'return', truckId: '', date: '' }),
+    ticket({ deliveryType: 'return', truckId: '', date: '', customerDropOff: true }),
     ticket({ deliveryType: 'transfer', truckId: 'trk_3' }),
     ticket({ deliveryType: 'transfer', truckId: '' })
   ];
@@ -134,11 +148,15 @@ describe('defaultStatusFor', () => {
   });
 
   it('calls a dated customer drop-off scheduled for the same reason', () => {
-    expect(defaultStatusFor(ticket({ deliveryType: 'return', truckId: '' }))).toBe('scheduled');
+    expect(defaultStatusFor(ticket({ deliveryType: 'return', truckId: '', customerDropOff: true }))).toBe('scheduled');
   });
 
   it('leaves a dateless return pending', () => {
-    expect(defaultStatusFor(ticket({ deliveryType: 'return', truckId: '', date: '' }))).toBe('pending');
+    expect(defaultStatusFor(ticket({ deliveryType: 'return', truckId: '', date: '', customerDropOff: true }))).toBe('pending');
+  });
+
+  it('leaves a dated, unflagged return pending too — nobody has picked it up yet', () => {
+    expect(defaultStatusFor(ticket({ deliveryType: 'return', truckId: '' }))).toBe('pending');
   });
 
   it('never rewrites what happened on the day', () => {

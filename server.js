@@ -4751,10 +4751,14 @@ app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) =>
     // A will call is not pending, though it never gets a driver: the customer
     // collects it on a known date, so it belongs to its week under the board's
     // Will Call column. Both queries account for it so it lands in exactly one.
-    // A customer drop-off (a return with a date and no driver) works the same
-    // way, under the board's Drop-Off column — but only once it has a date. A
-    // return with no date yet has no day to be drawn on, so that one does wait
-    // in Pending like any other undated order.
+    // A customer drop-off (a return with a date, no driver, and the explicit
+    // customerDropOff flag set) works the same way, under the board's Drop-Off
+    // column. A return with no date yet has no day to be drawn on, so that one
+    // waits in Pending like any other undated order — and so does a driverless
+    // return WITH a date whose customerDropOff flag isn't set: that just means
+    // nobody has picked a driver for it yet, not that the customer is bringing
+    // it back themselves. That flag (not merely "has a date") is what decides
+    // the drop-off side; see isCounterReturn in src/utils/deliveryTypes.js.
     //
     // These two branches are complements and have to stay that way: the JS
     // side of the same rule is isPendingDelivery in src/utils/deliveryTypes.js,
@@ -4772,7 +4776,7 @@ app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) =>
       baseQuery = {
         truckId: { $in: ['', null] },
         deliveryType: { $ne: 'will_call' },
-        $nor: [{ deliveryType: 'return', date: { $nin: ['', null] } }]
+        $nor: [{ deliveryType: 'return', date: { $nin: ['', null] }, customerDropOff: true }]
       };
     } else if (startDate && endDate) {
       // The date range now lives in scopeDeliveryQueryToLocations's own $or
@@ -4780,15 +4784,15 @@ app.get('/api/deliveries', verifyAnyAuth, canViewDeliveries, async (req, res) =>
       // a different field for an inbound transfer than for everything else.
       // Still wrapped in $and for the same reason as before: the location
       // scoping owns the top-level $or.
-      // A bare { deliveryType: 'return' } is enough for the drop-off side: an
-      // undated return can't fall inside any date range, so it stays out of
-      // every week on its own and is left to the Pending branch above.
+      // A driverless return only belongs on the board once it's flagged as a
+      // drop-off — otherwise (dated or not) it's left to the Pending branch
+      // above, same as any other order nobody has assigned a driver to yet.
       baseQuery = {
         $and: [{
           $or: [
             { truckId: { $nin: ['', null] } },
             { deliveryType: 'will_call' },
-            { deliveryType: 'return' }
+            { deliveryType: 'return', customerDropOff: true }
           ]
         }]
       };
@@ -5058,7 +5062,13 @@ const DELIVERY_TYPES = SHARED_DELIVERY_TYPES;
 app.patch('/api/deliveries/:id/assignment', verifyAnyAuth, canWriteDeliveries, async (req, res) => {
   try {
     const { id } = req.params;
-    let { truckId, deliveryType, date } = req.body || {};
+    let { truckId, deliveryType, date, customerDropOff } = req.body || {};
+    // Only meaningful on a driverless return (see isCounterReturn in
+    // src/utils/deliveryTypes.js) — coerced to a plain boolean here so an
+    // omitted or falsy value from an older client never persists as anything
+    // other than "not a drop-off", rather than leaving whatever was stored
+    // before untouched.
+    customerDropOff = customerDropOff === true;
 
     if (!DELIVERY_TYPES.includes(deliveryType)) {
       return res.status(400).json({ error: `deliveryType must be one of: ${DELIVERY_TYPES.join(', ')}` });
@@ -5085,7 +5095,7 @@ app.patch('/api/deliveries/:id/assignment', verifyAnyAuth, canWriteDeliveries, a
 
     const updated = await Delivery.findOneAndUpdate(
       scopeDeliveryQueryToLocations({ id }, req),
-      { $set: { truckId, deliveryType, date } },
+      { $set: { truckId, deliveryType, date, customerDropOff } },
       { new: true, projection: DELIVERY_LIST_PROJECTION }
     ).lean();
 
@@ -5101,6 +5111,75 @@ app.patch('/api/deliveries/:id/assignment', verifyAnyAuth, canWriteDeliveries, a
   } catch (err) {
     console.error('[server] update delivery assignment error:', err);
     res.status(500).json({ error: 'Server error updating the delivery assignment' });
+  }
+});
+
+// PATCH /api/deliveries/order — the board's drag-to-reorder.
+//
+// Reordering is a statement about a whole cell, not about one ticket: moving
+// the third stop to the top renumbers everything it jumped over. Sending that
+// as one request per card would be N round trips racing each other, and a
+// half-applied order is worse than none — two stops both called #2, with the
+// tie broken by whatever time they happen to carry.
+//
+// Only routeNumber is written. Which driver and which day a ticket belongs to
+// is the assignment endpoint's business, and a reorder must not quietly move a
+// ticket between columns as a side effect of dropping it in a list.
+app.patch('/api/deliveries/order', verifyAnyAuth, canWriteDeliveries, async (req, res) => {
+  try {
+    const { updates } = req.body || {};
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: 'updates must be a non-empty array of { id, routeNumber }' });
+    }
+    // A cell holds at most MAX_TRUCK_CAPACITY stops; anything an order of
+    // magnitude past that is a malformed request, not a busy day.
+    if (updates.length > 100) {
+      return res.status(400).json({ error: 'Too many deliveries in one reorder' });
+    }
+
+    const clean = [];
+    for (const u of updates) {
+      const id = String(u?.id || '');
+      const routeNumber = Number(u?.routeNumber);
+      if (!id) return res.status(400).json({ error: 'Every update needs an id' });
+      if (!Number.isInteger(routeNumber) || routeNumber < 1 || routeNumber > 100) {
+        return res.status(400).json({ error: `routeNumber must be a whole number from 1 to 100 (got ${u?.routeNumber})` });
+      }
+      clean.push({ id, routeNumber });
+    }
+
+    // Scoped the same way every other write is: a user may only reorder stops
+    // at a branch they are assigned to. Ids outside that are dropped rather
+    // than failing the whole request, so one stale id in a list cannot block a
+    // dispatcher from fixing the run in front of them.
+    const ids = clean.map(u => u.id);
+    const writable = await Delivery.find(
+      scopeDeliveryQueryToLocations({ id: { $in: ids } }, req), 'id'
+    ).lean();
+    const writableIds = new Set(writable.map(d => d.id));
+    const applicable = clean.filter(u => writableIds.has(u.id));
+    if (!applicable.length) return res.status(404).json({ error: 'None of those deliveries were found' });
+
+    await Delivery.bulkWrite(applicable.map(u => ({
+      updateOne: { filter: { id: u.id }, update: { $set: { routeNumber: u.routeNumber } } }
+    })));
+
+    const updated = await Delivery.find(
+      { id: { $in: applicable.map(u => u.id) } }, DELIVERY_LIST_PROJECTION
+    ).lean();
+
+    for (const delivery of updated) {
+      try {
+        io.emit('delivery_update', { type: 'upsert', delivery });
+      } catch {
+        req.app.get('io')?.emit('delivery_update', { type: 'upsert', delivery });
+      }
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error('[server] reorder deliveries error:', err);
+    res.status(500).json({ error: 'Server error reordering the deliveries' });
   }
 });
 

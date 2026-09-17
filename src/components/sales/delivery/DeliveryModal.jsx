@@ -17,16 +17,20 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
 
-const ROUTE_OPTIONS = [
-  { value: 1, label: 'Stop #1 (1st Stop)' },
-  { value: 2, label: 'Stop #2' },
-  { value: 3, label: 'Stop #3' },
-  { value: 4, label: 'Stop #4' },
-  { value: 5, label: 'Stop #5' },
-  { value: 6, label: 'Stop #6' },
-  { value: 7, label: 'Stop #7' },
-  { value: 8, label: 'Stop #8' }
-];
+// One option per stop a truck can actually hold. This stopped at 8 while a
+// truck takes MAX_TRUCK_CAPACITY, which was survivable while stop numbers were
+// only ever typed here — but dragging to reorder renumbers a full cell 1..N, so
+// a ticket could come back carrying a number this list had no option for and
+// the field would render blank.
+const ROUTE_OPTIONS = Array.from({ length: MAX_TRUCK_CAPACITY }, (_, i) => ({
+  value: i + 1,
+  label: i === 0 ? 'Stop #1 (1st Stop)' : `Stop #${i + 1}`
+}));
+
+// A sentinel for the Assigned Driver / Fleet select's "Customer Drop-Off"
+// option on a return — that option and "Pending Delivery" both mean an empty
+// truckId, so the raw value alone can't tell the select which one is picked.
+const CUSTOMER_DROPOFF_VALUE = '__customer_dropoff__';
 
 function extractCustomerAddress(c) {
   if (!c) return { city: '', street: '', fullAddress: '' };
@@ -119,6 +123,11 @@ const DeliveryModal = ({
   const [packingListUrl, setPackingListUrl] = useState('');
   const [packingListFilename, setPackingListFilename] = useState('');
   const [numberOfSlabs, setNumberOfSlabs] = useState('0');
+  // Return-only, and only meaningful with no driver: explicitly says "the
+  // customer is bringing this back themselves" rather than that being guessed
+  // from whether a date happens to be filled in — see isCounterReturn in
+  // src/utils/deliveryTypes.js for why that guess used to bite.
+  const [customerDropOff, setCustomerDropOff] = useState(false);
 
   // An inter-branch transfer moves stock between our own showrooms, so the
   // customer/jobsite half of this form does not apply to it.
@@ -164,8 +173,11 @@ const DeliveryModal = ({
   // Leaving the driver unassigned marks the order Pending: it waits in the list
   // under the board until the customer confirms, so it needs no date yet. A will
   // call never has a driver but is not pending — it has a pickup date, and that
-  // date is what puts it in the Will Call column, so it stays required.
-  const isPendingOrder = !truckId && !isWillCall;
+  // date is what puts it in the Will Call column, so it stays required. A
+  // driverless return works the same way once customerDropOff is checked below
+  // — it stops being "nobody's decided who's collecting this yet" and becomes
+  // "the customer is", which needs a date just like a will call does.
+  const isPendingOrder = !truckId && !isWillCall && !(isReturnOrder && customerDropOff);
 
   // Deleting a delivery is gated on delete_delivery_schedule, assignable per role
   // under Users & Roles → Delivery Schedule → Delete. The server enforces the same
@@ -271,7 +283,7 @@ const DeliveryModal = ({
     formStateRef.current = {
       date, routeNumber, truckId, customerName, selectedCustomerId, soNumber, address,
       salesRepName, status, notes, time, deliveryType, transferOrigin, transferDestination, expectedArrivalDate, pickupInfo,
-      carrierName, proNumber, freightFee, packingListUrl, packingListFilename, numberOfSlabs
+      carrierName, proNumber, freightFee, packingListUrl, packingListFilename, numberOfSlabs, customerDropOff
     };
   });
 
@@ -310,6 +322,7 @@ const DeliveryModal = ({
     setPackingListUrl(draft.packingListUrl ?? packingListUrl);
     setPackingListFilename(draft.packingListFilename ?? packingListFilename);
     setNumberOfSlabs(draft.numberOfSlabs ?? numberOfSlabs);
+    setCustomerDropOff(draft.customerDropOff ?? customerDropOff);
     setIsDirty(true);
   };
 
@@ -366,6 +379,7 @@ const DeliveryModal = ({
       setPackingListUrl(initialData.packingListUrl || '');
       setPackingListFilename(initialData.packingListFilename || '');
       setNumberOfSlabs(initialData.numberOfSlabs === null || initialData.numberOfSlabs === undefined ? '0' : String(initialData.numberOfSlabs));
+      setCustomerDropOff(Boolean(initialData.customerDropOff));
       initialSnapshot.current = JSON.stringify(initialData);
     } else {
       resetForm();
@@ -404,6 +418,7 @@ const DeliveryModal = ({
     setPackingListUrl('');
     setPackingListFilename('');
     setNumberOfSlabs('0');
+    setCustomerDropOff(false);
     setError('');
     setIsDirty(false);
   };
@@ -450,7 +465,7 @@ const DeliveryModal = ({
     }
 
     if (!isPendingOrder && !date) {
-      setError(isWillCall
+      setError(isWillCall || (isReturnOrder && customerDropOff)
         ? 'Pick the date the customer is collecting this order.'
         : 'Pick a delivery date, or leave the driver unassigned to keep this in Pending Delivery.');
       return;
@@ -499,6 +514,10 @@ const DeliveryModal = ({
       notes: notes.trim(),
       location: isTransfer ? transferOrigin : (initialData?.location || currentUser?.location || ''),
       deliveryType,
+      // Only meaningful on a driverless return — cleared for every other type
+      // and whenever a driver is assigned, so it can never linger and quietly
+      // reroute a ticket to Will Call after the fact.
+      customerDropOff: isReturnOrder && !truckId ? customerDropOff : false,
       transferDestination,
       expectedArrivalDate: isTransfer ? expectedArrivalDate : '',
       pickupInfo: isTransfer ? '' : pickupInfo.trim(),
@@ -638,13 +657,10 @@ const DeliveryModal = ({
               {isPendingOrder && (
                 <span className="pending-order-note">
                   {isReturnOrder
-                    // A driverless return is not waiting for anything — it is
-                    // the customer bringing it back themselves. Which of the
-                    // two it is depends entirely on whether a date is set, so
-                    // the note has to say so at the moment that choice is made.
-                    ? (date
-                        ? 'No driver — the customer is bringing this back themselves, so it sits in the board’s Will Call column.'
-                        : 'No driver and no date — this waits in Pending Delivery. Add a date to make it a customer drop-off, or pick a driver to go and collect it.')
+                    // A driverless return waits here same as any other order,
+                    // until either a driver is picked below or "Customer
+                    // Drop-Off" is picked instead of "Pending Delivery".
+                    ? 'No driver assigned — this stays in Pending Delivery until you pick one, or choose "Customer Drop-Off" below.'
                     : 'No driver assigned — this stays in Pending Delivery until you pick one.'}
                 </span>
               )}
@@ -963,10 +979,17 @@ const DeliveryModal = ({
               <div className="form-group">
                 <label><Truck size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />Assigned Driver / Fleet</label>
                 <CustomSelect
-                  value={truckId}
+                  // Both "Pending Delivery" and "Customer Drop-Off" mean an
+                  // empty truckId, so the raw value can't tell them apart —
+                  // the sentinel below stands in for drop-off while it's
+                  // selected, and only while a return has no driver.
+                  value={(isReturnOrder && !truckId && customerDropOff) ? CUSTOMER_DROPOFF_VALUE : truckId}
                   onChange={(e) => {
-                    const nextTruckId = e.target.value;
+                    const picked = e.target.value;
+                    const isDropOffPick = picked === CUSTOMER_DROPOFF_VALUE;
+                    const nextTruckId = isDropOffPick ? '' : picked;
                     setTruckId(nextTruckId);
+                    setCustomerDropOff(isDropOffPick);
                     // Picking a driver schedules the order; taking the driver
                     // back off returns it to Pending. This applies to existing
                     // tickets too, unlike the on-open default above, and the
@@ -975,7 +998,7 @@ const DeliveryModal = ({
                     // the new status is on screen to be overridden before
                     // anything is saved. Assigning a driver to something in the
                     // Pending list is the whole point of the list.
-                    setStatus(defaultStatusFor({ ...initialData, deliveryType, date, truckId: nextTruckId, status }));
+                    setStatus(defaultStatusFor({ ...initialData, deliveryType, date, truckId: nextTruckId, status, customerDropOff: isDropOffPick }));
                     markDirty();
                   }}
                   options={[
@@ -998,6 +1021,14 @@ const DeliveryModal = ({
                         disabled: isFull
                       };
                     }),
+                    // Only a return can be collected with no driver of ours
+                    // going out at all — the customer brings it back
+                    // themselves. Offered as its own option rather than
+                    // inferred from a date being filled in: a driverless
+                    // return with a date just as often means nobody has
+                    // picked a driver for it *yet*, which is what plain
+                    // "Pending Delivery" (below) still means for a return.
+                    ...(isReturnOrder ? [{ value: CUSTOMER_DROPOFF_VALUE, label: '↩️ Customer Drop-Off (no driver)' }] : []),
                     { value: '', label: '📋 Pending Delivery' }
                   ]}
                 />

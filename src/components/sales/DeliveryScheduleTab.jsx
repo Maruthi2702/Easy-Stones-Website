@@ -12,6 +12,7 @@ import {
   deleteDelivery,
   updateDeliveryStatus,
   updateDeliveryAssignment,
+  reorderDeliveries,
   getScheduleDataCached,
   getScheduleCacheSync,
   subscribeScheduleCache,
@@ -297,17 +298,30 @@ const DeliveryScheduleTab = ({
     }
   };
 
+  // Drag-to-reorder inside a cell. Takes the whole cell's new order, not just
+  // the card that moved, because a stop number only means anything as part of a
+  // complete running order.
+  const handleReorderDeliveries = async (updates) => {
+    try {
+      const updatedList = await reorderDeliveries(updates);
+      setDeliveries(updatedList);
+      return updatedList;
+    } catch (err) {
+      reportMoveFailure(err);
+    }
+  };
+
   // The reverse of the move above: dragging a ticket off the board and onto
   // the Pending list gives its driver back. Pending is defined in
-  // src/utils/deliveryTypes.js, so clearing truckId is the whole change — the
-  // week query and the pending query are complements, and the ticket swaps
-  // sides on its own.
+  // src/utils/deliveryTypes.js, so clearing truckId is (almost) the whole
+  // change — the week query and the pending query are complements, and the
+  // ticket swaps sides on its own.
   //
-  // A return is the one case where it lands somewhere else: a dated return
-  // with no driver is a customer bringing slabs back, not a pending order, so
-  // it moves to the board's Will Call column instead of into this list. That is
-  // the right outcome (nobody is driving it any more) and the card visibly
-  // moves, so nothing looks like it was swallowed.
+  // A return also has customerDropOff cleared here: dragging it to Pending is
+  // an explicit "nobody's assigned to this yet", which has to win over
+  // whatever that flag was previously set to — otherwise a return someone had
+  // marked a customer drop-off would just bounce straight back to the Will
+  // Call column instead of actually landing in Pending.
   const handleMoveToPending = async (id) => {
     const delivery = deliveries.find(d => d.id === id);
     if (!delivery) return;
@@ -320,6 +334,7 @@ const DeliveryScheduleTab = ({
         // board already makes in the other direction, when a will call is
         // dragged from its column onto a truck.
         deliveryType: delivery.deliveryType === 'will_call' ? 'jobsite' : (delivery.deliveryType || 'jobsite'),
+        customerDropOff: false,
         // Kept, not cleared: it's the last date that was agreed, and re-assigning
         // a driver shouldn't have to rediscover it. (The endpoint requires a
         // real YYYY-MM-DD either way.)
@@ -432,6 +447,7 @@ const DeliveryScheduleTab = ({
               onEditDelivery={handleOpenEditModal}
               onUpdateTruck={handleUpdateTruck}
               onMoveDelivery={handleMoveDelivery}
+              onReorderDeliveries={handleReorderDeliveries}
               onViewPod={handleOpenPodViewer}
               // Pickups are signed for at the counter rather than at a jobsite,
               // so the office captures their ePOD. The board only offers it on

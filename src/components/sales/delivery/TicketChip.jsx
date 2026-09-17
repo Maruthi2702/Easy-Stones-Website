@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine, Undo2 } from 'lucide-react';
 import StatusPill from './StatusPill';
 import EpodChip from './EpodChip';
+import { isCounterReturn } from '../../../utils/deliveryTypes';
 
 /**
  * Highlight substring matches inside a text string with <mark> tags.
@@ -136,8 +137,35 @@ const TicketChip = ({
       onDragStart={(e) => {
         if (!canDrag) return;
         e.dataTransfer.setData('text/plain', delivery.id);
+        // The board needs the ticket's type to work out what dropping it in a
+        // given column means. Carried on the drag rather than looked up from
+        // props at drop time: reading the deliveries list inside the drop
+        // handler is enough to cost the board its React Compiler optimization.
+        e.dataTransfer.setData('application/x-delivery-type', delivery.deliveryType || 'jobsite');
         e.dataTransfer.effectAllowed = 'move';
         setIsDragging(true);
+
+        // Replaces the browser's default drag image — a full-size, semi
+        // transparent snapshot of this entire card — with a small pill.
+        // That default ghost is not part of the page: it is painted by the
+        // browser's own drag engine on top of everything, so no z-index on
+        // the drop-hint label underneath it could ever win. Dragging a card
+        // as large as this one meant the ghost routinely covered the exact
+        // spot — and the exact label — a dispatcher was hovering over.
+        const ghost = document.createElement('div');
+        ghost.className = 'drag-ghost-pill';
+        ghost.textContent = `${isTransfer ? (soVal ? 'Transfer#' : 'Transfer') : `Stop #${stopNum}`} · ${delivery.customerName || 'Delivery'}`;
+        // Off-screen rather than hidden — display:none or visibility:hidden
+        // stop the browser from rasterizing an element at all, which is
+        // exactly what setDragImage needs it for.
+        ghost.style.position = 'fixed';
+        ghost.style.top = '-999px';
+        ghost.style.left = '-999px';
+        document.body.appendChild(ghost);
+        e.dataTransfer.setDragImage(ghost, 14, 14);
+        // The browser captures the image synchronously as part of this same
+        // call, so the node only needs to survive until the next tick.
+        setTimeout(() => ghost.remove(), 0);
       }}
       onDragEnd={() => setIsDragging(false)}
     >
@@ -152,13 +180,14 @@ const TicketChip = ({
             <><Repeat size={11} style={{ marginRight: 2 }} />{soVal ? 'Transfer#' : 'Transfer'}</>
           ) : isWillCall ? (
             <><PackageCheck size={11} style={{ marginRight: 2 }} /> Will Call</>
-          ) : isReturnTicket && !delivery.truckId ? (
+          ) : isReturnTicket && isCounterReturn(delivery) ? (
             // A drop-off is on nobody's route, so it has no stop number to
-            // claim — same reason a will call says what it is instead. A return
-            // a driver IS collecting falls through to the ordinary "Stop #N"
-            // below, because it genuinely is one of their stops, and the
-            // headers across the board read the same because of it. What kind
-            // of stop it is gets said under the address instead.
+            // claim — same reason a will call says what it is instead. A
+            // return a driver IS collecting, or one that's simply still
+            // Pending with no driver picked yet, falls through to the
+            // ordinary "Stop #N" below — the latter is exactly how a pending
+            // jobsite renders too. What kind of stop it is gets said under
+            // the address instead.
             <><Undo2 size={11} style={{ marginRight: 2 }} /> Drop-Off</>
           ) : (
             <><Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}</>

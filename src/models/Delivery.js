@@ -27,6 +27,14 @@ const deliverySchema = new mongoose.Schema({
   // Will Call column). src/utils/deliveryTypes.js owns which is which — keep
   // this enum and DELIVERY_TYPES there in step.
   deliveryType: { type: String, enum: ['jobsite', 'transfer', 'will_call', 'return'], default: 'jobsite' },
+  // Return-only. A driverless return with a date is ambiguous on its own — it
+  // could be a customer drop-off (belongs in the Will Call column) or a
+  // return nobody has assigned a driver to yet (still Pending). This flag is
+  // the explicit answer; src/utils/deliveryTypes.js's isCounterReturn reads
+  // it rather than inferring the answer from whether a date happens to be
+  // set, which used to silently move an unassigned return to Will Call the
+  // moment someone picked a date.
+  customerDropOff: { type: Boolean, default: false },
   transferDestination: { type: String, default: '' },
   // Transfer-only. `date` is when it leaves `location`; this is the day it's
   // due at `transferDestination` — often a day or more later, and the date

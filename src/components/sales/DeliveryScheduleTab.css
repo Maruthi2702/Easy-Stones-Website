@@ -708,6 +708,152 @@ body.light-theme-active .truck-name,
   border-radius: 6px;
 }
 
+/* Suppressed while a specific card is showing its own drop-hint label. The
+   two used to run at once — dragenter reaches the cell before it ever reaches
+   a child card, and nothing cleared it while the pointer moved between cards
+   inside the same cell — so a dashed border around the whole column and a
+   precise per-card label were both on screen together, telling two stories
+   about the same drop at once. The label is the one with the actual answer. */
+.dispatch-cell.drop-target:has(.ticket-slot.drop-above),
+.dispatch-cell.drop-target:has(.ticket-slot.drop-below),
+.dispatch-cell.drop-target:has(.ticket-slot.drop-merge) {
+  outline: none;
+  background: transparent;
+}
+
+/* Drag-to-reorder: the line showing where the card will land.
+   Drawn on the slot rather than between slots so there is always an element to
+   hang it on, and as an inset box-shadow rather than a border so appearing does
+   not change the card's height and shuffle everything below it mid-drag. */
+.ticket-slot {
+  position: relative;
+}
+
+/* One line, above the board, taught once rather than only mid-drag — see the
+   comment where this renders for why. Muted so it reads as a hint rather than
+   a warning; the icons repeat the same ones the real-time per-card label uses,
+   so the two visibly belong to the same explanation. */
+.reorder-hint {
+  margin: 0 0 0.5rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.reorder-hint svg {
+  flex-shrink: 0;
+  vertical-align: -1px;
+}
+
+body.light-theme-active .reorder-hint,
+.light-theme-active .reorder-hint {
+  color: #64748b;
+}
+
+/* The custom drag image built in TicketChip's onDragStart, replacing the
+   browser's default full-card ghost. Never actually seen in normal layout —
+   it is positioned off-screen the instant it exists — this only has to look
+   right in the snapshot the browser takes of it for use as the drag cursor.
+   Deliberately plain HTML/CSS rather than anything from the app's own
+   component styles: it is rasterized once, out of context, with none of the
+   surrounding theme classes applied. */
+.drag-ghost-pill {
+  display: inline-block;
+  max-width: 260px;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  background: #1c2333;
+  color: #f1f5f9;
+  border: 1px solid #d4af37;
+  font: 700 0.78rem system-ui, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* Thicker than a typical focus ring on purpose: this has to read at a glance
+   while the eye is on the cursor, not on the card. A thin line here was the
+   first thing raised about the whole feature — "not showing clearly what
+   they are doing" — so weight and colour saturation both went up, and the
+   drop-hint label below carries the rest in words. */
+.ticket-slot.drop-above {
+  box-shadow: inset 0 5px 0 -1px #d4af37;
+  border-radius: 8px;
+}
+
+.ticket-slot.drop-below {
+  box-shadow: inset 0 -5px 0 -1px #d4af37;
+  border-radius: 8px;
+}
+
+/* The middle third of a card: dropping here means "same stop as this one",
+   not "insert nearby" — a filled ring rather than an edge line, so the two
+   gestures are never confusable mid-drag. */
+.ticket-slot.drop-merge {
+  box-shadow: inset 0 0 0 3px #38bdf8;
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.14);
+}
+
+/* The label riding along with whichever zone is active. Positioned to sit
+   just outside the edge it describes (above the card for "before", below for
+   "after") rather than on top of the chip's own text, and centred over the
+   card for "merge" since that zone is the card itself, not an edge.
+   pointer-events: none matters here specifically — this renders directly over
+   the element with the onDragOver/onDrop handlers, and letting it catch the
+   pointer would freeze the drag on whatever zone it first entered. */
+.drop-hint {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+
+.drop-hint-before {
+  top: -0.7rem;
+  background: #d4af37;
+  color: #1c1503;
+}
+
+.drop-hint-after {
+  bottom: -0.7rem;
+  background: #d4af37;
+  color: #1c1503;
+}
+
+.drop-hint-merge {
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: #38bdf8;
+  color: #012434;
+}
+
+/* A quiet mark that this card shares its stop with others — a thin left rail
+   in the accent blue, distinct from the truck-colour rail TicketChip paints
+   on the far left so the two don't compete for the same edge. Deliberately
+   not a redesign of the card: most stops hold one ticket, and that majority
+   should look exactly as it always has. Suppressed while a drop indicator is
+   showing on the same card, so the two inset shadows never fight for the
+   same edge and the drag state — the thing that needs to win — always does. */
+.ticket-slot.shared-stop:not(.drop-above):not(.drop-below):not(.drop-merge) {
+  box-shadow: inset 3px 0 0 0 rgba(56, 189, 248, 0.55);
+  border-radius: 8px;
+}
+
 .cell-header-bar {
   display: flex;
   align-items: center;
@@ -806,7 +952,17 @@ body.light-theme-active .manifest-ticket-chip,
 }
 
 .manifest-ticket-chip.dragging {
-  opacity: 0.5;
+  /* More than a fade: a slight lift and tilt reads as "picked up" the way a
+     fade alone doesn't, and the eye needs that at the moment the gesture
+     starts — a card that just goes translucent could be read as disabled
+     rather than as being moved. */
+  opacity: 0.4;
+  transform: scale(0.97) rotate(-1deg);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.manifest-ticket-chip[draggable="true"] {
+  cursor: grab;
 }
 
 .ticket-header {
