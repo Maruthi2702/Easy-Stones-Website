@@ -1132,6 +1132,21 @@ body.light-theme-active .ticket-customer,
   line-height: 1.2;
 }
 
+/* Same weight as .ticket-address on purpose — it reads as the same kind of
+   fact about the stop, not a separate badge. No margin of its own: the chip's
+   own flex gap (.manifest-ticket-chip) already spaces every line evenly,
+   whichever line happens to sit above it on a given card shape. */
+.ticket-slabs {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  line-height: 1.2;
+}
+
 .ticket-footer {
   display: flex;
   align-items: center;

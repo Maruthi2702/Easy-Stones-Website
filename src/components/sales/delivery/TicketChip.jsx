@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine, Undo2 } from 'lucide-react';
+import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine, Undo2, Layers } from 'lucide-react';
 import StatusPill from './StatusPill';
 import EpodChip from './EpodChip';
 import { isCounterReturn } from '../../../utils/deliveryTypes';
@@ -239,6 +239,26 @@ const TicketChip = ({
         <p className="ticket-address">
           <MapPin size={12} />
           <Highlight text={delivery.address} query={searchQuery} />
+        </p>
+      )}
+
+      {/* The one number a driver or the counter actually needs before touching
+          anything — today it only lived inside the edit modal, so seeing it
+          meant opening every card on the run just to find out how much to load.
+          One conditional placement covers every card shape: it falls right
+          after whatever the line above it was, so it reads as "next line under
+          the address" on a jobsite or return, "next line under the pickup
+          vehicle" on a will call, and — since a transfer shows neither of those
+          today — as the first line under the customer name there, which is the
+          same "next line" placement asked for.
+          0 is treated the same way the modal already treats it (see the No. of
+          Slabs field's own comment there): a ticket nobody has counted yet, not
+          a delivery of zero slabs, so it stays silent rather than claiming a
+          fact nobody has confirmed. */}
+      {Number(delivery.numberOfSlabs) > 0 && (
+        <p className="ticket-slabs">
+          <Layers size={12} />
+          {delivery.numberOfSlabs} {Number(delivery.numberOfSlabs) === 1 ? 'slab' : 'slabs'}
         </p>
       )}
 
