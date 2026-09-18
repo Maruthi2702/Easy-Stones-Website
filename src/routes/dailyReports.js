@@ -74,8 +74,13 @@ const canSeeLocation = (req, location) => {
  * Visitors come from the check-in log, which records an instant — so the day is
  * bounded in the branch's own clock via the tz offset the caller passes, rather
  * than assuming the server's.
+ *
+ * Exported for src/jobs/autoSubmitDailyReports.js, which has to run this same
+ * derive with nobody's browser open to trigger it from a page load — see the
+ * comment on applyDerived below for why the two are always called as a pair
+ * before a day is ever locked in.
  */
-async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
+export async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
   // tzOffsetMinutes is the viewer's UTC offset (-420 for Pacific), so local
   // midnight is that many minutes *behind* UTC midnight — subtract, don't add.
   // Adding it put the window half a day out and undercounted the morning.

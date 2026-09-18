@@ -63,6 +63,39 @@ export const branchNow = (name, at = new Date()) => {
   };
 };
 
+/**
+ * A branch's own UTC offset in minutes, same sign convention the browser
+ * sends deriveFromSystem in dailyReports.js: `-new Date().getTimezoneOffset()`,
+ * i.e. the ordinary "hours from UTC" sign — negative west of UTC (-420 for
+ * Pacific in summer), not JS's own inverted getTimezoneOffset().
+ *
+ * Needed wherever a day has to be re-derived with nobody's browser open to
+ * supply that offset — the auto-submit job in particular. Computed from the
+ * IANA zone rather than hand-picking an offset for each branch so daylight
+ * saving stays the platform's problem, the same reasoning branchNow already
+ * uses above.
+ */
+export const utcOffsetMinutes = (name, at = new Date()) => {
+  const timeZone = branchZone(name);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  }).formatToParts(at).reduce((acc, p) => {
+    if (p.type !== 'literal') acc[p.type] = p.value;
+    return acc;
+  }, {});
+  // Read the branch's local wall-clock digits back as if they were UTC, and
+  // diff that against the real instant — the offset is exactly the gap
+  // between the two, with the sign this file already stands on: local time
+  // behind UTC (west) comes out negative.
+  const asIfUTC = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(parts.hour), Number(parts.minute), Number(parts.second)
+  );
+  return Math.round((asIfUTC - at.getTime()) / 60000);
+};
+
 /** 'YYYY-MM-DD' shifted by whole days, staying a calendar date throughout. */
 export const shiftDate = (iso, days) => {
   const [y, m, d] = iso.split('-').map(Number);

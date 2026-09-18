@@ -1,5 +1,6 @@
 import DailyReport from '../models/DailyReport.js';
-import { BRANCH_NAMES, branchNow, shiftDate } from '../config/branches.js';
+import { BRANCH_NAMES, branchNow, shiftDate, utcOffsetMinutes } from '../config/branches.js';
+import { deriveFromSystem, applyDerived } from '../routes/dailyReports.js';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
 
 /**
@@ -15,6 +16,21 @@ import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail
  *
  * Auto-submitted days are marked as such, and reopening one is the same
  * permission-gated act as reopening any other — that is the way back in.
+ *
+ * This has to derive and apply the day's real figures itself before locking
+ * anything in — it cannot just flip status on whatever the last draft save
+ * left behind. A draft intentionally stores Deliveries/Pick-ups slabs (and any
+ * auto transfer line nobody hand-corrected) as null after every autosave, so
+ * they keep re-deriving from the schedule on the next page load — see
+ * buildDraftPayload in src/components/sales/dailyreport/savePayload.js and the
+ * 2026-08-28 incident note on applyDerived in ../routes/dailyReports.js. The
+ * manual Submit button covers for that by having the browser PUT the real,
+ * currently-displayed values immediately before calling POST .../submit — but
+ * there is no browser here, so nothing ever did that PUT, and a day nobody
+ * reopened after their last edit was freezing at whatever null the previous
+ * autosave had deliberately left. The fix is to run the same derive this job's
+ * own load route runs, apply it, and persist the result as part of the very
+ * same write that sets status to submitted.
  */
 
 const CUTOFF_MINUTES = 23 * 60 + 59;     // 11:59 PM, in the branch's timezone
@@ -46,39 +62,57 @@ export async function autoSubmitDueDays(now = new Date()) {
     for (let back = 1; back <= LOOKBACK_DAYS; back++) dates.push(shiftDate(date, -back));
     if (minutes >= CUTOFF_MINUTES) dates.push(date);
 
-    // Seattle's evening email needs the actual documents to attach, and
-    // updateMany reports only a count — so the drafts about to close are
-    // captured here, before the atomic update decides which of them really
-    // were still drafts to claim.
-    const candidateIds = location === 'Seattle'
-      ? (await DailyReport.find({ location, date: { $in: dates }, status: 'draft' }, '_id').lean()).map(d => d._id)
-      : [];
+    // Full documents, not just ids — each one needs its own derive/apply
+    // before it can be written back, unlike the old single updateMany that
+    // could flip every due draft in one call because it never had to look at
+    // what was actually in any of them.
+    const drafts = await DailyReport.find({ location, date: { $in: dates }, status: 'draft' });
+    if (!drafts.length) continue;
 
-    // Conditional on status inside the update, so two instances ticking at the
-    // same second can't both claim the same day.
-    const result = await DailyReport.updateMany(
-      { location, date: { $in: dates }, status: 'draft' },
-      {
-        $set: {
-          status: 'submitted',
-          submittedAt: now,
-          submittedBy: AUTO_SUBMITTED_BY,
-          autoSubmitted: true
-        }
-      }
-    );
+    const tz = utcOffsetMinutes(location, now);
+    let count = 0;
 
-    if (result.modifiedCount > 0) {
-      submitted.push({ location, count: result.modifiedCount });
+    for (const report of drafts) {
+      const derived = await deriveFromSystem(report.date, location, tz);
+      // Fills only what a human never touched — an existing hand correction
+      // is left exactly as typed. Safe to call unconditionally: applyDerived
+      // itself is a no-op on anything already submitted, which nothing here
+      // is yet.
+      applyDerived(report, derived);
 
-      if (candidateIds.length) {
-        // Re-filtered on status: only the ones this call actually flipped —
-        // not a draft another instance had already claimed between the two
-        // queries above.
-        const closed = await DailyReport.find({ _id: { $in: candidateIds }, status: 'submitted' }).lean();
-        for (const report of closed) notifyDailyReportSubmission(report);
-      }
+      report.status = 'submitted';
+      report.submittedAt = now;
+      report.submittedBy = AUTO_SUBMITTED_BY;
+      report.autoSubmitted = true;
+
+      // findOneAndUpdate against the id *and* status: 'draft', not
+      // report.save() — the atomic claim, not the derive above it, is what
+      // has to be race-safe. Two instances ticking the same second may both
+      // derive the same day harmlessly (identical, read-only computation from
+      // the same source data); only one of their subsequent writes can match
+      // a document still in 'draft', so only one of them ever actually flips
+      // it, and the loser's update here simply matches nothing.
+      const payload = report.toObject();
+      // _id can't move and shouldn't be restated in $set; __v is left for
+      // Mongo's own bookkeeping rather than pinned to whatever this process
+      // happened to read a moment ago.
+      delete payload._id;
+      delete payload.__v;
+
+      const claimed = await DailyReport.findOneAndUpdate(
+        { _id: report._id, status: 'draft' },
+        { $set: payload },
+        { new: true }
+      );
+      if (!claimed) continue;
+
+      count++;
+      // Every branch gets its day closed out; only Seattle's office reads the
+      // evening summary email, same as before this derived its own figures.
+      if (location === 'Seattle') notifyDailyReportSubmission(claimed.toObject());
     }
+
+    if (count > 0) submitted.push({ location, count });
   }
 
   return submitted;
