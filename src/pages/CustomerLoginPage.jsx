@@ -13,7 +13,7 @@ import './CustomerLoginPage.css';
  */
 const CustomerLoginPage = () => {
     const navigate = useNavigate();
-    const { login, checkAuth } = useAuth();
+    const { login, checkAuth, user } = useAuth();
     const [formData, setFormData] = useState({
         email: '',
         password: ''
@@ -43,6 +43,20 @@ const CustomerLoginPage = () => {
             // storage unavailable — not worth blocking login over
         }
     }, []);
+
+    // Logging in on another tab flips `user` here too — AuthContext's storage
+    // listener re-runs checkAuth() for every open tab — but a tab left sitting
+    // on this screen has nothing else watching that state, so it would
+    // otherwise just stay on the login form forever. Follow it in, the same
+    // way a successful submit on this tab would.
+    useEffect(() => {
+        if (!user) return;
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectUrl = urlParams.get('redirect');
+        if (redirectUrl) navigate(redirectUrl, { replace: true });
+        else if (user.type === 'internal') navigate('/sales', { replace: true });
+        else navigate('/', { replace: true });
+    }, [user, navigate]);
 
     const readCapsLock = (e) => {
         // getModifierState is unavailable on some synthetic/mobile events.

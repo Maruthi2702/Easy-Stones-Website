@@ -7,7 +7,7 @@ import './LoginPage.css';
 
 const LoginPage = () => {
     const navigate = useNavigate();
-    const { login, checkAuth } = useAuth();
+    const { login, checkAuth, user } = useAuth();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -25,6 +25,17 @@ const LoginPage = () => {
             // storage unavailable — not worth blocking login over
         }
     }, []);
+
+    // Logging in on another tab flips `user` here too — AuthContext's storage
+    // listener re-runs checkAuth() for every open tab — but a tab left sitting
+    // on this screen has nothing else watching that state, so it would
+    // otherwise just stay on the login form forever. Follow it in.
+    useEffect(() => {
+        if (!user) return;
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectUrl = urlParams.get('redirect') || '/admin';
+        navigate(redirectUrl, { replace: true });
+    }, [user, navigate]);
 
     const [theme, setTheme] = useState(() => {
         try {
