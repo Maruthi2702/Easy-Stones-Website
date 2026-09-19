@@ -429,8 +429,22 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 
-// JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// JWT Secret — fails closed. This used to fall back to a fixed string
+// ('your-secret-key-change-in-production') checked straight into source
+// control, so an environment that simply forgot to set JWT_SECRET didn't
+// break loudly — it quietly started signing and accepting tokens with a
+// secret anyone could read on GitHub, meaning anyone could forge a valid
+// login for any account. Refusing to start is the correct failure mode for
+// a secret this central; a silently-insecure server is worse than a server
+// that won't come up.
+if (!process.env.JWT_SECRET) {
+  throw new Error(
+    'JWT_SECRET is not set. Every login token this app issues is signed with ' +
+    'it — refusing to start rather than fall back to an insecure default. Set ' +
+    'JWT_SECRET in .env (see .env.example).'
+  );
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Neutralise regex metacharacters before interpolating user input into a RegExp.
 // Without this a search for "(" throws, and a crafted pattern can pin the CPU.
@@ -836,37 +850,6 @@ async function startServer() {
 
 startServer();
 
-// DEBUG ENDPOINT - REMOVE IN PRODUCTION
-app.get('/api/debug/config', async (req, res) => {
-  try {
-    const adminCount = await User.countDocuments();
-    const dbName = mongoose.connection.name;
-    const host = mongoose.connection.host;
-
-    // Check for specific user if provided
-    let userCheck = null;
-    if (req.query.username) {
-      const user = await User.findOne({ username: req.query.username.toLowerCase() });
-      userCheck = {
-        requested_username: req.query.username,
-        found: !!user,
-        login_attempts: user ? user.loginAttempts : null,
-        is_locked: user ? user.isLocked() : null
-      };
-    }
-
-    res.json({
-      connected_db: dbName,
-      host: host,
-      admin_count: adminCount,
-      mongo_uri_masked: process.env.MONGO_URI ? process.env.MONGO_URI.split('@')[1] : 'not_set',
-      user_check: userCheck
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Cloudinary config removed - using local storage
 // Cloudinary config removed - using local storage
 const memoryStorage = multer.memoryStorage();
@@ -914,6 +897,21 @@ app.use(compression());
 
 app.use(express.json({ limit: '200mb' })); // Increase limit for large payloads (multiple images)
 app.use(cookieParser());
+
+// A backstop for the other 130+ routes, which had no rate limiting of any
+// kind before this — only /api/auth/login and /api/customer/login did.
+// Deliberately generous (loginLimiter's own "Increased limit for debugging"
+// comment is a reminder that a limiter tuned too tight just becomes a
+// support ticket for real staff on a shared office IP) — this exists to stop
+// a client hammering the API, not to police normal multi-user traffic.
+const apiLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please slow down and try again shortly.' }
+});
+app.use('/api', apiLimiter);
 
 // Prevent caching for all API routes to ensure fresh data after logout/login
 app.use('/api', (req, res, next) => {
@@ -1243,6 +1241,43 @@ const authorize = (...roles) => (req, res, next) => {
   }
   next();
 };
+
+// Was reachable with no auth at all — literally anyone could hit it. Beyond
+// leaking the connected DB host/name, ?username= turned it into a
+// username-enumeration + account-lockout oracle: exactly the reconnaissance a
+// credential-stuffing attempt wants before it starts. Moved down here (it used
+// to sit right after startServer(), near the top of the file) because
+// verifyToken/authorize don't exist yet at that point in a top-to-bottom
+// script — referencing them there throws at startup, not at request time.
+app.get('/api/debug/config', verifyToken, authorize('admin'), async (req, res) => {
+  try {
+    const adminCount = await User.countDocuments();
+    const dbName = mongoose.connection.name;
+    const host = mongoose.connection.host;
+
+    // Check for specific user if provided
+    let userCheck = null;
+    if (req.query.username) {
+      const user = await User.findOne({ username: req.query.username.toLowerCase() });
+      userCheck = {
+        requested_username: req.query.username,
+        found: !!user,
+        login_attempts: user ? user.loginAttempts : null,
+        is_locked: user ? user.isLocked() : null
+      };
+    }
+
+    res.json({
+      connected_db: dbName,
+      host: host,
+      admin_count: adminCount,
+      mongo_uri_masked: process.env.MONGO_URI ? process.env.MONGO_URI.split('@')[1] : 'not_set',
+      user_check: userCheck
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 
 
@@ -7376,7 +7411,11 @@ const processBase64Images = async (imagesArray, folder) => {
 };
 
 // API endpoint to upload image
-app.post('/api/upload', upload.single('image'), async (req, res) => {
+// verifyToken runs before the multer middleware on purpose — an unauthenticated
+// request never gets this far into parsing/buffering a file at all, not just
+// rejected after the work is already done. Was reachable with no auth
+// whatsoever, letting anyone push files to this app's Cloudinary account.
+app.post('/api/upload', verifyToken, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -7425,7 +7464,9 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
 });
 
 // API endpoint to delete image from Cloudinary
-app.post('/api/upload/delete', async (req, res) => {
+// Was reachable with no auth at all — anyone who knew or guessed a Cloudinary
+// URL on this account could delete it, no ownership check, nothing.
+app.post('/api/upload/delete', verifyToken, async (req, res) => {
   try {
     const { imageUrl } = req.body;
 
@@ -7483,7 +7524,10 @@ if (process.env.CLOUDINARY_CLOUD_NAME) {
 // but smarter logic would be to upsert individual items. 
 // However, the frontend sends the *entire* list. 
 // To keep it efficient, we can loop through and upsert.
-app.post('/api/products/save', async (req, res) => {
+// Was reachable with no auth at all: a single unauthenticated POST could
+// upsert the entire live product catalog — every price, every description —
+// since this does a bulk upsert on whatever array the request body sends.
+app.post('/api/products/save', verifyToken, async (req, res) => {
   try {
     const { products } = req.body;
 
@@ -7528,7 +7572,12 @@ app.post('/api/products/save', async (req, res) => {
 });
 
 // One-time migration endpoint to populate collectionType from collection field
-app.post('/api/migrate-collection', async (req, res) => {
+//
+// Left live and reachable with no auth at all — a stray internal tool anyone
+// on the internet could trigger, walking and rewriting every Product document.
+// Gated to admin rather than any authenticated user, same bar as the other
+// one-off/introspection routes in this file (see /api/sales-resources).
+app.post('/api/migrate-collection', verifyToken, authorize('admin'), async (req, res) => {
   try {
     const products = await Product.find({});
     let updated = 0;
