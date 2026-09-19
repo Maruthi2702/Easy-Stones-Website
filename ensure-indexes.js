@@ -2,39 +2,17 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import mongoose from 'mongoose';
-import Customer from './src/models/Customer.js';
-import Product from './src/models/Product.js';
-import User from './src/models/User.js';
-import OfficeCheckIn from './src/models/OfficeCheckIn.js';
-import ActivityLog from './src/models/ActivityLog.js';
-import Schedule from './src/models/Schedule.js';
-import Delivery from './src/models/Delivery.js';
-import Truck from './src/models/Truck.js';
-import LostSale from './src/models/LostSale.js';
-import Location from './src/models/Location.js';
-import Role from './src/models/Role.js';
-import CrossoverSheet from './src/models/CrossoverSheet.js';
+// The one list of models needing indexes, shared with server.js's own startup
+// sync — see src/config/indexedModels.js for why this used to be two
+// hand-maintained arrays that had already drifted apart (this file was
+// missing DailyReport, InventoryItem, InventorySalesRecord, ContactSubmission,
+// SalesResource and SalesDashboardResource; server.js's own list was missing
+// some of the same ones).
+import { INDEXED_MODELS } from './src/config/indexedModels.js';
 
 const mongoOptions = {
   serverSelectionTimeoutMS: 5000,
 };
-
-// Keep this list in step with the index sync in server.js startup — a model
-// missing from both runs with no indexes at all, since autoIndex is disabled.
-const MODELS = [
-  ['Customer', Customer],
-  ['Product', Product],
-  ['User', User],
-  ['OfficeCheckIn', OfficeCheckIn],
-  ['ActivityLog', ActivityLog],
-  ['Schedule', Schedule],
-  ['Delivery', Delivery],
-  ['Truck', Truck],
-  ['LostSale', LostSale],
-  ['Location', Location],
-  ['Role', Role],
-  ['CrossoverSheet', CrossoverSheet]
-];
 
 async function ensureIndexes() {
   let failures = 0;
@@ -43,7 +21,7 @@ async function ensureIndexes() {
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones', mongoOptions);
     console.log('✅ Connected to MongoDB');
 
-    for (const [name, model] of MODELS) {
+    for (const [name, model] of INDEXED_MODELS) {
       console.log(`🔨 Creating ${name} indexes...`);
       try {
         await model.createIndexes();
@@ -55,7 +33,7 @@ async function ensureIndexes() {
     }
 
     console.log('');
-    for (const [name, model] of MODELS) {
+    for (const [name, model] of INDEXED_MODELS) {
       const idx = await model.collection.getIndexes();
       console.log(`📋 ${name} Indexes:`, Object.keys(idx));
     }

@@ -48,6 +48,10 @@ import LostSale from './src/models/LostSale.js';
 import CrossoverSheet from './src/models/CrossoverSheet.js';
 import InventoryItem from './src/models/InventoryItem.js';
 import InventorySalesRecord from './src/models/InventorySalesRecord.js';
+// The one list of "every model that needs its indexes created on startup" —
+// see its own comment for why this used to be two hand-maintained arrays
+// (here and in ensure-indexes.js) that had already drifted apart.
+import { INDEXED_MODELS } from './src/config/indexedModels.js';
 import { SLAB_STATUS_BUCKET } from './src/utils/inventoryStatus.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail, sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
@@ -559,32 +563,26 @@ async function startServer() {
     console.log('Connection Ready State:', mongoose.connection.readyState);
 
     // Ensure all database indexes are created/synced for performance scalability.
-    // autoIndex is disabled on the connection, so a model missing from this list
-    // silently runs with no indexes at all — Delivery/Truck/LostSale were absent,
-    // which left the delivery board doing full collection scans and, worse, left
-    // Delivery.id's unique constraint unenforced.
+    // autoIndex is disabled on the connection, so a model missing from
+    // INDEXED_MODELS silently runs with no indexes at all — see the comment on
+    // that list (src/config/indexedModels.js) for the incident history and why
+    // it is the one place this gets maintained now, instead of here and in
+    // ensure-indexes.js separately.
     // Settled individually so one model's failure (e.g. a pre-existing index with
     // conflicting options) can't mask or abort the rest.
     console.log('🔨 Syncing database indexes for scalability...');
-    const indexTargets = [
-      ['Customer', Customer], ['Product', Product], ['User', User],
-      ['OfficeCheckIn', OfficeCheckIn], ['ActivityLog', ActivityLog], ['Schedule', Schedule],
-      ['Delivery', Delivery], ['Truck', Truck], ['LostSale', LostSale],
-      ['Location', Location], ['Role', Role], ['DailyReport', DailyReport],
-      ['CrossoverSheet', CrossoverSheet]
-    ];
     const indexResults = await Promise.allSettled(
-      indexTargets.map(([, model]) => model.createIndexes())
+      INDEXED_MODELS.map(([, model]) => model.createIndexes())
     );
     indexResults.forEach((result, i) => {
       if (result.status === 'rejected') {
-        console.error(`⚠️ Index sync failed for ${indexTargets[i][0]}: ${result.reason?.message || result.reason}`);
+        console.error(`⚠️ Index sync failed for ${INDEXED_MODELS[i][0]}: ${result.reason?.message || result.reason}`);
       }
     });
     if (indexResults.every(r => r.status === 'fulfilled')) {
       console.log('✅ Database indexes synchronized successfully');
     } else {
-      console.log(`✅ Index sync complete (${indexResults.filter(r => r.status === 'fulfilled').length}/${indexTargets.length} models OK)`);
+      console.log(`✅ Index sync complete (${indexResults.filter(r => r.status === 'fulfilled').length}/${INDEXED_MODELS.length} models OK)`);
     }
 
     // Database migration: Initialize assignedLocations for existing users & upgrade admins to global
