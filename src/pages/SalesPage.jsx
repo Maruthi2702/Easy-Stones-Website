@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Calendar, MapPin, Phone, Mail, Clock, Plus, Search,
@@ -21,8 +21,6 @@ import './SalesPageChat.css';
 import './SalesPageChatImage.css';
 import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
-import SalesPlannerTab from '../components/SalesPlannerTab';
-import RoutePlannerV2 from '../components/sales/routePlannerV2/RoutePlannerV2';
 import CustomDatePicker from '../components/CustomDatePicker';
 import { formatForDateInput, formatDate, formatInstant, getLocalISOString, viewerTimeZone } from '../utils/dateUtils';
 import DashboardStats from '../components/sales/DashboardStats';
@@ -31,22 +29,42 @@ import VisitPostCard from '../components/sales/VisitPostCard';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
-import PartnersSheet from '../components/sales/PartnersSheet';
-import CheckInLogPanel from '../components/sales/CheckInLogPanel';
-import PriceListPanel from '../components/sales/PriceListPanel';
-import UsersRolesTab from '../components/sales/UsersRolesTab';
 import UserProfileTab from '../components/sales/UserProfileTab';
-import LostSalesTab from '../components/sales/LostSalesTab';
-import CrossoverSheetTab from '../components/sales/CrossoverSheetTab';
-import InventoryAnalysisTab from '../components/sales/InventoryAnalysisTab';
-import DeliveryScheduleTab from '../components/sales/DeliveryScheduleTab';
-import DailyReportTab from '../components/sales/dailyreport/DailyReportTab';
 import Pagination from '../components/shared/Pagination';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 import { toSalesRepList } from '../utils/salesReps';
+import { lazyRetry } from '../utils/lazyRetry';
 
 import ErrorBoundary from '../components/shared/ErrorBoundary';
+
+// This page eagerly imported every tab it can show — Route Planner's Google
+// Maps code, Users & Roles, Price List, all of it — into one bundle loaded
+// the moment ANY user opens ANY tab, even Delivery Schedule alone. Only one
+// tab is ever on screen at a time (all gated behind crmTab === '…' below),
+// so each now loads only once its own tab is actually opened, the same
+// lazyRetry pattern src/App.jsx already uses per page route.
+const SalesPlannerTab = lazyRetry(() => import('../components/SalesPlannerTab'));
+const RoutePlannerV2 = lazyRetry(() => import('../components/sales/routePlannerV2/RoutePlannerV2'));
+const PartnersSheet = lazyRetry(() => import('../components/sales/PartnersSheet'));
+const CheckInLogPanel = lazyRetry(() => import('../components/sales/CheckInLogPanel'));
+const PriceListPanel = lazyRetry(() => import('../components/sales/PriceListPanel'));
+const UsersRolesTab = lazyRetry(() => import('../components/sales/UsersRolesTab'));
+const LostSalesTab = lazyRetry(() => import('../components/sales/LostSalesTab'));
+const CrossoverSheetTab = lazyRetry(() => import('../components/sales/CrossoverSheetTab'));
+const InventoryAnalysisTab = lazyRetry(() => import('../components/sales/InventoryAnalysisTab'));
+const DeliveryScheduleTab = lazyRetry(() => import('../components/sales/DeliveryScheduleTab'));
+const DailyReportTab = lazyRetry(() => import('../components/sales/dailyreport/DailyReportTab'));
+
+// One small, inline fallback rather than a full-page spinner — App.jsx's
+// <PageLoader/> is sized for a blank page, and using it here would flash the
+// whole dashboard chrome (sidebar, header) to nothing while a single tab's
+// chunk loads.
+const TabLoader = () => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}>
+        <Loader size={28} className="animate-spin" style={{ color: '#d4af37' }} />
+    </div>
+);
 
 const SalesPage = () => {
     const { user: currentUser, loading: authLoading, logout } = useAuth();
@@ -2951,6 +2969,7 @@ const SalesPage = () => {
         ) : null;
 
         return (
+            <Suspense fallback={<TabLoader />}>
             <CheckInLogPanel
                 checkIns={checkIns}
                 loading={checkInsLoading && checkIns.length === 0}
@@ -2981,6 +3000,7 @@ const SalesPage = () => {
                 onDelete={handleDeleteCheckIn}
                 locations={locations}
             />
+            </Suspense>
         );
     };
 
@@ -3097,7 +3117,9 @@ const SalesPage = () => {
         ) : null;
 
         return (
-            <PriceListPanel sidebarToggle={sidebarToggle} />
+            <Suspense fallback={<TabLoader />}>
+                <PriceListPanel sidebarToggle={sidebarToggle} />
+            </Suspense>
         );
     };
 
@@ -3107,11 +3129,13 @@ const SalesPage = () => {
         ) : null;
 
         return (
-            <UsersRolesTab 
-                sidebarToggle={sidebarToggle} 
+            <Suspense fallback={<TabLoader />}>
+            <UsersRolesTab
+                sidebarToggle={sidebarToggle}
                 locations={locations}
                 fetchLocations={fetchLocations}
             />
+            </Suspense>
         );
     };
 
@@ -3216,6 +3240,7 @@ const SalesPage = () => {
 
                     return (
                         <ErrorBoundary key="lost-sales-view">
+                        <Suspense fallback={<TabLoader />}>
                             <LostSalesTab
                                 currentUser={currentUser}
                                 customersList={allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || [])}
@@ -3226,6 +3251,7 @@ const SalesPage = () => {
                                 isDropdownLoading={isDropdownLoading}
                                 sidebarToggle={sidebarToggle}
                             />
+                        </Suspense>
                         </ErrorBoundary>
                     );
                 })()}
@@ -3237,10 +3263,12 @@ const SalesPage = () => {
 
                     return (
                         <ErrorBoundary key="crossover-sheet-view">
+                        <Suspense fallback={<TabLoader />}>
                             <CrossoverSheetTab
                                 currentUser={currentUser}
                                 sidebarToggle={sidebarToggle}
                             />
+                        </Suspense>
                         </ErrorBoundary>
                     );
                 })()}
@@ -3252,11 +3280,13 @@ const SalesPage = () => {
 
                     return (
                         <ErrorBoundary key="inventory-analysis-view">
+                        <Suspense fallback={<TabLoader />}>
                             <InventoryAnalysisTab
                                 currentUser={currentUser}
                                 sidebarToggle={sidebarToggle}
                                 refreshSignal={inventoryAnalysisRefreshTrigger}
                             />
+                        </Suspense>
                         </ErrorBoundary>
                     );
                 })()}
@@ -3268,10 +3298,12 @@ const SalesPage = () => {
 
                     return (
                         <ErrorBoundary key="daily-report-view">
+                        <Suspense fallback={<TabLoader />}>
                             <DailyReportTab
                                 currentUser={currentUser}
                                 sidebarToggle={sidebarToggle}
                             />
+                        </Suspense>
                         </ErrorBoundary>
                     );
                 })()}
@@ -3283,6 +3315,7 @@ const SalesPage = () => {
 
                     return (
                         <ErrorBoundary key="delivery-schedule-view">
+                        <Suspense fallback={<TabLoader />}>
                             <DeliveryScheduleTab
                                 currentUser={currentUser}
                                 locationsList={locations || ['Seattle', 'Spokane', 'Salt Lake City']}
@@ -3290,6 +3323,7 @@ const SalesPage = () => {
                                 theme={theme}
                                 sidebarToggle={sidebarToggle}
                             />
+                        </Suspense>
                         </ErrorBoundary>
                     );
                 })()}
@@ -3302,6 +3336,7 @@ const SalesPage = () => {
                 {!authLoading && currentUser?.permissions && routePlannerOpened && currentUser.permissions.includes('view_route_planner') && (
                     <div style={{ position: 'relative', display: crmTab === 'route_planner' ? 'block' : 'none' }}>
                         <ErrorBoundary key="route-planner-v2-view">
+                        <Suspense fallback={<TabLoader />}>
                             <RoutePlannerV2
                                 currentUser={currentUser}
                                 theme={theme}
@@ -3313,6 +3348,7 @@ const SalesPage = () => {
                                     <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
                                 ) : null}
                             />
+                        </Suspense>
                         </ErrorBoundary>
                     </div>
                 )}
@@ -3825,6 +3861,7 @@ const SalesPage = () => {
                     <div style={{ display: selectedCustomer ? 'none' : 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
                         <ErrorBoundary key="customers-list">
                             <div className="sales-dashboard-v2">
+                                <Suspense fallback={<TabLoader />}>
                                 <PartnersSheet
                                     onSelectCustomer={handleSelectCustomer}
                                     onToggleSidebar={() => setIsSidebarOpen(true)}
@@ -3832,6 +3869,7 @@ const SalesPage = () => {
                                     isPinned={isPinned}
                                     customerRefreshTrigger={customerRefreshTrigger}
                                 />
+                                </Suspense>
                             </div>
                         </ErrorBoundary>
                     </div>
@@ -3915,6 +3953,7 @@ const SalesPage = () => {
                                     {/* Sales Visits Table */}
                                     {activeDashboardTab === 'planner' && (
                                         <div className="planner-dashboard-container">
+                                            <Suspense fallback={<TabLoader />}>
                                             <SalesPlannerTab
                                                 customerSelection={allCustomersForSelection}
                                                 customerOptions={customerOptions}
@@ -3923,6 +3962,7 @@ const SalesPage = () => {
                                                 onSelectCustomer={handleSelectCustomer}
                                                 onScheduleChange={fetchSchedules}
                                             />
+                                            </Suspense>
                                         </div>
                                     )}
 
@@ -4193,13 +4233,15 @@ const SalesPage = () => {
                                         </div>
                                     )}
                                     {activeDashboardTab === 'leads' && (
-                                        <PartnersSheet 
-                                            onSelectCustomer={handleSelectCustomer} 
+                                        <Suspense fallback={<TabLoader />}>
+                                        <PartnersSheet
+                                            onSelectCustomer={handleSelectCustomer}
                                             onToggleSidebar={() => setIsSidebarOpen(true)}
                                             isSidebarOpen={isSidebarOpen}
                                             isPinned={isPinned}
                                             customerRefreshTrigger={customerRefreshTrigger}
                                          />
+                                        </Suspense>
                                     )}
 
                                     {/* Resources Table */}

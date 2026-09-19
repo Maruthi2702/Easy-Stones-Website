@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, Info } from 'lucide-react';
 import Header from './components/Header';
@@ -7,28 +7,8 @@ import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProductProvider } from './context/ProductContext';
 import { API_URL } from './config/api';
+import { lazyRetry } from './utils/lazyRetry';
 import './App.css';
-
-// Helper for lazy loading with retry logic
-const lazyRetry = (componentImport) => {
-  return lazy(async () => {
-    const pageHasAlreadyBeenForceRefreshed = JSON.parse(
-      window.localStorage.getItem('page-has-been-force-refreshed') || 'false'
-    );
-
-    try {
-      const component = await componentImport();
-      window.localStorage.setItem('page-has-been-force-refreshed', 'false');
-      return component;
-    } catch (error) {
-      if (!pageHasAlreadyBeenForceRefreshed) {
-        window.localStorage.setItem('page-has-been-force-refreshed', 'true');
-        return window.location.reload();
-      }
-      throw error;
-    }
-  });
-};
 
 // Lazy load pages
 const HomePage = lazyRetry(() => import('./pages/HomePage'));
