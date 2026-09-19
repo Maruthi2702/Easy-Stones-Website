@@ -68,10 +68,14 @@ import { groupDuplicates, STRONG } from './src/utils/customerMatch.js';
 // module with no database access, so the whole decision can be exercised
 // against a real spreadsheet without touching a record.
 import {
-  IMPORT_FIELDS, importNormalize, resolveImportMapping, readCustomerSheet,
+  IMPORT_FIELDS, importNormalize, resolveImportMapping,
   buildImportPlan, importRowsForClient, importLabel
 } from './src/utils/customerImport.js';
-import { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './src/utils/inventoryImport.js';
+// The parsers themselves (parseInventoryStockWorkbook, parseInventorySalesWorkbook,
+// readCustomerSheet) are no longer called directly here — every uploaded file goes
+// through runWorkbookParse, which runs the real parse in a worker thread instead
+// of on this process's own thread. See runWorkbookParse.js for why.
+import { runWorkbookParse } from './src/utils/runWorkbookParse.js';
 import {
   isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
   PICKUP_WORDING, DELIVERY_WORDING, RETURN_WORDING
@@ -6379,7 +6383,7 @@ const planCustomerImport = async (req) => {
   // An absent field parses to {}, which every consumer reads as "nothing was
   // overridden" — the same answer as not asking.
   const parse = (field) => (req.body[field] ? JSON.parse(req.body[field]) : {});
-  const { headers, rows } = readCustomerSheet(req.file.buffer);
+  const { headers, rows } = await runWorkbookParse('customer', req.file.buffer);
   const mapping = resolveImportMapping(headers, parse('mapping'));
   const reference = await loadImportReferenceData();
 
@@ -6797,7 +6801,9 @@ app.get('/api/inventory-analysis/velocity', authenticate, requirePermission('vie
 app.post('/api/inventory-analysis/import/stock/preview', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-    const { headers, mapping, missingRequired, rows } = parseInventoryStockWorkbook(req.file.buffer);
+    // Parsed in a worker thread, not on this request's own thread — see
+    // runWorkbookParse.js for why an uploaded file needs that isolation.
+    const { headers, mapping, missingRequired, rows } = await runWorkbookParse('inventory-stock', req.file.buffer);
     res.json({ success: true, headers, mapping, missingRequired, totalRows: rows.length, sample: rows.slice(0, 10) });
   } catch (error) {
     console.error('Inventory stock import preview error:', error);
@@ -6808,7 +6814,7 @@ app.post('/api/inventory-analysis/import/stock/preview', authenticate, requirePe
 app.post('/api/inventory-analysis/import/stock/apply', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-    const { missingRequired, rows } = parseInventoryStockWorkbook(req.file.buffer);
+    const { missingRequired, rows } = await runWorkbookParse('inventory-stock', req.file.buffer);
     if (missingRequired.length) {
       return res.status(400).json({ message: `Missing required column(s): ${missingRequired.join(', ')}` });
     }
@@ -6848,7 +6854,7 @@ app.post('/api/inventory-analysis/import/stock/apply', authenticate, requirePerm
 app.post('/api/inventory-analysis/import/sales/preview', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-    const { headers, mapping, missingRequired, rows, detected } = parseInventorySalesWorkbook(req.file.buffer);
+    const { headers, mapping, missingRequired, rows, detected } = await runWorkbookParse('inventory-sales', req.file.buffer);
     res.json({ success: true, headers, mapping, missingRequired, totalRows: rows.length, sample: rows.slice(0, 10), detected });
   } catch (error) {
     console.error('Inventory sales import preview error:', error);
@@ -6859,7 +6865,7 @@ app.post('/api/inventory-analysis/import/sales/preview', authenticate, requirePe
 app.post('/api/inventory-analysis/import/sales/apply', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-    const { missingRequired, rows } = parseInventorySalesWorkbook(req.file.buffer);
+    const { missingRequired, rows } = await runWorkbookParse('inventory-sales', req.file.buffer);
     if (missingRequired.length) {
       return res.status(400).json({ message: `Missing required column(s): ${missingRequired.join(', ')}` });
     }
