@@ -26,11 +26,11 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "express-rate-limit": "^8.2.1",
-    "jsonwebtoken": "^9.0.2",
+    "express-rate-limit": "^8.7.0",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.554.0",
-    "mongoose": "^9.0.0",
-    "multer": "^2.0.2",
+    "mongoose": "^9.10.1",
+    "multer": "^2.4.0",
     "nodemailer": "^7.0.11",
     "pdf-lib": "^1.17.1",
     "playwright": "^1.62.1",
@@ -57,6 +57,9 @@
     "vite": "^5.4.21",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "socket.io-parser": "^4.2.7"
   },
   "allowScripts": {
     "pdf-lib@1.17.1": true,
