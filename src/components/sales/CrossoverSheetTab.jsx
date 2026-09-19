@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import {
   ArrowLeftRight, Search, Plus, Trash2, Edit3, RefreshCw,
-  Download, Filter, Building2
+  Download, Filter, Building2, LayoutGrid, List, Printer
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import CrossoverSheetModal from './CrossoverSheetModal';
 import Pagination from '../shared/Pagination';
 import CustomSelect from '../shared/CustomSelect';
+import { EASY_STONES_COLORS } from '../../data/easyStonesColors';
 import './CrossoverSheetTab.css';
 
 const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
@@ -16,6 +17,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [matchTypeFilter, setMatchTypeFilter] = useState('All');
+  const [viewMode, setViewMode] = useState('matrix');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -103,6 +105,11 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
     setIsModalOpen(true);
   };
 
+  const handleOpenAddModalFor = (easyStonesName, distributorName) => {
+    setEditingItem({ easyStonesName, distributorName });
+    setIsModalOpen(true);
+  };
+
   const filteredEntries = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     return entries.filter(item => {
@@ -114,6 +121,39 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
       return matchesSearch && matchesType;
     });
   }, [entries, searchQuery, matchTypeFilter]);
+
+  const matrixData = useMemo(() => {
+    const distributorsSet = new Set();
+    const rowsMap = new Map();
+
+    filteredEntries.forEach(item => {
+      distributorsSet.add(item.distributorName);
+      if (!rowsMap.has(item.easyStonesName)) rowsMap.set(item.easyStonesName, new Map());
+      const colMap = rowsMap.get(item.easyStonesName);
+      if (!colMap.has(item.distributorName)) colMap.set(item.distributorName, []);
+      colMap.get(item.distributorName).push(item);
+    });
+
+    // Seed every catalog color as its own row, even with no crossovers yet,
+    // so staff can see what's still missing a distributor match. Skipped
+    // when a match-type filter is active since an empty row has no match
+    // type to filter on.
+    if (matchTypeFilter === 'All') {
+      const q = searchQuery.toLowerCase().trim();
+      EASY_STONES_COLORS.forEach(name => {
+        if (rowsMap.has(name)) return;
+        if (q && !name.toLowerCase().includes(q)) return;
+        rowsMap.set(name, new Map());
+      });
+    }
+
+    const distributors = Array.from(distributorsSet).sort((a, b) => a.localeCompare(b));
+    const rows = Array.from(rowsMap.keys())
+      .sort((a, b) => a.localeCompare(b))
+      .map(easyStonesName => ({ easyStonesName, cells: rowsMap.get(easyStonesName) }));
+
+    return { distributors, rows };
+  }, [filteredEntries, matchTypeFilter, searchQuery]);
 
   const totalPages = Math.ceil(filteredEntries.length / rowsPerPage) || 1;
   const paginatedEntries = useMemo(() => {
@@ -128,13 +168,16 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   const handleExportExcel = () => {
     try {
-      const list = filteredEntries.map(item => ({
-        'Distributor Company': item.distributorName,
-        'Distributor Color Name': item.distributorColorName,
-        'Easy Stones Crossover': item.easyStonesName,
-        'Match Type': item.matchType,
-        'Notes': item.notes || ''
-      }));
+      const list = matrixData.rows.map(row => {
+        const rowData = { 'Easy Stones': row.easyStonesName };
+        matrixData.distributors.forEach(distributor => {
+          const cellEntries = row.cells.get(distributor) || [];
+          rowData[distributor] = cellEntries
+            .map(entry => `${entry.distributorColorName} (${entry.matchType})${entry.notes ? ' - ' + entry.notes : ''}`)
+            .join('; ');
+        });
+        return rowData;
+      });
       const worksheet = XLSX.utils.json_to_sheet(list);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Crossover Sheet');
@@ -144,6 +187,10 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
       console.error('Error exporting crossover sheet to Excel:', error);
       alert('Failed to export data to Excel file');
     }
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const hasFilteredEverythingOut = filteredEntries.length === 0 && entries.length > 0;
@@ -156,7 +203,31 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
           <h2 className="xover-title-text">Crossover Sheet</h2>
         </div>
 
-        <div className="xover-header-actions">
+        <div className="xover-header-actions no-print">
+          <div className="xover-view-toggle">
+            <button
+              type="button"
+              className={`xover-view-btn ${viewMode === 'matrix' ? 'active' : ''}`}
+              onClick={() => setViewMode('matrix')}
+              title="Matrix View"
+            >
+              <LayoutGrid size={15} />
+              <span className="xover-btn-text-full">Matrix</span>
+            </button>
+            <button
+              type="button"
+              className={`xover-view-btn ${viewMode === 'list' ? 'active' : ''}`}
+              onClick={() => setViewMode('list')}
+              title="List View"
+            >
+              <List size={15} />
+              <span className="xover-btn-text-full">List</span>
+            </button>
+          </div>
+          <button type="button" className="xover-btn-export" onClick={handlePrint} title="Print / Save as PDF">
+            <Printer size={15} />
+            <span className="xover-btn-text-full">PDF</span>
+          </button>
           <button type="button" className="xover-btn-export" onClick={handleExportExcel} title="Export to Excel">
             <Download size={15} />
             <span className="xover-btn-text-full">Export</span>
@@ -175,7 +246,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
         Distributor color names mapped to their closest Easy Stones equivalent, so a customer can order a match when their usual color isn't available.
       </p>
 
-      <div className="xover-filter-bar">
+      <div className="xover-filter-bar no-print">
         <div className="xover-search-box">
           <Search size={16} className="xover-search-icon" />
           <input
@@ -203,13 +274,13 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
         </div>
       </div>
 
-      <div className="xover-grid-wrapper desktop-only">
+      <div className={`xover-grid-wrapper desktop-only ${viewMode === 'matrix' ? 'is-matrix' : ''}`}>
         {loading ? (
           <div className="xover-loading">
             <RefreshCw size={24} className="xover-spin-icon" />
             <span>Loading Crossover Sheet...</span>
           </div>
-        ) : filteredEntries.length === 0 ? (
+        ) : (viewMode === 'matrix' ? matrixData.rows.length === 0 : filteredEntries.length === 0) ? (
           <div className="xover-empty-state">
             <div className="xover-empty-icon-wrapper">
               {hasFilteredEverythingOut ? <Search size={30} /> : <ArrowLeftRight size={32} />}
@@ -232,6 +303,72 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
               </>
             )}
           </div>
+        ) : viewMode === 'matrix' ? (
+          <table className="xover-matrix-table">
+            <thead>
+              <tr>
+                <th className="matrix-corner">Easy Stones</th>
+                {matrixData.distributors.map(distributor => (
+                  <th key={distributor} className="matrix-col-header" title={distributor}>{distributor}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {matrixData.rows.map(row => (
+                <tr key={row.easyStonesName} className="matrix-row">
+                  <td className="matrix-row-header" title={row.easyStonesName}>
+                    <span className="xover-crossover-name">{row.easyStonesName}</span>
+                  </td>
+                  {matrixData.distributors.map(distributor => {
+                    const cellEntries = row.cells.get(distributor) || [];
+                    return (
+                      <td key={distributor} className="matrix-cell">
+                        {cellEntries.length > 0 ? (
+                          cellEntries.map(entry => (
+                            <div key={entry._id} className="matrix-chip-wrap">
+                              <button
+                                type="button"
+                                className="matrix-chip"
+                                onClick={(e) => canEdit && handleOpenEditModal(entry, e)}
+                                title={entry.notes || `${entry.distributorColorName} — ${entry.matchType}`}
+                                disabled={!canEdit}
+                              >
+                                <span className="matrix-chip-color">{entry.distributorColorName}</span>
+                                <span className={`xover-match-badge sm ${entry.matchType === 'Direct Crossover' ? 'direct' : 'similar'}`}>
+                                  {entry.matchType === 'Direct Crossover' ? 'Direct' : 'Similar'}
+                                </span>
+                              </button>
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  className="matrix-chip-delete"
+                                  onClick={(e) => handleDeleteEntry(entry._id, e)}
+                                  title="Delete Entry"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              )}
+                            </div>
+                          ))
+                        ) : canAdd ? (
+                          <button
+                            type="button"
+                            className="matrix-add-btn"
+                            onClick={() => handleOpenAddModalFor(row.easyStonesName, distributor)}
+                            title={`Add ${distributor} crossover for ${row.easyStonesName}`}
+                          >
+                            <Plus size={12} />
+                          </button>
+                        ) : (
+                          <span className="matrix-empty-dash">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : (
           <table className="xover-table">
             <thead>
@@ -339,7 +476,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
       </div>
 
       {filteredEntries.length > 0 && (
-        <div className="xover-pagination-wrapper">
+        <div className={`xover-pagination-wrapper no-print ${viewMode === 'matrix' ? 'hide-on-desktop' : ''}`}>
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}

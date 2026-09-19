@@ -123,6 +123,59 @@ body.light-theme-active .xover-btn-export,
   box-shadow: 0 8px 24px rgba(212, 175, 55, 0.4);
 }
 
+/* ── VIEW TOGGLE ── */
+.xover-view-toggle {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+
+body.light-theme-active .xover-view-toggle,
+.light-theme-active .xover-view-toggle {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.xover-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 34px;
+  padding: 0 0.75rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+body.light-theme-active .xover-view-btn,
+.light-theme-active .xover-view-btn {
+  color: #64748b;
+}
+
+.xover-view-btn:hover {
+  color: #e2e8f0;
+}
+
+body.light-theme-active .xover-view-btn:hover,
+.light-theme-active .xover-view-btn:hover {
+  color: #0f172a;
+}
+
+.xover-view-btn.active {
+  background: linear-gradient(135deg, #d4af37 0%, #c5a028 100%);
+  color: #000000;
+}
+
 /* ── FILTER BAR ── */
 .xover-filter-bar {
   display: flex;
@@ -338,6 +391,224 @@ body.light-theme-active .xover-match-badge.similar,
   background: #fffbeb;
   color: #b45309;
   border-color: #fde68a;
+}
+
+.xover-match-badge.sm {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.66rem;
+  border-radius: 5px;
+}
+
+/* ── MATRIX (PIVOT) VIEW ── */
+.xover-grid-wrapper.is-matrix {
+  overflow: auto;
+  max-height: 68vh;
+}
+
+.xover-matrix-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+  width: max-content;
+  min-width: 100%;
+}
+
+.xover-matrix-table th,
+.xover-matrix-table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0.6rem 0.75rem;
+  vertical-align: top;
+}
+
+body.light-theme-active .xover-matrix-table th,
+body.light-theme-active .xover-matrix-table td,
+.light-theme-active .xover-matrix-table th,
+.light-theme-active .xover-matrix-table td {
+  border-bottom-color: #eef2f7;
+  border-right-color: #eef2f7;
+}
+
+.xover-matrix-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #232326;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  white-space: nowrap;
+  min-width: 190px;
+}
+
+body.light-theme-active .xover-matrix-table thead th,
+.light-theme-active .xover-matrix-table thead th {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.xover-matrix-table .matrix-corner {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  min-width: 170px;
+}
+
+.xover-matrix-table .matrix-row-header {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #1c1c1e;
+  min-width: 170px;
+  white-space: nowrap;
+}
+
+body.light-theme-active .xover-matrix-table .matrix-row-header,
+.light-theme-active .xover-matrix-table .matrix-row-header {
+  background: #ffffff;
+}
+
+.xover-matrix-table .matrix-row:hover .matrix-row-header {
+  background: #2a2a2d;
+}
+
+body.light-theme-active .xover-matrix-table .matrix-row:hover .matrix-row-header,
+.light-theme-active .xover-matrix-table .matrix-row:hover .matrix-row-header {
+  background: #f8fafc;
+}
+
+.xover-matrix-table .matrix-row:hover .matrix-cell {
+  background: rgba(212, 175, 55, 0.04);
+}
+
+body.light-theme-active .xover-matrix-table .matrix-row:hover .matrix-cell,
+.light-theme-active .xover-matrix-table .matrix-row:hover .matrix-cell {
+  background: #f8fafc;
+}
+
+.matrix-cell {
+  display: table-cell;
+}
+
+.matrix-chip-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.3rem;
+}
+
+.matrix-chip-wrap:last-child {
+  margin-bottom: 0;
+}
+
+.matrix-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: normal;
+  text-align: left;
+  flex: 1;
+}
+
+.matrix-chip:disabled {
+  cursor: default;
+}
+
+.matrix-chip:not(:disabled):hover {
+  border-color: #d4af37;
+  background: rgba(212, 175, 55, 0.08);
+}
+
+body.light-theme-active .matrix-chip,
+.light-theme-active .matrix-chip {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.matrix-chip-color {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #ffffff;
+}
+
+body.light-theme-active .matrix-chip-color,
+.light-theme-active .matrix-chip-color {
+  color: #0f172a;
+}
+
+.matrix-chip-delete {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.matrix-chip-wrap:hover .matrix-chip-delete {
+  opacity: 1;
+}
+
+.matrix-chip-delete:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.matrix-add-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.matrix-row:hover .matrix-add-btn,
+.matrix-cell:focus-within .matrix-add-btn {
+  opacity: 1;
+}
+
+.matrix-add-btn:hover {
+  border-color: #d4af37;
+  border-style: solid;
+  color: #d4af37;
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.matrix-empty-dash {
+  color: #475569;
+}
+
+@media (max-width: 900px) {
+  .xover-pagination-wrapper.hide-on-desktop { display: flex; }
+}
+
+@media (min-width: 901px) {
+  .xover-pagination-wrapper.hide-on-desktop { display: none; }
 }
 
 /* ── ACTION BUTTONS ── */
@@ -872,4 +1143,127 @@ body.light-theme-active .xover-btn-cancel,
 @keyframes xoverFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* ── PRINT / PDF VIEW ── */
+@media print {
+  .no-print,
+  .sales-sidebar,
+  .header,
+  nav,
+  header,
+  .nav-desktop,
+  .nav-mobile,
+  .mobile-only {
+    display: none !important;
+  }
+
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .sales-container,
+  .sales-main {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .xover-tab-container {
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    color: #000000 !important;
+  }
+
+  .xover-title-text,
+  .xover-subtitle {
+    color: #000000 !important;
+  }
+
+  .desktop-only {
+    display: block !important;
+  }
+
+  .xover-grid-wrapper {
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .xover-matrix-table,
+  .xover-table {
+    width: 100% !important;
+    font-size: 9px !important;
+    color: #000000 !important;
+  }
+
+  .xover-matrix-table th,
+  .xover-matrix-table td,
+  .xover-table th,
+  .xover-table td {
+    border-color: #cbd5e1 !important;
+  }
+
+  .xover-matrix-table thead th,
+  .xover-matrix-table .matrix-corner,
+  .xover-matrix-table .matrix-row-header {
+    position: static !important;
+    background: #f1f5f9 !important;
+    color: #000000 !important;
+  }
+
+  .xover-table th {
+    background: #f1f5f9 !important;
+    color: #000000 !important;
+  }
+
+  .col-distributor,
+  .matrix-chip-color,
+  .xover-crossover-name {
+    color: #000000 !important;
+  }
+
+  .matrix-add-btn,
+  .matrix-chip-delete,
+  .col-actions,
+  .h-actions {
+    display: none !important;
+  }
+
+  .matrix-chip {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    cursor: default !important;
+  }
+
+  .xover-match-badge,
+  .xover-match-badge.sm {
+    border: 1px solid #94a3b8 !important;
+    background: transparent !important;
+    color: #000000 !important;
+  }
+
+  @page {
+    size: landscape;
+    margin: 0.5in;
+  }
 }

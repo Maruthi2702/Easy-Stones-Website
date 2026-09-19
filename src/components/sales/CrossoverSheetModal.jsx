@@ -75,7 +75,7 @@ const CrossoverSheetModal = ({ isOpen, onClose, onSave, initialData = null }) =>
               <ArrowLeftRight size={20} />
             </div>
             <div>
-              <h3>{initialData ? 'Edit Crossover Entry' : 'Add Crossover Entry'}</h3>
+              <h3>{initialData?._id ? 'Edit Crossover Entry' : 'Add Crossover Entry'}</h3>
               <p className="xover-modal-sub-text">Map a distributor's color to its Easy Stones equivalent</p>
             </div>
           </div>
@@ -157,7 +157,7 @@ const CrossoverSheetModal = ({ isOpen, onClose, onSave, initialData = null }) =>
             </button>
             <button type="submit" className="xover-btn-save">
               <Save size={18} />
-              <span>{initialData ? 'Update Entry' : 'Save Entry'}</span>
+              <span>{initialData?._id ? 'Update Entry' : 'Save Entry'}</span>
             </button>
           </div>
         </form>
