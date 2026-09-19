@@ -216,9 +216,6 @@ const CustomerSidebar = ({
                 </button>
             </div>
 
-            {/* Spacer */}
-            <div style={{ flexGrow: 1 }} />
-
             {/* User Profile / Logout Footer */}
             {user && (
                 <div className="sidebar-user-footer">
