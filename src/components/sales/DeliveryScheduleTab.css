@@ -361,6 +361,17 @@ body.light-theme-active .manifest-load-error,
   font-family: inherit;
 }
 
+.location-filter-wrap-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.location-filter-wrap-header .location-filter-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
 .board-search-input-header::placeholder {
   color: #64748b;
 }

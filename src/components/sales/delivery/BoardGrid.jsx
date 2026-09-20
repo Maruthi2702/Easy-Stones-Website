@@ -1,7 +1,13 @@
+// The office/sales dispatch board: truck columns × week days, drag-and-drop
+// to move/reorder stops. Rendered by DeliveryScheduleTab.jsx for both the
+// 'office' (editable) and 'sales' (read-only) roles — DriverView.jsx is the
+// separate, mobile-first component a driver sees instead. See
+// src/components/sales/delivery/README.md for how this fits with the rest
+// of the feature (deliverySchedule.js's cache, the backend router, the socket).
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText, ArrowUpToLine, ArrowDownToLine, Link2 } from 'lucide-react';
 import TicketChip from './TicketChip';
-import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
+import { MAX_TRUCK_CAPACITY } from '../../../api/deliverySchedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
 import { columnIdFor, isReturn, WILL_CALL_COLUMN_ID } from '../../../utils/deliveryTypes';

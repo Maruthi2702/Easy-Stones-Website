@@ -111,7 +111,7 @@ const CustomerSidebar = ({
                 )}
 
                 {/* Delivery Schedule — requires view_delivery_schedule */}
-                {(user?.permissions?.includes('view_delivery_schedule') || user?.permissions?.includes('manage_delivery_schedule') || user?.role === 'admin' || !user) && (
+                {(user?.permissions?.includes('view_delivery_schedule') || user?.role === 'admin' || !user) && (
                     <button
                         className={`sidebar-nav-link ${crmTab === 'delivery_schedule' ? 'active' : ''}`}
                         onClick={() => handleLinkClick('delivery_schedule')}

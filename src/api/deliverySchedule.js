@@ -1,3 +1,11 @@
+// The ONLY place in the app that calls the delivery API — every component
+// under src/components/sales/delivery/ gets its data by calling the
+// exported functions here, never by fetching /api/deliveries directly. Also
+// owns the one Socket.IO connection this feature uses and a module-level,
+// singleton cache (`scheduleCache` below) that every consumer reads from.
+// See src/components/sales/delivery/README.md for the full data-flow map —
+// in particular, why a location-filtered view deliberately bypasses this
+// cache instead of adding a location dimension to it.
 import { API_URL } from '../config/api';
 import { io } from 'socket.io-client';
 import { authFetch } from './authFetch';
@@ -201,6 +209,14 @@ function initScheduleSocket() {
     scheduleCache.socket.on('connect', () => {
       stopPolling();
       setConnectionStatus('online');
+      // Proves who this socket belongs to so the server can join it to the
+      // room(s) for its actual assigned location(s) — delivery_update carries
+      // customer names/addresses/pricing per branch, so it isn't broadcast to
+      // every connected socket the way other channels on this same
+      // connection are. Re-sent on every reconnect too, since a fresh
+      // connection joins no rooms until this fires again.
+      const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+      if (token) scheduleCache.socket.emit('join_delivery_rooms', { token });
       // Re-sync the currently viewed week on connection / reconnection, in case
       // any updates were missed while offline.
       refreshActiveWeek();
@@ -334,6 +350,29 @@ export async function getScheduleDataCached(currentUser = null, weekStart, weekE
     pending: scheduleCache.pending,
     trucks: scheduleCache.trucks
   };
+}
+
+// ── LOCATION-FILTERED SCHEDULE (an admin/multi-location user peeking at one
+// specific branch) ──
+// Deliberately separate from getScheduleDataCached rather than a parameter
+// on it: this never reads or writes scheduleCache.weeks/pending/trucks, so
+// switching the location filter on and off can't corrupt the shared,
+// live-updating "All Locations" cache every other consumer (this board's
+// default view, the driver view, etc.) relies on.
+//
+// Trade-off, stated plainly: this is a snapshot, not a live view — it
+// refetches on filter/week change but does not merge incoming
+// delivery_update socket events the way the default view does. An admin
+// checking another branch's board is a "let me look" action, not something
+// that needs to stay live-refreshing the way that branch's own staff's
+// board does — see DeliveryScheduleTab.jsx for how it's wired.
+export async function getLocationScopedScheduleData(weekStart, weekEnd, location) {
+  const [trucks, deliveries, pending] = await Promise.all([
+    getDriverUsers(location, [location], { force: true }),
+    getDeliveriesForRange(weekStart, weekEnd, location),
+    getPendingDeliveries(location)
+  ]);
+  return { trucks: trucks || [], deliveries: deliveries || [], pending: pending || [] };
 }
 
 // ── GET TRUCKS ──
@@ -493,7 +532,7 @@ export async function saveTrucks(trucks) {
 // ── GET DELIVERIES FOR A DATE RANGE (100% MONGODB DATABASE) ──
 // startDate/endDate are 'YYYY-MM-DD'. Used to fetch exactly one displayed week
 // instead of the entire delivery history.
-export async function getDeliveriesForRange(startDate, endDate) {
+export async function getDeliveriesForRange(startDate, endDate, location = null) {
   try {
     localStorage.removeItem('manifest_deliveries');
     localStorage.removeItem('manifest_trucks');
@@ -503,6 +542,7 @@ export async function getDeliveriesForRange(startDate, endDate) {
 
   try {
     const params = new URLSearchParams({ startDate, endDate });
+    if (location) params.set('location', location);
     const res = await authFetch(`${API_URL}/api/deliveries?${params.toString()}`);
     if (res.ok) {
       const data = await res.json();
@@ -520,9 +560,11 @@ export async function getDeliveriesForRange(startDate, endDate) {
 }
 
 // ── GET PENDING DELIVERIES (no agreed date yet) ──
-export async function getPendingDeliveries() {
+export async function getPendingDeliveries(location = null) {
   try {
-    const res = await authFetch(`${API_URL}/api/deliveries?pending=true`);
+    const params = new URLSearchParams({ pending: 'true' });
+    if (location) params.set('location', location);
+    const res = await authFetch(`${API_URL}/api/deliveries?${params.toString()}`);
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;

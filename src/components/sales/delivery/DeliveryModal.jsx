@@ -1,8 +1,16 @@
+// The one add/edit form for every delivery shape this feature has: jobsite,
+// transfer (branch-to-branch), will call, return, and customer drop-off —
+// plus POD (proof of delivery) capture, since that's a save through this
+// same form rather than a separate flow. Saves go through
+// src/api/deliverySchedule.js's saveDelivery, which POSTs to the one upsert route
+// in src/routes/deliveries.js — see that router file's own comment for the
+// server-side validation/location-scoping rules this form's payload has to
+// satisfy, and src/components/sales/delivery/README.md for the bigger picture.
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Save, Trash2, Calendar, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle, Navigation, Activity, Layers } from 'lucide-react';
 import SearchableSelect from '../../SearchableSelect';
 import CustomSelect from '../../shared/CustomSelect';
-import { MAX_TRUCK_CAPACITY } from '../../../api/schedule';
+import { MAX_TRUCK_CAPACITY } from '../../../api/deliverySchedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { formatTitleCase } from '../../../utils/textUtils';
 // A currency box has to take back what it hands out: "1,400" typed, pasted or

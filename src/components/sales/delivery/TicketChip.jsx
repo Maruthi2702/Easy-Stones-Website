@@ -1,3 +1,7 @@
+// The delivery card itself — rendered by both BoardGrid.jsx (office/sales
+// board) and PendingDeliveries.jsx (undated/unassigned orders). StatusPill
+// and EpodChip are its two small sub-badges, kept as separate files since
+// each is reused/tested independently of the full card.
 import React, { useState } from 'react';
 import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine, Undo2, Layers } from 'lucide-react';
 import StatusPill from './StatusPill';

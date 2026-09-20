@@ -1,3 +1,12 @@
+// The mobile-first view a driver sees instead of BoardGrid.jsx — just their
+// own stops, no truck-column layout. Its only two writes are updating a
+// stop's status and opening PodModal to capture a signature (which saves
+// through the same general upsert as everything else) — a driver's account
+// never holds edit_delivery_schedule, so those two routes are the only ones
+// in src/routes/deliveries.js that deliberately accept view_delivery_schedule
+// as well. See that file's permission-model comment before adding a new
+// driver-facing action, and src/components/sales/delivery/README.md for how
+// this fits with the rest of the feature.
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   MapPin, CheckCircle2, AlertTriangle, FileText, Package, Navigation, Copy, Check,

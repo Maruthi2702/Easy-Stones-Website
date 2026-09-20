@@ -17,7 +17,12 @@ const deliverySchema = new mongoose.Schema({
   soNumber: { type: String, default: '' },
   invoiceNumber: { type: String, default: '' },
   routeNumber: { type: Number, default: 1 },
-  location: { type: String, default: '' },
+  // Indexed — every multi-branch read (scopeDeliveryQueryToLocations in
+  // src/routes/deliveries.js) filters on this field, including the location
+  // picker on the Delivery Schedule board. Was unindexed until this was
+  // added alongside that per-branch filter, meaning every one of those
+  // queries did a full collection scan.
+  location: { type: String, default: '', index: true },
   driver: { type: String, default: '' },
 
   // New Delivery Classification & 3rd Party Freight Fields
@@ -35,7 +40,9 @@ const deliverySchema = new mongoose.Schema({
   // set, which used to silently move an unassigned return to Will Call the
   // moment someone picked a date.
   customerDropOff: { type: Boolean, default: false },
-  transferDestination: { type: String, default: '' },
+  // Indexed for the same reason as `location` above — a transfer's inbound
+  // side is matched on this field in the same $or the location filter uses.
+  transferDestination: { type: String, default: '', index: true },
   // Transfer-only. `date` is when it leaves `location`; this is the day it's
   // due at `transferDestination` — often a day or more later, and the date
   // the inbound line is derived onto the destination branch's own report
@@ -97,6 +104,15 @@ const deliverySchema = new mongoose.Schema({
   }
 }, {
   timestamps: true,
+  // Any field a client sends but isn't declared above still gets saved and
+  // persists forever — Mongoose won't strip it. Checked against the current
+  // save payload (src/components/sales/delivery/DeliveryModal.jsx) and found
+  // no actual drift today; this is flexibility left over from when the model
+  // was actively growing new fields, not a currently-needed escape hatch.
+  // Before flipping this to strict mode, audit every write path (the board's
+  // full save, status/assignment/order/receive, POD capture) against the
+  // schema above — this model has enough of them that an unverified flip
+  // risks silently dropping a real field on save instead of erroring loudly.
   strict: false
 });
 

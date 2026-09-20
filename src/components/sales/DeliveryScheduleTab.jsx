@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search, AlertTriangle, MapPin } from 'lucide-react';
 import BoardGrid from './delivery/BoardGrid';
 import { WILL_CALL_COLUMN_ID, defaultStatusFor } from '../../utils/deliveryTypes';
 import DriverView from './delivery/DriverView';
@@ -7,6 +7,7 @@ import DeliveryModal from './delivery/DeliveryModal';
 import PodModal from './delivery/PodModal';
 import PodViewer from './delivery/PodViewer';
 import PendingDeliveries from './delivery/PendingDeliveries';
+import CustomSelect from '../shared/CustomSelect';
 import {
   saveDelivery,
   deleteDelivery,
@@ -14,6 +15,7 @@ import {
   updateDeliveryAssignment,
   reorderDeliveries,
   getScheduleDataCached,
+  getLocationScopedScheduleData,
   getScheduleCacheSync,
   subscribeScheduleCache,
   getDeliveryById,
@@ -22,7 +24,7 @@ import {
   subscribeScheduleConnection,
   getScheduleConnection,
   refreshScheduleNow
-} from '../../api/schedule';
+} from '../../api/deliverySchedule';
 import {
   getWeekMonday,
   getWeekDates,
@@ -47,7 +49,6 @@ const getUserRoleFromPermissions = (user) => {
     roleName === 'admin' ||
     roleName === 'manager' ||
     perms.includes('edit_delivery_schedule') ||
-    perms.includes('manage_delivery_schedule') ||
     perms.includes('manage_users')
   ) return 'office';
 
@@ -74,6 +75,20 @@ const DeliveryScheduleTab = ({
   useEffect(() => {
     if (currentUser) setRole(getUserRoleFromPermissions(currentUser));
   }, [currentUser]);
+
+  // '' means "All Locations" — the existing, unchanged default view. Only
+  // offered as a real choice to someone who can already reach more than one
+  // branch; picking one narrows the board to just that branch instead of
+  // every branch they're allowed to see mashed together on one board.
+  const [locationFilter, setLocationFilter] = useState('');
+  const filterableLocations = useMemo(() => {
+    const names = (locationsList || [])
+      .map(loc => (typeof loc === 'object' && loc ? (loc.name || loc.locationName || '') : String(loc || '')))
+      .filter(Boolean);
+    const userLocations = currentUser?.assignedLocations || [];
+    const scoped = userLocations.includes('*') ? names : names.filter(n => userLocations.includes(n));
+    return Array.from(new Set(scoped)).sort((a, b) => a.localeCompare(b));
+  }, [locationsList, currentUser]);
 
   const [currentMonday, setCurrentMonday] = useState(() => getWeekMonday(new Date()));
   // Seven dates, Monday to Sunday. The fetch spans all of them so a weekend
@@ -156,11 +171,20 @@ const DeliveryScheduleTab = ({
   };
 
   const loadData = useCallback(async (forceRefresh = false) => {
-    if (!isWeekCached(weekStart) || forceRefresh) {
+    if (!isWeekCached(weekStart) || forceRefresh || locationFilter) {
       setLoading(true);
     }
     try {
-      const data = await getScheduleDataCached(currentUser, weekStart, weekEnd, forceRefresh);
+      // A location filter bypasses the shared "All Locations" cache entirely
+      // — see getLocationScopedScheduleData's own comment for why (so
+      // switching it on/off can't corrupt the live cache every other
+      // consumer of this data relies on). It's a snapshot, not a live view;
+      // clearing the trailing live-update subscription's effect below is
+      // what keeps a stray delivery_update from silently overwriting it
+      // with the unfiltered set.
+      const data = locationFilter
+        ? await getLocationScopedScheduleData(weekStart, weekEnd, locationFilter)
+        : await getScheduleDataCached(currentUser, weekStart, weekEnd, forceRefresh);
       setTrucks(data.trucks || []);
       setDeliveries(data.deliveries || []);
       setPending(data.pending || []);
@@ -171,12 +195,17 @@ const DeliveryScheduleTab = ({
     } finally {
       setLoading(false);
     }
-  }, [currentUser, weekStart, weekEnd]);
+  }, [currentUser, weekStart, weekEnd, locationFilter]);
 
   useEffect(() => {
     loadData();
 
-    const unsubscribe = subscribeScheduleCache(({ deliveries: newDeliveries, pending: newPending, trucks: newTrucks }) => {
+    // The shared cache only ever holds the unfiltered "All Locations" view —
+    // while a location filter is active, this board is showing a scoped
+    // snapshot instead (see loadData above), so an unrelated live update
+    // here must not overwrite it. Connection status is unrelated to which
+    // data is on screen, so that subscription stays active either way.
+    const unsubscribe = locationFilter ? null : subscribeScheduleCache(({ deliveries: newDeliveries, pending: newPending, trucks: newTrucks }) => {
       setDeliveries(newDeliveries);
       setPending(newPending || []);
       if (newTrucks && newTrucks.length > 0) {
@@ -189,10 +218,10 @@ const DeliveryScheduleTab = ({
     const unsubscribeConnection = subscribeScheduleConnection(({ status }) => setConnection(status));
 
     return () => {
-      unsubscribe();
+      unsubscribe?.();
       unsubscribeConnection();
     };
-  }, [loadData]);
+  }, [loadData, locationFilter]);
 
   const handleRefresh = useCallback(async () => {
     const list = await refreshScheduleNow();
@@ -396,6 +425,20 @@ const DeliveryScheduleTab = ({
 
         {/* Right: Search / New Ticket Action */}
         <div className="manifest-header-actions">
+          {filterableLocations.length > 1 && (
+            <div className="location-filter-wrap-header">
+              <MapPin size={14} className="location-filter-icon" />
+              <CustomSelect
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+                options={[
+                  { value: '', label: 'All Locations' },
+                  ...filterableLocations.map(loc => ({ value: loc, label: loc }))
+                ]}
+              />
+            </div>
+          )}
+
           {role === 'sales' && (
             <div className="search-box-wrap-header">
               <Search size={15} className="search-icon" />
