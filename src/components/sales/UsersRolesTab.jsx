@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-    Users, ShieldAlert, Plus, Edit2, Trash2, Search, 
+import {
+    Users, ShieldAlert, Plus, Edit2, Trash2, Search,
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
     FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard, Eraser,
-    ClipboardList, CheckCheck, RotateCcw, Map, Route, ArrowLeftRight, Boxes, Upload, DollarSign
+    ClipboardList, CheckCheck, RotateCcw, Map, Route, ArrowLeftRight, Boxes, Upload, DollarSign, Palette
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
@@ -132,7 +132,8 @@ const PAGE_PERMISSIONS = [
             { key: 'view_crossover_sheet', label: 'View', icon: Eye, desc: 'View the crossover sheet' },
             { key: 'add_crossover_sheet', label: 'Add', icon: Plus, desc: 'Add new crossover entries' },
             { key: 'edit_crossover_sheet', label: 'Edit', icon: Pencil, desc: 'Edit existing crossover entries' },
-            { key: 'delete_crossover_sheet', label: 'Delete', icon: Trash2, desc: 'Delete crossover entries' }
+            { key: 'delete_crossover_sheet', label: 'Delete', icon: Trash2, desc: 'Delete crossover entries' },
+            { key: 'manage_easy_stones_colors', label: 'Manage Colors', icon: Palette, desc: 'Add, rename, or delete Easy Stones catalog colors (the master list every crossover maps against)' }
         ]
     },
     {

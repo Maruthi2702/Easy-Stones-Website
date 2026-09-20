@@ -10,6 +10,7 @@ import CrossoverSheetModal from './CrossoverSheetModal';
 import ManageColorsModal from './ManageColorsModal';
 import Pagination from '../shared/Pagination';
 import CustomSelect from '../shared/CustomSelect';
+import { flattenColorDocs, buildMatrixData, removeCrossoverLocally, upsertColorDoc } from './crossoverSheetHelpers';
 import './CrossoverSheetTab.css';
 
 // Kept outside the component so switching tabs away and back (which fully
@@ -41,10 +42,18 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
   const colorNames = useMemo(() => colors.map(c => c.name), [colors]);
 
   const userPermissions = currentUser?.permissions || [];
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'director' || !currentUser;
+  // Fails closed on a missing currentUser (no admin capabilities), not
+  // open. SalesPage's only render of this component already gates on
+  // `!authLoading && currentUser?.permissions`, so currentUser is always a
+  // real, loaded user by the time this mounts today — but a component
+  // should never treat "user unknown" as "grant full admin," since that's
+  // exactly the state a future caller (a different embed, a test harness)
+  // could hit by accident.
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'director';
   const canAdd = isAdmin || userPermissions.includes('add_crossover_sheet');
   const canEdit = isAdmin || userPermissions.includes('edit_crossover_sheet');
   const canDelete = isAdmin || userPermissions.includes('delete_crossover_sheet');
+  const canManageColors = isAdmin || userPermissions.includes('manage_easy_stones_colors');
 
   const fetchEntries = async ({ background = false } = {}) => {
     try {
@@ -66,16 +75,9 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   // Flattened to one row per distributor mapping (carrying the parent
   // color document's _id as colorId) for the search/filter/pagination/edit
-  // logic below, which all operate at the single-mapping level.
-  const flatEntries = useMemo(() => {
-    return colorDocs.flatMap(doc =>
-      (doc.crossovers || []).map(crossover => ({
-        ...crossover,
-        colorId: doc._id,
-        easyStonesName: doc.easyStonesName
-      }))
-    );
-  }, [colorDocs]);
+  // logic below, which all operate at the single-mapping level. See
+  // crossoverSheetHelpers.js / its test file for the pure grouping logic.
+  const flatEntries = useMemo(() => flattenColorDocs(colorDocs), [colorDocs]);
 
   const fetchColors = async () => {
     try {
@@ -103,6 +105,17 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
     setCurrentPage(1);
   }, [searchQuery, matchTypeFilter]);
 
+  // Patches colorDocs from the mutation's own response instead of
+  // refetching the whole crossover sheet after every single save — the
+  // response already carries everything needed (see crossoverSheetHelpers.js).
+  const applyColorDocUpdate = (colorDoc) => {
+    setColorDocs(prev => {
+      const next = upsertColorDoc(prev, colorDoc);
+      cachedEntries = next;
+      return next;
+    });
+  };
+
   const handleSaveEntry = async (payload) => {
     try {
       const isNew = !payload._id;
@@ -114,11 +127,24 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
       const res = await authFetch(url, { method, body: JSON.stringify(payload) });
 
       if (res.ok) {
+        const data = await res.json();
         setIsModalOpen(false);
-        // Background refresh — the grid already has the modal's data on
-        // screen the moment it closes, so a full loading state here would
-        // just blank out the whole sheet after every single save.
-        await fetchEntries({ background: true });
+        if (isNew) {
+          // POST responds with the (possibly newly created) color doc directly.
+          applyColorDocUpdate(data);
+        } else if (data.moved) {
+          // Editing moved the mapping to a different Easy Stones color's
+          // document — drop it from the old one (or the whole doc, if that
+          // was its last mapping) before applying the destination doc.
+          setColorDocs(prev => {
+            const next = removeCrossoverLocally(prev, data.sourceColorId, payload._id);
+            cachedEntries = next;
+            return next;
+          });
+          applyColorDocUpdate(data.colorDoc);
+        } else {
+          applyColorDocUpdate(data.colorDoc);
+        }
       } else {
         const errData = await res.json();
         alert(errData.message || 'Failed to save crossover entry');
@@ -129,10 +155,6 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
     }
   };
 
-  // Refetches rather than patching state locally — deleting a mapping can
-  // also delete its parent color document (if it was that color's last
-  // mapping), which is simpler to let the server settle than to replicate
-  // client-side.
   const handleDeleteEntry = async (item, e) => {
     if (e) e.stopPropagation();
     if (!window.confirm('Delete this crossover entry?')) return;
@@ -140,7 +162,11 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
     try {
       const res = await authFetch(`${API_URL}/api/crossover-sheet/${item.colorId}/${item._id}`, { method: 'DELETE' });
       if (res.ok) {
-        await fetchEntries({ background: true });
+        setColorDocs(prev => {
+          const next = removeCrossoverLocally(prev, item.colorId, item._id);
+          cachedEntries = next;
+          return next;
+        });
       } else {
         alert('Failed to delete crossover entry');
       }
@@ -153,7 +179,12 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
     try {
       const res = await authFetch(`${API_URL}/api/easy-stones-colors`, { method: 'POST', body: JSON.stringify({ name }) });
       if (res.ok) {
-        await fetchColors();
+        const data = await res.json();
+        setColors(prev => {
+          const next = [...prev, data].sort((a, b) => a.order - b.order);
+          cachedColors = next;
+          return next;
+        });
         return { success: true };
       }
       const errData = await res.json();
@@ -168,7 +199,12 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
     try {
       const res = await authFetch(`${API_URL}/api/easy-stones-colors/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
       if (res.ok) {
-        await fetchColors();
+        const data = await res.json();
+        setColors(prev => {
+          const next = prev.map(c => c._id === id ? data : c);
+          cachedColors = next;
+          return next;
+        });
         return { success: true };
       }
       const errData = await res.json();
@@ -224,47 +260,10 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
     });
   }, [flatEntries, searchQuery, matchTypeFilter]);
 
-  const matrixData = useMemo(() => {
-    const distributorsSet = new Set();
-    const rowsMap = new Map();
-
-    filteredEntries.forEach(item => {
-      distributorsSet.add(item.distributorName);
-      if (!rowsMap.has(item.easyStonesName)) rowsMap.set(item.easyStonesName, new Map());
-      const colMap = rowsMap.get(item.easyStonesName);
-      if (!colMap.has(item.distributorName)) colMap.set(item.distributorName, []);
-      colMap.get(item.distributorName).push(item);
-    });
-
-    // Seed every catalog color as its own row, even with no crossovers yet,
-    // so staff can see what's still missing a distributor match. Skipped
-    // when a match-type filter is active since an empty row has no match
-    // type to filter on.
-    if (matchTypeFilter === 'All') {
-      const q = searchQuery.toLowerCase().trim();
-      colorNames.forEach(name => {
-        if (rowsMap.has(name)) return;
-        if (q && !name.toLowerCase().includes(q)) return;
-        rowsMap.set(name, new Map());
-      });
-    }
-
-    const distributors = Array.from(distributorsSet).sort((a, b) => a.localeCompare(b));
-    const rows = Array.from(rowsMap.keys())
-      .sort((a, b) => {
-        // Follow the price sheet's order; anything not in the catalog
-        // (custom or misspelled names) sorts alphabetically after it.
-        const ai = colorNames.indexOf(a);
-        const bi = colorNames.indexOf(b);
-        if (ai === -1 && bi === -1) return a.localeCompare(b);
-        if (ai === -1) return 1;
-        if (bi === -1) return -1;
-        return ai - bi;
-      })
-      .map(easyStonesName => ({ easyStonesName, cells: rowsMap.get(easyStonesName) }));
-
-    return { distributors, rows };
-  }, [filteredEntries, matchTypeFilter, searchQuery, colorNames]);
+  const matrixData = useMemo(
+    () => buildMatrixData(filteredEntries, colorNames, { matchTypeFilter, searchQuery }),
+    [filteredEntries, matchTypeFilter, searchQuery, colorNames]
+  );
 
   const catalogCoverage = useMemo(() => {
     const mappedSet = new Set(colorDocs.map(d => d.easyStonesName));
@@ -353,7 +352,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
             <Download size={15} />
             <span className="xover-btn-text-full">Export</span>
           </button>
-          {isAdmin && (
+          {canManageColors && (
             <button type="button" className="xover-btn-export" onClick={() => setIsManageColorsOpen(true)} title="Manage Easy Stones Colors">
               <Palette size={15} />
               <span className="xover-btn-text-full">Colors</span>

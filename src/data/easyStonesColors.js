@@ -1,7 +1,11 @@
-// Master list of Easy Stones (Moda Quartz) color names, sourced from the
-// Moda Quartz confidential price sheet (MQESQ32026, published 09/01/2026).
-// Used to seed the Crossover Sheet matrix so every color has a row to map
-// distributor crossovers against, even before any crossover exists for it.
+// Historical seed source only — NOT the live catalog. The live, editable
+// source of truth is the EasyStonesColor collection (src/models/
+// EasyStonesColor.js), managed via the Crossover Sheet's "Manage Colors"
+// UI. server.js seeds that collection from this array once, only while it's
+// empty (a brand-new environment) — editing this file has zero effect on
+// any database that has already been seeded, which is every environment
+// that matters today. Sourced from the Moda Quartz confidential price sheet
+// (MQESQ32026, published 09/01/2026), kept here only for that initial seed.
 export const EASY_STONES_COLORS = [
   'Elusive White', 'Feather White', 'Crystal', 'Olympic',
   'Chinook Grey', 'Carrara Deluxe', 'Carrara Prima', 'Carrara Prima Gold', 'Designer White',

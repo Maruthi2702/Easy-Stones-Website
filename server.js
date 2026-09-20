@@ -568,78 +568,6 @@ async function startServer() {
     console.log('✅ Connected to MongoDB Atlas');
     console.log('Connection Ready State:', mongoose.connection.readyState);
 
-    // Database migration: consolidate CrossoverList from one flat document
-    // per distributor mapping into one document per Easy Stones color with
-    // an embedded crossovers array (see src/models/CrossoverSheet.js). Runs
-    // before index sync below on purpose — CrossoverSheet's new unique
-    // index on easyStonesName would fail to build on old-shape data, since
-    // the old shape allows several documents (one per distributor) sharing
-    // the same easyStonesName.
-    //
-    // Detected by the old shape's top-level distributorName field — every
-    // document is missing that field once migrated, so this is naturally a
-    // no-op on every later boot. Wrapped in a transaction so a crash
-    // mid-migration can't leave some mappings duplicated (in both an old
-    // flat doc and a new grouped one) or dropped (deleted from the old
-    // shape before the grouped doc committed).
-    try {
-      const crossoverCollection = mongoose.connection.db.collection('CrossoverList');
-      const oldShapeDocs = await crossoverCollection.find({ distributorName: { $exists: true } }).toArray();
-      if (oldShapeDocs.length > 0) {
-        const grouped = new Map();
-        for (const doc of oldShapeDocs) {
-          if (!grouped.has(doc.easyStonesName)) grouped.set(doc.easyStonesName, []);
-          grouped.get(doc.easyStonesName).push({
-            _id: doc._id,
-            distributorName: doc.distributorName,
-            distributorColorName: doc.distributorColorName,
-            matchType: doc.matchType || 'Similar',
-            notes: doc.notes || '',
-            addedByName: doc.addedByName || '',
-            addedById: doc.addedById || null,
-            createdAt: doc.createdAt || new Date(),
-            updatedAt: doc.updatedAt || new Date()
-          });
-        }
-
-        const migrationSession = await mongoose.startSession();
-        try {
-          await migrationSession.withTransaction(async () => {
-            for (const [easyStonesName, crossovers] of grouped.entries()) {
-              const createdAt = crossovers.reduce((min, c) => (c.createdAt < min ? c.createdAt : min), crossovers[0].createdAt);
-              await crossoverCollection.updateOne(
-                { easyStonesName, crossovers: { $exists: true } },
-                { $setOnInsert: { easyStonesName, crossovers, createdAt, updatedAt: new Date() } },
-                { upsert: true, session: migrationSession }
-              );
-            }
-            await crossoverCollection.deleteMany(
-              { _id: { $in: oldShapeDocs.map(d => d._id) } },
-              { session: migrationSession }
-            );
-          });
-          console.log(`✅ Migrated ${oldShapeDocs.length} crossover entries into ${grouped.size} color documents`);
-        } finally {
-          await migrationSession.endSession();
-        }
-      }
-      // Drop the old schema's indexes by name — they reference top-level
-      // fields (distributorName, distributorColorName, matchType) that no
-      // longer exist post-migration, and Mongo only allows one text index
-      // per collection, so the new nested-field text index in
-      // CrossoverSheet.js can't be created until the old one is gone.
-      const staleIndexNames = [
-        'distributorName_text_distributorColorName_text_easyStonesName_text',
-        'matchType_1',
-        'distributorName_1'
-      ];
-      for (const indexName of staleIndexNames) {
-        await crossoverCollection.dropIndex(indexName).catch(() => {});
-      }
-    } catch (crossoverMigError) {
-      console.error('Error migrating CrossoverList to grouped shape:', crossoverMigError);
-    }
-
     // Ensure all database indexes are created/synced for performance scalability.
     // autoIndex is disabled on the connection, so a model missing from
     // INDEXED_MODELS silently runs with no indexes at all — see the comment on
@@ -753,6 +681,7 @@ async function startServer() {
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
             'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report',
             'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet',
+            'manage_easy_stones_colors',
             'view_inventory_analysis', 'import_inventory_analysis', 'view_inventory_prices'
           ],
           isSystem: true
@@ -767,6 +696,7 @@ async function startServer() {
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
             'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report',
             'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet',
+            'manage_easy_stones_colors',
             'view_inventory_analysis', 'import_inventory_analysis', 'view_inventory_prices'
           ],
           isSystem: true
@@ -843,6 +773,11 @@ async function startServer() {
         { roles: ['admin', 'director', 'manager'], permissions: ['view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet'] },
         { roles: ['sales_rep'], permissions: ['view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet'] },
         { roles: ['csr'], permissions: ['view_crossover_sheet'] },
+        // Was hardcoded to role === 'admin' || 'director' in the route
+        // handlers; moved to a real permission so it can be granted to
+        // other roles (e.g. manager) under Users & Roles without making
+        // them a full admin/director. Defaults preserve today's behavior.
+        { roles: ['admin', 'director'], permissions: ['manage_easy_stones_colors'] },
         { roles: ['admin', 'director', 'manager'], permissions: ['view_inventory_analysis', 'import_inventory_analysis'] },
         { roles: ['sales_rep', 'csr'], permissions: ['view_inventory_analysis'] },
         // Slab/lot cost and asset-value figures are a separate, narrower grant
@@ -7351,20 +7286,66 @@ app.get('/api/crossover-sheet', authenticate, requirePermission('view_crossover_
   }
 });
 
+// Resolves a typed Easy Stones name to its canonical stored casing —
+// preferring whatever casing is already on an existing CrossoverSheet
+// document (what's already on the matrix), then the color catalog's
+// casing, then the typed casing as a last resort for a genuinely new/
+// custom name. Without this, "enigma" vs "Enigma" would silently fork
+// into two documents for the same real color — the exact failure mode
+// that motivated moving this list into the database in the first place.
+async function resolveCanonicalEasyStonesName(rawName, session) {
+  const regex = { $regex: `^${escapeRegex(rawName)}$`, $options: 'i' };
+  let existingQuery = CrossoverSheet.findOne({ easyStonesName: regex }, { easyStonesName: 1 });
+  if (session) existingQuery = existingQuery.session(session);
+  const [existingDoc, catalogColor] = await Promise.all([
+    existingQuery.lean(),
+    EasyStonesColor.findOne({ name: regex }, { name: 1 }).lean()
+  ]);
+  return existingDoc?.easyStonesName || catalogColor?.name || rawName;
+}
+
+// True if one of `crossovers` already maps the same distributor + distributor
+// color name (case-insensitive), so the same real mapping can't be added
+// twice as duplicate chips in one matrix cell. `excludeId` skips the
+// subdocument being edited in place, so saving it unchanged isn't flagged
+// as a duplicate of itself.
+function hasDuplicateMapping(crossovers, distributorName, distributorColorName, excludeId) {
+  const dName = distributorName.toLowerCase();
+  const dColor = distributorColorName.toLowerCase();
+  return (crossovers || []).some(c =>
+    (!excludeId || String(c._id) !== String(excludeId)) &&
+    c.distributorName.toLowerCase() === dName &&
+    c.distributorColorName.toLowerCase() === dColor
+  );
+}
+
 // POST /api/crossover-sheet: Add a distributor mapping to a color's document,
 // creating that color's document if this is its first mapping. Upsert+$push
 // is one atomic operation, so two requests simultaneously adding the first
-// mapping for the same color can't create duplicate color documents.
+// mapping for the same color can't create duplicate color documents. (The
+// duplicate-mapping check just above this is a separate, non-atomic
+// check-then-act — an acceptable gap at this app's scale, since it only
+// matters if two people add the exact same mapping within milliseconds of
+// each other.)
 app.post('/api/crossover-sheet', authenticate, requirePermission('add_crossover_sheet'), async (req, res) => {
   try {
-    const easyStonesName = (req.body.easyStonesName || '').trim();
-    if (!easyStonesName) {
+    const rawName = (req.body.easyStonesName || '').trim();
+    const distributorName = (req.body.distributorName || '').trim();
+    const distributorColorName = (req.body.distributorColorName || '').trim();
+    if (!rawName) {
       return res.status(400).json({ message: 'Easy Stones crossover name is required' });
     }
 
+    const easyStonesName = await resolveCanonicalEasyStonesName(rawName);
+
+    const existingDoc = await CrossoverSheet.findOne({ easyStonesName }, { crossovers: 1 }).lean();
+    if (hasDuplicateMapping(existingDoc?.crossovers, distributorName, distributorColorName)) {
+      return res.status(409).json({ message: 'This distributor mapping already exists for this color' });
+    }
+
     const crossoverEntry = {
-      distributorName: req.body.distributorName,
-      distributorColorName: req.body.distributorColorName,
+      distributorName,
+      distributorColorName,
       matchType: req.body.matchType || 'Similar',
       notes: req.body.notes || '',
       addedByName: req.user?.displayName || req.user?.contactName || 'Sales Rep',
@@ -7394,10 +7375,10 @@ app.post('/api/crossover-sheet', authenticate, requirePermission('add_crossover_
 // without it landing in the other.
 app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('edit_crossover_sheet'), async (req, res) => {
   const { colorId, crossoverId } = req.params;
-  const newEasyStonesName = (req.body.easyStonesName || '').trim();
+  const rawNewName = (req.body.easyStonesName || '').trim();
   const fields = {
-    distributorName: req.body.distributorName,
-    distributorColorName: req.body.distributorColorName,
+    distributorName: (req.body.distributorName || '').trim(),
+    distributorColorName: (req.body.distributorColorName || '').trim(),
     matchType: req.body.matchType,
     notes: req.body.notes || ''
   };
@@ -7413,10 +7394,20 @@ app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermi
       return res.status(404).json({ message: 'Crossover entry not found' });
     }
 
-    let result;
-    if (newEasyStonesName && newEasyStonesName !== colorDoc.easyStonesName) {
-      const movedEntry = { ...entry.toObject(), ...fields };
+    const newEasyStonesName = rawNewName
+      ? await resolveCanonicalEasyStonesName(rawNewName, session)
+      : colorDoc.easyStonesName;
+    const moved = newEasyStonesName !== colorDoc.easyStonesName;
 
+    let colorDocResult;
+    if (moved) {
+      const destDoc = await CrossoverSheet.findOne({ easyStonesName: newEasyStonesName }).session(session);
+      if (hasDuplicateMapping(destDoc?.crossovers, fields.distributorName, fields.distributorColorName)) {
+        await session.abortTransaction();
+        return res.status(409).json({ message: 'This distributor mapping already exists for the destination color' });
+      }
+
+      const movedEntry = { ...entry.toObject(), ...fields };
       entry.deleteOne();
       if (colorDoc.crossovers.length === 0) {
         await CrossoverSheet.findByIdAndDelete(colorId, { session });
@@ -7424,20 +7415,27 @@ app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermi
         await colorDoc.save({ session });
       }
 
-      result = await CrossoverSheet.findOneAndUpdate(
+      colorDocResult = await CrossoverSheet.findOneAndUpdate(
         { easyStonesName: newEasyStonesName },
         { $push: { crossovers: movedEntry } },
         { new: true, upsert: true, setDefaultsOnInsert: true, session }
       );
     } else {
+      if (hasDuplicateMapping(colorDoc.crossovers, fields.distributorName, fields.distributorColorName, crossoverId)) {
+        await session.abortTransaction();
+        return res.status(409).json({ message: 'This distributor mapping already exists for this color' });
+      }
       Object.assign(entry, fields);
       await colorDoc.save({ session });
-      result = colorDoc;
+      colorDocResult = colorDoc;
     }
 
     await session.commitTransaction();
     req.app.get('io')?.emit('crossover_sheet_update');
-    res.json(result);
+    // `moved`/`sourceColorId` let the frontend patch its cached color docs
+    // locally (drop the entry from the old color's doc, upsert the new one)
+    // instead of refetching the whole crossover sheet after every edit.
+    res.json({ moved, sourceColorId: colorId, colorDoc: colorDocResult });
   } catch (error) {
     await session.abortTransaction().catch(() => {});
     console.error('Error updating crossover entry:', error);
@@ -7487,17 +7485,18 @@ app.get('/api/easy-stones-colors', authenticate, requirePermission('view_crossov
   }
 });
 
-// POST /api/easy-stones-colors: Add a color to the catalog. Admin/director
-// only — this list is shared across every rep's Crossover Sheet, not a
-// per-entry edit.
-app.post('/api/easy-stones-colors', authenticate, authorize('admin', 'director'), async (req, res) => {
+// POST /api/easy-stones-colors: Add a color to the catalog. Gated by a
+// dedicated permission (not a hardcoded admin/director role check) since
+// this list is shared across every rep's Crossover Sheet, not a per-entry
+// edit — see the 'manage_easy_stones_colors' grant in the role seed above.
+app.post('/api/easy-stones-colors', authenticate, requirePermission('manage_easy_stones_colors'), async (req, res) => {
   try {
     const name = (req.body.name || '').trim();
     if (!name) {
       return res.status(400).json({ message: 'Color name is required' });
     }
 
-    const existing = await EasyStonesColor.findOne({ name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
+    const existing = await EasyStonesColor.findOne({ name: { $regex: `^${escapeRegex(name)}$`, $options: 'i' } });
     if (existing) {
       return res.status(409).json({ message: 'That color is already in the catalog' });
     }
@@ -7515,7 +7514,7 @@ app.post('/api/easy-stones-colors', authenticate, authorize('admin', 'director')
 // PUT /api/easy-stones-colors/:id: Rename a catalog color. Renaming does not
 // touch existing Crossover Sheet entries pointing at the old name — see the
 // note on the frontend's manage-colors modal before assuming otherwise.
-app.put('/api/easy-stones-colors/:id', authenticate, authorize('admin', 'director'), async (req, res) => {
+app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), async (req, res) => {
   try {
     const name = (req.body.name || '').trim();
     if (!name) {
@@ -7542,7 +7541,7 @@ app.put('/api/easy-stones-colors/:id', authenticate, authorize('admin', 'directo
 // only stops it being auto-seeded as an empty matrix row — any Crossover
 // Sheet entries already pointing at its name are left as-is (they'll sort to
 // the bottom as "not in the catalog," same as a misspelled name today).
-app.delete('/api/easy-stones-colors/:id', authenticate, authorize('admin', 'director'), async (req, res) => {
+app.delete('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), async (req, res) => {
   try {
     const deleted = await EasyStonesColor.findByIdAndDelete(req.params.id);
     if (!deleted) {
