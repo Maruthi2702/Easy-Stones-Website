@@ -2,19 +2,31 @@ import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import {
   ArrowLeftRight, Search, Plus, Trash2, Edit3, RefreshCw,
-  Download, Filter, Building2, LayoutGrid, List, Printer
+  Download, Filter, Building2, LayoutGrid, List, Printer, Palette
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import CrossoverSheetModal from './CrossoverSheetModal';
+import ManageColorsModal from './ManageColorsModal';
 import Pagination from '../shared/Pagination';
 import CustomSelect from '../shared/CustomSelect';
-import { EASY_STONES_COLORS } from '../../data/easyStonesColors';
 import './CrossoverSheetTab.css';
 
+// Kept outside the component so switching tabs away and back (which fully
+// unmounts this component) can repaint instantly from the last fetch
+// instead of showing a spinner every time, then quietly re-fetching.
+let cachedEntries = null;
+// Same idea for the color catalog, which used to be a hardcoded array
+// (src/data/easyStonesColors.js) and now lives in the EasyStonesColor
+// collection so admins can add/rename/remove colors without a deploy.
+let cachedColors = null;
+
 const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // One document per Easy Stones color, each holding an embedded array of
+  // that color's distributor mappings (src/models/CrossoverSheet.js).
+  const [colorDocs, setColorDocs] = useState(cachedEntries || []);
+  const [loading, setLoading] = useState(cachedEntries === null);
+  const [colors, setColors] = useState(cachedColors || []);
   const [searchQuery, setSearchQuery] = useState('');
   const [matchTypeFilter, setMatchTypeFilter] = useState('All');
   const [viewMode, setViewMode] = useState('matrix');
@@ -24,6 +36,9 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [isManageColorsOpen, setIsManageColorsOpen] = useState(false);
+
+  const colorNames = useMemo(() => colors.map(c => c.name), [colors]);
 
   const userPermissions = currentUser?.permissions || [];
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'director' || !currentUser;
@@ -31,23 +46,57 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
   const canEdit = isAdmin || userPermissions.includes('edit_crossover_sheet');
   const canDelete = isAdmin || userPermissions.includes('delete_crossover_sheet');
 
-  const fetchEntries = async () => {
+  const fetchEntries = async ({ background = false } = {}) => {
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       const res = await authFetch(`${API_URL}/api/crossover-sheet`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data)) setEntries(data);
+        if (Array.isArray(data)) {
+          cachedEntries = data;
+          setColorDocs(data);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch crossover sheet:', err);
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
+    }
+  };
+
+  // Flattened to one row per distributor mapping (carrying the parent
+  // color document's _id as colorId) for the search/filter/pagination/edit
+  // logic below, which all operate at the single-mapping level.
+  const flatEntries = useMemo(() => {
+    return colorDocs.flatMap(doc =>
+      (doc.crossovers || []).map(crossover => ({
+        ...crossover,
+        colorId: doc._id,
+        easyStonesName: doc.easyStonesName
+      }))
+    );
+  }, [colorDocs]);
+
+  const fetchColors = async () => {
+    try {
+      const res = await authFetch(`${API_URL}/api/easy-stones-colors`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          cachedColors = data;
+          setColors(data);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch Easy Stones colors:', err);
     }
   };
 
   useEffect(() => {
-    fetchEntries();
+    // If we already have a cached copy from a previous visit this session,
+    // show it immediately and just refresh it quietly in the background.
+    fetchEntries({ background: cachedEntries !== null });
+    fetchColors();
   }, []);
 
   useEffect(() => {
@@ -56,16 +105,20 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   const handleSaveEntry = async (payload) => {
     try {
-      setLoading(true);
       const isNew = !payload._id;
-      const url = isNew ? `${API_URL}/api/crossover-sheet` : `${API_URL}/api/crossover-sheet/${payload._id}`;
+      const url = isNew
+        ? `${API_URL}/api/crossover-sheet`
+        : `${API_URL}/api/crossover-sheet/${payload.colorId}/${payload._id}`;
       const method = isNew ? 'POST' : 'PUT';
 
       const res = await authFetch(url, { method, body: JSON.stringify(payload) });
 
       if (res.ok) {
         setIsModalOpen(false);
-        await fetchEntries();
+        // Background refresh — the grid already has the modal's data on
+        // screen the moment it closes, so a full loading state here would
+        // just blank out the whole sheet after every single save.
+        await fetchEntries({ background: true });
       } else {
         const errData = await res.json();
         alert(errData.message || 'Failed to save crossover entry');
@@ -73,24 +126,73 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
     } catch (err) {
       console.error('Error saving crossover entry:', err);
       alert('Network error while saving crossover entry');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleDeleteEntry = async (id, e) => {
+  // Refetches rather than patching state locally — deleting a mapping can
+  // also delete its parent color document (if it was that color's last
+  // mapping), which is simpler to let the server settle than to replicate
+  // client-side.
+  const handleDeleteEntry = async (item, e) => {
     if (e) e.stopPropagation();
     if (!window.confirm('Delete this crossover entry?')) return;
 
     try {
-      const res = await authFetch(`${API_URL}/api/crossover-sheet/${id}`, { method: 'DELETE' });
+      const res = await authFetch(`${API_URL}/api/crossover-sheet/${item.colorId}/${item._id}`, { method: 'DELETE' });
       if (res.ok) {
-        setEntries(prev => prev.filter(item => item._id !== id));
+        await fetchEntries({ background: true });
       } else {
         alert('Failed to delete crossover entry');
       }
     } catch (err) {
       console.error('Error deleting crossover entry:', err);
+    }
+  };
+
+  const handleAddColor = async (name) => {
+    try {
+      const res = await authFetch(`${API_URL}/api/easy-stones-colors`, { method: 'POST', body: JSON.stringify({ name }) });
+      if (res.ok) {
+        await fetchColors();
+        return { success: true };
+      }
+      const errData = await res.json();
+      return { success: false, message: errData.message };
+    } catch (err) {
+      console.error('Error adding color:', err);
+      return { success: false, message: 'Network error while adding color' };
+    }
+  };
+
+  const handleRenameColor = async (id, name) => {
+    try {
+      const res = await authFetch(`${API_URL}/api/easy-stones-colors/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+      if (res.ok) {
+        await fetchColors();
+        return { success: true };
+      }
+      const errData = await res.json();
+      return { success: false, message: errData.message };
+    } catch (err) {
+      console.error('Error renaming color:', err);
+      return { success: false, message: 'Network error while renaming color' };
+    }
+  };
+
+  const handleDeleteColor = async (id) => {
+    try {
+      const res = await authFetch(`${API_URL}/api/easy-stones-colors/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setColors(prev => {
+          const next = prev.filter(c => c._id !== id);
+          cachedColors = next;
+          return next;
+        });
+      } else {
+        alert('Failed to delete color');
+      }
+    } catch (err) {
+      console.error('Error deleting color:', err);
     }
   };
 
@@ -112,7 +214,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   const filteredEntries = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    return entries.filter(item => {
+    return flatEntries.filter(item => {
       const matchesSearch = !q ||
         (item.distributorName || '').toLowerCase().includes(q) ||
         (item.distributorColorName || '').toLowerCase().includes(q) ||
@@ -120,7 +222,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
       const matchesType = matchTypeFilter === 'All' || item.matchType === matchTypeFilter;
       return matchesSearch && matchesType;
     });
-  }, [entries, searchQuery, matchTypeFilter]);
+  }, [flatEntries, searchQuery, matchTypeFilter]);
 
   const matrixData = useMemo(() => {
     const distributorsSet = new Set();
@@ -140,7 +242,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
     // type to filter on.
     if (matchTypeFilter === 'All') {
       const q = searchQuery.toLowerCase().trim();
-      EASY_STONES_COLORS.forEach(name => {
+      colorNames.forEach(name => {
         if (rowsMap.has(name)) return;
         if (q && !name.toLowerCase().includes(q)) return;
         rowsMap.set(name, new Map());
@@ -149,11 +251,30 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
 
     const distributors = Array.from(distributorsSet).sort((a, b) => a.localeCompare(b));
     const rows = Array.from(rowsMap.keys())
-      .sort((a, b) => a.localeCompare(b))
+      .sort((a, b) => {
+        // Follow the price sheet's order; anything not in the catalog
+        // (custom or misspelled names) sorts alphabetically after it.
+        const ai = colorNames.indexOf(a);
+        const bi = colorNames.indexOf(b);
+        if (ai === -1 && bi === -1) return a.localeCompare(b);
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      })
       .map(easyStonesName => ({ easyStonesName, cells: rowsMap.get(easyStonesName) }));
 
     return { distributors, rows };
-  }, [filteredEntries, matchTypeFilter, searchQuery]);
+  }, [filteredEntries, matchTypeFilter, searchQuery, colorNames]);
+
+  const catalogCoverage = useMemo(() => {
+    const mappedSet = new Set(colorDocs.map(d => d.easyStonesName));
+    const mapped = colorNames.filter(name => mappedSet.has(name)).length;
+    return { mapped, total: colorNames.length };
+  }, [colorDocs, colorNames]);
+
+  const existingDistributors = useMemo(() => {
+    return Array.from(new Set(flatEntries.map(e => e.distributorName).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }, [flatEntries]);
 
   const totalPages = Math.ceil(filteredEntries.length / rowsPerPage) || 1;
   const paginatedEntries = useMemo(() => {
@@ -193,7 +314,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
     window.print();
   };
 
-  const hasFilteredEverythingOut = filteredEntries.length === 0 && entries.length > 0;
+  const hasFilteredEverythingOut = filteredEntries.length === 0 && flatEntries.length > 0;
 
   return (
     <div className="xover-tab-container">
@@ -232,6 +353,12 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
             <Download size={15} />
             <span className="xover-btn-text-full">Export</span>
           </button>
+          {isAdmin && (
+            <button type="button" className="xover-btn-export" onClick={() => setIsManageColorsOpen(true)} title="Manage Easy Stones Colors">
+              <Palette size={15} />
+              <span className="xover-btn-text-full">Colors</span>
+            </button>
+          )}
           {canAdd && (
             <button type="button" className="xover-btn-add" onClick={handleOpenAddModal}>
               <Plus size={15} />
@@ -242,9 +369,27 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
         </div>
       </div>
 
-      <p className="xover-subtitle">
+      <p className="xover-subtitle no-print">
         Distributor color names mapped to their closest Easy Stones equivalent, so a customer can order a match when their usual color isn't available.
+        {viewMode === 'matrix' && (
+          <span className="xover-coverage-stat">
+            {catalogCoverage.mapped} / {catalogCoverage.total} colors have a crossover mapped
+          </span>
+        )}
       </p>
+
+      {/* Print/PDF-only header — swaps the on-screen title+explainer for the
+          company logo and a compact coverage stat, since the explainer text
+          is redundant on a printed reference sheet. */}
+      <div className="xover-print-header">
+        <img src="/logo.png" alt="Easy Stones" className="xover-print-logo" />
+        <div className="xover-print-header-text">
+          <h2>Crossover Sheet</h2>
+          {viewMode === 'matrix' && (
+            <span>{catalogCoverage.mapped} / {catalogCoverage.total} colors have a crossover mapped</span>
+          )}
+        </div>
+      </div>
 
       <div className="xover-filter-bar no-print">
         <div className="xover-search-box">
@@ -288,7 +433,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
             {hasFilteredEverythingOut ? (
               <>
                 <h4>No Matching Entries</h4>
-                <p>{entries.length} entr{entries.length === 1 ? 'y' : 'ies'} on file, but none match the current search and filters.</p>
+                <p>{flatEntries.length} entr{flatEntries.length === 1 ? 'y' : 'ies'} on file, but none match the current search and filters.</p>
                 <button className="xover-btn-clear-filters" onClick={handleResetFilters}>Clear Filters</button>
               </>
             ) : (
@@ -342,7 +487,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
                                 <button
                                   type="button"
                                   className="matrix-chip-delete"
-                                  onClick={(e) => handleDeleteEntry(entry._id, e)}
+                                  onClick={(e) => handleDeleteEntry(entry, e)}
                                   title="Delete Entry"
                                 >
                                   <Trash2 size={11} />
@@ -410,7 +555,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
                       <button
                         type="button"
                         className="xover-action-btn delete-btn"
-                        onClick={(e) => handleDeleteEntry(item._id, e)}
+                        onClick={(e) => handleDeleteEntry(item, e)}
                         title="Delete Entry"
                       >
                         <Trash2 size={16} />
@@ -465,7 +610,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
                   </button>
                 )}
                 {canDelete && (
-                  <button className="xover-mobile-action-btn delete" onClick={(e) => handleDeleteEntry(item._id, e)}>
+                  <button className="xover-mobile-action-btn delete" onClick={(e) => handleDeleteEntry(item, e)}>
                     <Trash2 size={15} />
                   </button>
                 )}
@@ -496,6 +641,17 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveEntry}
         initialData={editingItem}
+        existingDistributors={existingDistributors}
+        easyStonesColorOptions={colorNames}
+      />
+
+      <ManageColorsModal
+        isOpen={isManageColorsOpen}
+        onClose={() => setIsManageColorsOpen(false)}
+        colors={colors}
+        onAdd={handleAddColor}
+        onRename={handleRenameColor}
+        onDelete={handleDeleteColor}
       />
     </div>
   );

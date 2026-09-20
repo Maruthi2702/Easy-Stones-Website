@@ -35,6 +35,7 @@ import Location from '../models/Location.js';
 import Role from '../models/Role.js';
 import DailyReport from '../models/DailyReport.js';
 import CrossoverSheet from '../models/CrossoverSheet.js';
+import EasyStonesColor from '../models/EasyStonesColor.js';
 import InventoryItem from '../models/InventoryItem.js';
 import InventorySalesRecord from '../models/InventorySalesRecord.js';
 import ContactSubmission from '../models/ContactSubmission.js';
@@ -55,6 +56,7 @@ export const INDEXED_MODELS = [
   ['Role', Role],
   ['DailyReport', DailyReport],
   ['CrossoverSheet', CrossoverSheet],
+  ['EasyStonesColor', EasyStonesColor],
   ['InventoryItem', InventoryItem],
   ['InventorySalesRecord', InventorySalesRecord],
   ['ContactSubmission', ContactSubmission],

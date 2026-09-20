@@ -7,7 +7,7 @@ const MATCH_TYPE_OPTIONS = [
   { value: 'Similar', label: 'Similar' }
 ];
 
-const CrossoverSheetModal = ({ isOpen, onClose, onSave, initialData = null }) => {
+const CrossoverSheetModal = ({ isOpen, onClose, onSave, initialData = null, existingDistributors = [], easyStonesColorOptions = [] }) => {
   const [distributorName, setDistributorName] = useState('');
   const [distributorColorName, setDistributorColorName] = useState('');
   const [easyStonesName, setEasyStonesName] = useState('');
@@ -56,6 +56,7 @@ const CrossoverSheetModal = ({ isOpen, onClose, onSave, initialData = null }) =>
 
     onSave({
       _id: initialData?._id,
+      colorId: initialData?.colorId,
       distributorName: distributorName.trim(),
       distributorColorName: distributorColorName.trim(),
       easyStonesName: easyStonesName.trim(),
@@ -97,8 +98,12 @@ const CrossoverSheetModal = ({ isOpen, onClose, onSave, initialData = null }) =>
               onChange={(e) => setDistributorName(e.target.value)}
               placeholder="e.g. MSI, Arizona Tile, Bedrosians"
               className="xover-text-input"
+              list="xover-distributor-options"
               autoFocus
             />
+            <datalist id="xover-distributor-options">
+              {existingDistributors.map(name => <option key={name} value={name} />)}
+            </datalist>
           </div>
 
           <div className="xover-form-grid-2col">
@@ -125,7 +130,11 @@ const CrossoverSheetModal = ({ isOpen, onClose, onSave, initialData = null }) =>
                 onChange={(e) => setEasyStonesName(e.target.value)}
                 placeholder="e.g. Calacatta Mia"
                 className="xover-text-input"
+                list="xover-easystones-options"
               />
+              <datalist id="xover-easystones-options">
+                {easyStonesColorOptions.map(name => <option key={name} value={name} />)}
+              </datalist>
             </div>
           </div>
 

@@ -46,6 +46,8 @@ import Delivery from './src/models/Delivery.js';
 import Truck from './src/models/Truck.js';
 import LostSale from './src/models/LostSale.js';
 import CrossoverSheet from './src/models/CrossoverSheet.js';
+import EasyStonesColor from './src/models/EasyStonesColor.js';
+import { EASY_STONES_COLORS } from './src/data/easyStonesColors.js';
 import InventoryItem from './src/models/InventoryItem.js';
 import InventorySalesRecord from './src/models/InventorySalesRecord.js';
 // The one list of "every model that needs its indexes created on startup" —
@@ -566,6 +568,78 @@ async function startServer() {
     console.log('✅ Connected to MongoDB Atlas');
     console.log('Connection Ready State:', mongoose.connection.readyState);
 
+    // Database migration: consolidate CrossoverList from one flat document
+    // per distributor mapping into one document per Easy Stones color with
+    // an embedded crossovers array (see src/models/CrossoverSheet.js). Runs
+    // before index sync below on purpose — CrossoverSheet's new unique
+    // index on easyStonesName would fail to build on old-shape data, since
+    // the old shape allows several documents (one per distributor) sharing
+    // the same easyStonesName.
+    //
+    // Detected by the old shape's top-level distributorName field — every
+    // document is missing that field once migrated, so this is naturally a
+    // no-op on every later boot. Wrapped in a transaction so a crash
+    // mid-migration can't leave some mappings duplicated (in both an old
+    // flat doc and a new grouped one) or dropped (deleted from the old
+    // shape before the grouped doc committed).
+    try {
+      const crossoverCollection = mongoose.connection.db.collection('CrossoverList');
+      const oldShapeDocs = await crossoverCollection.find({ distributorName: { $exists: true } }).toArray();
+      if (oldShapeDocs.length > 0) {
+        const grouped = new Map();
+        for (const doc of oldShapeDocs) {
+          if (!grouped.has(doc.easyStonesName)) grouped.set(doc.easyStonesName, []);
+          grouped.get(doc.easyStonesName).push({
+            _id: doc._id,
+            distributorName: doc.distributorName,
+            distributorColorName: doc.distributorColorName,
+            matchType: doc.matchType || 'Similar',
+            notes: doc.notes || '',
+            addedByName: doc.addedByName || '',
+            addedById: doc.addedById || null,
+            createdAt: doc.createdAt || new Date(),
+            updatedAt: doc.updatedAt || new Date()
+          });
+        }
+
+        const migrationSession = await mongoose.startSession();
+        try {
+          await migrationSession.withTransaction(async () => {
+            for (const [easyStonesName, crossovers] of grouped.entries()) {
+              const createdAt = crossovers.reduce((min, c) => (c.createdAt < min ? c.createdAt : min), crossovers[0].createdAt);
+              await crossoverCollection.updateOne(
+                { easyStonesName, crossovers: { $exists: true } },
+                { $setOnInsert: { easyStonesName, crossovers, createdAt, updatedAt: new Date() } },
+                { upsert: true, session: migrationSession }
+              );
+            }
+            await crossoverCollection.deleteMany(
+              { _id: { $in: oldShapeDocs.map(d => d._id) } },
+              { session: migrationSession }
+            );
+          });
+          console.log(`✅ Migrated ${oldShapeDocs.length} crossover entries into ${grouped.size} color documents`);
+        } finally {
+          await migrationSession.endSession();
+        }
+      }
+      // Drop the old schema's indexes by name — they reference top-level
+      // fields (distributorName, distributorColorName, matchType) that no
+      // longer exist post-migration, and Mongo only allows one text index
+      // per collection, so the new nested-field text index in
+      // CrossoverSheet.js can't be created until the old one is gone.
+      const staleIndexNames = [
+        'distributorName_text_distributorColorName_text_easyStonesName_text',
+        'matchType_1',
+        'distributorName_1'
+      ];
+      for (const indexName of staleIndexNames) {
+        await crossoverCollection.dropIndex(indexName).catch(() => {});
+      }
+    } catch (crossoverMigError) {
+      console.error('Error migrating CrossoverList to grouped shape:', crossoverMigError);
+    }
+
     // Ensure all database indexes are created/synced for performance scalability.
     // autoIndex is disabled on the connection, so a model missing from
     // INDEXED_MODELS silently runs with no indexes at all — see the comment on
@@ -647,6 +721,23 @@ async function startServer() {
       }
     } catch (locError) {
       console.error('Error seeding default locations:', locError);
+    }
+
+    // Database seeding: Easy Stones color catalog (one-time migration off the
+    // hardcoded EASY_STONES_COLORS array — see src/data/easyStonesColors.js).
+    // Only runs while the collection is empty, so it can't clobber colors an
+    // admin has since added, renamed, or removed via the Crossover Sheet's
+    // manage-colors UI.
+    try {
+      const colorCount = await EasyStonesColor.countDocuments();
+      if (colorCount === 0) {
+        await EasyStonesColor.insertMany(
+          EASY_STONES_COLORS.map((name, index) => ({ name, order: index }))
+        );
+        console.log('✅ Easy Stones color catalog seeded successfully');
+      }
+    } catch (colorError) {
+      console.error('Error seeding Easy Stones color catalog:', colorError);
     }
     // Kiosk users are managed dynamically by the administrator via the dashboard, no auto-seeding required.
     // Seed standard Roles & Permissions
@@ -7252,7 +7343,7 @@ app.delete('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
 // GET /api/crossover-sheet: Fetch all crossover entries
 app.get('/api/crossover-sheet', authenticate, requirePermission('view_crossover_sheet'), async (req, res) => {
   try {
-    const list = await CrossoverSheet.find().sort({ distributorName: 1, distributorColorName: 1 }).lean();
+    const list = await CrossoverSheet.find().sort({ easyStonesName: 1 }).lean();
     res.json(list);
   } catch (error) {
     console.error('Error fetching crossover sheet:', error);
@@ -7260,72 +7351,208 @@ app.get('/api/crossover-sheet', authenticate, requirePermission('view_crossover_
   }
 });
 
-// POST /api/crossover-sheet: Create a crossover entry
+// POST /api/crossover-sheet: Add a distributor mapping to a color's document,
+// creating that color's document if this is its first mapping. Upsert+$push
+// is one atomic operation, so two requests simultaneously adding the first
+// mapping for the same color can't create duplicate color documents.
 app.post('/api/crossover-sheet', authenticate, requirePermission('add_crossover_sheet'), async (req, res) => {
   try {
-    const data = req.body;
+    const easyStonesName = (req.body.easyStonesName || '').trim();
+    if (!easyStonesName) {
+      return res.status(400).json({ message: 'Easy Stones crossover name is required' });
+    }
 
-    const entry = new CrossoverSheet({
-      distributorName: data.distributorName,
-      distributorColorName: data.distributorColorName,
-      easyStonesName: data.easyStonesName,
-      matchType: data.matchType || 'Similar',
-      notes: data.notes || '',
+    const crossoverEntry = {
+      distributorName: req.body.distributorName,
+      distributorColorName: req.body.distributorColorName,
+      matchType: req.body.matchType || 'Similar',
+      notes: req.body.notes || '',
       addedByName: req.user?.displayName || req.user?.contactName || 'Sales Rep',
       addedById: req.user?.id || null
-    });
+    };
 
-    await entry.save();
+    const colorDoc = await CrossoverSheet.findOneAndUpdate(
+      { easyStonesName },
+      { $push: { crossovers: crossoverEntry } },
+      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+    );
+
     req.app.get('io')?.emit('crossover_sheet_update');
-    res.status(201).json(entry);
+    res.status(201).json(colorDoc);
   } catch (error) {
     console.error('Error creating crossover entry:', error);
     res.status(500).json({ message: 'Failed to create crossover entry', error: error.message });
   }
 });
 
-// PUT /api/crossover-sheet/:id: Update a crossover entry
-app.put('/api/crossover-sheet/:id', authenticate, requirePermission('edit_crossover_sheet'), async (req, res) => {
+// PUT /api/crossover-sheet/:colorId/:crossoverId: Update one distributor
+// mapping. If the edit changes which Easy Stones color it belongs to, the
+// subdocument has to move from one color's document to another's (creating
+// the destination document if it doesn't exist yet, and deleting the source
+// document if that was its last mapping) — done in a transaction so a
+// failure partway through can't delete the mapping from one document
+// without it landing in the other.
+app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('edit_crossover_sheet'), async (req, res) => {
+  const { colorId, crossoverId } = req.params;
+  const newEasyStonesName = (req.body.easyStonesName || '').trim();
+  const fields = {
+    distributorName: req.body.distributorName,
+    distributorColorName: req.body.distributorColorName,
+    matchType: req.body.matchType,
+    notes: req.body.notes || ''
+  };
+
+  const session = await mongoose.startSession();
   try {
-    const data = req.body;
-    const updateObj = {
-      distributorName: data.distributorName,
-      distributorColorName: data.distributorColorName,
-      easyStonesName: data.easyStonesName,
-      matchType: data.matchType,
-      notes: data.notes || ''
-    };
+    session.startTransaction();
 
-    const updated = await CrossoverSheet.findByIdAndUpdate(
-      req.params.id,
-      updateObj,
-      { new: true, runValidators: true }
-    );
-
-    if (!updated) {
+    const colorDoc = await CrossoverSheet.findById(colorId).session(session);
+    const entry = colorDoc?.crossovers.id(crossoverId);
+    if (!colorDoc || !entry) {
+      await session.abortTransaction();
       return res.status(404).json({ message: 'Crossover entry not found' });
     }
 
+    let result;
+    if (newEasyStonesName && newEasyStonesName !== colorDoc.easyStonesName) {
+      const movedEntry = { ...entry.toObject(), ...fields };
+
+      entry.deleteOne();
+      if (colorDoc.crossovers.length === 0) {
+        await CrossoverSheet.findByIdAndDelete(colorId, { session });
+      } else {
+        await colorDoc.save({ session });
+      }
+
+      result = await CrossoverSheet.findOneAndUpdate(
+        { easyStonesName: newEasyStonesName },
+        { $push: { crossovers: movedEntry } },
+        { new: true, upsert: true, setDefaultsOnInsert: true, session }
+      );
+    } else {
+      Object.assign(entry, fields);
+      await colorDoc.save({ session });
+      result = colorDoc;
+    }
+
+    await session.commitTransaction();
     req.app.get('io')?.emit('crossover_sheet_update');
-    res.json(updated);
+    res.json(result);
   } catch (error) {
+    await session.abortTransaction().catch(() => {});
     console.error('Error updating crossover entry:', error);
     res.status(500).json({ message: 'Failed to update crossover entry', error: error.message });
+  } finally {
+    session.endSession();
   }
 });
 
-// DELETE /api/crossover-sheet/:id: Delete a crossover entry
-app.delete('/api/crossover-sheet/:id', authenticate, requirePermission('delete_crossover_sheet'), async (req, res) => {
+// DELETE /api/crossover-sheet/:colorId/:crossoverId: Remove one distributor
+// mapping. Deletes the color's document too if that was its last mapping —
+// an empty color document isn't needed for the matrix's empty-row seeding,
+// that comes from the separate EasyStonesColor catalog now.
+app.delete('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('delete_crossover_sheet'), async (req, res) => {
   try {
-    const deleted = await CrossoverSheet.findByIdAndDelete(req.params.id);
-    if (!deleted) {
+    const { colorId, crossoverId } = req.params;
+    const colorDoc = await CrossoverSheet.findById(colorId);
+    const entry = colorDoc?.crossovers.id(crossoverId);
+    if (!colorDoc || !entry) {
       return res.status(404).json({ message: 'Crossover entry not found' });
     }
+
+    entry.deleteOne();
+    if (colorDoc.crossovers.length === 0) {
+      await CrossoverSheet.findByIdAndDelete(colorId);
+    } else {
+      await colorDoc.save();
+    }
+
     req.app.get('io')?.emit('crossover_sheet_update');
     res.json({ success: true, message: 'Crossover entry deleted successfully' });
   } catch (error) {
     console.error('Error deleting crossover entry:', error);
     res.status(500).json({ message: 'Failed to delete crossover entry' });
+  }
+});
+
+// GET /api/easy-stones-colors: List the Easy Stones color catalog used to
+// seed the Crossover Sheet matrix. Same audience as the sheet itself.
+app.get('/api/easy-stones-colors', authenticate, requirePermission('view_crossover_sheet'), async (req, res) => {
+  try {
+    const colors = await EasyStonesColor.find().sort({ order: 1 }).lean();
+    res.json(colors);
+  } catch (error) {
+    console.error('Error fetching Easy Stones colors:', error);
+    res.status(500).json({ message: 'Failed to fetch Easy Stones colors' });
+  }
+});
+
+// POST /api/easy-stones-colors: Add a color to the catalog. Admin/director
+// only — this list is shared across every rep's Crossover Sheet, not a
+// per-entry edit.
+app.post('/api/easy-stones-colors', authenticate, authorize('admin', 'director'), async (req, res) => {
+  try {
+    const name = (req.body.name || '').trim();
+    if (!name) {
+      return res.status(400).json({ message: 'Color name is required' });
+    }
+
+    const existing = await EasyStonesColor.findOne({ name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
+    if (existing) {
+      return res.status(409).json({ message: 'That color is already in the catalog' });
+    }
+
+    const highest = await EasyStonesColor.findOne().sort({ order: -1 }).lean();
+    const color = await EasyStonesColor.create({ name, order: (highest?.order ?? -1) + 1 });
+    req.app.get('io')?.emit('easy_stones_colors_update');
+    res.status(201).json(color);
+  } catch (error) {
+    console.error('Error adding Easy Stones color:', error);
+    res.status(500).json({ message: 'Failed to add color', error: error.message });
+  }
+});
+
+// PUT /api/easy-stones-colors/:id: Rename a catalog color. Renaming does not
+// touch existing Crossover Sheet entries pointing at the old name — see the
+// note on the frontend's manage-colors modal before assuming otherwise.
+app.put('/api/easy-stones-colors/:id', authenticate, authorize('admin', 'director'), async (req, res) => {
+  try {
+    const name = (req.body.name || '').trim();
+    if (!name) {
+      return res.status(400).json({ message: 'Color name is required' });
+    }
+
+    const updated = await EasyStonesColor.findByIdAndUpdate(
+      req.params.id,
+      { name },
+      { new: true, runValidators: true }
+    );
+    if (!updated) {
+      return res.status(404).json({ message: 'Color not found' });
+    }
+    req.app.get('io')?.emit('easy_stones_colors_update');
+    res.json(updated);
+  } catch (error) {
+    console.error('Error renaming Easy Stones color:', error);
+    res.status(500).json({ message: 'Failed to rename color', error: error.message });
+  }
+});
+
+// DELETE /api/easy-stones-colors/:id: Remove a color from the catalog. This
+// only stops it being auto-seeded as an empty matrix row — any Crossover
+// Sheet entries already pointing at its name are left as-is (they'll sort to
+// the bottom as "not in the catalog," same as a misspelled name today).
+app.delete('/api/easy-stones-colors/:id', authenticate, authorize('admin', 'director'), async (req, res) => {
+  try {
+    const deleted = await EasyStonesColor.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Color not found' });
+    }
+    req.app.get('io')?.emit('easy_stones_colors_update');
+    res.json({ success: true, message: 'Color deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting Easy Stones color:', error);
+    res.status(500).json({ message: 'Failed to delete color' });
   }
 });
 
