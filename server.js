@@ -4768,6 +4768,14 @@ app.delete('/api/schedule/:id', verifyAnyAuth, async (req, res) => {
   }
 });
 
+// ── DAILY WORK REPORT ──
+// Lives in src/routes/dailyReports.js rather than here — a self-contained
+// feature with its own model, handed the middleware it needs.
+app.use('/api/daily-reports', createDailyReportsRouter({
+  authenticate,
+  requirePermission
+}));
+
 // ── MANIFEST DISPATCH SCHEDULER ENDPOINTS (MongoDB Persisted) ──
 // Lives in src/routes/deliveries.js rather than here — a self-contained
 // feature with its own model, handed the middleware and generic
