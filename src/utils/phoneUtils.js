@@ -38,6 +38,18 @@ export const stripPhone = (value) => {
 };
 
 /**
+ * Last 4 digits only, for logs/traces that need to distinguish records
+ * without writing a customer's full number to stdout/log aggregation.
+ * @param {string} value - The raw phone number string.
+ * @returns {string} e.g. "***-4321", or '' if there aren't 4 digits to show.
+ */
+export const maskPhone = (value) => {
+    const digits = nationalDigits(value);
+    if (digits.length < 4) return '';
+    return `***-${digits.slice(-4)}`;
+};
+
+/**
  * Formats a phone number as the user types.
  * @param {string} value - The current input value.
  * @returns {string} The auto-formatted value.

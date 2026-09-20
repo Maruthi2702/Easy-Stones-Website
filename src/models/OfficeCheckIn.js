@@ -4,40 +4,48 @@ const officeCheckInSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Name is required'],
-    trim: true
+    trim: true,
+    maxlength: [200, 'Name is too long']
   },
   location: {
     type: String,
     required: [true, 'Location is required'],
     default: 'Seattle',
     trim: true,
-    index: true
+    index: true,
+    maxlength: [100, 'Location is too long']
   },
   phone: {
     type: String,
     required: [true, 'Phone number is required'],
-    trim: true
+    trim: true,
+    index: true,
+    maxlength: [30, 'Phone number is too long']
   },
   email: {
     type: String,
     trim: true,
     lowercase: true,
-    default: ''
+    default: '',
+    maxlength: [254, 'Email is too long']
   },
   fabricatorCompany: {
     type: String,
     trim: true,
-    default: ''
+    default: '',
+    maxlength: [200, 'Company name is too long']
   },
   fabricatorName: {
     type: String,
     trim: true,
-    default: ''
+    default: '',
+    maxlength: [200, 'Fabricator name is too long']
   },
   fabricatorPhone: {
     type: String,
     trim: true,
-    default: ''
+    default: '',
+    maxlength: [30, 'Company phone is too long']
   },
   status: {
     type: String,
@@ -47,34 +55,39 @@ const officeCheckInSchema = new mongoose.Schema({
   builderName: {
     type: String,
     trim: true,
-    default: ''
+    default: '',
+    maxlength: [200, 'Builder name is too long']
   },
   builderPhone: {
     type: String,
     trim: true,
-    default: ''
+    default: '',
+    maxlength: [30, 'Builder phone is too long']
   },
   selections: [
     {
-      material: { type: String, default: '' },
-      details: { type: String, default: '' },
-      size: { type: String, default: '' },
-      lot: { type: String, default: '' }
+      material: { type: String, default: '', maxlength: [200, 'Material is too long'] },
+      details: { type: String, default: '', maxlength: [2000, 'Details are too long'] },
+      size: { type: String, default: '', maxlength: [200, 'Size is too long'] },
+      lot: { type: String, default: '', maxlength: [200, 'Lot/bundle number is too long'] }
     }
   ],
   specialNotes: {
     type: String,
-    default: ''
+    default: '',
+    maxlength: [5000, 'Special notes are too long']
   },
   salesRep: {
     type: String,
     trim: true,
-    default: ''
+    default: '',
+    maxlength: [200, 'Sales rep name is too long']
   },
   salesRepEmail: {
     type: String,
     trim: true,
-    default: ''
+    default: '',
+    maxlength: [254, 'Sales rep email is too long']
   },
   loggedBy: {
     userId: {

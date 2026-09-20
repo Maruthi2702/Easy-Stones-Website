@@ -9,6 +9,8 @@
 // throws on failure still throws and one that already falls back to cache
 // (several do, on purpose, for someone working out of signal) still does.
 
+import { getAuthToken } from './authToken';
+
 let sessionExpiredNotified = false;
 
 /** Called after a successful login so the next expiry can be noticed again. */
@@ -28,7 +30,7 @@ function notifySessionExpired() {
 }
 
 export async function authFetch(url, options = {}) {
-  const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+  const token = getAuthToken();
   const headers = {
     ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),

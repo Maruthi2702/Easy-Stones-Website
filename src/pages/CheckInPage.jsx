@@ -244,19 +244,25 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     }
 
     try {
-      const response = await authFetch(`${API_URL}/api/checkin`, {
+      // A dedicated, unauthenticated endpoint — this device is a visitor's own
+      // phone with no session, so the general /api/checkin route (staff/kiosk,
+      // requires login) 401s every time. honeypot/formLoadTime are re-checked
+      // server-side too, since anyone can bypass the client-side checks above
+      // by posting to the API directly.
+      const response = await fetch(`${API_URL}/api/checkin/self`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(), phone: phone.trim(),
           fabricatorCompany: finalFabCompany || `${visitorType} Visit`,
           fabricatorPhone: finalFabPhone || 'N/A',
           location: selectedLocation,
-          loggedBy: 'Self Check-In (QR/NFC)', source: 'Self Check-In (QR/NFC)',
-          visitorType, isSelfCheckIn: true
+          visitorType, isSelfCheckIn: true,
+          honeypot, formLoadTime
         })
       });
       if (response.ok) { setStep(8); }
-      else { const data = await response.json(); setError(data.message || 'Check-in failed. Please try again.'); }
+      else { const data = await response.json(); setError(data.error || data.message || 'Check-in failed. Please try again.'); }
     } catch { setError('Network error. Please check your connection.'); }
     finally { setLoading(false); }
   };

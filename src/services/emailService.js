@@ -1,6 +1,15 @@
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 
+// The check-in emails below interpolate visitor-supplied fields (name, notes,
+// selections...) straight into HTML. The self check-in endpoint that produces
+// most of that data requires no login, so an unescaped field is an open door
+// to email HTML/phishing-content injection (spoofed links, tracking pixels,
+// broken layout) landing in a staff inbox.
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[ch]));
+
 // Helper to send general mail using Resend API with SMTP fallback
 /**
  * `attachments` is [{ filename, content }] where content is a Buffer or
@@ -109,29 +118,29 @@ export async function sendCheckInAlertEmail(checkIn) {
       <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
         <tr>
           <td style="padding: 8px 0; font-weight: bold; color: #555; width: 180px;">Visitor Name:</td>
-          <td style="padding: 8px 0; color: #222;">${name}</td>
+          <td style="padding: 8px 0; color: #222;">${escapeHtml(name)}</td>
         </tr>
         <tr>
           <td style="padding: 8px 0; font-weight: bold; color: #555;">Phone Number:</td>
-          <td style="padding: 8px 0; color: #222;">${phone}</td>
+          <td style="padding: 8px 0; color: #222;">${escapeHtml(phone)}</td>
         </tr>
         ${email ? `
         <tr>
           <td style="padding: 8px 0; font-weight: bold; color: #555;">Email:</td>
-          <td style="padding: 8px 0; color: #222;">${email}</td>
+          <td style="padding: 8px 0; color: #222;">${escapeHtml(email)}</td>
         </tr>
         ` : ''}
         <tr>
           <td style="padding: 8px 0; font-weight: bold; color: #555;">Company Name:</td>
-          <td style="padding: 8px 0; color: #222;">${fabricatorCompany || 'N/A'}</td>
+          <td style="padding: 8px 0; color: #222;">${escapeHtml(fabricatorCompany) || 'N/A'}</td>
         </tr>
         <tr>
           <td style="padding: 8px 0; font-weight: bold; color: #555;">Company Phone:</td>
-          <td style="padding: 8px 0; color: #222;">${fabricatorPhone || 'N/A'}</td>
+          <td style="padding: 8px 0; color: #222;">${escapeHtml(fabricatorPhone) || 'N/A'}</td>
         </tr>
         <tr>
           <td style="padding: 8px 0; font-weight: bold; color: #555;">Branch Location:</td>
-          <td style="padding: 8px 0; color: #d4af37; font-weight: bold;">${checkIn.location || 'Seattle'}</td>
+          <td style="padding: 8px 0; color: #d4af37; font-weight: bold;">${escapeHtml(checkIn.location) || 'Seattle'}</td>
         </tr>
       </table>
       <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
@@ -177,10 +186,10 @@ export async function sendSelectionSheetEmail(checkIn, recipientEmail) {
       selectionsHtml += `
         <tr style="border-bottom: 1px solid #eaeaea;">
           <td style="padding: 10px; text-align: center; color: #d4af37; font-weight: bold;">${idx + 1}</td>
-          <td style="padding: 10px; color: #222; font-weight: 500;">${sel.material || 'N/A'}</td>
-          <td style="padding: 10px; color: #555;">${sel.lot || 'N/A'}</td>
-          <td style="padding: 10px; color: #555;">${sel.details || 'N/A'}</td>
-          <td style="padding: 10px; color: #555;">${sel.size || 'N/A'}</td>
+          <td style="padding: 10px; color: #222; font-weight: 500;">${escapeHtml(sel.material) || 'N/A'}</td>
+          <td style="padding: 10px; color: #555;">${escapeHtml(sel.lot) || 'N/A'}</td>
+          <td style="padding: 10px; color: #555;">${escapeHtml(sel.details) || 'N/A'}</td>
+          <td style="padding: 10px; color: #555;">${escapeHtml(sel.size) || 'N/A'}</td>
         </tr>
       `;
     });
@@ -205,24 +214,24 @@ export async function sendSelectionSheetEmail(checkIn, recipientEmail) {
           </tr>
           <tr>
             <td style="padding: 6px 0; font-weight: bold; color: #555; font-size: 0.85rem;">Customer Name:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem; font-weight: 600;">${checkIn.name}</td>
+            <td style="padding: 6px 0; color: #222; font-size: 0.9rem; font-weight: 600;">${escapeHtml(checkIn.name)}</td>
           </tr>
           <tr>
             <td style="padding: 6px 0; font-weight: bold; color: #555; font-size: 0.85rem;">Phone Number:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem;">${checkIn.phone}</td>
+            <td style="padding: 6px 0; color: #222; font-size: 0.9rem;">${escapeHtml(checkIn.phone)}</td>
           </tr>
           <tr>
             <td style="padding: 6px 0; font-weight: bold; color: #555; font-size: 0.85rem;">Company Name:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem;">${checkIn.fabricatorCompany || 'N/A'}</td>
+            <td style="padding: 6px 0; color: #222; font-size: 0.9rem;">${escapeHtml(checkIn.fabricatorCompany) || 'N/A'}</td>
           </tr>
           <tr>
             <td style="padding: 6px 0; font-weight: bold; color: #555; font-size: 0.85rem;">Company Phone:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem;">${checkIn.fabricatorPhone || 'N/A'}</td>
+            <td style="padding: 6px 0; color: #222; font-size: 0.9rem;">${escapeHtml(checkIn.fabricatorPhone) || 'N/A'}</td>
           </tr>
           ${checkIn.salesRep ? `
           <tr>
             <td style="padding: 6px 0; font-weight: bold; color: #555; font-size: 0.85rem;">Sales Rep:</td>
-            <td style="padding: 6px 0; color: #222; font-size: 0.9rem; font-weight: 600;">${checkIn.salesRep}</td>
+            <td style="padding: 6px 0; color: #222; font-size: 0.9rem; font-weight: 600;">${escapeHtml(checkIn.salesRep)}</td>
           </tr>
           ` : ''}
         </table>
@@ -247,7 +256,7 @@ export async function sendSelectionSheetEmail(checkIn, recipientEmail) {
       ${checkIn.specialNotes ? `
       <div style="background: #fff; border: 1px solid #eaeaea; border-radius: 12px; padding: 15px; margin-bottom: 20px;">
         <h4 style="margin: 0 0 8px 0; color: #475569; font-size: 0.9rem;">Special Notes:</h4>
-        <p style="margin: 0; color: #334155; font-size: 0.875rem; white-space: pre-wrap; line-height: 1.5;">${checkIn.specialNotes}</p>
+        <p style="margin: 0; color: #334155; font-size: 0.875rem; white-space: pre-wrap; line-height: 1.5;">${escapeHtml(checkIn.specialNotes)}</p>
       </div>
       ` : ''}
       

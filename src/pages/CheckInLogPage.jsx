@@ -62,6 +62,7 @@ const CheckInLogPage = () => {
   const [monthCount, setMonthCount] = useState(0);
   const [allTimeCount, setAllTimeCount] = useState(0);
   const [refreshTrigger] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Default to current month and year
   const currentDate = new Date();
@@ -187,19 +188,60 @@ const CheckInLogPage = () => {
     }
   };
 
-  const handleExport = () => {
-    const rows = checkIns.map((c) => ({
-      Date: new Date(c.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
-      Time: new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      Name: c.name,
-      Phone: c.phone,
-      'Company/Contact Name': c.fabricatorCompany || '',
-      'Fabricator Phone': c.fabricatorPhone || '',
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Check-In Log');
-    XLSX.writeFile(wb, `checkin-log-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  // `checkIns` is only whatever page is currently on screen (15-20 rows) —
+  // exporting that instead of every row matching the active filters used to
+  // hand back a silently-truncated file with no indication it was partial.
+  // This re-fetches every matching page (server caps each page at 1000) up
+  // to a generous safety ceiling, using the same filters the table is showing.
+  const EXPORT_PAGE_SIZE = 1000;
+  const EXPORT_MAX_PAGES = 50;
+  const handleExport = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const rows = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const params = new URLSearchParams({
+          page,
+          limit: EXPORT_PAGE_SIZE,
+          tz: viewerTimeZone,
+          ...(debouncedSearch && { search: debouncedSearch }),
+          ...(filterMonth && { month: filterMonth }),
+          ...(filterYear && { year: filterYear }),
+          ...(filterLocation && { location: filterLocation }),
+        });
+        const response = await authFetch(`${API_URL}/api/checkin?${params}`);
+        if (response.status === 401) {
+          logout();
+          return;
+        }
+        if (!response.ok) break;
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : (data.checkIns || data.data || []);
+        rows.push(...list);
+        totalPages = Array.isArray(data) ? 1 : (data.totalPages || 1);
+        page += 1;
+      } while (page <= totalPages && page <= EXPORT_MAX_PAGES);
+
+      const exportRows = rows.map((c) => ({
+        Date: new Date(c.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
+        Time: new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        Name: c.name,
+        Phone: c.phone,
+        'Company/Contact Name': c.fabricatorCompany || '',
+        'Fabricator Phone': c.fabricatorPhone || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Check-In Log');
+      XLSX.writeFile(wb, `checkin-log-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      console.error('Error exporting check-ins:', err);
+    } finally {
+      setIsExporting(false);
+    }
   };
   return (
     <div className={`checkin-log-page-wrapper ${theme}-theme`} style={{ minHeight: '100vh', transition: 'background-color 0.2s ease-in-out', position: 'relative', background: theme === 'light' ? '#f8fafc' : 'var(--bg-primary)' }}>
@@ -228,6 +270,7 @@ const CheckInLogPage = () => {
           filterLocation={filterLocation}
           onFilterLocationChange={(val) => { setFilterLocation(val); setCurrentPage(1); }}
           onExport={handleExport}
+          isExporting={isExporting}
           embedded={false}
           theme={theme}
           onToggleTheme={toggleTheme}

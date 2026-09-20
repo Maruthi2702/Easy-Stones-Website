@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
+import { getAuthToken, setAuthToken } from '../../api/authToken';
 import { prettifyUsername } from '../../utils/textUtils';
 import { clearDriversCache } from '../../api/deliverySchedule';
 import './UsersRolesTab.css';
@@ -44,9 +45,9 @@ const PAGE_PERMISSIONS = [
         description: 'Office check-ins and selection sheets',
         color: '#d79b00',
         actions: [
-            { key: 'view_checkins',     label: 'View',             icon: Eye,      desc: 'View check-in log records' },
+            { key: 'view_checkins',     label: 'View',             icon: Eye,      desc: 'View check-in log records (read-only without Edit)' },
             { key: 'send_checkin_email',label: 'Selection Sheet',  icon: MailIcon, desc: 'Send selection sheet emails to customers' },
-            { key: 'manage_checkins',   label: 'Edit',             icon: Pencil,   desc: 'Edit check-in records' },
+            { key: 'manage_checkins',   label: 'Edit',             icon: Pencil,   desc: 'Edit check-in details and selection sheets' },
             { key: 'delete_checkins',   label: 'Delete',           icon: Trash2,   desc: 'Delete check-in records' }
         ]
     },
@@ -241,10 +242,13 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     // lives in the shared authFetch.
     const fetchWithAuth = authFetch;
 
-    // Ensure we have a token in localStorage - exchanges cookie for JWT if needed
-    // This supports existing sessions that pre-date the localStorage token storage
+    // AuthContext's checkAuth() already does this same cookie-for-JWT exchange
+    // on every app load (see authToken.js — the in-memory token doesn't
+    // survive a reload the way the old localStorage copy did). This is just a
+    // defensive fallback for the odd case this tab renders before that's
+    // resolved.
     const ensureToken = async () => {
-        if (localStorage.getItem('token')) return; // already have it
+        if (getAuthToken()) return; // already have it
         try {
             // Plain fetch, deliberately not authFetch/fetchWithAuth: this
             // route 401s whenever there's no adminToken cookie to exchange,
@@ -257,7 +261,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             const res = await fetch(`${API_URL}/api/auth/token`, { credentials: 'include' });
             if (res.ok) {
                 const data = await res.json();
-                if (data.token) localStorage.setItem('token', data.token);
+                if (data.token) setAuthToken(data.token);
             }
         } catch {
             // If this fails, fetchWithAuth will fall back to cookie-based auth

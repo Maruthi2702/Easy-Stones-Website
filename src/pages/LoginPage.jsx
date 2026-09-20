@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Lock, User, Sun, Moon } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
+import { setAuthToken } from '../api/authToken';
 import './LoginPage.css';
 
 const LoginPage = () => {
@@ -84,9 +85,10 @@ const LoginPage = () => {
             const data = await response.json();
 
             if (data.success) {
-                // Store token in localStorage for API Authorization headers
+                // In memory only — see src/api/authToken.js for why this used
+                // to be localStorage and no longer is.
                 if (data.token) {
-                    localStorage.setItem('token', data.token);
+                    setAuthToken(data.token);
                 }
 
                 // Normalize user data for AuthContext

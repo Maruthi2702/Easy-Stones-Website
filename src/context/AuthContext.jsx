@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { API_URL } from '../config/api';
 import { resetSessionExpiredGuard } from '../api/authFetch';
+import { getAuthToken, setAuthToken, clearAuthToken } from '../api/authToken';
 
 const AuthContext = createContext(null);
 
@@ -24,13 +25,16 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
+            const token = getAuthToken();
             const headers = {};
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            // First verify token and get basic info (works for both admin/customer)
+            // First verify token and get basic info (works for both admin/customer).
+            // Always 200 (with { valid: false } for a logged-out visitor) — this
+            // runs on every page including anonymous ones (the self-checkin
+            // kiosk, /login itself), so it never has to be a noisy 401 to check.
             const verifyRes = await fetch(`${API_URL}/api/auth/verify`, {
                 headers,
                 credentials: 'include'
@@ -49,6 +53,25 @@ export const AuthProvider = ({ children }) => {
                 setUser(null);
                 setLoading(false);
                 return;
+            }
+
+            // A fresh page load starts with no in-memory token (see authToken.js)
+            // even for this now-confirmed-valid session — the httpOnly cookie
+            // survived the reload, the memory copy didn't. Re-derive it from
+            // that cookie now, before anything else needs it (the Socket.IO
+            // room join in particular runs early on the delivery board). Only
+            // attempted once verify has already proven a session exists, so
+            // an anonymous visit never has to see this as a 401.
+            if (!token) {
+                try {
+                    const tokenRes = await fetch(`${API_URL}/api/auth/token`, { credentials: 'include' });
+                    if (tokenRes.ok) {
+                        const tokenData = await tokenRes.json();
+                        if (tokenData.token) setAuthToken(tokenData.token);
+                    }
+                } catch {
+                    // Non-fatal — everything else here already works off the cookie alone
+                }
             }
 
             // Then fetch full profile based on authType
@@ -120,10 +143,14 @@ export const AuthProvider = ({ children }) => {
     // Cross-tab session synchronization
     useEffect(() => {
         const handleStorageChange = (e) => {
-            if (e.key === 'auth_logout_event' || (e.key === 'token' && !e.newValue)) {
+            // 'token' dropped from these checks now that it's never written to
+            // localStorage — auth_login_event/auth_logout_event are plain
+            // timestamp markers set by login()/logout() below and were always
+            // the other half of this OR, so cross-tab sync is unaffected.
+            if (e.key === 'auth_logout_event') {
                 console.log('Cross-tab logout event received');
                 setUser(null);
-            } else if (e.key === 'auth_login_event' || (e.key === 'token' && e.newValue)) {
+            } else if (e.key === 'auth_login_event') {
                 console.log('Cross-tab login event received');
                 checkAuth();
             }
@@ -164,7 +191,7 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
-            localStorage.removeItem('token');
+            clearAuthToken();
             localStorage.setItem('auth_logout_event', Date.now().toString());
             setUser(null);
         }

@@ -76,7 +76,7 @@ import {
 // of on this process's own thread. See runWorkbookParse.js for why.
 import { runWorkbookParse } from './src/utils/runWorkbookParse.js';
 import { zonedTimeToUtc } from './src/utils/dateUtils.js';
-import { stripPhone, formatPhoneForDisplay } from './src/utils/phoneUtils.js';
+import { stripPhone, formatPhoneForDisplay, maskPhone } from './src/utils/phoneUtils.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
 import createDeliveriesRouter, { deliveryRoomFor, DELIVERY_ROOM_ALL } from './src/routes/deliveries.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
@@ -609,7 +609,7 @@ async function startServer() {
           name: 'csr',
           displayName: 'CSR',
           permissions: [
-            'view_checkins', 'send_checkin_email', 'view_pricelist',
+            'view_checkins', 'manage_checkins', 'send_checkin_email', 'view_pricelist',
             'view_lost_sales', 'view_crossover_sheet', 'view_inventory_analysis',
             'view_delivery_schedule', 'edit_delivery_schedule'
           ],
@@ -667,7 +667,12 @@ async function startServer() {
         // while driver held them — see src/components/sales/delivery/README.md's
         // "Permission model" section for the intended split this corrects.
         { roles: ['admin', 'director', 'manager', 'sales_rep', 'csr'], permissions: ['view_delivery_schedule', 'edit_delivery_schedule'] },
-        { roles: ['admin', 'director', 'manager'], permissions: ['delete_delivery_schedule', 'clear_pod_signatures'] }
+        { roles: ['admin', 'director', 'manager'], permissions: ['delete_delivery_schedule', 'clear_pod_signatures'] },
+        // PUT /api/checkin/:id used to accept view_checkins OR manage_checkins,
+        // so "View" silently granted edit too. Now that it requires
+        // manage_checkins outright, csr (which only had view_checkins) needs
+        // it granted explicitly to keep editing selection sheets as before.
+        { roles: ['csr'], permissions: ['manage_checkins'] }
       ];
 
       for (const grant of NEW_PERMISSION_GRANTS) {
@@ -874,6 +879,19 @@ const loginLimiter = rateLimit({
   message: { error: 'Too many login attempts. Please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+// The self check-in QR/NFC route is the only unauthenticated write in the
+// whole check-in feature — anyone who can reach it can create a record and
+// trigger an email, with no login to blame it on. A real visitor submits
+// once per physical visit, so this is deliberately far tighter than
+// apiLimiter's shared 500/5min.
+const selfCheckInLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 6,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many check-in attempts. Please ask the front desk for help.' }
 });
 
 // API endpoint to fetch all products
@@ -2736,15 +2754,37 @@ app.post('/api/customers/:customerId/contacts', authenticate, requirePermission(
 });
 
 
+// A double-tap on a touchscreen kiosk, or a client retrying after a slow/
+// ambiguous response, submits the same visit twice. That's not just a
+// cosmetic duplicate row — Daily Work Report auto-derives its visitor count
+// straight from OfficeCheckIn.countDocuments for the day (src/routes/
+// dailyReports.js), so an uncaught duplicate silently inflates a report
+// nobody re-checks against reality once it's submitted. Same phone + same
+// location within a couple minutes is the same visit, not a second one.
+const DUPLICATE_CHECKIN_WINDOW_MS = 2 * 60 * 1000;
+async function findRecentDuplicateCheckIn(phone, location) {
+  if (!phone || !location) return null;
+  return OfficeCheckIn.findOne({
+    phone,
+    location,
+    createdAt: { $gte: new Date(Date.now() - DUPLICATE_CHECKIN_WINDOW_MS) }
+  }).sort({ createdAt: -1 }).lean();
+}
+
 // Submit check-in (requires authenticated kiosk/staff session)
-app.post('/api/checkin', authenticate, async (req, res) => {
+// Gated on manage_checkins — every role that can view the check-in log and
+// actually work the front desk (csr, sales_rep, manager, director, admin)
+// holds it, but a role with no check-in permissions at all (e.g. driver)
+// used to be able to create records here with just a login, since this was
+// the one check-in route with no requirePermission check.
+app.post('/api/checkin', authenticate, requirePermission('manage_checkins'), async (req, res) => {
   try {
-    const { 
-      name, 
-      phone, 
-      email, 
-      fabricatorCompany, 
-      fabricatorName, 
+    const {
+      name,
+      phone,
+      email,
+      fabricatorCompany,
+      fabricatorName,
       fabricatorPhone,
       location: bodyLocation
     } = req.body;
@@ -2753,15 +2793,30 @@ app.post('/api/checkin', authenticate, async (req, res) => {
       return res.status(400).json({ message: 'Name and phone number are required' });
     }
 
-    let kioskLocation = 'Seattle';
+    // Same access check every other check-in route enforces. A requested
+    // location the user isn't assigned to used to be silently swapped for
+    // their own default location instead of rejected — the check-in still
+    // saved, just filed under a branch nobody chose, with no error shown.
     const userLocations = req.user?.assignedLocations || [];
-    if (bodyLocation && (userLocations.includes('*') || userLocations.includes(bodyLocation))) {
-      kioskLocation = bodyLocation;
-    } else if (userLocations.length > 0) {
-      const validLoc = userLocations.find(l => l !== '*');
-      if (validLoc) {
-        kioskLocation = validLoc;
+    let kioskLocation;
+    if (bodyLocation) {
+      if (!userLocations.includes('*') && !userLocations.includes(bodyLocation)) {
+        return res.status(403).json({ message: 'Access denied to this location' });
       }
+      kioskLocation = bodyLocation;
+    } else {
+      const validLoc = userLocations.find(l => l !== '*');
+      kioskLocation = validLoc || 'Seattle';
+    }
+
+    const duplicate = await findRecentDuplicateCheckIn(phone, kioskLocation);
+    if (duplicate) {
+      return res.status(200).json({
+        success: true,
+        message: 'Check-in successful! Welcome to Easy Stones.',
+        data: duplicate,
+        duplicate: true
+      });
     }
 
     const checkIn = new OfficeCheckIn({
@@ -2780,7 +2835,7 @@ app.post('/api/checkin', authenticate, async (req, res) => {
     });
 
     await checkIn.save();
-    console.log(`✅ New office check-in at ${checkIn.location} (logged by ${req.user?.displayName || req.user?.username}): ${name} (${phone})`);
+    console.log(`✅ New office check-in ${checkIn._id} at ${checkIn.location} (logged by ${req.user?.displayName || req.user?.username}), phone ${maskPhone(phone)}`);
 
     // Send email alert to staff with priority fallback logic
     (async () => {
@@ -2804,6 +2859,104 @@ app.post('/api/checkin', authenticate, async (req, res) => {
   }
 });
 
+// Public QR/NFC self check-in — a visitor's own phone, never logged in, so
+// this is the one write in the whole feature that deliberately has no
+// `authenticate`. It used to POST to the route above, which 401'd every
+// single real visitor (their phone has no session token or cookie) — this
+// existed for months without ever recording one genuine self-check-in.
+// Because it's unauthenticated it can't trust req.user for location or
+// anti-abuse the way the staff route does, so both are re-derived here:
+// location is checked against real Location documents instead of an
+// assignedLocations array, and the honeypot/minimum-fill-time checks the
+// frontend already had client-side (trivially bypassed by anyone posting to
+// this URL directly) are re-enforced server-side too.
+app.post('/api/checkin/self', selfCheckInLimiter, async (req, res) => {
+  try {
+    const {
+      name,
+      phone,
+      email,
+      fabricatorCompany,
+      fabricatorName,
+      fabricatorPhone,
+      location: bodyLocation,
+      honeypot,
+      formLoadTime
+    } = req.body;
+
+    if (!name || !phone) {
+      return res.status(400).json({ error: 'Name and phone number are required' });
+    }
+
+    // A filled honeypot field means a bot filled in every input it found,
+    // including ones no human sees. Report success without writing anything,
+    // so a scraper has no signal that it was caught rather than throttled.
+    if (honeypot) {
+      return res.status(201).json({ success: true, message: 'Check-in successful! Welcome to Easy Stones.' });
+    }
+    // Mirrors the client's own 1200ms floor (CheckInPage.jsx) — a human takes
+    // several seconds to click through the wizard; a direct API hit with a
+    // fabricated or missing timestamp doesn't get the benefit of the doubt.
+    if (typeof formLoadTime !== 'number' || Date.now() - formLoadTime < 1200) {
+      return res.status(400).json({ error: 'Please try again.' });
+    }
+
+    if (!bodyLocation) {
+      return res.status(400).json({ error: 'A location is required.' });
+    }
+    const realLocation = await Location.findOne({ name: { $regex: new RegExp(`^${escapeRegex(bodyLocation)}$`, 'i') } }).lean();
+    if (!realLocation) {
+      return res.status(400).json({ error: 'Invalid location.' });
+    }
+
+    const duplicate = await findRecentDuplicateCheckIn(phone, realLocation.name);
+    if (duplicate) {
+      return res.status(201).json({
+        success: true,
+        message: 'Check-in successful! Welcome to Easy Stones.',
+        data: duplicate,
+        duplicate: true
+      });
+    }
+
+    const checkIn = new OfficeCheckIn({
+      name,
+      phone,
+      email,
+      fabricatorCompany,
+      fabricatorName,
+      fabricatorPhone,
+      location: realLocation.name,
+      loggedBy: {
+        displayName: 'Self Check-In (QR/NFC)',
+        username: 'self-checkin'
+      }
+    });
+
+    await checkIn.save();
+    console.log(`✅ New self check-in ${checkIn._id} at ${checkIn.location}, phone ${maskPhone(phone)}`);
+
+    (async () => {
+      try {
+        await sendCheckInAlertEmail(checkIn);
+      } catch (err) {
+        console.error('❌ Check-in email dispatch exception:', err.message);
+      }
+    })();
+
+    req.app.get('io').emit('checkin_update');
+
+    res.status(201).json({
+      success: true,
+      message: 'Check-in successful! Welcome to Easy Stones.',
+      data: checkIn
+    });
+  } catch (error) {
+    console.error('❌ Self check-in error:', error);
+    res.status(500).json({ error: 'Check-in failed. Please try again.' });
+  }
+});
+
 // GET /api/checkin/lookup?phone=... — has this phone number checked in before?
 // Powers the staff form's autofill: type a returning visitor's number and
 // their name/fabricator info comes back instead of being retyped. Open to
@@ -2822,8 +2975,17 @@ app.get('/api/checkin/lookup', authenticate, async (req, res) => {
     // match — no fuzzy matching needed.
     const formatted = formatPhoneForDisplay(digits.slice(-10));
 
+    // Scoped the same way every other check-in route is — this returns a
+    // name/fabricator autofill, but it's still someone's visit history, and
+    // nothing else here lets a branch see another branch's check-ins either.
+    const userLocations = req.user.assignedLocations || [];
+    const lookupQuery = { phone: formatted };
+    if (!userLocations.includes('*')) {
+      lookupQuery.location = { $in: userLocations };
+    }
+
     const lastVisit = await OfficeCheckIn.findOne(
-      { phone: formatted },
+      lookupQuery,
       'name fabricatorCompany fabricatorPhone location createdAt'
     ).sort({ createdAt: -1 }).lean();
 
@@ -2878,7 +3040,10 @@ app.get('/api/checkin', authenticate, requirePermission('view_checkins'), async 
 
     // Otherwise, support full pagination, search, and date filters
     const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 20;
+    // Capped so a client-supplied limit can't force one query/response to
+    // pull the entire collection — 1000 comfortably covers exporting a full
+    // filtered month at any single location.
+    const limitNum = Math.min(parseInt(limit) || 20, 1000);
 
     if (month && year) {
       const m = parseInt(month);
@@ -3025,9 +3190,12 @@ app.get('/api/salesreps', authenticate, async (req, res) => {
 // Update specific check-in
 // Previously unauthenticated — allowing anyone to tamper with visitor records and,
 // via salesRepEmail, use the endpoint as an open relay for our email provider.
-// CSRs and sales reps hold view_checkins (not manage_checkins) yet edit selections
-// as part of their normal workflow, so both permissions are accepted here.
-app.put('/api/checkin/:id', authenticate, requireAnyPermission('manage_checkins', 'view_checkins'), async (req, res) => {
+// Gated on manage_checkins alone (not view_checkins) so "View" in Users & Roles
+// is actually read-only, matching its label — view_checkins used to also be
+// accepted here, which meant granting "View" silently granted edit too. CSRs
+// and sales reps edit selections as part of their normal workflow, so they
+// hold manage_checkins by default alongside view_checkins.
+app.put('/api/checkin/:id', authenticate, requirePermission('manage_checkins'), async (req, res) => {
   try {
     const {
       name,
@@ -3057,7 +3225,16 @@ app.put('/api/checkin/:id', authenticate, requireAnyPermission('manage_checkins'
 
     if (name) checkIn.name = name;
     if (phone) checkIn.phone = phone;
-    if (location !== undefined) checkIn.location = location;
+    // Same access check as reading it in the first place — otherwise an
+    // editor scoped to one branch could move a record to another branch (or
+    // to a nonexistent location string), orphaning it from every
+    // location-scoped view except a '*' admin's.
+    if (location !== undefined && location !== checkIn.location) {
+      if (!userLocations.includes('*') && !userLocations.includes(location)) {
+        return res.status(403).json({ message: 'Access denied to this location' });
+      }
+      checkIn.location = location;
+    }
     if (email !== undefined) checkIn.email = email;
     if (fabricatorCompany !== undefined) checkIn.fabricatorCompany = fabricatorCompany;
     if (fabricatorName !== undefined) checkIn.fabricatorName = fabricatorName;
@@ -3075,7 +3252,7 @@ app.put('/api/checkin/:id', authenticate, requireAnyPermission('manage_checkins'
     if (salesRepEmail !== undefined) checkIn.salesRepEmail = salesRepEmail;
 
     await checkIn.save();
-    console.log(`✅ Office check-in updated: ${checkIn.name}`);
+    console.log(`✅ Office check-in ${checkIn._id} updated by ${req.user?.displayName || req.user?.username}`);
 
     // If salesRepEmail is provided, automatically trigger background email alert to sales rep
     if (salesRepEmail) {
@@ -3144,7 +3321,7 @@ app.delete('/api/checkin/:id', authenticate, requirePermission('delete_checkins'
       return res.status(403).json({ message: 'Access denied to delete this check-in' });
     }
     await OfficeCheckIn.findByIdAndDelete(req.params.id);
-    console.log(`🗑️ Office check-in deleted: ${checkIn.name}`);
+    console.log(`🗑️ Office check-in ${checkIn._id} deleted by ${req.user?.displayName || req.user?.username}`);
     req.app.get('io').emit('checkin_update');
 
     res.json({ success: true, message: 'Check-in deleted successfully' });

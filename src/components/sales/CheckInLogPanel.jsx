@@ -18,6 +18,7 @@
  *  totalPages      – number
  *  onPageChange    – (page: number) => void
  *  onExport        – () => void  (if provided, shows Export button)
+ *  isExporting     – boolean  (disables the Export button and shows progress)
  *  sidebarToggle   – ReactNode | null  (sidebar menu button for CRM mode)
  *  embedded        – bool  (true = CRM panel mode, false = full-page mode)
  */
@@ -322,6 +323,7 @@ const CheckInLogPanel = ({
   onFilterMonthChange = () => {},
   onFilterYearChange = () => {},
   onExport,
+  isExporting = false,
   sidebarToggle = null,
   embedded = false,
   onView = null,
@@ -1355,9 +1357,9 @@ const CheckInLogPanel = ({
           </a>
 
           {onExport && (
-            <button className="clp-export-btn" onClick={onExport}>
+            <button className="clp-export-btn" onClick={onExport} disabled={isExporting}>
               <Download size={14} />
-              Export
+              {isExporting ? 'Exporting…' : 'Export'}
             </button>
           )}
         </div>

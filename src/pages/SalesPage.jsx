@@ -15,6 +15,7 @@ import { io } from 'socket.io-client';
 import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
 import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
+import { getAuthToken } from '../api/authToken';
 import { useAuth } from '../context/AuthContext';
 import './SalesPage.css';
 import './SalesPageChat.css';
@@ -577,7 +578,10 @@ const SalesPage = () => {
     };
 
     const handleLinkGoogleCalendar = () => {
-        const token = localStorage.getItem('token');
+        // Still passed as a URL param (the backend's OAuth `state` round-trip
+        // needs it — see server.js's /api/auth/google/calendar), just no
+        // longer sourced from a persistent localStorage copy.
+        const token = getAuthToken();
         window.location.href = `${API_URL || window.location.origin}/api/auth/google/calendar?token=${token}`;
     };
 

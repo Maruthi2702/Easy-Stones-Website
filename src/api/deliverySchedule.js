@@ -9,6 +9,7 @@
 import { API_URL } from '../config/api';
 import { io } from 'socket.io-client';
 import { authFetch } from './authFetch';
+import { getAuthToken } from './authToken';
 import { DAYS_IN_WEEK } from '../utils/deliveryWeek';
 import { isPendingDelivery } from '../utils/deliveryTypes';
 
@@ -215,7 +216,7 @@ function initScheduleSocket() {
       // every connected socket the way other channels on this same
       // connection are. Re-sent on every reconnect too, since a fresh
       // connection joins no rooms until this fires again.
-      const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+      const token = getAuthToken();
       if (token) scheduleCache.socket.emit('join_delivery_rooms', { token });
       // Re-sync the currently viewed week on connection / reconnection, in case
       // any updates were missed while offline.
