@@ -248,6 +248,17 @@ const SalesPage = () => {
             withCredentials: true
         });
 
+        // checkin_update is scoped to the viewer's own assigned location(s)
+        // (mirrors join_delivery_rooms for delivery_update) rather than
+        // broadcast to every connected socket — this proves who the socket
+        // is so the server knows which room(s) to put it in. Re-sent on
+        // every reconnect, since a fresh connection joins no rooms until
+        // this fires again.
+        socket.on('connect', () => {
+            const token = getAuthToken();
+            if (token) socket.emit('join_checkin_rooms', { token });
+        });
+
         socket.on('checkin_update', () => {
             fetchCheckIns(true);
         });

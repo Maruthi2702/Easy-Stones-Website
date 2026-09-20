@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
 import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
+import { getAuthToken } from '../api/authToken';
 import { viewerTimeZone } from '../utils/dateUtils';
 import * as XLSX from 'xlsx';
 import { Sun, Moon } from 'lucide-react';
@@ -97,6 +98,16 @@ const CheckInLogPage = () => {
     const socket = io(API_URL || window.location.origin, {
       transports: ['websocket', 'polling'],
       withCredentials: true
+    });
+
+    // checkin_update is now scoped to the viewer's own assigned location(s)
+    // (mirrors how join_delivery_rooms works for delivery_update) rather
+    // than broadcast to every connected socket — this proves who the socket
+    // is so the server knows which room(s) to put it in. Re-sent on every
+    // reconnect, since a fresh connection joins no rooms until this fires.
+    socket.on('connect', () => {
+      const token = getAuthToken();
+      if (token) socket.emit('join_checkin_rooms', { token });
     });
 
     socket.on('checkin_update', () => {
