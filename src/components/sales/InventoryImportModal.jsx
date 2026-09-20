@@ -166,8 +166,16 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
             </>
           )}
 
+          {applying && (
+            <div className="invan-modal-loading">
+              {isSales
+                ? 'Importing... this can take a little while for a large report.'
+                : 'Importing... a full catalog snapshot can take up to a minute. Please don\'t close this window.'}
+            </div>
+          )}
+
           <div className="invan-modal-footer">
-            <button type="button" className="invan-btn-cancel" onClick={onClose}>Cancel</button>
+            <button type="button" className="invan-btn-cancel" onClick={onClose} disabled={applying}>Cancel</button>
             <button type="button" className="invan-btn-save" onClick={handleApply} disabled={!preview || applying}>
               <Upload size={18} />
               <span>{applying ? 'Importing...' : isSales ? 'Import Sales History' : 'Replace Inventory Data'}</span>

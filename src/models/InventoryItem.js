@@ -16,7 +16,10 @@ const inventoryItemSchema = new mongoose.Schema({
   group: { type: String, default: '' },
   kind: { type: String, default: '' },
   serialNumber: { type: String, default: '' },
-  barcodeId: { type: String, default: '', index: true },
+  // Not indexed — never filtered/sorted on anywhere (display-only), and
+  // every index here has to be updated on every one of the ~11k rows in a
+  // full-catalog stock import, so an unused one is pure write-time cost.
+  barcodeId: { type: String, default: '' },
   bundle: { type: String, default: '' },
   slabNumber: { type: String, default: '' },
   block: { type: String, default: '' },
@@ -52,6 +55,11 @@ const inventoryItemSchema = new mongoose.Schema({
   collection: 'InventoryItems'
 });
 
-inventoryItemSchema.index({ product: 'text', supplier: 'text' });
+// A text index used to exist here for product/supplier search, but nothing
+// in the app ever issues a $text query — the actual search (buildInventoryItemQuery
+// in server.js) is a plain regex $or, which a text index can't accelerate
+// anyway. Text indexes are also the most expensive kind to maintain (every
+// value gets tokenized on every write), so this was pure cost on every
+// import with zero query benefit. Removed rather than left unused.
 
 export default mongoose.models.InventoryItem || mongoose.model('InventoryItem', inventoryItemSchema);

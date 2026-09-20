@@ -8,10 +8,17 @@ import mongoose from 'mongoose';
 // Re-importing the same period+location replaces just that combination (see
 // /api/inventory-analysis/import/sales/apply in server.js).
 const inventorySalesRecordSchema = new mongoose.Schema({
-  product: { type: String, required: true, trim: true, index: true },
+  // Not indexed individually — server.js only ever queries this collection
+  // by { location }, or by { location, periodStart, periodEnd } (see the
+  // velocity/apply routes). Nothing filters by product, category, or a
+  // period boundary alone, so the compound index below (led by location)
+  // already covers every real query as a prefix match; a separate
+  // single-field index on any of these would just be extra write cost with
+  // no query it actually serves.
+  product: { type: String, required: true, trim: true },
   sku: { type: String, default: '' },
   type: { type: String, default: '' },
-  category: { type: String, default: '', index: true },
+  category: { type: String, default: '' },
   subCategory: { type: String, default: '' },
   group: { type: String, default: '' },
   origin: { type: String, default: '' },
@@ -26,9 +33,9 @@ const inventorySalesRecordSchema = new mongoose.Schema({
   margin: { type: Number, default: 0 },
   marginPercent: { type: Number, default: 0 },
 
-  location: { type: String, required: true, index: true },
-  periodStart: { type: Date, required: true, index: true },
-  periodEnd: { type: Date, required: true, index: true },
+  location: { type: String, required: true },
+  periodStart: { type: Date, required: true },
+  periodEnd: { type: Date, required: true },
 
   importedAt: { type: Date, default: Date.now },
   importedByName: { type: String, default: '' },
@@ -38,6 +45,11 @@ const inventorySalesRecordSchema = new mongoose.Schema({
   collection: 'InventorySalesRecords'
 });
 
-inventorySalesRecordSchema.index({ product: 1, location: 1, periodStart: 1, periodEnd: 1 }, { unique: true });
+// Led by `location` (not `product`) specifically so a location-only query —
+// the velocity endpoint's actual filter — hits this index as a prefix match
+// instead of needing a separate index. Field order changes which query
+// shapes benefit from a compound index; uniqueness itself doesn't care
+// about order, so reordering away from insertion order costs nothing.
+inventorySalesRecordSchema.index({ location: 1, periodStart: 1, periodEnd: 1, product: 1 }, { unique: true });
 
 export default mongoose.models.InventorySalesRecord || mongoose.model('InventorySalesRecord', inventorySalesRecordSchema);
