@@ -64,6 +64,17 @@ const CheckInLogPage = () => {
   const [allTimeCount, setAllTimeCount] = useState(0);
   const [refreshTrigger] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
+  // Real branch list for the location filter dropdown — without this it falls
+  // back to CheckInLogPanel's 3-branch default prop, silently hiding every
+  // other real location from this standalone page (the embedded /sales
+  // instance of this same panel already fetches and passes it correctly).
+  const [locations, setLocations] = useState([]);
+  useEffect(() => {
+    authFetch(`${API_URL}/api/admin/locations`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setLocations(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   // Default to current month and year
   const currentDate = new Date();
@@ -280,6 +291,7 @@ const CheckInLogPage = () => {
           onFilterYearChange={(val) => { setFilterYear(val); setCurrentPage(1); }}
           filterLocation={filterLocation}
           onFilterLocationChange={(val) => { setFilterLocation(val); setCurrentPage(1); }}
+          locations={locations}
           onExport={handleExport}
           isExporting={isExporting}
           embedded={false}
