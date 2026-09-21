@@ -2490,9 +2490,17 @@ const CheckInLogPanel = ({
                     onChange={(e) => setQrLocation(e.target.value)}
                     className="clp-qr-select"
                   >
-                    <option value="Seattle">📍 Seattle Office</option>
-                    <option value="Spokane">📍 Spokane Office</option>
-                    <option value="Salt Lake City">📍 Salt Lake City Office</option>
+                    {locations.length > 0 ? (
+                      locations.map(loc => (
+                        <option key={loc._id || loc.name} value={loc.name}>📍 {loc.name} Office</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Seattle">📍 Seattle Office</option>
+                        <option value="Spokane">📍 Spokane Office</option>
+                        <option value="Salt Lake City">📍 Salt Lake City Office</option>
+                      </>
+                    )}
                   </select>
                 </div>
 

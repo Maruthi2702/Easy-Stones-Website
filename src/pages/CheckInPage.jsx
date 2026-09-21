@@ -365,6 +365,28 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
 
   if (!user && !isSelf) return null;
 
+  // A kiosk QR code/URL with no ?location= has no way to know which branch
+  // it's sitting in — silently defaulting to Seattle mis-logs every visit
+  // instead of failing loudly (see CLAUDE.md incident history). Refuse to
+  // check anyone in until whoever set up the kiosk fixes the URL.
+  if (isSelf && !urlLocationParam) {
+    return (
+      <div className={`kiosk-fullscreen ${theme}-theme`}>
+        <div className="kiosk-center-stage">
+          <div className="kiosk-success-stage anim-scale-in">
+            <div className="kiosk-success-icon"><AlertTriangle size={72} /></div>
+            <h1 className="kiosk-success-title">Kiosk Setup Required</h1>
+            <p className="kiosk-success-body">
+              This check-in link is missing its branch location. Ask a manager to
+              regenerate the QR code/URL with the correct <code>?location=</code> parameter
+              before using this kiosk.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const locationDisplay = selectedLocation.includes('Showroom') || selectedLocation.includes('Branch') || selectedLocation.includes('Office')
     ? selectedLocation : `${selectedLocation} Showroom`;
 
