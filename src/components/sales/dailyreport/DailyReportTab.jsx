@@ -152,6 +152,12 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   const saveTimer = useRef(null);
   const skipAutosave = useRef(true);
+  // The promise of whatever save() call is currently in flight, so submitDay
+  // can wait for it to actually land before sending the freeze save. Clearing
+  // the debounce timer only stops a save that hasn't fired yet — one already
+  // sent to the server races the freeze save on the wire, and if its
+  // stripped/draft-style body arrives second, submit locks that in forever.
+  const pendingSave = useRef(null);
   // Which of the system-derived slab figures this person has actually typed
   // into this session, as opposed to ones just sitting on screen because
   // deriveFromSystem filled them in. Reset on every load. Without this,
@@ -218,37 +224,41 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   useEffect(() => { loadDayRef.current = loadDay; }, [loadDay]);
 
   // ── autosave the draft ────────────────────────────────────────────────────
-  const save = useCallback(async (payload, { freeze = false } = {}) => {
-    if (!canEdit || payload.status === 'submitted') return;
+  const save = useCallback((payload, { freeze = false } = {}) => {
+    if (!canEdit || payload.status === 'submitted') return Promise.resolve();
     setSaving(true);
-    try {
-      const res = await authFetch(`${API_URL}/api/daily-reports/${payload.date}`, {
-        method: 'PUT',
-        body: JSON.stringify(buildSaveBody(payload, {
-          touchedCapacity: touchedCapacity.current,
-          touchedTransferSlabs: touchedTransferSlabs.current,
-          freeze
-        }))
-      });
-      // 409 means the day was locked under us — someone else submitted it, or
-      // the clock reached 11:59 while this form was still open. Show it as it
-      // now is rather than leaving edits going into a sheet that won't take
-      // them.
-      if (res.status === 409) {
-        setError('This day has been submitted. Reopen it to make more changes.');
+    const run = (async () => {
+      try {
+        const res = await authFetch(`${API_URL}/api/daily-reports/${payload.date}`, {
+          method: 'PUT',
+          body: JSON.stringify(buildSaveBody(payload, {
+            touchedCapacity: touchedCapacity.current,
+            touchedTransferSlabs: touchedTransferSlabs.current,
+            freeze
+          }))
+        });
+        // 409 means the day was locked under us — someone else submitted it, or
+        // the clock reached 11:59 while this form was still open. Show it as it
+        // now is rather than leaving edits going into a sheet that won't take
+        // them.
+        if (res.status === 409) {
+          setError('This day has been submitted. Reopen it to make more changes.');
+          setDirty(false);
+          loadDayRef.current?.();
+          return;
+        }
+        if (!res.ok) throw new Error((await res.json()).message || 'Could not save.');
+        setSavedAt(new Date());
         setDirty(false);
-        loadDayRef.current?.();
-        return;
+        setError(null);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setSaving(false);
       }
-      if (!res.ok) throw new Error((await res.json()).message || 'Could not save.');
-      setSavedAt(new Date());
-      setDirty(false);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
+    })();
+    pendingSave.current = run;
+    return run;
   }, [canEdit]);
 
   useEffect(() => {
@@ -366,6 +376,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   const submitDay = async () => {
     clearTimeout(saveTimer.current);
+    // An autosave PUT may already be on the wire — cancelling the timer only
+    // stops one that hasn't fired yet. Wait for it to land before sending the
+    // freeze save, so its stripped/draft-style body can't arrive second and
+    // get locked in permanently by submit.
+    if (pendingSave.current) await pendingSave.current.catch(() => {});
     await save(report, { freeze: true });
     const res = await authFetch(`${API_URL}/api/daily-reports/${date}/submit`, {
       method: 'POST',
@@ -558,7 +573,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
         <div className="dr-actions">
           <ExportMenu items={exportItems} />
           {view === 'day' && !allBranches && !submitted && canSubmit && (
-            <button className="dr-btn dr-btn--gold" onClick={submitDay} disabled={loading || !report}>
+            <button className="dr-btn dr-btn--gold" onClick={submitDay} disabled={loading || !report || saving}>
               <Check size={14} /> Submit day
             </button>
           )}

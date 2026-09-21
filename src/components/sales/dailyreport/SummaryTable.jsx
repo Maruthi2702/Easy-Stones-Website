@@ -129,9 +129,11 @@ const SummaryTable = ({ lead, rows, totals, totalLabel, onRowClick, rowKey, rowT
               <td>
                 <StatusChip
                   status={r.status}
-                  title={r.autoSubmitted
-                    ? 'submitted automatically at 11:59 PM'
-                    : (r.submittedBy ? `by ${r.submittedBy}` : undefined)}
+                  title={r.status !== 'submitted'
+                    ? undefined
+                    : (r.autoSubmitted
+                      ? 'submitted automatically at 11:59 PM'
+                      : (r.submittedBy ? `by ${r.submittedBy}` : undefined))}
                 />
               </td>
             </tr>
