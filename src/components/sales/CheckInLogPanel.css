@@ -121,8 +121,7 @@
 }
 
 /* ── Action Buttons ── */
-.clp-refresh-btn,
-.clp-export-btn {
+.clp-refresh-btn {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -135,6 +134,35 @@
   transition: all 0.2s;
   white-space: nowrap;
   font-family: inherit;
+}
+
+/* Export is a secondary, quiet action — Check-In is the only button on this
+   toolbar that should read as "the" thing to press (see Toolbar Direction 2). */
+.clp-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  border-radius: 9px;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.clp-export-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.clp-export-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .clp-refresh-btn {
@@ -176,20 +204,19 @@
   color: #d4af37;
 }
 
-.clp-export-btn,
 .clp-checkin-btn {
   flex-shrink: 0;
   background: linear-gradient(135deg, #d4af37, #b8961f);
   color: #000;
-  border-color: transparent;
+  border: none;
   font-weight: 700;
   box-shadow: 0 3px 12px rgba(212, 175, 55, 0.22);
   text-decoration: none;
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  border-radius: 9px;
-  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  padding: 0.5rem 1.15rem;
   font-size: 0.8rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -197,55 +224,63 @@
   font-family: inherit;
 }
 
-.clp-export-btn:hover,
 .clp-checkin-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 5px 18px rgba(212, 175, 55, 0.32);
   color: #000;
 }
 
-/* ── Stats ── */
+/* ── Stats ──
+   One shared strip instead of three boxed cards (see Toolbar Direction 2) —
+   the card/border lives on .clp-stats, and .clp-stat-divider marks the seams. */
 .clp-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.875rem;
-  padding: 1rem 2rem;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 0.5rem 2rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  overflow: hidden;
   position: relative;
   z-index: 1;
 }
 
 .clp-embedded .clp-stats {
-  padding: 0.875rem 1.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  margin: 0.5rem 1.75rem 1.5rem;
 }
 
 .clp-stat {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 0.875rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 11px;
-  padding: 0.875rem 1.1rem;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0.95rem 1.25rem;
+  min-width: 0;
+  transition: background 0.2s ease;
   cursor: default;
 }
 
 .clp-stat:hover {
-  border-color: rgba(212, 175, 55, 0.28);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.clp-stat-divider {
+  width: 1px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0.75rem 0;
 }
 
 .clp-filter-dot {
-  width: 6px;
-  height: 6px;
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: #d4af37;
-  box-shadow: 0 0 8px rgba(212, 175, 55, 0.8);
-  margin-left: 2px;
-  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(212, 175, 55, 0.85);
 }
 
 .clp-stat-icon {
@@ -301,7 +336,7 @@
 
 .clp-search-icon {
   position: absolute;
-  left: 11px;
+  left: 14px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-secondary, #b0b0b0);
@@ -310,10 +345,10 @@
 
 .clp-search {
   width: 100%;
-  padding: 0.6rem 2rem 0.6rem 2.2rem;
+  padding: 0.6rem 2.1rem 0.6rem 2.4rem;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 9px;
+  border-radius: 999px;
   color: var(--text-primary, #fff);
   font-size: 0.875rem;
   font-family: inherit;
@@ -332,7 +367,7 @@
 
 .clp-search-clear {
   position: absolute;
-  right: 8px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
   background: rgba(255, 255, 255, 0.08);
@@ -417,19 +452,30 @@
 }
 
 .clp-table thead tr {
-  background: rgba(15, 23, 42, 0.6);
-  border-bottom: 2px solid rgba(212, 175, 55, 0.12);
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.07) 0%, rgba(15, 23, 42, 0.6) 40%);
 }
 
 .clp-table thead th {
-  padding: 1.2rem 1.1rem;
+  padding: 1rem 1.1rem 0.85rem;
   text-align: left;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #94a3b8;
-  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #e9d18f;
+  letter-spacing: 0.1em;
   white-space: nowrap;
   text-transform: uppercase;
+}
+
+/* Dividers sit only at real group boundaries (visitor / company / branch),
+   not between every column — see the Option B header redesign. */
+.clp-table thead th.clp-th-group-end {
+  border-right: 1px solid rgba(212, 175, 55, 0.28);
+}
+
+.clp-th-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .clp-table tbody tr {
@@ -724,14 +770,9 @@ table.clp-table {
   }
 
   .clp-page-header,
-  .clp-stats,
   .clp-table-card {
     padding-left: 1.5rem;
     padding-right: 1.5rem;
-  }
-
-  .clp-stats {
-    gap: 0.65rem;
   }
 
   .clp-stat {
@@ -742,6 +783,7 @@ table.clp-table {
     font-size: 1.35rem;
   }
 
+  .clp-stats,
   .clp-table-card,
   .clp-pagination,
   .clp-pag-bar {
@@ -822,6 +864,20 @@ table.clp-table {
 
   .clp-desktop-checkin {
     display: inline-flex !important;
+  }
+
+  /* Option B header's cap rule — desktop only, since the table itself is
+     desktop-only (phones/tablets get the card list instead). */
+  .clp-table-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, rgba(212, 175, 55, 0) 0%, #d4af37 20%, #f2d574 50%, #d4af37 80%, rgba(212, 175, 55, 0) 100%);
+    border-radius: 16px 16px 0 0;
+    z-index: 2;
   }
 }
 
@@ -1001,11 +1057,11 @@ table.clp-table {
 
   .clp-filter-btn {
     height: 36px !important;
-    padding: 0 0.65rem !important;
-    font-size: 0.78rem !important;
+    width: 36px !important;
+    padding: 0 !important;
     background: rgba(255, 255, 255, 0.04) !important;
     border: 1px solid rgba(255, 255, 255, 0.12) !important;
-    border-radius: 10px !important;
+    border-radius: 50% !important;
     color: #d4af37 !important;
   }
 
@@ -1013,8 +1069,12 @@ table.clp-table {
     display: grid !important;
     grid-template-columns: repeat(3, 1fr) !important;
     gap: 0.4rem !important;
-    padding-left: 1rem !important;
-    padding-right: 1rem !important;
+    margin: 0.5rem 1rem 1rem !important;
+    padding: 0.5rem 0.25rem !important;
+  }
+
+  .clp-stat-divider {
+    display: none !important;
   }
 
   .clp-stat {
@@ -2175,7 +2235,6 @@ body.light-theme-active .clp-root .clp-subtitle {
 }
 
 /* Header Buttons */
-.clp-root.light-theme .clp-export-btn,
 .clp-root.light-theme .clp-refresh-btn,
 .clp-root.light-theme .clp-theme-btn {
   background: #ffffff !important;
@@ -2185,7 +2244,6 @@ body.light-theme-active .clp-root .clp-subtitle {
   transition: all 0.25s ease !important;
 }
 
-.clp-root.light-theme .clp-export-btn:hover,
 .clp-root.light-theme .clp-refresh-btn:hover,
 .clp-root.light-theme .clp-theme-btn:hover {
   background: #f8fafc !important;
@@ -2194,34 +2252,48 @@ body.light-theme-active .clp-root .clp-subtitle {
   transform: translateY(-1px) !important;
 }
 
-.clp-root.light-theme .clp-export-btn,
+/* Export stays a quiet text button in light mode too — Check-In is the only
+   gold action (see Toolbar Direction 2). */
+.clp-root.light-theme .clp-export-btn {
+  background: none !important;
+  border: none !important;
+  color: #64748b !important;
+  box-shadow: none !important;
+}
+
+.clp-root.light-theme .clp-export-btn:hover {
+  background: #f1f5f9 !important;
+  color: #1e293b !important;
+}
+
 .clp-root.light-theme .clp-checkin-btn {
   background: linear-gradient(135deg, #d4af37, #c9a022) !important;
   color: #ffffff !important;
   border-color: transparent !important;
   font-weight: 700 !important;
+  border-radius: 999px !important;
   box-shadow: 0 3px 12px rgba(212, 175, 55, 0.2) !important;
 }
 
-.clp-root.light-theme .clp-export-btn:hover,
 .clp-root.light-theme .clp-checkin-btn:hover {
   box-shadow: 0 6px 20px rgba(212, 175, 55, 0.35) !important;
   transform: translateY(-2px) !important;
   color: #ffffff !important;
 }
 
-/* Stats Row */
-.clp-root.light-theme .clp-stat {
+/* Stats Row — one shared strip, matching the dark theme's Toolbar Direction 2 */
+.clp-root.light-theme .clp-stats {
   background: #ffffff !important;
   border: 1.5px solid #e2e8f0 !important;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .clp-root.light-theme .clp-stat:hover {
-  border-color: rgba(212, 175, 55, 0.3) !important;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(212, 175, 55, 0.08) !important;
-  transform: translateY(-2px) !important;
+  background: rgba(212, 175, 55, 0.05) !important;
+}
+
+.clp-root.light-theme .clp-stat-divider {
+  background: #eef2f6 !important;
 }
 
 .clp-root.light-theme .clp-stat-icon.clp-stat-gold {
@@ -2275,12 +2347,22 @@ body.light-theme-active .clp-root .clp-subtitle {
   }
 }
 
+/* The gradient goes on the row, not each th — a per-cell background restarts
+   at every column's own left edge, banding into stripes instead of one sweep
+   across the header (caught rendering this against real column widths). */
+.clp-root.light-theme .clp-table thead tr {
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.08) 0%, #f8fafc 40%) !important;
+}
+
 .clp-root.light-theme .clp-table th {
-  background: linear-gradient(180deg, #f8fafc, #f1f5f9) !important;
-  color: #475569 !important;
-  border-bottom: 2px solid rgba(212, 175, 55, 0.15) !important;
+  background: none !important;
+  color: #92742a !important;
   font-weight: 700 !important;
-  letter-spacing: 0.06em !important;
+  letter-spacing: 0.1em !important;
+}
+
+.clp-root.light-theme .clp-table th.clp-th-group-end {
+  border-right: 1px solid rgba(184, 150, 31, 0.3) !important;
 }
 
 .clp-root.light-theme .clp-table td {
@@ -2777,15 +2859,20 @@ body.light-theme-active .clp-root .clp-subtitle {
   display: inline-block;
 }
 
+/* Icon-only, matching QR/NFC — see Toolbar Direction 2. The selected month/
+   year moves to the title/aria-label instead of sitting in the button. */
 .clp-filter-btn {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0.6rem 1.1rem;
-  border-radius: 10px;
-  color: #e5e7eb;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 50%;
+  color: #c7cdd6;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -2793,15 +2880,19 @@ body.light-theme-active .clp-root .clp-subtitle {
   font-family: inherit;
 }
 
+.clp-filter-label {
+  display: none;
+}
+
 .clp-filter-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.18);
   color: #fff;
 }
 
 .clp-filter-btn.clp-filter-active {
   background: rgba(212, 175, 55, 0.1);
-  border-color: rgba(212, 175, 55, 0.3);
+  border-color: rgba(212, 175, 55, 0.32);
   color: #d4af37;
 }
 
@@ -2978,19 +3069,19 @@ body.light-theme-active .clp-root .clp-subtitle {
 /* ── Light Theme Date Filter Overrides ── */
 .clp-root.light-theme .clp-filter-btn {
   background: #ffffff !important;
-  border: 1.5px solid #cbd5e1 !important;
-  color: #0f172a !important;
+  border: 1.5px solid #e2e8f0 !important;
+  color: #475569 !important;
 }
 
 .clp-root.light-theme .clp-filter-btn:hover {
-  background: #f1f5f9 !important;
-  border-color: #94a3b8 !important;
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
 }
 
 .clp-root.light-theme .clp-filter-btn.clp-filter-active {
-  background: #fffbeb !important;
-  border-color: #d4af37 !important;
-  color: #b45309 !important;
+  background: rgba(212, 175, 55, 0.1) !important;
+  border-color: rgba(212, 175, 55, 0.35) !important;
+  color: #b8961f !important;
 }
 
 .clp-root.light-theme .clp-filter-popover {
@@ -4058,47 +4149,53 @@ body.light-theme-active .clp-csc-btn.btn-delete:hover {
   flex-shrink: 0 !important;
 }
 
+/* Icon-only, neutral — sits alongside the filter button as a matched pair of
+   utility toggles, so Check-In stays the one gold button (Toolbar Direction 2). */
 .clp-qr-btn {
   display: inline-flex;
   align-items: center !important;
   justify-content: center !important;
-  gap: 0.45rem !important;
-  padding: 0 0.9rem !important;
-  height: 36px !important;
-  width: auto !important;
-  border-radius: 20px !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 50% !important;
   font-size: 0.82rem !important;
   font-weight: 600 !important;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
   cursor: pointer !important;
-  background: rgba(11, 15, 25, 0.4) !important;
-  color: #d4af37 !important;
-  border: 1.5px solid #d4af37 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #c7cdd6 !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  box-shadow: none !important;
   transition: all 0.2s ease !important;
 }
 
+.clp-qr-btn-label {
+  display: none;
+}
+
 .clp-qr-btn:hover {
-  background: rgba(212, 175, 55, 0.2) !important;
-  color: #fbbf24 !important;
-  border-color: #fbbf24 !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
   transform: translateY(-1px) !important;
 }
 
 .clp-root.light-theme .clp-qr-btn,
 body.light-theme-active .clp-qr-btn {
   background: #ffffff !important;
-  color: #b48a1c !important;
-  border: 1.5px solid #d4af37 !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+  color: #475569 !important;
+  border: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
 }
 
 .clp-root.light-theme .clp-qr-btn:hover,
 body.light-theme-active .clp-qr-btn:hover {
-  background: #fef3c7 !important;
-  color: #9a7412 !important;
-  border-color: #f59e0b !important;
+  background: #f8fafc !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
 }
 
 /* Logged By Badge */

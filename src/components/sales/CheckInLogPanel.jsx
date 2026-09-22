@@ -27,7 +27,7 @@ import {
   Clock, Search, Download, Loader2, Calendar,
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
   Save, AlertTriangle, Printer, Sun, Moon, Filter, Scan, Plus, MapPin,
-  QrCode, Copy, Check, Smartphone
+  QrCode, Copy, Check, Smartphone, Settings
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
@@ -1201,10 +1201,11 @@ const CheckInLogPanel = ({
                 type="button"
                 className={`clp-filter-btn ${(filterMonth || filterYear || filterLocation) ? 'clp-filter-active' : ''}`}
                 onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                title="Filter Check-ins"
+                title={filterMonth && filterYear ? `Filters — ${MONTH_NAMES[filterMonth - 1]} ${filterYear}` : 'Filter Check-ins'}
+                aria-label={filterMonth && filterYear ? `Filters, currently ${MONTH_NAMES[filterMonth - 1]} ${filterYear}` : 'Filter check-ins'}
               >
                 <Filter size={14} />
-                <span>
+                <span className="clp-filter-label">
                   {filterMonth && filterYear
                     ? `${MONTH_NAMES[filterMonth - 1]} ${filterYear}`
                     : 'Filters'}
@@ -1335,9 +1336,10 @@ const CheckInLogPanel = ({
             className="clp-qr-btn clp-desktop-checkin"
             onClick={() => setShowQrModal(true)}
             title="QR Code & NFC Self Check-In"
+            aria-label="QR Code & NFC Self Check-In"
           >
             <QrCode size={14} />
-            <span>QR / NFC Code</span>
+            <span className="clp-qr-btn-label">QR / NFC Code</span>
           </button>
 
           <a
@@ -1376,6 +1378,7 @@ const CheckInLogPanel = ({
             <div className="clp-stat-lbl">Today's Visitors</div>
           </div>
         </div>
+        <div className="clp-stat-divider" />
         <div className="clp-stat">
           <div className="clp-stat-icon clp-stat-blue">
             <Calendar size={16} />
@@ -1385,6 +1388,7 @@ const CheckInLogPanel = ({
             <div className="clp-stat-lbl">{new Date().toLocaleString('default', { month: 'long' })} Visitors</div>
           </div>
         </div>
+        <div className="clp-stat-divider" />
         <div className="clp-stat">
           <div className="clp-stat-icon clp-stat-gold">
             <Users size={16} />
@@ -1416,13 +1420,18 @@ const CheckInLogPanel = ({
               <table className="clp-table">
                 <thead>
                   <tr>
-                    <th>CHECK-IN TIME</th>
-                    <th>VISITOR NAME</th>
-                    <th>PHONE NUMBER</th>
-                    <th>COMPANY/CONTACT NAME</th>
-                    <th>CUSTOMER PHONE</th>
-                    {hasMultipleLocations && <th>LOCATION</th>}
-                    <th style={{ textAlign: 'center' }}>ACTIONS</th>
+                    <th className="clp-th">CHECK-IN TIME</th>
+                    <th className="clp-th">VISITOR NAME</th>
+                    <th className="clp-th clp-th-group-end">PHONE NUMBER</th>
+                    <th className="clp-th">COMPANY/CONTACT NAME</th>
+                    <th className="clp-th clp-th-group-end">CUSTOMER PHONE</th>
+                    {hasMultipleLocations && <th className="clp-th clp-th-group-end">LOCATION</th>}
+                    <th className="clp-th" style={{ textAlign: 'center' }}>
+                      <span className="clp-th-actions">
+                        <Settings size={13} />
+                        ACTIONS
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
