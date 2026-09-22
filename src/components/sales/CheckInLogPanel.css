@@ -478,6 +478,54 @@
   gap: 0.35rem;
 }
 
+/* Row Actions — "⋯" toggle. Tapping it swaps itself, in place, for View/
+   Edit/Delete (Design D) rather than opening a floating menu — no card,
+   no portal, so the row's own text-align: center keeps it centered either way. */
+.clp-actions-toggle-btn,
+.clp-actions-collapse-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+  font-family: inherit;
+}
+
+.clp-actions-toggle-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: #c7cdd6;
+}
+
+.clp-actions-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.clp-actions-collapse-btn {
+  background: rgba(212, 175, 55, 0.14);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  color: #d4af37;
+}
+
+.clp-actions-collapse-btn:hover {
+  background: rgba(212, 175, 55, 0.22);
+  border-color: rgba(212, 175, 55, 0.55);
+}
+
+.clp-actions-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
 .clp-table tbody tr {
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -2429,6 +2477,37 @@ body.light-theme-active .clp-root .clp-subtitle {
 .clp-root.light-theme .clp-action-btn:hover {
   transform: scale(1.15) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Row Actions — "⋯" toggle and its collapse counterpart. Approved as
+   Design D (inline toggle): tapping "⋯" swaps it in place for View/Edit/
+   Delete rather than opening a floating menu, so there's no portal/z-index
+   or table-clipping concern to audit here — see CLAUDE.md's CustomSelect
+   incident for why that matters when a popover *is* involved. */
+.clp-root.light-theme .clp-actions-toggle-btn {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.clp-root.light-theme .clp-actions-toggle-btn:hover {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+}
+
+.clp-root.light-theme .clp-actions-collapse-btn {
+  background: rgba(212, 175, 55, 0.12) !important;
+  border: 1px solid rgba(212, 175, 55, 0.4) !important;
+  color: #92742a !important;
+}
+
+.clp-root.light-theme .clp-actions-collapse-btn:hover {
+  background: rgba(212, 175, 55, 0.2) !important;
+}
+
+.clp-root.light-theme .clp-actions-divider {
+  background: #e2e8f0 !important;
 }
 
 /* Badge Today */

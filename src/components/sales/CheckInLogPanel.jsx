@@ -27,7 +27,7 @@ import {
   Clock, Search, Download, Loader2, Calendar,
   Users, Building2, Phone, Mail, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
   Save, AlertTriangle, Printer, Sun, Moon, Filter, Scan, Plus, MapPin,
-  QrCode, Copy, Check, Smartphone, Settings
+  QrCode, Copy, Check, Smartphone, Settings, MoreHorizontal
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
@@ -342,6 +342,9 @@ const CheckInLogPanel = ({
   const isAdmin = !user || user.role === 'admin' || user.role === 'Admin' || user.permissions?.includes('*') || user.permissions?.includes('admin');
 
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  // Which desktop table row currently has its View/Edit/Delete icons expanded
+  // (see the "⋯" toggle in the Actions column) — only one row open at a time.
+  const [expandedActionsId, setExpandedActionsId] = useState(null);
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrLocation, setQrLocation] = useState(filterLocation || 'Seattle');
   const [copiedNfcUrl, setCopiedNfcUrl] = useState(false);
@@ -1524,32 +1527,56 @@ const CheckInLogPanel = ({
                                 <span className="clp-csc-count-chip">{c.selections.length}</span>
                               )}
                             </button>
-                            {onView && (
-                              <button
-                                onClick={() => onView(c)}
-                                title="View details"
-                                style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                              >
-                                <Eye size={15} />
-                              </button>
-                            )}
-                            {onEdit && hasEditPermission && (
-                              <button
-                                onClick={() => onEdit(c)}
-                                title="Edit check-in"
-                                style={{ background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                              >
-                                <Edit2 size={15} />
-                              </button>
-                            )}
-                            {onDelete && hasDeletePermission && (
-                              <button
-                                onClick={() => onDelete(c)}
-                                title="Delete check-in"
-                                style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                              >
-                                <Trash2 size={15} />
-                              </button>
+                            {(onView || (onEdit && hasEditPermission) || (onDelete && hasDeletePermission)) && (
+                              expandedActionsId === c._id ? (
+                                <>
+                                  <span className="clp-actions-divider" />
+                                  {onView && (
+                                    <button
+                                      onClick={() => { onView(c); setExpandedActionsId(null); }}
+                                      title="View details"
+                                      style={{ background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                                    >
+                                      <Eye size={15} />
+                                    </button>
+                                  )}
+                                  {onEdit && hasEditPermission && (
+                                    <button
+                                      onClick={() => { onEdit(c); setExpandedActionsId(null); }}
+                                      title="Edit check-in"
+                                      style={{ background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                                    >
+                                      <Edit2 size={15} />
+                                    </button>
+                                  )}
+                                  {onDelete && hasDeletePermission && (
+                                    <button
+                                      onClick={() => { onDelete(c); setExpandedActionsId(null); }}
+                                      title="Delete check-in"
+                                      style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => setExpandedActionsId(null)}
+                                    title="Collapse"
+                                    aria-label="Collapse actions"
+                                    className="clp-actions-collapse-btn"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => setExpandedActionsId(c._id)}
+                                  title="More actions"
+                                  aria-label="More actions"
+                                  className="clp-actions-toggle-btn"
+                                >
+                                  <MoreHorizontal size={15} />
+                                </button>
+                              )
                             )}
                           </div>
                         </td>
