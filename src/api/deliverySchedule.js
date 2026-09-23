@@ -11,7 +11,7 @@ import { io } from 'socket.io-client';
 import { authFetch } from './authFetch';
 import { getAuthToken } from './authToken';
 import { DAYS_IN_WEEK } from '../utils/deliveryWeek';
-import { isPendingDelivery } from '../utils/deliveryTypes';
+import { isPendingDelivery, applyTransferPerspective } from '../utils/deliveryTypes';
 
 export const MAX_TRUCK_CAPACITY = 12;
 
@@ -40,6 +40,11 @@ const scheduleCache = {
   activeWeekStart: null,  // week currently being viewed — real-time updates & the
   activeWeekEnd: null,    // 3s poll fallback are scoped to this range only
   trucks: null,
+  // The current viewer's assignedLocations ('*' for admin), kept in sync on
+  // every getScheduleDataCached call. Lets upsertDeliveryIntoCache apply the
+  // same origin-vs-destination transfer-date rule the server's list route
+  // uses — see applyTransferPerspective in src/utils/deliveryTypes.js.
+  viewerLocations: [],
   listeners: new Set(),
   socket: null,
   // 'online' | 'reconnecting' | 'offline'. A driver works out of cell coverage,
@@ -114,8 +119,16 @@ function getActiveWeekDeliveries() {
 // Merge a single created/updated delivery into whichever cached week(s) it
 // belongs to (and remove it from any cached week it no longer belongs to,
 // e.g. if its date was edited).
-function upsertDeliveryIntoCache(delivery) {
-  if (!delivery || !delivery.id) return;
+function upsertDeliveryIntoCache(rawDelivery) {
+  if (!rawDelivery || !rawDelivery.id) return;
+  // Raw record as the server stored it (ship date, real location) — reshaped
+  // to the current viewer's perspective before it's bucketed, the same way
+  // GET /api/deliveries reshapes its list for a destination branch looking
+  // at an inbound transfer. Without this, editing a transfer's expected
+  // arrival date left the card under its old date on the destination's
+  // board — both this session's own save and every other socket-connected
+  // board's `delivery_update` handler go through this one function.
+  const delivery = applyTransferPerspective(rawDelivery, scheduleCache.viewerLocations);
   for (const [weekStart, list] of scheduleCache.weeks.entries()) {
     if (list.some(d => d.id === delivery.id)) {
       scheduleCache.weeks.set(weekStart, list.filter(d => d.id !== delivery.id));
@@ -314,6 +327,11 @@ export function getCachedWeekDeliveries(weekStart) {
 
 export async function getScheduleDataCached(currentUser = null, weekStart, weekEnd, forceRefresh = false) {
   initScheduleSocket();
+
+  // Refreshed on every call (mount, week nav) — cheap, and it's what keeps
+  // upsertDeliveryIntoCache's transfer-perspective check current even when
+  // this call itself serves straight from cache below.
+  scheduleCache.viewerLocations = currentUser?.assignedLocations || [];
 
   scheduleCache.activeWeekStart = weekStart;
   scheduleCache.activeWeekEnd = weekEnd;

@@ -7,7 +7,9 @@ import {
   isPendingDelivery,
   columnIdFor,
   defaultStatusFor,
-  WILL_CALL_COLUMN_ID
+  WILL_CALL_COLUMN_ID,
+  isTransferOrigin,
+  applyTransferPerspective
 } from './deliveryTypes.js';
 
 const ticket = (over = {}) => ({ deliveryType: 'jobsite', truckId: 'trk_1', date: '2026-09-18', ...over });
@@ -131,6 +133,63 @@ describe('board and Pending are complements', () => {
     const onBoard = Boolean(columnIdFor(d)) && Boolean(d.date);
     expect(pending || onBoard).toBe(true);
     expect(pending && onBoard).toBe(false);
+  });
+});
+
+describe('isTransferOrigin', () => {
+  const seattleTransfer = ticket({ deliveryType: 'transfer', location: 'Seattle', transferDestination: 'Spokane' });
+
+  it('is the origin when the viewer is assigned to the shipping branch', () => {
+    expect(isTransferOrigin(seattleTransfer, ['Seattle'])).toBe(true);
+  });
+
+  it('is not the origin when the viewer is only assigned to the destination branch', () => {
+    expect(isTransferOrigin(seattleTransfer, ['Spokane'])).toBe(false);
+  });
+
+  it('an admin is always the origin', () => {
+    expect(isTransferOrigin(seattleTransfer, ['*'])).toBe(true);
+  });
+
+  it('a ticket with no location on it yet belongs to nobody in particular, so any viewer is treated as its origin', () => {
+    expect(isTransferOrigin(ticket({ deliveryType: 'transfer', location: '' }), ['Spokane'])).toBe(true);
+  });
+});
+
+describe('applyTransferPerspective', () => {
+  const transfer = ticket({
+    deliveryType: 'transfer',
+    location: 'Seattle',
+    transferDestination: 'Spokane',
+    date: '2026-09-15',
+    expectedArrivalDate: '2026-09-18'
+  });
+
+  it('leaves a non-transfer untouched', () => {
+    const jobsite = ticket();
+    expect(applyTransferPerspective(jobsite, ['Spokane'])).toBe(jobsite);
+  });
+
+  it('leaves the ship date alone for the origin branch', () => {
+    expect(applyTransferPerspective(transfer, ['Seattle'])).toBe(transfer);
+  });
+
+  it('leaves the ship date alone for an admin', () => {
+    expect(applyTransferPerspective(transfer, ['*'])).toBe(transfer);
+  });
+
+  it('shows the destination branch the arrival date instead, flagged as an incoming view', () => {
+    const shaped = applyTransferPerspective(transfer, ['Spokane']);
+    expect(shaped.date).toBe('2026-09-18');
+    expect(shaped.isIncomingView).toBe(true);
+    // The original record is never mutated — callers (the cache, the board)
+    // may still be holding a reference to it elsewhere.
+    expect(transfer.date).toBe('2026-09-15');
+  });
+
+  it('leaves the ship date alone for the destination branch when no arrival date has been set yet', () => {
+    const noArrival = ticket({ deliveryType: 'transfer', location: 'Seattle', date: '2026-09-15' });
+    expect(applyTransferPerspective(noArrival, ['Spokane'])).toBe(noArrival);
   });
 });
 

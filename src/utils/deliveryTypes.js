@@ -110,3 +110,33 @@ export const columnIdFor = (delivery) => {
   if (isWillCall(delivery) || isCounterReturn(delivery)) return WILL_CALL_COLUMN_ID;
   return delivery?.truckId || '';
 };
+
+/**
+ * Whether `viewerLocations` (a user's assignedLocations, or ['*'] for admin)
+ * relates to a transfer as its origin — the branch that shipped it, as
+ * opposed to the branch it's due to arrive at.
+ */
+export const isTransferOrigin = (delivery, viewerLocations = []) =>
+  viewerLocations.includes('*') || !delivery?.location || viewerLocations.includes(delivery.location);
+
+/**
+ * A transfer's stored `date` is its ship date — right for the origin branch,
+ * meaningless to a branch that only relates to it as the destination (see
+ * "Placement by type" above: the destination sees it on its arrival date).
+ *
+ * GET /api/deliveries (src/routes/deliveries.js) already reshapes its list
+ * response this way, but two live-update paths bypass that route entirely —
+ * a session's own optimistic merge of its save response, and every open
+ * board's socket handler reacting to a `delivery_update` broadcast (see
+ * upsertDeliveryIntoCache in src/api/deliverySchedule.js). Both have to
+ * apply this same rule themselves, or a transfer edited by the origin sits
+ * under its old date on the destination's board until a full reload
+ * re-fetches the already-shaped list.
+ */
+export const applyTransferPerspective = (delivery, viewerLocations = []) => {
+  if (delivery?.deliveryType !== 'transfer') return delivery;
+  if (isTransferOrigin(delivery, viewerLocations)) return delivery;
+  return delivery.expectedArrivalDate
+    ? { ...delivery, date: delivery.expectedArrivalDate, isIncomingView: true }
+    : delivery;
+};
