@@ -52,6 +52,11 @@ export const IMPORT_COLUMNS = [
   ['company', ['company', 'business', 'organization', 'firm', 'name', 'account']],
   ['phone', ['phone', 'mobile', 'cell', 'tel']],
   ['street', ['address', 'street']],
+  // Ahead of nothing in particular, but must exist as its own field rather
+  // than being read off the same 'address' keyword as street — a sheet with
+  // both an "Address" and an "Address2" column needs both, not one
+  // overwriting the other depending on header order.
+  ['street2', ['address 2', 'address2', 'suite', 'unit number', 'apt']],
   ['city', ['city', 'town']],
   ['state', ['state', 'province', 'region']],
   ['zipCode', ['zip', 'postal', 'code']],
@@ -61,7 +66,13 @@ export const IMPORT_COLUMNS = [
   ['modaDisplay', ['modadisplay', 'moda display', 'display']],
   ['modaBinder', ['modabinder', 'moda binder', 'binder']],
   ['receiveMarketing', ['receive marketing', 'marketing consent', 'opt in', 'opt-in', 'subscribe']],
-  ['quickNote', ['quick note', 'notes', 'note', 'comments', 'remarks']]
+  ['quickNote', ['quick note', 'notes', 'note', 'comments', 'remarks']],
+  // The schema has one freeform note field, not three — these fold into it
+  // rather than being dropped, because an account-hold flag ("BAD DEBT",
+  // "Past Dues") is exactly the kind of thing a rep needs to see before
+  // they sell to this customer again.
+  ['deliveryInstructions', ['delivery instructions', 'delivery notes', 'shipping instructions']],
+  ['accountAlert', ['lock alert', 'account alert', 'credit hold', 'alert']]
 ];
 
 export const IMPORT_FIELDS = IMPORT_COLUMNS.map(([field]) => field);
@@ -211,7 +222,11 @@ const parseType = (value) => {
   const s = String(value ?? '').trim().toLowerCase();
   if (!s) return 'Fabricator';
   if (s.includes('contractor')) return 'Contractor';
-  if (s.includes('dealer')) return 'Dealer';
+  // "Retail" is SPS's own word for a business that sells finished product to
+  // the public rather than fabricating it — the closest thing we have is
+  // Dealer, not the Fabricator default, so it's a synonym here rather than
+  // an unrecognised value.
+  if (s.includes('dealer') || s.includes('retail')) return 'Dealer';
   if (s.includes('floor')) return 'Floor Covering';
   if (s.includes('designer')) return 'Designer';
   if (s.includes('builder')) return 'Builder';
@@ -392,13 +407,28 @@ export const buildImportPlan = ({
       // schema's own default (true) the way an explicit 'No' should.
       const receiveMarketingCell = cell(row, 'receiveMarketing');
 
+      // A suite/unit sits in its own column on SPS's export; the schema has
+      // one street line, so it's appended rather than dropped.
+      const street = [cell(row, 'street'), cell(row, 'street2')].filter(Boolean).join(', ');
+
+      // Same story for notes: an account hold and delivery instructions each
+      // get their own column on the sheet but the schema has one quickNote.
+      // The alert goes first and marked, since it's the one a rep can't
+      // afford to miss by having to scroll past routine notes to find it.
+      const accountAlert = cell(row, 'accountAlert');
+      const quickNote = [
+        accountAlert && `⚠ ${accountAlert}`,
+        cell(row, 'quickNote'),
+        cell(row, 'deliveryInstructions') && `Delivery: ${cell(row, 'deliveryInstructions')}`
+      ].filter(Boolean).join(' | ');
+
       const candidate = {
         contactName: contactName || 'N/A',
         company: company || 'N/A',
         email: sheetEmail,
         phone,
         address: {
-          street: cell(row, 'street'),
+          street,
           city: cell(row, 'city'),
           state: cell(row, 'state'),
           zipCode: cell(row, 'zipCode')
@@ -410,7 +440,7 @@ export const buildImportPlan = ({
         modaBinder: cell(row, 'modaBinder') || '0',
         marketingEmail: cell(row, 'marketingEmail').toLowerCase(),
         receiveMarketing: receiveMarketingCell ? /^(yes|y|true|1)$/i.test(receiveMarketingCell) : true,
-        quickNote: cell(row, 'quickNote')
+        quickNote
       };
 
       const base = {

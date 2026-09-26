@@ -27,6 +27,7 @@ const FIELD_LABELS = {
     company: 'Company',
     phone: 'Phone',
     street: 'Street',
+    street2: 'Suite / unit',
     city: 'City',
     state: 'State',
     zipCode: 'Zip',
@@ -36,7 +37,9 @@ const FIELD_LABELS = {
     modaDisplay: 'MODA display',
     modaBinder: 'MODA binder',
     receiveMarketing: 'Receive marketing',
-    quickNote: 'Quick note'
+    quickNote: 'Quick note',
+    deliveryInstructions: 'Delivery instructions',
+    accountAlert: 'Account alert'
 };
 
 const ACTION_LABELS = {

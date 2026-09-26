@@ -141,3 +141,70 @@ describe('marketingEmail / receiveMarketing / quickNote import', () => {
     expect(result.planned[0].create.receiveMarketing).toBe(true);
   });
 });
+
+describe('SPS export fields — Retail type, suite numbers, account holds', () => {
+  it('maps "Retail" to Dealer instead of falling back to Fabricator', () => {
+    const result = plan([{
+      company: 'Retail Stone Co',
+      contactName: 'A Buyer',
+      email: 'buyer@retailstone.com',
+      phone: '111-111-1111',
+      customerType: 'Retail'
+    }]);
+
+    expect(result.planned[0].create.customerType).toBe('Dealer');
+    // A recognised synonym, not an unmapped value — no "not one of ours" warning.
+    expect(result.planned[0].warnings.some(w => w.includes('not one of ours'))).toBe(false);
+  });
+
+  it('appends the suite/unit column to the street line rather than dropping it', () => {
+    const result = plan([{
+      company: 'Suite Co',
+      contactName: 'Someone',
+      email: 'someone@suiteco.com',
+      phone: '222-222-2222',
+      street: '3032 Cedar St',
+      street2: 'Suite B'
+    }]);
+
+    expect(result.planned[0].create.address.street).toBe('3032 Cedar St, Suite B');
+  });
+
+  it('leaves the street line alone when there is no suite/unit', () => {
+    const result = plan([{
+      company: 'No Suite Co',
+      contactName: 'Someone',
+      email: 'someone@nosuiteco.com',
+      phone: '222-222-3333',
+      street: '100 Main St'
+    }]);
+
+    expect(result.planned[0].create.address.street).toBe('100 Main St');
+  });
+
+  it('folds the account alert and delivery instructions into quickNote, alert first', () => {
+    const result = plan([{
+      company: 'Flagged Co',
+      contactName: 'Someone',
+      email: 'someone@flaggedco.com',
+      phone: '333-333-3333',
+      accountAlert: 'BAD DEBT',
+      quickNote: 'Prefers email',
+      deliveryInstructions: 'Will call only'
+    }]);
+
+    expect(result.planned[0].create.quickNote).toBe('⚠ BAD DEBT | Prefers email | Delivery: Will call only');
+  });
+
+  it('produces a plain quickNote when there is no alert or delivery instructions', () => {
+    const result = plan([{
+      company: 'Plain Co',
+      contactName: 'Someone',
+      email: 'someone@plainco.com',
+      phone: '333-333-4444',
+      quickNote: 'Just a note'
+    }]);
+
+    expect(result.planned[0].create.quickNote).toBe('Just a note');
+  });
+});
