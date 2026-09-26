@@ -516,6 +516,18 @@ body.light-theme-active .status-pill.not-interested,
     font-weight: 700;
 }
 
+/* Gold-on-white reads at ~2:1 contrast, and the dark-theme hover color
+   (white) is invisible on a light row — both need a light-theme variant. */
+body.light-theme-active .company-link-btn,
+.light-theme .company-link-btn {
+    color: #8a6d10;
+}
+
+body.light-theme-active .company-link-btn:hover,
+.light-theme .company-link-btn:hover {
+    color: #1e293b;
+}
+
 .table-actions {
     display: flex;
     flex-direction: row;
