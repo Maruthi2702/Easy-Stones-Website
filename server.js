@@ -513,6 +513,7 @@ async function startServer() {
           displayName: 'Administrator',
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
+            'manage_customer_accounts',
             'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
@@ -529,6 +530,7 @@ async function startServer() {
           displayName: 'Director',
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
+            'manage_customer_accounts',
             'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
@@ -636,7 +638,13 @@ async function startServer() {
         // so "View" silently granted edit too. Now that it requires
         // manage_checkins outright, csr (which only had view_checkins) needs
         // it granted explicitly to keep editing selection sheets as before.
-        { roles: ['csr'], permissions: ['manage_checkins'] }
+        { roles: ['csr'], permissions: ['manage_checkins'] },
+        // Account & Security actions (password reset, activate/deactivate)
+        // moved from the Admin panel's Customers tab into the Sales CRM's
+        // customer info panel. Narrower than manage_customers on purpose —
+        // every sales rep can already edit CRM fields, but only admin/director
+        // get to touch login/lockout state or force a password reset.
+        { roles: ['admin', 'director'], permissions: ['manage_customer_accounts'] }
       ];
 
       for (const grant of NEW_PERMISSION_GRANTS) {
@@ -5230,7 +5238,7 @@ const existingDuplicateReport = (existing) => {
 };
 
 // Preview an import: parse, match, and report what would happen. Writes nothing.
-app.post('/api/admin/customers/import/preview', verifyToken, uploadMemory.single('file'), async (req, res) => {
+app.post('/api/admin/customers/import/preview', verifyToken, requirePermission('manage_customers'), uploadMemory.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
@@ -5259,7 +5267,7 @@ app.post('/api/admin/customers/import/preview', verifyToken, uploadMemory.single
  * Carry out an import. Rows flagged for review are never written — that is the
  * whole point of flagging them.
  */
-app.post('/api/admin/customers/import/apply', verifyToken, uploadMemory.single('file'), async (req, res) => {
+app.post('/api/admin/customers/import/apply', verifyToken, requirePermission('manage_customers'), uploadMemory.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
@@ -5754,146 +5762,35 @@ app.get('/api/admin/products/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Admin: Get lightweight customer list (names only)
-app.get('/api/admin/customers/list', verifyToken, async (req, res) => {
+// Account & Security: reset a customer's password. The only surviving caller
+// is the Sales CRM's info panel (manage_customer_accounts) — this route uses
+// customer.save() rather than findByIdAndUpdate so the schema's pre('save')
+// bcrypt hook actually runs; PUT /api/partners/:id (used for every other
+// customer field) uses findByIdAndUpdate and would store a plaintext password.
+app.put('/api/admin/customers/:id', verifyToken, requirePermission('manage_customer_accounts'), async (req, res) => {
   try {
-    const customers = await Customer.find()
-      .select('_id contactName email company isActive') // Only fields needed for sidebar
-      .lean()
-      .sort({ createdAt: -1 });
-    res.json(customers);
-  } catch (error) {
-    console.error('Error fetching customer list:', error);
-    res.status(500).json({ message: 'Failed to fetch customer list', error: error.message });
-  }
-});
-
-// Admin: Get full customer details by ID
-app.get('/api/admin/customers/:id', verifyToken, async (req, res) => {
-  try {
-    const customer = await Customer.findById(req.params.id).select('-password');
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-    res.json(customer);
-  } catch (error) {
-    console.error('Error fetching customer details:', error);
-    res.status(500).json({ message: 'Failed to fetch customer details' });
-  }
-});
-
-app.get('/api/admin/customers', verifyToken, async (req, res) => {
-  try {
-    const customers = await Customer.find()
-      .select('-password -visits -resources -contacts') // Exclude heavy arrays for list view
-      .sort({ createdAt: -1 });
-    res.json(customers);
-  } catch {
-    res.status(500).json({ message: 'Failed to fetch customers' });
-  }
-});
-
-// Admin: Create customer
-app.post('/api/admin/customers', verifyToken, async (req, res) => {
-  try {
-    const { contactName, email, password, phone, company, address, priceLevel, marketingEmail, receiveMarketing } = req.body;
-
-    // Check if customer already exists
-    const existingCustomer = await Customer.findOne({ email });
-    if (existingCustomer) {
-      return res.status(400).json({ message: 'Email already registered' });
+    const { password } = req.body;
+    if (!password || !password.trim()) {
+      return res.status(400).json({ message: 'Password is required' });
     }
 
-    // Create new customer
-    const customer = new Customer({
-      contactName,
-      email,
-      password,
-      phone,
-      company,
-      address,
-      priceLevel: priceLevel || 1,
-      isVerified: true, // Admin created accounts are verified by default
-      marketingEmail: marketingEmail || email,
-      receiveMarketing: receiveMarketing !== undefined ? receiveMarketing : true
-    });
-
-    await customer.save();
-    req.app.get('io').emit('customer_update');
-
-    res.status(201).json({
-      success: true,
-      message: 'Customer created successfully',
-      customer: {
-        id: customer._id,
-        contactName: customer.contactName,
-        email: customer.email
-      }
-    });
-  } catch (error) {
-    console.error('Create customer error:', error);
-    res.status(500).json({ message: `Failed to create customer: ${error.message}` });
-  }
-});
-
-// Admin: Update customer
-app.put('/api/admin/customers/:id', verifyToken, async (req, res) => {
-  try {
-    const { contactName, email, password, phone, company, address, priceLevel, marketingEmail, receiveMarketing } = req.body;
-    const customerId = req.params.id;
-
-    const customer = await Customer.findById(customerId);
+    const customer = await Customer.findById(req.params.id);
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
-    // Update fields
-    customer.contactName = contactName || customer.contactName;
-    customer.email = email || customer.email;
-    customer.password = password || customer.password;
-    customer.phone = phone || customer.phone;
-    customer.company = company || customer.company;
-    customer.address = address || customer.address;
-    customer.priceLevel = priceLevel || customer.priceLevel;
-
-    if (marketingEmail !== undefined) customer.marketingEmail = marketingEmail;
-    if (receiveMarketing !== undefined) customer.receiveMarketing = receiveMarketing;
-
-    // Only update password if provided
-    if (password && password.trim() !== '') {
-      customer.password = password;
-    }
-
+    customer.password = password;
     await customer.save();
     req.app.get('io').emit('customer_update');
 
     res.json({
       success: true,
-      message: 'Customer updated successfully',
-      customer: {
-        id: customer._id,
-        contactName: customer.contactName,
-        email: customer.email
-      }
+      message: 'Password updated successfully',
+      customer: { id: customer._id, contactName: customer.contactName, email: customer.email }
     });
   } catch (error) {
-    console.error('Update customer error:', error);
-    res.status(500).json({ message: `Failed to update customer: ${error.message}` });
-  }
-});
-
-// Admin: Delete customer
-app.delete('/api/admin/customers/:id', authenticate, requirePermission('delete_customers'), async (req, res) => {
-  try {
-    const customer = await Customer.findByIdAndDelete(req.params.id);
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-    req.app.get('io').emit('customer_update');
-    res.json({ success: true, message: 'Customer deleted successfully' });
-  } catch (error) {
-    console.error('Delete customer error:', error);
-    res.status(500).json({ message: 'Failed to delete customer' });
+    console.error('Reset customer password error:', error);
+    res.status(500).json({ message: `Failed to reset password: ${error.message}` });
   }
 });
 
@@ -6328,7 +6225,7 @@ app.delete('/api/easy-stones-colors/:id', authenticate, requirePermission('manag
 });
 
 // Admin: Update customer status
-app.patch('/api/admin/customers/:id/status', verifyToken, async (req, res) => {
+app.patch('/api/admin/customers/:id/status', verifyToken, requirePermission('manage_customer_accounts'), async (req, res) => {
   try {
     const { isActive } = req.body;
     const customer = await Customer.findByIdAndUpdate(

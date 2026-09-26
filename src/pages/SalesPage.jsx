@@ -8,7 +8,7 @@ import {
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
     CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus, Folder, Link,
     LayoutDashboard, Pencil, FileImage, File, MoreVertical, RefreshCw, FileSearch, ExternalLink,
-    Monitor, BookOpen
+    Monitor, BookOpen, Lock, Globe
 } from 'lucide-react';
 
 import { io } from 'socket.io-client';
@@ -1182,6 +1182,8 @@ const SalesPage = () => {
     const [isChatFullScreen] = useState(false);
     const [quickNote, setQuickNote] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
+    const [resetPasswordValue, setResetPasswordValue] = useState('');
+    const [accountActionStatus, setAccountActionStatus] = useState(null);
 
 
     // Sidebar State
@@ -1558,6 +1560,9 @@ const SalesPage = () => {
         if (!customerId) return;
 
         // 1. Instant Cache Hydration: Serve cached data in 0ms if available
+        setResetPasswordValue('');
+        setAccountActionStatus(null);
+
         if (!skipCache && customerCacheRef.current[customerId]) {
             const cachedData = customerCacheRef.current[customerId];
             setSelectedCustomerDetail(cachedData);
@@ -1951,6 +1956,62 @@ const SalesPage = () => {
             console.error('Error saving quick note:', error);
         } finally {
             setIsSavingNote(false);
+        }
+    };
+
+    const handleToggleCustomerStatus = async (id, currentStatus) => {
+        const newStatus = !currentStatus;
+        const action = newStatus ? 'activate' : 'deactivate';
+        if (!window.confirm(`Are you sure you want to ${action} this customer?`)) return;
+
+        try {
+            const response = await authFetch(`${API_URL}/api/admin/customers/${id}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify({ isActive: newStatus })
+            });
+
+            if (response.ok) {
+                if (selectedCustomerDetail?._id === id) {
+                    setSelectedCustomerDetail({ ...selectedCustomerDetail, isActive: newStatus });
+                }
+                setAccountActionStatus({ type: 'success', message: `Customer ${action}d successfully` });
+            } else {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || `Failed to ${action} customer`);
+            }
+        } catch (error) {
+            console.error(`Error ${action}ing customer:`, error);
+            setAccountActionStatus({ type: 'error', message: `Failed to ${action} customer: ${error.message}` });
+        }
+    };
+
+    /**
+     * Admin-only capability, gated behind manage_customer_accounts. Goes through
+     * the legacy /api/admin/customers/:id route deliberately, never
+     * /api/partners/:id: that route updates via findByIdAndUpdate, which
+     * Mongoose does not run document middleware for — a password sent through
+     * it would be written in plain text, skipping the schema's pre('save')
+     * bcrypt hook. /api/admin/customers/:id updates via customer.save(),
+     * which does run it.
+     */
+    const handleResetCustomerPassword = async (id) => {
+        if (!resetPasswordValue.trim()) return;
+        if (!window.confirm("Reset this customer's password?")) return;
+        try {
+            const response = await authFetch(`${API_URL}/api/admin/customers/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ password: resetPasswordValue })
+            });
+            if (response.ok) {
+                setResetPasswordValue('');
+                setAccountActionStatus({ type: 'success', message: 'Password reset successfully' });
+            } else {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || 'Failed to reset password');
+            }
+        } catch (error) {
+            console.error('Error resetting password:', error);
+            setAccountActionStatus({ type: 'error', message: error.message });
         }
     };
 
@@ -3605,6 +3666,88 @@ const SalesPage = () => {
                                             </div>
                                         </div>
                                     </div>
+
+                                    {currentUser?.permissions?.includes('manage_customer_accounts') && (
+                                        <div className="account-security-card">
+                                            <div className="account-security-header">
+                                                <Lock size={15} />
+                                                <h3>Account &amp; Security</h3>
+                                                <span className="account-security-badge">Admin Only</span>
+                                            </div>
+
+                                            {accountActionStatus && (
+                                                <div className={`status-message ${accountActionStatus.type}`}>
+                                                    {accountActionStatus.message}
+                                                </div>
+                                            )}
+
+                                            <div className="account-security-grid">
+                                                <div className="info-box">
+                                                    <div className="info-box-header"><label>Customer ID</label></div>
+                                                    <p>{selectedCustomerDetail?._id}</p>
+                                                </div>
+                                                <div className="info-box">
+                                                    <div className="info-box-header"><label>Verified</label></div>
+                                                    <p className={selectedCustomerDetail?.isVerified ? 'status-active' : 'status-inactive'}>
+                                                        {selectedCustomerDetail?.isVerified ? 'Yes' : 'No'}
+                                                    </p>
+                                                </div>
+                                                <div className="info-box">
+                                                    <div className="info-box-header"><label>Account Status</label></div>
+                                                    <div className="account-status-row">
+                                                        <p className={selectedCustomerDetail?.isActive !== false ? 'status-active' : 'status-inactive'}>
+                                                            {selectedCustomerDetail?.isActive !== false ? 'Active' : 'Deactivated'}
+                                                        </p>
+                                                        <button
+                                                            type="button"
+                                                            className="account-status-toggle-btn"
+                                                            onClick={() => handleToggleCustomerStatus(selectedCustomerDetail._id, selectedCustomerDetail?.isActive ?? true)}
+                                                            disabled={!selectedCustomerDetail}
+                                                        >
+                                                            {selectedCustomerDetail?.isActive !== false ? 'Deactivate' : 'Activate'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="info-box">
+                                                    <div className="info-box-header"><label>Login Attempts</label></div>
+                                                    <p>{selectedCustomerDetail?.loginAttempts || 0}</p>
+                                                </div>
+                                                <div className="info-box">
+                                                    <div className="info-box-header"><label>Locked Until</label></div>
+                                                    <p>{selectedCustomerDetail?.lockUntil ? new Date(selectedCustomerDetail.lockUntil).toLocaleString() : 'Not locked'}</p>
+                                                </div>
+                                                <div className="info-box">
+                                                    <div className="info-box-header"><label>Recent IPs</label></div>
+                                                    <p>{(selectedCustomerDetail?.loginIps || []).join(', ') || 'None recorded'}</p>
+                                                </div>
+                                                <div className="info-box account-security-geocode">
+                                                    <div className="info-box-header"><label>Geocode</label></div>
+                                                    <p>
+                                                        <Globe size={13} />
+                                                        {selectedCustomerDetail?.geocode?.precision ? `${selectedCustomerDetail.geocode.precision} · ` : ''}
+                                                        {selectedCustomerDetail?.geocode?.formattedAddress || 'Not geocoded'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="account-security-reset-row">
+                                                <input
+                                                    type="password"
+                                                    placeholder="New password"
+                                                    value={resetPasswordValue}
+                                                    onChange={(e) => setResetPasswordValue(e.target.value)}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="save-note-btn"
+                                                    onClick={() => handleResetCustomerPassword(selectedCustomerDetail?._id)}
+                                                    disabled={!resetPasswordValue.trim() || !selectedCustomerDetail}
+                                                >
+                                                    Set New Password
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             <div className="tab-content">

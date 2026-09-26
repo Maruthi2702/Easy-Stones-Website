@@ -1,7 +1,129 @@
 /* AddCustomerModal Stylesheet */
 
+/* Base modal chrome — backdrop, box, header, footer, and the plain
+   .btn-primary/.btn-secondary footer buttons. This component was always
+   relying on whatever page hosts it to supply generic .modal-overlay/
+   .modal-content/.modal-header/.modal-footer/.btn-primary/.btn-secondary
+   rules (SalesPage.css, the only page that ever rendered it until now) —
+   which broke silently the first time it was reused from a page that
+   doesn't load that stylesheet (the Admin panel's Customers tab: the
+   overlay had no backdrop and the box no background, so the form just
+   printed inline over whatever was already on the page). Scoped here
+   under .add-customer-modal-overlay, with the same values SalesPage.css
+   already uses, so the Sales CRM's own rendering is unchanged. */
+.add-customer-modal-overlay {
+    background: rgba(0, 0, 0, 0.75);
+    padding: 1.5rem 1rem;
+    overflow-y: auto;
+}
+
 .add-customer-modal-overlay .add-customer-modal {
+    background: var(--bg-card);
+    border-radius: 12px;
+    width: 90%;
     max-width: 650px;
+    max-height: 85vh;
+    margin: auto;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.add-customer-modal-overlay .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    background: var(--bg-card);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.add-customer-modal-overlay .modal-header h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.add-customer-modal-overlay .close-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.add-customer-modal-overlay .close-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.add-customer-modal-overlay .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: var(--bg-card);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.add-customer-modal-overlay .btn-primary,
+.add-customer-modal-overlay .btn-secondary {
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.add-customer-modal-overlay .btn-primary {
+    background: var(--accent-primary, #d4af37);
+    color: #000;
+}
+
+.add-customer-modal-overlay .btn-primary:hover {
+    opacity: 0.9;
+}
+
+.add-customer-modal-overlay .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.add-customer-modal-overlay .btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.add-customer-modal-overlay .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+/* .form-group is also a plain, unscoped name — the Admin panel defines its
+   own (different) layout for it, which otherwise wins by being the only one
+   actually loaded on that page. Scoped for the same reason as the rules above. */
+.add-customer-modal-overlay .form-group {
+    margin-bottom: 1.25rem;
+}
+
+.add-customer-modal-overlay .form-group label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
 }
 
 .add-customer-modal-header-actions {
@@ -102,6 +224,8 @@
     position: relative;
     max-height: 70vh;
     overflow-y: auto;
+    padding: 1.5rem;
+    flex: 1;
 }
 
 .scan-overlay {

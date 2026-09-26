@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Search, Plus, Download, Edit2, Trash2, FileText, Menu,
+    Search, Plus, Download, Upload, Edit2, Trash2, FileText, Menu,
     X, Mail, Phone, Eye, Filter, MoreVertical, Loader, Wrench, Users, PhoneCall, MapPin
 } from 'lucide-react';
 import Pagination from '../shared/Pagination';
 import SidebarToggleButton from '../shared/SidebarToggleButton';
 import AddCustomerModal from './AddCustomerModal';
+import CustomerImportModal from '../admin/CustomerImportModal';
 import { useAuth } from '../../context/AuthContext';
 import { toSalesRepList } from '../../utils/salesReps';
 import { API_URL } from '../../config/api';
@@ -137,6 +138,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
     const [editingPartner, setEditingPartner] = useState(null);
     const [viewingPartner, setViewingPartner] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -685,6 +687,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                                 <span className="filter-badge">{activeFilterCount}</span>
                             )}
                         </button>
+                        {user?.permissions?.includes('manage_customers') && (
+                            <button
+                                className="sheet-action-btn"
+                                onClick={() => setShowImportModal(true)}
+                                title="Import customers from Excel"
+                            >
+                                <Upload size={18} />
+                            </button>
+                        )}
                     </div>
                     <button className="partner-add-btn pulse" onClick={() => {
                         setEditingPartner(null);
@@ -1132,6 +1143,22 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 salesReps={salesReps}
                 locations={locations}
                 currentUser={user}
+            />
+
+            <CustomerImportModal
+                show={showImportModal}
+                onClose={() => setShowImportModal(false)}
+                onImported={() => fetchPartners({
+                    page: currentPage,
+                    search: debouncedSearch,
+                    level: filterLevels.join(','),
+                    type: filterTypes.join(','),
+                    city: filterCities.join(','),
+                    status: filterStatuses.join(','),
+                    lim: limit,
+                    tab: activeTab,
+                    skipCache: true
+                })}
             />
         </div>
     );

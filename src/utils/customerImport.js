@@ -42,6 +42,11 @@ const SHEET_ROW_PREFIX = 'sheet:';
 export const IMPORT_COLUMNS = [
   ['salesRep', ['sales rep', 'salesrep', 'sales person', 'salesperson', 'account manager', 'account owner', 'assigned to', 'rep']],
   ['location', ['easy stones location', 'es location', 'branch', 'location', 'store', 'office']],
+  // Ahead of the plain 'email' field below for the same reason 'Sales Person1'
+  // is claimed ahead of the loose contact-name matcher: 'Marketing Email' also
+  // contains the word 'email', and would otherwise be grabbed by the generic
+  // matcher first, leaving the real login-email column unclaimed.
+  ['marketingEmail', ['marketing email', 'newsletter email', 'marketingemail']],
   ['email', ['email', 'e-mail', 'mail']],
   ['contactName', ['contact', 'full name', 'customer name', 'customer', 'name']],
   ['company', ['company', 'business', 'organization', 'firm', 'name', 'account']],
@@ -54,7 +59,9 @@ export const IMPORT_COLUMNS = [
   ['customerType', ['customertype', 'customer type', 'type', 'category']],
   ['status', ['status', 'stage', 'lead status']],
   ['modaDisplay', ['modadisplay', 'moda display', 'display']],
-  ['modaBinder', ['modabinder', 'moda binder', 'binder']]
+  ['modaBinder', ['modabinder', 'moda binder', 'binder']],
+  ['receiveMarketing', ['receive marketing', 'marketing consent', 'opt in', 'opt-in', 'subscribe']],
+  ['quickNote', ['quick note', 'notes', 'note', 'comments', 'remarks']]
 ];
 
 export const IMPORT_FIELDS = IMPORT_COLUMNS.map(([field]) => field);
@@ -381,6 +388,10 @@ export const buildImportPlan = ({
         warnings.push(`Status "${cell(row, 'status')}" is not one of ours — imported as Onboarded`);
       }
 
+      // Blank means "the sheet said nothing" and should not overrule the
+      // schema's own default (true) the way an explicit 'No' should.
+      const receiveMarketingCell = cell(row, 'receiveMarketing');
+
       const candidate = {
         contactName: contactName || 'N/A',
         company: company || 'N/A',
@@ -396,7 +407,10 @@ export const buildImportPlan = ({
         customerType: type ?? 'Fabricator',
         status: status ?? 'Onboarded',
         modaDisplay: /^(yes|y|true|1)$/i.test(cell(row, 'modaDisplay')) ? 'Yes' : 'No',
-        modaBinder: cell(row, 'modaBinder') || '0'
+        modaBinder: cell(row, 'modaBinder') || '0',
+        marketingEmail: cell(row, 'marketingEmail').toLowerCase(),
+        receiveMarketing: receiveMarketingCell ? /^(yes|y|true|1)$/i.test(receiveMarketingCell) : true,
+        quickNote: cell(row, 'quickNote')
       };
 
       const base = {
@@ -414,6 +428,18 @@ export const buildImportPlan = ({
 
       const matches = matchAgainst(index, candidate);
       const strong = matches.filter(m => m.score >= STRONG);
+      // A weak match whose only evidence is a shared email domain isn't worth
+      // stopping an import for — SIGNALS' own comment on 'email domain' says
+      // why: every branch of a multi-location dealer shares one, so alone
+      // it's "barely a hint," not evidence of the same business. Company name
+      // and phone matches are still specific enough to be worth a human's
+      // glance even though neither reaches STRONG on its own. Without this, a
+      // routine re-export from the same source CRM sent nearly every
+      // returning customer to manual review, since most share a domain with
+      // somebody.
+      const isDomainOnly = (m) => m.signals.length === 1 && m.signals[0] === 'email domain';
+      const weak = matches.filter(m => m.score < STRONG);
+      const meaningfulWeak = weak.filter(m => !isDomainOnly(m));
       const describe = (list) => list.map(m => ({
         id: m.id,
         label: importLabel(byId.get(m.id)),
@@ -472,7 +498,7 @@ export const buildImportPlan = ({
       const chosen = matches.find(m => m.id === decision && !m.id.startsWith(SHEET_ROW_PREFIX));
 
       const needsReview = strong.length > 1
-        || (strong.length === 0 && matches.length > 0)
+        || (strong.length === 0 && meaningfulWeak.length > 0)
         || strong.some(m => m.id.startsWith(SHEET_ROW_PREFIX));
 
       if (needsReview && !chosen && decision !== 'create') {
@@ -501,12 +527,28 @@ export const buildImportPlan = ({
         continue;
       }
 
+      // A domain-only match didn't force review, but silently dropping the
+      // signal entirely would make this look like a genuinely clean,
+      // unmatched new business when in fact something worth a glance exists.
+      weak.filter(isDomainOnly).forEach(m => {
+        warnings.push(`Shares only an email domain with ${importLabel(byId.get(m.id))} — imported as a separate customer`);
+      });
+
+      // Computed once — claimEmail (inside emailToStore) mutates the taken-email
+      // set as a side effect, so calling it twice would have it fight itself
+      // over the same address and hand back two different placeholders.
+      const finalEmail = emailToStore();
+
       planned.push({
         ...base,
         action: 'create',
         create: {
           ...candidate,
-          email: emailToStore(),
+          email: finalEmail,
+          // Unset in the sheet falls back to the address actually being
+          // stored, same as a customer signing up with no marketing address
+          // of their own — never left blank, which the schema does not default.
+          marketingEmail: candidate.marketingEmail || finalEmail,
           // A blank or unrecognised branch falls through to the schema default
           // rather than being written as '', which would drop the record out of
           // every branch filter.

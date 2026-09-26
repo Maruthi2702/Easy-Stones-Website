@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, Users, User, Menu, X, Pencil } from 'lucide-react';
+import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, User, Menu, X, Pencil } from 'lucide-react';
 import { API_ENDPOINTS, API_URL } from '../config/api';
 import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import './AdminPage.css';
-import { formatPhoneInput } from '../utils/phoneUtils';
-import CustomerImportModal from '../components/admin/CustomerImportModal';
 import { authFetch } from '../api/authFetch';
 
 const AdminPage = () => {
@@ -23,7 +21,6 @@ const AdminPage = () => {
   const [saveStatus, setSaveStatus] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [customersLoading, setCustomersLoading] = useState(false);
   const [, setUsersLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
   const [passwordData, setPasswordData] = useState({
@@ -32,27 +29,6 @@ const AdminPage = () => {
     confirmPassword: ''
   });
   const [passwordStatus, setPasswordStatus] = useState(null);
-
-  // Customer Management State
-  const [customers, setCustomers] = useState([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
-  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
-  const [customerFormData, setCustomerFormData] = useState({
-    contactName: '',
-    email: '',
-    password: 'customer123',
-    phone: '',
-    company: '',
-    address: {
-      street: '',
-      city: '',
-      state: '',
-      zipCode: ''
-    }
-  });
-  const [isNewCustomer, setIsNewCustomer] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [customerSaveStatus, setCustomerSaveStatus] = useState(null);
 
   // User Management State
   const [users, setUsers] = useState([]);
@@ -91,28 +67,6 @@ const AdminPage = () => {
     }
   }, []);
 
-  const fetchCustomers = useCallback(async () => {
-    try {
-      setCustomersLoading(true);
-      const response = await authFetch(`${API_URL}/api/admin/customers/list`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('AdminPage: Fetched customers count:', data?.length);
-        if (data && data.length > 0) {
-          console.log('AdminPage: First customer sample:', JSON.stringify(data[0], null, 2));
-        }
-        setCustomers(data);
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to fetch customers:', errorData.message || response.statusText);
-      }
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-    } finally {
-      setCustomersLoading(false);
-    }
-  }, []);
-
   const fetchUsers = useCallback(async () => {
     try {
       setUsersLoading(true);
@@ -134,15 +88,14 @@ const AdminPage = () => {
   // Fetch all basic data on mount to ensure sidebars are populated
   useEffect(() => {
     fetchProducts();
-    fetchCustomers();
     fetchUsers();
-  }, [fetchProducts, fetchCustomers, fetchUsers, refreshProducts]);
+  }, [fetchProducts, fetchUsers, refreshProducts]);
 
   // Read initial tab parameter from URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
-    if (tabParam && ['products', 'customers', 'users', 'settings'].includes(tabParam)) {
+    if (tabParam && ['products', 'users', 'settings'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, []);
@@ -358,12 +311,6 @@ const AdminPage = () => {
     const matchesCollection = filterCollection === 'All' || p.collection === filterCollection;
     return matchesSearch && matchesCategory && matchesCollection;
   }).sort((a, b) => a.name.localeCompare(b.name));
-
-  const filteredCustomers = (Array.isArray(customers) ? customers : []).filter(c =>
-    (c.contactName?.toLowerCase() || '').includes(customerSearchTerm.toLowerCase()) ||
-    (c.email?.toLowerCase() || '').includes(customerSearchTerm.toLowerCase()) ||
-    (c.company && c.company.toLowerCase().includes(customerSearchTerm.toLowerCase()))
-  );
 
   const filteredUsers = (Array.isArray(users) ? users : []).filter(u =>
     (u.username?.toLowerCase() || '').includes(userSearchTerm.toLowerCase()) ||
@@ -631,212 +578,6 @@ const AdminPage = () => {
 
 
 
-  // Customer Management Functions
-  const handleSelectCustomer = async (customer) => {
-    setSelectedCustomerId(customer._id); // Keep this to set the ID for form data
-    setCustomerFormData({
-      contactName: customer.contactName || '',
-      email: customer.email || '',
-      password: '', // Don't show password
-      phone: customer.phone || '',
-      company: customer.company || '',
-      address: {
-        street: customer.address?.street || '',
-        city: customer.address?.city || '',
-        state: customer.address?.state || '',
-        zipCode: customer.address?.zipCode || ''
-      },
-      isActive: customer.isActive ?? true,
-      priceLevel: customer.priceLevel || 1
-    });
-    setIsNewCustomer(false);
-    setCustomerSaveStatus(null);
-    setShowMobileDetail(true); // Show detail view on mobile
-    window.scrollTo(0, 0);
-
-    // Lazy load: Fetch full customer details
-    try {
-      const response = await authFetch(`${API_URL}/api/admin/customers/${customer._id}`);
-      if (response.ok) {
-        const fullCustomer = await response.json();
-        // Update customers array with full details
-        setCustomers(prev => prev.map(c => c._id === customer._id ? fullCustomer : c));
-        // Update form with complete data
-        setCustomerFormData({
-          contactName: fullCustomer.contactName || '',
-          email: fullCustomer.email || '',
-          password: '', // Don't show password
-          phone: fullCustomer.phone || '',
-          company: fullCustomer.company || '',
-          address: fullCustomer.address || { street: '', city: '', state: '', zipCode: '' },
-          isActive: fullCustomer.isActive ?? true,
-          priceLevel: fullCustomer.priceLevel || 1
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching customer details:', error);
-    }
-  };
-
-  const handleAddCustomer = () => {
-    setSelectedCustomerId('new');
-    setCustomerFormData({
-      contactName: '',
-      email: '',
-      password: 'customer123',
-      phone: '',
-      company: '',
-      address: {
-        street: '',
-        city: '',
-        state: '',
-        zipCode: ''
-      },
-      priceLevel: 1
-    });
-    setIsNewCustomer(true);
-    setCustomerSaveStatus(null);
-    setShowMobileDetail(true); // Show detail view on mobile
-  };
-
-  const handleCustomerChange = (field, value) => {
-    setCustomerFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleAddressChange = (field, value) => {
-    setCustomerFormData(prev => ({
-      ...prev,
-      address: {
-        ...prev.address,
-        [field]: value
-      }
-    }));
-  };
-
-  const saveCustomer = async (e) => {
-    if (e) e.preventDefault();
-
-    // Client-side validation
-    if (!customerFormData.contactName?.trim()) {
-      setCustomerSaveStatus({ type: 'error', message: 'Contact Name is required' });
-      return;
-    }
-    if (!customerFormData.email?.trim()) {
-      setCustomerSaveStatus({ type: 'error', message: 'Email is required' });
-      return;
-    }
-    if (isNewCustomer && !customerFormData.password?.trim()) {
-      setCustomerSaveStatus({ type: 'error', message: 'Password is required for new customers' });
-      return;
-    }
-
-    setIsSaving(true);
-    setCustomerSaveStatus(null);
-
-    try {
-      const url = isNewCustomer
-        ? `${API_URL}/api/admin/customers`
-        : `${API_URL}/api/admin/customers/${selectedCustomerId}`;
-
-      const method = isNewCustomer ? 'POST' : 'PUT';
-
-      // Remove password if empty for updates
-      const dataToSend = { ...customerFormData };
-      if (!isNewCustomer && !dataToSend.password) {
-        delete dataToSend.password;
-      }
-
-      const response = await authFetch(url, {
-        method,
-        body: JSON.stringify(dataToSend)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setCustomerSaveStatus({ type: 'success', message: `Customer ${isNewCustomer ? 'created' : 'updated'} successfully!` });
-
-        // Refresh customers list
-        const customersResponse = await authFetch(`${API_URL}/api/admin/customers`);
-        if (customersResponse.ok) {
-          const customersData = await customersResponse.json();
-          setCustomers(customersData);
-        }
-
-        if (isNewCustomer) {
-          setIsNewCustomer(false);
-          setSelectedCustomerId(data._id || data.customer?._id); // Handle different response structures
-        }
-      } else {
-        setCustomerSaveStatus({ type: 'error', message: data.message || data.error || 'Failed to save customer' });
-      }
-    } catch (error) {
-      console.error('Error saving customer:', error);
-      setCustomerSaveStatus({ type: 'error', message: `Failed to save customer: ${error.message}` });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleDeleteCustomer = async (id) => {
-    if (window.confirm('Are you sure you want to delete this customer? This cannot be undone.')) {
-      try {
-        const response = await authFetch(`${API_URL}/api/admin/customers/${id}`, {
-          method: 'DELETE'
-        });
-
-        if (response.ok) {
-          setCustomers(prev => prev.filter(c => c._id !== id));
-          if (selectedCustomerId === id) {
-            setSelectedCustomerId(null);
-          }
-          setCustomerSaveStatus({ type: 'success', message: 'Customer deleted successfully' });
-        } else {
-          const data = await response.json();
-          throw new Error(data.message || 'Failed to delete customer');
-        }
-      } catch (error) {
-        console.error('Error deleting customer:', error);
-        setCustomerSaveStatus({ type: 'error', message: error.message });
-      }
-    }
-  };
-
-  const handleToggleCustomerStatus = async (id, currentStatus) => {
-    const newStatus = !currentStatus;
-    const action = newStatus ? 'activate' : 'deactivate';
-
-    if (window.confirm(`Are you sure you want to ${action} this customer?`)) {
-      try {
-        const response = await authFetch(`${API_URL}/api/admin/customers/${id}/status`, {
-          method: 'PATCH',
-          body: JSON.stringify({ isActive: newStatus })
-        });
-
-        if (response.ok) {
-          // Refresh customers list to ensure sync
-          const customersResponse = await authFetch(`${API_URL}/api/admin/customers`);
-          if (customersResponse.ok) {
-            const customersData = await customersResponse.json();
-            setCustomers(customersData);
-          }
-
-          setCustomerSaveStatus({ type: 'success', message: `Customer ${action}d successfully` });
-        } else {
-          const data = await response.json();
-          throw new Error(data.message || `Failed to ${action} customer`);
-        }
-      } catch (error) {
-        console.error(`Error ${action}ing customer:`, error);
-        setCustomerSaveStatus({ type: 'error', message: `Failed to ${action} customer: ${error.message}` });
-      }
-    }
-  };
-
-
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     const newUrl = new URL(window.location);
@@ -875,13 +616,6 @@ const AdminPage = () => {
                 <span>Products</span>
               </button>
               <button
-                className={`tab-btn ${activeTab === 'customers' ? 'active' : ''}`}
-                onClick={() => handleTabChange('customers')}
-              >
-                <Users size={18} />
-                <span>Customers</span>
-              </button>
-              <button
                 className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
                 onClick={() => handleTabChange('users')}
               >
@@ -910,118 +644,75 @@ const AdminPage = () => {
       </div>
 
       {/* Sidebar */}
-      {(activeTab === 'products' || activeTab === 'customers') && (
+      {activeTab === 'products' && (
         <div className={`admin-sidebar ${showMobileDetail ? 'mobile-hidden' : ''}`}>
           <div className="sidebar-header">
-            <h2>{activeTab === 'products' ? 'Products' : 'Customers'}</h2>
-            <button className="add-btn" onClick={activeTab === 'products' ? handleAddProduct : handleAddCustomer}>
+            <h2>Products</h2>
+            <button className="add-btn" onClick={handleAddProduct}>
               <Plus size={18} /> New
             </button>
-            {activeTab === 'customers' && (
-              <button
-                className="add-btn"
-                style={{ marginLeft: '10px', backgroundColor: '#10b981' }}
-                onClick={() => setShowImportModal(true)}
-              >
-                <ImageIcon size={18} /> Import Excel
-              </button>
-            )}
           </div>
 
           <div className="search-box">
             <Search size={16} className="search-icon" />
             <input
               type="text"
-              placeholder={`Search ${activeTab}...`}
-              value={activeTab === 'products' ? searchTerm : customerSearchTerm}
-              onChange={(e) => activeTab === 'products' ? setSearchTerm(e.target.value) : setCustomerSearchTerm(e.target.value)}
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
-          {activeTab === 'products' && (
-            <div className="filter-box">
-              <select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="sidebar-filter"
-              >
-                <option value="All">All Categories</option>
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <select
-                value={filterCollection}
-                onChange={(e) => setFilterCollection(e.target.value)}
-                className="sidebar-filter"
-              >
-                <option value="All">All Collections</option>
-                {collections.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          )}
+          <div className="filter-box">
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="sidebar-filter"
+            >
+              <option value="All">All Categories</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select
+              value={filterCollection}
+              onChange={(e) => setFilterCollection(e.target.value)}
+              className="sidebar-filter"
+            >
+              <option value="All">All Collections</option>
+              {collections.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
 
           <div className="product-list">
-            {activeTab === 'products' ? (
-              loading ? (
-                <div className="loading-list-message">
-                  <div className="loader-spinner-small"></div>
-                  <span>Loading products...</span>
-                </div>
-              ) : filteredProducts.length === 0 ? (
-                <div className="empty-list-message">
-                  No products found
-                </div>
-              ) : (
-                filteredProducts.map(product => (
-                  <div
-                    key={product.id}
-                    className={`product-list-item ${selectedProductId === product.id ? 'active' : ''}`}
-                    onClick={() => handleSelectProduct(product.id)}
-                  >
-                    <img src={product.image} alt={product.name} className="list-thumb" />
-                    <div className="list-info">
-                      <span className="list-name">{product.name}</span>
-                      <span className="list-meta">{product.collection} • {product.category}</span>
-                    </div>
-                  </div>
-                ))
-              )
+            {loading ? (
+              <div className="loading-list-message">
+                <div className="loader-spinner-small"></div>
+                <span>Loading products...</span>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="empty-list-message">
+                No products found
+              </div>
             ) : (
-              customersLoading ? (
-                <div className="loading-list-message">
-                  <div className="loader-spinner-small"></div>
-                  <span>Loading customers...</span>
-                </div>
-              ) : filteredCustomers.length === 0 ? (
-                <div className="empty-list-message">
-                  No customers found
-                </div>
-              ) : (
-                filteredCustomers.map(customer => (
-                  <div
-                    key={customer._id}
-                    className={`product-list-item ${selectedCustomerId === customer._id ? 'active' : ''}`}
-                    onClick={() => handleSelectCustomer(customer)}
-                  >
-                    <div className="list-thumb-placeholder">
-                      <User size={20} />
-                    </div>
-                    <div className="list-info">
-                      <span className="list-name">
-                        {customer.contactName || 'Unknown'}
-                        {customer.isActive === false && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginLeft: '0.5rem' }}>(Deactivated)</span>}
-                      </span>
-                      <span className="list-meta">{customer.company || customer.email}</span>
-                    </div>
+              filteredProducts.map(product => (
+                <div
+                  key={product.id}
+                  className={`product-list-item ${selectedProductId === product.id ? 'active' : ''}`}
+                  onClick={() => handleSelectProduct(product.id)}
+                >
+                  <img src={product.image} alt={product.name} className="list-thumb" />
+                  <div className="list-info">
+                    <span className="list-name">{product.name}</span>
+                    <span className="list-meta">{product.collection} • {product.category}</span>
                   </div>
-                ))
-              )
+                </div>
+              ))
             )}
           </div>
         </div>
       )}
 
       {/* Main Content */}
-      <div className={`admin-main ${activeTab === 'settings' || activeTab === 'users' ? 'full-width' : ''} ${!showMobileDetail && (activeTab === 'products' || activeTab === 'customers') ? 'mobile-hidden' : ''}`}>
+      <div className={`admin-main ${activeTab === 'settings' || activeTab === 'users' ? 'full-width' : ''} ${!showMobileDetail && activeTab === 'products' ? 'mobile-hidden' : ''}`}>
         {activeTab === 'products' && (
           <div className="main-header">
             <div className="header-title-group">
@@ -1056,213 +747,7 @@ const AdminPage = () => {
           </div>
         )}
 
-        {activeTab === 'customers' ? (
-          selectedCustomerId ? (
-            <div className="edit-form">
-              <div className="main-header">
-                <div className="header-title-group">
-                  <button className="mobile-back-btn" onClick={() => setShowMobileDetail(false)}>
-                    <ArrowLeft size={20} />
-                  </button>
-                  <h1>{isNewCustomer ? 'Create Customer' : 'Edit Customer'}</h1>
-                </div>
-                <div className="header-actions">
-                  {!isNewCustomer && (
-                    <>
-                      <button
-                        className="delete-btn"
-                        onClick={() => handleDeleteCustomer(selectedCustomerId)}
-                      >
-                        <Trash2 size={18} /> Delete
-                      </button>
-                      <button
-                        className="secondary-btn"
-                        onClick={() => handleToggleCustomerStatus(selectedCustomerId, customers.find(c => c._id === selectedCustomerId)?.isActive ?? true)}
-                        style={{ borderColor: customers.find(c => c._id === selectedCustomerId)?.isActive !== false ? '#ef4444' : '#10b981', color: customers.find(c => c._id === selectedCustomerId)?.isActive !== false ? '#ef4444' : '#10b981' }}
-                      >
-                        {customers.find(c => c._id === selectedCustomerId)?.isActive !== false ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </>
-                  )}
-                  <button
-                    className={`save-btn ${isSaving ? 'saving' : ''}`}
-                    onClick={saveCustomer}
-                    disabled={isSaving}
-                  >
-                    <Save size={18} /> {isSaving ? 'Saving...' : 'Save Customer'}
-                  </button>
-                </div>
-              </div>
-
-              {customerSaveStatus && (
-                <div className={`status-message ${customerSaveStatus.type}`}>
-                  {customerSaveStatus.message}
-                </div>
-              )}
-
-              <form onSubmit={saveCustomer} className="customer-form">
-                {!isNewCustomer && customers.find(c => c._id === selectedCustomerId) && (
-                  <section className="form-section metadata-section">
-                    <h3>Account Details</h3>
-                    <div className="form-grid">
-                      <div className="form-group">
-                        <label>Customer ID</label>
-                        <input type="text" value={selectedCustomerId} disabled className="readonly-input" />
-                      </div>
-                      <div className="form-group">
-                        <label>Joined Date</label>
-                        <input
-                          type="text"
-                          value={customers.find(c => c._id === selectedCustomerId).createdAt ? new Date(customers.find(c => c._id === selectedCustomerId).createdAt).toLocaleDateString() : 'N/A'}
-                          disabled
-                          className="readonly-input"
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>Verified</label>
-                        <input
-                          type="text"
-                          value={customers.find(c => c._id === selectedCustomerId).isVerified ? 'Yes' : 'No'}
-                          disabled
-                          className="readonly-input"
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>Status</label>
-                        <input
-                          type="text"
-                          value={customers.find(c => c._id === selectedCustomerId).isActive !== false ? 'Active' : 'Deactivated'}
-                          disabled
-                          className="readonly-input"
-                          style={{ color: customers.find(c => c._id === selectedCustomerId).isActive !== false ? '#10b981' : '#ef4444' }}
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>Login Attempts</label>
-                        <input
-                          type="text"
-                          value={customers.find(c => c._id === selectedCustomerId).loginAttempts || 0}
-                          disabled
-                          className="readonly-input"
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>Price Level</label>
-                        <select
-                          value={customerFormData.priceLevel || 1}
-                          onChange={(e) => setCustomerFormData(prev => ({ ...prev, priceLevel: parseInt(e.target.value) }))}
-                        >
-                          <option value={1}>Level 1 (10% Margin)</option>
-                          <option value={2}>Level 2 (20% Margin)</option>
-                          <option value={3}>Level 3 (30% Margin)</option>
-                          <option value={4}>Level 4 (40% Margin)</option>
-                        </select>
-                      </div>
-                    </div>
-                  </section>
-                )}
-                <section className="form-section">
-                  <h3>Personal Information</h3>
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label>Company</label>
-                      <input
-                        type="text"
-                        value={customerFormData.company}
-                        onChange={(e) => handleCustomerChange('company', e.target.value)}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Contact Name</label>
-                      <input
-                        type="text"
-                        value={customerFormData.contactName}
-                        onChange={(e) => handleCustomerChange('contactName', e.target.value)}
-                        required
-                        placeholder="Full Name"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Email</label>
-                      <input
-                        type="email"
-                        value={customerFormData.email}
-                        onChange={(e) => handleCustomerChange('email', e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Phone</label>
-                      <input
-                        type="tel"
-                        value={customerFormData.phone}
-                        onChange={(e) => handleCustomerChange('phone', formatPhoneInput(e.target.value))}
-                        placeholder="(555) 000-0000"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Password {isNewCustomer ? '(Required)' : '(Leave blank to keep current)'}</label>
-                      <input
-                        type="password"
-                        value={customerFormData.password}
-                        onChange={(e) => handleCustomerChange('password', e.target.value)}
-                        required={isNewCustomer}
-                        placeholder={isNewCustomer ? "Enter password" : "Enter new password to change"}
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <section className="form-section">
-                  <h3>Address</h3>
-                  <div className="form-grid">
-                    <div className="form-group full-width">
-                      <label>Street Address</label>
-                      <input
-                        type="text"
-                        value={customerFormData.address.street}
-                        onChange={(e) => handleAddressChange('street', e.target.value)}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>City</label>
-                      <input
-                        type="text"
-                        value={customerFormData.address.city}
-                        onChange={(e) => handleAddressChange('city', e.target.value)}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>State</label>
-                      <input
-                        type="text"
-                        value={customerFormData.address.state}
-                        onChange={(e) => handleAddressChange('state', e.target.value)}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Zip Code</label>
-                      <input
-                        type="text"
-                        value={customerFormData.address.zipCode}
-                        onChange={(e) => handleAddressChange('zipCode', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </section>
-              </form>
-            </div>
-          ) : (
-            <div className="empty-selection">
-              <Users size={48} />
-              <h2>Select a customer to edit</h2>
-              <p>Or create a new customer account</p>
-              <button className="primary-btn" onClick={handleAddCustomer}>
-                Create New Customer
-              </button>
-            </div>
-          )
-        ) : activeTab === 'users' ? (
+        {activeTab === 'users' ? (
           <div className="admin-main full-width">
             <div className="settings-container">
               <div className="settings-section">
@@ -2049,12 +1534,6 @@ const AdminPage = () => {
           </div>
         )}
       </div>
-
-      <CustomerImportModal
-        show={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        onImported={fetchCustomers}
-      />
     </div>
   );
 };

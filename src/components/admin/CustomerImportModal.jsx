@@ -21,6 +21,7 @@ import './CustomerImportModal.css';
 const FIELD_LABELS = {
     salesRep: 'Sales rep',
     location: 'Easy Stones branch',
+    marketingEmail: 'Marketing email',
     email: 'Email',
     contactName: 'Contact name',
     company: 'Company',
@@ -33,7 +34,9 @@ const FIELD_LABELS = {
     customerType: 'Customer type',
     status: 'Status',
     modaDisplay: 'MODA display',
-    modaBinder: 'MODA binder'
+    modaBinder: 'MODA binder',
+    receiveMarketing: 'Receive marketing',
+    quickNote: 'Quick note'
 };
 
 const ACTION_LABELS = {
@@ -160,6 +163,23 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
     const decide = (rowNumber, choice) => {
         const next = { ...decisions };
         if (choice) next[rowNumber] = choice; else delete next[rowNumber];
+        setDecisions(next);
+        runPreview(file, { decisions: next });
+    };
+
+    /**
+     * Settle every row still awaiting review as "a different business" in one
+     * click, for a re-export where the admin has already looked the list over
+     * (in this modal or the downloaded CSV) and would otherwise be clicking
+     * the same choice into the same dropdown dozens of times. A row anyone
+     * already gave a specific decision to (picked a match, or was already set
+     * to create) keeps that decision — this only fills in the ones still blank.
+     */
+    const acceptAllReviewAsNew = () => {
+        const next = { ...decisions };
+        for (const r of (plan?.rows || [])) {
+            if (r.action === 'review' && !(r.rowNumber in next)) next[r.rowNumber] = 'create';
+        }
         setDecisions(next);
         runPreview(file, { decisions: next });
     };
@@ -363,9 +383,19 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
                                         </button>
                                     ))}
                                     {counts.review > 0 && (
-                                        <button className="import-link import-tabs-action" onClick={downloadReview}>
-                                            <Download size={14} /> Review list as CSV
-                                        </button>
+                                        <>
+                                            <button className="import-link import-tabs-action" onClick={downloadReview}>
+                                                <Download size={14} /> Review list as CSV
+                                            </button>
+                                            <button
+                                                className="import-link import-tabs-action"
+                                                onClick={acceptAllReviewAsNew}
+                                                disabled={working}
+                                                title="Marks every row still flagged for review as a different business, so all of them import as new customers"
+                                            >
+                                                Accept all as new
+                                            </button>
+                                        </>
                                     )}
                                 </div>
 

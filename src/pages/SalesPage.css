@@ -835,6 +835,131 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
   font-size: 0.75rem !important;
 }
 
+/* Account & Security card — admin/director only, appended after Quick Notes */
+.account-security-card {
+  margin-top: 1.375rem !important;
+  padding: 1.25rem !important;
+  border-radius: 12px !important;
+  background: rgba(212, 175, 55, 0.045) !important;
+  border: 1px solid rgba(212, 175, 55, 0.18) !important;
+}
+
+.account-security-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-bottom: 1.1rem !important;
+  color: #d4af37 !important;
+}
+
+.account-security-header h3 {
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  color: #d4af37 !important;
+  margin: 0 !important;
+}
+
+.account-security-badge {
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  background: rgba(212, 175, 55, 0.18) !important;
+  color: #eede9a !important;
+  font-size: 0.625rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+}
+
+.account-security-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+  gap: 1.25rem !important;
+  margin-bottom: 1.25rem !important;
+}
+
+.account-security-grid .info-box p {
+  font-size: 0.9rem !important;
+}
+
+.account-security-geocode {
+  grid-column: span 2 !important;
+}
+
+.account-security-geocode p {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  color: #cbd5e1 !important;
+  font-weight: 400 !important;
+  font-size: 0.85rem !important;
+}
+
+.account-status-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.6rem !important;
+}
+
+.account-status-toggle-btn {
+  padding: 3px 10px !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: #9CA3AF !important;
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.account-status-toggle-btn:hover:not(:disabled) {
+  border-color: #d4af37 !important;
+  color: #d4af37 !important;
+}
+
+.account-security-reset-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.6rem !important;
+}
+
+.account-security-reset-row input {
+  flex: 1 !important;
+  max-width: 280px !important;
+  padding: 0.5rem 0.75rem !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+  color: #fff !important;
+  font-size: 0.82rem !important;
+}
+
+.account-security-reset-row input:focus {
+  outline: none !important;
+  border-color: rgba(212, 175, 55, 0.4) !important;
+}
+
+.account-security-card .status-message {
+  padding: 0.5rem 0.85rem !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+  margin-bottom: 0.9rem !important;
+}
+
+.account-security-card .status-message.success {
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #10b981 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.account-security-card .status-message.error {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #ef4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+
 
 .detail-column h3 {
   font-size: 0.85rem;
@@ -4657,6 +4782,24 @@ body.light-theme-active .dashboard-actions .btn-secondary:hover,
     width: auto !important;
     text-align: center !important;
     padding: 0.4rem 0.85rem !important;
+  }
+
+  .account-security-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1rem !important;
+  }
+
+  .account-security-geocode {
+    grid-column: span 2 !important;
+  }
+
+  .account-security-reset-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .account-security-reset-row input {
+    max-width: none !important;
   }
 }
 
