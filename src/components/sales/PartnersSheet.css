@@ -11,15 +11,25 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Gold is the app's one accent color (see Status: New Lead below) — MODA is
+   a plain yes/no flag, so it gets a neutral "enabled" green instead of
+   competing for the same hue. */
 .moda-badge.yes {
-    background: rgba(212, 175, 55, 0.15);
-    color: var(--accent-primary);
-    border-color: rgba(212, 175, 55, 0.3);
+    background: rgba(52, 211, 153, 0.15);
+    color: #34d399;
+    border-color: rgba(52, 211, 153, 0.3);
 }
 
 .moda-badge.no {
     background: rgba(255, 255, 255, 0.05);
     color: var(--text-muted);
+}
+
+body.light-theme-active .moda-badge.yes,
+.light-theme .moda-badge.yes {
+    background: rgba(4, 120, 87, 0.1);
+    color: #047857;
+    border-color: rgba(4, 120, 87, 0.28);
 }
 
 .customer-type-badge {
@@ -30,11 +40,13 @@
     white-space: nowrap;
 }
 
-/* Per type colors */
+/* Per-type colors. Deliberately a different hue family from Location badges
+   below — they sit in adjacent columns, so the two categories must not
+   share a color or a glance across the row can't tell which pill is which. */
 .customer-type-badge.fabricator {
-    background: rgba(212, 175, 55, 0.12);
-    color: #d4af37;
-    border: 1px solid rgba(212, 175, 55, 0.3);
+    background: rgba(45, 212, 191, 0.12);
+    color: #2dd4bf;
+    border: 1px solid rgba(45, 212, 191, 0.3);
 }
 .customer-type-badge.contractor {
     background: rgba(99, 179, 237, 0.12);
@@ -62,17 +74,56 @@
     border: 1px solid rgba(229, 62, 62, 0.3);
 }
 
-/* Owning sales rep. A name, not a category, so it stays a quiet chip in the
-   Partners blue rather than competing with the gold used for customer data. */
+body.light-theme-active .customer-type-badge.fabricator,
+.light-theme .customer-type-badge.fabricator {
+    background: rgba(15, 118, 110, 0.1);
+    color: #0f766e;
+    border-color: rgba(15, 118, 110, 0.28);
+}
+body.light-theme-active .customer-type-badge.contractor,
+.light-theme .customer-type-badge.contractor {
+    background: rgba(29, 111, 165, 0.1);
+    color: #1d6fa5;
+    border-color: rgba(29, 111, 165, 0.28);
+}
+body.light-theme-active .customer-type-badge.dealer,
+.light-theme .customer-type-badge.dealer {
+    background: rgba(107, 70, 193, 0.1);
+    color: #6b46c1;
+    border-color: rgba(107, 70, 193, 0.28);
+}
+body.light-theme-active .customer-type-badge.floor-covering,
+.light-theme .customer-type-badge.floor-covering {
+    background: rgba(39, 128, 78, 0.1);
+    color: #27804e;
+    border-color: rgba(39, 128, 78, 0.28);
+}
+body.light-theme-active .customer-type-badge.designer,
+.light-theme .customer-type-badge.designer {
+    background: rgba(180, 95, 20, 0.1);
+    color: #b45f14;
+    border-color: rgba(180, 95, 20, 0.28);
+}
+body.light-theme-active .customer-type-badge.builder,
+.light-theme .customer-type-badge.builder {
+    background: rgba(197, 48, 48, 0.1);
+    color: #c53030;
+    border-color: rgba(197, 48, 48, 0.28);
+}
+
+/* Owning sales rep. A name, not a category — it doesn't mean anything
+   different from one rep to the next, so it stays a quiet neutral chip
+   instead of spending a hue (it used to reuse Contractor's blue, which
+   made the Type and Sales Rep columns hard to tell apart at a glance). */
 .sales-rep-badge {
     padding: 0.2rem 0.55rem;
     border-radius: 20px;
     font-size: 0.72rem;
     font-weight: 600;
     white-space: nowrap;
-    background: rgba(99, 179, 237, 0.12);
-    color: #63b3ed;
-    border: 1px solid rgba(99, 179, 237, 0.28);
+    background: rgba(148, 163, 184, 0.12);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.28);
 }
 
 /* No owner is a gap, not a value — dashed and muted so it reads as one. */
@@ -84,7 +135,9 @@
 }
 
 /* Branch. Tinted per branch so a mixed list is scannable at a glance; any
-   branch added later falls through to this neutral base. */
+   branch added later falls through to this neutral base. Uses its own hue
+   family, distinct from Customer Type, since the two columns sit side by
+   side in the table. */
 .location-badge {
     padding: 0.2rem 0.55rem;
     border-radius: 20px;
@@ -96,33 +149,33 @@
     border: 1px solid rgba(255, 255, 255, 0.12);
 }
 .location-badge.seattle {
-    background: rgba(212, 175, 55, 0.12);
-    color: #d4af37;
-    border-color: rgba(212, 175, 55, 0.3);
+    background: rgba(129, 140, 248, 0.12);
+    color: #818cf8;
+    border-color: rgba(129, 140, 248, 0.3);
 }
 .location-badge.spokane {
-    background: rgba(72, 187, 120, 0.12);
-    color: #48bb78;
-    border-color: rgba(72, 187, 120, 0.3);
+    background: rgba(244, 114, 182, 0.12);
+    color: #f472b6;
+    border-color: rgba(244, 114, 182, 0.3);
 }
 .location-badge.salt-lake-city {
-    background: rgba(154, 117, 234, 0.12);
-    color: #9a75ea;
-    border-color: rgba(154, 117, 234, 0.3);
+    background: rgba(34, 211, 238, 0.12);
+    color: #22d3ee;
+    border-color: rgba(34, 211, 238, 0.3);
 }
 .location-badge.dallas {
-    background: rgba(237, 137, 54, 0.12);
-    color: #ed8936;
-    border-color: rgba(237, 137, 54, 0.3);
+    background: rgba(194, 112, 61, 0.12);
+    color: #c2703d;
+    border-color: rgba(194, 112, 61, 0.3);
 }
 
-/* The light theme keeps the same hues but needs darker text to stay legible
-   against a pale ground. */
+/* The light theme keeps the same hues but needs darker, more saturated text
+   to stay legible against a pale ground. */
 body.light-theme-active .sales-rep-badge,
 .light-theme .sales-rep-badge {
-    background: rgba(43, 108, 176, 0.1);
-    color: #2b6cb0;
-    border-color: rgba(43, 108, 176, 0.25);
+    background: rgba(71, 85, 105, 0.08);
+    color: #475569;
+    border-color: rgba(71, 85, 105, 0.22);
 }
 body.light-theme-active .sales-rep-badge.unassigned,
 .light-theme .sales-rep-badge.unassigned {
@@ -132,32 +185,33 @@ body.light-theme-active .sales-rep-badge.unassigned,
 }
 body.light-theme-active .location-badge.seattle,
 .light-theme .location-badge.seattle {
-    background: rgba(146, 118, 24, 0.12);
-    color: #8a6d10;
-    border-color: rgba(146, 118, 24, 0.3);
+    background: rgba(67, 56, 202, 0.1);
+    color: #4338ca;
+    border-color: rgba(67, 56, 202, 0.28);
 }
 body.light-theme-active .location-badge.spokane,
 .light-theme .location-badge.spokane {
-    background: rgba(39, 128, 78, 0.1);
-    color: #27804e;
-    border-color: rgba(39, 128, 78, 0.28);
+    background: rgba(190, 24, 93, 0.1);
+    color: #be185d;
+    border-color: rgba(190, 24, 93, 0.28);
 }
 body.light-theme-active .location-badge.salt-lake-city,
 .light-theme .location-badge.salt-lake-city {
-    background: rgba(107, 70, 193, 0.1);
-    color: #6b46c1;
-    border-color: rgba(107, 70, 193, 0.28);
+    background: rgba(14, 116, 144, 0.1);
+    color: #0e7490;
+    border-color: rgba(14, 116, 144, 0.28);
 }
 body.light-theme-active .location-badge.dallas,
 .light-theme .location-badge.dallas {
-    background: rgba(180, 95, 20, 0.1);
-    color: #b45f14;
-    border-color: rgba(180, 95, 20, 0.28);
+    background: rgba(154, 78, 33, 0.1);
+    color: #9a4e21;
+    border-color: rgba(154, 78, 33, 0.28);
 }
 
-
-
-
+/* Status is the one column that gets to use gold — it's the app's single
+   accent color, so "New Lead" is its only meaning anywhere in this table
+   (it used to also mean Fabricator, Seattle and MODA-yes, which diluted it
+   into decoration rather than a signal). */
 .status-pill.new-lead {
     background: rgba(212, 175, 55, 0.15);
     color: var(--accent-primary);
@@ -191,6 +245,45 @@ body.light-theme-active .location-badge.dallas,
 .status-pill.not-interested {
     background: rgba(156, 163, 175, 0.15);
     color: #9ca3af;
+}
+
+/* These never had light-theme variants — the saturated dark-theme hues read
+   at roughly 2:1 contrast on a white row, well under the ~4.5:1 small bold
+   text needs. */
+body.light-theme-active .status-pill.new-lead,
+.light-theme .status-pill.new-lead {
+    background: rgba(138, 109, 16, 0.1);
+    color: #8a6d10;
+}
+body.light-theme-active .status-pill.contacted-in-discussion,
+.light-theme .status-pill.contacted-in-discussion {
+    background: rgba(180, 83, 9, 0.1);
+    color: #b45309;
+}
+body.light-theme-active .status-pill.trying-to-onboard,
+.light-theme .status-pill.trying-to-onboard {
+    background: rgba(29, 78, 216, 0.1);
+    color: #1d4ed8;
+}
+body.light-theme-active .status-pill.onboarded,
+.light-theme .status-pill.onboarded {
+    background: rgba(4, 120, 87, 0.1);
+    color: #047857;
+}
+body.light-theme-active .status-pill.inactive,
+.light-theme .status-pill.inactive {
+    background: rgba(109, 40, 217, 0.1);
+    color: #6d28d9;
+}
+body.light-theme-active .status-pill.working-with-other-sales-rep,
+.light-theme .status-pill.working-with-other-sales-rep {
+    background: rgba(185, 28, 28, 0.1);
+    color: #b91c1c;
+}
+body.light-theme-active .status-pill.not-interested,
+.light-theme .status-pill.not-interested {
+    background: rgba(100, 116, 139, 0.1);
+    color: #64748b;
 }
 
 .customer-count {
@@ -994,10 +1087,17 @@ body.light-theme-active .location-badge.dallas,
     box-sizing: border-box;
 }
 
+/* A tier count, not a status — neutral rather than spending gold on it. */
 .mcc-meta-pills .level-badge {
-    background: rgba(212, 175, 55, 0.12);
-    color: #d4af37;
-    border: 1px solid rgba(212, 175, 55, 0.3);
+    background: rgba(168, 162, 158, 0.12);
+    color: #a8a29e;
+    border: 1px solid rgba(168, 162, 158, 0.3);
+}
+body.light-theme-active .mcc-meta-pills .level-badge,
+.light-theme .mcc-meta-pills .level-badge {
+    background: rgba(120, 113, 108, 0.08);
+    color: #78716c;
+    border-color: rgba(120, 113, 108, 0.25);
 }
 
 .mcc-meta-pills .mcc-location-pill {
@@ -1266,6 +1366,43 @@ body.light-theme-active .location-badge.dallas,
     color: #8b5cf6;
 }
 
+/* Same contrast fix as the desktop .status-pill light-theme overrides above. */
+body.light-theme-active .mobile-customer-card .status-badge-pill.new-lead,
+.light-theme .mobile-customer-card .status-badge-pill.new-lead {
+    background: rgba(138, 109, 16, 0.1);
+    color: #8a6d10;
+}
+body.light-theme-active .mobile-customer-card .status-badge-pill.trying-to-onboard,
+.light-theme .mobile-customer-card .status-badge-pill.trying-to-onboard {
+    background: rgba(29, 78, 216, 0.1);
+    color: #1d4ed8;
+}
+body.light-theme-active .mobile-customer-card .status-badge-pill.contacted-in-discussion,
+.light-theme .mobile-customer-card .status-badge-pill.contacted-in-discussion {
+    background: rgba(180, 83, 9, 0.1);
+    color: #b45309;
+}
+body.light-theme-active .mobile-customer-card .status-badge-pill.onboarded,
+.light-theme .mobile-customer-card .status-badge-pill.onboarded {
+    background: rgba(4, 120, 87, 0.1);
+    color: #047857;
+}
+body.light-theme-active .mobile-customer-card .status-badge-pill.different-sales-person,
+.light-theme .mobile-customer-card .status-badge-pill.different-sales-person {
+    background: rgba(185, 28, 28, 0.1);
+    color: #b91c1c;
+}
+body.light-theme-active .mobile-customer-card .status-badge-pill.not-interested,
+.light-theme .mobile-customer-card .status-badge-pill.not-interested {
+    background: rgba(100, 116, 139, 0.1);
+    color: #64748b;
+}
+body.light-theme-active .mobile-customer-card .status-badge-pill.inactive,
+.light-theme .mobile-customer-card .status-badge-pill.inactive {
+    background: rgba(109, 40, 217, 0.1);
+    color: #6d28d9;
+}
+
 .mobile-customer-card .card-meta-row {
     display: flex;
     flex-wrap: wrap;
@@ -1281,9 +1418,15 @@ body.light-theme-active .location-badge.dallas,
 }
 
 .mobile-customer-card .level-badge {
-    background: rgba(212, 175, 55, 0.08);
-    color: var(--accent-primary, #d4af37);
-    border: 1px solid rgba(212, 175, 55, 0.2);
+    background: rgba(168, 162, 158, 0.1);
+    color: #a8a29e;
+    border: 1px solid rgba(168, 162, 158, 0.25);
+}
+body.light-theme-active .mobile-customer-card .level-badge,
+.light-theme .mobile-customer-card .level-badge {
+    background: rgba(120, 113, 108, 0.08);
+    color: #78716c;
+    border-color: rgba(120, 113, 108, 0.25);
 }
 
 .mobile-customer-card .card-meta-location {
