@@ -3203,29 +3203,12 @@ body.light-theme-active .visit-post-card:hover,
   transform: translateY(-2px);
 }
 
-body.light-theme-active .visit-post-card.quick-note-card,
-.light-theme-active .visit-post-card.quick-note-card {
-  background: linear-gradient(145deg, #f0f7ff 0%, #ffffff 100%) !important;
-  border-color: #bfdbfe !important;
-}
-
-body.light-theme-active .visit-post-card.quick-note-card:hover,
-.light-theme-active .visit-post-card.quick-note-card:hover {
-  background: #ebf5ff !important;
-  border-color: #3b82f6 !important;
-}
-
-body.light-theme-active .visit-post-card.meeting-card,
-.light-theme-active .visit-post-card.meeting-card {
-  background: linear-gradient(145deg, #fffdf5 0%, #ffffff 100%) !important;
-  border-color: #fde68a !important;
-}
-
-body.light-theme-active .visit-post-card.meeting-card:hover,
-.light-theme-active .visit-post-card.meeting-card:hover {
-  background: #fef3c7 !important;
-  border-color: #d4af37 !important;
-}
+/* Quick Note / Meeting used to get their own tinted background wash here
+   (blue / yellow) on top of the base white card — every other card surface
+   in light theme (this one included, right above) is plain white with a
+   gold hover highlight, and the small purpose pill below already carries
+   the per-type color. The wash didn't add information, it just made two
+   cards of the same type look different depending on hover state. */
 
 body.light-theme-active .author-avatar-gold-ring,
 .light-theme-active .author-avatar-gold-ring {
@@ -3458,6 +3441,32 @@ body.light-theme-active .reaction-picker-floating,
 
 .post-purpose-badge .badge-icon {
   flex-shrink: 0;
+}
+
+/* These pastel dark-theme colors read too faint on a white card — darken
+   for contrast, same as every other badge fixed this session. This is now
+   the only place the visit card signals its type in light theme (see the
+   removed whole-card tint above), so it needs to carry that signal clearly. */
+body.light-theme-active .post-purpose-badge.meeting,
+.light-theme-active .post-purpose-badge.meeting {
+  background: rgba(138, 109, 16, 0.08) !important;
+  color: #8a6d10 !important;
+  border-color: rgba(138, 109, 16, 0.25) !important;
+  box-shadow: none !important;
+}
+
+body.light-theme-active .post-purpose-badge.quick-note,
+.light-theme-active .post-purpose-badge.quick-note {
+  background: rgba(29, 78, 216, 0.08) !important;
+  color: #1d4ed8 !important;
+  border-color: rgba(29, 78, 216, 0.25) !important;
+}
+
+body.light-theme-active .post-purpose-badge.resource,
+.light-theme-active .post-purpose-badge.resource {
+  background: rgba(4, 120, 87, 0.08) !important;
+  color: #047857 !important;
+  border-color: rgba(4, 120, 87, 0.25) !important;
 }
 
 /* Executive Details Container */
