@@ -51,6 +51,13 @@ const ACTION_LABELS = {
 
 const csvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
+// "Decided: nobody", as opposed to '' ("not decided yet, ask again"). Same
+// strings as IMPORT_UNASSIGNED / IMPORT_DEFAULT_BRANCH in
+// src/utils/customerImport.js — not imported from there so this modal
+// doesn't pull the xlsx parser into the browser bundle.
+const UNASSIGNED = '__none__';
+const DEFAULT_BRANCH = '__default__';
+
 /**
  * Whatever the server said went wrong, in words.
  *
@@ -83,11 +90,101 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
     const [error, setError] = useState('');
     const [result, setResult] = useState(null);
     const [tab, setTab] = useState('update');
+    // Per duplicate group (keyed by its member ids): which record stays, and
+    // what happens to each of the others.
+    const [dupChoices, setDupChoices] = useState({});
+    const [dupBusy, setDupBusy] = useState('');
+    // The last merge/delete, for its Undo button.
+    const [dupResult, setDupResult] = useState(null);
     const fileRef = useRef(null);
 
     const reset = () => {
         setFile(null); setPlan(null); setMapping({}); setRepAliases({});
         setBranchAliases({}); setDecisions({}); setError(''); setResult(null); setTab('update');
+        setDupChoices({}); setDupResult(null);
+    };
+
+    const groupKey = (g) => g.members.map(m => m.id).join('|');
+
+    /** The group's choices, defaulting "keep" to its oldest record (listed first). */
+    const choicesIn = (all, g) => all[groupKey(g)] || { keepId: g.members[0].id, actions: {} };
+    const choicesFor = (g) => choicesIn(dupChoices, g);
+
+    // Both read the latest state inside the updater rather than this render's
+    // copy, so two changes in quick succession can't overwrite each other.
+    const setKeep = (g, keepId) => {
+        setDupChoices(all => {
+            const rest = { ...choicesIn(all, g).actions };
+            delete rest[keepId];
+            return { ...all, [groupKey(g)]: { keepId, actions: rest } };
+        });
+    };
+
+    const setDupAction = (g, id, action) => {
+        setDupChoices(all => {
+            const current = choicesIn(all, g);
+            return { ...all, [groupKey(g)]: { ...current, actions: { ...current.actions, [id]: action } } };
+        });
+    };
+
+    /**
+     * Carry out one group's choices, then re-run the preview so the list (and
+     * the import's own matching) reflects the customers as they now stand.
+     */
+    const resolveGroup = async (g) => {
+        const { keepId, actions } = choicesFor(g);
+        const kept = g.members.find(m => m.id === keepId);
+        const count = (a) => Object.values(actions).filter(x => x === a).length;
+        const merge = count('merge');
+        const del = count('delete');
+        if ((merge || del) && !window.confirm(
+            `Keep "${kept.label}"` +
+            (merge ? `\nMerge ${merge} record${merge === 1 ? '' : 's'} into it` : '') +
+            (del ? `\nDelete ${del} record${del === 1 ? '' : 's'}` : '') +
+            '\n\nYou can undo this straight after.'
+        )) return;
+
+        setDupBusy(groupKey(g));
+        setError('');
+        try {
+            const res = await authFetch(`${API_URL}/api/admin/customers/duplicates/resolve`, {
+                method: 'POST',
+                body: JSON.stringify({ keepId, actions })
+            });
+            if (!res.ok) throw new Error(await describeFailure(res));
+            const data = await res.json();
+            const parts = [
+                data.merged && `merged ${data.merged}`,
+                data.deleted && `deleted ${data.deleted}`,
+                data.separate && `kept ${data.separate} as ${data.separate === 1 ? 'a separate account' : 'separate accounts'}`
+            ].filter(Boolean);
+            setDupResult({ message: `${kept.label.split(' — ')[0]}: ${parts.join(', ')}.`, undoIds: data.undoIds });
+            onImported?.();
+            if (file) await runPreview(file);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setDupBusy('');
+        }
+    };
+
+    const undoResolve = async () => {
+        setDupBusy('undo');
+        setError('');
+        try {
+            const res = await authFetch(`${API_URL}/api/admin/customers/duplicates/undo`, {
+                method: 'POST',
+                body: JSON.stringify({ undoIds: dupResult.undoIds })
+            });
+            if (!res.ok) throw new Error(await describeFailure(res));
+            setDupResult({ message: 'Undone — the removed records are back.', undoIds: [] });
+            onImported?.();
+            if (file) await runPreview(file);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setDupBusy('');
+        }
     };
 
     const close = () => { reset(); onClose(); };
@@ -187,11 +284,34 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
         runPreview(file, { decisions: next });
     };
 
+    /**
+     * Drop every remembered mapping and decision, then re-plan so the names
+     * and rows they were answering come back to be asked about.
+     */
+    const forgetSaved = async () => {
+        if (!window.confirm(
+            'Forget every saved sales-rep mapping, branch mapping and review decision?\n\n' +
+            'The next preview will ask about those names and rows again.'
+        )) return;
+        setBusy('preview');
+        setError('');
+        try {
+            const res = await authFetch(`${API_URL}/api/admin/customers/import/memory`, { method: 'DELETE' });
+            if (!res.ok) throw new Error(await describeFailure(res));
+        } catch (err) {
+            setError(err.message);
+            setBusy('');
+            return;
+        }
+        runPreview(file);
+    };
+
     const apply = async () => {
         const { create, update } = plan.counts;
         if (!window.confirm(
             `Create ${create} customer${create === 1 ? '' : 's'} and update ${update}?\n\n` +
-            `${plan.counts.review} row${plan.counts.review === 1 ? '' : 's'} flagged for review will not be touched.`
+            `${plan.counts.review} row${plan.counts.review === 1 ? '' : 's'} flagged for review will not be touched.\n\n` +
+            'The sales-rep mappings and review decisions you made here will be remembered for the next upload.'
         )) return;
 
         setBusy('apply');
@@ -304,11 +424,26 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
                                 </div>
                             </section>
 
+                            {(plan.remembered?.reps > 0 || plan.remembered?.branches > 0 || plan.remembered?.decisions > 0) && (
+                                <p className="import-hint import-remembered">
+                                    Using choices saved from earlier uploads:{' '}
+                                    {[
+                                        plan.remembered.reps > 0 && `${plan.remembered.reps} sales-rep name${plan.remembered.reps === 1 ? '' : 's'}`,
+                                        plan.remembered.branches > 0 && `${plan.remembered.branches} branch name${plan.remembered.branches === 1 ? '' : 's'}`,
+                                        plan.remembered.decisions > 0 && `${plan.remembered.decisions} review decision${plan.remembered.decisions === 1 ? '' : 's'}`
+                                    ].filter(Boolean).join(', ')}.{' '}
+                                    <button className="import-link" onClick={forgetSaved} disabled={working}>
+                                        Forget saved choices
+                                    </button>
+                                </p>
+                            )}
+
                             {(plan.unresolvedReps?.length > 0 || plan.unresolvedBranches?.length > 0) && (
                                 <section className="import-section import-section-warn">
                                     <h3><Users size={16} /> Names this sheet uses that we don&apos;t recognise</h3>
                                     <p className="import-hint">
-                                        Until you say who these are, those rows import unassigned.
+                                        Until you say who these are, those rows import unassigned. Whatever
+                                        you pick is remembered, so the next upload won&apos;t ask again.
                                     </p>
                                     {plan.unresolvedReps?.map(u => (
                                         <div key={u.given} className="import-alias-row">
@@ -320,7 +455,8 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
                                                 disabled={working}
                                                 onChange={e => changeRepAlias(u.given, e.target.value)}
                                             >
-                                                <option value="">— leave unassigned —</option>
+                                                <option value="">— decide later —</option>
+                                                <option value={UNASSIGNED}>Leave unassigned</option>
                                                 {plan.reps?.map(r => (
                                                     <option key={r._id} value={r._id}>
                                                         {r.name}{r.name === u.suggestion ? ' (likely)' : ''}
@@ -339,7 +475,8 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
                                                 disabled={working}
                                                 onChange={e => changeBranchAlias(u.given, e.target.value)}
                                             >
-                                                <option value="">— use default branch —</option>
+                                                <option value="">— decide later —</option>
+                                                <option value={DEFAULT_BRANCH}>Use the default branch</option>
                                                 {plan.branches?.map(b => <option key={b} value={b}>{b}</option>)}
                                             </select>
                                         </div>
@@ -369,8 +506,9 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
                                     )}
                                 </div>
                                 <p className="import-hint">
-                                    A customer who already has a sales rep keeps them — the sheet never
-                                    overwrites an owner. Branch is taken from the sheet.
+                                    For customers already on file, the sheet only fills in what&apos;s
+                                    missing — phone, address, contact, notes, a sales rep — and never
+                                    overwrites anything typed into the CRM. Branch is taken from the sheet.
                                 </p>
                             </section>
 
@@ -505,26 +643,83 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
                         </section>
                     )}
 
+                    {dupResult && (
+                        <div className="import-dup-result">
+                            <Check size={16} /> {dupResult.message}
+                            {dupResult.undoIds.length > 0 && (
+                                <button className="import-link" onClick={undoResolve} disabled={dupBusy !== ''}>
+                                    {dupBusy === 'undo' ? 'Undoing…' : 'Undo'}
+                                </button>
+                            )}
+                        </div>
+                    )}
+
                     {plan?.dbDuplicates?.length > 0 && (
                         <section className="import-section import-section-warn">
                             <h3><AlertTriangle size={16} /> Possible duplicates already in the database</h3>
                             <p className="import-hint">
-                                Found independently of this sheet — two or more records that look like
-                                the same business. Verify, then merge or delete with{' '}
-                                <code>node scripts/merge-duplicate-customers.js</code>.
+                                Found independently of this sheet — records that look like the same
+                                business. Pick the one to keep, then for each of the others choose to
+                                merge it in, delete it, or keep it as a separate account. Anything
+                                booked against a merged or deleted record moves to the one you keep.
                             </p>
                             <div className="import-rows">
-                                {plan.dbDuplicates.map((g, i) => (
-                                    <div key={i} className="import-row import-row-review">
-                                        <div className="import-row-head">
-                                            <span className="import-match-score">{g.signals.join(' + ')}</span>
-                                            <span className="import-row-sub">{g.members.length} records</span>
+                                {plan.dbDuplicates.map(g => {
+                                    const key = groupKey(g);
+                                    const { keepId, actions } = choicesFor(g);
+                                    const others = g.members.filter(m => m.id !== keepId);
+                                    const ready = others.every(m => actions[m.id]);
+                                    const busy = dupBusy === key;
+                                    return (
+                                        <div key={key} className="import-row import-row-review">
+                                            <div className="import-row-head">
+                                                <span className="import-match-score">{g.signals.join(' + ')}</span>
+                                                <span className="import-row-sub">{g.members.length} records</span>
+                                            </div>
+                                            <div className="import-row-detail">
+                                                {g.members.map(m => (
+                                                    <div key={m.id} className={`import-dup-member ${m.id === keepId ? 'is-kept' : ''}`}>
+                                                        <label className="import-dup-keep">
+                                                            <input
+                                                                type="radio"
+                                                                name={`keep-${key}`}
+                                                                checked={m.id === keepId}
+                                                                disabled={busy}
+                                                                onChange={() => setKeep(g, m.id)}
+                                                            />
+                                                            Keep
+                                                        </label>
+                                                        <span className="import-dup-label">
+                                                            {m.label}
+                                                            {m.salesRepName && <em> · rep {m.salesRepName}</em>}
+                                                        </span>
+                                                        {m.id !== keepId && (
+                                                            <select
+                                                                value={actions[m.id] || ''}
+                                                                disabled={busy}
+                                                                onChange={e => setDupAction(g, m.id, e.target.value)}
+                                                            >
+                                                                <option value="">— choose —</option>
+                                                                <option value="merge">Merge into the kept one</option>
+                                                                <option value="delete">Delete this one</option>
+                                                                <option value="separate">Keep as a separate account</option>
+                                                            </select>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                <div className="import-dup-actions">
+                                                    <button
+                                                        className="import-btn-primary"
+                                                        disabled={!ready || dupBusy !== ''}
+                                                        onClick={() => resolveGroup(g)}
+                                                    >
+                                                        {busy ? <><Loader size={14} className="spin" /> Saving…</> : 'Apply'}
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="import-row-detail">
-                                            {g.members.map(m => <div key={m.id} className="import-match">{m.label}</div>)}
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </section>
                     )}

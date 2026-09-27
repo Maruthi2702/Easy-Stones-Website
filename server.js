@@ -36,6 +36,8 @@ import DailyReport from './src/models/DailyReport.js';
 import Location from './src/models/Location.js';
 import ContactSubmission from './src/models/ContactSubmission.js';
 import Customer from './src/models/Customer.js';
+import ImportMemory from './src/models/ImportMemory.js';
+import CustomerMergeBackup from './src/models/CustomerMergeBackup.js';
 import SalesResource from './src/models/SalesResource.js';
 import SalesDashboardResource from './src/models/SalesDashboardResource.js';
 import ActivityLog from './src/models/ActivityLog.js';
@@ -61,13 +63,16 @@ import { isSalesRep } from './src/utils/salesReps.js';
 import { geocodeAddress, geocodePatchFor, addressKeyOf, GEOCODE_PRECISION } from './src/utils/geocode.js';
 // One definition of "these two records are the same business", shared by the
 // import, the duplicate audit and the merge script.
-import { groupDuplicates, STRONG } from './src/utils/customerMatch.js';
+import { groupDuplicates, STRONG, withoutSeparated } from './src/utils/customerMatch.js';
+// Merging one customer into another, shared with scripts/merge-duplicate-customers.js.
+import { planFields, contactsFromLosers, snapshotMerge, executeMerge, undoMerge, markSeparate } from './src/services/customerMerge.js';
 // The customer import decides what it would do before it does any of it, in a
 // module with no database access, so the whole decision can be exercised
 // against a real spreadsheet without touching a record.
 import {
   IMPORT_FIELDS, importNormalize, resolveImportMapping,
-  buildImportPlan, importRowsForClient, importLabel
+  buildImportPlan, importRowsForClient, importLabel,
+  IMPORT_UNASSIGNED, IMPORT_DEFAULT_BRANCH
 } from './src/utils/customerImport.js';
 // The parsers themselves (parseInventoryStockWorkbook, parseInventorySalesWorkbook,
 // readCustomerSheet) are no longer called directly here — every uploaded file goes
@@ -5168,9 +5173,11 @@ const loadImportReferenceData = async () => {
     }
   }
 
+  // quickNote is here for the "fill blanks only" update (buildImportPlan's
+  // planUpdate), which has to see what the record already holds.
   const existing = await Customer.find(
     {},
-    'company contactName email phone address salesRep salesRepName location isActive createdAt'
+    'company contactName email phone address quickNote salesRep salesRepName location isActive createdAt notDuplicateOf'
   ).lean();
 
   return { branchByKey, repByKey, existing };
@@ -5192,31 +5199,122 @@ const planCustomerImport = async (req) => {
   const { headers, rows } = await runWorkbookParse('customer', req.file.buffer);
   const mapping = resolveImportMapping(headers, parse('mapping'));
   const reference = await loadImportReferenceData();
+  const memory = await ImportMemory.findOne({ kind: 'customer' }).lean();
+  // A lean() Map field can come back as either, depending on the driver.
+  const asObject = (m) => (m instanceof Map ? Object.fromEntries(m) : (m || {}));
+  const savedReps = asObject(memory?.repAliases);
+  const savedBranches = asObject(memory?.branchAliases);
+
+  // Captured before any alias is folded in, so the "remembered" counts below
+  // only count names that were answered from memory, not real users.
+  const realRepKeys = new Set(reference.repByKey.keys());
+  const realBranchKeys = new Set(reference.branchByKey.keys());
 
   // What the admin said the sheet's unrecognised names mean: 'Stephen Watson'
   // is this user id, 'PDX' is this branch. Folded into the same lookups the
   // automatic matching uses, so an alias resolves exactly like a real name —
   // and an alias naming someone who cannot own accounts resolves to nothing,
   // because only people already in these maps can be named at all.
+  //
+  // Remembered answers go in first and only for names no real user answers
+  // to (if "Jeremy Earnest" later gets an account, that account wins); this
+  // upload's own answers go in after and override both. false / '' are the
+  // "decided: nobody" answers buildImportPlan stops asking about.
   const repById = new Map([...reference.repByKey.values()].map(r => [String(r.salesRep), r]));
+  const resolveRep = (userId) => (userId === '' || userId === IMPORT_UNASSIGNED ? false : repById.get(String(userId)));
+  for (const [key, userId] of Object.entries(savedReps)) {
+    if (reference.repByKey.has(key)) continue;
+    const rep = resolveRep(userId);
+    if (rep !== undefined) reference.repByKey.set(key, rep);
+  }
   for (const [given, userId] of Object.entries(parse('repAliases'))) {
-    const rep = repById.get(String(userId));
-    if (rep) reference.repByKey.set(importNormalize(given), rep);
+    const rep = resolveRep(userId);
+    if (rep !== undefined) reference.repByKey.set(importNormalize(given), rep);
   }
 
   const branches = [...new Set(reference.branchByKey.values())];
+  const resolveBranch = (branch) => (branch === '' || branch === IMPORT_DEFAULT_BRANCH ? '' : (branches.includes(branch) ? branch : undefined));
+  for (const [key, branch] of Object.entries(savedBranches)) {
+    if (reference.branchByKey.has(key)) continue;
+    const resolved = resolveBranch(branch);
+    if (resolved !== undefined) reference.branchByKey.set(key, resolved);
+  }
   for (const [given, branch] of Object.entries(parse('branchAliases'))) {
-    if (branches.includes(branch)) reference.branchByKey.set(importNormalize(given), branch);
+    const resolved = resolveBranch(branch);
+    if (resolved !== undefined) reference.branchByKey.set(importNormalize(given), resolved);
   }
 
+  const plan = buildImportPlan({
+    headers, rows, mapping, ...reference,
+    decisions: parse('decisions'),
+    decisionsByKey: asObject(memory?.decisions)
+  });
+
+  // How many of this sheet's names were answered from memory, for the
+  // preview's "using saved choices" line.
+  const sheetKeys = (field) => new Set(rows.map(r => importNormalize(mapping[field] ? r[mapping[field]] : '')).filter(Boolean));
+  const countRemembered = (field, realKeys, saved) =>
+    [...sheetKeys(field)].filter(k => !realKeys.has(k) && Object.prototype.hasOwnProperty.call(saved, k)).length;
+
   return {
-    ...buildImportPlan({ headers, rows, mapping, ...reference, decisions: parse('decisions') }),
+    ...plan,
     existing: reference.existing,
     branches,
     reps: [...repById]
       .map(([id, r]) => ({ _id: id, name: r.salesRepName }))
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    remembered: {
+      reps: countRemembered('salesRep', realRepKeys, savedReps),
+      branches: countRemembered('location', realBranchKeys, savedBranches),
+      decisions: plan.rememberedDecisionsUsed
+    }
   };
+};
+
+/**
+ * File this upload's answers for next time — called only after an apply, so
+ * nothing the admin was still trying out in the preview gets remembered.
+ *
+ * A review decision is filed as the customer id it resolved to, never as
+ * 'create': the business 'create' made exists now, and next month's export of
+ * the same row should update it rather than make it again. Only decisions the
+ * plan actually honoured are filed — one naming a record the row didn't match
+ * was ignored by buildImportPlan, and is ignored here too.
+ */
+const saveImportMemory = async (req, plan, createdByRow) => {
+  const parse = (field) => (req.body[field] ? JSON.parse(req.body[field]) : {});
+  const repIds = new Set(plan.reps.map(r => String(r._id)));
+  const set = {};
+
+  for (const [given, userId] of Object.entries(parse('repAliases'))) {
+    const key = importNormalize(given);
+    if (!key) continue;
+    if (userId === IMPORT_UNASSIGNED) set[`repAliases.${key}`] = '';
+    else if (repIds.has(String(userId))) set[`repAliases.${key}`] = String(userId);
+  }
+  for (const [given, branch] of Object.entries(parse('branchAliases'))) {
+    const key = importNormalize(given);
+    if (!key) continue;
+    if (branch === IMPORT_DEFAULT_BRANCH) set[`branchAliases.${key}`] = '';
+    else if (plan.branches.includes(branch)) set[`branchAliases.${key}`] = branch;
+  }
+
+  const byRow = new Map(plan.planned.map(p => [p.rowNumber, p]));
+  for (const [rowNumber, choice] of Object.entries(parse('decisions'))) {
+    const row = byRow.get(Number(rowNumber));
+    if (!row?.rowKey) continue;
+    const id = choice === 'create'
+      ? createdByRow.get(row.rowNumber)
+      : (row.targetId === String(choice) ? row.targetId : null);
+    if (id) set[`decisions.${row.rowKey}`] = String(id);
+  }
+
+  if (!Object.keys(set).length) return;
+  await ImportMemory.updateOne(
+    { kind: 'customer' },
+    { $set: { ...set, updatedBy: req.user?.username || '' } },
+    { upsert: true }
+  );
 };
 
 /**
@@ -5227,15 +5325,143 @@ const planCustomerImport = async (req) => {
  */
 const existingDuplicateReport = (existing) => {
   const byId = new Map(existing.map(c => [String(c._id), c]));
+  // Pairs someone already said are separate accounts drop out, so a group
+  // only shows what's still undecided.
+  const separatedFrom = new Map(existing.map(c => [String(c._id), new Set((c.notDuplicateOf || []).map(String))]));
   return groupDuplicates(existing)
     .filter(g => g.score >= STRONG)
+    .map(g => ({ ...g, ids: withoutSeparated(g.ids, separatedFrom) }))
+    .filter(g => g.ids.length > 1)
     .slice(0, 100)
     .map(g => ({
       signals: g.signals,
       score: g.score,
-      members: g.ids.map(id => ({ id, label: importLabel(byId.get(id)) }))
+      // Oldest first: that's the record the team has most likely been using,
+      // so it's the screen's default "keep" — same tie-break the merge script uses.
+      members: g.ids
+        .map(id => byId.get(id))
+        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+        .map(c => ({
+          id: String(c._id),
+          label: importLabel(c),
+          createdAt: c.createdAt,
+          salesRepName: c.salesRepName || ''
+        }))
     }));
 };
+
+/**
+ * Settle one duplicate group from the import screen: `keepId` stays, and
+ * every other member is either merged into it, deleted, or marked a separate
+ * account.
+ *
+ * Merge and delete both go through src/services/customerMerge.js — the same
+ * code as the merge script — and both move the removed record's deliveries,
+ * bookings, lost sales and activity onto the kept one, since those point at
+ * a customer id and would otherwise point at nobody. Merge additionally fills
+ * the kept record's blanks and carries over contacts, visits and resources;
+ * delete leaves the kept record exactly as it was.
+ *
+ * Everything touched is snapshotted to customermergebackups first, and the
+ * response carries its id for the Undo button.
+ */
+app.post('/api/admin/customers/duplicates/resolve', verifyToken, requirePermission('manage_customers'), async (req, res) => {
+  try {
+    const { keepId, actions } = req.body || {};
+    const entries = Object.entries(actions || {});
+    const VALID = ['merge', 'delete', 'separate'];
+    if (!keepId || !entries.length || entries.some(([id, a]) => !VALID.includes(a) || id === keepId)) {
+      return res.status(400).json({ message: 'Choose a record to keep, and merge, delete or keep separate for each of the others.' });
+    }
+    // Removing a customer — by merge or by delete — is what delete_customers
+    // exists to gate, same as the Customers page's own Delete button.
+    const removing = entries.filter(([, a]) => a !== 'separate').map(([id]) => id);
+    if (removing.length && !req.user.permissions.includes('delete_customers')) {
+      return res.status(403).json({ message: 'Merging or deleting a customer needs the delete_customers permission.' });
+    }
+
+    const db = mongoose.connection.db;
+    const ids = [keepId, ...entries.map(([id]) => id)];
+    if (!ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
+      return res.status(400).json({ message: 'Unknown customer id' });
+    }
+    const docs = await db.collection('customers')
+      .find({ _id: { $in: ids.map(id => new mongoose.Types.ObjectId(id)) } }).toArray();
+    const byId = new Map(docs.map(d => [String(d._id), d]));
+    const missing = ids.find(id => !byId.has(id));
+    if (missing) {
+      return res.status(409).json({ message: 'One of these customers no longer exists — refresh the preview.' });
+    }
+
+    const survivor = byId.get(keepId);
+    const merging = entries.filter(([, a]) => a === 'merge').map(([id]) => byId.get(id));
+    const deleting = entries.filter(([, a]) => a === 'delete').map(([id]) => byId.get(id));
+    const separate = entries.filter(([, a]) => a === 'separate').map(([id]) => id);
+    const who = req.user?.username || '';
+    const undoIds = [];
+
+    // Delete runs first and the merge snapshots after it, so an undo of the
+    // merge restores the survivor as it was after the delete — the two undo
+    // in reverse order and each puts back exactly what it changed.
+    if (deleting.length) {
+      const snap = await snapshotMerge(db, survivor, deleting);
+      const backup = await CustomerMergeBackup.create({ group: snap, action: 'delete', createdBy: who });
+      await executeMerge(db, survivor, deleting, { copyDetails: false });
+      undoIds.push(String(backup._id));
+    }
+    if (merging.length) {
+      const current = await db.collection('customers').findOne({ _id: survivor._id });
+      const { set } = planFields(current, merging);
+      const newContacts = contactsFromLosers(set.email ?? current.email, current, merging);
+      const snap = await snapshotMerge(db, current, merging);
+      const backup = await CustomerMergeBackup.create({ group: snap, action: 'merge', createdBy: who });
+      await executeMerge(db, current, merging, { set, newContacts, copyDetails: true });
+      undoIds.push(String(backup._id));
+    }
+    // "These are all different accounts" — the kept one and every member
+    // marked separate, each pair recorded, so none of them is asked about again.
+    if (separate.length) await markSeparate(db, [keepId, ...separate]);
+
+    req.app.get('io')?.emit('customer_update');
+    res.json({
+      success: true,
+      merged: merging.length,
+      deleted: deleting.length,
+      separate: separate.length,
+      undoIds
+    });
+  } catch (error) {
+    console.error('Resolve duplicate customers error:', error);
+    res.status(500).json({ message: `Could not resolve these duplicates: ${error.message}` });
+  }
+});
+
+// Put back what one resolve removed. Undone newest first, so a merge that
+// followed a delete in the same click is reversed before the delete is.
+app.post('/api/admin/customers/duplicates/undo', verifyToken, requirePermission('manage_customers', 'delete_customers'), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.undoIds) ? req.body.undoIds : [];
+    if (!ids.length || !ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
+      return res.status(400).json({ message: 'Nothing to undo' });
+    }
+    // By _id, not createdAt: both backups from one click can share a millisecond.
+    const backups = await CustomerMergeBackup.find({ _id: { $in: ids }, undoneAt: null }).sort({ _id: -1 });
+    if (backups.length !== ids.length) {
+      return res.status(409).json({ message: 'This has already been undone.' });
+    }
+    const db = mongoose.connection.db;
+    for (const b of backups) {
+      await undoMerge(db, b.group);
+      b.undoneAt = new Date();
+      await b.save();
+    }
+    req.app.get('io')?.emit('customer_update');
+    res.json({ success: true, restored: backups.reduce((n, b) => n + (b.group.losers?.length || 0), 0) });
+  } catch (error) {
+    console.error('Undo duplicate resolve error:', error);
+    res.status(500).json({ message: `Undo failed: ${error.message}` });
+  }
+});
 
 // Preview an import: parse, match, and report what would happen. Writes nothing.
 app.post('/api/admin/customers/import/preview', verifyToken, requirePermission('manage_customers'), uploadMemory.single('file'), async (req, res) => {
@@ -5255,11 +5481,25 @@ app.post('/api/admin/customers/import/preview', verifyToken, requirePermission('
       unresolvedBranches: plan.unresolvedBranches,
       reps: plan.reps,
       branches: plan.branches,
+      remembered: plan.remembered,
       dbDuplicates: existingDuplicateReport(plan.existing)
     });
   } catch (error) {
     console.error('Customer import preview error:', error);
     res.status(400).json({ message: `Preview failed: ${error.message}` });
+  }
+});
+
+// Forget every remembered rep mapping, branch mapping and review decision —
+// the way back from one that turned out wrong, since a remembered answer
+// stops being asked about and so has no dropdown left to change it in.
+app.delete('/api/admin/customers/import/memory', verifyToken, requirePermission('manage_customers'), async (req, res) => {
+  try {
+    await ImportMemory.deleteOne({ kind: 'customer' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Customer import memory reset error:', error);
+    res.status(500).json({ message: `Could not forget saved choices: ${error.message}` });
   }
 });
 
@@ -5273,14 +5513,18 @@ app.post('/api/admin/customers/import/apply', verifyToken, requirePermission('ma
 
     const plan = await planCustomerImport(req);
     const results = { created: 0, updated: 0, skipped: 0, errors: [] };
+    // rowNumber → new customer id, so a "create it" review decision can be
+    // remembered as the record it made (see saveImportMemory).
+    const createdByRow = new Map();
 
     for (const row of plan.planned) {
       try {
         if (row.action === 'create') {
-          await new Customer({
+          const saved = await new Customer({
             ...row.create,
             password: await bcrypt.hash('Welcome123!', 10)
           }).save();
+          createdByRow.set(row.rowNumber, String(saved._id));
           results.created++;
         } else if (row.action === 'update') {
           await Customer.updateOne({ _id: row.targetId }, { $set: row.apply });
@@ -5291,6 +5535,16 @@ app.post('/api/admin/customers/import/apply', verifyToken, requirePermission('ma
       } catch (err) {
         results.errors.push(`Row ${row.rowNumber} (${row.label || ''}): ${err.message}`);
       }
+    }
+
+    // The customers above are already written, so failing to remember the
+    // answers must not report the import itself as failed — it only means
+    // the next upload asks again.
+    try {
+      await saveImportMemory(req, plan, createdByRow);
+    } catch (err) {
+      console.error('Customer import memory save error:', err);
+      results.errors.push(`Your rep mappings and review decisions could not be saved for next time: ${err.message}`);
     }
 
     res.json({

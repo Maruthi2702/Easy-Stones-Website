@@ -212,3 +212,30 @@ export const groupDuplicates = (rows) => {
     }))
     .sort((a, b) => b.score - a.score || b.size - a.size);
 };
+
+/**
+ * A duplicate group with the members someone already said are separate
+ * accounts taken out.
+ *
+ * `separatedFrom` is id → Set of ids that customer was marked "not a
+ * duplicate of" (Customer.notDuplicateOf, recorded from the import screen's
+ * "Keep as a separate account"). A member is dropped when it's been marked
+ * separate from every other member still in the group; what's left is only
+ * the pairs nobody has ruled on yet. Fewer than two left means the group is
+ * settled and shouldn't be shown — or merged by the script — again.
+ *
+ * Checked in both directions, since the mark is written to both customers but
+ * a record restored by an undo could carry only one side.
+ */
+export const withoutSeparated = (ids, separatedFrom) => {
+  const apart = (a, b) => Boolean(separatedFrom.get(a)?.has(b) || separatedFrom.get(b)?.has(a));
+  let remaining = [...ids];
+  for (;;) {
+    const next = remaining.filter(id => {
+      const others = remaining.filter(o => o !== id);
+      return !(others.length && others.every(o => apart(id, o)));
+    });
+    if (next.length === remaining.length) return next.length > 1 ? next : [];
+    remaining = next;
+  }
+};

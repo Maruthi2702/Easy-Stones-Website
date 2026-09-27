@@ -176,6 +176,14 @@ const customerSchema = new mongoose.Schema({
   associatedCustomers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Customer'
+  }],
+  // Customers someone looked at as possible duplicates and said are separate
+  // accounts (import screen → "Keep as a separate account"). Written to both
+  // sides; withoutSeparated in src/utils/customerMatch.js reads it so the pair
+  // stops being flagged — and the merge script stops merging it.
+  notDuplicateOf: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer'
   }]
 }, {
   timestamps: true,

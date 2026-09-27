@@ -7,7 +7,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    /* z-index comes from the shared overlay list in index.css (the app's
+       max, same as every other modal). This used to set 1000 here, which
+       sat under the site header's 1100 and hid the modal's title bar. */
     padding: 1.5rem;
 }
 
@@ -155,6 +157,16 @@
     font-size: 0.9em;
 }
 
+/* "Using choices saved from earlier uploads" — a quiet note, not a warning:
+   nothing needs doing unless one of the saved answers turned out wrong. */
+.import-remembered {
+    padding: 0.55rem 0.8rem;
+    border-radius: 8px;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    color: #0c4a6e;
+}
+
 /* ── Column mapping ───────────────────────────────────────────────────────── */
 
 .import-mapping-grid {
@@ -172,16 +184,31 @@
     color: #334155;
 }
 
+/* background-color, never the `background` shorthand: the global select
+   rule in index.css draws its chevron as a background-image, and the
+   shorthand resets background-repeat to `repeat` — so when the light-theme
+   rule re-applies the image, it tiles across the whole box. The repeat /
+   position / size are pinned here too, and the right padding leaves room
+   for the chevron, so this can't depend on which rule wins the cascade. */
 .import-mapping-row select,
-.import-alias-row select {
+.import-alias-row select,
+.import-decision select,
+.import-dup-member select {
     flex: 1;
-    max-width: 60%;
-    padding: 0.3rem 0.4rem;
+    padding: 0.3rem 1.8rem 0.3rem 0.5rem;
     border: 1px solid #cbd5e1;
     border-radius: 6px;
     font-size: 0.82rem;
-    background: #fff;
+    background-color: #fff;
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 12px;
     color: #0f172a;
+}
+
+.import-mapping-row select,
+.import-alias-row select {
+    max-width: 60%;
 }
 
 .import-alias-row {
@@ -343,14 +370,8 @@
 }
 
 .import-decision select {
-    flex: 1;
     max-width: 420px;
-    padding: 0.25rem 0.4rem;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
     font-size: 0.8rem;
-    background: #fff;
-    color: #0f172a;
 }
 
 .import-row-warning {
@@ -444,4 +465,73 @@
     .import-mapping-grid { grid-template-columns: 1fr; }
     .import-mapping-row select,
     .import-alias-row select { max-width: 50%; }
+}
+
+/* ── Duplicate groups: keep one, then merge / delete / keep separate ── */
+.import-dup-member {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.83rem;
+    color: #334155;
+}
+
+.import-dup-member.is-kept {
+    background: #f0fdf4;
+    box-shadow: inset 3px 0 0 #16a34a;
+}
+
+.import-dup-keep {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+}
+
+.import-dup-label em {
+    color: #64748b;
+    font-style: normal;
+}
+
+.import-dup-member select {
+    min-width: 210px;
+}
+
+.import-dup-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+}
+
+.import-dup-actions .import-btn-primary {
+    padding: 0.4rem 1rem;
+    font-size: 0.82rem;
+}
+
+.import-dup-result {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+    .import-dup-member {
+        grid-template-columns: auto 1fr;
+    }
+    .import-dup-member select {
+        grid-column: 1 / -1;
+        min-width: 0;
+    }
 }

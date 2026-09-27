@@ -134,6 +134,7 @@ button {
 .selection-email-modal-overlay,
 .tag-cropper-modal-overlay,
 .add-customer-modal-overlay,
+.import-modal-overlay,
 .perm-popup-overlay {
   position: fixed !important;
   top: 0 !important;
@@ -157,6 +158,7 @@ button {
   .selection-email-modal-overlay,
   .tag-cropper-modal-overlay,
   .add-customer-modal-overlay,
+  .import-modal-overlay,
   .perm-popup-overlay {
     position: fixed !important;
     top: 0 !important;

@@ -41,6 +41,8 @@ import InventorySalesRecord from '../models/InventorySalesRecord.js';
 import ContactSubmission from '../models/ContactSubmission.js';
 import SalesResource from '../models/SalesResource.js';
 import SalesDashboardResource from '../models/SalesDashboardResource.js';
+import ImportMemory from '../models/ImportMemory.js';
+import CustomerMergeBackup from '../models/CustomerMergeBackup.js';
 
 export const INDEXED_MODELS = [
   ['Customer', Customer],
@@ -61,5 +63,7 @@ export const INDEXED_MODELS = [
   ['InventorySalesRecord', InventorySalesRecord],
   ['ContactSubmission', ContactSubmission],
   ['SalesResource', SalesResource],
-  ['SalesDashboardResource', SalesDashboardResource]
+  ['SalesDashboardResource', SalesDashboardResource],
+  ['ImportMemory', ImportMemory],
+  ['CustomerMergeBackup', CustomerMergeBackup]
 ];

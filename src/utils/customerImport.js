@@ -82,6 +82,28 @@ export const importNormalize = (value) =>
   String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /**
+ * Alias values meaning "decided: nobody" rather than "not decided yet". A rep
+ * alias of '' in the request just means the admin hasn't answered, and the
+ * name keeps being asked about; these are the answers that get remembered.
+ * CustomerImportModal.jsx sends the same two strings.
+ */
+export const IMPORT_UNASSIGNED = '__none__';
+export const IMPORT_DEFAULT_BRANCH = '__default__';
+
+/**
+ * A sheet row's identity across exports, for remembering what the admin
+ * decided about it. Row numbers shift every time a customer is added to the
+ * source CRM, so a decision filed under "row 131" would land on the wrong
+ * business next month; company + email + phone digits does not move.
+ * Letters, digits and '|' only, so it's safe as a Mongo map key.
+ */
+export const importRowKey = (candidate = {}) => [
+  importNormalize(candidate.company),
+  importNormalize(candidate.email),
+  String(candidate.phone ?? '').replace(/\D/g, '')
+].join('|');
+
+/**
  * Which sheet column feeds which field. An override of '' means "leave this
  * field alone"; a field the override omits is auto-detected. Explicit choices
  * are claimed up front so detection cannot take a column the admin assigned.
@@ -287,15 +309,20 @@ export const importLabel = (c = {}) => [
  * @param {string[]} input.headers    the sheet's header row
  * @param {object[]} input.rows       the sheet's data rows, keyed by heading
  * @param {object}  input.mapping     field → heading, from resolveImportMapping
- * @param {Map}     input.branchByKey normalized branch name → its stored casing
- * @param {Map}     input.repByKey    normalized alias → { salesRep, salesRepName }
+ * @param {Map}     input.branchByKey normalized branch name → its stored casing,
+ *                                    or '' for "decided: use the default branch"
+ * @param {Map}     input.repByKey    normalized alias → { salesRep, salesRepName },
+ *                                    or false for "decided: leave unassigned"
  * @param {object[]} input.existing   the customers already held
  * @param {object}  input.decisions   sheet row number → 'create', or the id of
  *                                    the matched customer to update instead.
  *                                    How a flagged row stops being flagged.
+ * @param {object}  input.decisionsByKey importRowKey → customer id, remembered
+ *                                    from an earlier upload. A decision made
+ *                                    in this upload (`decisions`) wins.
  */
 export const buildImportPlan = ({
-  headers, rows, mapping, branchByKey, repByKey, existing, decisions = {}
+  headers, rows, mapping, branchByKey, repByKey, existing, decisions = {}, decisionsByKey = {}
 }) => {
   const cell = (row, field) => (mapping[field] ? String(row[mapping[field]] ?? '').trim() : '');
 
@@ -304,6 +331,9 @@ export const buildImportPlan = ({
 
   const planned = [];
   const counts = { create: 0, update: 0, review: 0, unchanged: 0, error: 0 };
+  // Flagged rows settled by a decision remembered from an earlier upload,
+  // so the preview can say how much of the review queue it cleared by itself.
+  let rememberedDecisionsUsed = 0;
 
   // Names the sheet used that nobody answers to, counted so the preview can ask
   // once who "Stephen Watson" is rather than once per row he appears on.
@@ -443,8 +473,11 @@ export const buildImportPlan = ({
         quickNote
       };
 
+      const rowKey = importRowKey(candidate);
+
       const base = {
         rowNumber,
+        rowKey,
         label: importLabel(candidate),
         company: candidate.company,
         contactName: candidate.contactName,
@@ -503,6 +536,48 @@ export const buildImportPlan = ({
           changes.push({ field: 'location', from: target.location || '', to: branch });
         }
 
+        const apply = {
+          ...(changes.some(c => c.field === 'salesRep') ? { salesRep: rep.salesRep, salesRepName: rep.salesRepName } : {}),
+          ...(changes.some(c => c.field === 'location') ? { location: branch } : {})
+        };
+
+        // Everything else only fills what the record is missing. Anything a
+        // rep has typed into the CRM since is the more recent fact, same
+        // reasoning as the owner above — the sheet never overwrites it.
+        // Type, level, status and MODA aren't here: the schema defaults every
+        // one of them, so a stored 'Fabricator' can't be told apart from one
+        // nobody ever chose, and "fill if blank" would never fire.
+        const isBlank = (v) => !String(v ?? '').trim() || String(v).trim().toUpperCase() === 'N/A';
+        const fill = (field, path, from, to) => {
+          if (!isBlank(from) || isBlank(to)) return;
+          changes.push({ field, from: String(from ?? '').trim(), to });
+          apply[path] = to;
+        };
+        fill('company', 'company', target.company, candidate.company);
+        fill('contactName', 'contactName', target.contactName, candidate.contactName);
+        fill('phone', 'phone', target.phone, candidate.phone);
+        fill('street', 'address.street', target.address?.street, candidate.address.street);
+        fill('city', 'address.city', target.address?.city, candidate.address.city);
+        fill('state', 'address.state', target.address?.state, candidate.address.state);
+        fill('zipCode', 'address.zipCode', target.address?.zipCode, candidate.address.zipCode);
+        fill('quickNote', 'quickNote', target.quickNote, candidate.quickNote);
+
+        // A placeholder (na+…@easystones-client.com) is how an earlier import
+        // said "no address of its own", so it counts as blank too — as long as
+        // the sheet's address isn't someone else's, since the column is unique.
+        if ((!target.email || isPlaceholderEmail(target.email)) && sheetEmail && !takenEmails.has(sheetEmail)) {
+          takenEmails.add(sheetEmail);
+          changes.push({ field: 'email', from: target.email || '', to: sheetEmail });
+          apply.email = sheetEmail;
+        }
+
+        // Imports never geocode inline (see scripts/geocode-customers.js), but
+        // that script only picks up 'pending' — a record whose blank address
+        // once came back 'failed' would otherwise keep its missing pin forever.
+        if (Object.keys(apply).some(k => k.startsWith('address.'))) {
+          apply['geocode.status'] = 'pending';
+        }
+
         planned.push({
           ...base,
           action: changes.length ? 'update' : 'unchanged',
@@ -510,12 +585,7 @@ export const buildImportPlan = ({
           targetLabel: importLabel(target),
           matchedOn,
           changes,
-          apply: changes.length
-            ? {
-              ...(changes.some(c => c.field === 'salesRep') ? { salesRep: rep.salesRep, salesRepName: rep.salesRepName } : {}),
-              ...(changes.some(c => c.field === 'location') ? { location: branch } : {})
-            }
-            : null
+          apply: changes.length ? apply : null
         });
         counts[changes.length ? 'update' : 'unchanged']++;
       };
@@ -524,12 +594,19 @@ export const buildImportPlan = ({
       // Only ever a choice among the records this row actually matched — a
       // decision naming anything else is ignored rather than obeyed, so nothing
       // the browser sends can direct a write at an unrelated customer.
-      const decision = String(decisions[rowNumber] ?? '').trim();
+      // A remembered decision is always a customer id (never 'create' — see
+      // saveImportMemory in server.js, which files the id of the record that
+      // 'create' made), so a business settled once is updated on the next
+      // upload instead of being created a second time.
+      const requested = String(decisions[rowNumber] ?? '').trim();
+      const decision = requested || String(decisionsByKey[rowKey] ?? '').trim();
       const chosen = matches.find(m => m.id === decision && !m.id.startsWith(SHEET_ROW_PREFIX));
 
       const needsReview = strong.length > 1
         || (strong.length === 0 && meaningfulWeak.length > 0)
         || strong.some(m => m.id.startsWith(SHEET_ROW_PREFIX));
+
+      if (needsReview && !requested && chosen) rememberedDecisionsUsed++;
 
       if (needsReview && !chosen && decision !== 'create') {
         const repeated = strong.find(m => m.id.startsWith(SHEET_ROW_PREFIX));
@@ -602,7 +679,9 @@ export const buildImportPlan = ({
     }
   }
 
-  const repNames = [...new Set([...repByKey.values()].map(r => r.salesRepName))];
+  // filter(Boolean): a name decided as "leave unassigned" sits in repByKey as
+  // false, and is not someone to suggest.
+  const repNames = [...new Set([...repByKey.values()].filter(Boolean).map(r => r.salesRepName))];
   const unresolved = (map, suggest) => [...map]
     .map(([given, rowCount]) => ({ given, rowCount, suggestion: suggest(given) }))
     .sort((a, b) => b.rowCount - a.rowCount);
@@ -613,6 +692,7 @@ export const buildImportPlan = ({
     planned,
     counts,
     totalRows: rows.length,
+    rememberedDecisionsUsed,
     unresolvedReps: unresolved(unresolvedReps, given => suggestRep(given, repNames)),
     unresolvedBranches: unresolved(unresolvedBranches, () => null)
   };
