@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search, AlertTriangle, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search, AlertTriangle, MapPin, ArrowUpToLine, Link2 } from 'lucide-react';
 import BoardGrid from './delivery/BoardGrid';
 import { WILL_CALL_COLUMN_ID, defaultStatusFor } from '../../utils/deliveryTypes';
 import DriverView from './delivery/DriverView';
@@ -521,6 +521,18 @@ const DeliveryScheduleTab = ({
               onViewPod={handleOpenPodViewer}
               onMoveToPending={role === 'office' ? handleMoveToPending : undefined}
             />
+          )}
+
+          {/* Below Pending Deliveries rather than above the board, so it reads
+              as a footnote for whoever is already dragging rather than a
+              banner that eats into the space above the content. Only the
+              office role can actually reorder/combine stops (BoardGrid's
+              onReorderDeliveries is office-only), so the hint is too. */}
+          {role === 'office' && (
+            <p className="reorder-hint">
+              <ArrowUpToLine size={12} /> Drop above or below a stop to reorder it &nbsp;·&nbsp;
+              <Link2 size={12} /> drop onto a stop to combine it as the same delivery
+            </p>
           )}
 
           {role === 'driver' && (

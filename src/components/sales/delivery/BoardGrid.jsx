@@ -268,8 +268,6 @@ const BoardGrid = ({
 
   const renderCellTickets = (trk, dateStr, cellDeliveries, listClassName) => {
     const cellKey = `${trk.id}_${dateStr}`;
-    // Same condition as the component-level `canReorder` used for the legend
-    // below — named separately only so this local scope doesn't shadow it.
     const cellCanReorder = Boolean(editable && onReorderDeliveries);
     // Plain {id, routeNumber} pairs, not the delivery objects — see the note on
     // handleDropOnStop above for why the handler needs data rather than a
@@ -489,21 +487,8 @@ const BoardGrid = ({
     );
   }
 
-  const canReorder = Boolean(editable && onReorderDeliveries);
-
   return (
     <div className="manifest-board-wrapper">
-      {/* Taught once, up front, rather than only mid-drag when attention is on
-          the cursor and there is nowhere to put an explanation without it
-          fighting for the same space as the pointer. The per-card label during
-          an actual drag (see DROP_HINTS) repeats this at the exact spot it
-          applies, for whoever skips reading a banner the first time. */}
-      {canReorder && (
-        <p className="reorder-hint">
-          <ArrowUpToLine size={12} /> Drop above or below a stop to reorder it &nbsp;·&nbsp;
-          <Link2 size={12} /> drop onto a stop to combine it as the same delivery
-        </p>
-      )}
       {viewMode === 'cards' ? (
         /* ── UX REDESIGN MOBILE LAYOUT ── */
         <div className="ux-mobile-schedule-container">

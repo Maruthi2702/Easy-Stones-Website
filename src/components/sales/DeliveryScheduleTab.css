@@ -745,7 +745,7 @@ body.light-theme-active .truck-name,
    a warning; the icons repeat the same ones the real-time per-card label uses,
    so the two visibly belong to the same explanation. */
 .reorder-hint {
-  margin: 0 0 0.5rem;
+  margin: 0.5rem 0 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
