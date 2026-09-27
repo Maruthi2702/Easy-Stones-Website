@@ -82,7 +82,12 @@ const STATUS_OPTIONS = [
   { value: 'pending', label: '⏳ Pending' },
   { value: 'scheduled', label: '🕐 Scheduled' },
   { value: 'delayed', label: '⚠️ Delayed / Running Late' },
-  { value: 'completed', label: '✅ Completed / Delivered' }
+  { value: 'completed', label: '✅ Completed / Delivered' },
+  // Picking this from here is the modal's equivalent of dragging a ticket
+  // onto Cancelled Orders on the board (see CancelledOrders.jsx / PATCH
+  // /deliveries/:id/status) — truckId/date are left exactly as they are so
+  // the ticket can be restored later, same as the drag path.
+  { value: 'cancelled', label: '❌ Cancelled' }
 ];
 
 const DeliveryModal = ({

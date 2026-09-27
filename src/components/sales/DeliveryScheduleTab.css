@@ -1241,6 +1241,12 @@ body.light-theme-active .ticket-highlight,
   color: #fb923c;
 }
 
+.manifest-status-pill.pill-status-cancelled {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
 /* Modal overlay — scoped to manifest */
 .manifest-modal-overlay {
   position: fixed;
@@ -2891,6 +2897,15 @@ body.light-theme-active .manifest-status-pill.pill-status-completed,
   color: #15803d;
 }
 
+/* Same reasoning as completed above — #ef4444 reads fine on the dark card
+   but falls short of 4.5:1 on white, so light theme gets a darker red. */
+body.light-theme-active .manifest-status-pill.pill-status-cancelled,
+.light-theme-active .manifest-status-pill.pill-status-cancelled {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
 /* The status dropdown on a ticket tints itself to match the state it is showing,
    so it follows the pill rather than keeping the dark theme's mint. */
 body.light-theme-active .status-select.status-completed,
@@ -3595,6 +3610,92 @@ body.light-theme-active .pending-deliveries-section.drop-target,
 
 /* Same card as the board, laid out in a wrapping row rather than a day column. */
 .pending-deliveries-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.6rem;
+}
+
+/* ── CANCELLED ORDERS ────────────────────────────────────────────────────────
+   Same shape as Pending Deliveries directly above (same drop-target
+   mechanics, same card layout) with a red rather than gold accent, so it
+   reads as a different kind of "waiting" — this one on someone dragging it
+   back out, not on an ETA. */
+.cancelled-orders-section {
+  margin-top: 1.1rem;
+  padding: 0.9rem 1rem 1rem;
+  background: rgba(52, 30, 30, 0.4);
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+}
+
+body.light-theme-active .cancelled-orders-section,
+.light-theme-active .cancelled-orders-section {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+/* See the equivalent comment on .pending-deliveries-section.drop-target for
+   why light theme needs its own rule rather than relying on the dark one to
+   cascade. */
+.cancelled-orders-section.drop-target {
+  border-style: solid;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+body.light-theme-active .cancelled-orders-section.drop-target,
+.light-theme-active .cancelled-orders-section.drop-target {
+  border-style: solid;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.cancelled-orders-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+
+.cancelled-orders-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ef4444;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cancelled-orders-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+  font-size: 0.7rem;
+}
+
+.cancelled-orders-hint {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-right: auto;
+}
+
+.cancelled-orders-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+/* Same card as the board, laid out in a wrapping row rather than a day column. */
+.cancelled-orders-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 0.6rem;

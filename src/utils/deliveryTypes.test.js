@@ -4,6 +4,7 @@ import {
   isWillCall,
   isReturn,
   isCounterReturn,
+  isCancelledDelivery,
   isPendingDelivery,
   columnIdFor,
   defaultStatusFor,
@@ -57,6 +58,21 @@ describe('isCounterReturn', () => {
   });
 });
 
+describe('isCancelledDelivery', () => {
+  it('is cancelled when status says so', () => {
+    expect(isCancelledDelivery(ticket({ status: 'cancelled' }))).toBe(true);
+  });
+
+  it('is not cancelled for any other status', () => {
+    expect(isCancelledDelivery(ticket({ status: 'scheduled' }))).toBe(false);
+    expect(isCancelledDelivery(ticket())).toBe(false);
+  });
+
+  it('survives a missing delivery', () => {
+    expect(isCancelledDelivery(null)).toBe(false);
+  });
+});
+
 describe('isPendingDelivery', () => {
   it('is pending when a jobsite has no driver', () => {
     expect(isPendingDelivery(ticket({ truckId: '' }))).toBe(true);
@@ -64,6 +80,10 @@ describe('isPendingDelivery', () => {
 
   it('is not pending once a driver is assigned', () => {
     expect(isPendingDelivery(ticket())).toBe(false);
+  });
+
+  it('is never pending once cancelled, even with no driver — it belongs to Cancelled Orders instead', () => {
+    expect(isPendingDelivery(ticket({ truckId: '', status: 'cancelled' }))).toBe(false);
   });
 
   it('never puts a will call in Pending — the customer collects it', () => {
@@ -108,11 +128,15 @@ describe('columnIdFor', () => {
     expect(columnIdFor(ticket())).toBe('trk_1');
     expect(columnIdFor(ticket({ truckId: '' }))).toBe('');
   });
+
+  it('has no column once cancelled, even with a truckId still on the record', () => {
+    expect(columnIdFor(ticket({ status: 'cancelled' }))).toBe('');
+  });
 });
 
-describe('board and Pending are complements', () => {
-  // Every ticket must land in exactly one of the two views. This is the rule
-  // the server's two queries have to agree with; when they don't, a ticket
+describe('board, Pending, and Cancelled Orders are complements', () => {
+  // Every ticket must land in exactly one of the three views. This is the
+  // rule the server's queries have to agree with; when they don't, a ticket
   // disappears from the app entirely.
   const cases = [
     ticket(),
@@ -124,14 +148,21 @@ describe('board and Pending are complements', () => {
     ticket({ deliveryType: 'return', truckId: '', date: '' }),
     ticket({ deliveryType: 'return', truckId: '', date: '', customerDropOff: true }),
     ticket({ deliveryType: 'transfer', truckId: 'trk_3' }),
-    ticket({ deliveryType: 'transfer', truckId: '' })
+    ticket({ deliveryType: 'transfer', truckId: '' }),
+    // A cancelled ticket that used to be on a truck, keeping the record.
+    ticket({ status: 'cancelled' }),
+    // A cancelled ticket that used to be in Pending, with nothing to keep.
+    ticket({ truckId: '', status: 'cancelled' })
   ];
 
   it.each(cases)('places %o in exactly one view', (d) => {
+    const cancelled = isCancelledDelivery(d);
     const pending = isPendingDelivery(d);
     // A ticket is on the board when it has a column and a date to draw it on.
     const onBoard = Boolean(columnIdFor(d)) && Boolean(d.date);
-    expect(pending || onBoard).toBe(true);
+    expect(cancelled || pending || onBoard).toBe(true);
+    expect(cancelled && pending).toBe(false);
+    expect(cancelled && onBoard).toBe(false);
     expect(pending && onBoard).toBe(false);
   });
 });

@@ -7,6 +7,7 @@ import DeliveryModal from './delivery/DeliveryModal';
 import PodModal from './delivery/PodModal';
 import PodViewer from './delivery/PodViewer';
 import PendingDeliveries from './delivery/PendingDeliveries';
+import CancelledOrders from './delivery/CancelledOrders';
 import CustomSelect from '../shared/CustomSelect';
 import {
   saveDelivery,
@@ -101,6 +102,7 @@ const DeliveryScheduleTab = ({
   const [trucks, setTrucks] = useState(() => getScheduleCacheSync().trucks || []);
   const [deliveries, setDeliveries] = useState(() => getCachedWeekDeliveries(weekStart));
   const [pending, setPending] = useState(() => getScheduleCacheSync().pending || []);
+  const [cancelled, setCancelled] = useState(() => getScheduleCacheSync().cancelled || []);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(() => !isWeekCached(weekStart));
   // A week that failed to load used to render as an empty board, which reads
@@ -188,6 +190,7 @@ const DeliveryScheduleTab = ({
       setTrucks(data.trucks || []);
       setDeliveries(data.deliveries || []);
       setPending(data.pending || []);
+      setCancelled(data.cancelled || []);
       setLoadError(null);
     } catch (err) {
       console.error('Error loading schedule data:', err);
@@ -205,9 +208,10 @@ const DeliveryScheduleTab = ({
     // snapshot instead (see loadData above), so an unrelated live update
     // here must not overwrite it. Connection status is unrelated to which
     // data is on screen, so that subscription stays active either way.
-    const unsubscribe = locationFilter ? null : subscribeScheduleCache(({ deliveries: newDeliveries, pending: newPending, trucks: newTrucks }) => {
+    const unsubscribe = locationFilter ? null : subscribeScheduleCache(({ deliveries: newDeliveries, pending: newPending, cancelled: newCancelled, trucks: newTrucks }) => {
       setDeliveries(newDeliveries);
       setPending(newPending || []);
+      setCancelled(newCancelled || []);
       if (newTrucks && newTrucks.length > 0) {
         setTrucks(newTrucks);
       }
@@ -352,7 +356,9 @@ const DeliveryScheduleTab = ({
   // marked a customer drop-off would just bounce straight back to the Will
   // Call column instead of actually landing in Pending.
   const handleMoveToPending = async (id) => {
-    const delivery = deliveries.find(d => d.id === id);
+    // Also checks `cancelled` — a cancelled ticket can be dragged straight
+    // onto Pending, not just onto a truck cell, so it isn't in `deliveries`.
+    const delivery = [...deliveries, ...cancelled].find(d => d.id === id);
     if (!delivery) return;
 
     try {
@@ -365,10 +371,25 @@ const DeliveryScheduleTab = ({
         deliveryType: delivery.deliveryType === 'will_call' ? 'jobsite' : (delivery.deliveryType || 'jobsite'),
         customerDropOff: false,
         // Kept, not cleared: it's the last date that was agreed, and re-assigning
-        // a driver shouldn't have to rediscover it. (The endpoint requires a
-        // real YYYY-MM-DD either way.)
+        // a driver shouldn't have to rediscover it. Empty is fine too — Pending
+        // itself has no date requirement, only a real truck column does.
         date: delivery.date
       });
+      setDeliveries(updatedList);
+      return updatedList;
+    } catch (err) {
+      reportMoveFailure(err);
+    }
+  };
+
+  // The other reverse move: dragging a ticket onto Cancelled Orders. Goes
+  // through the status endpoint, not the assignment one — cancelling doesn't
+  // touch truckId/date, it's the one thing that's kept as a record of what to
+  // restore the ticket to (see handleMoveDelivery/handleMoveToPending above,
+  // and PATCH /deliveries/:id/assignment server-side for the restore itself).
+  const handleMoveToCancelled = async (id) => {
+    try {
+      const updatedList = await updateDeliveryStatus(id, 'cancelled');
       setDeliveries(updatedList);
       return updatedList;
     } catch (err) {
@@ -483,6 +504,7 @@ const DeliveryScheduleTab = ({
               trucks={trucks}
               deliveries={deliveries}
               pending={pending}
+              cancelled={cancelled}
               weekDates={visibleDates}
               searchQuery={searchQuery}
               editable={true}
@@ -523,11 +545,23 @@ const DeliveryScheduleTab = ({
             />
           )}
 
-          {/* Below Pending Deliveries rather than above the board, so it reads
-              as a footnote for whoever is already dragging rather than a
-              banner that eats into the space above the content. Only the
-              office role can actually reorder/combine stops (BoardGrid's
-              onReorderDeliveries is office-only), so the hint is too. */}
+          {(role === 'office' || role === 'sales') && (
+            <CancelledOrders
+              cancelled={cancelled}
+              searchQuery={searchQuery}
+              editable={role === 'office'}
+              onEditDelivery={handleOpenEditModal}
+              onViewPod={handleOpenPodViewer}
+              onMoveToCancelled={role === 'office' ? handleMoveToCancelled : undefined}
+            />
+          )}
+
+          {/* Below Pending Deliveries and Cancelled Orders rather than above
+              the board, so it reads as a footnote for whoever is already
+              dragging rather than a banner that eats into the space above the
+              content. Only the office role can actually reorder/combine
+              stops (BoardGrid's onReorderDeliveries is office-only), so the
+              hint is too. */}
           {role === 'office' && (
             <p className="reorder-hint">
               <ArrowUpToLine size={12} /> Drop above or below a stop to reorder it &nbsp;·&nbsp;

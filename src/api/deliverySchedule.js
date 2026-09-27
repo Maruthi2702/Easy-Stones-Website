@@ -11,7 +11,7 @@ import { io } from 'socket.io-client';
 import { authFetch } from './authFetch';
 import { getAuthToken } from './authToken';
 import { DAYS_IN_WEEK } from '../utils/deliveryWeek';
-import { isPendingDelivery, applyTransferPerspective } from '../utils/deliveryTypes';
+import { isPendingDelivery, isCancelledDelivery, applyTransferPerspective } from '../utils/deliveryTypes';
 
 export const MAX_TRUCK_CAPACITY = 12;
 
@@ -37,6 +37,8 @@ const scheduleCache = {
   weeks: new Map(),       // weekStart ('YYYY-MM-DD') -> deliveries[]
   pending: [],            // orders with no driver assigned — shown under every week
   pendingLoaded: false,
+  cancelled: [],          // orders someone cancelled — shown under every week, below Pending
+  cancelledLoaded: false,
   activeWeekStart: null,  // week currently being viewed — real-time updates & the
   activeWeekEnd: null,    // 3s poll fallback are scoped to this range only
   trucks: null,
@@ -135,6 +137,15 @@ function upsertDeliveryIntoCache(rawDelivery) {
     }
   }
   scheduleCache.pending = scheduleCache.pending.filter(d => d.id !== delivery.id);
+  scheduleCache.cancelled = scheduleCache.cancelled.filter(d => d.id !== delivery.id);
+
+  // Checked before isPendingDelivery: a cancelled ticket can have no truckId
+  // (would otherwise read as pending) or still carry one (would otherwise
+  // read as on the board) — either way it belongs here until it's restored.
+  if (isCancelledDelivery(delivery)) {
+    scheduleCache.cancelled = [delivery, ...scheduleCache.cancelled];
+    return;
+  }
 
   // Assigning a driver moves the order out of the list and onto that week;
   // unassigning moves it back.
@@ -164,20 +175,24 @@ function removeDeliveryFromCache(id) {
     }
   }
   scheduleCache.pending = scheduleCache.pending.filter(d => d.id !== id);
+  scheduleCache.cancelled = scheduleCache.cancelled.filter(d => d.id !== id);
 }
 
 async function refreshActiveWeek() {
   if (!scheduleCache.activeWeekStart || !scheduleCache.activeWeekEnd) return;
-  const [list, pendingList] = await Promise.all([
+  const [list, pendingList, cancelledList] = await Promise.all([
     getDeliveriesForRange(scheduleCache.activeWeekStart, scheduleCache.activeWeekEnd),
-    getPendingDeliveries()
+    getPendingDeliveries(),
+    getCancelledDeliveries()
   ]);
   const weekChanged = JSON.stringify(list) !== JSON.stringify(scheduleCache.weeks.get(scheduleCache.activeWeekStart) || []);
   const pendingChanged = JSON.stringify(pendingList) !== JSON.stringify(scheduleCache.pending);
+  const cancelledChanged = JSON.stringify(cancelledList) !== JSON.stringify(scheduleCache.cancelled);
   if (weekChanged) scheduleCache.weeks.set(scheduleCache.activeWeekStart, list);
   if (pendingChanged) scheduleCache.pending = pendingList;
+  if (cancelledChanged) scheduleCache.cancelled = cancelledList;
   scheduleCache.lastSyncedAt = Date.now();
-  if (weekChanged || pendingChanged) notifyScheduleListeners();
+  if (weekChanged || pendingChanged || cancelledChanged) notifyScheduleListeners();
 }
 
 // Polling is only a fallback for when the socket connection is actually down —
@@ -290,6 +305,7 @@ function notifyScheduleListeners() {
       cb({
         deliveries: getActiveWeekDeliveries(),
         pending: scheduleCache.pending,
+        cancelled: scheduleCache.cancelled,
         trucks: scheduleCache.trucks || []
       });
     } catch {
@@ -310,6 +326,7 @@ export function getScheduleCacheSync() {
   return {
     deliveries: getActiveWeekDeliveries(),
     pending: scheduleCache.pending,
+    cancelled: scheduleCache.cancelled,
     trucks: scheduleCache.trucks,
     isLoaded: Boolean(scheduleCache.activeWeekStart && scheduleCache.weeks.has(scheduleCache.activeWeekStart))
   };
@@ -345,18 +362,26 @@ export async function getScheduleDataCached(currentUser = null, weekStart, weekE
 
   if (scheduleCache.weeks.has(weekStart) && !forceRefresh) {
     notifyScheduleListeners();
-    return { deliveries: scheduleCache.weeks.get(weekStart), pending: scheduleCache.pending, trucks: scheduleCache.trucks };
+    return {
+      deliveries: scheduleCache.weeks.get(weekStart),
+      pending: scheduleCache.pending,
+      cancelled: scheduleCache.cancelled,
+      trucks: scheduleCache.trucks
+    };
   }
 
-  const [list, pendingList] = await Promise.all([
+  const [list, pendingList, cancelledList] = await Promise.all([
     getDeliveriesForRange(weekStart, weekEnd),
-    // Pending belongs to no week, so it is only fetched when there is nothing
-    // cached yet or the caller explicitly asked for fresh data.
-    (scheduleCache.pendingLoaded && !forceRefresh) ? Promise.resolve(scheduleCache.pending) : getPendingDeliveries()
+    // Pending/Cancelled belong to no week, so each is only fetched when there
+    // is nothing cached yet or the caller explicitly asked for fresh data.
+    (scheduleCache.pendingLoaded && !forceRefresh) ? Promise.resolve(scheduleCache.pending) : getPendingDeliveries(),
+    (scheduleCache.cancelledLoaded && !forceRefresh) ? Promise.resolve(scheduleCache.cancelled) : getCancelledDeliveries()
   ]);
   scheduleCache.weeks.set(weekStart, list || []);
   scheduleCache.pending = pendingList || [];
   scheduleCache.pendingLoaded = true;
+  scheduleCache.cancelled = cancelledList || [];
+  scheduleCache.cancelledLoaded = true;
   scheduleCache.lastSyncedAt = Date.now();
   // A completed round trip is the only proof the server is reachable — the
   // socket may still be mid-handshake at this point.
@@ -367,6 +392,7 @@ export async function getScheduleDataCached(currentUser = null, weekStart, weekE
   return {
     deliveries: scheduleCache.weeks.get(weekStart),
     pending: scheduleCache.pending,
+    cancelled: scheduleCache.cancelled,
     trucks: scheduleCache.trucks
   };
 }
@@ -386,12 +412,13 @@ export async function getScheduleDataCached(currentUser = null, weekStart, weekE
 // that needs to stay live-refreshing the way that branch's own staff's
 // board does — see DeliveryScheduleTab.jsx for how it's wired.
 export async function getLocationScopedScheduleData(weekStart, weekEnd, location) {
-  const [trucks, deliveries, pending] = await Promise.all([
+  const [trucks, deliveries, pending, cancelled] = await Promise.all([
     getDriverUsers(location, [location], { force: true }),
     getDeliveriesForRange(weekStart, weekEnd, location),
-    getPendingDeliveries(location)
+    getPendingDeliveries(location),
+    getCancelledDeliveries(location)
   ]);
-  return { trucks: trucks || [], deliveries: deliveries || [], pending: pending || [] };
+  return { trucks: trucks || [], deliveries: deliveries || [], pending: pending || [], cancelled: cancelled || [] };
 }
 
 // ── GET TRUCKS ──
@@ -592,6 +619,24 @@ export async function getPendingDeliveries(location = null) {
     throw new Error(`Pending list request failed (${res.status})`);
   } catch (err) {
     console.error('[schedule] getPendingDeliveries API error:', err);
+    throw err;
+  }
+}
+
+// ── GET CANCELLED DELIVERIES ──
+export async function getCancelledDeliveries(location = null) {
+  try {
+    const params = new URLSearchParams({ cancelled: 'true' });
+    if (location) params.set('location', location);
+    const res = await authFetch(`${API_URL}/api/deliveries?${params.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+      throw new Error('Malformed cancelled list response');
+    }
+    throw new Error(`Cancelled list request failed (${res.status})`);
+  } catch (err) {
+    console.error('[schedule] getCancelledDeliveries API error:', err);
     throw err;
   }
 }

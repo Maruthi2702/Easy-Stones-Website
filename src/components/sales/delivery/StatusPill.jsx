@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Clock, XCircle } from 'lucide-react';
 
 const StatusPill = ({ status = 'pending', size = 'normal' }) => {
   const getStatusDetails = () => {
@@ -19,6 +19,13 @@ const StatusPill = ({ status = 'pending', size = 'normal' }) => {
           icon: AlertTriangle,
           className: 'pill-status-delayed',
           color: '#E1602A'
+        };
+      case 'cancelled':
+        return {
+          label: 'Cancelled',
+          icon: XCircle,
+          className: 'pill-status-cancelled',
+          color: '#ef4444'
         };
       case 'pending':
         return {

@@ -15,7 +15,7 @@ import {
   isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
   PICKUP_WORDING, DELIVERY_WORDING, RETURN_WORDING
 } from '../utils/deliveryPickup.js';
-import { DELIVERY_TYPES, isReturn } from '../utils/deliveryTypes.js';
+import { DELIVERY_TYPES, isReturn, defaultStatusFor, isPendingDelivery } from '../utils/deliveryTypes.js';
 
 /**
  * Delivery Schedule + Truck API.
@@ -417,8 +417,11 @@ export default function createDeliveriesRouter({
       // collection if no range is given.
       // An order with no driver assigned is Pending: it is waiting on the customer
       // for a date and a driver, and belongs to no truck column. ?pending=true
-      // returns those; a week request returns the assigned ones only, so nothing
-      // is stranded between the two views.
+      // returns those; a week request returns the assigned ones only; and
+      // ?cancelled=true returns whichever of either kind someone has cancelled.
+      // All three exclude each other's status/placement so nothing is stranded
+      // between them or counted twice — see the "Cancelled takes priority"
+      // note in src/utils/deliveryTypes.js.
       // A will call is not pending, though it never gets a driver: the customer
       // collects it on a known date, so it belongs to its week under the board's
       // Will Call column. Both queries account for it so it lands in exactly one.
@@ -431,21 +434,28 @@ export default function createDeliveriesRouter({
       // it back themselves. That flag (not merely "has a date") is what decides
       // the drop-off side; see isCounterReturn in src/utils/deliveryTypes.js.
       //
-      // These two branches are complements and have to stay that way: the JS
-      // side of the same rule is isPendingDelivery in src/utils/deliveryTypes.js,
-      // which has tests asserting every ticket lands in exactly one view. A
-      // ticket that matches neither query is not an error anywhere — it just
-      // stops existing as far as the app is concerned.
+      // These three branches are complements and have to stay that way: the JS
+      // side of the same rule is isPendingDelivery/columnIdFor in
+      // src/utils/deliveryTypes.js, which has tests asserting every ticket
+      // lands in exactly one view. A ticket that matches none of the three
+      // queries is not an error anywhere — it just stops existing as far as
+      // the app is concerned.
       // ?location= lets a user who can already reach more than one branch (an
       // admin, or someone with several assignedLocations) narrow the board to
       // just one at a time instead of every branch they can see mashed
       // together — see the location selector in DeliveryScheduleTab.jsx.
-      const { startDate, endDate, pending, location: requestedLocation } = req.query;
+      const { startDate, endDate, pending, cancelled, location: requestedLocation } = req.query;
       if (requestedLocation && !userCanRequestLocation(req, requestedLocation)) {
         return res.status(403).json({ error: 'You do not have access to that location' });
       }
       let baseQuery;
-      if (pending === 'true') {
+      if (cancelled === 'true') {
+        // Cancelled overrides everything else about a ticket's placement — it
+        // keeps whatever truckId/date it had (so it can be restored by
+        // dragging it back out), but while status is 'cancelled' it belongs
+        // here regardless of what those other fields say.
+        baseQuery = { status: 'cancelled' };
+      } else if (pending === 'true') {
         // $in rather than $or: the location scoping below contributes its own $or,
         // and a second one on the same object would replace this filter outright.
         // { $in: ['', null] } also matches documents with no truckId field at all.
@@ -454,6 +464,7 @@ export default function createDeliveriesRouter({
         baseQuery = {
           truckId: { $in: ['', null] },
           deliveryType: { $ne: 'will_call' },
+          status: { $ne: 'cancelled' },
           $nor: [{ deliveryType: 'return', date: { $nin: ['', null] }, customerDropOff: true }]
         };
       } else if (startDate && endDate) {
@@ -466,13 +477,16 @@ export default function createDeliveriesRouter({
         // drop-off — otherwise (dated or not) it's left to the Pending branch
         // above, same as any other order nobody has assigned a driver to yet.
         baseQuery = {
-          $and: [{
-            $or: [
-              { truckId: { $nin: ['', null] } },
-              { deliveryType: 'will_call' },
-              { deliveryType: 'return', customerDropOff: true }
-            ]
-          }]
+          $and: [
+            {
+              $or: [
+                { truckId: { $nin: ['', null] } },
+                { deliveryType: 'will_call' },
+                { deliveryType: 'return', customerDropOff: true }
+              ]
+            },
+            { status: { $ne: 'cancelled' } }
+          ]
         };
       } else {
         baseQuery = {};
@@ -480,17 +494,18 @@ export default function createDeliveriesRouter({
       const dateRange = (startDate && endDate) ? { start: startDate, end: endDate } : undefined;
       const query = scopeDeliveryQueryToLocations(baseQuery, req, dateRange, requestedLocation);
       // The week view is already bounded by startDate/endDate — only Pending
-      // is genuinely unbounded (every branch's undated/unassigned orders,
-      // with no date range to narrow it). It should stay small in practice —
-      // an order only sits here until someone assigns it a truck/date — but
-      // nothing enforces that, so a stuck integration or a quiet week of
-      // dispatching could grow it indefinitely. Oldest-first with a cap: if
-      // the cap is ever actually hit, that's a real operational problem
-      // (a backlog nobody is working through) worth surfacing rather than
-      // masking by quietly returning more each time it's asked.
-      const PENDING_LIST_CAP = 500;
-      const list = pending === 'true'
-        ? await Delivery.find(query, DELIVERY_LIST_PROJECTION).sort({ createdAt: 1 }).limit(PENDING_LIST_CAP).lean()
+      // and Cancelled are genuinely unbounded (every branch's undated/
+      // unassigned or cancelled orders, with no date range to narrow them).
+      // Both should stay small in practice — a ticket only sits in either
+      // until someone acts on it — but nothing enforces that, so a stuck
+      // integration or a quiet week of dispatching could grow one
+      // indefinitely. Oldest-first with a cap: if the cap is ever actually
+      // hit, that's a real operational problem (a backlog nobody is working
+      // through) worth surfacing rather than masking by quietly returning
+      // more each time it's asked.
+      const UNBOUNDED_LIST_CAP = 500;
+      const list = (pending === 'true' || cancelled === 'true')
+        ? await Delivery.find(query, DELIVERY_LIST_PROJECTION).sort({ createdAt: 1 }).limit(UNBOUNDED_LIST_CAP).lean()
         : await Delivery.find(query, DELIVERY_LIST_PROJECTION).sort({ createdAt: -1 }).lean();
 
       // A transfer's stored `date` is its ship date — correct for the origin
@@ -744,7 +759,7 @@ export default function createDeliveriesRouter({
   //
   // Location scoping applies here as it does everywhere else, so a driver cannot
   // reach a stop belonging to a branch they are not assigned to.
-  const DELIVERY_STATUSES = ['pending', 'scheduled', 'completed', 'delayed'];
+  const DELIVERY_STATUSES = ['pending', 'scheduled', 'completed', 'delayed', 'cancelled'];
 
   router.patch('/deliveries/:id/status', authenticate, canWriteDeliveries, async (req, res) => {
     try {
@@ -815,13 +830,40 @@ export default function createDeliveriesRouter({
           error: 'truckId must be a string — "" moves the delivery back to Pending'
         });
       }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
-        return res.status(400).json({ error: 'date must be a YYYY-MM-DD string' });
+      // A ticket landing in Pending is allowed to have no date — that's a
+      // normal state for Pending (waiting on an ETA from the customer), and
+      // restoring a cancelled-while-dateless order back onto Pending has to
+      // reach it. Everything else (a real truck column, or Will Call, which
+      // forces truckId to '' above without being Pending) still needs one, so
+      // it has somewhere on the calendar to actually render. Reuses
+      // isPendingDelivery rather than re-deriving "is this Pending" from
+      // truckId alone, so this can't quietly drift from that definition.
+      const landingInPending = isPendingDelivery({ truckId, deliveryType, customerDropOff, date });
+      const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date || '');
+      if (!validDate && !(landingInPending && !date)) {
+        return res.status(400).json({
+          error: landingInPending ? 'date must be empty or a YYYY-MM-DD string' : 'date must be a YYYY-MM-DD string'
+        });
       }
+
+      // A cancelled ticket dragged onto a truck cell or back into Pending is
+      // being restored — this is the one place that happens, so it's the one
+      // place that has to clear it. defaultStatusFor is given only the new
+      // placement (no old status), so it always recomputes a fresh
+      // pending/scheduled rather than reusing 'cancelled'. Every other
+      // starting status is left exactly as this endpoint has always left it.
+      const existing = await Delivery.findOne(
+        scopeDeliveryQueryToLocations({ id }, req),
+        { status: 1 }
+      ).lean();
+      if (!existing) return res.status(404).json({ error: 'Delivery not found' });
+      const statusUpdate = existing.status === 'cancelled'
+        ? { status: defaultStatusFor({ truckId, deliveryType, customerDropOff, date }) }
+        : {};
 
       const updated = await Delivery.findOneAndUpdate(
         scopeDeliveryQueryToLocations({ id }, req),
-        { $set: { truckId, deliveryType, date, customerDropOff } },
+        { $set: { truckId, deliveryType, date, customerDropOff, ...statusUpdate } },
         { new: true, projection: DELIVERY_LIST_PROJECTION }
       ).lean();
 

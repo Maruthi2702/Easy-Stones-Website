@@ -2,16 +2,22 @@
  * What kind of ticket this is, and — the part that keeps biting — where that
  * makes it live.
  *
- * The board and the Pending list are complements: every ticket has to appear
- * in exactly one of them. That rule is enforced in three separate places (the
- * server's week query, the server's ?pending=true query, and the client's
- * cache merge), written in two different languages, and when they disagree a
- * ticket simply vanishes — it saves fine, broadcasts fine, and is never seen
- * again. That has now happened twice: a weekend delivery dropped by a
- * hard-coded five-day week, and a will call with no date that matched neither
- * query. This module is the single JS definition the client side uses, so at
- * least the client cannot drift from itself, and the server's two queries
- * carry comments pointing back here.
+ * The board, the Pending list, and Cancelled Orders are complements: every
+ * ticket has to appear in exactly one of the three. That rule is enforced in
+ * separate places (the server's week query, its ?pending=true and
+ * ?cancelled=true queries, and the client's cache merge), written in two
+ * different languages, and when they disagree a ticket simply vanishes — it
+ * saves fine, broadcasts fine, and is never seen again. That has now happened
+ * twice: a weekend delivery dropped by a hard-coded five-day week, and a will
+ * call with no date that matched neither query. This module is the single JS
+ * definition the client side uses, so at least the client cannot drift from
+ * itself, and the server's queries carry comments pointing back here.
+ *
+ * Cancelled takes priority over everything else below: a cancelled ticket
+ * keeps whatever truckId/date/deliveryType it had (so cancelling is
+ * reversible — dragging it onto a truck cell or Pending restores it, see
+ * PATCH /deliveries/:id/assignment in src/routes/deliveries.js), but it is
+ * never on the board or in Pending while status stays 'cancelled'.
  *
  * Placement by type:
  *
@@ -60,13 +66,22 @@ export const isCounterReturn = (delivery) =>
   isReturn(delivery) && !delivery?.truckId && Boolean(delivery?.date) && Boolean(delivery?.customerDropOff);
 
 /**
+ * Cancelled, and waiting on someone to drag it back onto a truck or Pending
+ * before it becomes either one again. See PATCH /deliveries/:id/assignment
+ * for how that restore clears this back to a fresh pending/scheduled status.
+ */
+export const isCancelledDelivery = (delivery) => delivery?.status === 'cancelled';
+
+/**
  * Waiting on a driver, with no place on the board yet.
  *
  * Must stay the exact complement of the server's week query — see the
- * ?pending=true branch in GET /api/deliveries.
+ * ?pending=true branch in GET /api/deliveries. A cancelled ticket is never
+ * pending even with no truckId — it belongs to Cancelled Orders instead.
  */
 export const isPendingDelivery = (delivery) =>
   !delivery || (
+    !isCancelledDelivery(delivery) &&
     !delivery.truckId &&
     !isWillCall(delivery) &&
     !isCounterReturn(delivery)
@@ -105,8 +120,12 @@ export const WILL_CALL_COLUMN_ID = '__will_call__';
  * getting a column of its own: both are orders that move without one of our
  * drivers, and a column that sits empty most weeks costs every reader of the
  * board more than it gives the few tickets in it.
+ *
+ * A cancelled ticket has no column at all, even if truckId still names one —
+ * that field is kept only as a record of what to restore it to.
  */
 export const columnIdFor = (delivery) => {
+  if (isCancelledDelivery(delivery)) return '';
   if (isWillCall(delivery) || isCounterReturn(delivery)) return WILL_CALL_COLUMN_ID;
   return delivery?.truckId || '';
 };
