@@ -53,6 +53,11 @@ export default defineConfig([
       // Holds the geocoding key and calls Google with it — server-side only,
       // which is exactly why it is named here rather than covered by a glob.
       'src/utils/geocode.js',
+      // node:worker_threads only exists in Node — these run an uploaded
+      // file's parse off the main thread and are never reachable from the
+      // browser bundle.
+      'src/utils/runWorkbookParse.js',
+      'src/utils/workbookParseWorker.js',
     ],
     languageOptions: {
       globals: { ...globals.node },

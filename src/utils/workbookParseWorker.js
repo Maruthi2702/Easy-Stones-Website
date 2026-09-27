@@ -37,11 +37,18 @@ try {
   const parse = PARSERS[kind];
   if (!parse) throw new Error(`workbookParseWorker: unknown parse kind "${kind}"`);
 
-  // workerData buffers arrive as a Node Buffer already (structured-cloned in
-  // by the Worker constructor), not a raw ArrayBuffer — safe to hand straight
-  // to the parser, which is exactly what it gets from multer's memory storage
-  // in the non-worker call sites.
-  const result = parse(buffer);
+  // workerData's structured clone degrades a real Buffer into a plain
+  // Uint8Array — same bytes, but Buffer.prototype.toString(encoding) is what
+  // actually decodes them as text; Uint8Array inherits Array.prototype's
+  // toString(), which ignores the encoding argument and numeric-joins the
+  // bytes instead ("60,104,116,109,..." instead of "<htm..."). Every parser
+  // here eventually calls buffer.toString('utf8') on an HTML-flavored
+  // export, so without this the worker path silently fed each one a wall of
+  // comma-separated byte values instead of the actual document — no error,
+  // just a parse that found nothing and fell through to a much worse guess.
+  // Buffer.from() re-wraps the same bytes as a real Buffer before any parser
+  // sees them.
+  const result = parse(Buffer.from(buffer));
   parentPort.postMessage({ ok: true, result });
 } catch (error) {
   // Serialized deliberately as a plain string, not the Error object — a
