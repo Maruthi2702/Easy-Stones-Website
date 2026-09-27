@@ -564,6 +564,11 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
   /* Match header */
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   animation: slideDown 0.3s ease-out;
+  /* .sales-main is a fixed-height, overflow:hidden column, so without its own
+     scroll this panel (Quick Notes, Account & Security) just gets clipped. */
+  flex-shrink: 0;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 .info-boxes {
