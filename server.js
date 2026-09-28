@@ -54,6 +54,7 @@ import InventorySalesRecord from './src/models/InventorySalesRecord.js';
 // (here and in ensure-indexes.js) that had already drifted apart.
 import { INDEXED_MODELS } from './src/config/indexedModels.js';
 import { SLAB_STATUS_BUCKET } from './src/utils/inventoryStatus.js';
+import { normalizeLocationCode } from './src/utils/locationCode.js';
 import { sendContactFormEmail } from './src/services/emailService.js';
 import { discoverICloudCalendars, syncICloudCalendar } from './src/services/icloudSyncService.js';
 import { scrapeErpCustomers, scrapeErpInventory, scrapeErpSales } from './src/services/erpImportService.js';
@@ -1549,7 +1550,7 @@ app.get('/api/admin/locations', verifyAnyAuth, async (req, res) => {
 // Create a new location (manage_users permission needed)
 app.post('/api/admin/locations', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, shortCode } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'Location name is required' });
     }
@@ -1561,7 +1562,15 @@ app.post('/api/admin/locations', verifyAnyAuth, checkPermission('manage_users'),
       return res.status(400).json({ message: 'Location already exists' });
     }
 
-    const location = new Location({ name: cleanName });
+    const { code, error: codeError } = normalizeLocationCode(shortCode);
+    if (codeError) {
+      return res.status(400).json({ message: codeError });
+    }
+    if (code && await Location.findOne({ shortCode: code })) {
+      return res.status(400).json({ message: `Short code "${code}" is already used by another location` });
+    }
+
+    const location = new Location({ name: cleanName, shortCode: code });
     await location.save();
     
     // Emit websocket update so frontend updates dynamically
@@ -1570,6 +1579,36 @@ app.post('/api/admin/locations', verifyAnyAuth, checkPermission('manage_users'),
     res.status(201).json(location);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create location', error: error.message });
+  }
+});
+
+// Update a location's short code (manage_users permission needed).
+// Only the code is editable — the name is the key stored on users,
+// check-ins, daily reports, etc., so renaming would orphan those records.
+app.patch('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+  try {
+    const { code, error: codeError } = normalizeLocationCode(req.body.shortCode);
+    if (codeError) {
+      return res.status(400).json({ message: codeError });
+    }
+
+    const location = await Location.findById(req.params.id);
+    if (!location) {
+      return res.status(404).json({ message: 'Location not found' });
+    }
+
+    if (code && await Location.findOne({ shortCode: code, _id: { $ne: location._id } })) {
+      return res.status(400).json({ message: `Short code "${code}" is already used by another location` });
+    }
+
+    location.shortCode = code;
+    await location.save();
+
+    req.app.get('io').emit('location_update');
+
+    res.json(location);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update location', error: error.message });
   }
 });
 

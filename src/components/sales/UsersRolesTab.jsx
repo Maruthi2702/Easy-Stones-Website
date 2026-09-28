@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Users, ShieldAlert, Plus, Edit2, Trash2, Search,
+    Users, ShieldAlert, Plus, Edit2, Trash2, Search, Check,
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
     FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard, Eraser,
@@ -11,6 +11,7 @@ import { authFetch } from '../../api/authFetch';
 import { getAuthToken, setAuthToken } from '../../api/authToken';
 import { prettifyUsername } from '../../utils/textUtils';
 import { clearDriversCache } from '../../api/deliverySchedule';
+import { normalizeLocationCode, formatLocationLabel } from '../../utils/locationCode';
 import './UsersRolesTab.css';
 
 // Granular per-page permission definitions.
@@ -170,7 +171,11 @@ const ALL_PERMISSION_KEYS = PAGE_PERMISSIONS.flatMap(p => p.actions.map(a => a.k
 const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     const [subTab, setSubTab] = useState('users'); // 'users', 'roles', 'locations'
     const [newLocationName, setNewLocationName] = useState('');
+    const [newLocationCode, setNewLocationCode] = useState('');
     const [isAddingLocation, setIsAddingLocation] = useState(false);
+    const [editingCodeId, setEditingCodeId] = useState(null);
+    const [editingCodeValue, setEditingCodeValue] = useState('');
+    const [isSavingCode, setIsSavingCode] = useState(false);
     const [locationError, setLocationError] = useState('');
     const [locationSuccess, setLocationSuccess] = useState('');
 
@@ -188,6 +193,12 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
         e.preventDefault();
         if (!newLocationName.trim()) return;
 
+        const { code, error: codeError } = normalizeLocationCode(newLocationCode);
+        if (codeError) {
+            setLocationError(codeError);
+            return;
+        }
+
         setIsAddingLocation(true);
         setLocationError('');
         setLocationSuccess('');
@@ -196,13 +207,14 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             const res = await fetchWithAuth(`${API_URL}/api/admin/locations`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newLocationName.trim() })
+                body: JSON.stringify({ name: newLocationName.trim(), shortCode: code })
             });
 
             if (res.ok) {
                 const data = await res.json();
-                setLocationSuccess(`Location "${data.name}" added successfully!`);
+                setLocationSuccess(`Location "${formatLocationLabel(data)}" added successfully!`);
                 setNewLocationName('');
+                setNewLocationCode('');
                 if (fetchLocations) fetchLocations();
             } else {
                 const data = await res.json();
@@ -213,6 +225,56 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             setLocationError('Network error. Failed to add location.');
         } finally {
             setIsAddingLocation(false);
+        }
+    };
+
+    const startEditingCode = (loc) => {
+        setEditingCodeId(loc._id);
+        setEditingCodeValue(loc.shortCode || '');
+    };
+
+    const cancelEditingCode = () => {
+        setEditingCodeId(null);
+        setEditingCodeValue('');
+    };
+
+    const handleSaveLocationCode = async (loc) => {
+        const { code, error: codeError } = normalizeLocationCode(editingCodeValue);
+        if (codeError) {
+            setLocationError(codeError);
+            return;
+        }
+        if (code === (loc.shortCode || '')) {
+            cancelEditingCode();
+            return;
+        }
+
+        setIsSavingCode(true);
+        setLocationError('');
+        setLocationSuccess('');
+
+        try {
+            const res = await fetchWithAuth(`${API_URL}/api/admin/locations/${loc._id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shortCode: code })
+            });
+
+            if (res.ok) {
+                setLocationSuccess(code
+                    ? `Short code for ${loc.name} set to ${code}.`
+                    : `Short code removed from ${loc.name}.`);
+                cancelEditingCode();
+                if (fetchLocations) fetchLocations();
+            } else {
+                const data = await res.json();
+                setLocationError(data.message || 'Failed to update short code');
+            }
+        } catch (err) {
+            console.error('Error updating location short code:', err);
+            setLocationError('Network error. Failed to update short code.');
+        } finally {
+            setIsSavingCode(false);
         }
     };
 
@@ -876,15 +938,26 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                     {subTab === 'locations' && (
                         <div className="locations-panel-layout">
                             <div className="panel-actions-toolbar">
-                                <form onSubmit={handleAddLocation} className="add-location-form" style={{ display: 'flex', gap: '1rem', width: '100%', maxWidth: '560px' }}>
+                                <form onSubmit={handleAddLocation} className="add-location-form" style={{ display: 'flex', gap: '1rem', width: '100%', maxWidth: '720px' }}>
                                     <div className="search-input-wrapper" style={{ flex: 1, maxWidth: 'none' }}>
                                         <MapPin className="search-icon" size={18} />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Add new location name (e.g. Portland, Salt Lake City)..." 
+                                        <input
+                                            type="text"
+                                            placeholder="Add new location name (e.g. Portland, Salt Lake City)..."
                                             value={newLocationName}
                                             onChange={(e) => setNewLocationName(e.target.value)}
                                             required
+                                        />
+                                    </div>
+                                    <div className="search-input-wrapper location-code-input-wrapper">
+                                        <Tag className="search-icon" size={16} />
+                                        <input
+                                            type="text"
+                                            placeholder="Code (e.g. PDX)"
+                                            aria-label="Location short code"
+                                            value={newLocationCode}
+                                            onChange={(e) => setNewLocationCode(e.target.value.toUpperCase())}
+                                            maxLength={5}
                                         />
                                     </div>
                                     <button type="submit" className="add-user-btn" disabled={isAddingLocation} style={{ whiteSpace: 'nowrap' }}>
@@ -917,6 +990,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                     <thead>
                                         <tr>
                                             <th>Location Name</th>
+                                            <th>Short Code</th>
                                             <th>Date Created</th>
                                             <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
                                         </tr>
@@ -924,7 +998,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                     <tbody>
                                         {locations.length === 0 ? (
                                             <tr>
-                                                <td colSpan="3" className="empty-table-row">
+                                                <td colSpan="4" className="empty-table-row">
                                                     No locations found. Add one above!
                                                 </td>
                                             </tr>
@@ -936,10 +1010,53 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                             <div className="avatar-small location-avatar">
                                                                 <MapPin size={16} />
                                                             </div>
-                                                            <span style={{ fontWeight: 650, color: '#ffffff', fontSize: '0.98rem' }}>{loc.name}</span>
+                                                            <span className="location-name-text">{loc.name}</span>
                                                         </div>
                                                     </td>
-                                                    <td>
+                                                    <td data-label="Short Code">
+                                                        {editingCodeId === loc._id ? (
+                                                            <form
+                                                                className="location-code-edit"
+                                                                onSubmit={(e) => { e.preventDefault(); handleSaveLocationCode(loc); }}
+                                                            >
+                                                                <input
+                                                                    type="text"
+                                                                    className="location-code-edit-input"
+                                                                    value={editingCodeValue}
+                                                                    onChange={(e) => setEditingCodeValue(e.target.value.toUpperCase())}
+                                                                    onKeyDown={(e) => { if (e.key === 'Escape') cancelEditingCode(); }}
+                                                                    maxLength={5}
+                                                                    placeholder="SEA"
+                                                                    aria-label={`Short code for ${loc.name}`}
+                                                                    autoFocus
+                                                                    disabled={isSavingCode}
+                                                                />
+                                                                <button type="submit" className="action-icon-btn" title="Save short code" disabled={isSavingCode}>
+                                                                    <Check size={16} />
+                                                                </button>
+                                                                <button type="button" className="action-icon-btn" title="Cancel" onClick={cancelEditingCode} disabled={isSavingCode}>
+                                                                    <X size={16} />
+                                                                </button>
+                                                            </form>
+                                                        ) : (
+                                                            <div className="location-code-display">
+                                                                {loc.shortCode ? (
+                                                                    <span className="location-code-badge">{loc.shortCode}</span>
+                                                                ) : (
+                                                                    <span className="location-code-empty">Not set</span>
+                                                                )}
+                                                                <button
+                                                                    type="button"
+                                                                    className="action-icon-btn"
+                                                                    onClick={() => startEditingCode(loc)}
+                                                                    title={loc.shortCode ? 'Edit short code' : 'Add short code'}
+                                                                >
+                                                                    <Pencil size={14} />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td data-label="Date Created">
                                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '0.88rem' }}>
                                                             <Clock size={14} style={{ opacity: 0.7 }} />
                                                             <span>{loc.createdAt ? new Date(loc.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'System Seeded'}</span>
