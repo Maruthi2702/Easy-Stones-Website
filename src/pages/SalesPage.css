@@ -2943,7 +2943,9 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
 /* Add Visit Button Container */
 /* Add Visit Button Container */
 .add-visit-container {
-  padding: 1.25rem 2rem;
+  /* Was 1.25rem top and bottom: with the feed's own top padding below it,
+     one row of buttons sat inside ~64px of empty space. */
+  padding: 0.75rem 2rem;
   background: transparent;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
@@ -3133,6 +3135,13 @@ body.light-theme-active .icon-action-btn.secondary:hover,
   opacity: 0.5;
   cursor: not-allowed;
   filter: grayscale(0.5);
+}
+
+/* The visits feed sits right under the Add Visit row, so its first card
+   doesn't need .chat-messages' full 1.5rem on top as well. Scoped to the
+   feed so other .chat-messages views keep their spacing. */
+.chat-messages.feed-list {
+  padding-top: 0.5rem;
 }
 
 /* Feed Container */
