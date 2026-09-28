@@ -11,7 +11,7 @@ const ReportSection = ({
   source,                 // { kind: 'auto' | 'typed', label: string }
   children,
   footnote,
-  footnoteTone,          // 'warn' when the note is a question about a figure
+  footnoteTone,          // 'warn' when the note is a question about a figure, 'info' for context
   action                  // optional node in the header, e.g. "+ Add line"
 }) => (
   <section className="dr-card">
@@ -26,7 +26,7 @@ const ReportSection = ({
 
     <div className="dr-card-body">{children}</div>
 
-    {footnote && <p className={`dr-footnote ${footnoteTone === 'warn' ? 'is-warn' : ''}`}>{footnote}</p>}
+    {footnote && <p className={`dr-footnote ${footnoteTone ? `is-${footnoteTone}` : ''}`}>{footnote}</p>}
   </section>
 );
 

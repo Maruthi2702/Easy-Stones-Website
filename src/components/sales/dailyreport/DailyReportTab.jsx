@@ -18,6 +18,7 @@ import DaySummary from './DaySummary';
 import EmailReportDialog from './EmailReportDialog';
 import PdfPreviewDialog from './PdfPreviewDialog';
 import ExportMenu from './ExportMenu';
+import ShippedEarlierNote from './ShippedEarlierNote';
 import './DailyReport.css';
 
 /**
@@ -149,6 +150,9 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   // What a slab count usually looks like for this branch — the server works it
   // out so the rule isn't reinvented here.
   const [slabRange, setSlabRange] = useState(null);
+  // Transfers the delivery board draws on this day that shipped in an earlier
+  // week — see transfersShippedEarlier in src/routes/dailyReports.js.
+  const [shippedEarlier, setShippedEarlier] = useState([]);
 
   const saveTimer = useRef(null);
   const skipAutosave = useRef(true);
@@ -204,10 +208,12 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       touchedTransferSlabs.current = new Set();
       setReport({ ...emptyReport(date, location), ...data.report });
       setSlabRange(data.slabRange || null);
+      setShippedEarlier(data.transfersShippedEarlier || []);
       setDirty(false);
     } catch (err) {
       setError(err.message);
       setReport(null);
+      setShippedEarlier([]);
     } finally {
       setLoading(false);
     }
@@ -752,6 +758,10 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
               title="Transfers"
               icon={ArrowLeftRight}
               source={{ kind: 'auto', label: 'from transfer tickets' }}
+              footnote={shippedEarlier.length > 0 && (
+                <ShippedEarlierNote groups={shippedEarlier} date={date} onOpenDay={setDate} />
+              )}
+              footnoteTone="info"
               action={!locked && (
                 <button className="dr-addrow-btn" onClick={addTransfer}><Plus size={12} /> Add</button>
               )}

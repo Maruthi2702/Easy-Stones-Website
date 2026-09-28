@@ -10,7 +10,10 @@ import {
   defaultStatusFor,
   WILL_CALL_COLUMN_ID,
   isTransferOrigin,
-  applyTransferPerspective
+  applyTransferPerspective,
+  showOnArrivalDay,
+  shortDayLabel,
+  transferShipNote
 } from './deliveryTypes.js';
 
 const ticket = (over = {}) => ({ deliveryType: 'jobsite', truckId: 'trk_1', date: '2026-09-18', ...over });
@@ -213,6 +216,8 @@ describe('applyTransferPerspective', () => {
     const shaped = applyTransferPerspective(transfer, ['Spokane']);
     expect(shaped.date).toBe('2026-09-18');
     expect(shaped.isIncomingView).toBe(true);
+    expect(shaped.shipDate).toBe('2026-09-15');
+    expect(shaped.viewedAs).toBe('destination');
     // The original record is never mutated — callers (the cache, the board)
     // may still be holding a reference to it elsewhere.
     expect(transfer.date).toBe('2026-09-15');
@@ -221,6 +226,52 @@ describe('applyTransferPerspective', () => {
   it('leaves the ship date alone for the destination branch when no arrival date has been set yet', () => {
     const noArrival = ticket({ deliveryType: 'transfer', location: 'Seattle', date: '2026-09-15' });
     expect(applyTransferPerspective(noArrival, ['Spokane'])).toBe(noArrival);
+  });
+});
+
+describe('shortDayLabel', () => {
+  it('reads weekday and month/day from the date parts', () => {
+    expect(shortDayLabel('2026-09-25')).toBe('Fri 9/25');
+    expect(shortDayLabel('2026-09-28')).toBe('Mon 9/28');
+  });
+
+  it('is blank for a missing date', () => {
+    expect(shortDayLabel('')).toBe('');
+    expect(shortDayLabel(undefined)).toBe('');
+  });
+});
+
+describe('transferShipNote', () => {
+  const shippedFriday = ticket({
+    deliveryType: 'transfer',
+    location: 'Seattle',
+    transferDestination: 'Spokane',
+    date: '2026-09-25',
+    expectedArrivalDate: '2026-09-28'
+  });
+
+  it('tells the sender when and that it arrives today', () => {
+    expect(transferShipNote(showOnArrivalDay(shippedFriday, 'origin'), '2026-09-28'))
+      .toBe('Shipped Fri 9/25 · arrives today');
+  });
+
+  it('names the arrival day when the sender is looking at a different day', () => {
+    expect(transferShipNote(showOnArrivalDay(shippedFriday, 'origin'), '2026-09-30'))
+      .toBe('Shipped Fri 9/25 · arrives Mon 9/28');
+  });
+
+  it('tells the receiver it is incoming and when it shipped', () => {
+    expect(transferShipNote(showOnArrivalDay(shippedFriday, 'destination'), '2026-09-28'))
+      .toBe('Incoming · shipped Fri 9/25');
+  });
+
+  it('says nothing for a transfer that ships and arrives the same day', () => {
+    const sameDay = { ...shippedFriday, expectedArrivalDate: '2026-09-25' };
+    expect(transferShipNote(showOnArrivalDay(sameDay, 'destination'), '2026-09-25')).toBe('');
+  });
+
+  it('says nothing for a card drawn on its own ship date', () => {
+    expect(transferShipNote(shippedFriday, '2026-09-25')).toBe('');
   });
 });
 

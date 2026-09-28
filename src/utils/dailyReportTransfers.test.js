@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupTransferTickets, groupTicketSlabs, groupReceived } from './dailyReportTransfers';
+import { groupTransferTickets, groupTicketSlabs, groupReceived, boardWeekMonday, arrivalsShippedEarlier } from './dailyReportTransfers';
 
 describe('groupTransferTickets', () => {
   it('groups tickets by the given key', () => {
@@ -58,5 +58,53 @@ describe('groupReceived', () => {
       { transferDestination: 'Dallas', receivedAt: new Date() }
     ], (t) => t.transferDestination);
     expect(groupReceived(groups[0])).toBe(true);
+  });
+});
+
+describe('boardWeekMonday', () => {
+  it('is the Monday of the Mon–Sun week', () => {
+    expect(boardWeekMonday('2026-09-28')).toBe('2026-09-28');
+    expect(boardWeekMonday('2026-10-02')).toBe('2026-09-28');
+  });
+
+  it('puts Sunday in the week it closes, like the board does', () => {
+    expect(boardWeekMonday('2026-09-27')).toBe('2026-09-21');
+  });
+
+  it('crosses a month boundary', () => {
+    expect(boardWeekMonday('2026-10-01')).toBe('2026-09-28');
+  });
+});
+
+describe('arrivalsShippedEarlier', () => {
+  const t = (date, expectedArrivalDate, numberOfSlabs) => ({ date, expectedArrivalDate, numberOfSlabs });
+
+  it('groups last week\'s shipments that arrive on the day, by ship date', () => {
+    const tickets = [
+      t('2026-09-25', '2026-09-28', 44),
+      t('2026-09-25', '2026-09-28', 42),
+      t('2026-09-24', '2026-09-28', 10)
+    ];
+    expect(arrivalsShippedEarlier(tickets, '2026-09-28')).toEqual([
+      { shipDate: '2026-09-24', count: 1, slabs: 10 },
+      { shipDate: '2026-09-25', count: 2, slabs: 86 }
+    ]);
+  });
+
+  it('leaves out a transfer that shipped earlier the same week — the board shows it on its ship day', () => {
+    expect(arrivalsShippedEarlier([t('2026-09-29', '2026-10-01', 30)], '2026-10-01')).toEqual([]);
+  });
+
+  it('leaves out a transfer that ships the same day it arrives', () => {
+    expect(arrivalsShippedEarlier([t('2026-09-28', '2026-09-28', 37)], '2026-09-28')).toEqual([]);
+  });
+
+  it('leaves out transfers arriving on some other day', () => {
+    expect(arrivalsShippedEarlier([t('2026-09-25', '2026-09-29', 44)], '2026-09-28')).toEqual([]);
+  });
+
+  it('counts a ticket nobody has counted slabs on as zero slabs', () => {
+    expect(arrivalsShippedEarlier([t('2026-09-25', '2026-09-28', null)], '2026-09-28'))
+      .toEqual([{ shipDate: '2026-09-25', count: 1, slabs: 0 }]);
   });
 });

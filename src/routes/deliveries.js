@@ -15,7 +15,7 @@ import {
   isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
   PICKUP_WORDING, DELIVERY_WORDING, RETURN_WORDING
 } from '../utils/deliveryPickup.js';
-import { DELIVERY_TYPES, isReturn, defaultStatusFor, isPendingDelivery } from '../utils/deliveryTypes.js';
+import { DELIVERY_TYPES, isReturn, defaultStatusFor, isPendingDelivery, showOnArrivalDay } from '../utils/deliveryTypes.js';
 
 /**
  * Delivery Schedule + Truck API.
@@ -533,14 +533,14 @@ export default function createDeliveriesRouter({
               // Related to this ticket only as the destination — always the
               // arrival date, regardless of whether the ship date also
               // happens to fall in this same week.
-              return d.expectedArrivalDate ? { ...d, date: d.expectedArrivalDate, isIncomingView: true } : d;
+              return d.expectedArrivalDate ? showOnArrivalDay(d, 'destination') : d;
             }
             // Origin (or admin, or an unowned ticket): the ship date is what's
             // shown normally. Falls back to the arrival date only when the
             // ship date itself isn't actually in the displayed week — an
             // admin browsing the week it's due, not the week it left.
             if (inWeek(d.date)) return d;
-            if (inWeek(d.expectedArrivalDate)) return { ...d, date: d.expectedArrivalDate, isIncomingView: true };
+            if (inWeek(d.expectedArrivalDate)) return showOnArrivalDay(d, 'origin');
             return d;
           })
         : list;

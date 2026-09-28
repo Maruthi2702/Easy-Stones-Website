@@ -30,6 +30,8 @@
   --dr-bad-bg:    rgba(248, 113, 113, 0.12);
   --dr-derived:   rgba(52, 211, 153, 0.07);
   --dr-derived-l: rgba(52, 211, 153, 0.28);
+  --dr-info:      #93c5fd;
+  --dr-info-bg:   rgba(59, 130, 246, 0.12);
   --dr-shadow:    0 10px 30px rgba(0, 0, 0, 0.45);
 
   /* Every control in the top bar stands the same height, whether it is a
@@ -81,6 +83,8 @@ body.light-theme-active .dr-root,
   --dr-bad-bg:    #fdecea;
   --dr-derived:   #f3faf5;
   --dr-derived-l: #b7e0c6;
+  --dr-info:      #1e40af;
+  --dr-info-bg:   #eff6ff;
   --dr-shadow:    0 6px 18px rgba(15, 23, 42, 0.07);
 }
 
@@ -1169,6 +1173,64 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 .dr-footnote.is-warn {
   color: var(--dr-warn);
   background: var(--dr-warn-bg);
+}
+
+.dr-footnote.is-info {
+  color: var(--dr-info);
+  background: var(--dr-info-bg);
+  font-size: 0.75rem;
+}
+
+.dr-shipped-earlier {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.dr-shipped-earlier-icon {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.dr-shipped-earlier-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.dr-shipped-earlier-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+}
+
+.dr-shipped-earlier-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.dr-link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.dr-link-btn:hover { text-decoration-thickness: 2px; }
+
+.dr-shipped-earlier-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--dr-warn);
 }
 
 /* The dollar sign shouldn't read as a filled field when the amount is unsaid. */

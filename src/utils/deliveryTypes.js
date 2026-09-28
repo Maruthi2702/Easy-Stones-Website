@@ -155,7 +155,41 @@ export const isTransferOrigin = (delivery, viewerLocations = []) =>
 export const applyTransferPerspective = (delivery, viewerLocations = []) => {
   if (delivery?.deliveryType !== 'transfer') return delivery;
   if (isTransferOrigin(delivery, viewerLocations)) return delivery;
-  return delivery.expectedArrivalDate
-    ? { ...delivery, date: delivery.expectedArrivalDate, isIncomingView: true }
-    : delivery;
+  return delivery.expectedArrivalDate ? showOnArrivalDay(delivery, 'destination') : delivery;
+};
+
+/**
+ * A transfer redrawn on its arrival day instead of its ship date. `shipDate`
+ * keeps the real one, because once `date` is overwritten nothing else on the
+ * card can say the ticket left earlier — and the sender's Daily Work Report
+ * counts it on that earlier day, so a card with no hint of it reads as a
+ * transfer the report forgot. `viewedAs` is which side of the transfer the
+ * viewer is on, which changes how that note is worded.
+ */
+export const showOnArrivalDay = (delivery, viewedAs) => ({
+  ...delivery,
+  date: delivery.expectedArrivalDate,
+  isIncomingView: true,
+  shipDate: delivery.date,
+  viewedAs
+});
+
+const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** 'YYYY-MM-DD' → "Fri 9/25", read from its date parts so no timezone can move it. */
+export const shortDayLabel = (dateStr) => {
+  const [y, m, d] = String(dateStr || '').slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return '';
+  return `${SHORT_DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${m}/${d}`;
+};
+
+/**
+ * The line a transfer card carries when it is drawn on a different day from
+ * the one it shipped, or '' when it needs none. `today` is 'YYYY-MM-DD'.
+ */
+export const transferShipNote = (delivery, today = '') => {
+  if (!delivery?.isIncomingView || !delivery.shipDate || delivery.shipDate === delivery.date) return '';
+  const shipped = shortDayLabel(delivery.shipDate);
+  if (delivery.viewedAs === 'destination') return `Incoming · shipped ${shipped}`;
+  return `Shipped ${shipped} · arrives ${delivery.date === today ? 'today' : shortDayLabel(delivery.date)}`;
 };

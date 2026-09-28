@@ -3,10 +3,11 @@
 // and EpodChip are its two small sub-badges, kept as separate files since
 // each is reused/tested independently of the full card.
 import React, { useState } from 'react';
-import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine, Undo2, Layers } from 'lucide-react';
+import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine, Undo2, Layers, CalendarDays } from 'lucide-react';
 import StatusPill from './StatusPill';
 import EpodChip from './EpodChip';
-import { isCounterReturn } from '../../../utils/deliveryTypes';
+import { isCounterReturn, transferShipNote } from '../../../utils/deliveryTypes';
+import { formatForDateInput } from '../../../utils/dateUtils';
 
 /**
  * Highlight substring matches inside a text string with <mark> tags.
@@ -102,6 +103,7 @@ const TicketChip = ({
   // overwrite it with whatever day the card was dropped on. Still fully
   // editable via its own modal, where both dates are what they really are.
   const canDrag = Boolean(editable && delivery.status !== 'completed' && !delivery.isIncomingView);
+  const shipNote = isTransfer ? transferShipNote(delivery, formatForDateInput(new Date())) : '';
 
   // Proof only means something once the delivery is done — an unsigned scheduled
   // job doesn't need telling that it has no ePOD yet. Suppressed entirely where
@@ -275,6 +277,13 @@ const TicketChip = ({
         <p className="ticket-return-flag">
           <Undo2 size={12} />
           Return pickup
+        </p>
+      )}
+
+      {shipNote && (
+        <p className="ticket-ship-note">
+          <CalendarDays size={12} />
+          {shipNote}
         </p>
       )}
 

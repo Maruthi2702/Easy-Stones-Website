@@ -1061,6 +1061,34 @@ body.light-theme-active .ticket-return-flag,
   color: #b91c1c !important;
 }
 
+/* A transfer drawn on its arrival day rather than the day it shipped. Blue so
+   it can't be mistaken for any status colour on the card, and boxed rather
+   than a bare line like the return flag: it's context about the date, not a
+   fact about the stop. align-self keeps the box hugging its text in the
+   chip's column flex. */
+.ticket-ship-note {
+  margin: 0;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.14);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+}
+
+body.light-theme-active .ticket-ship-note,
+.light-theme-active .ticket-ship-note {
+  color: #1e40af !important;
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
+
 /* Divides the stop number from the reference number, so the two read as two
    facts rather than one long string. Muted and never shrinking: it is
    punctuation, so it should be the quietest thing in the row, but it must not

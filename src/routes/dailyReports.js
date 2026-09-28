@@ -8,7 +8,7 @@ import OfficeCheckIn from '../models/OfficeCheckIn.js';
 import Location from '../models/Location.js';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
 import { groupContainers, groupSlabs } from '../utils/dailyReportContainers.js';
-import { groupTransferTickets, groupTicketSlabs, groupReceived } from '../utils/dailyReportTransfers.js';
+import { groupTransferTickets, groupTicketSlabs, groupReceived, arrivalsShippedEarlier } from '../utils/dailyReportTransfers.js';
 
 /**
  * Daily Work Report API.
@@ -105,9 +105,15 @@ export async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     // A customer drop-off (a return with no driver) needs the same carve-out,
     // for exactly the same reason. A return a driver goes out for already
     // passes the truckId check.
+    //
+    // A cancelled ticket keeps its truckId as a record of what to restore it
+    // to (see isCancelledDelivery), so the truckId check alone lets it through
+    // and the day counts material that never moved. The board draws no card
+    // for one, and neither does this report.
     Delivery.find(
       {
         date,
+        status: { $ne: 'cancelled' },
         $or: [
           { truckId: { $nin: ['', null] } },
           { deliveryType: 'will_call' },
@@ -120,7 +126,7 @@ export async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     // when they left origin) and the opposite location field — a ticket some
     // other branch owns, addressed to this one.
     Delivery.find(
-      { deliveryType: 'transfer', expectedArrivalDate: date, transferDestination: location },
+      { deliveryType: 'transfer', expectedArrivalDate: date, transferDestination: location, status: { $ne: 'cancelled' } },
       'id location numberOfSlabs receivedAt receivedBy'
     ).lean()
   ]);
@@ -189,6 +195,35 @@ export async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     returnsSlabs: returnRows.reduce((sum, d) => sum + slabsOf(d), 0),
     transfers: [...outbound, ...inbound]
   };
+}
+
+/**
+ * This branch's transfers the delivery board shows on `date` although they
+ * shipped in an earlier week, with whether each ship day's own report — the
+ * one that counts them — has been filed. Only the single-day view asks for
+ * this, so the month export and auto-submit don't pay for the extra queries.
+ */
+async function transfersShippedEarlier(date, location) {
+  const rows = await Delivery.find(
+    {
+      deliveryType: 'transfer',
+      expectedArrivalDate: date,
+      date: { $lt: date },
+      status: { $ne: 'cancelled' },
+      truckId: { $nin: ['', null] }
+    },
+    'date expectedArrivalDate location numberOfSlabs'
+  ).lean();
+  const mine = rows.filter(d => !d.location || d.location === location || d.location === '*');
+  const groups = arrivalsShippedEarlier(mine, date);
+  if (!groups.length) return [];
+
+  const reports = await DailyReport.find(
+    { location, date: { $in: groups.map(g => g.shipDate) } },
+    'date status'
+  ).lean();
+  const statusOf = new Map(reports.map(r => [r.date, r.status]));
+  return groups.map(g => ({ ...g, reportStatus: statusOf.get(g.shipDate) || 'missing' }));
 }
 
 /**
@@ -462,10 +497,14 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         report = new DailyReport({ date, location });
       }
 
-      const derived = await deriveFromSystem(date, location, tz);
+      const [derived, shippedEarlier] = await Promise.all([
+        deriveFromSystem(date, location, tz),
+        transfersShippedEarlier(date, location)
+      ]);
       applyDerived(report, derived);
 
       res.json({
+        transfersShippedEarlier: shippedEarlier,
         report: report.toObject({ depopulate: true }),
         derived: {
           visitorCheckIns: derived.visitorCheckIns,
