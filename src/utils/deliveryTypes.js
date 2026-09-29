@@ -174,6 +174,21 @@ export const showOnArrivalDay = (delivery, viewedAs) => ({
   viewedAs
 });
 
+/**
+ * The expected arrival date a transfer should be stored with. The destination
+ * branch only ever sees a transfer through this date — its board and its Daily
+ * Work Report's inbound line both key off it — so a blank one left the ticket
+ * invisible to the branch receiving it. Blank defaults to the ship date, and
+ * an arrival earlier than the ship date follows it forward, since nothing
+ * arrives before it leaves. A transfer with no ship date yet (still in
+ * Pending) keeps whatever it has: there's nothing to default from.
+ */
+export const transferArrivalFor = ({ date, expectedArrivalDate } = {}) => {
+  const arrival = expectedArrivalDate || '';
+  if (!date) return arrival;
+  return !arrival || arrival < date ? date : arrival;
+};
+
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /** 'YYYY-MM-DD' → "Fri 9/25", read from its date parts so no timezone can move it. */

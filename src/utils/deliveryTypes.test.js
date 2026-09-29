@@ -13,7 +13,8 @@ import {
   applyTransferPerspective,
   showOnArrivalDay,
   shortDayLabel,
-  transferShipNote
+  transferShipNote,
+  transferArrivalFor
 } from './deliveryTypes.js';
 
 const ticket = (over = {}) => ({ deliveryType: 'jobsite', truckId: 'trk_1', date: '2026-09-18', ...over });
@@ -304,5 +305,27 @@ describe('defaultStatusFor', () => {
     expect(defaultStatusFor(ticket({ truckId: '', status: 'completed' }))).toBe('completed');
     expect(defaultStatusFor(ticket({ status: 'delayed' }))).toBe('delayed');
     expect(defaultStatusFor(ticket({ truckId: '', status: 'delayed' }))).toBe('delayed');
+  });
+});
+
+describe('transferArrivalFor', () => {
+  it('defaults a blank arrival to the ship date', () => {
+    expect(transferArrivalFor({ date: '2026-09-28', expectedArrivalDate: '' })).toBe('2026-09-28');
+    expect(transferArrivalFor({ date: '2026-09-28' })).toBe('2026-09-28');
+  });
+
+  it('keeps an arrival on or after the ship date', () => {
+    expect(transferArrivalFor({ date: '2026-09-28', expectedArrivalDate: '2026-09-28' })).toBe('2026-09-28');
+    expect(transferArrivalFor({ date: '2026-09-28', expectedArrivalDate: '2026-10-01' })).toBe('2026-10-01');
+  });
+
+  it('moves an arrival that precedes the ship date up to it', () => {
+    expect(transferArrivalFor({ date: '2026-09-30', expectedArrivalDate: '2026-09-28' })).toBe('2026-09-30');
+  });
+
+  it('leaves a transfer with no ship date alone', () => {
+    expect(transferArrivalFor({ date: '', expectedArrivalDate: '' })).toBe('');
+    expect(transferArrivalFor({ date: '', expectedArrivalDate: '2026-10-01' })).toBe('2026-10-01');
+    expect(transferArrivalFor()).toBe('');
   });
 });

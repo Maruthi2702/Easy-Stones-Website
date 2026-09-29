@@ -19,7 +19,7 @@ import { parseAmount, formatAmount, sanitizeAmountInput } from '../../../utils/m
 // The contract-freight column is recognised in one place, shared with the board
 // and the ePOD certificate — see src/utils/deliveryPickup.js.
 import { isThirdPartyTruck as isThirdParty } from '../../../utils/deliveryPickup';
-import { defaultStatusFor } from '../../../utils/deliveryTypes';
+import { defaultStatusFor, transferArrivalFor } from '../../../utils/deliveryTypes';
 import { isWeekendDate, dayLabel } from '../../../utils/deliveryWeek';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
@@ -358,7 +358,8 @@ const DeliveryModal = ({
         );
         if (match) custId = match.value;
       }
-      setDate(formatForDateInput(initialData.date) || formatForDateInput(new Date()));
+      const openedDate = formatForDateInput(initialData.date) || formatForDateInput(new Date());
+      setDate(openedDate);
       setRouteNumber(Number(initialData.routeNumber) || 1);
       setTruckId(initialData.truckId || '');
       setCustomerName(custName);
@@ -380,7 +381,13 @@ const DeliveryModal = ({
       setDeliveryType(initialData.deliveryType || 'jobsite');
       setTransferOrigin(initialData.location || currentUser?.location || '');
       setTransferDestination(initialData.transferDestination || '');
-      setExpectedArrivalDate(formatForDateInput(initialData.expectedArrivalDate));
+      // An older transfer saved before arrival was required opens with the
+      // ship date filled in — the same default a save would apply — rather
+      // than a blank box that save would then silently change underneath it.
+      setExpectedArrivalDate(formatForDateInput(
+        initialData.expectedArrivalDate
+        || (initialData.deliveryType === 'transfer' ? openedDate : '')
+      ));
       setPickupInfo(initialData.pickupInfo || '');
       setCarrierName(initialData.carrierName || '');
       setProNumber(initialData.proNumber || '');
@@ -495,6 +502,18 @@ const DeliveryModal = ({
       }
       if (transferOrigin === transferDestination) {
         setError('Transfer From and Transfer To can\u2019t be the same branch.');
+        return;
+      }
+      // Required once it ships, since the destination branch only ever sees a
+      // transfer by this date. A Pending transfer has no ship date yet, so it
+      // may stay blank until a driver and day are assigned (the assignment
+      // endpoint fills it in then \u2014 see transferArrivalFor).
+      if (date && !expectedArrivalDate) {
+        setError('Pick the date this transfer is expected to arrive.');
+        return;
+      }
+      if (date && expectedArrivalDate < date) {
+        setError('Expected Arrival can\u2019t be before the ship date.');
         return;
       }
       // A transfer has no customer, but customerName is required and is what the
@@ -664,7 +683,16 @@ const DeliveryModal = ({
               <input
                 type="date"
                 value={date}
-                onChange={(e) => { setDate(e.target.value); markDirty(); }}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  // A transfer's arrival follows the ship date forward when
+                  // it's still blank or would now be earlier than it — the
+                  // same rule the server applies (transferArrivalFor).
+                  if (isTransfer) {
+                    setExpectedArrivalDate(transferArrivalFor({ date: e.target.value, expectedArrivalDate }));
+                  }
+                  markDirty();
+                }}
                 required={!isPendingOrder}
               />
               {isPendingOrder && (
@@ -704,10 +732,11 @@ const DeliveryModal = ({
                     setTruckId(thirdPartyTruck.id);
                   }
                   // A starting guess, not a link — pre-fill the arrival date from
-                  // the ship date once, same as the truck prefill above, and leave
-                  // it free to diverge from there for a route that takes longer.
-                  if (nextType === 'transfer' && isNewTicket && !expectedArrivalDate) {
-                    setExpectedArrivalDate(date);
+                  // the ship date, and leave it free to diverge from there for a
+                  // route that takes longer. Unlike the truck prefill above this
+                  // applies to existing tickets too, since arrival is required.
+                  if (nextType === 'transfer') {
+                    setExpectedArrivalDate(transferArrivalFor({ date, expectedArrivalDate }));
                   }
                   markDirty();
                 }}
@@ -756,17 +785,20 @@ const DeliveryModal = ({
             {/* When it's due at the destination — separate from the ship date
                 above. Drives the inbound line on the destination branch's own
                 Daily Work Report (see deriveFromSystem in
-                src/routes/dailyReports.js). Left blank is fine; it just means
-                that branch won't see it coming until this is filled in. */}
+                src/routes/dailyReports.js) and when it shows on that
+                branch's board, so it's required whenever there's a ship date
+                (it starts as the ship date). A Pending transfer with no ship
+                date can leave it blank until it's scheduled. */}
             {isTransfer && (
               <div className="form-group" style={{ marginBottom: '1.1rem' }}>
                 <label style={{ color: '#60a5fa' }}>
                   <Calendar size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                  Expected Arrival
+                  Expected Arrival {date && <span className="req-star">*</span>}
                 </label>
                 <input
                   type="date"
                   value={expectedArrivalDate}
+                  min={date || undefined}
                   onChange={(e) => { setExpectedArrivalDate(e.target.value); markDirty(); }}
                 />
               </div>

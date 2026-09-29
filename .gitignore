@@ -36,6 +36,9 @@ eng.traineddata
 # User Uploaded Files (Local Storage)
 public/uploads/
 
+# Backups of live records written by scripts before they change data
+scripts/merge-backups/
+
 # Claude Code: share memory + project instructions, keep per-machine settings local
 .claude/settings.local.json
 

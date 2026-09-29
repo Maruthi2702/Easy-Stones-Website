@@ -15,7 +15,7 @@ import {
   isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
   PICKUP_WORDING, DELIVERY_WORDING, RETURN_WORDING
 } from '../utils/deliveryPickup.js';
-import { DELIVERY_TYPES, isReturn, defaultStatusFor, isPendingDelivery, showOnArrivalDay } from '../utils/deliveryTypes.js';
+import { DELIVERY_TYPES, isReturn, defaultStatusFor, isPendingDelivery, showOnArrivalDay, transferArrivalFor } from '../utils/deliveryTypes.js';
 
 /**
  * Delivery Schedule + Truck API.
@@ -573,7 +573,7 @@ export default function createDeliveriesRouter({
       // edit goes through.
       const existing = await Delivery.findOne(
         { id: delivery.id },
-        'location deliveryType transferDestination pod packingListUrl packingListFilename truckId'
+        'location deliveryType transferDestination pod packingListUrl packingListFilename truckId date expectedArrivalDate'
       ).lean();
 
       // Editing a record that already exists: its CURRENT location has to be
@@ -596,6 +596,30 @@ export default function createDeliveriesRouter({
 
       const updateData = { ...delivery };
       delete updateData._id;
+
+      // The modal already fills this in, but any other writer (an older client,
+      // a script) gets the same rule, so no transfer is ever stored without an
+      // arrival date its destination branch can see it by.
+      // Judged on the record as it will stand after this write (body merged
+      // over what's stored), so a partial update can't slip past the checks
+      // or blank a stored arrival just by leaving those fields out.
+      if (resultingLocation.deliveryType === 'transfer') {
+        // Same checks the modal makes before saving. Enforced here too because
+        // tickets with no origin, or with origin = destination, got in anyway
+        // and couldn't be told apart from real transfers on either branch.
+        if (!resultingLocation.location || !resultingLocation.transferDestination) {
+          return res.status(400).json({ error: 'A transfer needs both a From and a To branch.' });
+        }
+        if (resultingLocation.location === resultingLocation.transferDestination) {
+          return res.status(400).json({ error: 'Transfer From and Transfer To can’t be the same branch.' });
+        }
+        updateData.expectedArrivalDate = transferArrivalFor({
+          date: updateData.date !== undefined ? updateData.date : existing?.date,
+          expectedArrivalDate: updateData.expectedArrivalDate !== undefined
+            ? updateData.expectedArrivalDate
+            : existing?.expectedArrivalDate
+        });
+      }
 
       const assetIds = podAssetIds(delivery.id);
 
@@ -854,16 +878,22 @@ export default function createDeliveriesRouter({
       // starting status is left exactly as this endpoint has always left it.
       const existing = await Delivery.findOne(
         scopeDeliveryQueryToLocations({ id }, req),
-        { status: 1 }
+        { status: 1, expectedArrivalDate: 1 }
       ).lean();
       if (!existing) return res.status(404).json({ error: 'Delivery not found' });
       const statusUpdate = existing.status === 'cancelled'
         ? { status: defaultStatusFor({ truckId, deliveryType, customerDropOff, date }) }
         : {};
+      // A Pending transfer dragged onto a truck gets its ship date here, not in
+      // the modal, so it needs the same arrival default POST applies — and a
+      // transfer dragged past its arrival day carries the arrival along.
+      const arrivalUpdate = deliveryType === 'transfer'
+        ? { expectedArrivalDate: transferArrivalFor({ date, expectedArrivalDate: existing.expectedArrivalDate }) }
+        : {};
 
       const updated = await Delivery.findOneAndUpdate(
         scopeDeliveryQueryToLocations({ id }, req),
-        { $set: { truckId, deliveryType, date, customerDropOff, ...statusUpdate } },
+        { $set: { truckId, deliveryType, date, customerDropOff, ...statusUpdate, ...arrivalUpdate } },
         { new: true, projection: DELIVERY_LIST_PROJECTION }
       ).lean();
 
