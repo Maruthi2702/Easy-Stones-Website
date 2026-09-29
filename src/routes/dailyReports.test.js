@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyDerived } from './dailyReports.js';
+import { applyDerived, incomingTransferQuery } from './dailyReports.js';
 
 const baseReport = (overrides = {}) => ({
   status: 'draft',
@@ -148,5 +148,23 @@ describe('applyDerived — returns', () => {
     applyDerived(report, baseDerived({ returnsCount: 9, returnsSlabs: 9 }));
     expect(report.returns).toBe(1);
     expect(report.returnsSlabs).toBe(2);
+  });
+});
+
+describe('incomingTransferQuery', () => {
+  const q = incomingTransferQuery('2026-09-30', 'Spokane');
+
+  it('matches transfers due at this branch on this day', () => {
+    expect(q).toMatchObject({ deliveryType: 'transfer', expectedArrivalDate: '2026-09-30', transferDestination: 'Spokane' });
+  });
+
+  it('skips cancelled transfers', () => {
+    expect(q.status).toEqual({ $ne: 'cancelled' });
+  });
+
+  // A transfer with no driver is still in the sender's Pending Deliveries and
+  // isn't counted as shipped on their report, so it isn't incoming yet either.
+  it('only counts transfers the sending branch has put on a truck', () => {
+    expect(q.truckId).toEqual({ $nin: ['', null] });
   });
 });

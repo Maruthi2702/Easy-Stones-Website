@@ -80,6 +80,26 @@ const canSeeLocation = (req, location) => {
  * comment on applyDerived below for why the two are always called as a pair
  * before a day is ever locked in.
  */
+/**
+ * Transfers counted as incoming on `location`'s report for `date`. Inbound
+ * transfers key off a different date (when they're due here, not when they
+ * left origin) and the opposite location field — a ticket some other branch
+ * owns, addressed to this one.
+ *
+ * Only once the sending branch has put it on a truck: a transfer with no
+ * driver is still sitting in that branch's Pending Deliveries, and its own
+ * report doesn't count it as shipped (the outbound query's truckId check), so
+ * counting it here had the receiving branch expecting material nobody had
+ * sent yet.
+ */
+export const incomingTransferQuery = (date, location) => ({
+  deliveryType: 'transfer',
+  expectedArrivalDate: date,
+  transferDestination: location,
+  status: { $ne: 'cancelled' },
+  truckId: { $nin: ['', null] }
+});
+
 export async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
   // tzOffsetMinutes is the viewer's UTC offset (-420 for Pacific), so local
   // midnight is that many minutes *behind* UTC midnight — subtract, don't add.
@@ -122,11 +142,8 @@ export async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
       },
       'deliveryType transferDestination location numberOfSlabs'
     ).lean(),
-    // Inbound transfers key off a different date (when they're due here, not
-    // when they left origin) and the opposite location field — a ticket some
-    // other branch owns, addressed to this one.
     Delivery.find(
-      { deliveryType: 'transfer', expectedArrivalDate: date, transferDestination: location, status: { $ne: 'cancelled' } },
+      incomingTransferQuery(date, location),
       'id location numberOfSlabs receivedAt receivedBy'
     ).lean()
   ]);
