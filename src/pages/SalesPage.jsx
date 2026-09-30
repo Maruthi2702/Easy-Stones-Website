@@ -34,6 +34,7 @@ import UserProfileTab from '../components/sales/UserProfileTab';
 import Pagination from '../components/shared/Pagination';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
+import { splitContactValues } from '../utils/contactValues';
 import { toSalesRepList } from '../utils/salesReps';
 import { lazyRetry } from '../utils/lazyRetry';
 
@@ -3586,14 +3587,25 @@ const SalesPage = () => {
                                                         <span>{selectedCustomer.contactName}</span>
                                                     </div>
                                                 )}
+                                                {/* One line per address/number — a comma-joined
+                                                    field shown whole has no break point and pushed
+                                                    the Address column off a phone screen. */}
                                                 <div className="contact-item" style={{ marginBottom: '0.4rem' }}>
                                                     <Mail size={16} />
-                                                    <span>{selectedCustomer.email}</span>
+                                                    <div className="contact-values">
+                                                        {splitContactValues(selectedCustomer.email).map(email => (
+                                                            <span key={email}>{email}</span>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                                 {selectedCustomer.phone && (
                                                     <div className="contact-item">
                                                         <Phone size={16} />
-                                                        <span>{formatPhoneForDisplay(selectedCustomer.phone)}</span>
+                                                        <div className="contact-values">
+                                                            {splitContactValues(selectedCustomer.phone).map(phone => (
+                                                                <span key={phone}>{formatPhoneForDisplay(phone)}</span>
+                                                            ))}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -3623,10 +3635,18 @@ const SalesPage = () => {
                                                 <Mail size={13} />
                                                 <span>{selectedCustomer.receiveMarketing !== false ? 'Subscribed' : 'Unsubscribed'}</span>
                                             </div>
-                                            <div className="marketing-email-chip" title={selectedCustomer.marketingEmail || selectedCustomer.email || 'No email'}>
-                                                <Mail size={13} className="email-icon" />
-                                                <span>{selectedCustomer.marketingEmail || selectedCustomer.email || 'No email provided'}</span>
-                                            </div>
+                                            {/* A chip per address, wrapping onto the next line
+                                                when they don't fit, rather than one joined string
+                                                cut off mid-address. */}
+                                            {(() => {
+                                                const emails = splitContactValues(selectedCustomer.marketingEmail || selectedCustomer.email);
+                                                return (emails.length ? emails : ['No email provided']).map(email => (
+                                                    <div key={email} className="marketing-email-chip" title={email}>
+                                                        <Mail size={13} className="email-icon" />
+                                                        <span>{email}</span>
+                                                    </div>
+                                                ));
+                                            })()}
                                         </div>
                                     </div>
 

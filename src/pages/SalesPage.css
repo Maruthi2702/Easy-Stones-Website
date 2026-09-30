@@ -614,10 +614,13 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
   color: #f59e0b;
 }
 
+/* minmax(0, 1fr), not 1fr: a plain 1fr column grows to fit its longest
+   unbreakable line (a long email), which pushed Address off a phone screen
+   and made the whole panel scroll sideways. */
 .detail-columns,
 .detail-columns.side-by-side {
   display: grid !important;
-  grid-template-columns: 1fr 1fr !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 1.5rem !important;
   margin-top: 1rem !important;
   padding-top: 1.25rem !important;
@@ -659,15 +662,16 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
   gap: 4rem !important;
 }
 
-/* Single-Line Marketing Styling */
+/* Marketing row: status pill, then one chip per email. Stays on one line
+   when it fits and wraps chips onto the next line when it doesn't, so a
+   second address is never cut off. */
 .marketing-single-line-wrapper {
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
-  flex-wrap: nowrap !important;
-  white-space: nowrap !important;
+  flex-wrap: wrap !important;
   max-width: 100% !important;
-  overflow: hidden !important;
+  min-width: 0 !important;
 }
 
 .marketing-status-pill {
@@ -708,7 +712,15 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
-  max-width: 220px !important;
+  /* The full address when there's room; ellipsis only if one address is
+     wider than the whole row (the title shows it in full). */
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.marketing-email-chip span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
 .marketing-email-chip .email-icon {
@@ -994,6 +1006,43 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* Several emails or numbers from one field, one per line beside a single
+   icon — the icon stays level with the first line. */
+.contact-item:has(.contact-values) {
+  align-items: flex-start;
+}
+
+.contact-item > svg {
+  flex-shrink: 0;
+}
+
+.contact-item:has(.contact-values) > svg {
+  margin-top: 0.2em;
+}
+
+.contact-values {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+/* A single value still too long for the column (a long email, or a contact
+   name like "Karissa/Chris/Crystal") wraps instead of widening the panel. */
+.contact-item span,
+.contact-values span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* On a phone the two columns don't fit side by side: Address goes below
+   Primary Contact instead of being squeezed against the edge. */
+@media (max-width: 640px) {
+  .detail-columns.side-by-side {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
 }
 
 .info-row {
