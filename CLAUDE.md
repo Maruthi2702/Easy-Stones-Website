@@ -4,6 +4,14 @@ Live app with real users (sales/delivery/admin staff). Regressions in shared
 components silently break screens far from the one being worked on — this
 file exists to stop that class of bug from recurring.
 
+## Known open issues live in `KNOWN_ISSUES.md`
+
+Bugs that have been found but not fixed yet are tracked in
+[`KNOWN_ISSUES.md`](KNOWN_ISSUES.md). Check it before working on an area it
+lists (currently transfers and the Daily Work Report), don't fix entries in it
+unless asked, and when a fix lands move the entry to its **Fixed** table with
+the commit.
+
 ## Shared components: audit every usage before changing rendering behavior
 
 `src/components/shared/**` (`CustomSelect`, and anything else reused across
