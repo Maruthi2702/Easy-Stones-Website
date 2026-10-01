@@ -84,6 +84,9 @@ import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import { linkVisitToSchedule, unlinkVisitFromSchedule, moveVisitOnSchedule } from './src/services/visitSchedule.js';
+import {
+  getAggregationRangeMatch, getFollowUpRangeMatch, rangePrefilter, followUpDatePrefilter, slimForUnwind
+} from './src/utils/dashboardMatch.js';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
 import path from 'path';
 import fs from 'fs';
@@ -210,7 +213,36 @@ const bustUserCaches = () => {
 
 // Base64 to Cloudinary Upload Utility (persistent across restarts)
 // Falls back to disk only if Cloudinary is not configured (local dev without .env)
+// A PDF attached to a visit: uploaded as a Cloudinary raw file named *.pdf (so
+// isPdfSource in src/utils/attachments.js recognises the URL), the same file
+// type delivery packing lists use. These used to fall through
+// processBase64Image's image-only check and stay inline in the customer
+// document — 6 of them, up to 269 KB each, by Feb 2026. Without Cloudinary, or
+// if the upload fails, it stays inline as before rather than being lost.
+const processBase64Pdf = async (dataUrl, subDir) => {
+  if (!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)) {
+    return dataUrl;
+  }
+  try {
+    const buffer = Buffer.from(dataUrl.split(';base64,').pop(), 'base64');
+    const publicId = `pdf_${Date.now()}_${Math.round(Math.random() * 1E9)}.pdf`;
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { folder: subDir, public_id: publicId, resource_type: 'raw' },
+        (error, res) => (error ? reject(error) : resolve(res))
+      ).end(buffer);
+    });
+    return result.secure_url;
+  } catch (err) {
+    console.error('Failed to upload PDF attachment:', err);
+    return dataUrl;
+  }
+};
+
 const processBase64Image = async (base64String, subDir = 'Visits') => {
+  if (typeof base64String === 'string' && base64String.startsWith('data:application/pdf')) {
+    return processBase64Pdf(base64String, subDir);
+  }
   if (!base64String || !base64String.startsWith('data:image/')) return base64String;
 
   try {
@@ -2254,8 +2286,15 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
 
     const followUpDateMatchScoped = getFollowUpRangeMatch(mockStartDate, mockEndDate, userMatchObj);
 
+    // The five rollups below are independent, so they run at once (Promise.all
+    // further down) rather than one after another. Each filters and slims
+    // customers before $unwind — see src/utils/dashboardMatch.js.
+    const visitRangePrefilter = rangePrefilter(startDate, endDate, 'visits');
+
     // Aggregation for Visits Stats (Strictly by Visit Date)
-    const visitStats = await Customer.aggregate([
+    const visitStatsQuery = Customer.aggregate([
+      ...(visitRangePrefilter ? [visitRangePrefilter] : []),
+      ...slimForUnwind('visits'),
       { $unwind: "$visits" },
       { $match: visitDateMatch },
       {
@@ -2296,7 +2335,8 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     ]);
 
     // Separate Aggregation for Follow-Up Stats (Strictly by Follow-Up Date)
-    const followUpStats = await Customer.aggregate([
+    const followUpStatsQuery = Customer.aggregate([
+      ...slimForUnwind('visits'),
       { $unwind: "$visits" },
       { $match: followUpDateMatchScoped },
       { $count: "count" }
@@ -2304,7 +2344,9 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
 
     // Today's Schedule count
 
-    const scheduleCount = await Customer.aggregate([
+    const scheduleCountQuery = Customer.aggregate([
+      followUpDatePrefilter(todayStr),
+      ...slimForUnwind('visits'),
       { $unwind: "$visits" },
       {
         $match: {
@@ -2329,7 +2371,10 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     // Strictly filter by current user for dashboard resources
 
     const resourceRange = getAggregationRangeMatch(startDate, endDate, "resources");
-    const resourceStats = await Customer.aggregate([
+    const resourcePrefilter = rangePrefilter(startDate, endDate, 'resources');
+    const resourceStatsQuery = Customer.aggregate([
+      ...(resourcePrefilter ? [resourcePrefilter] : []),
+      ...slimForUnwind('resources'),
       { $unwind: "$resources" },
       {
         $match: {
@@ -2350,10 +2395,14 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     ]);
 
     // Count Unified Leads for current user (any Customer with a status set)
-    const leadCount = await Customer.countDocuments({ 
+    const leadCountQuery = Customer.countDocuments({ 
       createdBy: userId, 
       status: { $exists: true } 
     });
+
+    const [visitStats, followUpStats, scheduleCount, resourceStats, leadCount] = await Promise.all([
+      visitStatsQuery, followUpStatsQuery, scheduleCountQuery, resourceStatsQuery, leadCountQuery
+    ]);
 
     const result = {
       visits: visitStats[0]?.visits || 0,
@@ -2414,7 +2463,13 @@ app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard
       ? getFollowUpRangeMatch(startDate, endDate, userMatchObj)
       : getAggregationRangeMatch(startDate, endDate, "visits", userMatchObj);
 
+    // Filter and slim customers before $unwind (src/utils/dashboardMatch.js).
+    // Follow-ups have no early filter: getFollowUpRangeMatch also counts an
+    // entry whose follow-up fields are missing, so nearly every visit passes.
+    const visitPrefilter = filterType === 'followup' ? null : rangePrefilter(startDate, endDate, 'visits');
     const visits = await Customer.aggregate([
+      ...(visitPrefilter ? [visitPrefilter] : []),
+      ...slimForUnwind('visits'),
       { $unwind: "$visits" },
       { $match: dateMatch },
       {
@@ -2526,7 +2581,10 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
       }
     };
 
+    const resourcePrefilter = rangePrefilter(startDate, endDate, 'resources');
     const resources = await Customer.aggregate([
+      ...(resourcePrefilter ? [resourcePrefilter] : []),
+      ...slimForUnwind('resources'),
       { $unwind: "$resources" },
       { $match: resourceMatchStage },
       {
@@ -3551,108 +3609,6 @@ const getNowLocalISO = () => {
   return `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour')}:${getPart('minute')}:${getPart('second')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
 };
 
-// --- Dashboard Aggregation Helpers (Global Scope) ---
-
-const getAggregationDateRef = (prefix) => ({
-  $cond: [
-    { $eq: [{ $type: `$${prefix}.date` }, "string"] },
-    `$${prefix}.date`,
-    {
-      $cond: [
-        { $eq: [{ $type: `$${prefix}.createdAt` }, "date"] },
-        { $dateToString: { format: "%Y-%m-%d", date: `$${prefix}.createdAt` } },
-        { $ifNull: [{ $substr: [{ $ifNull: [`$${prefix}.createdAt`, ""] }, 0, 10] }, ""] }
-      ]
-    }
-  ]
-});
-
-const getAggregationRangeMatch = (start, end, prefix, additionalMatch = {}) => {
-  const startStr = start?.toISOString().split('T')[0];
-  const endStr = end?.toISOString().split('T')[0];
-  const dateRef = getAggregationDateRef(prefix);
-  const conds = [];
-
-  // Add additional matches (like createdBy)
-  for (const [key, value] of Object.entries(additionalMatch)) {
-    // Use $toString for ID fields to be safe with mixed types
-    if (key.includes('createdBy') || key.includes('uploadedBy')) {
-      conds.push({ $eq: [{ $toString: `$${key}` }, value] });
-    } else {
-      conds.push({ $eq: [`$${key}`, value] });
-    }
-  }
-
-  if (startStr) conds.push({ $gte: [dateRef, startStr] });
-  if (endStr) conds.push({ $lte: [dateRef, endStr] });
-
-  return conds.length > 0 ? { $expr: { $and: conds } } : {};
-};
-
-const getFollowUpRangeMatch = (start, end, additionalMatch = {}) => {
-  const startStr = start?.toISOString().split('T')[0];
-  const endStr = end?.toISOString().split('T')[0];
-  const conds = [];
-
-  // Add additional matches
-  for (const [key, value] of Object.entries(additionalMatch)) {
-    if (key.includes('createdBy') || key.includes('uploadedBy')) {
-      conds.push({ $eq: [{ $toString: `$${key}` }, value] });
-    } else {
-      conds.push({ $eq: [`$${key}`, value] });
-    }
-  }
-
-  // Expression to normalize followUpDate to a YYYY-MM-DD string format on the fly
-  const followUpDateExpr = {
-    $cond: [
-      { $eq: [{ $type: "$visits.followUpDate" }, "date"] },
-      { $dateToString: { format: "%Y-%m-%d", date: "$visits.followUpDate" } },
-      { $ifNull: ["$visits.followUpDate", ""] }
-    ]
-  };
-
-  // Include if follow-up date is set OR if follow-up notes exist
-  conds.push({
-    $or: [
-      { $and: [{ $ne: [followUpDateExpr, ""] }, { $ne: [followUpDateExpr, null] }] },
-      { $and: [{ $ne: ["$visits.followUp", ""] }, { $ne: ["$visits.followUp", null] }] },
-      { $and: [{ $ne: ["$visits.nextAction", ""] }, { $ne: ["$visits.nextAction", null] }] }
-    ]
-  });
-
-  // Optimised Follow-up Logic:
-  // 1. If a range is provided, we filter based on followUpDate.
-  if (startStr) {
-    if (startStr === endStr) {
-      // "Today" (or single day) filter on dashboard: show follow-ups for that day OR anytime in the future
-      // This excludes past/overdue follow-ups to keep the "Today" view focused on current/upcoming work.
-      conds.push({
-        $and: [
-          { $ne: [followUpDateExpr, ""] },
-          { $ne: [followUpDateExpr, null] },
-          { $gte: [followUpDateExpr, startStr] }
-        ]
-      });
-    } else {
-      // Other ranges (7 days, 30 days, or "All"): Show items in range PLUS overdue items.
-      const todayStr = new Date().toISOString().split('T')[0];
-      const referenceToday = (startStr < todayStr) ? todayStr : startStr;
-
-      conds.push({
-        $or: [
-          { $gte: [followUpDateExpr, startStr] },
-          { $lt: [followUpDateExpr, referenceToday] },
-          // Items without a date (notes only) are included in the "All" or relative views
-          { $eq: [followUpDateExpr, ""] },
-          { $eq: [followUpDateExpr, null] }
-        ]
-      });
-    }
-  }
-
-  return { $expr: { $and: conds } };
-};
 
 
 // Add visit

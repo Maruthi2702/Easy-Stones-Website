@@ -4,6 +4,7 @@ import SearchableSelect from '../SearchableSelect';
 import { API_URL } from '../../config/api';
 import CustomDatePicker from '../CustomDatePicker';
 import { formatDate } from '../../utils/dateUtils';
+import { isPdfSource } from '../../utils/attachments';
 
 const VisitModal = ({
     showVisitModal,
@@ -137,7 +138,7 @@ const VisitModal = ({
                             <div className="image-upload-grid">
                                 {visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
                                     <div key={idx} className="image-preview-wrapper">
-                                        {img.startsWith('data:application/pdf') ? (
+                                        {isPdfSource(img) ? (
                                             <div className="pdf-preview-thumbnail">
                                                 <FileText size={24} />
                                                 <span>PDF Document</span>
@@ -258,7 +259,7 @@ const VisitModal = ({
                                 <div className="visit-attachments-grid" style={{ marginTop: '0.5rem' }}>
                                     {(Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
                                         <div key={idx} className="attachment-preview-card">
-                                            {img.startsWith('data:application/pdf') ? (
+                                            {isPdfSource(img) ? (
                                                 <div
                                                     className="attachment-pdf"
                                                     onClick={() => handleDashboardDownload({ content: img, name: `Visit-Doc-${idx}.pdf`, type: 'file' })}

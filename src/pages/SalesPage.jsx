@@ -35,6 +35,7 @@ import Pagination from '../components/shared/Pagination';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 import { splitContactValues } from '../utils/contactValues';
+import { isPdfSource } from '../utils/attachments';
 import { toSalesRepList } from '../utils/salesReps';
 import { lazyRetry } from '../utils/lazyRetry';
 
@@ -1830,6 +1831,48 @@ const SalesPage = () => {
         setShowContactModal(true);
     };
 
+    /**
+     * What a save refreshes, run in the background and all at once.
+     *
+     * Saves used to await each of these one after another — the customer, then
+     * three dashboard queries, then stats, then the schedule — before the form
+     * could close, so a save that took the server a fraction of a second kept
+     * its spinner going for several. The form now closes as soon as the server
+     * confirms; these catch the screens up behind it.
+     */
+    const refreshAfterSave = (targetCustomerId, { dashboard = true, schedules = false } = {}) => {
+        const jobs = [
+            // Cached copy first (already showing, and patched for a visit),
+            // then the server's — no loading state over the open customer.
+            selectedCustomerId && targetCustomerId === selectedCustomerId
+                ? fetchSingleCustomer(selectedCustomerId)
+                : fetchCustomers(true)
+        ];
+        if (dashboard) jobs.push(fetchDashboardData(), fetchDashboardStats());
+        if (schedules) jobs.push(fetchSchedules());
+        Promise.allSettled(jobs).then(results => results.forEach(r => {
+            if (r.status === 'rejected') console.error('[refreshAfterSave]', r.reason);
+        }));
+    };
+
+    // Show a saved visit on the open customer straight away, rather than only
+    // once the background refresh lands. Kept in the detail cache too, so the
+    // cached copy shown while that refresh runs isn't the pre-save one.
+    const patchOpenCustomerVisits = (customerId, visit) => {
+        if (!visit?._id || customerId !== selectedCustomerId) return;
+        setSelectedCustomerDetail(prev => {
+            if (!prev || prev._id !== customerId) return prev;
+            const visits = prev.visits || [];
+            const exists = visits.some(v => v._id === visit._id);
+            const next = {
+                ...prev,
+                visits: exists ? visits.map(v => (v._id === visit._id ? { ...v, ...visit } : v)) : [...visits, visit]
+            };
+            customerCacheRef.current[customerId] = next;
+            return next;
+        });
+    };
+
     const handleSaveContact = async () => {
         try {
             setIsSaving(true);
@@ -1845,8 +1888,8 @@ const SalesPage = () => {
             });
 
             if (response.ok) {
-                await fetchSingleCustomer(selectedCustomerId);
                 setShowContactModal(false);
+                refreshAfterSave(selectedCustomerId, { dashboard: false });
             } else {
                 const data = await response.json();
                 alert(data.message || 'Failed to save contact');
@@ -1906,18 +1949,16 @@ const SalesPage = () => {
                 // If we're on the Dashboard view (dashboard tabs), refresh dashboard data
                 const isDashboardView = activeDashboardTab === 'visits' || activeDashboardTab === 'resources' || activeDashboardTab === 'followups' || activeDashboardTab === 'leads';
 
+                // Close first, refresh behind it — same reasoning as refreshAfterSave.
+                setDeleteConfirmation({ isOpen: false, isDeleting: false, type: '', id: null, customerId: null, message: '' });
                 if (type === 'dashboardResource') {
                     fetchDashboardResources();
+                } else if (!selectedCustomerId && isDashboardView) {
+                    Promise.allSettled([fetchDashboardData(), fetchDashboardStats()]);
                 } else {
-                    if (!selectedCustomerId && isDashboardView) {
-                        await fetchDashboardData();
-                        await fetchDashboardStats();
-                    } else {
-                        // Otherwise, refresh the selected customer's data
-                        await fetchSingleCustomer(targetCustomerId);
-                    }
+                    // Otherwise, refresh the selected customer's data
+                    fetchSingleCustomer(targetCustomerId);
                 }
-                setDeleteConfirmation({ isOpen: false, isDeleting: false, type: '', id: null, customerId: null, message: '' });
             } else {
                 setDeleteConfirmation(prev => ({ ...prev, isDeleting: false }));
                 alert(`Failed to delete ${type}`);
@@ -2342,18 +2383,18 @@ const SalesPage = () => {
                 throw lastError || new Error('Failed to save visit');
             }
 
-            if (selectedCustomerId && targetCustomerId === selectedCustomerId) {
-                await fetchSingleCustomer(selectedCustomerId);
-            } else {
-                await fetchCustomers(true);
-            }
-
-            await fetchDashboardData();
-            await fetchDashboardStats();
-            await fetchSchedules();
+            // POST answers with the stored visit (image URLs and all); PUT
+            // doesn't, so an edit shows what was just sent until the refresh.
+            const saved = await response.json().catch(() => null);
+            patchOpenCustomerVisits(
+                targetCustomerId,
+                editingVisit ? { ...editingVisit, ...payload, _id: editingVisit._id } : saved?.visit
+            );
 
             setCurrentFollowUpPage(1);
             handleCloseVisitModal();
+            // Logging a visit can add a drop-in to the calendar, hence schedules.
+            refreshAfterSave(targetCustomerId, { schedules: true });
         } catch (error) {
             console.error('[Visit Save Exception] Details:', {
                 message: error.message,
@@ -2765,17 +2806,10 @@ const SalesPage = () => {
             });
 
             if (response.ok) {
-                if (selectedCustomerId && targetCustomerId === selectedCustomerId) {
-                    await fetchSingleCustomer(selectedCustomerId);
-                } else {
-                    await fetchCustomers(true);
-                }
-
-                // Refresh dashboard data and stats
-                await fetchDashboardData();
-                await fetchDashboardStats();
-
                 handleCloseResourceModal();
+                // A placement writes its own visit, which can add a drop-in
+                // to the calendar — hence schedules.
+                refreshAfterSave(targetCustomerId, { schedules: true });
             } else {
                 const data = await response.json();
                 console.error('Save resource failed:', data);
@@ -3957,7 +3991,7 @@ const SalesPage = () => {
                                                                                     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                                                                         {(Array.isArray(resource.image) ? resource.image : (resource.image ? [resource.image] : [])).length > 0 ? (
                                                                                             (Array.isArray(resource.image) ? resource.image : [resource.image]).map((img, idx) => (
-                                                                                                img.startsWith('data:application/pdf') ? (
+                                                                                                isPdfSource(img) ? (
                                                                                                     <div key={idx} style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => {
                                                                                                         const win = window.open();
                                                                                                         win.document.write('<iframe src="' + img + '" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>');
@@ -5278,7 +5312,7 @@ const SalesPage = () => {
                 {
                     fullScreenImage && (
                         <div className="fullscreen-image-overlay" onClick={() => { setFullScreenImage(null); setFullScreenGallery([]); }}>
-                            <div className="fullscreen-image-container" onClick={(e) => e.stopPropagation()} style={{ width: fullScreenImage.startsWith('data:application/pdf') ? '80%' : 'auto', height: fullScreenImage.startsWith('data:application/pdf') ? '90%' : 'auto', maxWidth: '90%', maxHeight: '90%' }}>
+                            <div className="fullscreen-image-container" onClick={(e) => e.stopPropagation()} style={{ width: isPdfSource(fullScreenImage) ? '80%' : 'auto', height: isPdfSource(fullScreenImage) ? '90%' : 'auto', maxWidth: '90%', maxHeight: '90%' }}>
                                 <button className="fullscreen-close-btn" onClick={() => { setFullScreenImage(null); setFullScreenGallery([]); }}>
                                     <X size={32} />
                                 </button>
@@ -5297,7 +5331,7 @@ const SalesPage = () => {
                                     </>
                                 )}
 
-                                {fullScreenImage.startsWith('data:application/pdf') ? (
+                                {isPdfSource(fullScreenImage) ? (
                                     <iframe src={fullScreenImage} style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} title="PDF Preview"></iframe>
                                 ) : (
                                     <img
