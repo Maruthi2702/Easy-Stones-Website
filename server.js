@@ -86,6 +86,7 @@ import createCheckInRouter, { checkinRoomFor, CHECKIN_ROOM_ALL } from './src/rou
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
+import { linkVisitToSchedule, unlinkVisitFromSchedule, moveVisitOnSchedule } from './src/services/visitSchedule.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -3728,23 +3729,19 @@ app.post('/api/customers/:customerId/visits', authenticate, requirePermission('m
     req.app.get('io').emit('visit_updated', { customerId });
     res.status(201).json({ success: true, visit: visitData });
 
-    // Background: close the loop with whatever this customer was scheduled
-    // for that day, so the planner can show a stop actually got done instead
-    // of just sitting at 'Scheduled' forever. Matched on the date prefix,
-    // not a Date-object comparison — startTime is stored as a naive
-    // '<date>T...' local string (see the calendar-sync timezone fix), so
-    // parsing it as a Date and re-comparing would risk exactly the kind of
-    // day-shift that fix was for. Only 'Scheduled' entries are touched, so
-    // this can't resurrect a Cancelled stop or relink an already-Completed one.
+    // Background: put the visit on the logger's calendar — completing their
+    // own Scheduled entry for this customer that day, or adding a drop-in if
+    // they had nothing planned (see src/services/visitSchedule.js). Matched on
+    // the date prefix, not a Date-object comparison — startTime is stored as
+    // a naive '<date>T...' local string (see the calendar-sync timezone fix).
+    // Only 'Scheduled' entries are completed, so this can't resurrect a
+    // Cancelled stop or relink an already-Completed one.
     try {
-      const linkedSchedule = await Schedule.findOneAndUpdate(
-        { customerId, status: 'Scheduled', startTime: { $regex: `^${processedDate}` } },
-        { $set: { status: 'Completed', linkedVisitId: visitId } },
-        { new: true }
-      );
-      if (linkedSchedule) {
-        emitScheduleUpdate({ type: 'upsert', userId: linkedSchedule.userId, id: String(linkedSchedule._id) });
-      }
+      await linkVisitToSchedule({
+        customerId, visitId, visitDate: processedDate,
+        userId: req.authType === 'admin' ? createdBy : null,
+        purpose, emit: emitScheduleUpdate
+      });
     } catch (linkError) {
       console.error('Failed to link visit to schedule:', linkError);
     }
@@ -3806,6 +3803,12 @@ app.put('/api/customers/:customerId/visits/:visitId', authenticate, requirePermi
     updateData['visits.$.updatedByName'] = updatedByName;
     updateData['visits.$.updatedAt'] = getNowLocalISO();
 
+    // Read before the write: whether the date is changing, and who logged
+    // the visit — its calendar entry belongs to them, not to whoever edits it.
+    const before = updateData['visits.$.date']
+      ? (await Customer.findOne({ _id: customerId, 'visits._id': visitId }, { 'visits.$': 1 }).lean())?.visits?.[0]
+      : null;
+
     const result = await Customer.updateOne(
       { _id: customerId, 'visits._id': visitId },
       { $set: updateData }
@@ -3816,6 +3819,18 @@ app.put('/api/customers/:customerId/visits/:visitId', authenticate, requirePermi
     }
 
     res.json({ success: true, message: 'Visit updated successfully' });
+
+    // Background: a visit moved to another day takes its calendar entry along.
+    if (before && before.date !== updateData['visits.$.date']) {
+      try {
+        await moveVisitOnSchedule({
+          customerId, visitId, newDate: updateData['visits.$.date'],
+          userId: before.createdBy, purpose: purpose ?? before.purpose, emit: emitScheduleUpdate
+        });
+      } catch (moveError) {
+        console.error('Failed to move visit on schedule:', moveError);
+      }
+    }
 
     // Background: Log the activity
     try {
@@ -3875,6 +3890,14 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAn
     await customer.save();
 
     res.json({ success: true, message: 'Visit deleted successfully' });
+
+    // Background: its drop-in comes off the calendar; a planned entry it had
+    // completed goes back to Scheduled.
+    try {
+      await unlinkVisitFromSchedule({ visitId, emit: emitScheduleUpdate });
+    } catch (unlinkError) {
+      console.error('Failed to unlink visit from schedule:', unlinkError);
+    }
 
     // Background: Log the activity
     try {
@@ -4983,6 +5006,18 @@ app.post('/api/customers/:customerId/resources', authenticate, requirePermission
     }
 
     res.status(201).json({ success: true, resource: newResource, visit: newVisit });
+
+    // Background: a placement is a stop like any other visit — on the
+    // logger's calendar as a Drop-off (see src/services/visitSchedule.js).
+    try {
+      await linkVisitToSchedule({
+        customerId, visitId: newVisit._id, visitDate: resourceDateStr,
+        userId: req.authType === 'admin' ? performer.id : null,
+        purpose: visitPurpose, emit: emitScheduleUpdate
+      });
+    } catch (linkError) {
+      console.error('Failed to link resource visit to schedule:', linkError);
+    }
   } catch (error) {
     console.error('Add resource error:', error);
     res.status(500).json({ message: `Failed to add resource: ${error.message}` });
@@ -5094,6 +5129,19 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
           { _id: customerId, 'visits._id': matchingVisit._id },
           { $set: visitUpdateData }
         );
+
+        // Its calendar entry follows the visit to its new day.
+        const newDate = visitUpdateData['visits.$.date'];
+        if (newDate && newDate !== matchingVisit.date) {
+          try {
+            await moveVisitOnSchedule({
+              customerId, visitId: matchingVisit._id, newDate,
+              userId: matchingVisit.createdBy, purpose: newPurpose, emit: emitScheduleUpdate
+            });
+          } catch (moveError) {
+            console.error('Failed to move resource visit on schedule:', moveError);
+          }
+        }
       }
     }
 
@@ -5121,14 +5169,16 @@ app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, req
     customer.resources.pull({ _id: resourceId });
 
     // Synchronize: Also remove the linked auto-generated Visit entry if it exists
+    let removedVisitId = null;
     if (titleToMatch && customer.visits && customer.visits.length > 0) {
-      const matchingVisitIndex = customer.visits.findIndex(v => 
+      const matchingVisitIndex = customer.visits.findIndex(v =>
         v.purpose && (
-          v.purpose.includes(titleToMatch) || 
+          v.purpose.includes(titleToMatch) ||
           (resource.resourceType && v.purpose.includes(resource.resourceType))
         )
       );
       if (matchingVisitIndex > -1) {
+        removedVisitId = customer.visits[matchingVisitIndex]._id;
         customer.visits.splice(matchingVisitIndex, 1);
       }
     }
@@ -5136,6 +5186,15 @@ app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, req
     await customer.save();
 
     res.json({ success: true, message: 'Resource deleted successfully' });
+
+    // Background: the auto-generated visit is gone, so its calendar entry goes too.
+    if (removedVisitId) {
+      try {
+        await unlinkVisitFromSchedule({ visitId: removedVisitId, emit: emitScheduleUpdate });
+      } catch (unlinkError) {
+        console.error('Failed to unlink resource visit from schedule:', unlinkError);
+      }
+    }
   } catch (error) {
     console.error('Delete resource error:', error);
     res.status(500).json({ message: 'Failed to delete resource' });

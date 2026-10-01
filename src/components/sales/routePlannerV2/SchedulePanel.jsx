@@ -249,9 +249,15 @@ const SchedulePanel = ({
                                 </div>
                                 <div className="rpv2-schedule-card-meta">
                                     {timeLabel(visit.startTime)} · {visit.activityType || 'Visit'}
-                                    {flag === 'done' && (
+                                    {/* source 'visit_log' = added by logging a visit
+                                        with nothing scheduled (src/services/visitSchedule.js). */}
+                                    {flag === 'done' && (visit.source === 'visit_log' ? (
+                                        <span className="rpv2-schedule-flag rpv2-schedule-flag--done" title="Not planned — added when the visit was logged">
+                                            <Check size={11} /> Drop-in
+                                        </span>
+                                    ) : (
                                         <span className="rpv2-schedule-flag rpv2-schedule-flag--done"><Check size={11} /> Visited</span>
-                                    )}
+                                    ))}
                                     {flag === 'missed' && (
                                         <span className="rpv2-schedule-flag rpv2-schedule-flag--missed"><AlertTriangle size={11} /> Missed</span>
                                     )}

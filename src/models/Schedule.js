@@ -43,10 +43,11 @@ const scheduleSchema = new mongoose.Schema({
   // Who put this on the calendar. The route planner can replace or clear a day
   // it laid out, and that must never reach an entry someone typed in by hand on
   // the same date — so the two are told apart here rather than by guessing from
-  // the times.
+  // the times. 'visit_log' is a drop-in: a visit logged with nothing scheduled
+  // for it, added already Completed (see src/services/visitSchedule.js).
   source: {
     type: String,
-    enum: ['manual', 'route_planner'],
+    enum: ['manual', 'route_planner', 'visit_log'],
     default: 'manual',
     index: true
   }

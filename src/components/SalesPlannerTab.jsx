@@ -1108,9 +1108,15 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 </div>
                 <div className="pl-meta">
                     {timeLabel(item.startTime)} · {item.activityType || 'Visit'}
-                    {flag === 'done' && (
+                    {/* source 'visit_log' = added by logging a visit with
+                        nothing scheduled (src/services/visitSchedule.js). */}
+                    {flag === 'done' && (item.source === 'visit_log' ? (
+                        <span className="pl-visit-flag pl-visit-flag--done" title="Not planned — added when the visit was logged">
+                            <Check size={11} /> Drop-in
+                        </span>
+                    ) : (
                         <span className="pl-visit-flag pl-visit-flag--done"><Check size={11} /> Visited</span>
-                    )}
+                    ))}
                     {flag === 'missed' && (
                         <span className="pl-visit-flag pl-visit-flag--missed"><AlertTriangle size={11} /> Missed</span>
                     )}
