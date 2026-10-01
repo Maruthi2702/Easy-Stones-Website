@@ -22,8 +22,19 @@ export const AuthProvider = ({ children }) => {
         checkAuth();
     }, []);
 
-    const checkAuth = async () => {
-        setLoading(true);
+    /**
+     * Re-read the session and full profile. Resolves to the user it set, or
+     * null when there's no session.
+     *
+     * `silent` skips the app-wide loading state. Every ProtectedRoute swaps
+     * its page for a spinner while `loading` is true, so a re-check that
+     * flipped it — the cross-tab login sync — tore down whatever screen was
+     * open and rebuilt it, refetching everything, only to land on the same
+     * user. Only the very first check, when nobody knows who's signed in yet,
+     * needs to hold the page back.
+     */
+    const checkAuth = async ({ silent = false } = {}) => {
+        if (!silent) setLoading(true);
         try {
             const token = getAuthToken();
             const headers = {};
@@ -87,14 +98,16 @@ export const AuthProvider = ({ children }) => {
             if (profileRes.ok) {
                 const userData = await profileRes.json();
                 // Normalize user object for UI consistency
-                setUser({
+                const nextUser = {
                     ...userData,
                     role: userData.role || authData.role,
                     type: authData.authType === 'admin' ? 'internal' : 'customer',
                     // `name` is the server-resolved Display Name (falling back to a
                     // tidied username); prefer it over the raw lower-case login id.
                     contactName: userData.contactName || userData.name || userData.username || userData.email
-                });
+                };
+                setUser(nextUser);
+                return nextUser;
             } else {
                 setUser(null);
             }
@@ -104,6 +117,7 @@ export const AuthProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
+        return null;
     };
 
     // Auto-logout after inactivity timeout
@@ -152,7 +166,8 @@ export const AuthProvider = ({ children }) => {
                 setUser(null);
             } else if (e.key === 'auth_login_event') {
                 console.log('Cross-tab login event received');
-                checkAuth();
+                // Silent: a tab already open on a page keeps it mounted.
+                checkAuth({ silent: true });
             }
         };
 
@@ -182,6 +197,29 @@ export const AuthProvider = ({ children }) => {
         setUser(userData);
     };
 
+    /**
+     * Finish a sign-in on this tab: load the full profile (permissions and all)
+     * before any user is set, so the page it lands on mounts once.
+     *
+     * The login pages used to call login() with the basic user the login
+     * response carries, then checkAuth() for the full profile. Setting that
+     * basic user sent the login page straight on to /sales, which started
+     * loading — then checkAuth flipped `loading`, ProtectedRoute swapped the
+     * page for a spinner, and /sales mounted and loaded all over again once
+     * the profile arrived. Falls back to login(fallbackUser) if the profile
+     * can't be read, which is what happened before.
+     */
+    const completeLogin = async (fallbackUser) => {
+        resetSessionExpiredGuard();
+        const fullUser = await checkAuth({ silent: true });
+        if (!fullUser) {
+            login(fallbackUser);
+            return fallbackUser;
+        }
+        localStorage.setItem('auth_login_event', Date.now().toString());
+        return fullUser;
+    };
+
     const logout = async () => {
         try {
             await Promise.all([
@@ -201,6 +239,7 @@ export const AuthProvider = ({ children }) => {
         user,
         loading,
         login,
+        completeLogin,
         logout,
         checkAuth
     };

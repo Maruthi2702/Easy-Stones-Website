@@ -8,7 +8,7 @@ import './LoginPage.css';
 
 const LoginPage = () => {
     const navigate = useNavigate();
-    const { login, checkAuth, user } = useAuth();
+    const { completeLogin, user } = useAuth();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -98,17 +98,12 @@ const LoginPage = () => {
                     contactName: data.admin.username
                 };
 
-                // Update global auth state — set basic info immediately,
-                // then re-fetch the full profile (with permissions) before navigating.
-                login(userData);
-                await checkAuth();
-
-                // Check for redirect query param
-                const urlParams = new URLSearchParams(window.location.search);
-                const redirectUrl = urlParams.get('redirect') || '/admin';
-
-                // JWT is stored in httpOnly cookie automatically
-                navigate(redirectUrl);
+                // Full profile (with permissions) first, then the user is set
+                // once — the effect above sees it and redirects. See
+                // completeLogin in AuthContext for why it isn't login() then
+                // checkAuth() any more: that mounted the next page twice.
+                // JWT is stored in httpOnly cookie automatically.
+                await completeLogin(userData);
             } else {
                 setError(data.message || 'Invalid credentials');
             }

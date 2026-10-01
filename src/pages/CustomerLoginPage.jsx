@@ -13,7 +13,7 @@ import './CustomerLoginPage.css';
  */
 const CustomerLoginPage = () => {
     const navigate = useNavigate();
-    const { login, checkAuth, user } = useAuth();
+    const { completeLogin, user } = useAuth();
     const [formData, setFormData] = useState({
         email: '',
         password: ''
@@ -138,19 +138,11 @@ const CustomerLoginPage = () => {
             const data = await response.json();
 
             if (response.ok) {
-                // Update auth context with user data
-                login(data.user);
-                await checkAuth();
-                // Redirect based on user type
-                const urlParams = new URLSearchParams(window.location.search);
-                const redirectUrl = urlParams.get('redirect');
-                if (redirectUrl) {
-                    navigate(redirectUrl);
-                } else if (data.user.type === 'internal') {
-                    navigate('/sales');
-                } else {
-                    navigate('/');
-                }
+                // Full profile first, then the user is set once — the effect
+                // above sees it and redirects (?redirect=, /sales or /). See
+                // completeLogin in AuthContext for why it isn't login() then
+                // checkAuth() any more: that loaded /sales twice.
+                await completeLogin(data.user);
             } else {
                 // The server returns one message for both a bad account and a bad
                 // password on purpose — don't guess which, but do say what to do next.
