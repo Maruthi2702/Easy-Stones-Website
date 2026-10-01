@@ -313,6 +313,11 @@ const SalesPage = () => {
     const [dashboardResources, setDashboardResources] = React.useState([]);
     const [dashboardFollowups, setDashboardFollowups] = React.useState([]);
     const [dashboardDataLoading, setDashboardDataLoading] = React.useState(false);
+    // False until the first fetchDashboardData finishes. dashboardDataLoading
+    // starts false (other logic keys off it), so on its own the tables showed
+    // "No data available" between the workspace spinner going away and the
+    // first response landing — which read as an empty dashboard.
+    const [dashboardLoaded, setDashboardLoaded] = React.useState(false);
     const [allSchedules, setAllSchedules] = useState([]);
     const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
     const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
@@ -380,8 +385,23 @@ const SalesPage = () => {
             console.error('Error fetching dashboard data:', error);
         } finally {
             setDashboardDataLoading(false);
+            setDashboardLoaded(true);
         }
     }, [dashboardTimeRange]);
+
+    // A dashboard table with no rows yet while its data is still on the way
+    // says so, instead of claiming there's nothing there.
+    // The All range builds its visits from the Customers list (allVisits), so
+    // there it's that list's `loading` that matters too.
+    const dashboardTableLoading = dashboardDataLoading || !dashboardLoaded || (dashboardTimeRange === 'all' && loading);
+    const renderDashboardLoadingRow = (colSpan) => (
+        <tr>
+            <td colSpan={colSpan} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                <Loader size={16} className="animate-spin" style={{ verticalAlign: 'middle', marginRight: 8, color: '#d4af37' }} />
+                Loading…
+            </td>
+        </tr>
+    );
 
     // Single effect: fire BOTH dashboard fetches in parallel when dashboardTimeRange or refresh triggers change
     useEffect(() => {
@@ -4091,16 +4111,11 @@ const SalesPage = () => {
             {!authLoading && currentUser?.permissions && crmTab === 'dashboard' && currentUser.permissions.includes('view_dashboard') && (
                 <ErrorBoundary key="dashboard-view">
                     <div className="sales-dashboard-v2">
-                            {loading ? (
-                                <div className="skeleton-dashboard">
-                                    <div className="skeleton-stats">
-                                        {[1, 2, 3].map(i => (
-                                            <div key={i} className="skeleton-stat-card skeleton" />
-                                        ))}
-                                    </div>
-                                    <div className="skeleton-table skeleton" />
-                                </div>
-                            ) : (
+                            {/* No skeleton gated on `loading` here: that flag is the Customers
+                                list, which the dashboard doesn't render from (it has its own
+                                /api/dashboard/* data, and its tables show "Loading…" until that
+                                lands — see dashboardTableLoading). Waiting on it left the main
+                                area blank for ~2s after login, after the dashboard data had arrived. */}
                                 <>
                                     {/* Header */}
                                     <div className="dashboard-header-v2">
@@ -4213,6 +4228,9 @@ const SalesPage = () => {
                                                     <tbody>
                                                         {(() => {
                                                             const visits = memoizedFilteredVisits;
+                                                            if (visits.length === 0 && dashboardTableLoading) {
+                                                                return renderDashboardLoadingRow(6);
+                                                            }
                                                             if (visits.length === 0) {
                                                                 return (
                                                                     <tr>
@@ -4354,6 +4372,9 @@ const SalesPage = () => {
                                                         {(() => {
                                                             const followups = memoizedFollowups;
 
+                                                            if (followups.length === 0 && dashboardTableLoading) {
+                                                                return renderDashboardLoadingRow(5);
+                                                            }
                                                             if (followups.length === 0) {
                                                                 return (
                                                                     <tr>
@@ -4557,6 +4578,9 @@ const SalesPage = () => {
                                                             <tbody>
                                                                 {(() => {
                                                                     const resources = memoizedFilteredResources;
+                                                                    if (resources.length === 0 && dashboardTableLoading) {
+                                                                        return renderDashboardLoadingRow(5);
+                                                                    }
                                                                     if (resources.length === 0) {
                                                                         return (
                                                                             <tr>
@@ -4760,7 +4784,6 @@ const SalesPage = () => {
 
                                     {/* Follow-ups Table */}
                                 </>
-                            )}
                         </div>
                 </ErrorBoundary>
             )}
