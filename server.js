@@ -84,8 +84,11 @@ import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import { linkVisitToSchedule, unlinkVisitFromSchedule, moveVisitOnSchedule } from './src/services/visitSchedule.js';
+import { normalizeVisitDate, normalizeOptionalDate } from './src/utils/visitDates.js';
+import { canModifyVisit, canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from './src/utils/visitAccess.js';
 import {
-  getAggregationRangeMatch, getFollowUpRangeMatch, rangePrefilter, followUpDatePrefilter, slimForUnwind
+  getAggregationRangeMatch, getFollowUpRangeMatch, rangePrefilter, followUpDatePrefilter, slimForUnwind,
+  dashboardScope, scopeBranchPrefilter, scopeVisitUserMatch, narrowScopeToLocation
 } from './src/utils/dashboardMatch.js';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
 import path from 'path';
@@ -557,7 +560,9 @@ async function startServer() {
             'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet',
             'manage_easy_stones_colors',
             'view_inventory_analysis', 'import_inventory_analysis', 'view_inventory_prices',
-            'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures'
+            'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures',
+            'add_visits', 'edit_own_visits', 'delete_own_visits',
+            'view_all_visits', 'edit_all_visits', 'delete_all_visits'
           ],
           isSystem: true
         },
@@ -574,7 +579,9 @@ async function startServer() {
             'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet',
             'manage_easy_stones_colors',
             'view_inventory_analysis', 'import_inventory_analysis', 'view_inventory_prices',
-            'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures'
+            'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures',
+            'add_visits', 'edit_own_visits', 'delete_own_visits',
+            'view_all_visits', 'edit_all_visits', 'delete_all_visits'
           ],
           isSystem: true
         },
@@ -589,7 +596,9 @@ async function startServer() {
             'view_daily_report', 'edit_daily_report', 'submit_daily_report',
             'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet', 'delete_crossover_sheet',
             'view_inventory_analysis', 'import_inventory_analysis',
-            'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures'
+            'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures',
+            'add_visits', 'edit_own_visits', 'delete_own_visits',
+            'view_branch_visits', 'edit_branch_visits', 'delete_branch_visits'
           ],
           isSystem: true
         },
@@ -603,7 +612,8 @@ async function startServer() {
             'view_lost_sales', 'edit_lost_sales',
             'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet',
             'view_inventory_analysis',
-            'view_delivery_schedule', 'edit_delivery_schedule'
+            'view_delivery_schedule', 'edit_delivery_schedule',
+            'add_visits', 'edit_own_visits', 'delete_own_visits'
           ],
           isSystem: true
         },
@@ -680,19 +690,64 @@ async function startServer() {
         // customer info panel. Narrower than manage_customers on purpose —
         // every sales rep can already edit CRM fields, but only admin/director
         // get to touch login/lockout state or force a password reset.
-        { roles: ['admin', 'director'], permissions: ['manage_customer_accounts'] }
+        { roles: ['admin', 'director'], permissions: ['manage_customer_accounts'] },
+        // Who sees and changes other people's visits was hardcoded by role name
+        // (admin/director: all, manager: their branches). Now it's four Users &
+        // Roles toggles — see src/utils/visitAccess.js. Defaults preserve that.
+        { roles: ['admin', 'director'], permissions: ['view_all_visits', 'edit_all_visits'] },
+        { roles: ['manager'], permissions: ['view_branch_visits', 'edit_branch_visits'] },
+        // Delete split out from edit, so a role can correct visits without
+        // being able to remove them. Defaults match what edit allowed before.
+        { roles: ['admin', 'director'], permissions: ['delete_all_visits'] },
+        { roles: ['manager'], permissions: ['delete_branch_visits'] }
       ];
 
+      // Each grant reaches a role once. Its permissions are recorded in
+      // role.seededPermissions, and a permission already recorded there is never
+      // granted again — so one switched off under Users & Roles stays off.
+      // (This used to re-grant anything missing on every boot, silently undoing
+      // those changes at the next restart.) On the first boot with this, every
+      // grant is checked once more, exactly as before, and recorded.
+      const grantsByRole = new Map();
       for (const grant of NEW_PERMISSION_GRANTS) {
         for (const roleName of grant.roles) {
-          const role = await Role.findOne({ name: roleName });
-          if (!role) continue;
-          const missing = grant.permissions.filter(p => !role.permissions.includes(p));
-          if (missing.length === 0) continue;
-          role.permissions.push(...missing);
-          await role.save();
-          console.log(`🔑 Granted ${roleName}: ${missing.join(', ')}`);
+          grantsByRole.set(roleName, [...(grantsByRole.get(roleName) || []), ...grant.permissions]);
         }
+      }
+      for (const [roleName, granted] of grantsByRole) {
+        const role = await Role.findOne({ name: roleName });
+        if (!role) continue;
+        const seeded = new Set(role.seededPermissions || []);
+        const pending = [...new Set(granted)].filter(p => !seeded.has(p));
+        if (pending.length === 0) continue;
+        const missing = pending.filter(p => !role.permissions.includes(p));
+        role.permissions.push(...missing);
+        role.seededPermissions = [...seeded, ...pending];
+        await role.save();
+        if (missing.length) console.log(`🔑 Granted ${roleName}: ${missing.join(', ')}`);
+      }
+
+      // Adding, editing and deleting your own visits moved from Customers
+      // (manage_customers / delete_customers) to their own Visits permissions.
+      // Every role — custom ones too — gets whatever its Customers permissions
+      // already allowed, once (recorded in seededPermissions like the grants
+      // above), so nobody loses access on the day it ships and switching one off
+      // afterwards sticks.
+      const VISIT_ACTION_MIGRATION = [
+        { from: 'manage_customers', grant: ['add_visits', 'edit_own_visits', 'delete_own_visits'] },
+        { from: 'delete_customers', grant: ['delete_own_visits'] }
+      ];
+      const migratedPerms = [...new Set(VISIT_ACTION_MIGRATION.flatMap(m => m.grant))];
+      for (const role of await Role.find({})) {
+        const seeded = new Set(role.seededPermissions || []);
+        const pending = migratedPerms.filter(p => !seeded.has(p));
+        if (pending.length === 0) continue;
+        const earned = new Set(VISIT_ACTION_MIGRATION.filter(m => role.permissions.includes(m.from)).flatMap(m => m.grant));
+        const missing = pending.filter(p => earned.has(p) && !role.permissions.includes(p));
+        role.permissions.push(...missing);
+        role.seededPermissions = [...seeded, ...pending];
+        await role.save();
+        if (missing.length) console.log(`🔑 Granted ${role.name}: ${missing.join(', ')} (from its Customers permissions)`);
       }
 
       // manage_delivery_schedule was an orphaned permission: seeded onto the
@@ -2273,11 +2328,15 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
       startDate = new Date(now.getFullYear(), 0, 1);
     }
 
-    const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: req.userRole || 'admin' } : { id: req.customerId, role: 'customer' };
-    const isAdmin = ['admin', 'director', 'manager'].includes(role);
-
-    // If Admin/Manager, show all stats for the team. If regular salesperson/customer, filter by createdBy.
-    const userMatchObj = isAdmin ? {} : { "visits.createdBy": userId.toString() };
+    const userId = req.authType === 'admin' ? req.userId : req.customerId;
+    // view_all_visits: everything. view_branch_visits: every rep's visits, for
+    // customers in their assigned branches. Neither: what they logged. Set per
+    // role under Users & Roles → Visits; see dashboardScope in
+    // src/utils/dashboardMatch.js.
+    const scope = dashboardScope({ permissions: req.user?.permissions, userId, assignedLocations: req.user?.assignedLocations });
+    const branchPrefilter = scopeBranchPrefilter(scope);
+    const branchStage = branchPrefilter ? [branchPrefilter] : [];
+    const userMatchObj = scopeVisitUserMatch(scope);
     const visitDateMatch = getAggregationRangeMatch(startDate, endDate, "visits", userMatchObj);
 
     // Crucial: Pass the exact same string arguments as the visits endpoint to trigger the "Today + Future" logic
@@ -2302,6 +2361,7 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
 
     // Aggregation for Visits Stats (Strictly by Visit Date)
     const visitStatsQuery = Customer.aggregate([
+      ...branchStage,
       ...(visitRangePrefilter ? [visitRangePrefilter] : []),
       ...slimForUnwind('visits'),
       { $unwind: "$visits" },
@@ -2345,6 +2405,7 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
 
     // Separate Aggregation for Follow-Up Stats (Strictly by Follow-Up Date)
     const followUpStatsQuery = Customer.aggregate([
+      ...branchStage,
       ...slimForUnwind('visits'),
       { $unwind: "$visits" },
       { $match: followUpDateMatchScoped },
@@ -2354,6 +2415,7 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     // Today's Schedule count
 
     const scheduleCountQuery = Customer.aggregate([
+      ...branchStage,
       followUpDatePrefilter(todayStr),
       ...slimForUnwind('visits'),
       { $unwind: "$visits" },
@@ -2377,11 +2439,12 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
       { $count: "count" }
     ]);
 
-    // Strictly filter by current user for dashboard resources
-
+    // Resources follow the same scope as visits: only "own" narrows to what
+    // this person uploaded (it used to apply to everyone, admins included).
     const resourceRange = getAggregationRangeMatch(startDate, endDate, "resources");
     const resourcePrefilter = rangePrefilter(startDate, endDate, 'resources');
     const resourceStatsQuery = Customer.aggregate([
+      ...branchStage,
       ...(resourcePrefilter ? [resourcePrefilter] : []),
       ...slimForUnwind('resources'),
       { $unwind: "$resources" },
@@ -2389,12 +2452,14 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
         $match: {
           $expr: {
             $and: [
-              {
-                $or: [
-                  { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
-                  { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
-                ]
-              },
+              scope.kind === 'own'
+                ? {
+                    $or: [
+                      { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
+                      { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
+                    ]
+                  }
+                : { $literal: true },
               (resourceRange.$expr || { $literal: true })
             ]
           }
@@ -2461,11 +2526,19 @@ app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard
       startDate = new Date(now.getFullYear(), 0, 1);
     }
 
-    const { id: userId, role } = req.authType === 'admin' ? { id: req.userId, role: req.userRole || 'admin' } : { id: req.customerId, role: 'customer' };
-    const isAdmin = ['admin', 'director', 'manager'].includes(role);
-
-    // If Admin/Manager, show all data. Otherwise filter by creator.
-    const userMatchObj = isAdmin ? {} : { "visits.createdBy": userId.toString() };
+    const userId = req.authType === 'admin' ? req.userId : req.customerId;
+    // view_all_visits: everything. view_branch_visits: every rep's visits, for
+    // customers in their assigned branches. Neither: what they logged. Set per
+    // role under Users & Roles → Visits; see dashboardScope in
+    // src/utils/dashboardMatch.js.
+    // ?location= is the dashboard's location filter; it can only narrow.
+    const scope = narrowScopeToLocation(
+      dashboardScope({ permissions: req.user?.permissions, userId, assignedLocations: req.user?.assignedLocations }),
+      req.query.location
+    );
+    const branchPrefilter = scopeBranchPrefilter(scope);
+    const branchStage = branchPrefilter ? [branchPrefilter] : [];
+    const userMatchObj = scopeVisitUserMatch(scope);
 
     // Handle fallback logic for matching
     const dateMatch = filterType === 'followup'
@@ -2477,6 +2550,7 @@ app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard
     // entry whose follow-up fields are missing, so nearly every visit passes.
     const visitPrefilter = filterType === 'followup' ? null : rangePrefilter(startDate, endDate, 'visits');
     const visits = await Customer.aggregate([
+      ...branchStage,
       ...(visitPrefilter ? [visitPrefilter] : []),
       ...slimForUnwind('visits'),
       { $unwind: "$visits" },
@@ -2576,23 +2650,26 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
     }
 
     const userId = req.authType === 'admin' ? req.userId : req.customerId;
-    
+    // Same scope as the visits list (dashboardScope): view_all_visits sees every
+    // resource, view_branch_visits their branches', anyone else only what they
+    // uploaded.
+    // This used to narrow everyone — admins included — to their own uploads.
+    const scope = dashboardScope({ permissions: req.user?.permissions, userId, assignedLocations: req.user?.assignedLocations });
+    const branchPrefilter = scopeBranchPrefilter(scope);
 
-    
-
-    // For resources, let's stick to the $or match outside $expr if possible, 
-    // OR wrap it properly.
     const rangeMatch = getAggregationRangeMatch(startDate, endDate, "resources");
 
     const resourceMatchStage = {
       $expr: {
         $and: [
-          {
-            $or: [
-              { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
-              { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
-            ]
-          },
+          scope.kind === 'own'
+            ? {
+                $or: [
+                  { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
+                  { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
+                ]
+              }
+            : { $literal: true },
           (rangeMatch.$expr || { $literal: true })
         ]
       }
@@ -2600,6 +2677,7 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
 
     const resourcePrefilter = rangePrefilter(startDate, endDate, 'resources');
     const resources = await Customer.aggregate([
+      ...(branchPrefilter ? [branchPrefilter] : []),
       ...(resourcePrefilter ? [resourcePrefilter] : []),
       ...slimForUnwind('resources'),
       { $unwind: "$resources" },
@@ -3629,19 +3707,22 @@ const getNowLocalISO = () => {
 
 
 // Add visit
-app.post('/api/customers/:customerId/visits', authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.post('/api/customers/:customerId/visits', authenticate, requirePermission('add_visits'), async (req, res) => {
   try {
     const { customerId } = req.params;
     const { date, purpose, notes, outcome, followUp, followUpDate, managerComment, headquartersComment, image } = req.body;
 
 
 
-    // Process date
-    const processedDate = ensureDateString(date);
-
-
+    // Only a real YYYY-MM-DD date is stored — these feed date-range queries and
+    // the calendar link (src/utils/visitDates.js has why).
+    const processedDate = normalizeVisitDate(date);
+    const processedFollowUpDate = normalizeOptionalDate(followUpDate);
     if (!processedDate || !purpose) {
-      return res.status(400).json({ message: 'Date and purpose are required' });
+      return res.status(400).json({ message: 'A visit date (YYYY-MM-DD) and a purpose are required' });
+    }
+    if (processedFollowUpDate === null) {
+      return res.status(400).json({ message: 'Follow-up date must be a date (YYYY-MM-DD)' });
     }
 
     // Check if customer exists and get necessary info in one query
@@ -3669,12 +3750,12 @@ app.post('/api/customers/:customerId/visits', authenticate, requirePermission('m
     const visitId = new mongoose.Types.ObjectId();
     const visitData = {
       _id: visitId,
-      date: ensureDateString(date),
+      date: processedDate,
       purpose,
       notes,
       outcome,
       followUp,
-      followUpDate: ensureDateString(followUpDate),
+      followUpDate: processedFollowUpDate,
       managerComment,
       headquartersComment,
       image: processedImage,
@@ -3741,22 +3822,42 @@ app.post('/api/customers/:customerId/visits', authenticate, requirePermission('m
 
 // Update visit
 // Update visit
-app.put('/api/customers/:customerId/visits/:visitId', authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.put('/api/customers/:customerId/visits/:visitId', authenticate, requireAnyPermission(...ANY_EDIT_VISIT_PERMISSIONS), async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
     const { date, purpose, notes, outcome, followUp, followUpDate, managerComment, headquartersComment, image } = req.body;
 
-    // Get updater information
-    // Get updater information
+    const updateData = {};
+    if (date) {
+      const processedDate = normalizeVisitDate(date);
+      if (!processedDate) return res.status(400).json({ message: 'Visit date must be a date (YYYY-MM-DD)' });
+      updateData['visits.$.date'] = processedDate;
+    }
+    if (followUpDate !== undefined) {
+      const processedFollowUpDate = normalizeOptionalDate(followUpDate);
+      if (processedFollowUpDate === null) return res.status(400).json({ message: 'Follow-up date must be a date (YYYY-MM-DD)' });
+      updateData['visits.$.followUpDate'] = processedFollowUpDate;
+    }
+
+    // Who may change this visit (src/utils/visitAccess.js) — checked before
+    // any image upload or write. The same read tells the calendar sync below
+    // whether the date moved and who logged the visit.
+    const existing = await Customer.findOne(
+      { _id: customerId, 'visits._id': visitId },
+      { 'visits.$': 1, location: 1 }
+    ).lean();
+    const before = existing?.visits?.[0];
+    if (!before) return res.status(404).json({ message: 'Customer or visit not found' });
+    if (!canModifyVisit({ id: req.userId, permissions: req.user?.permissions, assignedLocations: req.user?.assignedLocations }, before, existing.location)) {
+      return res.status(403).json({ message: "You don't have permission to edit this visit. You can edit visits you logged; anything else needs a Visits permission under Users & Roles." });
+    }
+
     const { id: updatedBy, name: updatedByName } = await getPerformerInfo(req);
 
-    const updateData = {};
-    if (date) updateData['visits.$.date'] = ensureDateString(date);
     if (purpose !== undefined) updateData['visits.$.purpose'] = purpose;
     if (notes !== undefined) updateData['visits.$.notes'] = notes;
     if (outcome !== undefined) updateData['visits.$.outcome'] = outcome;
     if (followUp !== undefined) updateData['visits.$.followUp'] = followUp;
-    if (followUpDate !== undefined) updateData['visits.$.followUpDate'] = ensureDateString(followUpDate);
     if (managerComment !== undefined) updateData['visits.$.managerComment'] = managerComment;
     if (headquartersComment !== undefined) updateData['visits.$.headquartersComment'] = headquartersComment;
     if (image !== undefined) {
@@ -3774,12 +3875,6 @@ app.put('/api/customers/:customerId/visits/:visitId', authenticate, requirePermi
     updateData['visits.$.updatedByName'] = updatedByName;
     updateData['visits.$.updatedAt'] = getNowLocalISO();
 
-    // Read before the write: whether the date is changing, and who logged
-    // the visit — its calendar entry belongs to them, not to whoever edits it.
-    const before = updateData['visits.$.date']
-      ? (await Customer.findOne({ _id: customerId, 'visits._id': visitId }, { 'visits.$': 1 }).lean())?.visits?.[0]
-      : null;
-
     const result = await Customer.updateOne(
       { _id: customerId, 'visits._id': visitId },
       { $set: updateData }
@@ -3792,7 +3887,7 @@ app.put('/api/customers/:customerId/visits/:visitId', authenticate, requirePermi
     res.json({ success: true, message: 'Visit updated successfully' });
 
     // Background: a visit moved to another day takes its calendar entry along.
-    if (before && before.date !== updateData['visits.$.date']) {
+    if (updateData['visits.$.date'] && before.date !== updateData['visits.$.date']) {
       try {
         await moveVisitOnSchedule({
           customerId, visitId, newDate: updateData['visits.$.date'],
@@ -3827,7 +3922,7 @@ app.put('/api/customers/:customerId/visits/:visitId', authenticate, requirePermi
 
 // Delete visit
 // Delete visit
-app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
+app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAnyPermission(...ANY_DELETE_VISIT_PERMISSIONS), async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
 
@@ -3841,6 +3936,10 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAn
     }
 
     const visit = customer.visits ? customer.visits.id(visitId) : null;
+    // Delete has its own permissions (src/utils/visitAccess.js).
+    if (visit && !canDeleteVisit({ id: req.userId, permissions: req.user?.permissions, assignedLocations: req.user?.assignedLocations }, visit, customer.location)) {
+      return res.status(403).json({ message: "You don't have permission to delete this visit. You can delete visits you logged; anything else needs a Visits permission under Users & Roles." });
+    }
     const isResourcePlacement = visit && visit.purpose && visit.purpose.toLowerCase().includes('resource placement');
     const purposeText = visit ? visit.purpose.replace(/^Resource Placement:\s*/i, '').trim() : '';
 
@@ -4018,7 +4117,7 @@ app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requi
 // ============================================
 
 // Add resource
-app.post('/api/customers/:customerId/resources', authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.post('/api/customers/:customerId/resources', authenticate, requirePermission('add_visits'), async (req, res) => {
   try {
     const { customerId } = req.params;
     const { title, date, customer, location, resourceType, image, description, notes, status, url, uploadedBy } = req.body;
@@ -4041,7 +4140,9 @@ app.post('/api/customers/:customerId/resources', authenticate, requirePermission
     // Process images (convert base64 to Cloudinary URLs)
     const processedImages = await processBase64Images(image, 'Resources');
 
-    const resourceDateStr = ensureDateString(date || new Date());
+    // A placement writes a visit with this date, so it gets the same check.
+    const resourceDateStr = date ? normalizeVisitDate(date) : ensureDateString(new Date());
+    if (!resourceDateStr) return res.status(400).json({ message: 'Resource date must be a date (YYYY-MM-DD)' });
 
     const newResource = {
       title: finalTitle,
@@ -4112,11 +4213,26 @@ app.post('/api/customers/:customerId/resources', authenticate, requirePermission
 });
 
 // Update resource
-app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requirePermission('manage_customers'), async (req, res) => {
+// A resource follows the visit rules (canModifyVisit / canDeleteVisit), with
+// whoever uploaded it standing in for whoever logged the visit.
+const resourceAccessArgs = (req, resource) => [
+  { id: req.userId, permissions: req.user?.permissions, assignedLocations: req.user?.assignedLocations },
+  { createdBy: resource.uploadedBy || resource.createdBy }
+];
+const canModifyResource = (req, resource, customerLocation) => canModifyVisit(...resourceAccessArgs(req, resource), customerLocation);
+const canDeleteResource = (req, resource, customerLocation) => canDeleteVisit(...resourceAccessArgs(req, resource), customerLocation);
+
+app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requireAnyPermission(...ANY_EDIT_VISIT_PERMISSIONS), async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
     const updateData = {};
     const fields = { ...req.body };
+    // The resource's date is copied onto its placement visit; validate it once here.
+    if (fields.date !== undefined && fields.date !== '') {
+      const normalized = normalizeVisitDate(fields.date);
+      if (!normalized) return res.status(400).json({ message: 'Resource date must be a date (YYYY-MM-DD)' });
+      fields.date = normalized;
+    }
 
     const customer = await Customer.findById(customerId);
     if (!customer) {
@@ -4125,6 +4241,16 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
 
     const existingResource = customer.resources ? customer.resources.id(resourceId) : null;
     const oldTitle = existingResource ? (existingResource.title || existingResource.resourceType) : '';
+    // Not on this customer: the client is moving it here (see below), from
+    // whichever customer holds it now.
+    const source = existingResource ? null : await Customer.findOne({ 'resources._id': resourceId });
+    const moving = source ? source.resources.id(resourceId) : null;
+    // Same rule as visits (src/utils/visitAccess.js), checked against the
+    // customer the resource is on now — a move used to skip this entirely.
+    const current = existingResource || moving;
+    if (current && !canModifyResource(req, current, (existingResource ? customer : source).location)) {
+      return res.status(403).json({ message: "You don't have permission to edit this resource. You can edit resources you uploaded; anything else needs a Visits permission under Users & Roles." });
+    }
 
     // Process images if they are being updated
     if (fields.image) {
@@ -4143,9 +4269,6 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
      * found" and the mistake could not be corrected at all.
      */
     if (!existingResource) {
-      const source = await Customer.findOne({ 'resources._id': resourceId });
-      const moving = source ? source.resources.id(resourceId) : null;
-
       if (!moving) {
         return res.status(404).json({ message: 'Customer or resource not found' });
       }
@@ -4240,7 +4363,7 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
 });
 
 // Delete resource
-app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
+app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, requireAnyPermission(...ANY_DELETE_VISIT_PERMISSIONS), async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
 
@@ -4251,6 +4374,9 @@ app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, req
 
     const resource = customer.resources ? customer.resources.id(resourceId) : null;
     const titleToMatch = resource ? (resource.title || resource.resourceType) : '';
+    if (resource && !canDeleteResource(req, resource, customer.location)) {
+      return res.status(403).json({ message: "You don't have permission to delete this resource. You can delete resources you uploaded; anything else needs a Visits permission under Users & Roles." });
+    }
 
     // Remove the resource
     customer.resources.pull({ _id: resourceId });

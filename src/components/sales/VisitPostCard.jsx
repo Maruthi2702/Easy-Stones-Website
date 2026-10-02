@@ -1,6 +1,7 @@
 import React from 'react';
 import { Smile, Edit2, Trash2, FileText, X, CheckCircle2, Handshake, Calendar, StickyNote } from 'lucide-react';
 import { API_URL } from '../../config/api';
+import { canModifyVisit, canDeleteVisit } from '../../utils/visitAccess';
 
 const getInitials = (name) => {
     if (!name) return '??';
@@ -20,12 +21,17 @@ const VisitPostCard = ({
     setActiveReactionMessageId,
     handleEditVisit,
     handleDeleteVisit,
-    handleOpenGallery
+    handleOpenGallery,
+    canModify,
+    canDelete
 }) => {
     const isQuickNote = visit.purpose?.toLowerCase().includes('quick note');
     const isMeeting = visit.purpose?.toLowerCase().includes('meeting') || visit.purpose?.toLowerCase().includes('visit');
     const isResource = visit.purpose?.toLowerCase().includes('resource');
     const cardClass = isQuickNote ? 'quick-note-card' : (isMeeting ? 'meeting-card' : (isResource ? 'resource-card' : ''));
+    const viewer = { ...currentUser, id: currentUserId };
+    const editable = canModify ?? canModifyVisit(viewer, visit);
+    const deletable = canDelete ?? canDeleteVisit(viewer, visit);
 
     return (
         <div className={`visit-post-card ${cardClass}`}>
@@ -60,7 +66,12 @@ const VisitPostCard = ({
                             })()}
                         </span>
 
-                        {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager' || currentUserId === visit.createdBy) && (
+                        {/* canModify / canDelete: canModifyVisit / canDeleteVisit
+                            (src/utils/visitAccess.js), the rules the server enforces from the
+                            viewer's Visits permissions. Callers pass them with the customer's
+                            branch; the fallback has no branch, so it only covers the "all"
+                            permissions and the viewer's own visits. */}
+                        {(editable || deletable) && (
                             <div className="post-header-actions">
                                 <button
                                     type="button"
@@ -95,6 +106,7 @@ const VisitPostCard = ({
                                         ))}
                                     </div>
                                 )}
+                                {editable && (
                                 <button
                                     type="button"
                                     className="icon-action-small edit"
@@ -103,6 +115,8 @@ const VisitPostCard = ({
                                 >
                                     <Edit2 size={14} />
                                 </button>
+                                )}
+                                {deletable && (
                                 <button
                                     type="button"
                                     className="icon-action-small delete"
@@ -111,6 +125,7 @@ const VisitPostCard = ({
                                 >
                                     <Trash2 size={14} />
                                 </button>
+                                )}
                             </div>
                         )}
                     </div>

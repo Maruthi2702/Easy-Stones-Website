@@ -30,12 +30,33 @@ const PAGE_PERMISSIONS = [
         id: 'customers',
         page: 'Customers',
         icon: User,
-        description: 'Customer database, visits, contacts',
+        description: 'Customer database and contacts',
         color: '#82b366',
         actions: [
             { key: 'view_customers',   label: 'View',   icon: Eye,    desc: 'View customer list and details' },
-            { key: 'manage_customers', label: 'Edit / Add', icon: Pencil, desc: 'Add and edit customers, visits, contacts' },
-            { key: 'delete_customers', label: 'Delete', icon: Trash2, desc: 'Delete customer records and visits' }
+            { key: 'manage_customers', label: 'Edit / Add', icon: Pencil, desc: 'Add and edit customers and contacts (visits are under Visits)' },
+            { key: 'delete_customers', label: 'Delete', icon: Trash2, desc: 'Delete customer records (visits are under Visits)' }
+        ]
+    },
+    {
+        // Checked by src/utils/visitAccess.js, on the server and for which
+        // buttons the screens offer. Resources follow the same switches.
+        // "Assigned branches" are the user's Locations.
+        id: 'visits',
+        page: 'Visits',
+        icon: UserCheck,
+        description: 'Logging, viewing, editing and deleting visits and resources',
+        color: '#5b9aa0',
+        actions: [
+            { key: 'add_visits',           label: 'Add',           icon: Plus,   desc: 'Log visits and add resources' },
+            { key: 'view_branch_visits',   label: 'View branch',   icon: MapPin, desc: "See everyone's visits and resources for customers in the user's assigned branches (everyone sees their own)" },
+            { key: 'view_all_visits',      label: 'View all',      icon: Eye,    desc: "See every branch's visits and resources on the dashboard" },
+            { key: 'edit_own_visits',      label: 'Edit own',      icon: Pencil, desc: 'Edit visits and resources the user logged themselves' },
+            { key: 'edit_branch_visits',   label: 'Edit branch',   icon: Edit2,  desc: "Edit anyone's visits and resources on customers in the user's assigned branches" },
+            { key: 'edit_all_visits',      label: 'Edit all',      icon: FileCog, desc: "Edit anyone's visits and resources" },
+            { key: 'delete_own_visits',    label: 'Delete own',    icon: Eraser, desc: 'Delete visits and resources the user logged themselves' },
+            { key: 'delete_branch_visits', label: 'Delete branch', icon: Trash2, desc: "Delete anyone's visits and resources on customers in the user's assigned branches" },
+            { key: 'delete_all_visits',    label: 'Delete all',    icon: Trash2, desc: "Delete anyone's visits and resources" }
         ]
     },
     {

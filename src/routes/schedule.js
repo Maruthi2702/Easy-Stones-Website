@@ -190,6 +190,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       // Only ever the planner's own stops for that date, never a meeting someone
       // typed in by hand — re-planning a day is not permission to erase the rest
       // of it. The date is matched on the stored 'YYYY-MM-DDTHH:mm:ss.000' prefix.
+      // `date` goes into a startTime prefix $regex: only ever a real date.
+      if (replace && date && !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+        return res.status(400).json({ message: 'A date (YYYY-MM-DD) is required to replace a day' });
+      }
+
       let replaced = 0;
       if (replace && date) {
         const { deletedCount } = await Schedule.deleteMany({

@@ -37,6 +37,9 @@ import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 import { splitContactValues } from '../utils/contactValues';
 import { isPdfSource } from '../utils/attachments';
 import VisitsListDetail from '../components/sales/VisitsListDetail';
+import VisitsLocationFilter from '../components/sales/VisitsLocationFilter';
+import { splitCustomer } from '../components/sales/visitsListHelpers';
+import { canAddVisit, canModifyVisit, canDeleteVisit, visitViewScope } from '../utils/visitAccess';
 import { toSalesRepList } from '../utils/salesReps';
 import { lazyRetry } from '../utils/lazyRetry';
 
@@ -147,6 +150,8 @@ const SalesPage = () => {
 
         // Dashboard State (Required for memoized values)
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
+    // Sales Visits location filter ('' = every branch the viewer may see).
+    const [visitsLocation, setVisitsLocation] = useState('');
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
     
     const getDefaultTab = () => {
@@ -349,35 +354,45 @@ const SalesPage = () => {
     }, []);
 
     // Fetch Dashboard Stats from Backend — merged into one effect with fetchDashboardData below
+    // Each dashboard fetch is numbered and only the latest may write its
+    // result. Without this, a slow earlier request (the unfiltered "All" range
+    // takes ~1s) could land after a quick later one (a location filter that
+    // matches nothing) and overwrite it — the filter "not working".
+    const dashboardStatsReqRef = React.useRef(0);
+    const dashboardDataReqRef = React.useRef(0);
+
     const fetchDashboardStats = useCallback(async () => {
+        const reqId = ++dashboardStatsReqRef.current;
         setStatsLoading(true);
         try {
             const localDate = new Date().toLocaleDateString('en-CA');
             const response = await authFetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}&localDate=${localDate}`);
             if (response.ok) {
                 const data = await response.json();
-                setStats(data);
+                if (reqId === dashboardStatsReqRef.current) setStats(data);
             }
         } catch (error) {
             console.error('Error fetching dashboard stats:', error);
         } finally {
-            setStatsLoading(false);
+            if (reqId === dashboardStatsReqRef.current) setStatsLoading(false);
         }
     }, [dashboardTimeRange]);
 
     // Fetch Independent Dashboard Data
     const fetchDashboardData = useCallback(async () => {
+        const reqId = ++dashboardDataReqRef.current;
         setDashboardDataLoading(true);
         try {
             const localDateStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
             const [visitsRes, resourcesRes, followupsRes] = await Promise.all([
-                authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}`),
+                authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}${visitsLocation ? `&location=${encodeURIComponent(visitsLocation)}` : ''}`),
                 authFetch(`${API_URL}/api/dashboard/resources?timeRange=${dashboardTimeRange}&localDate=${localDateStr}`),
                 authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}&filterType=followup`)
             ]);
             const visits = await visitsRes.json();
             const resources = await resourcesRes.json();
             const followups = await followupsRes.json();
+            if (reqId !== dashboardDataReqRef.current) return; // superseded — see dashboardDataReqRef
 
             setDashboardVisits(Array.isArray(visits) ? visits : []);
             setDashboardResources(Array.isArray(resources) ? resources : []);
@@ -385,16 +400,16 @@ const SalesPage = () => {
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
         } finally {
-            setDashboardDataLoading(false);
-            setDashboardLoaded(true);
+            if (reqId === dashboardDataReqRef.current) {
+                setDashboardDataLoading(false);
+                setDashboardLoaded(true);
+            }
         }
-    }, [dashboardTimeRange]);
+    }, [dashboardTimeRange, visitsLocation]);
 
     // A dashboard table with no rows yet while its data is still on the way
     // says so, instead of claiming there's nothing there.
-    // The All range builds its visits from the Customers list (allVisits), so
-    // there it's that list's `loading` that matters too.
-    const dashboardTableLoading = dashboardDataLoading || !dashboardLoaded || (dashboardTimeRange === 'all' && loading);
+    const dashboardTableLoading = dashboardDataLoading || !dashboardLoaded;
     const renderDashboardLoadingRow = (colSpan) => (
         <tr>
             <td colSpan={colSpan} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
@@ -928,32 +943,6 @@ const SalesPage = () => {
             });
     }, [allCustomersForSelection, customers]);
 
-    const allVisits = React.useMemo(() => {
-        if (!customers || !Array.isArray(customers)) return [];
-        return customers.flatMap(c => {
-            if (!c) return [];
-            const customerName = c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim();
-            return (c.visits || []).filter(v => v !== null).map(v => ({
-                ...v,
-                customerName,
-                customerId: c._id
-            }));
-        });
-    }, [customers]);
-
-    const allResources = React.useMemo(() => {
-        if (!customers || !Array.isArray(customers)) return [];
-        return customers.flatMap(c => {
-            if (!c) return [];
-            const customerName = c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim();
-            return (c.resources || []).filter(r => r !== null).map(r => ({
-                ...r,
-                customerName,
-                customerId: c._id
-            }));
-        });
-    }, [customers]);
-
     const dashboardDateRangeStart = React.useMemo(() => {
         // If we are using the dedicated dashboardVisits/dashboardResources from the backend,
         // we should trust the backend's date filtering. 
@@ -989,16 +978,34 @@ const SalesPage = () => {
     }, [dashboardTimeRange]);
 
 
+    // Branches the Sales Visits filter offers, from the viewer's Visits
+    // permissions (visitViewScope in src/utils/visitAccess.js): every branch
+    // with view_all_visits, their assigned ones with view_branch_visits (all,
+    // if assigned '*'), none for anyone who only sees their own visits. The
+    // server enforces the same limits.
+    const visitsLocationOptions = React.useMemo(() => {
+        const all = (locations || []).map(l => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
+        const scope = visitViewScope(currentUser);
+        if (scope.kind === 'all') return all;
+        if (scope.kind === 'branches') return scope.locations;
+        return [];
+    }, [locations, currentUser]);
+
+    // Whether the viewer may see other people's visits and resources at all.
+    const seesOthers = React.useMemo(() => visitViewScope(currentUser).kind !== 'own', [currentUser]);
+    // Whether to offer Add Visit / Add Resource anywhere (Users & Roles → Visits → Add).
+    const canAddVisits = canAddVisit(currentUser);
+
     const memoizedFilteredVisits = React.useMemo(() => {
         const startDate = dashboardDateRangeStart;
         const searchLower = dashboardSearchTerm.toLowerCase();
         const currentUserIdStr = currentUserId?.toString();
 
-        // Use dashboardVisits if we have them, otherwise fallback to sidebar-derived allVisits
-        // Strictly use dashboardVisits for specific ranges to avoid leaking historical data
-        const sourceVisits = (dashboardTimeRange === 'all')
-            ? allVisits
-            : dashboardVisits;
+        // Always the server's list, which is already scoped to who may see what
+        // (dashboardScope in src/utils/dashboardMatch.js: a manager only their
+        // branches). The "All" range used to read allVisits instead — built from
+        // the Customers tab's current page, unscoped and only one page deep.
+        const sourceVisits = dashboardVisits;
 
         const filtered = sourceVisits.filter(v => {
             if (!v) return false;
@@ -1023,9 +1030,8 @@ const SalesPage = () => {
             const visitDate = parseDate(v.date, v.createdAt);
             const dateMatch = isFromBackend || !startDate || visitDate >= startDate;
 
-            // Relax filtering for Admins
-            const isAdmin = ['admin', 'director', 'manager'].includes(currentUser?.role);
-            const userMatch = isAdmin || v.createdBy?.toString() === currentUserIdStr || v.creatorId?.toString() === currentUserIdStr;
+            // Anyone allowed to see others' visits gets what the server sent.
+            const userMatch = seesOthers || v.createdBy?.toString() === currentUserIdStr || v.creatorId?.toString() === currentUserIdStr;
 
             const searchMatch = !dashboardSearchTerm ||
                 (v.customerName?.toLowerCase().includes(searchLower)) ||
@@ -1052,17 +1058,16 @@ const SalesPage = () => {
         };
 
         return [...filtered].sort((a, b) => parseSortDate(b) - parseSortDate(a));
-    }, [allVisits, dashboardVisits, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, activeDashboardTab, dashboardTimeRange, dashboardDataLoading]);
+    }, [dashboardVisits, dashboardDateRangeStart, seesOthers, currentUserId, dashboardSearchTerm]);
 
     const memoizedFilteredResources = React.useMemo(() => {
         const startDate = dashboardDateRangeStart;
         const searchLower = dashboardSearchTerm.toLowerCase();
         const currentUserIdStr = currentUserId?.toString();
 
-        // Use dashboardResources if we have them
-        const sourceResources = dashboardResources.length > 0 || (dashboardTimeRange !== 'all' && dashboardResources.length === 0 && !dashboardDataLoading)
-            ? dashboardResources
-            : allResources;
+        // Always the server's list, scoped like the visits above; falling back to
+        // allResources (the Customers tab's page) bypassed that scope.
+        const sourceResources = dashboardResources;
 
         const filtered = sourceResources.filter(r => {
             if (!r) return false;
@@ -1072,9 +1077,8 @@ const SalesPage = () => {
             const resourceDate = new Date(r.date || r.createdAt);
             const dateMatch = isFromBackend || !startDate || resourceDate >= startDate;
 
-            // Relax filtering for Admins
-            const isAdmin = ['admin', 'director', 'manager'].includes(currentUser?.role);
-            const userMatch = isAdmin || (
+            // Anyone allowed to see others' resources gets what the server sent.
+            const userMatch = seesOthers || (
                 r.uploadedBy?.toString() === currentUserIdStr ||
                 r.createdBy?.toString() === currentUserIdStr ||
                 r.uploaderId?.toString() === currentUserIdStr
@@ -1101,7 +1105,7 @@ const SalesPage = () => {
         };
 
         return [...filtered].sort((a, b) => parseSortDate(b) - parseSortDate(a));
-    }, [allResources, dashboardResources, dashboardDateRangeStart, currentUser, currentUserId, dashboardSearchTerm, dashboardTimeRange, dashboardDataLoading]);
+    }, [dashboardResources, dashboardDateRangeStart, seesOthers, currentUserId, dashboardSearchTerm]);
 
     const memoizedFollowups = React.useMemo(() => {
         let followups = [];
@@ -1365,6 +1369,13 @@ const SalesPage = () => {
     const [currentFollowUpPage, setCurrentFollowUpPage] = useState(1);
     const [currentResourcesPage, setCurrentResourcesPage] = useState(1);
     const [visitsPerPage, setVisitsPerPage] = useState(15);
+    // The visible page of visits, memoized (declared after the page state it reads): passed inline as `.slice(...)` it
+    // was a new array on every render of this page, which VisitsListDetail read
+    // as "the list changed" — a photo request per keystroke anywhere on the page.
+    const pagedDashboardVisits = React.useMemo(
+        () => memoizedFilteredVisits.slice((currentVisitsPage - 1) * visitsPerPage, currentVisitsPage * visitsPerPage),
+        [memoizedFilteredVisits, currentVisitsPage, visitsPerPage]
+    );
 
     const handleVisitsPerPageChange = (newVal) => {
         setVisitsPerPage(newVal);
@@ -1982,7 +1993,8 @@ const SalesPage = () => {
                 }
             } else {
                 setDeleteConfirmation(prev => ({ ...prev, isDeleting: false }));
-                alert(`Failed to delete ${type}`);
+                const reason = response ? (await response.json().catch(() => ({}))).message : '';
+                alert(reason || `Failed to delete ${type}`);
             }
         } catch (error) {
             console.error(`Error deleting ${type}:`, error);
@@ -2390,6 +2402,9 @@ const SalesPage = () => {
 
                     const errorJson = await response.json().catch(() => ({}));
                     lastError = new Error(errorJson.message || 'Failed to save visit');
+                    lastError.fromServer = true;
+                    // Refused or invalid (403, 400…): retrying can't change the answer.
+                    if (response.status >= 400 && response.status < 500) break;
                 } catch (err) {
                     lastError = err;
                 }
@@ -2424,7 +2439,7 @@ const SalesPage = () => {
                     : `${API_URL}/api/customers/${targetCustomerId}/visits`,
                 payload: visitForm
             });
-            alert('Failed to save visit. Please check your connection and try again.');
+            alert(error.fromServer ? error.message : 'Failed to save visit. Please check your connection and try again.');
         } finally {
             setIsSaving(false);
         }
@@ -3060,15 +3075,24 @@ const SalesPage = () => {
 
     const handleExportVisits = async (customVisits) => {
         const XLSX = await import('xlsx');
-        const visits = customVisits || memoizedFilteredVisits;
-        const data = visits.map(v => ({
-            Date: formatDate(v.date),
-            Customer: v.customerName,
-            'Visit Type': v.purpose || '-',
-            Notes: v.notes || '-',
-            Outcome: v.outcome || '-',
-            'Next Action': v.nextAction || '-'
-        }));
+        // Only ever a list: the Excel button used to pass its click event in
+        // here (onClick={handleExportVisits}), and `event.map` threw.
+        const visits = Array.isArray(customVisits) ? customVisits : memoizedFilteredVisits;
+        const data = visits.map(v => {
+            const { company, contact } = splitCustomer(v);
+            return {
+                Date: formatDate(v.date),
+                Company: company,
+                Contact: contact || '-',
+                Location: v.location || '-',
+                'Visit Type': v.purpose || '-',
+                'Logged By': v.createdByName || '-',
+                Notes: v.notes || '-',
+                'Follow-up Date': v.followUpDate ? formatDate(v.followUpDate) : '-',
+                'Follow-up Notes': v.followUp || v.nextAction || '-',
+                Outcome: v.outcome || '-'
+            };
+        });
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(data);
@@ -3474,8 +3498,8 @@ const SalesPage = () => {
                                 theme={theme}
                                 isActive={crmTab === 'route_planner'}
                                 onOpenCustomer={(id) => handleSelectCustomer({ _id: id }, 'route_planner')}
-                                onAddVisit={handleAddVisitForPin}
-                                onAddResource={handleAddResourceForPin}
+                                onAddVisit={canAddVisits ? handleAddVisitForPin : null}
+                                onAddResource={canAddVisits ? handleAddResourceForPin : null}
                                 sidebarToggle={(!isSidebarOpen || isMobile) ? (
                                     <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
                                 ) : null}
@@ -3889,14 +3913,18 @@ const SalesPage = () => {
                                                 <UserPlus size={18} />
                                                 <span className="btn-label">Add Contact</span>
                                             </button>
-                                            <button className="icon-action-btn secondary" onClick={handleAddResource} title="Add Resource">
-                                                <FolderPlus size={18} />
-                                                <span className="btn-label">Add Resource</span>
-                                            </button>
-                                            <button className="add-visit-btn" onClick={handleQuickAddVisit}>
-                                                <Plus size={18} />
-                                                Add Visit
-                                            </button>
+                                            {canAddVisits && (
+                                                <>
+                                                    <button className="icon-action-btn secondary" onClick={handleAddResource} title="Add Resource">
+                                                        <FolderPlus size={18} />
+                                                        <span className="btn-label">Add Resource</span>
+                                                    </button>
+                                                    <button className="add-visit-btn" onClick={handleQuickAddVisit}>
+                                                        <Plus size={18} />
+                                                        Add Visit
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
 
                                         <div className="chat-container channel-feed">
@@ -3921,6 +3949,8 @@ const SalesPage = () => {
                                                                 handleEditVisit={handleEditVisit}
                                                                 handleDeleteVisit={handleDeleteVisit}
                                                                 handleOpenGallery={handleOpenGallery}
+                                                                canModify={canModifyVisit({ ...currentUser, id: currentUserId }, visit, selectedCustomer?.location)}
+                                                                canDelete={canDeleteVisit({ ...currentUser, id: currentUserId }, visit, selectedCustomer?.location)}
                                                             />
                                                         ))
                                                     ) : (
@@ -3942,9 +3972,11 @@ const SalesPage = () => {
                                         {/* Header with Title and Add Button */}
                                         <div className="tab-header">
                                             <h3>Client Resource</h3>
-                                            <button className="add-resource-btn" onClick={handleAddResource}>
-                                                <Plus size={18} /> Add Resource
-                                            </button>
+                                            {canAddVisits && (
+                                                <button className="add-resource-btn" onClick={handleAddResource}>
+                                                    <Plus size={18} /> Add Resource
+                                                </button>
+                                            )}
                                         </div>
 
 
@@ -3985,15 +4017,15 @@ const SalesPage = () => {
                                                                             <button className="icon-btn view" onClick={(e) => { e.stopPropagation(); handleViewResource(resource); }} title="View" disabled={loadingResourceId === resource._id}>
                                                                                 {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
                                                                             </button>
-                                                                            {(currentUser?.role === 'admin' || currentUser?.role === 'director' || currentUser?.role === 'manager' || currentUserId === (resource.uploadedBy || resource.createdBy)) && (
-                                                                                <>
-                                                                                    <button className="icon-btn edit" onClick={(e) => { e.stopPropagation(); handleEditResource(resource); }} title="Edit">
-                                                                                        <Edit2 size={16} />
-                                                                                    </button>
-                                                                                    <button className="icon-btn delete" onClick={(e) => { e.stopPropagation(); handleDeleteResource(resource._id, resource.customerId); }} title="Delete">
-                                                                                        <Trash2 size={16} />
-                                                                                    </button>
-                                                                                </>
+                                                                            {canModifyVisit({ ...currentUser, id: currentUserId }, { createdBy: resource.uploadedBy || resource.createdBy }, selectedCustomer?.location) && (
+                                                                                <button className="icon-btn edit" onClick={(e) => { e.stopPropagation(); handleEditResource(resource); }} title="Edit">
+                                                                                    <Edit2 size={16} />
+                                                                                </button>
+                                                                            )}
+                                                                            {canDeleteVisit({ ...currentUser, id: currentUserId }, { createdBy: resource.uploadedBy || resource.createdBy }, selectedCustomer?.location) && (
+                                                                                <button className="icon-btn delete" onClick={(e) => { e.stopPropagation(); handleDeleteResource(resource._id, resource.customerId); }} title="Delete">
+                                                                                    <Trash2 size={16} />
+                                                                                </button>
                                                                             )}
                                                                             {resource.url && (
                                                                                 <a href={resource.url} target="_blank" rel="noopener noreferrer" className="icon-btn link" onClick={(e) => e.stopPropagation()} title="Open Link">
@@ -4155,12 +4187,16 @@ const SalesPage = () => {
                                                         📅 Sync Calendar
                                                     </button>
                                                 )}
-                                                <button className="btn-secondary" onClick={handleQuickAddResource} title="Add Resource for any Client">
-                                                    + Add Resource
-                                                </button>
-                                                <button className="btn-primary" onClick={handleQuickAddVisit} title="Add Visit for any Client">
-                                                    + Add Visit
-                                                </button>
+                                                {canAddVisits && (
+                                                    <>
+                                                        <button className="btn-secondary" onClick={handleQuickAddResource} title="Add Resource for any Client">
+                                                            + Add Resource
+                                                        </button>
+                                                        <button className="btn-primary" onClick={handleQuickAddVisit} title="Add Visit for any Client">
+                                                            + Add Visit
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -4199,7 +4235,12 @@ const SalesPage = () => {
                                             <div className="section-header">
                                                 <h2>Sales Visits</h2>
                                                 <div className="table-controls">
-                                                    <button className="export-btn" onClick={handleExportVisits}>
+                                                    <VisitsLocationFilter
+                                                        options={visitsLocationOptions}
+                                                        value={visitsLocation}
+                                                        onChange={(loc) => { setVisitsLocation(loc); setCurrentVisitsPage(1); }}
+                                                    />
+                                                    <button className="export-btn" onClick={() => handleExportVisits()}>
                                                         <Download size={18} /> Excel
                                                     </button>
                                                     <div className="table-search">
@@ -4217,7 +4258,10 @@ const SalesPage = () => {
                                             {/* List + detail (design option C): a visit list with the
                                                 selected visit beside it, one pane at a time on phones. */}
                                             <VisitsListDetail
-                                                visits={memoizedFilteredVisits.slice((currentVisitsPage - 1) * visitsPerPage, currentVisitsPage * visitsPerPage)}
+                                                visits={pagedDashboardVisits}
+                                                dataVersion={dashboardVisits}
+                                                canModify={(visit) => canModifyVisit({ ...currentUser, id: currentUserId }, visit, visit.location)}
+                                                canDelete={(visit) => canDeleteVisit({ ...currentUser, id: currentUserId }, visit, visit.location)}
                                                 loading={dashboardTableLoading}
                                                 busyVisitId={loadingVisitId}
                                                 onOpenCustomer={(visit) => {

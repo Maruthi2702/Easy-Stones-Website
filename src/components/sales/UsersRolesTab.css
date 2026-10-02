@@ -1706,7 +1706,10 @@ body.light-theme-active .page-perm-card:hover {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
 }
 
-body.light-theme-active .page-perm-card h4 {
+/* The title is .page-perm-card-title (a div); the h4 selector alone never
+   matched, leaving the dark theme's near-white title on a white card. */
+body.light-theme-active .page-perm-card h4,
+body.light-theme-active .page-perm-card-title {
     color: #0f172a;
 }
 

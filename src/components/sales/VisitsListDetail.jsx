@@ -25,9 +25,11 @@ const resolveImageSrc = (img) => {
  * from the single-visit route, so the list stays light.
  *
  * Edit, delete, opening the customer and the photo gallery are the page's own
- * handlers, passed in — this only lays the visits out.
+ * handlers, passed in — this only lays the visits out. canModify / canDelete
+ * say whether to offer Edit and Delete for a visit (canModifyVisit /
+ * canDeleteVisit in src/utils/visitAccess.js); omitted, both are offered.
  */
-const VisitsListDetail = ({ visits = [], loading = false, busyVisitId = null, onOpenCustomer, onEdit, onDelete, onOpenGallery }) => {
+const VisitsListDetail = ({ visits = [], dataVersion, loading = false, busyVisitId = null, canModify, canDelete, onOpenCustomer, onEdit, onDelete, onOpenGallery }) => {
     const [selectedId, setSelectedId] = useState(null);
     const [mobileOpen, setMobileOpen] = useState(false);
     // visitId → { status, images, managerComment, headquartersComment } — the
@@ -40,15 +42,24 @@ const VisitsListDetail = ({ visits = [], loading = false, busyVisitId = null, on
         [visits, selectedId]
     );
 
-    // A fresh list (a save, a delete, a new range) may have changed a visit's
-    // photos or comments; drop what was fetched so the selected one is read again.
-    useEffect(() => { setDetails({}); }, [visits]);
+    // Each new server response (a save, a delete, a new range or location) is
+    // the token — `dataVersion`, not `visits`: searching or paging re-slices the
+    // same data and mustn't refetch. A visit's photos/comments read for an older one stay on screen
+    // until they're re-read for this one, then replaced. This used to clear
+    // everything on a new list — and when the same visit stayed selected nothing
+    // asked for it again, so its photos sat on "Loading…" for good.
+    const listToken = dataVersion ?? visits;
+    // Read inside the fetch effect without making every details change refetch.
+    const detailsRef = useRef(details);
+    useEffect(() => { detailsRef.current = details; }, [details]);
 
     useEffect(() => {
-        if (!selected?._id || !selected.customerId || details[selected._id]) return;
+        const id = selected?._id;
+        if (!id || !selected.customerId) return undefined;
+        const have = detailsRef.current[id];
+        if (have && have.token === listToken) return undefined;
         let cancelled = false;
-        setDetails(p => ({ ...p, [selected._id]: { status: 'loading', images: [] } }));
-        authFetch(`${API_URL}/api/customers/${selected.customerId}/visits/${selected._id}`)
+        authFetch(`${API_URL}/api/customers/${selected.customerId}/visits/${id}`)
             .then(r => (r.ok ? r.json() : null))
             .then(data => {
                 if (cancelled) return;
@@ -57,8 +68,9 @@ const VisitsListDetail = ({ visits = [], loading = false, busyVisitId = null, on
                 const images = Array.isArray(img) ? img.filter(Boolean) : (img ? [img] : []);
                 setDetails(p => ({
                     ...p,
-                    [selected._id]: {
+                    [id]: {
                         status: 'done',
+                        token: listToken,
                         images,
                         managerComment: (visit.managerComment || '').trim(),
                         headquartersComment: (visit.headquartersComment || '').trim()
@@ -66,13 +78,10 @@ const VisitsListDetail = ({ visits = [], loading = false, busyVisitId = null, on
                 }));
             })
             .catch(() => {
-                if (!cancelled) setDetails(p => ({ ...p, [selected._id]: { status: 'error', images: [] } }));
+                if (!cancelled) setDetails(p => ({ ...p, [id]: { status: 'error', images: [], token: listToken } }));
             });
         return () => { cancelled = true; };
-        // details is read only to skip a visit already fetched — re-running on
-        // every details change would refetch the one that just landed.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selected?._id, selected?.customerId]);
+    }, [selected?._id, selected?.customerId, listToken]);
 
     const openVisit = (visit) => {
         setSelectedId(visit._id);
@@ -94,6 +103,8 @@ const VisitsListDetail = ({ visits = [], loading = false, busyVisitId = null, on
     }
 
     const sel = selected ? splitCustomer(selected) : null;
+    const selectedEditable = Boolean(selected) && (canModify ? canModify(selected) : true);
+    const selectedDeletable = Boolean(selected) && (canDelete ? canDelete(selected) : true);
     const photoState = selected ? details[selected._id] : null;
     const hasComments = Boolean(photoState?.managerComment || photoState?.headquartersComment);
 
@@ -148,15 +159,21 @@ const VisitsListDetail = ({ visits = [], loading = false, busyVisitId = null, on
                                 {formatDate(selected.date, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
                             </span>
                         </div>
+                        {(selectedEditable || selectedDeletable) && (
                         <div className="vld-actions">
+                            {selectedEditable && (
                             <button type="button" className="vld-btn" onClick={() => onEdit?.(selected)} disabled={busyVisitId === selected._id}>
                                 {busyVisitId === selected._id ? <Loader size={16} className="animate-spin" /> : <Pencil size={16} />}
                                 Edit
                             </button>
+                            )}
+                            {selectedDeletable && (
                             <button type="button" className="vld-btn vld-btn--danger" aria-label="Delete visit" onClick={() => onDelete?.(selected)}>
                                 <Trash2 size={17} />
                             </button>
+                            )}
                         </div>
+                        )}
                     </div>
 
                     <dl className="vld-meta">

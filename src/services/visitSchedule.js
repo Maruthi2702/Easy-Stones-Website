@@ -26,6 +26,7 @@ import mongoose from 'mongoose';
 import Schedule from '../models/Schedule.js';
 import User from '../models/User.js';
 import { branchNow } from '../config/branches.js';
+import { YMD_RE } from '../utils/visitDates.js';
 
 /** How long a drop-in occupies on the calendar. */
 export const DROP_IN_MINUTES = 30;
@@ -75,7 +76,8 @@ export const activityTypeForVisit = (purpose = '') =>
  * `emit` is server.js's emitScheduleUpdate, so open calendars refresh live.
  */
 export async function linkVisitToSchedule({ customerId, visitId, visitDate, userId, purpose, startTime, emit = () => {} }) {
-  if (!userId || !mongoose.isValidObjectId(userId) || !visitDate) return null;
+  // visitDate goes into a startTime prefix $regex below: only ever a real date.
+  if (!userId || !mongoose.isValidObjectId(userId) || !YMD_RE.test(String(visitDate || ''))) return null;
 
   const planned = await Schedule.findOneAndUpdate(
     { userId, customerId, status: 'Scheduled', startTime: { $regex: `^${visitDate}` } },

@@ -17,6 +17,13 @@ const roleSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  // Permissions the boot-time grants in server.js (NEW_PERMISSION_GRANTS) have
+  // already given this role. A grant is never reapplied once recorded here, so
+  // a permission an admin removes under Users & Roles stays removed.
+  seededPermissions: {
+    type: [String],
+    default: []
+  },
   isSystem: {
     type: Boolean,
     default: false

@@ -9,6 +9,7 @@
  * slimForUnwind are new: they run before $unwind so a rollup stops unpacking
  * every visit of every customer on every request.
  */
+import { visitViewScope } from './visitAccess.js';
 
 export const getAggregationDateRef = (prefix) => ({
   $cond: [
@@ -146,3 +147,37 @@ export const slimForUnwind = (prefix) => [
   { $project: { company: 1, contactName: 1, location: 1, [prefix]: 1 } },
   { $unset: `${prefix}.image` }
 ];
+
+/**
+ * Whose visits and resources a person's dashboard shows, from the permissions
+ * on their role (visitViewScope in visitAccess.js — Users & Roles → Visits):
+ *   view_all_visits     → everything, every branch
+ *   view_branch_visits  → every rep's entries, for customers in the person's
+ *                         assigned branches ('*' = all)
+ *   neither             → only the entries they logged themselves
+ * Returns { kind: 'all' } | { kind: 'branches', locations } | { kind: 'own', userId }.
+ */
+export const dashboardScope = ({ permissions, userId, assignedLocations } = {}) => {
+  const scope = visitViewScope({ permissions, assignedLocations });
+  return scope.kind === 'own' ? { kind: 'own', userId: String(userId ?? '') } : scope;
+};
+
+/** A first-stage $match limiting customers to a manager's branches; null for any other scope. */
+export const scopeBranchPrefilter = (scope) =>
+  (scope?.kind === 'branches' ? { $match: { location: { $in: scope.locations } } } : null);
+
+/** The additionalMatch for getAggregationRangeMatch/getFollowUpRangeMatch: own visits only, or nothing. */
+export const scopeVisitUserMatch = (scope) =>
+  (scope?.kind === 'own' ? { 'visits.createdBy': scope.userId } : {});
+
+/**
+ * Narrow a dashboardScope to one branch picked in the dashboard's location
+ * filter. Never widens: a manager asking for a branch outside their own gets
+ * nothing, and an "own" scope (who only ever sees what they logged) ignores it.
+ */
+export const narrowScopeToLocation = (scope, location) => {
+  const loc = typeof location === 'string' ? location.trim() : '';
+  if (!loc || loc === '*' || !scope || scope.kind === 'own') return scope;
+  if (scope.kind === 'all') return { kind: 'branches', locations: [loc] };
+  return { kind: 'branches', locations: scope.locations.includes(loc) ? [loc] : [] };
+};
