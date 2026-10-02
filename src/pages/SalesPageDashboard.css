@@ -75,6 +75,7 @@
 
 .dashboard-breadcrumbs .link {
     cursor: pointer;
+    opacity: 1; /* the 0.5 on `span` above is for the "/" separator, not the crumbs */
     color: var(--text-secondary);
     text-decoration: none;
     transition: color 0.2s;
@@ -85,6 +86,7 @@
 }
 
 .dashboard-breadcrumbs .current {
+    opacity: 1;
     color: var(--accent-primary);
     font-weight: 600;
 }
@@ -210,13 +212,11 @@
     text-transform: uppercase;
     color: var(--text-secondary);
     letter-spacing: 0.1em;
-    opacity: 0.8;
 }
 
 .stat-desc {
     font-size: 0.7rem;
-    color: var(--text-secondary);
-    opacity: 0.6;
+    color: var(--text-muted);
     line-height: 1.2;
 }
 
@@ -231,9 +231,8 @@
 
 .stat-footer {
     font-size: 0.85rem;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     font-weight: 600;
-    opacity: 0.7;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     padding-top: 0.75rem;
     margin-top: 0.5rem;
@@ -2072,7 +2071,7 @@ body.light-theme-active .sidebar-brand-header {
 }
 
 body.light-theme-active .brand-logo-text h3 {
-    color: #aa841e !important;
+    color: #7a5c0b !important;
 }
 
 body.light-theme-active .brand-logo-text span {
@@ -2098,13 +2097,13 @@ body.light-theme-active .sidebar-nav-link:hover {
 }
 
 body.light-theme-active .sidebar-nav-link.active {
-    color: #aa841e !important;
+    color: #7a5c0b !important;
     background: rgba(212, 175, 55, 0.12) !important;
     box-shadow: inset 4px 0 10px rgba(212, 175, 55, 0.02) !important;
 }
 
 body.light-theme-active .sidebar-nav-link.active::before {
-    background-color: #aa841e !important;
+    background-color: #7a5c0b !important;
 }
 
 body.light-theme-active .sidebar-user-footer {

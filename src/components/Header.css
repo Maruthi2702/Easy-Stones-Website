@@ -477,7 +477,7 @@
 
 .header.light-theme .logged-in-btn {
   background: #d4af37 !important;
-  color: #ffffff !important;
+  color: #1a1a1a !important; /* white on this gold was 2.1:1 */
 }
 
 .header.light-theme .logout-btn {

@@ -614,29 +614,29 @@
 }
 
 /* ── LIGHT THEME FLAT TABLE OVERRIDES ── */
-.light-theme .pdf-flat-list-container {
+body.light-theme-active .pdf-flat-list-container {
     background: #ffffff !important;
     border-color: #cbd5e1 !important;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05) !important;
 }
 
-.light-theme .pdf-flat-table thead th {
+body.light-theme-active .pdf-flat-table thead th {
     color: #475569 !important;
 }
 
-.light-theme .pdf-flat-table tbody tr {
+body.light-theme-active .pdf-flat-table tbody tr {
     border-bottom-color: #cbd5e1 !important;
 }
 
-.light-theme .pdf-flat-table tbody tr:hover {
+body.light-theme-active .pdf-flat-table tbody tr:hover {
     background: #f8fafc !important;
 }
 
-.light-theme .pdf-flat-table tbody td {
+body.light-theme-active .pdf-flat-table tbody td {
     color: #0f172a !important;
 }
 
-.light-theme .text-gold {
+body.light-theme-active .text-gold {
     color: #b45309 !important;
 }
 
@@ -910,11 +910,11 @@
 }
 
 /* Light theme overrides for editable cells focus */
-.light-theme .exact-input-cell:hover {
+body.light-theme-active .exact-input-cell:hover {
     background: rgba(0, 0, 0, 0.04) !important;
 }
 
-.light-theme .exact-input-cell:focus {
+body.light-theme-active .exact-input-cell:focus {
     background: rgba(212, 175, 55, 0.06) !important;
     box-shadow: inset 0 0 0 1px #b89324 !important;
 }
@@ -963,27 +963,81 @@
 }
 
 /* Light Theme Toolbar Overrides */
-.light-theme .toolbar-action-icon-btn {
+body.light-theme-active .toolbar-action-icon-btn {
     background: #ffffff !important;
     border-color: #cbd5e1 !important;
     color: #475569 !important;
 }
 
-.light-theme .toolbar-action-icon-btn:hover {
+body.light-theme-active .toolbar-action-icon-btn:hover {
     background: #f1f5f9 !important;
     color: #0f172a !important;
 }
 
-.light-theme .toolbar-action-icon-btn.reset:hover {
+body.light-theme-active .toolbar-action-icon-btn.reset:hover {
     background: #fef2f2 !important;
     border-color: #fca5a5 !important;
     color: #dc2626 !important;
 }
 
-.light-theme .toolbar-action-icon-btn.export:hover {
+body.light-theme-active .toolbar-action-icon-btn.export:hover {
     background: #f0fdf4 !important;
     border-color: #86efac !important;
     color: #16a34a !important;
 }
 
 
+
+/* ── Toolbar, light theme ──
+   The toolbar's base styles are dark-theme only (a translucent navy bar with
+   white/slate text). On the light page that navy turned a flat mid-grey and
+   the subtitle, Catalog List, Reset and Export text all but vanished (~1:1).
+   Light surface + dark text here; every label ≥4.5:1. */
+body.light-theme-active .pdf-plp-toolbar {
+    background: rgba(255, 255, 255, 0.9);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+body.light-theme-active .toolbar-title {
+    color: #0f172a;
+}
+
+body.light-theme-active .toolbar-subtitle,
+body.light-theme-active .toolbar-search-icon {
+    color: #5a6574;
+}
+
+body.light-theme-active .toolbar-search-input {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #0f172a;
+}
+
+body.light-theme-active .toolbar-search-input::placeholder {
+    color: #5a6574;
+}
+
+body.light-theme-active .toolbar-toggle-btns {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+}
+
+body.light-theme-active .toolbar-btn {
+    color: #475569;
+}
+
+body.light-theme-active .toolbar-btn:hover {
+    color: #0f172a;
+}
+
+body.light-theme-active .toolbar-print-btn {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #1e293b;
+}
+
+body.light-theme-active .toolbar-print-btn:hover {
+    background: #0f172a;
+    border-color: #0f172a;
+    color: #ffffff;
+}

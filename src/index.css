@@ -10,7 +10,7 @@
   --text-primary: #ffffff;
   --text-secondary: #b0b0b0;
   --text-light: #808080;
-  --text-muted: #606060;
+  --text-muted: #999999; /* was #606060 — 3.3:1 on black; 7.4:1 now */
 
   --accent-primary: #d4af37; /* Gold */
   --accent-secondary: #c5a028;
@@ -181,7 +181,7 @@ body.light-theme-active {
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-light: #64748b;
-  --text-muted: #94a3b8;
+  --text-muted: #5a6574; /* was #94a3b8 — 2.6:1 on white; 5.8:1 now */
   --border-color: rgba(0, 0, 0, 0.08);
   --border-hover: rgba(0, 0, 0, 0.15);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -390,4 +390,80 @@ input:not([type]):not(.no-capitalize) {
 
 .customer-form {
   padding: 1.5rem;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Readability overrides (2026-10-01)
+   A contrast audit of every Sales tab found text below WCAG AA (4.5:1, or
+   3:1 for large text) in both themes, mostly from two habits:
+     • the brand gold #d4af37 used as TEXT on light surfaces (~2:1), and
+     • secondary greys tuned for one theme left on the other.
+   The shared tokens are fixed at their definitions (--text-muted above,
+   --dr-text-3 in DailyReport.css); these cover elements that hard-code a
+   colour in their own stylesheet. Light-theme gold text is #7a5c0b (≥5:1 on
+   every light surface it sits on); muted text is #5a6574 light / #999999 dark.
+   Prefer the tokens over new literal colours so this list doesn't grow.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Light theme: gold used as text → deeper gold ── */
+body.light-theme-active .time-filter-btn.active,
+body.light-theme-active .table-controls .export-btn,
+body.light-theme-active .dashboard-table .link,
+body.light-theme-active .partners-tab.active,
+body.light-theme-active .pending-add-btn,
+body.light-theme-active .pending-deliveries-title,
+body.light-theme-active .xover-coverage-stat,
+body.light-theme-active .kpi-pill.gold span,
+body.light-theme-active .dashboard-breadcrumbs .current {
+    color: #7a5c0b !important;
+}
+
+/* ── Light theme: pale greys → readable muted grey ── */
+body.light-theme-active .user-details-text .user-role,
+body.light-theme-active .partners-tab:not(.active),
+body.light-theme-active .partners-tab-bar .tab-hint,
+body.light-theme-active .spag-page-pill .spag-page-label,
+body.light-theme-active .spag-page-pill .spag-page-sep,
+body.light-theme-active .spag-rows-label .spag-label-full,
+body.light-theme-active .day-label-wrap .day-date,
+body.light-theme-active .cancelled-orders-hint,
+body.light-theme-active .cancelled-orders-empty,
+body.light-theme-active .xover-view-btn:not(.active) .xover-btn-text-full,
+body.light-theme-active .profile-grid .form-group label,
+body.light-theme-active .profile-grid .detail-label {
+    color: #5a6574 !important;
+}
+
+body.light-theme-active .today-cell .day-label-wrap .day-date {
+    color: #854d0e !important;
+}
+
+body.light-theme-active .cancelled-orders-title,
+body.light-theme-active .kpi-pill.red span {
+    color: #b91c1c !important;
+}
+
+body.light-theme-active .cell-capacity-pill.capacity-ok-green {
+    color: #1d6b55 !important;
+}
+
+/* ── Dark theme: greys too dark on black → readable muted grey ── */
+body:not(.light-theme-active) .brand-logo-text span,
+body:not(.light-theme-active) .user-details-text .user-role,
+body:not(.light-theme-active) .partners-tab:not(.active),
+body:not(.light-theme-active) .partners-tab-bar .tab-hint,
+body:not(.light-theme-active) .spag-page-pill .spag-page-label,
+body:not(.light-theme-active) .spag-page-pill .spag-page-sep,
+body:not(.light-theme-active) .spag-rows-label .spag-label-full,
+body:not(.light-theme-active) .pending-deliveries-hint,
+body:not(.light-theme-active) .pending-deliveries-empty,
+body:not(.light-theme-active) .cancelled-orders-hint,
+body:not(.light-theme-active) .cancelled-orders-empty,
+body:not(.light-theme-active) .profile-grid .form-group label,
+body:not(.light-theme-active) .profile-grid .detail-label {
+    color: #999999 !important;
+}
+
+body:not(.light-theme-active) .cell-capacity-pill.capacity-ok-green {
+    color: #4fbf9f !important;
 }

@@ -17,7 +17,7 @@
   --dr-line-soft: rgba(255, 255, 255, 0.05);
   --dr-text:      #f2f3f5;
   --dr-text-2:    #a9afba;
-  --dr-text-3:    #6f7681;
+  --dr-text-3:    #9298a3; /* was #6f7681 (2.9–3.9:1); ≥4.6:1 now */
   --dr-gold:      #d4af37;
   --dr-gold-ink:  #241c05;
   --dr-total-bg:  rgba(212, 175, 55, 0.09);
@@ -70,14 +70,14 @@ body.light-theme-active .dr-root,
   --dr-line-soft: #f1f3f6;
   --dr-text:      #141822;
   --dr-text-2:    #5a6472;
-  --dr-text-3:    #8a93a1;
+  --dr-text-3:    #666f7c; /* was #8a93a1 (2.8–3.1:1); ≥4.5:1 now */
   --dr-gold:      #a8811f;
   --dr-gold-ink:  #241c05;
   --dr-total-bg:  #fffbeb;
   --dr-total-ink: #7a5e10;
   --dr-good:      #166534;
   --dr-good-bg:   #dcfce7;
-  --dr-warn:      #92700e;
+  --dr-warn:      #78590a; /* was #92700e — 4.2:1 on its amber badge */
   --dr-warn-bg:   #fef3c7;
   --dr-bad:       #b3261e;
   --dr-bad-bg:    #fdecea;
