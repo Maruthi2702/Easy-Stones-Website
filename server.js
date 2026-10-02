@@ -1087,6 +1087,10 @@ const authenticate = async (req, res, next) => {
           email: 1,
           role: 1,
           assignedLocations: 1,
+          // For GET /api/user/me, which answers from this instead of a
+          // second findById — one round trip fewer on every page load.
+          location: 1,
+          routePlannerFilters: 1,
           permissions: { $ifNull: [{ $arrayElemAt: ['$_role.permissions', 0] }, []] }
         }
       }
@@ -1107,6 +1111,10 @@ const authenticate = async (req, res, next) => {
       assignedLocations: dbUser.assignedLocations || ['Seattle'],
       type: 'staff'
     };
+
+    // The projected document itself (no password or calendar tokens — see the
+    // $project above), for routes that need its raw fields; GET /api/user/me.
+    req.authUserDoc = dbUser;
 
     // Legacy compatibility fields used by existing route handlers
     req.userId   = dbUser._id;
@@ -1724,12 +1732,14 @@ app.get('/api/user/me', authenticate, async (req, res) => {
     if (!req.userId) {
       return res.status(403).json({ message: 'Staff access required' });
     }
-    const user = await User.findById(req.userId).select('-password');
+    // authenticate has just read this user (and their role's permissions)
+    // fresh from the DB in one query; reusing it saves a second round trip
+    // to Atlas on every page load. Falls back to a lookup if it's missing.
+    const user = req.authUserDoc || await User.findById(req.userId).select('-password').lean();
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Always fetch permissions fresh from DB (authenticate already did this, use req.user if available)
     const permissions = req.user?.permissions || [];
 
     res.json({
@@ -1872,14 +1882,11 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       return res.status(400).json({ message: 'Invalid input format' });
     }
 
-    // Trial query to check if connection is active
-    console.log(`[${new Date().toISOString()}] 🔍 CONNECTION CHECK: Running countDocuments...`);
-    try {
-      const dbCheck = await Customer.countDocuments();
-      console.log(`[${new Date().toISOString()}] ✅ CONNECTION CHECK SUCCESS: Found ${dbCheck} records`);
-    } catch (checkErr) {
-      console.error(`[${new Date().toISOString()}] ❌ CONNECTION CHECK FAILED:`, checkErr.message);
-    }
+    // Every database call here is a full round trip to the Atlas cluster
+    // (~280ms from the US — it's in ap-south-1), so this route keeps them few
+    // and parallel: two trips for a normal sign-in, down from five. There
+    // used to be a Customer.countDocuments() "connection check" first, which
+    // was one whole trip that decided nothing.
 
     // Find customer or internal user
     const loginIdentifier = email ? email.trim().toLowerCase() : '';
@@ -1887,23 +1894,26 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     const startQuery = Date.now();
     let account;
     let accountType = 'customer';
+    let permissions = [];
 
     try {
-      // 1. Try finding as a Customer first
-      account = await Customer.findOne({ email: loginIdentifier }).select('-visits -resources');
-
-      // 2. If not found in Customers, check internal Users
-      if (!account) {
-        account = await User.findOne({
+      // Both lists at once, not customers-then-staff: a staff username never
+      // matches a customer, so the old order spent a round trip on every
+      // staff sign-in. Neither can be skipped by shape — 18 customers sign in
+      // with an email field that has no "@". A customer match still wins,
+      // as before, if somehow both match.
+      const [customerAccount, staffAccount] = await Promise.all([
+        Customer.findOne({ email: loginIdentifier }).select('-visits -resources'),
+        User.findOne({
           $or: [
             { email: loginIdentifier },
             { username: loginIdentifier }
           ]
-        });
-
-        if (account) {
-          accountType = 'internal';
-        }
+        })
+      ]);
+      account = customerAccount || staffAccount;
+      if (!customerAccount && staffAccount) {
+        accountType = 'internal';
       }
 
       console.log(`[${new Date().toISOString()}] ⏱️ DB QUERY END: Took ${Date.now() - startQuery}ms`);
@@ -1917,8 +1927,15 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
         return res.status(423).json({ message: 'Account locked. Please try again later.' });
       }
 
-      // Verify password
-      const isMatch = await account.comparePassword(password);
+      // Verify password — with a staff account's role permissions fetched
+      // alongside it rather than after, since bcrypt (~110ms) is pure CPU
+      // and the role lookup is a round trip either way. On a wrong password
+      // the permissions are just discarded.
+      const [isMatch, staffRole] = await Promise.all([
+        account.comparePassword(password),
+        accountType === 'internal' ? Role.findOne({ name: account.role }) : null
+      ]);
+      permissions = staffRole?.permissions || [];
 
       if (!isMatch) {
         if (typeof account.incLoginAttempts === 'function') {
@@ -1926,21 +1943,19 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
         }
         return res.status(401).json({ message: 'Invalid email or password' });
       }
-
-      // Reset login attempts if needed
-      if (account.loginAttempts > 0 && typeof account.resetLoginAttempts === 'function') {
-        await account.resetLoginAttempts();
-      }
     } catch (dbError) {
       console.error(`[${new Date().toISOString()}] ❌ DB ERROR during account lookup:`, dbError);
       throw dbError;
     }
 
-    // Reset login attempts and save IP address
+    // Clear failed attempts, and record a customer's sign-in IP — one write
+    // at most. This used to be a resetLoginAttempts() write followed by a
+    // second update setting the same fields again, run on every sign-in; a
+    // staff account with nothing to clear now writes nothing at all.
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    console.log(`💾 Updating ${accountType} login info (IP: ${ip}) for ${email}`);
 
     if (accountType === 'customer') {
+      console.log(`💾 Updating customer login info (IP: ${ip}) for ${email}`);
       await Customer.updateOne({ _id: account._id }, {
         $set: {
           loginAttempts: 0,
@@ -1954,7 +1969,7 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
           }
         }
       });
-    } else {
+    } else if (account.loginAttempts > 0 || account.lockUntil) {
       await User.updateOne({ _id: account._id }, {
         $set: { loginAttempts: 0 },
         $unset: { lockUntil: 1 }
@@ -1981,12 +1996,6 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 6 * 60 * 60 * 1000 // 6 hours
     });
-
-    let permissions = [];
-    if (accountType === 'internal') {
-      const dbRole = await Role.findOne({ name: account.role });
-      permissions = dbRole?.permissions || [];
-    }
 
     console.log(`✅ Login successful for ${email} as ${accountType}`);
     res.json({
