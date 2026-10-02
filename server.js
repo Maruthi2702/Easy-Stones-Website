@@ -2523,7 +2523,15 @@ app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard
               { $cond: [{ $and: ["$company", "$contactName"] }, " - ", ""] },
               { $ifNull: ["$contactName", ""] }
             ]
-          }
+          },
+          // Separately too, for the list + detail view (VisitsListDetail.jsx):
+          // company over contact, the customer's branch, and who logged it.
+          // Photos aren't here — the detail fetches them for the one visit
+          // being looked at, so this list stays small.
+          company: "$company",
+          contactName: "$contactName",
+          location: "$location",
+          createdByName: "$visits.createdByName"
         }
       },
       { $sort: { date: -1, createdAt: -1 } }

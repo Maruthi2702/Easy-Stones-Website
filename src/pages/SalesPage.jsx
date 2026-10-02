@@ -36,6 +36,7 @@ import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 import { splitContactValues } from '../utils/contactValues';
 import { isPdfSource } from '../utils/attachments';
+import VisitsListDetail from '../components/sales/VisitsListDetail';
 import { toSalesRepList } from '../utils/salesReps';
 import { lazyRetry } from '../utils/lazyRetry';
 
@@ -4213,91 +4214,20 @@ const SalesPage = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="dashboard-table-wrapper">
-                                                <table className="dashboard-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th className="mobile-hide">Date</th>
-                                                            <th>Customer</th>
-                                                            <th className="mobile-hide">Visit Type</th>
-                                                            <th className="mobile-hide">Notes</th>
-
-                                                            <th>Action</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {(() => {
-                                                            const visits = memoizedFilteredVisits;
-                                                            if (visits.length === 0 && dashboardTableLoading) {
-                                                                return renderDashboardLoadingRow(6);
-                                                            }
-                                                            if (visits.length === 0) {
-                                                                return (
-                                                                    <tr>
-                                                                        <td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
-                                                                            No data available in table
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            }
-
-                                                            // Pagination logic
-                                                            const indexOfLastVisit = currentVisitsPage * visitsPerPage;
-                                                            const indexOfFirstVisit = indexOfLastVisit - visitsPerPage;
-                                                            const currentVisits = visits.slice(indexOfFirstVisit, indexOfLastVisit);
-
-                                                            return currentVisits.map((visit, index) => (
-                                                                <tr key={visit._id || index}>
-                                                                    <td className="mobile-hide">{formatDate(visit.date, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
-                                                                    <td>
-                                                                        <span
-                                                                            className="link"
-                                                                            onClick={() => {
-                                                                                handleSelectCustomer({ _id: visit.customerId });
-                                                                                setShowDashboard(false);
-                                                                            }}
-                                                                            title="Go to Customer Chat"
-                                                                        >
-                                                                            {visit.customerName}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="mobile-hide">{visit.purpose || '-'}</td>
-                                                                    <td className="mobile-hide">{visit.notes ? (visit.notes.length > 50 ? visit.notes.substring(0, 50) + '...' : visit.notes) : '-'}</td>
-
-                                                                    <td>
-                                                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                                                            <button
-                                                                                className="icon-btn-ghost"
-                                                                                onClick={() => handleViewVisit(visit)}
-                                                                                title="View Details"
-                                                                                disabled={loadingVisitId === visit._id}
-                                                                            >
-                                                                                {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
-                                                                            </button>
-                                                                            <button
-                                                                                className="icon-btn-ghost"
-                                                                                onClick={() => handleEditVisit(visit)}
-                                                                                title="Edit Visit"
-                                                                                disabled={loadingVisitId === visit._id}
-                                                                            >
-                                                                                {loadingVisitId === visit._id ? <Loader size={16} className="animate-spin" /> : <Pencil size={16} />}
-                                                                            </button>
-                                                                            <button
-                                                                                className="icon-btn-ghost delete-btn"
-                                                                                onClick={() => handleDeleteVisit(visit._id, visit.customerId)}
-                                                                                title="Delete Visit"
-                                                                                style={{ color: '#ff4d4f' }}
-                                                                            >
-                                                                                <Trash2 size={16} />
-                                                                            </button>
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            ));
-                                                        })()}
-                                                    </tbody>
-                                                </table>
-                                            </div>
+                                            {/* List + detail (design option C): a visit list with the
+                                                selected visit beside it, one pane at a time on phones. */}
+                                            <VisitsListDetail
+                                                visits={memoizedFilteredVisits.slice((currentVisitsPage - 1) * visitsPerPage, currentVisitsPage * visitsPerPage)}
+                                                loading={dashboardTableLoading}
+                                                busyVisitId={loadingVisitId}
+                                                onOpenCustomer={(visit) => {
+                                                    handleSelectCustomer({ _id: visit.customerId });
+                                                    setShowDashboard(false);
+                                                }}
+                                                onEdit={handleEditVisit}
+                                                onDelete={(visit) => handleDeleteVisit(visit._id, visit.customerId)}
+                                                onOpenGallery={handleOpenGallery}
+                                            />
 
                                             {/* Pagination Controls */}
                                             <Pagination

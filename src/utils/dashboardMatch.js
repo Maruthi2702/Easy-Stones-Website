@@ -143,6 +143,6 @@ export const followUpDatePrefilter = (dayStr) => ({
  * output that never includes the photos.
  */
 export const slimForUnwind = (prefix) => [
-  { $project: { company: 1, contactName: 1, [prefix]: 1 } },
+  { $project: { company: 1, contactName: 1, location: 1, [prefix]: 1 } },
   { $unset: `${prefix}.image` }
 ];

@@ -1,0 +1,461 @@
+/* Dashboard Sales Visits — list + detail (VisitsListDetail.jsx).
+   Theme: shared tokens (--bg-card, --text-*, --border-color) plus a few
+   light-theme overrides at the bottom. Every text colour here is ≥4.5:1 on
+   its surface in both themes (see the readability notes in index.css). */
+
+.vld {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg-card);
+}
+
+.vld--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.vld-spin {
+    vertical-align: middle;
+    margin-right: 6px;
+    color: var(--accent-primary);
+}
+
+/* ── List ── */
+.vld-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.vld-row {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    min-height: 64px;
+    padding: 14px 44px 14px 18px;
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-primary);
+    text-align: left;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.vld-row:hover {
+    background: rgba(212, 175, 55, 0.06);
+}
+
+.vld-row:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: -2px;
+}
+
+.vld-row.is-selected {
+    background: rgba(212, 175, 55, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.35);
+}
+
+/* Keep the location pill distinct from the selected row's gold tint. */
+.vld-row.is-selected .vld-tag--location { background: var(--bg-card); }
+
+/* Muted grey dips under 4.5:1 on the gold-tinted selected row; one step up. */
+.vld-row.is-selected .vld-row-date,
+.vld-row.is-selected .vld-row-contact {
+    color: var(--text-secondary);
+}
+
+.vld-row-top,
+.vld-row-bottom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.vld-row-company {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vld-row-date {
+    flex-shrink: 0;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.vld-row-contact {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.83rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vld-row-chevron {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+}
+
+/* ── Location tag (dark theme values; light override below) ── */
+.vld-tag {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.vld-tag--location { background: rgba(255, 255, 255, 0.08); color: #d1d5db; }
+.vld-tag--location svg { color: var(--accent-primary); }
+
+/* ── Detail ── */
+.vld-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    padding: 24px 28px;
+    overflow-y: auto;
+    color: var(--text-primary);
+}
+
+.vld-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    align-self: flex-start;
+    min-height: 44px;
+    margin: -10px 0 -6px -10px;
+    padding: 0 10px 0 4px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--accent-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.vld-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.vld-head-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 220px;
+}
+
+.vld-company {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-primary);
+    font-family: inherit;
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: left;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+.vld-company:hover { text-decoration: underline; }
+
+.vld-sub {
+    font-size: 0.93rem;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+}
+
+.vld-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.vld-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--border-hover);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.vld-btn:hover { border-color: var(--accent-primary); }
+.vld-btn:disabled { opacity: 0.6; cursor: wait; }
+
+.vld-btn--danger {
+    padding: 0;
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+.vld-btn--danger:hover { border-color: #ef4444; }
+
+.vld-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0;
+    padding: 16px 18px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.vld-meta div {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.vld-meta dt,
+.vld-block h3 {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.vld-meta dd {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.vld-location {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vld-location svg { color: var(--accent-primary); flex-shrink: 0; }
+.vld-followup { color: #fbbf24; font-weight: 600 !important; }
+
+.vld-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.vld-block p {
+    margin: 0;
+    max-width: 680px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.vld-muted {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.vld-photos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.vld-photo {
+    width: 112px;
+    height: 84px;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+}
+
+.vld-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.vld-photo-pdf {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 100%;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.vld-open-customer {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-primary);
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* ── Phone: one pane at a time ── */
+@media (max-width: 767px) {
+    .vld[data-open='true'] .vld-list { display: none; }
+    .vld[data-open='false'] .vld-detail { display: none; }
+    .vld-detail { padding: 18px 16px 22px; }
+    .vld-meta { padding: 14px 12px; gap: 14px; }
+    .vld-meta dd { font-size: 0.9rem; }
+    .vld-company { font-size: 1.3rem; }
+    .vld-actions { width: 100%; }
+    .vld-actions .vld-btn:first-child { flex: 1; }
+}
+
+/* ── iPad and up: side by side, each pane scrolling on its own ── */
+@media (min-width: 768px) {
+    .vld {
+        grid-template-columns: 300px minmax(0, 1fr);
+        height: min(72vh, 760px);
+    }
+    .vld-list { border-right: 1px solid var(--border-color); }
+    .vld-back,
+    .vld-row-chevron { display: none; }
+    .vld-row { padding-right: 18px; }
+}
+
+/* Visit type is the longest value ("Scheduled in Person Sales Meeting"), so it
+   never gets an equal quarter: on two columns it takes the whole first row,
+   and on four it sizes to its text (up to 45%) while the rest share the remainder. */
+.vld-meta .vld-meta-type { grid-column: 1 / -1; }
+
+@media (min-width: 1200px) {
+    .vld { grid-template-columns: 380px minmax(0, 1fr); }
+}
+
+/* Four across only when the detail pane itself is wide enough — keyed to the
+   pane, not the window: at a 1200px window the pane is only ~410px wide once
+   the sidebar and list take their share, and four columns crushed to ~40px. */
+.vld-detail { container-type: inline-size; }
+
+@container (min-width: 620px) {
+    .vld-meta { grid-template-columns: fit-content(45%) repeat(3, minmax(0, 1fr)); column-gap: 28px; }
+    .vld-meta .vld-meta-type { grid-column: auto; }
+}
+
+/* ── Light theme ── */
+body.light-theme-active .vld-list { background: #fbfcfd; }
+body.light-theme-active .vld-row.is-selected { background: #fbf3dc; box-shadow: inset 0 0 0 1px #ecdcae; }
+body.light-theme-active .vld-meta { background: #f8fafc; }
+body.light-theme-active .vld-photo { background: #f1f5f9; }
+
+body.light-theme-active .vld-tag--location { background: #f1f5f9; color: #334155; }
+body.light-theme-active .vld-tag--location svg { color: #7a5c0b; }
+body.light-theme-active .vld-row.is-selected .vld-tag--location { background: #ffffff; box-shadow: inset 0 0 0 1px #e2d6b0; }
+
+/* Gold as text needs the deeper light-theme gold (see index.css readability notes). */
+body.light-theme-active .vld-company,
+body.light-theme-active .vld-back,
+body.light-theme-active .vld-open-customer,
+body.light-theme-active .vld-location svg { color: #7a5c0b; }
+
+body.light-theme-active .vld-followup { color: #8a4a0b; }
+
+body.light-theme-active .vld-btn--danger { color: #b91c1c; border-color: #f3c9c9; }
+
+/* ── Manager / HQ comments ── */
+.vld-comments {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 680px;
+}
+
+.vld-comment {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+}
+
+.vld-comment p {
+    margin: 0;
+    font-size: 0.93rem;
+    line-height: 1.55;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.vld-comment-who {
+    align-self: flex-start;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.vld-comment--manager { background: rgba(59, 130, 246, 0.1); }
+.vld-comment--manager .vld-comment-who { background: rgba(59, 130, 246, 0.18); color: #93c5fd; }
+.vld-comment--hq { background: rgba(139, 92, 246, 0.1); }
+.vld-comment--hq .vld-comment-who { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; }
+
+body.light-theme-active .vld-comment--manager { background: #f0f5ff; border-color: #dbe6fb; }
+body.light-theme-active .vld-comment--manager .vld-comment-who { background: #dbe6fb; color: #1e3a8a; }
+body.light-theme-active .vld-comment--hq { background: #f5f2fe; border-color: #e5dcfb; }
+body.light-theme-active .vld-comment--hq .vld-comment-who { background: #e5dcfb; color: #4c1d95; }
