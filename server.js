@@ -61,7 +61,11 @@ import { isSalesRep } from './src/utils/salesReps.js';
 import { geocodeAddress, geocodePatchFor, addressKeyOf, GEOCODE_PRECISION } from './src/utils/geocode.js';
 // One definition of "these two records are the same business", shared by the
 // import, the duplicate audit and the merge script.
-import { groupDuplicates, STRONG, withoutSeparated } from './src/utils/customerMatch.js';
+import { groupDuplicates, STRONG, withoutSeparated, buildSignalIndex, matchAgainst } from './src/utils/customerMatch.js';
+// The customer list's saved views, A–Z jump and "incomplete" rule, shared with
+// the screen (PartnersSheet) so the ⚠ it shows and the view that finds those
+// rows can't disagree.
+import { savedViewQuery, isSavedView, letterQuery, STATUSES, SAVED_VIEWS } from './src/utils/customerList.js';
 // Merging one customer into another, shared with scripts/merge-duplicate-customers.js.
 import { planFields, contactsFromLosers, snapshotMerge, executeMerge, undoMerge, markSeparate } from './src/services/customerMerge.js';
 // The customer import decides what it would do before it does any of it, in a
@@ -396,6 +400,10 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // Neutralise regex metacharacters before interpolating user input into a RegExp.
 // Without this a search for "(" throws, and a crafted pattern can pin the CPU.
 const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Today as 'YYYY-MM-DD' in the business's own zone, whatever zone the server runs in.
+const pacificToday = () =>
+  new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
 
 const mongoOptions = {
   serverSelectionTimeoutMS: 15000, // Increased from 5000 for cold-start resilience
@@ -3208,6 +3216,9 @@ app.get('/api/partners', authenticate, requirePermission('view_customers'), asyn
     const filterStatus = req.query.status || '';
     const filterSalesRep = req.query.salesRep || '';
     const filterLocation = req.query.location || '';
+    const filterView = isSavedView(req.query.view) ? req.query.view : '';
+    const filterLetter = req.query.letter || '';
+    const filterModa = req.query.moda || '';
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -3225,9 +3236,36 @@ app.get('/api/partners', authenticate, requirePermission('view_customers'), asyn
           { email: { $regex: safeSearch, $options: 'i' } },
           { phone: { $regex: safeSearch, $options: 'i' } },
           { city: { $regex: safeSearch, $options: 'i' } },
+          { 'address.city': { $regex: safeSearch, $options: 'i' } },
+          { 'address.street': { $regex: safeSearch, $options: 'i' } },
           { status: { $regex: safeSearch, $options: 'i' } }
         ]
       });
+    }
+
+    // Saved views (My accounts, Follow-ups due, …) — one preset filter each,
+    // defined with the screen in src/utils/customerList.js.
+    if (filterView) {
+      filterConditions.push(savedViewQuery(filterView, {
+        userId: req.userId,
+        today: pacificToday(),
+        toId: (id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null)
+      }));
+    }
+
+    // A–Z jump strip.
+    const letterCondition = letterQuery(filterLetter);
+    if (letterCondition) filterConditions.push(letterCondition);
+
+    // Moda Resources: display = 'Yes'/'No', binders = a count stored as a string.
+    if (filterModa) {
+      const wanted = filterModa.split(',').map(m => m.trim());
+      const modaOrs = [];
+      if (wanted.includes('display')) modaOrs.push({ modaDisplay: 'Yes' });
+      if (wanted.includes('noDisplay')) modaOrs.push({ modaDisplay: { $ne: 'Yes' } });
+      if (wanted.includes('binders')) modaOrs.push({ modaBinder: { $nin: [null, '', '0'] } });
+      if (wanted.includes('noBinders')) modaOrs.push({ modaBinder: { $in: [null, '', '0'] } });
+      if (modaOrs.length) filterConditions.push(modaOrs.length === 1 ? modaOrs[0] : { $or: modaOrs });
     }
 
     if (filterStatus) {
@@ -3430,10 +3468,14 @@ app.get('/api/partners', authenticate, requirePermission('view_customers'), asyn
       }
     };
 
+    // The list shows "+N" for extra contacts without shipping the contacts
+    // themselves, so count them before they're projected away.
+    const countContacts = { $addFields: { contactsCount: { $size: { $ifNull: ['$contacts', []] } } } };
+
     const customers = await Customer.aggregate(
       limit === -1
-        ? [{ $match: query }, sortFields, { $sort: sortStage }, hideHeavyFields]
-        : [{ $match: query }, sortFields, { $sort: sortStage }, hideHeavyFields, { $skip: skip }, { $limit: limit }]
+        ? [{ $match: query }, sortFields, { $sort: sortStage }, countContacts, hideHeavyFields]
+        : [{ $match: query }, sortFields, { $sort: sortStage }, { $skip: skip }, { $limit: limit }, countContacts, hideHeavyFields]
     );
 
     res.json({
@@ -3445,6 +3487,126 @@ app.get('/api/partners', authenticate, requirePermission('view_customers'), asyn
   } catch (error) {
     console.error('Error fetching customer list:', error);
     res.status(500).json({ message: 'Failed to fetch customer list' });
+  }
+});
+
+// The Fabricators / Partners tab, as a query. Same rule as the type/typeExclude
+// handling in GET /api/partners: a record with no type is a Fabricator.
+const partnersTabQuery = (tab) => (tab === 'partners'
+  ? {
+    $and: [
+      { customerType: { $exists: true } },
+      { customerType: { $ne: null } },
+      { customerType: { $ne: '' } },
+      { customerType: { $not: { $regex: /^fabricator$/i } } }
+    ]
+  }
+  : {
+    $or: [
+      { customerType: { $regex: /^fabricator$/i } },
+      { customerType: null },
+      { customerType: { $exists: false } },
+      { customerType: '' }
+    ]
+  });
+
+// Counts for the customer list's saved views, within one tab.
+app.get('/api/partners/view-counts', authenticate, requirePermission('view_customers'), async (req, res) => {
+  try {
+    const base = partnersTabQuery(req.query.tab);
+    const opts = {
+      userId: req.userId,
+      today: pacificToday(),
+      toId: (id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null)
+    };
+    const entries = await Promise.all(SAVED_VIEWS.map(async ({ key }) =>
+      [key, await Customer.countDocuments({ $and: [base, savedViewQuery(key, opts)] })]
+    ));
+    res.json(Object.fromEntries(entries));
+  } catch (error) {
+    console.error('Error counting customer views:', error);
+    res.status(500).json({ message: 'Failed to count customer views' });
+  }
+});
+
+// Bulk "Assign rep" / "Set status" from the customer list's selection bar.
+// Only these two fields, so a selection can't be used to rewrite anything else.
+app.patch('/api/partners/bulk', authenticate, requirePermission('manage_customers'), async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
+    if (validIds.length === 0) {
+      return res.status(400).json({ message: 'Choose at least one customer' });
+    }
+    if (validIds.length > 500) {
+      return res.status(400).json({ message: 'Too many customers in one change (500 max)' });
+    }
+
+    const update = {};
+    if (req.body.status !== undefined) {
+      if (!STATUSES.includes(req.body.status)) {
+        return res.status(400).json({ message: 'Unknown status' });
+      }
+      update.status = req.body.status;
+    }
+    if (req.body.salesRep !== undefined) {
+      // Same resolution as a single edit: the stored name always matches the id,
+      // and an empty value hands the accounts back (unassigns them). An id that
+      // names nobody is refused — resolveSalesRep would read it as "unassign",
+      // and across a whole selection that mistake is expensive.
+      const rep = await resolveSalesRep(req.body.salesRep);
+      if (req.body.salesRep && !rep.salesRep) {
+        return res.status(400).json({ message: 'That sales rep was not found' });
+      }
+      Object.assign(update, rep);
+    }
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: 'Nothing to change' });
+    }
+
+    const result = await Customer.updateMany({ _id: { $in: validIds } }, { $set: update });
+    req.app.get('io').emit('customer_update');
+    res.json({ matched: result.matchedCount, modified: result.modifiedCount });
+  } catch (error) {
+    console.error('Error bulk-updating customers:', error);
+    res.status(500).json({ message: 'Failed to update customers' });
+  }
+});
+
+// Possible duplicates of a customer being added (or edited), by the same
+// signals the import and the duplicate audit use. Returns the strong matches
+// only — a shared email domain alone isn't worth interrupting someone for.
+app.post('/api/partners/possible-duplicates', authenticate, requirePermission('view_customers'), async (req, res) => {
+  try {
+    const probe = {
+      company: String(req.body?.company || ''),
+      phone: String(req.body?.phone || ''),
+      email: String(req.body?.email || '')
+    };
+    const excludeId = String(req.body?.excludeId || '');
+    const rows = await Customer.find({}, 'company phone email notDuplicateOf').lean();
+    const index = buildSignalIndex(rows);
+    const separated = new Set(
+      (rows.find(r => String(r._id) === excludeId)?.notDuplicateOf || []).map(String)
+    );
+    const hits = matchAgainst(index, probe)
+      .filter(h => h.id !== excludeId && !separated.has(h.id) && h.score >= STRONG)
+      .slice(0, 3);
+    if (hits.length === 0) return res.json({ matches: [] });
+
+    const found = await Customer.find(
+      { _id: { $in: hits.map(h => h.id) } },
+      'company contactName name phone email status location salesRepName address city'
+    ).lean();
+    const byId = new Map(found.map(c => [String(c._id), c]));
+    res.json({
+      matches: hits
+        .filter(h => byId.has(h.id))
+        .map(h => ({ customer: byId.get(h.id), signals: h.signals, score: h.score }))
+    });
+  } catch (error) {
+    console.error('Error checking for duplicate customers:', error);
+    res.status(500).json({ message: 'Failed to check for duplicates' });
   }
 });
 

@@ -38,6 +38,7 @@ import { splitContactValues } from '../utils/contactValues';
 import { isPdfSource } from '../utils/attachments';
 import VisitsListDetail from '../components/sales/VisitsListDetail';
 import VisitsLocationFilter from '../components/sales/VisitsLocationFilter';
+import CustomerProfileHeader from '../components/sales/customerList/CustomerProfileHeader';
 import { splitCustomer } from '../components/sales/visitsListHelpers';
 import { canAddVisit, canModifyVisit, canDeleteVisit, visitViewScope } from '../utils/visitAccess';
 import { toSalesRepList } from '../utils/salesReps';
@@ -460,6 +461,18 @@ const SalesPage = () => {
     useEffect(() => {
         fetchSchedules();
     }, [fetchSchedules]);
+
+    // "Plan route" from the customer list's selection bar: open Route Planner
+    // with those customers already selected (RoutePlannerV2's preselect prop).
+    const [routePreselect, setRoutePreselect] = useState(null);
+    const canPlanRoutes = !!currentUser?.permissions?.includes('view_route_planner');
+    const handlePlanRoute = (rows) => {
+        const ids = (rows || []).map(r => r?._id).filter(Boolean);
+        if (!ids.length) return;
+        setRoutePreselect({ ids, nonce: Date.now() });
+        setRoutePlannerOpened(true);
+        handleCrmTabChange('route_planner');
+    };
 
     const handleCrmTabChange = (tabName) => {
         setCrmTab(tabName);
@@ -3497,6 +3510,7 @@ const SalesPage = () => {
                                 currentUser={currentUser}
                                 theme={theme}
                                 isActive={crmTab === 'route_planner'}
+                                preselect={routePreselect}
                                 onOpenCustomer={(id) => handleSelectCustomer({ _id: id }, 'route_planner')}
                                 onAddVisit={canAddVisits ? handleAddVisitForPin : null}
                                 onAddResource={canAddVisits ? handleAddResourceForPin : null}
@@ -3514,79 +3528,27 @@ const SalesPage = () => {
                     {selectedCustomer && (
                         <ErrorBoundary key={selectedCustomerId}>
                         <>
-                            {/* Customer Header - Hide in full screen chat */}
+                            {/* Customer header: who they are, status, actions, summary, tabs. Hidden in full-screen chat. */}
                             {!isChatFullScreen && (
-                                <div className="customer-header">
-                                    <div className="header-main">
-                                        <div className="header-left">
-                                            <button
-                                                className="fancy-mobile-menu-btn"
-                                                onClick={handleBackToCustomersList}
-                                                title="Back to customers list"
-                                                style={{ marginRight: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                            >
-                                                <ArrowLeft size={20} />
-                                            </button>
-                                            <div className="name-block">
-                                                <h1 className="customer-name">
-                                                    {selectedCustomer.company || selectedCustomer.contactName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}
-                                                </h1>
-                                                {isMobile && selectedCustomer.address?.city && (
-                                                    <span style={{ display: 'block', fontSize: '0.8rem', color: '#9CA3AF', fontWeight: '500' }}>
-                                                        {selectedCustomer.address.city}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="header-tabs">
-                                            <button
-                                                className={`header-tab ${activeTab === 'visits' ? 'active' : ''}`}
-                                                onClick={() => handleActiveTabChange('visits')}
-                                            >
-                                                <Clock size={14} />
-                                                Visits
-                                            </button>
-                                            <button
-                                                className={`header-tab ${activeTab === 'resources' ? 'active' : ''}`}
-                                                onClick={() => handleActiveTabChange('resources')}
-                                            >
-                                                <Folder size={14} />
-                                                Resources
-                                            </button>
-                                            <button
-                                                className={`header-tab ${activeTab === 'contacts' ? 'active' : ''}`}
-                                                onClick={() => handleActiveTabChange('contacts')}
-                                            >
-                                                <Users size={14} />
-                                                Contacts
-                                            </button>
-                                            <button
-                                                className={`header-tab ${activeTab === 'network' ? 'active' : ''}`}
-                                                onClick={() => handleActiveTabChange('network')}
-                                            >
-                                                <Share2 size={14} />
-                                                Network
-                                            </button>
-                                        </div>
-
-                                        <div className="header-right">
-                                            <button
-                                                className="info-toggle-btn"
-                                                onClick={handleGoHome}
-                                                title="Sales Dashboard"
-                                            >
-                                                <LayoutDashboard size={18} />
-                                            </button>
-                                            <button
-                                                className={`info-toggle-btn ${showCustomerInfo ? 'active' : ''}`}
-                                                onClick={() => setShowCustomerInfo(!showCustomerInfo)}
-                                                title={showCustomerInfo ? 'Hide Info' : 'Show Info'}
-                                            >
-                                                {showCustomerInfo ? <X size={18} /> : <Info size={18} />}
-                                            </button>
-                                        </div>
-                                    </div>
+                                <div className="cl-ph-wrap">
+                                    <CustomerProfileHeader
+                                        customer={selectedCustomer}
+                                        loading={visitsLoading}
+                                        activeTab={activeTab}
+                                        onTab={handleActiveTabChange}
+                                        onBack={handleBackToCustomersList}
+                                        onGoHome={handleGoHome}
+                                        showInfo={showCustomerInfo}
+                                        onToggleInfo={() => setShowCustomerInfo(!showCustomerInfo)}
+                                        onLogVisit={canAddVisits ? handleQuickAddVisit : null}
+                                        onAddResource={canAddVisits ? handleAddResource : null}
+                                        canEdit={!!currentUser?.permissions?.includes('manage_customers')}
+                                        onStatusChanged={(status) => {
+                                            setSelectedCustomerDetail(prev => (prev ? { ...prev, status } : prev));
+                                            const cached = customerCacheRef.current[selectedCustomerId];
+                                            if (cached) customerCacheRef.current[selectedCustomerId] = { ...cached, status };
+                                        }}
+                                    />
                                 </div>
                             )}
 
@@ -4133,6 +4095,7 @@ const SalesPage = () => {
                                     isSidebarOpen={isSidebarOpen}
                                     isPinned={isPinned}
                                     customerRefreshTrigger={customerRefreshTrigger}
+                                    onPlanRoute={canPlanRoutes ? handlePlanRoute : undefined}
                                 />
                                 </Suspense>
                             </div>
@@ -4447,6 +4410,7 @@ const SalesPage = () => {
                                             isSidebarOpen={isSidebarOpen}
                                             isPinned={isPinned}
                                             customerRefreshTrigger={customerRefreshTrigger}
+                                            onPlanRoute={canPlanRoutes ? handlePlanRoute : undefined}
                                          />
                                         </Suspense>
                                     )}

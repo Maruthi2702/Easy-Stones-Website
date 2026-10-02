@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-    Search, Plus, Download, Upload, Edit2, Trash2, FileText, Menu,
-    X, Mail, Phone, Eye, Filter, MoreVertical, Loader, Wrench, Users, PhoneCall, MapPin
+    Search, Plus, Download, Upload, Mail, X, Wrench, Users, MoreHorizontal, SlidersHorizontal,
+    ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, LayoutList
 } from 'lucide-react';
-import Pagination from '../shared/Pagination';
 import SidebarToggleButton from '../shared/SidebarToggleButton';
 import AddCustomerModal from './AddCustomerModal';
 import CustomerImportModal from '../admin/CustomerImportModal';
@@ -12,129 +11,148 @@ import { toSalesRepList } from '../../utils/salesReps';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import * as XLSX from 'xlsx';
-import {  formatPhoneForDisplay } from '../../utils/phoneUtils';
+import { formatPhoneForDisplay } from '../../utils/phoneUtils';
+import {
+    STATUSES, statusMeta, SAVED_VIEWS, scopedFilterOptions, groupRepsByLocation, emailListFor,
+    primaryEmailOf, cityLineOf, streetOf, locationOf
+} from '../../utils/customerList';
+import CustomerTable from './customerList/CustomerTable';
+import CustomerRowList from './customerList/CustomerRowList';
+import CustomerDrawer from './customerList/CustomerDrawer';
+import BulkBar from './customerList/BulkBar';
+import LogCallSheet from './customerList/LogCallSheet';
+import { canAddVisit } from '../../utils/visitAccess';
+import { FilterDropdown } from './customerList/parts';
+import { useDismiss, copyText } from './customerList/uiHelpers';
+// Kept for the add/edit modal and the classes other sales screens share with it
+// (.location-badge tints, status pills); the list itself is styled by CustomerList.css.
 import './PartnersSheet.css';
-
-// Helper for initials badge
-// Branch chips are tinted per branch so a mixed list is scannable without
-// reading a word. Branches added later get no modifier and fall back to the
-// neutral chip, which is why this slugifies rather than looking up a fixed map.
-const locationClass = (name) =>
-    String(name || 'Seattle').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+import './customerList/CustomerList.css';
 
 // Filtering on a rep is only half the question — "who has nobody yet" is the
 // other half, and it is the list someone works through to clear the backlog.
 const UNASSIGNED = 'unassigned';
 
-// Tabs definition
 const TABS = [
-    { key: 'fabricators', label: 'Fabricators', type: 'Fabricator', icon: Wrench, color: '#d4af37' },
-    { key: 'partners',    label: 'Partners',    type: '',           icon: Users,  color: '#63b3ed' },
+    { key: 'fabricators', label: 'Fabricators', icon: Wrench, hint: 'Fabricators are pricing-eligible and buy direct' },
+    { key: 'partners', label: 'Partners', icon: Users, hint: 'Contractors, dealers, designers and more' },
 ];
 
-// Custom MultiSelect Dropdown component.
-// Options are plain strings for the filters whose value is the label — Level,
-// Type, City, Status — or { value, label } where the two differ, which is what
-// the Sales Rep filter needs: it selects by user id but has to read as a name.
-const MultiSelect = ({ options, selectedValues = [], onChange, placeholder, showSearch = false }) => {
-    const [isOpen, setIsOpen] = React.useState(false);
-    const [searchVal, setSearchVal] = React.useState('');
-    const containerRef = React.useRef(null);
+const LEVELS = ['Level - 1', 'Level - 2', 'Level - 3', 'Level - 4'];
+const PARTNER_TYPES = ['Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder', 'Fabricator'];
+const MODA_OPTIONS = [
+    { value: 'display', label: 'Has display' },
+    { value: 'noDisplay', label: 'No display' },
+    { value: 'binders', label: 'Has binders' },
+    { value: 'noBinders', label: 'No binders' }
+];
+const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+const SORTS = [
+    { value: 'company:asc', label: 'Company A–Z' },
+    { value: 'company:desc', label: 'Company Z–A' },
+    { value: 'level:asc', label: 'Level 1 → 4' },
+    { value: 'city:asc', label: 'City' },
+    { value: 'salesRep:asc', label: 'Sales rep' },
+    { value: 'location:asc', label: 'Location' }
+];
 
-    const normalized = options.map(opt =>
-        typeof opt === 'object' && opt !== null
-            ? { value: opt.value, label: opt.label ?? opt.value }
-            : { value: opt, label: String(opt) }
-    );
+// Global in-memory cache to prevent re-fetching on tab switches & re-mounts.
+// Cleared on every write (see clearListCache) — it has no expiry of its own.
+const globalPartnersCache = {};
+const clearListCache = () => { Object.keys(globalPartnersCache).forEach(k => delete globalPartnersCache[k]); };
 
-    React.useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (containerRef.current && !containerRef.current.contains(event.target)) {
-                setIsOpen(false);
-                setSearchVal('');
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+const useWindowWidth = () => {
+    const [w, setW] = useState(() => window.innerWidth);
+    useEffect(() => {
+        const onResize = () => setW(window.innerWidth);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
     }, []);
+    return w;
+};
 
-    const handleToggle = (opt) => {
-        const next = selectedValues.includes(opt)
-            ? selectedValues.filter(v => v !== opt)
-            : [...selectedValues, opt];
-        onChange(next);
-    };
-
-    const labelOf = (value) =>
-        normalized.find(o => o.value === value)?.label ?? String(value);
-
-    const displayText = selectedValues.length === 0
-        ? placeholder
-        : selectedValues.length <= 2
-            ? selectedValues.map(labelOf).join(', ')
-            : `${selectedValues.length} selected`;
-
-    const filteredOptions = normalized.filter(opt =>
-        opt.label.toLowerCase().includes(searchVal.toLowerCase())
-    );
-
+/** Saved-view picker — first control in the filter row (and the narrow-screen bar). */
+const ViewPicker = ({ view, counts, onChange }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+    useDismiss(open, setOpen, ref);
+    const current = SAVED_VIEWS.find(v => v.key === view);
     return (
-        <div className="spag-multiselect" ref={containerRef}>
-            <button
-                type="button"
-                className={`spag-multiselect-trigger ${selectedValues.length > 0 ? 'active' : ''}`}
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                <span className="trigger-text">{displayText}</span>
-                <span className="trigger-arrow">▼</span>
+        <div className="cl-dd" ref={ref}>
+            <button type="button" className={`cl-dd-btn${current ? ' set' : ''}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+                <LayoutList size={14} aria-hidden="true" />
+                <span className="lbl">{current ? current.label : 'All customers'}</span>
+                {current && counts[current.key] !== undefined && <span style={{ opacity: 0.75, fontSize: 11.5 }}>{counts[current.key]}</span>}
+                <ChevronDown size={14} aria-hidden="true" />
             </button>
-
-            {isOpen && (
-                <div className="spag-multiselect-dropdown">
-                    {showSearch && (
-                        <div className="spag-multiselect-search-container">
-                            <input
-                                type="text"
-                                className="spag-multiselect-search-input"
-                                placeholder="Search..."
-                                value={searchVal}
-                                onChange={(e) => setSearchVal(e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                autoFocus
-                            />
-                        </div>
-                    )}
-                    <div className="spag-multiselect-items-container">
-                        {filteredOptions.length === 0 ? (
-                            <div className="spag-multiselect-empty">No results found</div>
-                        ) : (
-                            filteredOptions.map((opt) => (
-                                <label key={opt.value} className="spag-multiselect-item">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedValues.includes(opt.value)}
-                                        onChange={() => handleToggle(opt.value)}
-                                    />
-                                    <span>{opt.label}</span>
-                                </label>
-                            ))
-                        )}
-                    </div>
+            {open && (
+                <div className="cl-pop" role="menu">
+                    <button type="button" role="menuitemradio" aria-checked={!view} className="cl-opt" onClick={() => { setOpen(false); onChange(''); }}>All customers</button>
+                    {SAVED_VIEWS.map(v => (
+                        <button key={v.key} type="button" role="menuitemradio" aria-checked={view === v.key} className="cl-opt" onClick={() => { setOpen(false); onChange(v.key); }}>
+                            {v.warn && <AlertTriangle size={14} style={{ color: 'var(--cl-warn)' }} aria-hidden="true" />}
+                            {v.label}
+                            {counts[v.key] !== undefined && <span className="n">{counts[v.key]}</span>}
+                        </button>
+                    ))}
                 </div>
             )}
         </div>
     );
 };
 
-// Global in-memory cache to prevent re-fetching on tab switches & re-mounts (Top-level module scope)
-const globalPartnersCache = {};
+const Pager = ({ page, totalPages, totalCount, limit, onPage, onLimit, showKeys }) => {
+    const pages = useMemo(() => {
+        const out = [];
+        const add = (p) => { if (p >= 1 && p <= totalPages && !out.includes(p)) out.push(p); };
+        [1, page - 1, page, page + 1, totalPages].forEach(add);
+        out.sort((a, b) => a - b);
+        return out;
+    }, [page, totalPages]);
+    const from = totalCount ? (page - 1) * limit + 1 : 0;
+    const to = Math.min(page * limit, totalCount);
+    return (
+        <nav className="cl-pg" aria-label="Pages">
+            <span>Showing <b>{from}–{to}</b> of {totalCount}</span>
+            {showKeys && (
+                <span className="cl-keys cl-hide-narrow" aria-hidden="true">
+                    <span className="cl-kbd">↑</span><span className="cl-kbd">↓</span> move
+                    <span className="cl-kbd">Enter</span> open <span className="cl-kbd">Esc</span> close <span className="cl-kbd">/</span> search
+                </span>
+            )}
+            <span className="cl-grow" />
+            <button type="button" className="cl-pb" aria-label="Previous page" disabled={page <= 1} onClick={() => onPage(page - 1)}><ChevronLeft size={16} /></button>
+            {pages.map((p, i) => (
+                <React.Fragment key={p}>
+                    {i > 0 && p - pages[i - 1] > 1 && <span className="cl-pb" aria-hidden="true">…</span>}
+                    <button type="button" className="cl-pb" aria-current={p === page ? 'page' : undefined} onClick={() => onPage(p)}>{p}</button>
+                </React.Fragment>
+            ))}
+            <button type="button" className="cl-pb" aria-label="Next page" disabled={page >= totalPages} onClick={() => onPage(page + 1)}><ChevronRight size={16} /></button>
+            <label className="cl-hide-phone" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginLeft: 8 }}>
+                Rows
+                <select value={limit} onChange={(e) => onLimit(Number(e.target.value))}>
+                    {[15, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+            </label>
+        </nav>
+    );
+};
 
-const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPinned, customerRefreshTrigger }) => {
+const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPinned, customerRefreshTrigger, onPlanRoute }) => {
     const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState('fabricators');
+    const width = useWindowWidth();
+    const narrow = width < 900;   // list rows + slide-over instead of table + side drawer
+    const phone = width < 600;    // tapping a customer goes straight to the full profile
+    const isMobile = width <= 1024; // the sales layout's own sidebar breakpoint
 
+    const canEdit = !!user?.permissions?.includes('manage_customers');
+    const canDelete = canEdit || !!user?.permissions?.includes('delete_customers');
+
+    const [activeTab, setActiveTab] = useState('fabricators');
     const [partners, setPartners] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
@@ -142,142 +160,179 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [editingPartner, setEditingPartner] = useState(null);
     const [viewingPartner, setViewingPartner] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
-    const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
-    const [, setFormErrors] = useState({});
-    const [showFilters, setShowFilters] = useState(false);
+    const [showFilterSheet, setShowFilterSheet] = useState(false);
+    const [moreOpen, setMoreOpen] = useState(false);
+    const moreRef = useRef(null);
+    useDismiss(moreOpen, setMoreOpen, moreRef);
 
-    // Multi-Select Filter States
+    // Filters. Saved views and the A–Z letter are presets on top of these.
     const [filterLevels, setFilterLevels] = useState([]);
     const [filterTypes, setFilterTypes] = useState([]);
     const [filterCities, setFilterCities] = useState([]);
     const [filterStatuses, setFilterStatuses] = useState([]);
     const [filterSalesReps, setFilterSalesReps] = useState([]);
     const [filterLocations, setFilterLocations] = useState([]);
-    const [uniqueCities, setUniqueCities] = useState([]);
+    const [filterModa, setFilterModa] = useState([]);
+    const [view, setView] = useState('');
+    const [letter, setLetter] = useState('');
+    const [viewCounts, setViewCounts] = useState({});
+    const [countsNonce, setCountsNonce] = useState(0);
 
-    // The staff who can own an account, and the branches an account can sit at.
-    // Both feed the filter panel and the add/edit modal, so they are fetched
-    // once here rather than by each consumer.
+    const [uniqueCities, setUniqueCities] = useState([]);
     const [salesReps, setSalesReps] = useState([]);
     const [locations, setLocations] = useState([]);
 
-    // Pagination State
-    const [currentPage, setCurrentPage] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        return parseInt(params.get('p')) || 1;
-    });
+    const [currentPage, setCurrentPage] = useState(() => parseInt(new URLSearchParams(window.location.search).get('p'), 10) || 1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
-    const [limit, setLimit] = useState(15);
+    const [limit, setLimit] = useState(25);
+    const [sortBy, setSortBy] = useState('level');
+    const [sortOrder, setSortOrder] = useState('asc');
+
+    // Selection persists across pages, so keep the rows themselves for copy/export.
+    const [selected, setSelected] = useState(() => new Map());
+    const selectedIds = useMemo(() => new Set(selected.keys()), [selected]);
+    const [bulkBusy, setBulkBusy] = useState(false);
+    const [bulkMessage, setBulkMessage] = useState('');
+    const [notice, setNotice] = useState('');
+
+    const [openCustomer, setOpenCustomer] = useState(null);
+    const [focusIndex, setFocusIndex] = useState(-1);
+
+    const rootRef = useRef(null);
+    const searchRef = useRef(null);
+
+    // "Log this call?": a Call tapped on a phone is remembered (sessionStorage,
+    // so it survives the browser being backgrounded or reloaded for the call),
+    // and when the person comes back to the app they're asked to log it.
+    const canLogCalls = canAddVisit(user);
+    const [logCallFor, setLogCallFor] = useState(null);
+    const rememberCall = (row) => {
+        if (!canLogCalls || !row?._id) return;
+        try {
+            sessionStorage.setItem('cl.pendingCall', JSON.stringify({
+                at: Date.now(),
+                customer: { _id: row._id, company: row.company, contactName: row.contactName, name: row.name }
+            }));
+        } catch { /* private mode: no prompt, the call itself still works */ }
+    };
+    useEffect(() => {
+        if (!canLogCalls) return undefined;
+        const check = () => {
+            if (document.visibilityState !== 'visible') return;
+            let pending = null;
+            try { pending = JSON.parse(sessionStorage.getItem('cl.pendingCall') || 'null'); } catch { pending = null; }
+            if (!pending?.customer?._id) return;
+            const elapsed = Date.now() - (pending.at || 0);
+            // Ignore the instant the dialer hands back without a call, and anything stale.
+            if (elapsed < 3000) return;
+            try { sessionStorage.removeItem('cl.pendingCall'); } catch { /* ignore */ }
+            if (elapsed <= 2 * 60 * 60 * 1000) setLogCallFor(pending.customer);
+        };
+        document.addEventListener('visibilitychange', check);
+        window.addEventListener('focus', check);
+        return () => {
+            document.removeEventListener('visibilitychange', check);
+            window.removeEventListener('focus', check);
+        };
+    }, [canLogCalls]);
 
     useEffect(() => {
         const newUrl = new URL(window.location);
         newUrl.searchParams.set('p', currentPage);
-        window.history.replaceState({}, '', newUrl);
+        window.history.replaceState(window.history.state, '', newUrl);
     }, [currentPage]);
 
     useEffect(() => {
-        const handlePopState = () => {
-            const params = new URLSearchParams(window.location.search);
-            const pageParam = parseInt(params.get('p')) || 1;
-            setCurrentPage(pageParam);
-        };
+        const handlePopState = () => setCurrentPage(parseInt(new URLSearchParams(window.location.search).get('p'), 10) || 1);
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
     }, []);
 
-    // Sorting State
-    const [sortBy, setSortBy] = useState('level');
-    const [sortOrder, setSortOrder] = useState('asc');
-
-    const handleSort = (field) => {
-        if (sortBy === field) {
-            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortBy(field);
-            setSortOrder('asc');
-        }
-        setCurrentPage(1);
-    };
-
-    const handleRowsPerPageChange = (newLimit) => {
-        setLimit(newLimit);
-        setCurrentPage(1);
-    };
+    useEffect(() => {
+        if (!notice) return undefined;
+        const t = setTimeout(() => setNotice(''), 3500);
+        return () => clearTimeout(t);
+    }, [notice]);
 
     useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth <= 1024);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
+        if (!bulkMessage) return undefined;
+        const t = setTimeout(() => setBulkMessage(''), 3000);
+        return () => clearTimeout(t);
+    }, [bulkMessage]);
 
-    // Load all unique cities on mount for the filter checklist
+    // Pickers: cities, the staff who can own an account, and the branches.
     useEffect(() => {
-        const fetchCities = async () => {
+        (async () => {
             try {
                 const res = await authFetch(`${API_URL}/api/partners/cities`);
-                if (res.ok) {
-                    const cities = await res.json();
-                    setUniqueCities(cities || []);
-                }
-            } catch (err) {
-                console.error('Error fetching unique cities:', err);
-            }
-        };
-        fetchCities();
-    }, []);
-
-    // Load the owner and branch pickers once on mount. Ordered by branch and
-    // then by name so the rep dropdown reads as branch-grouped rather than as
-    // one flat list of everyone in the company.
-    useEffect(() => {
-        const fetchSalesReps = async () => {
+                if (res.ok) setUniqueCities((await res.json()) || []);
+            } catch (err) { console.error('Error fetching unique cities:', err); }
+        })();
+        (async () => {
             try {
                 const res = await authFetch(`${API_URL}/api/salesreps`);
-                if (!res.ok) return;
-                setSalesReps(toSalesRepList(await res.json()));
-            } catch (err) {
-                console.error('Error fetching sales reps:', err);
-            }
-        };
-
-        const fetchLocations = async () => {
+                if (res.ok) setSalesReps(toSalesRepList(await res.json()));
+            } catch (err) { console.error('Error fetching sales reps:', err); }
+        })();
+        (async () => {
             try {
                 const res = await authFetch(`${API_URL}/api/admin/locations`);
                 if (!res.ok) return;
                 const data = await res.json();
                 setLocations((data || []).map(l => l.name).filter(Boolean));
-            } catch (err) {
-                console.error('Error fetching locations:', err);
-            }
-        };
-
-        fetchSalesReps();
-        fetchLocations();
+            } catch (err) { console.error('Error fetching locations:', err); }
+        })();
     }, []);
 
-    
-    // For the Partners tab we want everyone EXCEPT Fabricators
-    const fetchPartners = async ({
-        page = currentPage,
-        search = debouncedSearch,
-        level = filterLevels.join(','),
-        type = filterTypes.join(','),
-        city = filterCities.join(','),
-        status = filterStatuses.join(','),
-        salesRep = filterSalesReps.join(','),
-        location = filterLocations.join(','),
-        lim = limit,
-        tab = activeTab,
-        sortB = sortBy,
-        sortO = sortOrder,
-        skipCache = false
-    } = {}) => {
-        const cacheKey = JSON.stringify({ page, search, level, type, city, status, salesRep, location, lim, tab, sortB, sortO });
+    // What this person is offered in the Rep and Location filters (by the
+    // Visits view rule) — not what they're allowed to see; the list isn't scoped.
+    const scoped = useMemo(() => scopedFilterOptions({ user, salesReps, locations }), [user, salesReps, locations]);
+    const repOptions = useMemo(() => [
+        { group: null, options: [{ value: UNASSIGNED, label: 'Unassigned' }] },
+        ...groupRepsByLocation(scoped.reps).map(g => ({
+            group: g.location,
+            options: g.reps.map(r => ({ value: r._id, label: String(r._id) === String(user?.id) ? `${r.name} (you)` : r.name }))
+        }))
+    ], [scoped.reps, user?.id]);
+    const repNote = scoped.scope === 'all' ? null : 'Only the reps your role can see are listed.';
+    const locationNote = scoped.scope === 'all' ? null : 'Only the locations you have access to in Users & Roles are listed.';
 
-        // Serve instantly from cache if available (0ms load!)
-        if (globalPartnersCache[cacheKey]) {
-            const cached = globalPartnersCache[cacheKey];
+    // ── Query ────────────────────────────────────────────────────────────────
+    const listParams = useCallback(() => {
+        const p = { sortBy, sortOrder };
+        if (debouncedSearch) p.search = debouncedSearch;
+        if (filterLevels.length) p.level = filterLevels.join(',');
+        if (filterTypes.length) p.type = filterTypes.join(',');
+        if (filterCities.length) p.city = filterCities.join(',');
+        if (filterStatuses.length) p.status = filterStatuses.join(',');
+        if (filterSalesReps.length) p.salesRep = filterSalesReps.join(',');
+        if (filterLocations.length) p.location = filterLocations.join(',');
+        if (filterModa.length) p.moda = filterModa.join(',');
+        if (view) p.view = view;
+        if (letter) p.letter = letter;
+        // The tab scopes the list, except while searching (a search finds the
+        // customer whichever tab it's on) or when types were picked explicitly.
+        if (!debouncedSearch && !filterTypes.length) {
+            if (activeTab === 'fabricators') p.type = 'Fabricator';
+            else p.typeExclude = 'Fabricator';
+        }
+        return p;
+    }, [sortBy, sortOrder, debouncedSearch, filterLevels, filterTypes, filterCities, filterStatuses, filterSalesReps, filterLocations, filterModa, view, letter, activeTab]);
+
+    const urlFor = (params) => {
+        const url = new URL(`${API_URL}/api/partners`, window.location.origin);
+        Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
+        return url;
+    };
+
+    const requestSeq = useRef(0);
+    const fetchPartners = useCallback(async ({ skipCache = false } = {}) => {
+        const params = { ...listParams(), page: currentPage, limit };
+        const cacheKey = JSON.stringify(params);
+        const seq = ++requestSeq.current;
+        const cached = globalPartnersCache[cacheKey];
+        if (cached) {
             setPartners(cached.partners || []);
             setTotalPages(cached.totalPages || 1);
             setTotalCount(cached.totalCount || 0);
@@ -286,120 +341,98 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         } else {
             setLoading(true);
         }
-
         try {
-            const url = new URL(`${API_URL}/api/partners`, window.location.origin);
-            url.searchParams.append('page', page);
-            url.searchParams.append('limit', lim);
-            url.searchParams.append('sortBy', sortB);
-            url.searchParams.append('sortOrder', sortO);
-            if (search) url.searchParams.append('search', search);
-            if (level)  url.searchParams.append('level', level);
-            if (type)   url.searchParams.append('type', type);
-            if (city)   url.searchParams.append('city', city);
-            if (status) url.searchParams.append('status', status);
-            if (salesRep) url.searchParams.append('salesRep', salesRep);
-            if (location) url.searchParams.append('location', location);
-
-            // If search or any filter is active, fetch across all customers (Fabricators + Partners) globally.
-            // Otherwise, filter by tab type.
-            const isFilterActive = search || level || type || city || status || salesRep || location;
-            if (!isFilterActive) {
-                if (tab === 'fabricators') {
-                    // Fabricators tab: only Fabricator type
-                    url.searchParams.append('type', 'Fabricator');
-                } else {
-                    // Partners tab: server-side exclude Fabricators so pagination is correct
-                    url.searchParams.append('typeExclude', 'Fabricator');
-                }
-            }
-
-            const response = await authFetch(url);
+            const response = await authFetch(urlFor(params));
+            if (seq !== requestSeq.current) return; // a newer request has started; ignore this one
             if (response.ok) {
                 const data = await response.json();
-                globalPartnersCache[cacheKey] = data; // Update in-memory cache
+                if (seq !== requestSeq.current) return;
+                globalPartnersCache[cacheKey] = data;
                 setPartners(data.partners || []);
                 setTotalPages(data.totalPages || 1);
                 setTotalCount(data.totalCount || 0);
+                setLoadError('');
+            } else {
+                setLoadError('Could not load customers. Try again.');
             }
         } catch (error) {
             console.error('Error fetching partners:', error);
+            if (seq === requestSeq.current) setLoadError('Could not load customers. Check your connection and try again.');
         } finally {
-            setLoading(false);
+            if (seq === requestSeq.current) setLoading(false);
         }
-    };
+    }, [listParams, currentPage, limit]);
+
+    useEffect(() => { fetchPartners(); }, [fetchPartners, customerRefreshTrigger]);
+
+    const refreshAll = useCallback(() => {
+        clearListCache();
+        setCountsNonce(n => n + 1);
+        fetchPartners({ skipCache: true });
+    }, [fetchPartners]);
+
+    // A change made elsewhere (the profile's status picker) while this list sits
+    // mounted-but-hidden behind it would otherwise come back from the cache stale.
+    useEffect(() => {
+        window.addEventListener('customers:changed', refreshAll);
+        return () => window.removeEventListener('customers:changed', refreshAll);
+    }, [refreshAll]);
 
     useEffect(() => {
-        fetchPartners({
-            page: currentPage,
-            search: debouncedSearch,
-            level: filterLevels.join(','),
-            type: filterTypes.join(','),
-            city: filterCities.join(','),
-            status: filterStatuses.join(','),
-            salesRep: filterSalesReps.join(','),
-            location: filterLocations.join(','),
-            lim: limit,
-            tab: activeTab,
-            sortB: sortBy,
-            sortO: sortOrder
-        });
-    }, [currentPage, debouncedSearch, limit, filterLevels, filterTypes, filterCities, filterStatuses, filterSalesReps, filterLocations, activeTab, sortBy, sortOrder, customerRefreshTrigger]);
+        let live = true;
+        (async () => {
+            try {
+                const res = await authFetch(`${API_URL}/api/partners/view-counts?tab=${activeTab}`);
+                if (res.ok && live) setViewCounts(await res.json());
+            } catch { /* counts are a nicety; the views still work without them */ }
+        })();
+        return () => { live = false; };
+    }, [activeTab, customerRefreshTrigger, countsNonce]);
 
     useEffect(() => {
-        if (searchTerm === debouncedSearch) {
-            return;
-        }
-        const timer = setTimeout(() => {
-            setDebouncedSearch(searchTerm);
-            setCurrentPage(1);
-        }, 500);
+        if (searchTerm === debouncedSearch) return undefined;
+        const timer = setTimeout(() => { setDebouncedSearch(searchTerm); setCurrentPage(1); }, 400);
         return () => clearTimeout(timer);
     }, [searchTerm, debouncedSearch]);
 
-    // Reset page + search when tab changes
+    // Keep the open drawer and keyboard focus pointing at rows that exist.
+    useEffect(() => { setFocusIndex(-1); }, [partners]);
+
+    const resetPage = () => setCurrentPage(1);
+    const withReset = (setter) => (v) => { setter(v); resetPage(); };
+
     const handleTabChange = (tabKey) => {
         setActiveTab(tabKey);
-        setCurrentPage(1);
-        setSearchTerm('');
-        setDebouncedSearch('');
-        setFilterLevels([]);
-        setFilterTypes([]);
-        setFilterCities([]);
-        setFilterStatuses([]);
-        setFilterSalesReps([]);
-        setFilterLocations([]);
-        setSortBy('level');
-        setSortOrder('asc');
-        setShowFilters(false);
+        setSearchTerm(''); setDebouncedSearch('');
+        setFilterLevels([]); setFilterTypes([]); setFilterCities([]); setFilterStatuses([]);
+        setFilterSalesReps([]); setFilterLocations([]); setFilterModa([]);
+        setView(''); setLetter('');
+        setSelected(new Map());
+        setOpenCustomer(null);
+        resetPage();
     };
 
     const clearFilters = () => {
-        setFilterLevels([]);
-        setFilterTypes([]);
-        setFilterCities([]);
-        setFilterStatuses([]);
-        setFilterSalesReps([]);
-        setFilterLocations([]);
-        setCurrentPage(1);
+        setFilterLevels([]); setFilterTypes([]); setFilterCities([]); setFilterStatuses([]);
+        setFilterSalesReps([]); setFilterLocations([]); setFilterModa([]);
+        setView(''); setLetter('');
+        resetPage();
+    };
+    const activeFilterCount = filterLevels.length + filterTypes.length + filterCities.length + filterStatuses.length
+        + filterSalesReps.length + filterLocations.length + filterModa.length + (letter ? 1 : 0);
+
+    const handleSort = (field) => {
+        if (sortBy === field) setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        else { setSortBy(field); setSortOrder('asc'); }
+        resetPage();
     };
 
-    const activeFilterCount = filterLevels.length + filterTypes.length + filterCities.length
-        + filterStatuses.length + filterSalesReps.length + filterLocations.length;
-
-    // The rep filter travels as ids but has to read as names, so the chips and
-    // the multi-select label are mapped back through the directory.
-    const repLabel = (id) =>
-        id === UNASSIGNED ? 'Unassigned' : (salesReps.find(r => r._id === id)?.name || 'Unknown');
-
+    // ── Writes ───────────────────────────────────────────────────────────────
     const handleSavePartner = async (formData, closeModal) => {
         setIsSaving(true);
         try {
             const method = editingPartner ? 'PUT' : 'POST';
-            const url = editingPartner
-                ? `${API_URL}/api/partners/${editingPartner._id}`
-                : `${API_URL}/api/partners`;
-
+            const url = editingPartner ? `${API_URL}/api/partners/${editingPartner._id}` : `${API_URL}/api/partners`;
             const leadData = {
                 ...formData,
                 contactName: formData.customerName,
@@ -407,32 +440,16 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 city: formData.address?.city || '',
                 quickNote: formData.notes
             };
-
-            const response = await authFetch(url, {
-                method,
-                body: JSON.stringify(leadData)
-            });
-
+            const response = await authFetch(url, { method, body: JSON.stringify(leadData) });
             if (response.ok) {
-                await fetchPartners({
-                    page: currentPage,
-                    search: debouncedSearch,
-                    level: filterLevels.join(','),
-                    type: filterTypes.join(','),
-                    city: filterCities.join(','),
-                    status: filterStatuses.join(','),
-                    lim: limit,
-                    tab: activeTab,
-                    // globalPartnersCache has no expiry — without this, a save
-                    // right after viewing this same page/filter combo just
-                    // redisplays the pre-save cache entry instead of fetching.
-                    skipCache: true
-                });
+                const saved = await response.json().catch(() => null);
+                refreshAll();
                 closeModal();
                 setEditingPartner(null);
                 setViewingPartner(null);
+                if (saved && openCustomer && saved._id === openCustomer._id) setOpenCustomer(saved);
             } else {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({}));
                 console.error('Server error saving lead:', errorData);
                 alert(errorData.message || 'Failed to save customer');
             }
@@ -447,23 +464,13 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const handleDeletePartner = async (id) => {
         if (!window.confirm('Are you sure you want to delete this customer?')) return;
         try {
-            const response = await authFetch(`${API_URL}/api/partners/${id}`, {
-                method: 'DELETE'
-            });
+            const response = await authFetch(`${API_URL}/api/partners/${id}`, { method: 'DELETE' });
             if (response.ok) {
-                fetchPartners({
-                    page: currentPage,
-                    search: debouncedSearch,
-                    level: filterLevels.join(','),
-                    type: filterTypes.join(','),
-                    city: filterCities.join(','),
-                    status: filterStatuses.join(','),
-                    lim: limit,
-                    tab: activeTab,
-                    skipCache: true
-                });
+                if (openCustomer?._id === id) setOpenCustomer(null);
+                setSelected(prev => { const next = new Map(prev); next.delete(id); return next; });
+                refreshAll();
             } else {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({}));
                 alert(errorData.message || 'Failed to delete customer');
             }
         } catch (error) {
@@ -472,670 +479,475 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         }
     };
 
-    const exportToExcel = async () => {
+    const handleStatusChange = async (id, status) => {
         try {
-            setLoading(true);
-            const url = new URL(`${API_URL}/api/partners`, window.location.origin);
-            url.searchParams.append('limit', -1);
-            url.searchParams.append('sortBy', sortBy);
-            url.searchParams.append('sortOrder', sortOrder);
-            
-            const levelParam = filterLevels.join(',');
-            const typeParam = filterTypes.join(',');
-            const cityParam = filterCities.join(',');
-            const statusParam = filterStatuses.join(',');
-            const repParam = filterSalesReps.join(',');
-            const locationParam = filterLocations.join(',');
-
-            if (debouncedSearch) url.searchParams.append('search', debouncedSearch);
-            if (levelParam)     url.searchParams.append('level', levelParam);
-            if (typeParam)      url.searchParams.append('type', typeParam);
-            if (cityParam)      url.searchParams.append('city', cityParam);
-            if (statusParam)    url.searchParams.append('status', statusParam);
-            if (repParam)       url.searchParams.append('salesRep', repParam);
-            if (locationParam)  url.searchParams.append('location', locationParam);
-
-            if (activeTab === 'fabricators') {
-                url.searchParams.append('type', 'Fabricator');
-            } else {
-                url.searchParams.append('typeExclude', 'Fabricator');
-            }
-
-            const response = await authFetch(url);
-
-            if (response.ok) {
-                const data = await response.json();
-                const allPartners = data.partners || [];
-
-                const worksheet = XLSX.utils.json_to_sheet(allPartners.map(l => ({
-                    Name: l.contactName || l.name || '-',
-                    Company: l.company || '-',
-                    Email: l.email || '-',
-                    Phone: formatPhoneForDisplay(l.phone),
-                    Status: l.status || '-',
-                    City: l.city || '-',
-                    'Sales Rep': l.salesRepName || 'Unassigned',
-                    Location: l.location || 'Seattle',
-                    Type: l.customerType || '-',
-                    Notes: l.notes || '-',
-                    Created: new Date(l.createdAt).toLocaleDateString()
-                })));
-
-                const workbook = XLSX.utils.book_new();
-                const sheetName = activeTab === 'fabricators' ? 'Fabricators' : 'Partners';
-                XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-                XLSX.writeFile(workbook, `${sheetName}_List_${new Date().toISOString().split('T')[0]}.xlsx`);
-            }
-        } catch (error) {
-            console.error('Error exporting:', error);
-            alert('Failed to export data');
-        } finally {
-            setLoading(false);
+            const res = await authFetch(`${API_URL}/api/partners/${id}`, { method: 'PUT', body: JSON.stringify({ status }) });
+            if (!res.ok) return false;
+            setPartners(list => list.map(p => (p._id === id ? { ...p, status } : p)));
+            setOpenCustomer(c => (c && c._id === id ? { ...c, status } : c));
+            clearListCache();
+            setCountsNonce(n => n + 1);
+            return true;
+        } catch {
+            return false;
         }
     };
 
-    const emailAllContacts = async () => {
+    // ── Export / copy ────────────────────────────────────────────────────────
+    const exportRows = (rows, sheetName) => {
+        const worksheet = XLSX.utils.json_to_sheet(rows.map(l => ({
+            Company: l.company || '-',
+            Name: l.contactName || l.name || '-',
+            Email: l.email || '-',
+            Phone: formatPhoneForDisplay(l.phone),
+            Street: streetOf(l) || '-',
+            City: cityLineOf(l) || l.city || '-',
+            Status: l.status || '-',
+            'Sales Rep': l.salesRepName || 'Unassigned',
+            Location: locationOf(l),
+            Level: l.level || '-',
+            Type: l.customerType || 'Fabricator',
+            'Moda Display': l.modaDisplay || 'No',
+            'Moda Binders': l.modaBinder || '0',
+            Notes: l.notes || l.quickNote || '-',
+            Created: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : '-'
+        })));
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+        XLSX.writeFile(workbook, `${sheetName}_List_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    const fetchAllMatching = async () => {
+        const res = await authFetch(urlFor({ ...listParams(), limit: -1 }));
+        if (!res.ok) throw new Error('fetch failed');
+        return (await res.json()).partners || [];
+    };
+
+    const exportToExcel = async () => {
         try {
-            const url = new URL(`${API_URL}/api/partners`, window.location.origin);
-            url.searchParams.append('limit', -1);
-            url.searchParams.append('sortBy', sortBy);
-            url.searchParams.append('sortOrder', sortOrder);
-            
-            const levelParam = filterLevels.join(',');
-            const typeParam = filterTypes.join(',');
-            const cityParam = filterCities.join(',');
-            const statusParam = filterStatuses.join(',');
-            const repParam = filterSalesReps.join(',');
-            const locationParam = filterLocations.join(',');
-            
-            if (debouncedSearch) url.searchParams.append('search', debouncedSearch);
-            if (levelParam)     url.searchParams.append('level', levelParam);
-            if (typeParam)      url.searchParams.append('type', typeParam);
-            if (cityParam)      url.searchParams.append('city', cityParam);
-            if (statusParam)    url.searchParams.append('status', statusParam);
-            if (repParam)       url.searchParams.append('salesRep', repParam);
-            if (locationParam)  url.searchParams.append('location', locationParam);
+            exportRows(await fetchAllMatching(), activeTab === 'fabricators' ? 'Fabricators' : 'Partners');
+        } catch (error) {
+            console.error('Error exporting:', error);
+            alert('Failed to export data');
+        }
+    };
 
-            if (activeTab === 'fabricators') {
-                url.searchParams.append('type', 'Fabricator');
-            } else {
-                url.searchParams.append('typeExclude', 'Fabricator');
-            }
-
-            const response = await authFetch(url);
-
-            if (response.ok) {
-                const data = await response.json();
-                const allPartners = data.partners || [];
-                
-                // Filter eligible contacts:
-                // 1. Exclude working with another sales rep
-                // 2. Exclude opted-out of marketing
-                const filteredPartners = allPartners.filter(p => 
-                    p.status !== 'Different Sales Person' && 
-                    p.receiveMarketing !== false
-                );
-                
-                // Map to marketingEmail (fallback to normal email if blank)
-                const emails = filteredPartners
-                    .map(p => (p.marketingEmail && p.marketingEmail.trim() !== '' ? p.marketingEmail.trim() : p.email))
-                    .filter(Boolean);
-                
-                if (emails.length === 0) {
-                    alert('No eligible marketing email addresses found for the current filters.');
-                    return;
-                }
-                
-                // Format with semicolons for easy pasting into Outlook
-                const emailList = emails.join('; ');
-                await navigator.clipboard.writeText(emailList);
-                
-                alert(`Successfully copied ${emails.length} marketing email addresses to your clipboard!\n\nYou can now paste them directly into the To/Bcc field in Outlook.`);
-            }
+    // Marketing list for everything matching the filters: skips accounts with
+    // another rep and anyone who opted out, and prefers the marketing address.
+    const emailAllContacts = async () => {
+        setMoreOpen(false);
+        try {
+            const eligible = (await fetchAllMatching()).filter(p => p.status !== 'Different Sales Person' && p.receiveMarketing !== false);
+            const emails = [...new Set(eligible
+                .map(p => (p.marketingEmail && p.marketingEmail.trim() ? p.marketingEmail.trim() : primaryEmailOf(p)))
+                .filter(Boolean))];
+            if (emails.length === 0) { alert('No eligible marketing email addresses found for the current filters.'); return; }
+            await copyText(emails.join('; '));
+            setNotice(`Copied ${emails.length} marketing email addresses — paste them into Outlook's To or Bcc.`);
         } catch (error) {
             console.error('Error copying emails:', error);
             alert('Failed to copy emails');
         }
     };
 
-    const sortedPartners = [...partners].sort((a, b) => {
-        const aLow = a.status === 'Different Sales Person' || a.status === 'Not Interested';
-        const bLow = b.status === 'Different Sales Person' || b.status === 'Not Interested';
-        if (aLow && !bLow) return 1;
-        if (!aLow && bLow) return -1;
-        return 0;
+    // ── Selection + bulk ─────────────────────────────────────────────────────
+    const toggleRow = (id) => setSelected(prev => {
+        const next = new Map(prev);
+        if (next.has(id)) next.delete(id);
+        else { const row = partners.find(p => p._id === id); if (row) next.set(id, row); }
+        return next;
     });
+    const toggleAll = (on) => setSelected(prev => {
+        const next = new Map(prev);
+        partners.forEach(p => (on ? next.set(p._id, p) : next.delete(p._id)));
+        return next;
+    });
+    const selectedRows = useMemo(() => [...selected.values()], [selected]);
 
-    const handleCloseModal = () => {
-        setShowAddModal(false);
-        setEditingPartner(null);
-        setViewingPartner(null);
-        setFormErrors({});
+    const bulkPatch = async (body, describe) => {
+        setBulkBusy(true);
+        try {
+            const res = await authFetch(`${API_URL}/api/partners/bulk`, {
+                method: 'PATCH',
+                body: JSON.stringify({ ids: [...selected.keys()], ...body })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { alert(data.message || 'Could not update the selected customers'); return; }
+            setBulkMessage(describe(data.modified ?? selected.size));
+            refreshAll();
+        } catch {
+            alert('Could not update the selected customers');
+        } finally {
+            setBulkBusy(false);
+        }
     };
+
+    const bulkCopyEmails = async () => {
+        const list = emailListFor(selectedRows);
+        if (!list) { setBulkMessage('No email addresses on the selected customers'); return; }
+        await copyText(list);
+        setBulkMessage(`Copied ${list.split('; ').length} emails`);
+    };
+
+    // ── Opening customers ────────────────────────────────────────────────────
+    const openProfile = (row) => { setOpenCustomer(null); onSelectCustomer && onSelectCustomer(row); };
+    const openRow = (row, index) => {
+        if (phone) { openProfile(row); return; }
+        setOpenCustomer(row);
+        if (index !== undefined) setFocusIndex(index);
+    };
+    const openIndex = openCustomer ? partners.findIndex(p => p._id === openCustomer._id) : -1;
+
+    // Keyboard: / search, ↑↓ move, Enter open, Esc close. Only while this list
+    // is the one on screen — SalesPage keeps it mounted (hidden) behind a profile.
+    useEffect(() => {
+        const onKey = (e) => {
+            if (!rootRef.current || rootRef.current.offsetParent === null) return;
+            if (showAddModal || showImportModal || showFilterSheet) return;
+            const tag = (e.target.tagName || '').toLowerCase();
+            const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+            if (e.key === 'Escape') {
+                if (openCustomer) { setOpenCustomer(null); return; }
+                if (typing && e.target === searchRef.current) { searchRef.current.blur(); }
+                return;
+            }
+            if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+            if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); return; }
+            if (narrow || !partners.length) return;
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const from = focusIndex >= 0 ? focusIndex : (openIndex >= 0 ? openIndex : -1);
+                const next = Math.max(0, Math.min(partners.length - 1, from + (e.key === 'ArrowDown' ? 1 : -1)));
+                setFocusIndex(next);
+                if (openCustomer) setOpenCustomer(partners[next]);
+            } else if (e.key === 'Enter' && focusIndex >= 0 && partners[focusIndex]) {
+                e.preventDefault();
+                setOpenCustomer(partners[focusIndex]);
+            }
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [partners, focusIndex, openIndex, openCustomer, narrow, showAddModal, showImportModal, showFilterSheet]);
 
     const isFabTab = activeTab === 'fabricators';
-    const showTypeColumn = !isFabTab || !!(debouncedSearch || filterLevels.length || filterTypes.length || filterCities.length || filterStatuses.length);
+    const showType = !isFabTab || !!debouncedSearch || filterTypes.length > 0;
+    const currentTab = TABS.find(t => t.key === activeTab);
+    const nothingMatches = !loading && !loadError && partners.length === 0;
+    const anyNarrowing = activeFilterCount > 0 || !!view || !!debouncedSearch;
 
-    const renderSortHeader = (label, field) => {
-        const isSorted = sortBy === field;
-        return (
-            <th 
-                onClick={() => handleSort(field)} 
-                className={`sortable-header ${isSorted ? 'sorted' : ''}`}
-                style={{ cursor: 'pointer', userSelect: 'none' }}
+    // ── Filter controls (shared by the bar and the phone sheet) ──────────────
+    const filterControls = (
+        <>
+            <FilterDropdown
+                label="Status"
+                allLabel="Status: All"
+                options={STATUSES.map(s => ({ value: s, label: s, dot: statusMeta(s).tone }))}
+                selected={filterStatuses}
+                onChange={withReset(setFilterStatuses)}
+            />
+            <FilterDropdown
+                label="Rep"
+                allLabel="Sales rep"
+                options={repOptions}
+                selected={filterSalesReps}
+                onChange={withReset(setFilterSalesReps)}
+                searchable
+                note={repNote}
+                renderValue={(sel, labelOf) => (sel.length === 1 ? labelOf(sel[0]) : `${sel.length} reps`)}
+            />
+            {scoped.locations.length > 0 && (
+                <FilterDropdown
+                    label="Location"
+                    options={scoped.locations.map(l => ({ value: l, label: l }))}
+                    selected={filterLocations}
+                    onChange={withReset(setFilterLocations)}
+                    note={locationNote}
+                />
+            )}
+            <FilterDropdown label="City" options={uniqueCities.map(c => ({ value: c, label: c }))} selected={filterCities} onChange={withReset(setFilterCities)} searchable />
+            <FilterDropdown label="Level" options={LEVELS.map(l => ({ value: l, label: l }))} selected={filterLevels} onChange={withReset(setFilterLevels)} />
+            {!isFabTab && (
+                <FilterDropdown label="Type" options={PARTNER_TYPES.map(t => ({ value: t, label: t }))} selected={filterTypes} onChange={withReset(setFilterTypes)} />
+            )}
+            <FilterDropdown label="Moda Resources" options={MODA_OPTIONS} selected={filterModa} onChange={withReset(setFilterModa)} align="right" />
+        </>
+    );
+
+    const viewPicker = <ViewPicker view={view} counts={viewCounts} onChange={(v) => { setView(v); resetPage(); }} />;
+    const letterChip = letter && (
+        <button type="button" className="cl-dd-btn set" onClick={() => { setLetter(''); resetPage(); }} aria-label={`Clear starts-with ${letter}`}>
+            Starts with {letter} <X size={13} aria-hidden="true" />
+        </button>
+    );
+    const clearAll = (activeFilterCount > 0 || view) && (
+        <button type="button" className="cl-btn sm" style={{ border: 0, background: 'none', color: 'var(--cl-gold-ink)' }} onClick={clearFilters}>Clear all</button>
+    );
+
+    const sheetSort = (
+        <label className="cl-dd" style={{ display: 'block' }}>
+            <span className="cl-sr">Sort by</span>
+            <select
+                className="cl-dd-btn"
+                style={{ width: '100%', height: 44 }}
+                value={`${sortBy}:${sortOrder}`}
+                onChange={(e) => { const [by, order] = e.target.value.split(':'); setSortBy(by); setSortOrder(order); resetPage(); }}
             >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span>{label}</span>
-                    {isSorted ? (
-                        <span className="sort-arrow" style={{ color: 'var(--gold-color, #d4af37)' }}>
-                            {sortOrder === 'asc' ? '▲' : '▼'}
-                        </span>
-                    ) : (
-                        <span className="sort-arrow-placeholder" style={{ opacity: 0.2 }}>▲</span>
-                    )}
-                </div>
-            </th>
-        );
-    };
+                {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+        </label>
+    );
+
+    const azStrip = (
+        <nav className="cl-az" aria-label="Jump to letter">
+            {LETTERS.map(l => (
+                <button
+                    key={l}
+                    type="button"
+                    aria-pressed={letter === l}
+                    aria-label={l === '#' ? 'Names starting with a number or symbol' : `Names starting with ${l}`}
+                    onClick={() => { setLetter(letter === l ? '' : l); if (sortBy !== 'company') { setSortBy('company'); setSortOrder('asc'); } resetPage(); }}
+                >{l}</button>
+            ))}
+        </nav>
+    );
+
+    const emptyState = (
+        <div className="cl-empty">
+            <span className="cl-empty-ic"><Search size={26} aria-hidden="true" /></span>
+            <h3>{anyNarrowing ? 'No customers match these filters' : `No ${isFabTab ? 'fabricators' : 'partners'} yet`}</h3>
+            <p>{anyNarrowing ? 'Try removing a filter, or search all customers.' : 'Add your first customer to get started.'}</p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {anyNarrowing && <button type="button" className="cl-btn" onClick={() => { clearFilters(); setSearchTerm(''); setDebouncedSearch(''); }}><X size={15} aria-hidden="true" />Clear filters</button>}
+                <button type="button" className="cl-btn gold" onClick={() => { setEditingPartner(null); setViewingPartner(null); setShowAddModal(true); }}><Plus size={16} aria-hidden="true" />Add customer</button>
+            </div>
+        </div>
+    );
+
+    const pager = (
+        <Pager
+            page={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            limit={limit}
+            onPage={(p) => setCurrentPage(Math.max(1, Math.min(totalPages, p)))}
+            onLimit={(n) => { setLimit(n); resetPage(); }}
+            showKeys={!!openCustomer || focusIndex >= 0}
+        />
+    );
 
     return (
-        <div className="partners-sheet-container">
+        <div className="partners-sheet-container cl" ref={rootRef}>
             {/* ── Header ── */}
-            <div className="section-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                    {(!isSidebarOpen || !isPinned || isMobile) && onToggleSidebar && (
-                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={onToggleSidebar} />
-                    )}
-                    <h2>Customer List</h2>
-                    {!loading && <span className="customer-count">{totalCount}</span>}
-                </div>
-                <div className="table-controls">
-                    <div className="table-search">
-                        <Search className="search-icon" size={18} />
-                        <input
-                            type="text"
-                            placeholder={isFabTab ? 'Search fabricators...' : 'Search partners...'}
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        {searchTerm && (
-                            <button
-                                type="button"
-                                className="table-search-clear"
-                                onClick={() => setSearchTerm('')}
-                                title="Clear search"
-                                aria-label="Clear search"
-                            >
-                                <X size={14} />
-                            </button>
-                        )}
-                    </div>
-                    <div className="sheet-actions-group">
-                        <button className="sheet-action-btn" onClick={exportToExcel} title="Export to Excel">
-                            <Download size={18} />
-                        </button>
-                        <button className="sheet-action-btn" onClick={emailAllContacts} title="Copy all customer emails matching filters to clipboard">
-                            <Mail size={18} />
-                        </button>
-                        <button
-                            className={`sheet-action-btn filter-toggle-btn${activeFilterCount > 0 ? ' active' : ''}`}
-                            onClick={() => setShowFilters(f => !f)}
-                            title="Toggle Filters"
-                        >
-                            <Filter size={16} />
-                            {activeFilterCount > 0 && (
-                                <span className="filter-badge">{activeFilterCount}</span>
-                            )}
-                        </button>
-                        {user?.permissions?.includes('manage_customers') && (
-                            <button
-                                className="sheet-action-btn"
-                                onClick={() => setShowImportModal(true)}
-                                title="Import customers from Excel"
-                            >
-                                <Upload size={18} />
-                            </button>
-                        )}
-                    </div>
-                    <button className="partner-add-btn pulse" onClick={() => {
-                        setEditingPartner(null);
-                        setViewingPartner(null);
-                        setShowAddModal(true);
-                    }}>
-                        <Plus size={18} />
-                        <span>Add Customer</span>
+            <div className="cl-hdr">
+                {(!isSidebarOpen || !isPinned || isMobile) && onToggleSidebar && (
+                    <SidebarToggleButton isOpen={isSidebarOpen} onClick={onToggleSidebar} />
+                )}
+                <h2>Customers</h2>
+                {!loading && <span className="cl-count" aria-label={`${totalCount} customers`}>{totalCount}</span>}
+                <span className="cl-grow" />
+                <label className="cl-search">
+                    <Search size={17} aria-hidden="true" />
+                    <input
+                        ref={searchRef}
+                        type="search"
+                        placeholder={phone ? 'Search customers' : 'Search company, contact, phone, email or address'}
+                        aria-label="Search customers"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    {searchTerm
+                        ? <button type="button" className="cl-ib" style={{ width: 26, height: 26 }} onClick={() => setSearchTerm('')} aria-label="Clear search"><X size={14} /></button>
+                        : <kbd className="cl-kbd cl-hide-narrow">/</kbd>}
+                </label>
+                <button type="button" className="cl-btn cl-hide-narrow" onClick={exportToExcel}><Download size={16} aria-hidden="true" />Export</button>
+                <div className="cl-rowmenu" ref={moreRef}>
+                    <button type="button" className="cl-ib box" aria-label="More actions" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(o => !o)}>
+                        <MoreHorizontal size={18} />
                     </button>
+                    {moreOpen && (
+                        <div className="cl-pop right" role="menu" style={{ minWidth: 250 }}>
+                            <button type="button" role="menuitem" className="cl-opt cl-only-narrow" onClick={() => { setMoreOpen(false); exportToExcel(); }}><Download size={16} aria-hidden="true" />Export to Excel</button>
+                            <button type="button" role="menuitem" className="cl-opt" onClick={emailAllContacts}><Mail size={16} aria-hidden="true" />Copy marketing emails</button>
+                            {canEdit && (
+                                <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); setShowImportModal(true); }}><Upload size={16} aria-hidden="true" />Import from Excel</button>
+                            )}
+                        </div>
+                    )}
+                </div>
+                <button type="button" className="cl-btn gold cl-hide-phone" onClick={() => { setEditingPartner(null); setViewingPartner(null); setShowAddModal(true); }}>
+                    <Plus size={17} aria-hidden="true" />Add customer
+                </button>
+            </div>
+
+            {/* ── Tabs + views/filters ── */}
+            <div className="cl-tabs cl-tabs-filters">
+                <div role="tablist" aria-label="Customer type" style={{ display: 'flex', gap: 18 }}>
+                    {TABS.map(tab => {
+                        const Icon = tab.icon;
+                        const on = activeTab === tab.key;
+                        return (
+                            <button key={tab.key} type="button" role="tab" aria-selected={on} className="cl-tab" title={tab.hint} onClick={() => handleTabChange(tab.key)}>
+                                <Icon size={15} aria-hidden="true" />{tab.label}
+                                {on && !loading && <span className="n">{totalCount}</span>}
+                            </button>
+                        );
+                    })}
+                </div>
+                {/* Desktop: views + filters share the tabs row, so the list starts a row higher. */}
+                <div className="cl-filters cl-hide-narrow">
+                    {viewPicker}
+                    {filterControls}
+                    {letterChip}
+                    {clearAll}
                 </div>
             </div>
 
-            {/* ── Tab Bar ── */}
-            <div className="partners-tab-bar">
-                {TABS.map(tab => {
-                    const Icon = tab.icon;
-                    return (
-                        <button
-                            key={tab.key}
-                            className={`partners-tab${activeTab === tab.key ? ' active' : ''}`}
-                            onClick={() => handleTabChange(tab.key)}
-                            style={{ '--tab-color': tab.color }}
-                        >
-                            <Icon size={15} />
-                            {tab.label}
-                            {activeTab === tab.key && !loading && (
-                                <span className="tab-count">{totalCount}</span>
-                            )}
-                        </button>
-                    );
-                })}
-                {/* Hint text */}
-                <span className="tab-hint">
-                    {isFabTab
-                        ? '🔨 Pricing eligible — fabricators buy direct'
-                        : '🤝 Contractors, Dealers, Designers & more'}
-                </span>
+            {/* ── Filter bar (narrow screens: filters live in a sheet) ── */}
+            <div className="cl-bar cl-only-narrow">
+                {viewPicker}
+                <button type="button" className={`cl-dd-btn${activeFilterCount ? ' set' : ''}`} onClick={() => setShowFilterSheet(true)}>
+                    <SlidersHorizontal size={15} aria-hidden="true" />Filters{activeFilterCount ? ` · ${activeFilterCount}` : ''}
+                </button>
+                {letterChip}
+                {clearAll}
+                <span className="cl-grow" />
+                <span className="cl-muted cl-hide-phone" style={{ fontSize: 12.5 }}>{currentTab?.hint}</span>
             </div>
 
-            {/* ── Filter Panel ── */}
-            {showFilters && (
-                <div className="filter-panel">
-                    <div className="filter-panel-inner">
-                        <div className="filter-group">
-                            <label>Level</label>
-                            <MultiSelect
-                                options={['Level - 1', 'Level - 2', 'Level - 3', 'Level - 4']}
-                                selectedValues={filterLevels}
-                                onChange={(vals) => { setFilterLevels(vals); setCurrentPage(1); }}
-                                placeholder="All Levels"
-                            />
-                        </div>
-                        <div className="filter-group">
-                            <label>Type</label>
-                            <MultiSelect
-                                options={['Fabricator', 'Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder']}
-                                selectedValues={filterTypes}
-                                onChange={(vals) => { setFilterTypes(vals); setCurrentPage(1); }}
-                                placeholder="All Types"
-                            />
-                        </div>
-                        <div className="filter-group">
-                            <label>City</label>
-                            <MultiSelect
-                                options={uniqueCities}
-                                selectedValues={filterCities}
-                                onChange={(vals) => { setFilterCities(vals); setCurrentPage(1); }}
-                                placeholder="All Cities"
-                                showSearch={true}
-                            />
-                        </div>
-                        <div className="filter-group">
-                            <label>Sales Rep</label>
-                            <MultiSelect
-                                options={[
-                                    { value: UNASSIGNED, label: 'Unassigned' },
-                                    ...salesReps.map(rep => ({ value: rep._id, label: rep.name }))
-                                ]}
-                                selectedValues={filterSalesReps}
-                                onChange={(vals) => { setFilterSalesReps(vals); setCurrentPage(1); }}
-                                placeholder="All Sales Reps"
-                                showSearch={true}
-                            />
-                        </div>
-                        <div className="filter-group">
-                            <label>Location</label>
-                            <MultiSelect
-                                options={locations}
-                                selectedValues={filterLocations}
-                                onChange={(vals) => { setFilterLocations(vals); setCurrentPage(1); }}
-                                placeholder="All Locations"
-                            />
-                        </div>
-                        <div className="filter-group">
-                            <label>Status</label>
-                            <MultiSelect
-                                options={[
-                                    'New Lead',
-                                    'Trying to Onboard',
-                                    'Contacted / In Discussion',
-                                    'Onboarded',
-                                    'Different Sales Person',
-                                    'Not Interested',
-                                    'Inactive'
-                                ]}
-                                selectedValues={filterStatuses}
-                                onChange={(vals) => { setFilterStatuses(vals); setCurrentPage(1); }}
-                                placeholder="All Statuses"
-                            />
-                        </div>
-                        {activeFilterCount > 0 && (
-                            <button className="clear-filters-btn" onClick={clearFilters}>
-                                <X size={14} /> Clear All
-                            </button>
-                        )}
-                    </div>
-                    {activeFilterCount > 0 && (
-                        <div className="filter-chips">
-                            {filterLevels.map(lvl => (
-                                <span key={lvl} className="filter-chip">
-                                    {lvl}
-                                    <button onClick={() => { setFilterLevels(filterLevels.filter(x => x !== lvl)); setCurrentPage(1); }}><X size={11} /></button>
-                                </span>
-                            ))}
-                            {filterTypes.map(t => (
-                                <span key={t} className="filter-chip">
-                                    {t}
-                                    <button onClick={() => { setFilterTypes(filterTypes.filter(x => x !== t)); setCurrentPage(1); }}><X size={11} /></button>
-                                </span>
-                            ))}
-                            {filterCities.map(c => (
-                                <span key={c} className="filter-chip">
-                                    {c}
-                                    <button onClick={() => { setFilterCities(filterCities.filter(x => x !== c)); setCurrentPage(1); }}><X size={11} /></button>
-                                </span>
-                            ))}
-                            {filterSalesReps.map(id => (
-                                <span key={id} className="filter-chip">
-                                    {repLabel(id)}
-                                    <button onClick={() => { setFilterSalesReps(filterSalesReps.filter(x => x !== id)); setCurrentPage(1); }}><X size={11} /></button>
-                                </span>
-                            ))}
-                            {filterLocations.map(loc => (
-                                <span key={loc} className="filter-chip">
-                                    {loc}
-                                    <button onClick={() => { setFilterLocations(filterLocations.filter(x => x !== loc)); setCurrentPage(1); }}><X size={11} /></button>
-                                </span>
-                            ))}
-                            {filterStatuses.map(s => (
-                                <span key={s} className="filter-chip">
-                                    {s}
-                                    <button onClick={() => { setFilterStatuses(filterStatuses.filter(x => x !== s)); setCurrentPage(1); }}><X size={11} /></button>
-                                </span>
-                            ))}
-                        </div>
-                    )}
+            {notice && <div role="status" className="cl-sec" style={{ padding: '10px 14px', marginBottom: 10, fontSize: 13.5 }}>{notice}</div>}
+            {loadError && (
+                <div role="alert" className="cl-sec" style={{ padding: '10px 14px', marginBottom: 10, display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <span className="cl-err">{loadError}</span>
+                    <button type="button" className="cl-btn sm" onClick={() => fetchPartners({ skipCache: true })}>Retry</button>
                 </div>
             )}
 
-            {/* ── Table or Cards Layout ── */}
-            {isMobile ? (
-                loading ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', gap: '1rem' }}>
-                        <div className="loader-spinner"></div>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading customers...</span>
-                    </div>
-                ) : sortedPartners.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-muted)' }}>
-                        <FileText size={48} opacity={0.2} style={{ margin: '0 auto 1rem' }} />
-                        <p>No {isFabTab ? 'fabricators' : 'partners'} found.</p>
+            {/* ── List ── */}
+            <div className="cl-body">
+                {narrow ? (
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        {nothingMatches ? <div className="cl-list">{emptyState}</div> : (
+                            <CustomerRowList
+                                rows={partners}
+                                loading={loading}
+                                openId={openCustomer?._id}
+                                onOpen={(row) => openRow(row)}
+                                onMore={(row) => (phone ? openProfile(row) : setOpenCustomer(row))}
+                                onCall={rememberCall}
+                            />
+                        )}
+                        {!nothingMatches && !(loading && partners.length === 0) && <div className="cl-card" style={{ marginTop: 10 }}>{pager}</div>}
                     </div>
                 ) : (
-                    <div className="mobile-customer-cards">
-                        {sortedPartners.map(partner => {
-                            const companyName = partner.company || partner.name || partner.contactName || 'Customer';
-                            
-                            const contactName = (partner.name || partner.contactName) && (partner.name || partner.contactName) !== companyName ? (partner.name || partner.contactName) : null;
-                            const phone = partner.phone;
-                            const email = partner.email;
-                            const city = partner.city || partner.address?.city;
-
-                            return (
-                                <div 
-                                    key={partner._id} 
-                                    className={`mobile-customer-card concept-b ${
-                                        partner.status === 'Different Sales Person' || partner.status === 'Not Interested'
-                                            ? 'low-priority'
-                                            : ''
-                                    }`} 
-                                    onClick={() => onSelectCustomer && onSelectCustomer(partner)}
-                                >
-                                    {/* Top Title & Status Row (Non-truncating multi-line company name) */}
-                                    <div className="mcc-top-row">
-                                        <h3 className="mcc-company-name-full">{companyName}</h3>
-                                        <span className={`status-badge-pill ${partner.status?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
-                                            {partner.status || 'Active'}
-                                        </span>
-                                    </div>
-
-                                    {/* Meta Pills (Level, Segment, Location) */}
-                                    <div className="mcc-meta-pills">
-                                        <span className="card-meta-badge level-badge">
-                                            {partner.level || partner.segment || 'Level - 1'}
-                                        </span>
-                                        {showTypeColumn && (
-                                            <span className={`card-meta-badge type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
-                                                {partner.customerType || 'Fabricator'}
-                                            </span>
-                                        )}
-                                        {city && (
-                                            <span className="mcc-location-pill">
-                                                <MapPin size={11} /> {city}
-                                            </span>
-                                        )}
-                                        <span className={`card-meta-badge location-badge ${locationClass(partner.location)}`}>
-                                            {partner.location || 'Seattle'}
-                                        </span>
-                                    </div>
-
-                                    {/* Contact & Phone 2-Row Section */}
-                                    <div className="mcc-contact-section">
-                                        <div className="mcc-contact-row">
-                                            <span className="mcc-contact-label">Contact:</span>
-                                            <span className="mcc-contact-val">{contactName || partner.name || partner.contactName || 'N/A'}</span>
-                                        </div>
-                                        <div className="mcc-contact-row">
-                                            <span className="mcc-contact-label">Phone:</span>
-                                            {phone ? (
-                                                <a 
-                                                    href={`tel:${phone}`} 
-                                                    className="mcc-contact-val mcc-phone-link"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    {formatPhoneForDisplay(phone)}
-                                                </a>
-                                            ) : (
-                                                <span className="mcc-contact-val text-muted">N/A</span>
-                                            )}
-                                        </div>
-                                        <div className="mcc-contact-row">
-                                            <span className="mcc-contact-label">Sales Rep:</span>
-                                            <span className={`mcc-contact-val${partner.salesRepName ? '' : ' text-muted'}`}>
-                                                {partner.salesRepName || 'Unassigned'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Action Bar with Direct Call, Email, View details & Tool Icons */}
-                                    <div className="mcc-action-bar" onClick={(e) => e.stopPropagation()}>
-                                        <div className="mcc-direct-actions">
-                                            {phone && (
-                                                <a 
-                                                    href={`tel:${phone}`} 
-                                                    className="mcc-quick-btn call"
-                                                    title={`Call ${companyName}`}
-                                                >
-                                                    <PhoneCall size={13} />
-                                                    <span>Call</span>
-                                                </a>
-                                            )}
-                                            {email && (
-                                                <a 
-                                                    href={`mailto:${email}`} 
-                                                    className="mcc-quick-btn email"
-                                                    title={`Email ${companyName}`}
-                                                >
-                                                    <Mail size={13} />
-                                                    <span>Email</span>
-                                                </a>
-                                            )}
-                                        </div>
-                                        <div className="mcc-tool-actions">
-                                            <button 
-                                                className="mcc-btn-view"
-                                                onClick={() => { setViewingPartner(partner); setShowAddModal(true); }}
-                                            >
-                                                <Eye size={14} />
-                                                <span>View</span>
-                                            </button>
-                                            <button 
-                                                className="mcc-btn-icon edit"
-                                                onClick={() => { setEditingPartner(partner); setShowAddModal(true); }}
-                                                title="Edit"
-                                            >
-                                                <Edit2 size={13} />
-                                            </button>
-                                            <button 
-                                                className="mcc-btn-icon delete"
-                                                onClick={() => handleDeletePartner(partner._id)}
-                                                title="Delete"
-                                            >
-                                                <Trash2 size={13} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                    <div className="cl-card">
+                        {nothingMatches ? (
+                            <>
+                                <CustomerTable rows={[]} loading={false} sort={{ by: sortBy, order: sortOrder }} onSort={handleSort} selectedIds={selectedIds} onToggle={() => {}} onToggleAll={() => {}} />
+                                {emptyState}
+                            </>
+                        ) : (
+                            <CustomerTable
+                                rows={partners}
+                                loading={loading}
+                                sort={{ by: sortBy, order: sortOrder }}
+                                onSort={handleSort}
+                                selectedIds={selectedIds}
+                                onToggle={toggleRow}
+                                onToggleAll={toggleAll}
+                                openId={openCustomer?._id}
+                                focusIndex={focusIndex}
+                                onOpen={openRow}
+                                onOpenProfile={openProfile}
+                                onEdit={(row) => { setEditingPartner(row); setViewingPartner(null); setShowAddModal(true); }}
+                                onDelete={handleDeletePartner}
+                                canEdit={canEdit}
+                                canDelete={canDelete}
+                                showType={showType}
+                            />
+                        )}
+                        {!nothingMatches && !(loading && partners.length === 0) && pager}
                     </div>
-                )
-            ) : (
-                <div className="dashboard-table-wrapper">
-                    <table className="dashboard-table">
-                        <thead>
-                            <tr>
-                                {renderSortHeader('Company', 'company')}
-                                {!isMobile && (
-                                    <>
-                                        <th>Contact Name</th>
-                                        <th>Email</th>
-                                        <th>Phone</th>
-                                        {showTypeColumn && <th>Type</th>}
-                                        {renderSortHeader('City', 'city')}
-                                        {renderSortHeader('Sales Rep', 'salesRep')}
-                                        {renderSortHeader('Location', 'location')}
-                                        {renderSortHeader('Level', 'level')}
-                                        <th>Moda Display</th>
-                                        <th>Moda Binder</th>
-                                        <th>Status</th>
-                                    </>
-                                )}
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading ? (
-                                <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 13 : 12)} style={{ textAlign: 'center', padding: '3rem' }}>
-                                    <div className="loader-container">
-                                        <div className="loader-spinner"></div>
-                                        <span>Loading {isFabTab ? 'fabricators' : 'partners'}...</span>
-                                    </div>
-                                </td></tr>
-                            ) : sortedPartners.length === 0 ? (
-                                <tr><td colSpan={isMobile ? 2 : (showTypeColumn ? 13 : 12)} style={{ textAlign: 'center', padding: '3rem' }}>
-                                    <div className="empty-state">
-                                        <FileText size={48} opacity={0.2} />
-                                        <p>No {isFabTab ? 'fabricators' : 'partners'} found.</p>
-                                    </div>
-                                </td></tr>
-                            ) : sortedPartners.map(partner => (
-                                <tr
-                                    key={partner._id}
-                                    className={
-                                        partner.status === 'Different Sales Person' || partner.status === 'Not Interested'
-                                            ? 'partner-row-low-priority'
-                                            : ''
-                                    }
-                                >
-                                    <td>
-                                        <button
-                                            className="company-link-btn"
-                                            onClick={() => onSelectCustomer && onSelectCustomer(partner)}
-                                            title="View Profile"
-                                        >
-                                            <strong>{partner.company || partner.name || partner.contactName || '-'}</strong>
-                                        </button>
-                                    </td>
-                                    {!isMobile && (
-                                        <>
-                                            <td>
-                                                <div className="partner-text-cell" title={partner.name || partner.contactName}>
-                                                    {partner.name || partner.contactName || '-'}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="partner-email-cell" title={partner.email}>
-                                                    {partner.email || '-'}
-                                                </div>
-                                            </td>
-                                            <td>{formatPhoneForDisplay(partner.phone) || '-'}</td>
-                                            {showTypeColumn && (
-                                                <td>
-                                                    <span className={`customer-type-badge ${(partner.customerType || 'fabricator').toLowerCase().replace(' ', '-')}`}>
-                                                        {partner.customerType || 'Fabricator'}
-                                                    </span>
-                                                </td>
-                                            )}
-                                            <td>{partner.city || partner.address?.city || '-'}</td>
-                                            <td>
-                                                {partner.salesRepName ? (
-                                                    <span className="sales-rep-badge">{partner.salesRepName}</span>
-                                                ) : (
-                                                    <span className="sales-rep-badge unassigned">Unassigned</span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                <span className={`location-badge ${locationClass(partner.location)}`}>
-                                                    {partner.location || 'Seattle'}
-                                                </span>
-                                            </td>
-                                            <td>{partner.level || partner.segment || '-'}</td>
-                                            <td>
-                                                <span className={`moda-badge ${partner.modaDisplay?.toLowerCase()}`}>
-                                                    {partner.modaDisplay === 'Yes' ? '✅ Yes' : '❌ No'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                {partner.modaBinder ? (
-                                                    <span className="moda-badge yes">{partner.modaBinder}</span>
-                                                ) : '-'}
-                                            </td>
-                                            <td>
-                                                <span className={`status-pill ${partner.status?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
-                                                    {partner.status}
-                                                </span>
-                                            </td>
-                                        </>
-                                    )}
-                                    <td>
-                                        <div className="table-actions">
-                                            <button className="icon-btn edit" onClick={() => { setViewingPartner(partner); setShowAddModal(true); }} title="View">
-                                                <Eye size={16} />
-                                            </button>
-                                            <button className="icon-btn edit" onClick={() => { setEditingPartner(partner); setShowAddModal(true); }} title="Edit">
-                                                <Edit2 size={16} />
-                                            </button>
-                                            <button className="icon-btn delete" onClick={() => handleDeletePartner(partner._id)} title="Delete">
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                )}
+                {(!nothingMatches || letter) && azStrip}
+            </div>
+
+            <button type="button" className="cl-fab" aria-label="Add customer" onClick={() => { setEditingPartner(null); setViewingPartner(null); setShowAddModal(true); }}>
+                <Plus size={26} />
+            </button>
+
+            {!narrow && (
+                <BulkBar
+                    count={selected.size}
+                    canEdit={canEdit}
+                    salesReps={salesReps}
+                    busy={bulkBusy}
+                    message={bulkMessage}
+                    onPlanRoute={onPlanRoute ? () => onPlanRoute(selectedRows) : null}
+                    onCopyEmails={bulkCopyEmails}
+                    onAssignRep={(repId) => bulkPatch({ salesRep: repId }, (n) => `${n} reassigned`)}
+                    onSetStatus={(status) => bulkPatch({ status }, (n) => `${n} set to ${status}`)}
+                    onExport={() => exportRows(selectedRows, 'Selected_Customers')}
+                    onClear={() => setSelected(new Map())}
+                />
             )}
 
-            <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-                rowsPerPage={limit}
-                onRowsPerPageChange={handleRowsPerPageChange}
-                rowsPerPageOptions={[15, 25, 50]}
-            />
+            {openCustomer && (
+                <CustomerDrawer
+                    // Remount (and refetch) when the record is saved, not just when another customer opens.
+                    key={`${openCustomer._id}:${openCustomer.updatedAt || ''}`}
+                    customer={openCustomer}
+                    overlay={narrow}
+                    position={openIndex >= 0 ? { index: (currentPage - 1) * limit + openIndex, total: totalCount } : null}
+                    onPrev={openIndex > 0 ? () => { setOpenCustomer(partners[openIndex - 1]); setFocusIndex(openIndex - 1); } : null}
+                    onNext={openIndex >= 0 && openIndex < partners.length - 1 ? () => { setOpenCustomer(partners[openIndex + 1]); setFocusIndex(openIndex + 1); } : null}
+                    onClose={() => setOpenCustomer(null)}
+                    onOpenProfile={openProfile}
+                    onEdit={(row) => { setEditingPartner(row); setViewingPartner(null); setShowAddModal(true); }}
+                    onDelete={handleDeletePartner}
+                    onStatusChange={handleStatusChange}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                />
+            )}
+
+            {showFilterSheet && (
+                <>
+                    <div className="cl-scrim" onClick={() => setShowFilterSheet(false)} aria-hidden="true" />
+                    <section className="cl-sheet cl" role="dialog" aria-modal="true" aria-label="Filters">
+                        <div className="cl-sheet-handle" aria-hidden="true" />
+                        <div className="cl-sheet-hd">
+                            <h3>Filters</h3>
+                            {(activeFilterCount > 0 || view) && <button type="button" className="cl-btn sm" style={{ border: 0, background: 'none', color: 'var(--cl-gold-ink)' }} onClick={clearFilters}>Clear all</button>}
+                            <button type="button" className="cl-ib" aria-label="Close filters" onClick={() => setShowFilterSheet(false)}><X size={20} /></button>
+                        </div>
+                        <div className="cl-sheet-bd">
+                            <div className="cl-fl">Sort by</div>
+                            {sheetSort}
+                            <div className="cl-fl">Filter by</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{filterControls}</div>
+                        </div>
+                        <div className="cl-sheet-ft">
+                            <button type="button" className="cl-btn" style={{ height: 48 }} onClick={clearFilters}>Reset</button>
+                            <button type="button" className="cl-btn gold" style={{ height: 48, flex: 1, justifyContent: 'center' }} onClick={() => setShowFilterSheet(false)}>
+                                Show {loading ? '' : totalCount} results
+                            </button>
+                        </div>
+                    </section>
+                </>
+            )}
+
+            {logCallFor && (
+                <LogCallSheet
+                    customer={logCallFor}
+                    userName={user?.contactName || user?.name}
+                    onSkip={() => setLogCallFor(null)}
+                    onDone={() => { setLogCallFor(null); setNotice('Call logged on the customer’s Visits.'); }}
+                />
+            )}
 
             <AddCustomerModal
                 show={showAddModal}
-                onClose={handleCloseModal}
+                onClose={() => { setShowAddModal(false); setEditingPartner(null); setViewingPartner(null); }}
                 onSave={handleSavePartner}
                 isSaving={isSaving}
                 editingCustomer={editingPartner}
@@ -1143,22 +955,13 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
                 salesReps={salesReps}
                 locations={locations}
                 currentUser={user}
+                onOpenExisting={(c) => (phone ? openProfile(c) : setOpenCustomer(c))}
             />
 
             <CustomerImportModal
                 show={showImportModal}
                 onClose={() => setShowImportModal(false)}
-                onImported={() => fetchPartners({
-                    page: currentPage,
-                    search: debouncedSearch,
-                    level: filterLevels.join(','),
-                    type: filterTypes.join(','),
-                    city: filterCities.join(','),
-                    status: filterStatuses.join(','),
-                    lim: limit,
-                    tab: activeTab,
-                    skipCache: true
-                })}
+                onImported={refreshAll}
             />
         </div>
     );

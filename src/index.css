@@ -294,11 +294,20 @@ select option:checked {
 }
 
 /* Light Theme Overrides */
+/* The arrow's repeat/position/size travel with the image on purpose. This rule
+   outranks most component select styles (body + class + element), so it puts
+   the image back on selects whose own rule used the `background:` shorthand —
+   and that shorthand had already reset repeat/position/size to their defaults,
+   which tiled the arrow across the whole box ("VVVVV") in light mode on the
+   Daily Report, Users & Roles, Admin, the sales forms and the customer list. */
 body.light-theme-active select {
   background-color: #ffffff;
   color: #0f172a;
   border-color: rgba(0, 0, 0, 0.12);
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 14px;
 }
 
 body.light-theme-active select option {

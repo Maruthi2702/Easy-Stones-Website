@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Loader, Scan, Upload, Plus, Camera } from 'lucide-react';
+import { X, Loader, Scan, Upload, Plus, Camera, AlertTriangle } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import { formatPhoneInput } from '../../utils/phoneUtils';
 import { parseBusinessCard } from '../../utils/cardParser';
@@ -11,7 +11,7 @@ import './AddCustomerModal.css';
 
 const AddCustomerModal = ({
     show, onClose, onSave, isSaving, editingCustomer, viewingCustomer,
-    salesReps = [], locations = [], currentUser = null
+    salesReps = [], locations = [], currentUser = null, onOpenExisting = null
 }) => {
     // A new account is assumed to belong to whoever is entering it, at their own
     // branch — the two answers that are right most of the time. Both stay
@@ -115,6 +115,37 @@ const AddCustomerModal = ({
     }, []);
 
     const activeCustomer = viewingCustomer || editingCustomer;
+
+    // Possible duplicates of a customer being added: checked against everyone
+    // on file by the same rules the import and the duplicate audit use
+    // (src/utils/customerMatch.js, via POST /api/partners/possible-duplicates).
+    // Only for a new customer, and only advice — saving is never blocked.
+    const [dupMatches, setDupMatches] = useState([]);
+    const [dupDismissed, setDupDismissed] = useState(false);
+    const dupSeqRef = useRef(0);
+    const isNew = show && !activeCustomer;
+    useEffect(() => {
+        if (!isNew) return undefined;
+        const company = form.company.trim();
+        const phone = form.phone.trim();
+        const email = form.email.trim();
+        const seq = ++dupSeqRef.current;
+        const timer = setTimeout(async () => {
+            if (!company && !phone && !email) { setDupMatches([]); return; }
+            try {
+                const res = await authFetch(`${API_URL}/api/partners/possible-duplicates`, {
+                    method: 'POST',
+                    body: JSON.stringify({ company, phone, email })
+                });
+                if (seq !== dupSeqRef.current || !res.ok) return;
+                const data = await res.json();
+                if (seq === dupSeqRef.current) setDupMatches(data.matches || []);
+            } catch {
+                // Advice only; a failed check just shows nothing.
+            }
+        }, 600);
+        return () => clearTimeout(timer);
+    }, [isNew, form.company, form.phone, form.email]);
 
     // Populate form fields if editing or viewing
     useEffect(() => {
@@ -334,6 +365,8 @@ const AddCustomerModal = ({
 
     const handleClose = () => {
         setForm(emptyForm());
+        setDupMatches([]);
+        setDupDismissed(false);
         onClose();
     };
 
@@ -410,6 +443,33 @@ const AddCustomerModal = ({
                     </button>
                 </div>
                 <div className="modal-body">
+                    {!isViewMode && !isEditMode && !dupDismissed && dupMatches.length > 0 && (
+                        <div className="acm-dupe" role="alert">
+                            <div className="acm-dupe-title">
+                                <AlertTriangle size={17} aria-hidden="true" />
+                                This looks like a customer you already have
+                            </div>
+                            {dupMatches.map(({ customer: m, signals }) => (
+                                <div className="acm-dupe-row" key={m._id}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <b>{m.company || m.contactName || m.name}</b>
+                                        <div className="acm-dupe-sub">
+                                            {[m.address?.city || m.city, m.phone, m.salesRepName || 'Unassigned', m.location || 'Seattle', m.status].filter(Boolean).join(' · ')}
+                                        </div>
+                                        <div className="acm-dupe-sub">Matches on: {signals.join(', ')}</div>
+                                    </div>
+                                    {onOpenExisting && (
+                                        <button type="button" className="btn-secondary" onClick={() => { const pick = m; handleClose(); onOpenExisting(pick); }}>
+                                            Open existing
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                            <button type="button" className="acm-dupe-dismiss" onClick={() => setDupDismissed(true)}>
+                                It’s a different business
+                            </button>
+                        </div>
+                    )}
                     {scanStatus !== 'idle' && (
                         <div className="scan-overlay">
                             {scanStatus === 'camera' ? (

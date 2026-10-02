@@ -76,6 +76,11 @@ export const emailKeys = (value = '') =>
 export const domainKeys = (value = '') =>
   [...new Set(emailKeys(value).map(e => e.split('@')[1]).filter(d => d && !FREE_MAIL.test(d)))];
 
+// Exported so a database query (the customer list's "Incomplete" view) can apply
+// the same rule as emailKeys without restating the patterns.
+export const PLACEHOLDER_EMAIL_RE = PLACEHOLDER_EMAIL;
+export const OWN_DOMAIN_RE = OWN_DOMAIN;
+
 export const isPlaceholderEmail = (value = '') =>
   PLACEHOLDER_EMAIL.test(String(value)) || OWN_DOMAIN.test(String(value));
 

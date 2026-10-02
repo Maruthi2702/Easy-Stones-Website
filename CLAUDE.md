@@ -100,7 +100,10 @@ As of 2026-08-28 that covers the pure, no-DOM business logic in
 recency bucketing, small formatting/localStorage helpers), plus the Daily
 Work Report's derive/save-payload rules (`src/routes/dailyReports.js`'s
 `applyDerived`, `src/components/sales/dailyreport/savePayload.js`) added
-after the incident above. Nothing else in the app has test coverage — no
+after the incident above, and the customer list's rules
+(`src/utils/customerList.js`: status labels, the ⚠ data-quality checks and
+the "Incomplete" query that must match them, saved views, A–Z, role-scoped
+filter options). Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 
 That means passing `npm test` only proves the math didn't regress; it says

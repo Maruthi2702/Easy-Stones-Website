@@ -36,7 +36,7 @@ const PANEL_WIDTH = 360;
 // would otherwise need explaining away in every useMemo that calls it.
 const repKey = (salesRep) => String(salesRep || '') || 'unassigned';
 
-const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = null, onAddVisit = null, onAddResource = null, sidebarToggle = null, isActive = true }) => {
+const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = null, onAddVisit = null, onAddResource = null, sidebarToggle = null, isActive = true, preselect = null }) => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     const { isLoaded, loadError } = useJsApiLoader({ id: 'google-map-script', googleMapsApiKey: apiKey || '' });
 
@@ -995,6 +995,19 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     }, [day]);
 
     const clearSelection = () => { setSelectedIds(new Set()); setSelectionShape(null); };
+
+    // "Plan route" from the customer list: those customers become the
+    // selection a day is built from, and the Tools panel opens on them. Keyed
+    // on the nonce so picking the same set twice still re-applies it. Ids whose
+    // pins haven't loaded yet are fine — selectedPins reads them off `pins`.
+    useEffect(() => {
+        if (!preselect?.ids?.length) return;
+        setSelectedIds(new Set(preselect.ids.map(String)));
+        setSelectionShape(null);
+        setDrawMode(null);
+        setShowToolsPanel(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [preselect?.nonce]);
 
     const toggleType = (type) => {
         setActiveTypes(prev => ({ ...prev, [type]: prev[type] === false }));

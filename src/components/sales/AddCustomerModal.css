@@ -535,3 +535,12 @@ body.light-theme-active .add-customer-modal textarea:focus {
     background-color: #ffffff !important;
     box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1) !important;
 }
+
+/* Possible-duplicate warning (new customers only). */
+.acm-dupe { background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+.acm-dupe-title { display: flex; gap: 8px; align-items: center; font-weight: 700; color: #fbbf24; }
+body.light-theme-active .acm-dupe { background: #fff7e8; border-color: #f1d39a; }
+body.light-theme-active .acm-dupe-title { color: #92400e; }
+.acm-dupe-row { display: flex; gap: 12px; align-items: center; background: var(--bg-card, #1c1c1e); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 10px 12px; }
+.acm-dupe-sub { font-size: 12.5px; opacity: 0.8; margin-top: 2px; }
+.acm-dupe-dismiss { align-self: flex-start; border: 0; background: none; padding: 0; font: inherit; font-size: 13px; font-weight: 650; color: inherit; text-decoration: underline; cursor: pointer; }
