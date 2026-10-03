@@ -16,6 +16,10 @@ import {
   PICKUP_WORDING, DELIVERY_WORDING, RETURN_WORDING
 } from '../utils/deliveryPickup.js';
 import { DELIVERY_TYPES, isReturn, defaultStatusFor, isPendingDelivery, showOnArrivalDay, transferArrivalFor } from '../utils/deliveryTypes.js';
+import {
+  isDriverRole, buildDeliverySearchFilter, sortSearchResults,
+  SEARCH_RESULT_LIMIT, SEARCH_SCAN_LIMIT
+} from '../utils/deliverySearch.js';
 
 /**
  * Delivery Schedule + Truck API.
@@ -320,6 +324,15 @@ const DELIVERY_LIST_PROJECTION = {
   'pod.photos': 0
 };
 
+// Order search only needs enough to say when/where an order is and to open
+// it — the full ticket is fetched by id once someone actually picks one.
+const SEARCH_RESULT_PROJECTION = {
+  _id: 0, id: 1, date: 1, time: 1, status: 1, deliveryType: 1, customerDropOff: 1,
+  customerName: 1, address: 1, soNumber: 1, invoiceNumber: 1, truckId: 1, driver: 1,
+  location: 1, transferDestination: 1, expectedArrivalDate: 1, receivedAt: 1,
+  'pod.verified': 1, 'pod.signedAt': 1, 'pod.signedPdfUrl': 1
+};
+
 // ── Packing-list upload hardening ────────────────────────────────────────
 // Memory storage, not disk: Render's filesystem is ephemeral, so a previous
 // diskStorage write produced a packingListUrl that broke on the next deploy.
@@ -549,6 +562,41 @@ export default function createDeliveriesRouter({
     } catch (err) {
       console.error('[server] get deliveries error:', err);
       res.status(500).json({ error: 'Server error fetching deliveries' });
+    }
+  });
+
+  // "Find an order" — SO#/invoice # or company name, across every date, so
+  // someone can see when an order was delivered or when it's booked without
+  // paging week by week. Must be registered before /deliveries/:id, or
+  // Express reads "search" as a ticket id.
+  //
+  // Drivers are refused (they only work their own stops), and results are
+  // limited to the user's own assignedLocations — stricter than the board,
+  // which also shows unowned tickets. The rules live in
+  // src/utils/deliverySearch.js, shared with the search box.
+  router.get('/deliveries/search', authenticate, canViewDeliveries, async (req, res) => {
+    try {
+      if (isDriverRole(req.user?.role)) {
+        return res.status(403).json({ error: 'Order search is not available for drivers' });
+      }
+      const filter = buildDeliverySearchFilter(req.query.q, req.user?.assignedLocations);
+      if (!filter) return res.json({ results: [], total: 0, more: false });
+
+      // One extra row tells us whether there are more than SEARCH_SCAN_LIMIT
+      // matches without paying for a separate count query.
+      const matches = await Delivery.find(filter, SEARCH_RESULT_PROJECTION)
+        .sort({ date: -1 })
+        .limit(SEARCH_SCAN_LIMIT + 1)
+        .lean();
+      const sorted = sortSearchResults(matches.slice(0, SEARCH_SCAN_LIMIT));
+      res.json({
+        results: sorted.slice(0, SEARCH_RESULT_LIMIT),
+        total: sorted.length,
+        more: matches.length > SEARCH_SCAN_LIMIT
+      });
+    } catch (err) {
+      console.error('[server] delivery search error:', err);
+      res.status(500).json({ error: 'Server error searching deliveries' });
     }
   });
 

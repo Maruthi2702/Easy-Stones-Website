@@ -38,7 +38,29 @@ Pure logic with no DOM/network dependency lives in `src/utils/`:
 `deliveryTypes.js` (what counts as pending/a return/a drop-off — has
 `.test.js`), `deliveryWeek.js` (which dates a week shows — has `.test.js`),
 `deliveryPickup.js` (pickup vs. delivery wording, third-party-truck
-detection — no test file yet, low risk since it's pure string/config logic).
+detection — no test file yet, low risk since it's pure string/config logic),
+`deliverySearch.js` (order search — has `.test.js`, see below).
+
+## Order search (SO# / company, every date)
+
+`DeliveryOrderSearch.jsx` is the "Search SO# or company…" box in the header,
+for every role except drivers. It does two jobs with one piece of text: the
+board, Pending and Cancelled keep filtering what's already loaded (as the
+old sales-only box did), and a dropdown searches **every date** via
+`GET /api/deliveries/search?q=` so someone can see when an order was
+delivered or when it's booked. Picking a result jumps the board to that
+week (widening a one-branch filter if needed); the office also gets the
+ticket opened, sales gets the Pending/Cancelled list scrolled into view.
+
+The rules — who may search, what matches, the branch scope, the result
+wording — live in `src/utils/deliverySearch.js`, shared by the route and the
+box. Two deliberate differences from the board:
+- **Drivers are refused** server-side (role `driver`/`logistics`), not just
+  hidden in the UI.
+- **Only the user's own `assignedLocations`** (plus transfers heading to
+  them). The board's `scopeDeliveryQueryToLocations` also shows tickets with
+  no location at all; search does not. Admins/directors (`'*'`) see every
+  branch.
 
 ## Data flow — read this before changing either side
 

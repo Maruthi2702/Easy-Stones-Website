@@ -675,6 +675,18 @@ export async function getDeliveryById(id) {
   return null;
 }
 
+// ── SEARCH ORDERS (SO# / invoice # / company, every date) ──
+// Not cached and not part of scheduleCache: it's a one-off lookup across all
+// dates, not a view of the board. Throws on failure so the search box can say
+// so instead of showing "no matches". `signal` lets a newer keystroke cancel
+// an older request still in flight.
+export async function searchDeliveries(query, { signal } = {}) {
+  const params = new URLSearchParams({ q: query });
+  const res = await authFetch(`${API_URL}/api/deliveries/search?${params.toString()}`, { signal });
+  if (!res.ok) throw new Error(`Search failed (${res.status})`);
+  return res.json();
+}
+
 // ── DELETE DELIVERY (100% MONGODB DATABASE) ──
 export async function deleteDelivery(id) {
   try {
