@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { io } from 'socket.io-client';
 import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
 import { API_URL } from '../config/api';
@@ -9,12 +9,13 @@ import * as XLSX from 'xlsx';
 import { Sun, Moon } from 'lucide-react';
 import CheckInLogPanel from '../components/sales/CheckInLogPanel';
 import { useAuth } from '../context/AuthContext';
-
-const LIMIT = 20;
+import { usePagination } from '../components/shared/paginationConfig';
+import { useLocationFilter } from '../components/shared/useLocationFilter';
+import { accessibleLocations } from '../utils/locationFilter';
 
 
 const CheckInLogPage = () => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [theme, setTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_theme');
@@ -54,8 +55,7 @@ const CheckInLogPage = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [limit, setLimit] = useState(15);
+  const { currentPage, setCurrentPage, rowsPerPage: limit, setRowsPerPage: setLimit } = usePagination();
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -80,7 +80,12 @@ const CheckInLogPage = () => {
   const currentDate = new Date();
   const [filterMonth, setFilterMonth] = useState(currentDate.getMonth() + 1); // 1-12, null = All Months
   const [filterYear, setFilterYear] = useState(currentDate.getFullYear()); // null = All Years
-  const [filterLocation, setFilterLocation] = useState(null);
+  // null = every branch they're assigned; opens on their home location.
+  // Shares its remembered pick with the Check-In Log tab inside /sales.
+  const locationOptions = useMemo(() => accessibleLocations(user, locations), [user, locations]);
+  const [locationPick, setLocationPick] = useLocationFilter('checkInLog', user, locationOptions);
+  const filterLocation = locationPick || null;
+  const setFilterLocation = (val) => setLocationPick(val || '');
 
   // The input stays instant, but only settled input reaches the API — typing a
   // name used to fire one list request and one stats request per keystroke.

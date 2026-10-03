@@ -2,3 +2,4 @@
 
 <!-- One line per memory: - [Title](file.md) — hook -->
 - [Customer list redesign](customer-list-redesign.md) — canvas link + approved UX decisions (status dots, rep access by role, Moda Resources…)
+- [Home location filters](home-location-filters.md) — home location per user + one shared LocationFilter everywhere; user's decisions

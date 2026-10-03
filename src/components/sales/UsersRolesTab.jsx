@@ -11,6 +11,7 @@ import { authFetch } from '../../api/authFetch';
 import { getAuthToken, setAuthToken } from '../../api/authToken';
 import { prettifyUsername } from '../../utils/textUtils';
 import { clearDriversCache } from '../../api/deliverySchedule';
+import { accessibleLocations, homeLocationOf, fallbackHomeLocation } from '../../utils/locationFilter';
 import './UsersRolesTab.css';
 
 // Granular per-page permission definitions.
@@ -187,6 +188,13 @@ const PAGE_PERMISSIONS = [
 // Flat lookup for all permission keys (used for labels elsewhere)
 const ALL_PERMISSION_KEYS = PAGE_PERMISSIONS.flatMap(p => p.actions.map(a => a.key));
 
+// The home location to keep once Assigned Locations change: the current one
+// while it's still one of theirs, otherwise their first branch — or none for
+// an all-locations user, who picks one (or not) themselves. The server applies
+// the same rule (src/utils/locationFilter.js).
+const homeAfterAssignedChange = (home, assignedLocations) =>
+    homeLocationOf({ location: home, assignedLocations })
+    || (assignedLocations.includes('*') ? '' : fallbackHomeLocation(assignedLocations));
 
 const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     const [subTab, setSubTab] = useState('users'); // 'users', 'roles', 'locations'
@@ -488,7 +496,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             displayName: '',
             email: '',
             role: roles[0]?.name || 'sales_rep',
-            location: '',
+            location: locations[0] ? locations[0].name : 'Seattle',
             assignedLocations: locations[0] ? [locations[0].name] : ['Seattle'],
             password: ''
         });
@@ -499,13 +507,16 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
 
     const openEditUserModal = (user) => {
         setModalMode('edit');
+        const assignedLocations = user.assignedLocations || (locations[0] ? [locations[0].name] : ['Seattle']);
         setUserForm({
             username: user.username,
             displayName: user.displayName || '',
             email: user.email || '',
             role: user.role || 'sales_rep',
-            location: user.location || '',
-            assignedLocations: user.assignedLocations || (locations[0] ? [locations[0].name] : ['Seattle']),
+            // A stored home that's no longer valid (blank, '*', or a branch
+            // since taken off them) shows as the one saving would keep.
+            location: homeAfterAssignedChange(user.location, assignedLocations),
+            assignedLocations,
             password: '' // Keep password empty unless changing
         });
         setEditingUser(user);
@@ -582,6 +593,13 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             alert(err.message);
         }
     };
+
+    // What the user form's Home Location can be: one of their assigned
+    // branches (any branch, for an all-locations user).
+    const homeLocationOptions = useMemo(
+        () => accessibleLocations({ assignedLocations: userForm.assignedLocations }, locations),
+        [userForm.assignedLocations, locations]
+    );
 
     // Filtered users
     const filteredUsers = useMemo(() => {
@@ -672,7 +690,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                             <th>Username</th>
                                             <th>Email</th>
                                             <th>Role</th>
-                                            <th>Location</th>
+                                            <th>Home Location</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
@@ -701,7 +719,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                             {getRoleDisplayName(u.role)}
                                                         </span>
                                                     </td>
-                                                    <td data-label="Location">{u.location || '-'}</td>
+                                                    <td data-label="Home Location">{homeLocationOf(u) || '-'}</td>
                                                     <td data-label="Actions">
                                                         <div className="action-pill-row">
                                                             <button
@@ -1048,7 +1066,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                             </div>
 
                             <div className="form-group relative">
-                                <label><MapPin size={16} /> Assigned Locations (for Check-Ins)</label>
+                                <label><MapPin size={16} /> Assigned Locations</label>
                                 <div className="multi-select-container">
                                     <div 
                                         className="multi-select-trigger" 
@@ -1074,7 +1092,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                                     return {
                                                                         ...prev,
                                                                         assignedLocations: list,
-                                                                        location: list[0] || ''
+                                                                        location: homeAfterAssignedChange(prev.location, list)
                                                                     };
                                                                 });
                                                             }}
@@ -1112,7 +1130,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                                         if (!list.includes(loc.key)) list = [...list, loc.key];
                                                                     }
                                                                 }
-                                                                return { ...prev, assignedLocations: list, location: list[0] || '' };
+                                                                return { ...prev, assignedLocations: list, location: homeAfterAssignedChange(prev.location, list) };
                                                             });
                                                         }}
                                                     >
@@ -1129,6 +1147,30 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                     )}
                                 </div>
                             </div>
+
+                            {homeLocationOptions.length > 0 && (
+                                <div className="form-group">
+                                    <label htmlFor="user-home-location"><MapPin size={16} /> Home Location</label>
+                                    <select
+                                        id="user-home-location"
+                                        value={userForm.location || ''}
+                                        onChange={(e) => setUserForm(prev => ({ ...prev, location: e.target.value }))}
+                                    >
+                                        {/* Blank only for all-locations users: everyone else
+                                            always has one of their own branches as home. */}
+                                        {userForm.assignedLocations?.includes('*') && (
+                                            <option value="">None (opens on All locations)</option>
+                                        )}
+                                        {homeLocationOptions.map(loc => (
+                                            <option key={loc} value={loc}>{loc}</option>
+                                        ))}
+                                    </select>
+                                    <small className="form-hint">
+                                        Delivery Schedule, Sales Visits and every other location filter open on this
+                                        location; they can switch to their other locations from there.
+                                    </small>
+                                </div>
+                            )}
 
                             <div className="form-group">
                                 <label><Key size={16} /> {modalMode === 'add' ? 'Password' : 'New Password'}</label>

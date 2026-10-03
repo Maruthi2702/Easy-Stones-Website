@@ -1,21 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ROWS_PER_PAGE_OPTIONS, getPageRange, getPageButtons } from './paginationConfig';
 import './Pagination.css';
 
 /**
- * Reusable Pagination — used site-wide.
+ * Reusable Pagination — the ONLY pager in the app. Every paginated list uses
+ * this plus `usePagination()` from ./paginationConfig (rows per page is always
+ * 25 / 50 / 100, default 50). Don't build a one-off pager for a new screen.
  *
- * Layout:  ⟨⟨  ‹  Page [n] of T  ›  ⟩⟩ (with optional "Rows per page:" select)
+ * Layout (from the Customer List design):
+ *   Showing 1–50 of 312   [children]        ‹ 1 … 4 5 6 … 13 ›   Rows [50]
  *
  * Props:
- *   currentPage        {number}    – current active page (1-indexed)
- *   totalPages         {number}    – total number of pages
- *   onPageChange       {function}  – called with new page number
- *   rowsPerPage        {number}    – current rows per page limit
- *   onRowsPerPageChange {function} – callback to change limit
- *   rowsPerPageOptions {number[]}  – custom options for rows per page selector
- *   totalCount         {number}    – unused (kept for back-compat)
- *   itemLabel          {string}    – unused (kept for back-compat)
+ *   currentPage         {number}   – current active page (1-indexed)
+ *   totalPages          {number}   – total number of pages
+ *   onPageChange        {function} – called with new page number
+ *   rowsPerPage         {number}   – current rows per page limit
+ *   onRowsPerPageChange {function} – callback to change limit (should also go back to page 1)
+ *   totalCount          {number}   – total rows across all pages; shows "Showing 1–50 of 312"
+ *   children            {node}     – optional extra content shown after the "Showing" text
  */
 const Pagination = ({
     currentPage,
@@ -23,16 +26,9 @@ const Pagination = ({
     onPageChange,
     rowsPerPage,
     onRowsPerPageChange,
-    rowsPerPageOptions = [15, 25, 50],
+    totalCount,
+    children,
 }) => {
-    const [inputVal, setInputVal] = useState(String(currentPage));
-    const inputRef = useRef(null);
-
-    // Keep input in sync when page changes externally
-    useEffect(() => {
-        setInputVal(String(currentPage));
-    }, [currentPage]);
-
     if (!totalPages || totalPages < 1) return null;
 
     const goTo = (page) => {
@@ -40,98 +36,72 @@ const Pagination = ({
         if (p !== currentPage) onPageChange(p);
     };
 
-    const handleInputChange = (e) => {
-        const val = e.target.value;
-        if (val === '' || /^\d+$/.test(val)) setInputVal(val);
-    };
-
-    const commitInput = () => {
-        const parsed = parseInt(inputVal, 10);
-        if (!isNaN(parsed)) {
-            goTo(parsed);
-        } else {
-            setInputVal(String(currentPage)); // reset on bad input
-        }
-    };
-
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') { commitInput(); inputRef.current?.blur(); }
-        if (e.key === 'Escape') { setInputVal(String(currentPage)); inputRef.current?.blur(); }
-        if (e.key === 'ArrowUp')   { e.preventDefault(); goTo(currentPage + 1); }
-        if (e.key === 'ArrowDown') { e.preventDefault(); goTo(currentPage - 1); }
-    };
-
-    const inputWidth = `${Math.max(1.8, String(totalPages).length * 0.65 + 0.8)}rem`;
     const hasRowsSelect = !!onRowsPerPageChange && rowsPerPage !== undefined;
+    const hasRange = totalCount !== undefined && totalCount !== null && !!rowsPerPage;
+    const range = hasRange ? getPageRange(currentPage, rowsPerPage, totalCount) : null;
+    const pages = getPageButtons(currentPage, totalPages);
 
     return (
-        <div className={`spag-root ${hasRowsSelect ? 'has-rows-select' : ''}`}>
+        <nav className="spag-root" aria-label="Pages">
+            {hasRange && (
+                <span className="spag-range" aria-live="polite">
+                    Showing <b>{range.from.toLocaleString()}–{range.to.toLocaleString()}</b> of {Number(totalCount).toLocaleString()}
+                </span>
+            )}
+            {children}
+            <span className="spag-grow" />
+
+            <div className="spag-pages">
+                <button
+                    type="button"
+                    className="spag-pb"
+                    aria-label="Previous page"
+                    disabled={currentPage <= 1}
+                    onClick={() => goTo(currentPage - 1)}
+                >
+                    <ChevronLeft size={16} />
+                </button>
+                {pages.map((p, i) => (
+                    <React.Fragment key={p}>
+                        {i > 0 && p - pages[i - 1] > 1 && <span className="spag-pb spag-gap" aria-hidden="true">…</span>}
+                        <button
+                            type="button"
+                            className="spag-pb"
+                            aria-label={`Page ${p}`}
+                            aria-current={p === currentPage ? 'page' : undefined}
+                            onClick={() => goTo(p)}
+                        >
+                            {p}
+                        </button>
+                    </React.Fragment>
+                ))}
+                <button
+                    type="button"
+                    className="spag-pb"
+                    aria-label="Next page"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => goTo(currentPage + 1)}
+                >
+                    <ChevronRight size={16} />
+                </button>
+            </div>
+
             {hasRowsSelect && (
-                <div className="spag-rows-select-wrapper">
-                    <span className="spag-rows-label">
-                        <span className="spag-label-full">Rows per page:</span>
-                        <span className="spag-label-short">Rows:</span>
-                    </span>
+                <label className="spag-rows">
+                    Rows
                     <select
                         className="spag-rows-select"
                         value={rowsPerPage}
                         onChange={(e) => onRowsPerPageChange(Number(e.target.value))}
                         aria-label="Rows per page"
                     >
-                        {rowsPerPageOptions.map((opt) => (
-                            <option key={opt} value={opt}>
-                                {opt}
-                            </option>
+                        {ROWS_PER_PAGE_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
                         ))}
                     </select>
-                </div>
+                </label>
             )}
-
-            <div className="spag-controls-group">
-                {/* Prev */}
-                <button
-                    className="spag-nav-btn"
-                    onClick={() => goTo(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    title="Previous page"
-                    aria-label="Previous page"
-                >
-                    <ChevronLeft size={14} />
-                </button>
-
-                {/* Page pill */}
-                <div className="spag-page-pill">
-                    <span className="spag-page-label">Page</span>
-                    <input
-                        ref={inputRef}
-                        className="spag-page-input"
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={inputVal}
-                        onChange={handleInputChange}
-                        onKeyDown={handleKeyDown}
-                        onBlur={commitInput}
-                        onFocus={(e) => e.target.select()}
-                        style={{ width: inputWidth }}
-                        aria-label={`Page ${currentPage} of ${totalPages}`}
-                    />
-                    <span className="spag-page-sep">of</span>
-                    <span className="spag-page-total">{totalPages}</span>
-                </div>
-
-                {/* Next */}
-                <button
-                    className="spag-nav-btn"
-                    onClick={() => goTo(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    title="Next page"
-                    aria-label="Next page"
-                >
-                    <ChevronRight size={14} />
-                </button>
-            </div>
-        </div>
+        </nav>
     );
 };
 

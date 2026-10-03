@@ -193,25 +193,20 @@ body.light-theme-active .cl {
 @media (max-width: 1100px) { .cl-table .c-addr { display: none; } }
 
 /* ── Pager + skeleton + empty ───────────────────────────────────────────── */
-.cl-pg { display: flex; align-items: center; gap: 6px; padding: 10px 16px; border-top: 1px solid var(--cl-line-soft); font-size: 13px; color: var(--cl-muted); flex-wrap: wrap; }
-.cl-pg b { color: var(--cl-text); }
-.cl-pb { min-width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; color: var(--cl-text-2); padding: 0 6px; border: 0; background: none; cursor: pointer; }
-.cl-pb:hover:not(:disabled) { background: var(--cl-hover); }
-.cl-pb[aria-current="page"] { background: var(--cl-chip-on-bg); color: var(--cl-chip-on-ink); }
-.cl-pb:disabled { opacity: 0.35; cursor: default; }
-.cl-pg select { height: 32px; border-radius: 8px; border: 1px solid var(--cl-input-border); background-color: var(--cl-surface); color: var(--cl-text); font: inherit; padding: 0 28px 0 10px; -webkit-appearance: none; appearance: none; min-width: 56px; }
+/* The pager is the app-wide shared <Pagination> (shared/Pagination.css), which
+   was built from this list's original design — no overrides needed here. */
 
-/* Real <select>s in the list (Rows, Sort by): one arrow on the right in both
+/* Real <select>s in the list (Sort by): one arrow on the right in both
    themes, with room for it. Set as longhands after any `background:` shorthand,
    and specific enough to win over the global select rules in index.css. */
-.cl .cl-pg select, .cl select.cl-dd-btn {
+.cl select.cl-dd-btn {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 14px;
 }
 .cl select.cl-dd-btn { padding-right: 34px; -webkit-appearance: none; appearance: none; }
-body.light-theme-active .cl .cl-pg select, body.light-theme-active .cl select.cl-dd-btn {
+body.light-theme-active .cl select.cl-dd-btn {
   background-color: var(--cl-surface);
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
 }

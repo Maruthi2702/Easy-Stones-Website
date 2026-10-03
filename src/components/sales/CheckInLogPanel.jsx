@@ -34,6 +34,9 @@ import { authFetch } from '../../api/authFetch';
 import { formatTitleCase } from '../../utils/textUtils';
 import { formatInstant, formatInstantTime } from '../../utils/dateUtils';
 import Pagination from '../shared/Pagination';
+import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
+import { LocationField } from '../shared/LocationFilter';
+import { accessibleLocations } from '../../utils/locationFilter';
 import { useAuth } from '../../context/AuthContext';
 import './CheckInLogPanel.css';
 
@@ -313,10 +316,11 @@ const CheckInLogPanel = ({
   todayCount: todayCountProp = null,
   monthCount = 0,
   allTimeCount = 0,
+  totalCount,
   currentPage = 1,
   totalPages = 1,
   onPageChange,
-  rowsPerPage = 20,
+  rowsPerPage = DEFAULT_ROWS_PER_PAGE,
   onRowsPerPageChange = () => {},
   filterMonth = null,
   filterYear = null,
@@ -339,6 +343,9 @@ const CheckInLogPanel = ({
   const hasDeletePermission = !user || user.permissions?.includes('delete_checkins');
   const hasSendEmailPermission = !user || user.permissions?.includes('send_checkin_email');
   const hasMultipleLocations = user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1);
+  // What the location filter offers: the branches this person is assigned
+  // (every branch for '*') — the same set the check-in API scopes them to.
+  const locationOptions = useMemo(() => accessibleLocations(user, locations), [user, locations]);
   const isAdmin = !user || user.role === 'admin' || user.role === 'Admin' || user.permissions?.includes('*') || user.permissions?.includes('admin');
 
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -1197,7 +1204,7 @@ const CheckInLogPanel = ({
             )}
           </div>
 
-          {/* Date & Location Filters */}
+          {/* Location, Year & Month Filters */}
           {onFilterMonthChange && onFilterYearChange && (
             <div className="clp-filter-container">
               <button
@@ -1231,39 +1238,15 @@ const CheckInLogPanel = ({
                     </button>
                   </div>
                   <div className="clp-filter-popover-body">
-                    {user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1) && onFilterLocationChange && (
-                      <div className="filter-select-group" style={{ marginBottom: '1rem' }}>
-                        <label>Location</label>
-                        <select
-                          value={filterLocation || ''}
-                          onChange={(e) => onFilterLocationChange(e.target.value || null)}
-                          className="filter-dropdown-select"
-                        >
-                          {user.assignedLocations?.includes('*') ? (
-                            <>
-                              <option value="">All Locations</option>
-                              {locations.length > 0 ? (
-                                locations.map(loc => (
-                                  <option key={loc._id || loc.name} value={loc.name}>{loc.name}</option>
-                                ))
-                              ) : (
-                                <>
-                                  <option value="Seattle">Seattle</option>
-                                  <option value="Spokane">Spokane</option>
-                                  <option value="Salt Lake City">Salt Lake City</option>
-                                </>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              <option value="">All My Locations</option>
-                              {user.assignedLocations?.map(loc => (
-                                <option key={loc} value={loc}>{loc}</option>
-                              ))}
-                            </>
-                          )}
-                        </select>
-                      </div>
+                    {/* The shared location field (LocationFilter.jsx), offered
+                        only when there's more than one branch to choose. */}
+                    {onFilterLocationChange && locationOptions.length > 1 && (
+                      <LocationField
+                        options={locationOptions}
+                        value={filterLocation || ''}
+                        onChange={(val) => onFilterLocationChange(val || null)}
+                        user={user}
+                      />
                     )}
 
                     <div className="filter-select-group">
@@ -1403,8 +1386,9 @@ const CheckInLogPanel = ({
         </div>
       </div>
 
-      {/* ── Table Card ── */}
+      {/* ── Table Card ── (scrolling body + pager footer) */}
       <div className="clp-table-card">
+        <div className="clp-table-body">
         {loading ? (
           <div className="clp-state-center">
             <Loader2 size={36} className="clp-spin clp-gold" />
@@ -1692,17 +1676,24 @@ const CheckInLogPanel = ({
             </div>
           </>
         )}
-      </div>
+        </div>
 
-      {/* ── Pagination ── */}
-      <Pagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={onPageChange}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={onRowsPerPageChange}
-        rowsPerPageOptions={[15, 25, 50]}
-      />
+        {/* ── Pagination ── the table card's footer, the way the Customer
+            List's pager sits at the foot of its table; outside the scrolling
+            body so it stays in view. */}
+        {totalPages >= 1 && (
+          <div className="clp-pag-bar">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={onPageChange}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={onRowsPerPageChange}
+              totalCount={totalCount}
+            />
+          </div>
+        )}
+      </div>
 
       {/* ── Selection Sheet Modal ── */}
       {selectedCheckIn && (

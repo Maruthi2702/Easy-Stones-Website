@@ -401,11 +401,9 @@
 
 .clp-embedded .clp-table-card {
   margin: 0.5rem 1.75rem 1.5rem;
-  overflow-y: auto;
 }
 
-.clp-embedded .clp-pagination,
-.clp-embedded .clp-pag-bar {
+.clp-embedded .clp-pagination {
   margin: 0 1.75rem 1.5rem;
 }
 
@@ -699,8 +697,7 @@
 }
 
 /* ── Pagination ── */
-.clp-pagination,
-.clp-pag-bar {
+.clp-pagination {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -713,11 +710,42 @@
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.clp-pag-bar .spag-root {
-  background: transparent !important;
-  border-top: none !important;
-  padding: 0 !important;
-  gap: 0.4rem !important;
+/* The table card is a scrolling body with the shared pager as its footer,
+   the way the Customer List's pager sits at the foot of its table — the
+   pager's own top rule is the divider. The scroll lives on the body (it used
+   to be the card itself, in the embedded view) so the pager stays in view
+   rather than scrolling away below the last row. On tablets/phones the card
+   has no box of its own, so there the pager gets one (see max-width: 1024px). */
+.clp-table-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.clp-table-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.clp-embedded .clp-table-body {
+  overflow-y: auto;
+}
+
+.clp-pag-bar {
+  flex: none;
+}
+
+@media (max-width: 1024px) {
+  .clp-pag-bar {
+    margin-top: 10px;
+    background: var(--bg-card, #17191e);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .clp-pag-bar .spag-root {
+    border-top: none;
+  }
 }
 
 .clp-page-controls {
@@ -833,8 +861,7 @@ table.clp-table {
 
   .clp-stats,
   .clp-table-card,
-  .clp-pagination,
-  .clp-pag-bar {
+  .clp-pagination {
     margin-left: 1.5rem;
     margin-right: 1.5rem;
   }
@@ -2837,10 +2864,17 @@ body.light-theme-active .clp-root .clp-subtitle {
 }
 
 /* Pagination */
-.clp-root.light-theme .clp-pagination,
-.clp-root.light-theme .clp-pag-bar {
+.clp-root.light-theme .clp-pagination {
   border-top: 1.5px solid #e2e8f0 !important;
   background: linear-gradient(180deg, #f8fafc, #f1f5f9) !important;
+}
+
+@media (max-width: 1024px) {
+  .clp-root.light-theme .clp-pag-bar,
+  body.light-theme-active .clp-root .clp-pag-bar {
+    background: #ffffff;
+    border-color: #e2e8f0;
+  }
 }
 
 .clp-root.light-theme .clp-rows-label {

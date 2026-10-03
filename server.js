@@ -90,6 +90,7 @@ import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.j
 import { linkVisitToSchedule, unlinkVisitFromSchedule, moveVisitOnSchedule } from './src/services/visitSchedule.js';
 import { normalizeVisitDate, normalizeOptionalDate } from './src/utils/visitDates.js';
 import { canModifyVisit, canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from './src/utils/visitAccess.js';
+import { homeLocationOf, homeLocationProblem, fallbackHomeLocation } from './src/utils/locationFilter.js';
 import {
   getAggregationRangeMatch, getFollowUpRangeMatch, rangePrefilter, followUpDatePrefilter, slimForUnwind,
   dashboardScope, scopeBranchPrefilter, scopeVisitUserMatch, narrowScopeToLocation
@@ -1405,6 +1406,30 @@ app.get('/api/auth/token', (req, res) => {
 // USER MANAGEMENT ENDPOINTS
 // ============================================
 
+// Settles a user's home location (User.location) against their assigned
+// locations before a save — it's what every location filter opens on and what
+// new records default to, so it has to be one of their own branches
+// (src/utils/locationFilter.js). A home location someone actually chose that
+// isn't theirs is refused; one that just stopped being valid (their assigned
+// locations changed, or it's a leftover '*') falls back to their first branch,
+// the same rule the Users & Roles form applies as you edit.
+// `requested` is undefined when the request didn't send one, or sent back the
+// value already stored — /admin's form returns every field on every save.
+const resolveHomeLocation = async ({ requested, current, assignedLocations }) => {
+  const assigned = Array.isArray(assignedLocations) ? assignedLocations : [];
+  const loc = typeof requested === 'string' ? requested.trim() : undefined;
+  if (loc !== undefined && loc !== (current || '')) {
+    const known = assigned.includes('*') ? await Location.find().select('name').lean() : [];
+    const problem = homeLocationProblem(loc, assigned, known);
+    if (problem) return { error: problem };
+    if (loc || assigned.includes('*')) return { location: loc };
+  }
+  return {
+    location: homeLocationOf({ location: current, assignedLocations: assigned })
+      || (assigned.includes('*') ? '' : fallbackHomeLocation(assigned))
+  };
+};
+
 // Get all users (manage_users permission needed)
 app.get('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
@@ -1426,6 +1451,9 @@ app.post('/api/admin/users', authenticate, requirePermission('manage_users'), as
       return res.status(400).json({ message: 'Username already exists' });
     }
 
+    const home = await resolveHomeLocation({ requested: location, current: '', assignedLocations: assignedLocations || ['Seattle'] });
+    if (home.error) return res.status(400).json({ message: home.error });
+
     const newUser = new User({
       username,
       // Left blank on purpose when not supplied — displayNameOf() then derives
@@ -1435,7 +1463,7 @@ app.post('/api/admin/users', authenticate, requirePermission('manage_users'), as
       password,
       email,
       role: role || 'sales_rep',
-      location,
+      location: home.location,
       assignedLocations: assignedLocations || ['Seattle']
     });
 
@@ -1493,8 +1521,13 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
     if (displayName !== undefined) user.displayName = String(displayName).trim();
     if (email !== undefined) user.email = email;
     if (role !== undefined) user.role = role;
-    if (location !== undefined) user.location = location;
-    if (assignedLocations !== undefined) user.assignedLocations = assignedLocations;
+    if (location !== undefined || assignedLocations !== undefined) {
+      const nextAssigned = assignedLocations !== undefined ? assignedLocations : (user.assignedLocations || []);
+      const home = await resolveHomeLocation({ requested: location, current: user.location, assignedLocations: nextAssigned });
+      if (home.error) return res.status(400).json({ message: home.error });
+      user.location = home.location;
+      if (assignedLocations !== undefined) user.assignedLocations = assignedLocations;
+    }
     if (password) user.password = password; // Will be hashed by pre-save hook
 
     await user.save();
@@ -2341,7 +2374,12 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     // customers in their assigned branches. Neither: what they logged. Set per
     // role under Users & Roles → Visits; see dashboardScope in
     // src/utils/dashboardMatch.js.
-    const scope = dashboardScope({ permissions: req.user?.permissions, userId, assignedLocations: req.user?.assignedLocations });
+    // ?location= is the dashboard's location filter, so the tiles count what
+    // the list below them shows; it can only narrow.
+    const scope = narrowScopeToLocation(
+      dashboardScope({ permissions: req.user?.permissions, userId, assignedLocations: req.user?.assignedLocations }),
+      req.query.location
+    );
     const branchPrefilter = scopeBranchPrefilter(scope);
     const branchStage = branchPrefilter ? [branchPrefilter] : [];
     const userMatchObj = scopeVisitUserMatch(scope);
@@ -2662,7 +2700,11 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
     // resource, view_branch_visits their branches', anyone else only what they
     // uploaded.
     // This used to narrow everyone — admins included — to their own uploads.
-    const scope = dashboardScope({ permissions: req.user?.permissions, userId, assignedLocations: req.user?.assignedLocations });
+    // ?location= is the dashboard's location filter; it can only narrow.
+    const scope = narrowScopeToLocation(
+      dashboardScope({ permissions: req.user?.permissions, userId, assignedLocations: req.user?.assignedLocations }),
+      req.query.location
+    );
     const branchPrefilter = scopeBranchPrefilter(scope);
 
     const rangeMatch = getAggregationRangeMatch(startDate, endDate, "resources");
@@ -5030,13 +5072,23 @@ app.post('/api/admin/erp-import/:type', authenticate, requirePermission('manage_
 //   alongside prior periods (re-importing the same period+location replaces
 //   just that combination) so velocity/reorder math has something to divide by.
 
+// ?location= on the inventory routes: one branch, or several comma-separated
+// (Inventory's location filter lets people pick more than one). Empty means
+// every branch; undefined is returned so callers can skip the clause.
+const inventoryLocationMatch = (location) => {
+  const list = String(location || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!list.length) return undefined;
+  return list.length === 1 ? list[0] : { $in: list };
+};
+
 // Shared by /summary and /items so the two never drift apart on what a
 // given search/category/location/status combination actually matches.
 const buildInventoryItemQuery = ({ search = '', category = '', location = '', status = '', product = '' } = {}) => {
   const query = {};
   if (product) query.product = product;
   if (category) query.category = category;
-  if (location) query.location = location;
+  const locationMatch = inventoryLocationMatch(location);
+  if (locationMatch) query.location = locationMatch;
   if (status === 'available') query.slabStatus = '';
   else if (status) query.slabStatus = status;
   if (search) {
@@ -5226,9 +5278,9 @@ app.get('/api/inventory-analysis/items/grouped', authenticate, requirePermission
 // since "we don't know" is a different, more honest state than "infinite".
 app.get('/api/inventory-analysis/velocity', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
   try {
-    const { location = '' } = req.query;
+    const locationMatch = inventoryLocationMatch(req.query.location);
 
-    const stockMatch = location ? { location } : {};
+    const stockMatch = locationMatch ? { location: locationMatch } : {};
     const onHand = await InventoryItem.aggregate([
       { $match: stockMatch },
       { $group: {
@@ -5240,7 +5292,7 @@ app.get('/api/inventory-analysis/velocity', authenticate, requirePermission('vie
       } }
     ]);
 
-    const salesMatch = location ? { location } : {};
+    const salesMatch = locationMatch ? { location: locationMatch } : {};
     const latestPerKey = await InventorySalesRecord.aggregate([
       { $match: salesMatch },
       { $sort: { periodEnd: -1 } },
@@ -5511,10 +5563,23 @@ app.patch('/api/customers/:id/quick-note', verifyAnyAuth, async (req, res) => {
 
 // ── LOST SALES API ROUTES ──
 
-// GET /api/lost-sales: Fetch all lost sales
+// Lost sales are scoped to the branches a person is assigned ('*' = all), like
+// the rest of the location filters. A record with no location is shown to
+// everyone rather than to no one, the same call the delivery board makes.
+const lostSaleLocationQuery = (user) => {
+  const assigned = user?.assignedLocations || [];
+  if (assigned.includes('*')) return {};
+  return { $or: [{ location: { $in: [...assigned, ''] } }, { location: null }, { location: { $exists: false } }] };
+};
+const canAccessLostSaleLocation = (user, location) => {
+  const assigned = user?.assignedLocations || [];
+  return assigned.includes('*') || !location || assigned.includes(location);
+};
+
+// GET /api/lost-sales: Fetch the lost sales for the branches this person may see
 app.get('/api/lost-sales', verifyAnyAuth, async (req, res) => {
   try {
-    const list = await LostSale.find().sort({ date: -1, createdAt: -1 }).lean();
+    const list = await LostSale.find(lostSaleLocationQuery(req.user)).sort({ date: -1, createdAt: -1 }).lean();
     res.json(list);
   } catch (error) {
     console.error('Error fetching lost sales:', error);
@@ -5531,6 +5596,10 @@ app.post('/api/lost-sales', verifyAnyAuth, async (req, res) => {
     const pricePerSf = Number(data.pricePerSf) || 0;
     const totalSf = data.totalSf ? Number(data.totalSf) : (slabsCount * sfPerSlab);
     const totalLostValue = data.totalLostValue ? Number(data.totalLostValue) : (totalSf * pricePerSf);
+
+    if (!canAccessLostSaleLocation(req.user, data.location || 'Seattle')) {
+      return res.status(403).json({ message: 'You do not have access to that location' });
+    }
 
     const lostSale = new LostSale({
       customerName: data.customerName,
@@ -5592,10 +5661,15 @@ app.put('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
     if (data.salesRepName) updateObj.salesRepName = data.salesRepName;
     if (data.date) updateObj.date = new Date(data.date);
 
+    if (!canAccessLostSaleLocation(req.user, data.location)) {
+      return res.status(403).json({ message: 'You do not have access to that location' });
+    }
+
     // findByIdAndUpdate skips validators by default, so an edit could store a
     // `reason` outside the schema enum that POST would have rejected.
-    const updated = await LostSale.findByIdAndUpdate(
-      req.params.id,
+    // Only a record this person can see — one at another branch reads as missing.
+    const updated = await LostSale.findOneAndUpdate(
+      { _id: req.params.id, ...lostSaleLocationQuery(req.user) },
       updateObj,
       { new: true, runValidators: true }
     );
@@ -5615,7 +5689,7 @@ app.put('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
 // DELETE /api/lost-sales/:id: Delete a lost sale entry
 app.delete('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
   try {
-    const deleted = await LostSale.findByIdAndDelete(req.params.id);
+    const deleted = await LostSale.findOneAndDelete({ _id: req.params.id, ...lostSaleLocationQuery(req.user) });
     if (!deleted) {
       return res.status(404).json({ message: 'Lost sale record not found' });
     }

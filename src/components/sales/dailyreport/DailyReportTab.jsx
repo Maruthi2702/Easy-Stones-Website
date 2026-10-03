@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Users, Truck, ArrowLeftRight, ArrowDownToLine, ArrowUpFromLine, Package, Wallet, ClipboardList,
-  ChevronLeft, ChevronRight, ChevronDown, Plus, X, Check, Lock, Unlock,
+  ChevronLeft, ChevronRight, Plus, X, Check, Lock, Unlock,
   MapPin, AlertCircle, Loader2, FileText, Mail, FileSpreadsheet, Eye
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
@@ -19,6 +19,8 @@ import EmailReportDialog from './EmailReportDialog';
 import PdfPreviewDialog from './PdfPreviewDialog';
 import ExportMenu from './ExportMenu';
 import ShippedEarlierNote from './ShippedEarlierNote';
+import LocationFilter from '../../shared/LocationFilter';
+import { useLocationFilter } from '../../shared/useLocationFilter';
 import './DailyReport.css';
 
 /**
@@ -134,7 +136,13 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   // this person may open is an access question; which branch a transfer can
   // go to isn't, so a Seattle-only user still needs Atlanta on this list.
   const [allLocations, setAllLocations] = useState([]);
-  const [location, setLocation] = useState('');
+  // The branch on screen, or ALL for the read-only every-branch summary.
+  // Opens on this person's home location (Users & Roles); the shared filter's
+  // All ('') is this sheet's ALL. With a single branch there's no choice and
+  // no All — it's always that branch's own sheet.
+  const [locationPick, setLocationPick] = useLocationFilter('dailyReport', currentUser, locations);
+  const location = locations.length > 1 ? (locationPick || ALL) : (locations[0] || '');
+  const setLocation = (loc) => setLocationPick(loc === ALL ? '' : loc);
   const [canExportAll, setCanExportAll] = useState(false);
 
   const [report, setReport] = useState(null);
@@ -183,7 +191,6 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
         setLocations(list);
         setAllLocations(data.allLocations || []);
         setCanExportAll(Boolean(data.canExportAll));
-        setLocation(prev => prev || list[0] || '');
       })
       .catch(err => alive && setError(err.message));
     return () => { alive = false; };
@@ -565,16 +572,21 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
           </div>
         )}
 
-        <label className="dr-locpick">
-          <MapPin size={14} />
-          <select value={location} onChange={(e) => setLocation(e.target.value)} aria-label="Branch">
-            {/* Only the branches assigned to this person, and "all" means all
-                of those — never every branch the company has. */}
-            {locations.length > 1 && <option value={ALL}>All locations</option>}
-            {locations.map(l => <option key={l} value={l}>{l}</option>)}
-          </select>
-          <ChevronDown size={13} className="dr-locpick-caret" />
-        </label>
+        {/* Only the branches assigned to this person, and "all" means all of
+            those — never every branch the company has. With just one there's
+            nothing to pick, but the sheet still says whose it is. */}
+        {locations.length > 1 ? (
+          <LocationFilter
+            options={locations}
+            value={location === ALL ? '' : location}
+            onChange={(v) => setLocation(v || ALL)}
+            user={currentUser}
+          />
+        ) : locations[0] ? (
+          <span className="dr-locpick">
+            <MapPin size={14} /> {locations[0]}
+          </span>
+        ) : null}
 
         <div className="dr-actions">
           <ExportMenu items={exportItems} />

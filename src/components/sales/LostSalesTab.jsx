@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   TrendingDown, DollarSign, Layers, Search, Filter, Plus, 
-  Trash2, Edit3, MapPin, AlertCircle, RefreshCw, ArrowUpDown,
+  Trash2, Edit3, AlertCircle, RefreshCw, ArrowUpDown,
   BarChart2, ChevronDown, ChevronUp, FileText, Building
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
@@ -9,7 +9,11 @@ import { authFetch } from '../../api/authFetch';
 import LostSaleModal from './LostSaleModal';
 import { getCustomerName, REASON_OPTIONS } from '../../utils/lostSale';
 import Pagination from '../shared/Pagination';
+import { usePagination } from '../shared/paginationConfig';
 import CustomSelect from '../shared/CustomSelect';
+import LocationFilter from '../shared/LocationFilter';
+import { useLocationFilter } from '../shared/useLocationFilter';
+import { accessibleLocations } from '../../utils/locationFilter';
 import { formatDate } from '../../utils/dateUtils';
 import './LostSalesTab.css';
 
@@ -27,14 +31,17 @@ const LostSalesTab = ({
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReason, setSelectedReason] = useState('All');
-  const [selectedLocationFilter, setSelectedLocationFilter] = useState('All');
+  // Only the branches this person is assigned (every one for '*') — the
+  // server returns no other branch's lost sales. Opens on their home location;
+  // '' = all of theirs.
+  const accessibleLocationsList = useMemo(() => accessibleLocations(currentUser, locationsList), [currentUser, locationsList]);
+  const [selectedLocationFilter, setSelectedLocationFilter] = useLocationFilter('lostSales', currentUser, accessibleLocationsList);
   const [sortBy, setSortBy] = useState('newest');
 
   // UX High-Density & Pagination State
   const [showStatsPanel, setShowStatsPanel] = useState(false);
   const [expandedRowId, setExpandedRowId] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(15);
+  const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -70,8 +77,8 @@ const LostSalesTab = ({
 
   // Reset to Page 1 when filters or search change
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedReason, selectedLocationFilter, sortBy]);
+    resetPage();
+  }, [resetPage, searchQuery, selectedReason, selectedLocationFilter, sortBy]);
 
   const handleSaveOpportunity = async (newRecord) => {
     try {
@@ -136,7 +143,7 @@ const LostSalesTab = ({
   const handleResetFilters = () => {
     setSearchQuery('');
     setSelectedReason('All');
-    setSelectedLocationFilter('All');
+    setSelectedLocationFilter('');
   };
 
   // Helper to extract string safely from any prop (string or object)
@@ -164,7 +171,7 @@ const LostSalesTab = ({
 
       const itemLoc = getSafeString(item.location);
       const matchesReason = selectedReason === 'All' || item.reason === selectedReason;
-      const matchesLocation = selectedLocationFilter === 'All' || itemLoc === selectedLocationFilter;
+      const matchesLocation = !selectedLocationFilter || itemLoc === selectedLocationFilter;
 
       return matchesSearch && matchesReason && matchesLocation;
     }).sort((a, b) => {
@@ -362,21 +369,6 @@ const LostSalesTab = ({
             />
           </div>
 
-          <div className="select-filter-wrap" style={{ minWidth: 160 }}>
-            <MapPin size={14} className="filter-icon" />
-            <CustomSelect
-              value={selectedLocationFilter}
-              onChange={(e) => setSelectedLocationFilter(e.target.value)}
-              options={[
-                { value: 'All', label: 'All Showrooms' },
-                ...locationsList.map(loc => {
-                  const locName = getSafeString(loc);
-                  return { value: locName, label: locName };
-                })
-              ]}
-            />
-          </div>
-
           <div className="select-filter-wrap" style={{ minWidth: 150 }}>
             <ArrowUpDown size={14} className="filter-icon" />
             <CustomSelect
@@ -389,9 +381,19 @@ const LostSalesTab = ({
               ]}
             />
           </div>
+
+          <LocationFilter
+            options={accessibleLocationsList}
+            value={selectedLocationFilter}
+            onChange={setSelectedLocationFilter}
+            user={currentUser}
+          />
         </div>
       </div>
 
+      {/* One card for the list and its pager — the pager is the card's bottom
+          row on desktop, like the Customer List's (see .lost-sales-list-card). */}
+      <div className="lost-sales-list-card">
       {/* Desktop Data Grid */}
       <div className="lost-sales-grid-wrapper desktop-only high-capacity">
         {loading ? (
@@ -622,14 +624,12 @@ const LostSalesTab = ({
             totalPages={totalPages}
             onPageChange={(page) => setCurrentPage(page)}
             rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(limit) => {
-              setRowsPerPage(limit);
-              setCurrentPage(1);
-            }}
-            rowsPerPageOptions={[10, 15, 25, 50, 100]}
+            onRowsPerPageChange={setRowsPerPage}
+            totalCount={filteredRecords.length}
           />
         </div>
       )}
+      </div>
 
       {/* Add / Edit Modal */}
       <LostSaleModal
@@ -640,7 +640,7 @@ const LostSalesTab = ({
         customersList={customersList}
         customerOptions={customerOptions}
         currentUser={currentUser}
-        locationsList={locationsList}
+        locationsList={accessibleLocationsList}
         onCreateNew={onCreateNew}
         isDropdownLoading={isDropdownLoading}
       />
