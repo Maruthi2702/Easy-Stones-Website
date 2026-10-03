@@ -9,6 +9,7 @@ import { authFetch } from '../../api/authFetch';
 import CrossoverSheetModal from './CrossoverSheetModal';
 import ManageColorsModal from './ManageColorsModal';
 import Pagination from '../shared/Pagination';
+import { usePagination } from '../shared/paginationConfig';
 import CustomSelect from '../shared/CustomSelect';
 import { flattenColorDocs, buildMatrixData, removeCrossoverLocally, upsertColorDoc } from './crossoverSheetHelpers';
 import './CrossoverSheetTab.css';
@@ -32,8 +33,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
   const [matchTypeFilter, setMatchTypeFilter] = useState('All');
   const [viewMode, setViewMode] = useState('matrix');
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -102,8 +102,8 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
   }, []);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, matchTypeFilter]);
+    resetPage();
+  }, [resetPage, searchQuery, matchTypeFilter]);
 
   // Patches colorDocs from the mutation's own response instead of
   // refetching the whole crossover sheet after every single save — the
@@ -626,11 +626,8 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
             totalPages={totalPages}
             onPageChange={(page) => setCurrentPage(page)}
             rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(limit) => {
-              setRowsPerPage(limit);
-              setCurrentPage(1);
-            }}
-            rowsPerPageOptions={[10, 20, 50, 100]}
+            onRowsPerPageChange={setRowsPerPage}
+            totalCount={filteredEntries.length}
           />
         </div>
       )}

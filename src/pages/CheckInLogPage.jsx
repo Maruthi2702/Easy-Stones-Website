@@ -9,8 +9,7 @@ import * as XLSX from 'xlsx';
 import { Sun, Moon } from 'lucide-react';
 import CheckInLogPanel from '../components/sales/CheckInLogPanel';
 import { useAuth } from '../context/AuthContext';
-
-const LIMIT = 20;
+import { usePagination } from '../components/shared/paginationConfig';
 
 
 const CheckInLogPage = () => {
@@ -54,8 +53,7 @@ const CheckInLogPage = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [limit, setLimit] = useState(15);
+  const { currentPage, setCurrentPage, rowsPerPage: limit, setRowsPerPage: setLimit } = usePagination();
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);

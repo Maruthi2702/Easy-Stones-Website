@@ -31,6 +31,23 @@ event listeners like click-outside):
    re-check it against `grep -rn "z-index" src/**/*.css` — see the incident
    below for why.
 
+## Pagination: one component, one flow, everywhere
+
+Every paginated list uses `src/components/shared/Pagination.jsx` with its page
+state from `usePagination()` in `src/components/shared/paginationConfig.js`.
+Rows per page is always **25 / 50 / 100, default 50** (`ROWS_PER_PAGE_OPTIONS`,
+`DEFAULT_ROWS_PER_PAGE`) — the component no longer accepts custom options.
+Changing rows per page goes back to page 1; changing a search/filter/sort
+calls `resetPage()`. Pass `totalCount` so the bar shows "Showing 1–50 of 312".
+The look (numbered pages with "…", Rows select on the right) came from the
+Customer List design, which the user preferred over the old "Page n of T" bar.
+
+When adding a list, don't hand-roll a pager or a different size set (the
+Customer List had its own until 2026-10-03). Check the server endpoint's
+`limit` cap allows 100 before wiring it up. If the page lives elsewhere (e.g.
+the URL, like the Customer List's `?p=`), keep your own state but start at
+`DEFAULT_ROWS_PER_PAGE` and reset to page 1 on a size change.
+
 ## Incident: CustomSelect portal broke dropdowns inside modals (2026-08-13)
 
 `CustomSelect`'s options popover was changed to `createPortal(…, document.body)`
@@ -103,7 +120,8 @@ Work Report's derive/save-payload rules (`src/routes/dailyReports.js`'s
 after the incident above, and the customer list's rules
 (`src/utils/customerList.js`: status labels, the ⚠ data-quality checks and
 the "Incomplete" query that must match them, saved views, A–Z, role-scoped
-filter options). Nothing else in the app has test coverage — no
+filter options), and the shared pagination sizes/range math
+(`src/components/shared/paginationConfig.js`). Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 
 That means passing `npm test` only proves the math didn't regress; it says

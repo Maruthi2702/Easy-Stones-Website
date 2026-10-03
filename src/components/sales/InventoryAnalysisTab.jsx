@@ -7,6 +7,7 @@ import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import CustomSelect from '../shared/CustomSelect';
 import Pagination from '../shared/Pagination';
+import { usePagination } from '../shared/paginationConfig';
 import InventoryImportModal from './InventoryImportModal';
 import { SLAB_STATUS_BUCKET as statusBucket } from '../../utils/inventoryStatus';
 import './InventoryAnalysisTab.css';
@@ -79,8 +80,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [expandedProducts, setExpandedProducts] = useState(() => new Set());
   const [slabsByProduct, setSlabsByProduct] = useState({});
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
 
   const [filterOptions, setFilterOptions] = useState({ categories: [], locations: [], statuses: [] });
   const [search, setSearch] = useState('');
@@ -231,7 +231,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { if (view === 'stock') fetchGroups(); }, [view, fetchGroups]);
   useEffect(() => { if (view === 'reorder') fetchVelocity(); }, [view, fetchVelocity]);
-  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, categoryFilter, locationFilter, statusFilter]);
+  useEffect(() => { resetPage(); }, [resetPage, debouncedSearch, categoryFilter, locationFilter, statusFilter]);
   // A changed filter can change which slabs belong to an already-expanded
   // group (or make the group disappear entirely) — collapse and drop the
   // cache rather than show a stale expansion against the new filtered set.
@@ -581,8 +581,8 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                     totalPages={totalPages}
                     onPageChange={setCurrentPage}
                     rowsPerPage={rowsPerPage}
-                    onRowsPerPageChange={(limit) => { setRowsPerPage(limit); setCurrentPage(1); }}
-                    rowsPerPageOptions={[10, 20, 50, 100]}
+                    onRowsPerPageChange={setRowsPerPage}
+                    totalCount={groupsTotal}
                   />
                 </div>
               )}

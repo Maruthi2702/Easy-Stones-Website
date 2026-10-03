@@ -9,6 +9,7 @@ import { authFetch } from '../../api/authFetch';
 import LostSaleModal from './LostSaleModal';
 import { getCustomerName, REASON_OPTIONS } from '../../utils/lostSale';
 import Pagination from '../shared/Pagination';
+import { usePagination } from '../shared/paginationConfig';
 import CustomSelect from '../shared/CustomSelect';
 import { formatDate } from '../../utils/dateUtils';
 import './LostSalesTab.css';
@@ -33,8 +34,7 @@ const LostSalesTab = ({
   // UX High-Density & Pagination State
   const [showStatsPanel, setShowStatsPanel] = useState(false);
   const [expandedRowId, setExpandedRowId] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(15);
+  const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -70,8 +70,8 @@ const LostSalesTab = ({
 
   // Reset to Page 1 when filters or search change
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedReason, selectedLocationFilter, sortBy]);
+    resetPage();
+  }, [resetPage, searchQuery, selectedReason, selectedLocationFilter, sortBy]);
 
   const handleSaveOpportunity = async (newRecord) => {
     try {
@@ -622,11 +622,8 @@ const LostSalesTab = ({
             totalPages={totalPages}
             onPageChange={(page) => setCurrentPage(page)}
             rowsPerPage={rowsPerPage}
-            onRowsPerPageChange={(limit) => {
-              setRowsPerPage(limit);
-              setCurrentPage(1);
-            }}
-            rowsPerPageOptions={[10, 15, 25, 50, 100]}
+            onRowsPerPageChange={setRowsPerPage}
+            totalCount={filteredRecords.length}
           />
         </div>
       )}

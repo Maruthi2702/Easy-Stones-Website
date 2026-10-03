@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
     Search, Plus, Download, Upload, Mail, X, Wrench, Users, MoreHorizontal, SlidersHorizontal,
-    ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, LayoutList
+    ChevronDown, AlertTriangle, LayoutList
 } from 'lucide-react';
 import SidebarToggleButton from '../shared/SidebarToggleButton';
+import Pagination from '../shared/Pagination';
+import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import AddCustomerModal from './AddCustomerModal';
 import CustomerImportModal from '../admin/CustomerImportModal';
 import { useAuth } from '../../context/AuthContext';
@@ -101,44 +103,6 @@ const ViewPicker = ({ view, counts, onChange }) => {
     );
 };
 
-const Pager = ({ page, totalPages, totalCount, limit, onPage, onLimit, showKeys }) => {
-    const pages = useMemo(() => {
-        const out = [];
-        const add = (p) => { if (p >= 1 && p <= totalPages && !out.includes(p)) out.push(p); };
-        [1, page - 1, page, page + 1, totalPages].forEach(add);
-        out.sort((a, b) => a - b);
-        return out;
-    }, [page, totalPages]);
-    const from = totalCount ? (page - 1) * limit + 1 : 0;
-    const to = Math.min(page * limit, totalCount);
-    return (
-        <nav className="cl-pg" aria-label="Pages">
-            <span>Showing <b>{from}–{to}</b> of {totalCount}</span>
-            {showKeys && (
-                <span className="cl-keys cl-hide-narrow" aria-hidden="true">
-                    <span className="cl-kbd">↑</span><span className="cl-kbd">↓</span> move
-                    <span className="cl-kbd">Enter</span> open <span className="cl-kbd">Esc</span> close <span className="cl-kbd">/</span> search
-                </span>
-            )}
-            <span className="cl-grow" />
-            <button type="button" className="cl-pb" aria-label="Previous page" disabled={page <= 1} onClick={() => onPage(page - 1)}><ChevronLeft size={16} /></button>
-            {pages.map((p, i) => (
-                <React.Fragment key={p}>
-                    {i > 0 && p - pages[i - 1] > 1 && <span className="cl-pb" aria-hidden="true">…</span>}
-                    <button type="button" className="cl-pb" aria-current={p === page ? 'page' : undefined} onClick={() => onPage(p)}>{p}</button>
-                </React.Fragment>
-            ))}
-            <button type="button" className="cl-pb" aria-label="Next page" disabled={page >= totalPages} onClick={() => onPage(page + 1)}><ChevronRight size={16} /></button>
-            <label className="cl-hide-phone" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', marginLeft: 8 }}>
-                Rows
-                <select value={limit} onChange={(e) => onLimit(Number(e.target.value))}>
-                    {[15, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-            </label>
-        </nav>
-    );
-};
-
 const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPinned, customerRefreshTrigger, onPlanRoute }) => {
     const { user } = useAuth();
     const width = useWindowWidth();
@@ -185,7 +149,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [currentPage, setCurrentPage] = useState(() => parseInt(new URLSearchParams(window.location.search).get('p'), 10) || 1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
-    const [limit, setLimit] = useState(25);
+    const [limit, setLimit] = useState(DEFAULT_ROWS_PER_PAGE);
     const [sortBy, setSortBy] = useState('level');
     const [sortOrder, setSortOrder] = useState('asc');
 
@@ -724,15 +688,21 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     );
 
     const pager = (
-        <Pager
-            page={currentPage}
+        <Pagination
+            currentPage={currentPage}
             totalPages={totalPages}
             totalCount={totalCount}
-            limit={limit}
-            onPage={(p) => setCurrentPage(Math.max(1, Math.min(totalPages, p)))}
-            onLimit={(n) => { setLimit(n); resetPage(); }}
-            showKeys={!!openCustomer || focusIndex >= 0}
-        />
+            rowsPerPage={limit}
+            onPageChange={(p) => setCurrentPage(Math.max(1, Math.min(totalPages, p)))}
+            onRowsPerPageChange={(n) => { setLimit(n); resetPage(); }}
+        >
+            {(!!openCustomer || focusIndex >= 0) && (
+                <span className="cl-keys cl-hide-narrow" aria-hidden="true">
+                    <span className="cl-kbd">↑</span><span className="cl-kbd">↓</span> move
+                    <span className="cl-kbd">Enter</span> open <span className="cl-kbd">Esc</span> close <span className="cl-kbd">/</span> search
+                </span>
+            )}
+        </Pagination>
     );
 
     return (

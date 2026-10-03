@@ -32,6 +32,7 @@ import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
 import UserProfileTab from '../components/sales/UserProfileTab';
 import Pagination from '../components/shared/Pagination';
+import { DEFAULT_ROWS_PER_PAGE } from '../components/shared/paginationConfig';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 import { splitContactValues } from '../utils/contactValues';
@@ -177,7 +178,7 @@ const SalesPage = () => {
     const [checkInPage, setCheckInPage] = useState(1);
     const [checkInTotalPages, setCheckInTotalPages] = useState(1);
     const [checkInTotalCount, setCheckInTotalCount] = useState(0);
-    const [checkInLimit, setCheckInLimit] = useState(20);
+    const [checkInLimit, setCheckInLimit] = useState(DEFAULT_ROWS_PER_PAGE);
     const currentSalesDate = new Date();
     const [checkInFilterMonth, setCheckInFilterMonth] = useState(currentSalesDate.getMonth() + 1);
     const [checkInFilterYear, setCheckInFilterYear] = useState(currentSalesDate.getFullYear());
@@ -1381,7 +1382,7 @@ const SalesPage = () => {
     const [currentVisitsPage, setCurrentVisitsPage] = useState(1);
     const [currentFollowUpPage, setCurrentFollowUpPage] = useState(1);
     const [currentResourcesPage, setCurrentResourcesPage] = useState(1);
-    const [visitsPerPage, setVisitsPerPage] = useState(15);
+    const [visitsPerPage, setVisitsPerPage] = useState(DEFAULT_ROWS_PER_PAGE);
     // The visible page of visits, memoized (declared after the page state it reads): passed inline as `.slice(...)` it
     // was a new array on every render of this page, which VisitsListDetail read
     // as "the list changed" — a photo request per keystroke anywhere on the page.
@@ -4243,7 +4244,7 @@ const SalesPage = () => {
                                                  onPageChange={(p) => { setCurrentVisitsPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                                                  rowsPerPage={visitsPerPage}
                                                  onRowsPerPageChange={handleVisitsPerPageChange}
-                                                 rowsPerPageOptions={[15, 25, 50]}
+                                                 totalCount={memoizedFilteredVisits.length}
                                              />
                                         </div>
                                     )}
@@ -4398,7 +4399,7 @@ const SalesPage = () => {
                                                  }}
                                                  rowsPerPage={visitsPerPage}
                                                  onRowsPerPageChange={handleVisitsPerPageChange}
-                                                 rowsPerPageOptions={[15, 25, 50]}
+                                                 totalCount={memoizedFollowups.length}
                                              />
                                         </div>
                                     )}
@@ -4620,7 +4621,7 @@ const SalesPage = () => {
                                                          onPageChange={(p) => { setCurrentResourcesPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                                                          rowsPerPage={visitsPerPage}
                                                          onRowsPerPageChange={handleVisitsPerPageChange}
-                                                         rowsPerPageOptions={[15, 25, 50]}
+                                                         totalCount={memoizedFilteredResources.length}
                                                      />
                                                 </>
                                             )}

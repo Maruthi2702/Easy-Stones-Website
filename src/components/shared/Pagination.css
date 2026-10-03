@@ -1,350 +1,177 @@
 /* =============================================================
-   Shared Pagination  —  ⟨⟨  ‹  Page [n] of T  ›  ⟩⟩
-   Used site-wide. Premium dark + light theme support.
+   Shared Pagination — Showing 1–50 of 312 · ‹ 1 … 5 6 7 … 13 › · Rows [50]
+   Used site-wide (design taken from the Customer List pager).
+
+   Selectors are `.spag-root .x` on purpose: containers such as the customer
+   list set `.cl button { color: inherit }`, which would otherwise outrank a
+   single class here.
+
+   Light mode is marked with `light-theme-active` on <body> in the main app,
+   and with a `.light-theme` wrapper on the standalone Check-In Log page, so
+   the light tokens are set under both.
    ============================================================= */
 
-/* ── Root wrapper ─────────────────────────────────────────── */
 .spag-root {
+    --spag-text: var(--text-primary, #e8eaed);
+    --spag-text-2: #c3c8d0;
+    --spag-muted: #9aa3af;
+    --spag-hover: rgba(255, 255, 255, 0.07);
+    --spag-line: rgba(255, 255, 255, 0.05);
+    --spag-input-border: rgba(255, 255, 255, 0.14);
+    --spag-surface: var(--bg-card, #17191e);
+    --spag-current-bg: #e8eaed;
+    --spag-current-ink: #111317;
+    --spag-chevron: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23d4af37' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    padding: 0.8rem 1.5rem;
-    background: rgba(0, 0, 0, 0.15);
-    border-top: 1px solid rgba(255, 255, 255, 0.07);
-    user-select: none;
+    gap: 6px;
     flex-wrap: wrap;
     width: 100%;
+    box-sizing: border-box;
+    padding: 10px 16px;
+    border-top: 1px solid var(--spag-line);
+    font-size: 13px;
+    color: var(--spag-muted);
+    user-select: none;
 }
 
-.spag-root.has-rows-select {
-    justify-content: space-between;
+.light-theme .spag-root,
+body.light-theme-active .spag-root {
+    --spag-text: #0f172a;
+    --spag-text-2: #334155;
+    --spag-muted: #5a6574;
+    --spag-hover: #f4f5f7;
+    --spag-line: #f0f1f4;
+    --spag-input-border: #dfe2e7;
+    --spag-surface: #ffffff;
+    --spag-current-bg: #0f172a;
+    --spag-current-ink: #ffffff;
+    --spag-chevron: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
 }
 
-/* ── Controls group ───────────────────────────────────────── */
-.spag-controls-group {
+/* ── "Showing 1–50 of 312" ─────────────────────────────────── */
+.spag-root .spag-range {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.spag-root .spag-range b {
+    color: var(--spag-text);
+}
+
+.spag-root .spag-grow {
+    flex: 1;
+}
+
+/* ── Page buttons ──────────────────────────────────────────── */
+.spag-root .spag-pages {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 6px;
 }
 
-/* ── Rows Per Page Select ─────────────────────────────────── */
-.spag-rows-select-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-}
-
-.spag-rows-label {
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: var(--text-muted, #6b7280);
-    letter-spacing: 0.02em;
-}
-
-.spag-label-short {
-    display: none;
-}
-
-/* Only background-COLOR here: the `background` shorthand would reset the
-   global <select> chevron's position and no-repeat back to their initial
-   values, tiling the arrow across the whole control. */
-.spag-rows-select {
-    background-color: rgba(255, 255, 255, 0.05);
-    background-position: right 0.5rem center;
-    background-size: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+.spag-root .spag-pb {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 6px;
+    border: 0;
     border-radius: 8px;
-    padding: 0.25rem 1.6rem 0.25rem 0.6rem;
-    color: var(--text-secondary, #9ca3af);
-    font-size: 0.78rem;
-    font-weight: 600;
-    line-height: 1.4;
-    outline: none;
-    cursor: pointer;
-    transition: background-color 0.18s, border-color 0.18s, color 0.18s;
-}
-
-.spag-rows-select:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: var(--text-primary, #e5e7eb);
-}
-
-.spag-rows-select:focus {
-    border-color: #d4af37;
-}
-
-/* ── Nav buttons (first / prev / next / last) ─────────────── */
-.spag-nav-btn {
+    background: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    color: var(--text-muted, #9ca3af);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--spag-text-2);
     cursor: pointer;
-    transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.12s, box-shadow 0.18s;
-    outline: none;
-    flex-shrink: 0;
+    box-sizing: border-box;
 }
 
-.spag-nav-btn:hover:not(:disabled) {
-    background: rgba(212, 175, 55, 0.14);
-    border-color: rgba(212, 175, 55, 0.4);
-    color: #d4af37;
-    transform: translateY(-1px);
-    box-shadow: 0 3px 10px rgba(212, 175, 55, 0.18);
+.spag-root .spag-pb:hover:not(:disabled):not(.spag-gap) {
+    background: var(--spag-hover);
 }
 
-.spag-nav-btn:active:not(:disabled) {
-    transform: translateY(0);
-    box-shadow: none;
+.spag-root .spag-pb[aria-current="page"],
+.spag-root .spag-pb[aria-current="page"]:hover {
+    background: var(--spag-current-bg);
+    color: var(--spag-current-ink);
 }
 
-.spag-nav-btn:disabled {
-    opacity: 0.25;
-    cursor: not-allowed;
-    pointer-events: none;
+.spag-root .spag-pb:disabled {
+    opacity: 0.35;
+    cursor: default;
 }
 
-/* ── Centre pill: "Page [n] of T" ────────────────────────── */
-.spag-page-pill {
+.spag-root .spag-pb:focus-visible {
+    outline: 2px solid #d4af37;
+    outline-offset: 1px;
+}
+
+.spag-root .spag-gap {
+    cursor: default;
+}
+
+/* ── Rows [50] ─────────────────────────────────────────────── */
+.spag-root .spag-rows {
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.28rem 0.8rem;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    margin: 0 0.25rem;
-}
-
-.spag-page-label,
-.spag-page-sep {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-muted, #6b7280);
-    white-space: nowrap;
-    letter-spacing: 0.02em;
-}
-
-/* Editable current-page input */
-.spag-page-input {
-    min-width: 1.8rem;
-    height: 24px;
-    padding: 0 0.3rem;
-    background: rgba(212, 175, 55, 0.12);
-    border: 1px solid rgba(212, 175, 55, 0.35);
-    border-radius: 6px;
-    color: #d4af37;
-    font-size: 0.78rem;
-    font-weight: 800;
-    text-align: center;
-    outline: none;
-    cursor: text;
-    transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
-    -moz-appearance: textfield;
-    appearance: textfield;
-    letter-spacing: 0.02em;
-}
-
-.spag-page-input::-webkit-inner-spin-button,
-.spag-page-input::-webkit-outer-spin-button { -webkit-appearance: none; }
-
-.spag-page-input:focus {
-    background: rgba(212, 175, 55, 0.2);
-    border-color: rgba(212, 175, 55, 0.65);
-    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
-    color: #f0d060;
-}
-
-/* Total pages */
-.spag-page-total {
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: var(--text-secondary, #9ca3af);
+    gap: 6px;
+    margin-left: 8px;
     white-space: nowrap;
 }
 
-/* =============================================================
-   Light Theme
-   Light mode is marked with `light-theme-active` on <body>; nothing in the
-   app ever sets a plain `.light-theme` class, so each rule has to carry both
-   selectors — otherwise the bar keeps its dark fill on a white page.
-   ============================================================= */
-.light-theme .spag-root,
-body.light-theme-active .spag-root {
-    background: rgba(0, 0, 0, 0.025);
-    border-top-color: #e5e7eb;
+/* Longhand backgrounds only, so the chevron isn't reset/tiled by the global
+   select rules in index.css (which this out-ranks). */
+.spag-root .spag-rows-select {
+    height: 32px;
+    min-width: 56px;
+    margin: 0;
+    padding: 0 28px 0 10px;
+    border: 1px solid var(--spag-input-border);
+    border-radius: 8px;
+    background-color: var(--spag-surface);
+    background-image: var(--spag-chevron);
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+    color: var(--spag-text);
+    font: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
 }
 
-.light-theme .spag-rows-label,
-body.light-theme-active .spag-rows-label {
-    color: #6b7280;
+.spag-root .spag-rows-select:focus {
+    border-color: rgba(212, 175, 55, 0.7);
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
 }
 
-.light-theme .spag-rows-select,
-body.light-theme-active .spag-rows-select {
-    background-color: #ffffff;
-    border-color: #cbd5e1;
-    color: #374151;
-}
-
-.light-theme .spag-rows-select:hover,
-body.light-theme-active .spag-rows-select:hover {
-    background-color: #f1f5f9;
-    border-color: #94a3b8;
-    color: #0f172a;
-}
-
-.light-theme .spag-nav-btn,
-body.light-theme-active .spag-nav-btn {
-    background: #ffffff;
-    border-color: #e5e7eb;
-    color: #9ca3af;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
-}
-
-.light-theme .spag-nav-btn:hover:not(:disabled),
-body.light-theme-active .spag-nav-btn:hover:not(:disabled) {
-    background: rgba(212, 175, 55, 0.08);
-    border-color: rgba(184, 147, 36, 0.45);
-    color: #8a6e14;
-    box-shadow: 0 3px 10px rgba(212, 175, 55, 0.12);
-}
-
-.light-theme .spag-page-pill,
-body.light-theme-active .spag-page-pill {
-    background: rgba(0, 0, 0, 0.02);
-    border-color: #e5e7eb;
-}
-
-.light-theme .spag-page-label,
-.light-theme .spag-page-sep,
-body.light-theme-active .spag-page-label,
-body.light-theme-active .spag-page-sep {
-    color: #9ca3af;
-}
-
-.light-theme .spag-page-input,
-body.light-theme-active .spag-page-input {
-    background: rgba(212, 175, 55, 0.08);
-    border-color: rgba(184, 147, 36, 0.4);
-    color: #8a6e14;
-}
-
-.light-theme .spag-page-input:focus,
-body.light-theme-active .spag-page-input:focus {
-    background: rgba(212, 175, 55, 0.14);
-    border-color: rgba(184, 147, 36, 0.65);
-    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.12);
-    color: #6b5510;
-}
-
-.light-theme .spag-page-total,
-body.light-theme-active .spag-page-total {
-    color: #6b7280;
-}
-
-/* =============================================================
-   Mobile
-   ============================================================= */
-@media (max-width: 640px) {
+/* ── Phone: "Showing…" and Rows on the first line, pages centred below ── */
+@media (max-width: 599px) {
     .spag-root {
-        padding: 0.45rem 0.8rem !important;
-        gap: 0.5rem !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-        background: transparent !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+        padding: 10px 12px;
+        row-gap: 8px;
     }
 
-    .spag-root.has-rows-select {
-        flex-direction: row !important;
-        justify-content: space-between !important;
+    .spag-root .spag-grow {
+        display: none;
     }
 
-    .spag-rows-select-wrapper {
-        gap: 0.4rem !important;
+    .spag-root .spag-rows {
+        margin-left: auto;
     }
 
-    .spag-label-full {
-        display: none !important;
+    .spag-root .spag-pages {
+        order: 3;
+        width: 100%;
+        justify-content: center;
+        gap: 4px;
     }
 
-    .spag-label-short {
-        display: inline !important;
-        font-size: 0.74rem !important;
-        color: #94a3b8 !important;
-        font-weight: 500 !important;
-    }
-
-    .spag-rows-select {
-        padding: 0.2rem 1.45rem 0.2rem 0.5rem !important;
-        font-size: 0.75rem !important;
-        height: 28px !important;
-        border-radius: 6px !important;
-        background-color: rgba(255, 255, 255, 0.06) !important;
-        background-position: right 0.4rem center !important;
-        border-color: rgba(255, 255, 255, 0.15) !important;
-    }
-
-    .spag-controls-group {
-        gap: 0.3rem !important;
-    }
-
-    .spag-nav-btn {
-        width: 30px !important;
-        height: 30px !important;
-        border-radius: 7px !important;
-    }
-
-    .spag-page-pill {
-        padding: 0.18rem 0.6rem !important;
-        gap: 0.35rem !important;
-        margin: 0 !important;
-        border-radius: 16px !important;
-        background: rgba(255, 255, 255, 0.04) !important;
-        border-color: rgba(255, 255, 255, 0.12) !important;
-    }
-
-    /* The translucent-white fills above disappear on a white page. */
-    body.light-theme-active .spag-root {
-        border-top-color: #e5e7eb !important;
-    }
-
-    body.light-theme-active .spag-rows-select {
-        background-color: #ffffff !important;
-        border-color: #cbd5e1 !important;
-    }
-
-    body.light-theme-active .spag-page-pill {
-        background: rgba(0, 0, 0, 0.02) !important;
-        border-color: #e5e7eb !important;
-    }
-
-    body.light-theme-active .spag-label-short {
-        color: #6b7280 !important;
-    }
-
-    .spag-page-label {
-        font-size: 0.72rem !important;
-    }
-
-    .spag-page-input {
-        height: 22px !important;
-        font-size: 0.75rem !important;
-        padding: 0 0.25rem !important;
-    }
-
-    .spag-page-sep,
-    .spag-page-total {
-        font-size: 0.74rem !important;
+    .spag-root .spag-pb {
+        min-width: 30px;
     }
 }

@@ -34,6 +34,7 @@ import { authFetch } from '../../api/authFetch';
 import { formatTitleCase } from '../../utils/textUtils';
 import { formatInstant, formatInstantTime } from '../../utils/dateUtils';
 import Pagination from '../shared/Pagination';
+import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import { useAuth } from '../../context/AuthContext';
 import './CheckInLogPanel.css';
 
@@ -313,10 +314,11 @@ const CheckInLogPanel = ({
   todayCount: todayCountProp = null,
   monthCount = 0,
   allTimeCount = 0,
+  totalCount,
   currentPage = 1,
   totalPages = 1,
   onPageChange,
-  rowsPerPage = 20,
+  rowsPerPage = DEFAULT_ROWS_PER_PAGE,
   onRowsPerPageChange = () => {},
   filterMonth = null,
   filterYear = null,
@@ -1701,7 +1703,7 @@ const CheckInLogPanel = ({
         onPageChange={onPageChange}
         rowsPerPage={rowsPerPage}
         onRowsPerPageChange={onRowsPerPageChange}
-        rowsPerPageOptions={[15, 25, 50]}
+        totalCount={totalCount}
       />
 
       {/* ── Selection Sheet Modal ── */}
