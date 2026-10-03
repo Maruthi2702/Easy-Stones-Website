@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search, AlertTriangle, ArrowUpToLine, Link2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, AlertTriangle, ArrowUpToLine, Link2 } from 'lucide-react';
 import BoardGrid from './delivery/BoardGrid';
 import { WILL_CALL_COLUMN_ID, defaultStatusFor } from '../../utils/deliveryTypes';
 import DriverView from './delivery/DriverView';
@@ -8,6 +8,7 @@ import PodModal from './delivery/PodModal';
 import PodViewer from './delivery/PodViewer';
 import PendingDeliveries from './delivery/PendingDeliveries';
 import CancelledOrders from './delivery/CancelledOrders';
+import DeliveryOrderSearch from './delivery/DeliveryOrderSearch';
 import LocationFilter from '../shared/LocationFilter';
 import { useLocationFilter } from '../shared/useLocationFilter';
 import { accessibleLocations } from '../../utils/locationFilter';
@@ -356,6 +357,27 @@ const DeliveryScheduleTab = ({
     setIsModalOpen(true);
   };
 
+  // A pick from the header's order search (any date, not just this week).
+  // Shows the week the order sits in — widening a one-branch board if the
+  // order is another of the user's branches — then opens the ticket for the
+  // office, or brings the Pending/Cancelled list into view for read-only
+  // sales users, whose board has no ticket editor.
+  const handleOrderSearchSelect = async (result, info) => {
+    if (locationFilter && ![result.location, result.transferDestination].includes(locationFilter)) {
+      setLocationFilter('');
+    }
+    if (info.boardDate) setCurrentMonday(getWeekMonday(info.boardDate));
+
+    if (role === 'office') {
+      const full = await getDeliveryById(result.id);
+      if (full) handleOpenEditModal(full);
+      return;
+    }
+    const section = info.place === 'pending' ? '.pending-deliveries-section'
+      : info.place === 'cancelled' ? '.cancelled-orders-section' : null;
+    if (section) document.querySelector(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const handleSaveDelivery = async (payload) => {
     const updatedList = await saveDelivery(payload);
     await applyUpdatedList(updatedList);
@@ -512,7 +534,21 @@ const DeliveryScheduleTab = ({
           <span className="week-range-label-text">{weekRangeText}</span>
         </div>
 
-        {/* Right: Search / New Ticket Action */}
+        {/* Order search — every date, the user's own branches only. Also
+            still filters the week on screen, as the old sales-only box did.
+            Drivers don't get it (the server refuses them too). */}
+        {role !== 'driver' && (
+          <DeliveryOrderSearch
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onSelect={handleOrderSearchSelect}
+            onViewPod={handleOpenPodViewer}
+            trucks={trucks}
+            viewerLocations={currentUser?.assignedLocations || []}
+          />
+        )}
+
+        {/* Right: Location filter / New Ticket Action */}
         <div className="manifest-header-actions">
           <LocationFilter
             options={filterableLocations}
@@ -520,19 +556,6 @@ const DeliveryScheduleTab = ({
             onChange={setLocationFilter}
             user={currentUser}
           />
-
-          {role === 'sales' && (
-            <div className="search-box-wrap-header">
-              <Search size={15} className="search-icon" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search customer..."
-                className="board-search-input-header"
-              />
-            </div>
-          )}
 
           {role === 'office' && (
             <button type="button" className="btn-add-delivery gold-glow-btn" onClick={() => handleOpenAddModal()}>
