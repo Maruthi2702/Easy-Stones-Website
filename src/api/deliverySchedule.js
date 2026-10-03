@@ -48,6 +48,10 @@ const scheduleCache = {
   // uses — see applyTransferPerspective in src/utils/deliveryTypes.js.
   viewerLocations: [],
   listeners: new Set(),
+  // Told "something may have changed" — every socket update, reconnect and
+  // fallback poll — with no data attached. For views that aren't this cache
+  // (a board narrowed to one location) and so refetch their own data instead.
+  changeListeners: new Set(),
   socket: null,
   // 'online' | 'reconnecting' | 'offline'. A driver works out of cell coverage,
   // so the board has to be able to say whether what it is showing is live —
@@ -210,6 +214,7 @@ function startPolling() {
     refreshActiveWeek()
       .then(() => setConnectionStatus('reconnecting'))
       .catch(() => setConnectionStatus('offline'));
+    notifyScheduleChange();
   }, 3000);
 }
 
@@ -249,6 +254,7 @@ function initScheduleSocket() {
       // Re-sync the currently viewed week on connection / reconnection, in case
       // any updates were missed while offline.
       refreshActiveWeek();
+      notifyScheduleChange();
     });
 
     scheduleCache.socket.on('disconnect', () => {
@@ -269,6 +275,7 @@ function initScheduleSocket() {
       window.addEventListener('online', () => {
         setConnectionStatus('reconnecting');
         refreshActiveWeek().catch(() => setConnectionStatus('offline'));
+        notifyScheduleChange();
       });
       if (window.navigator && window.navigator.onLine === false) {
         setConnectionStatus('offline');
@@ -284,9 +291,11 @@ function initScheduleSocket() {
         upsertDeliveryIntoCache(payload.delivery);
         notifyScheduleListeners();
       }
+      notifyScheduleChange();
     });
 
     scheduleCache.socket.on('truck_update', () => {
+      notifyScheduleChange({ trucks: true });
       getDriverUsers(null, [], { force: true }).then(drivers => {
         if (drivers && drivers.length > 0) {
           scheduleCache.trucks = drivers;
@@ -312,6 +321,30 @@ function notifyScheduleListeners() {
       // one listener throwing must not stop the others being told
     }
   });
+}
+
+function notifyScheduleChange(detail = {}) {
+  scheduleCache.changeListeners.forEach(cb => {
+    try {
+      cb(detail);
+    } catch {
+      // one listener throwing must not stop the others being told
+    }
+  });
+}
+
+/**
+ * Hear that the schedule may have changed (`{ trucks: true }` when the driver
+ * list did), without being handed the shared cache's data — for a view that
+ * refetches its own, like the board narrowed to one location. Starts the
+ * socket if nothing else has. Returns an unsubscribe function.
+ */
+export function subscribeScheduleChanges(callback) {
+  initScheduleSocket();
+  scheduleCache.changeListeners.add(callback);
+  return () => {
+    scheduleCache.changeListeners.delete(callback);
+  };
 }
 
 export function subscribeScheduleCache(callback) {
@@ -397,28 +430,28 @@ export async function getScheduleDataCached(currentUser = null, weekStart, weekE
   };
 }
 
-// ── LOCATION-FILTERED SCHEDULE (an admin/multi-location user peeking at one
-// specific branch) ──
+// ── LOCATION-FILTERED SCHEDULE (a multi-location user's board narrowed to
+// one branch — their home location by default) ──
 // Deliberately separate from getScheduleDataCached rather than a parameter
 // on it: this never reads or writes scheduleCache.weeks/pending/trucks, so
 // switching the location filter on and off can't corrupt the shared,
 // live-updating "All Locations" cache every other consumer (this board's
 // default view, the driver view, etc.) relies on.
 //
-// Trade-off, stated plainly: this is a snapshot, not a live view — it
-// refetches on filter/week change but does not merge incoming
-// delivery_update socket events the way the default view does. An admin
-// checking another branch's board is a "let me look" action, not something
-// that needs to stay live-refreshing the way that branch's own staff's
-// board does — see DeliveryScheduleTab.jsx for how it's wired.
-export async function getLocationScopedScheduleData(weekStart, weekEnd, location) {
+// Each call is a fresh fetch rather than a merge of socket events: the board
+// stays live by refetching through this whenever subscribeScheduleChanges
+// says something changed (see DeliveryScheduleTab.jsx), so which tickets a
+// branch sees is decided by the server's own location rules every time
+// rather than re-implemented here. `includeTrucks: false` skips the driver
+// list for those refetches — it only changes on truck_update.
+export async function getLocationScopedScheduleData(weekStart, weekEnd, location, { includeTrucks = true } = {}) {
   const [trucks, deliveries, pending, cancelled] = await Promise.all([
-    getDriverUsers(location, [location], { force: true }),
+    includeTrucks ? getDriverUsers(location, [location], { force: true }) : null,
     getDeliveriesForRange(weekStart, weekEnd, location),
     getPendingDeliveries(location),
     getCancelledDeliveries(location)
   ]);
-  return { trucks: trucks || [], deliveries: deliveries || [], pending: pending || [], cancelled: cancelled || [] };
+  return { trucks: includeTrucks ? (trucks || []) : null, deliveries: deliveries || [], pending: pending || [], cancelled: cancelled || [] };
 }
 
 // ── GET TRUCKS ──

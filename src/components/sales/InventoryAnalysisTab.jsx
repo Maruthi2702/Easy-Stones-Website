@@ -6,6 +6,8 @@ import {
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import CustomSelect from '../shared/CustomSelect';
+import LocationFilter from '../shared/LocationFilter';
+import { useLocationsFilter } from '../shared/useLocationFilter';
 import Pagination from '../shared/Pagination';
 import { usePagination } from '../shared/paginationConfig';
 import InventoryImportModal from './InventoryImportModal';
@@ -89,14 +91,15 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // re-rendering the summary/table) on every keystroke.
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
-  // Default to Seattle for now — most inventory analysis usage is
-  // Seattle-specific; revisit once other branches have real data to filter.
-  const [locationFilter, setLocationFilter] = useState('Seattle');
+  // Which branches' stock to show, for Stock Detail and Reorder Risk alike:
+  // every branch with inventory is offered, the person's home location is
+  // ticked to start with, and any others can be added ([] = all branches).
+  const [locationFilter, setLocationFilter] = useLocationsFilter('inventory', currentUser, filterOptions.locations);
+  const locationParam = locationFilter.join(',');
   const [statusFilter, setStatusFilter] = useState('All');
 
   const [velocityRows, setVelocityRows] = useState([]);
   const [loadingVelocity, setLoadingVelocity] = useState(false);
-  const [velocityLocation, setVelocityLocation] = useState('Seattle');
 
   const [importModal, setImportModal] = useState(null); // 'stock' | 'sales' | null
 
@@ -121,10 +124,10 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     const params = new URLSearchParams();
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
     if (categoryFilter !== 'All') params.set('category', categoryFilter);
-    if (locationFilter !== 'All') params.set('location', locationFilter);
+    if (locationParam) params.set('location', locationParam);
     if (statusFilter !== 'All') params.set('status', statusFilter);
     return params;
-  }, [debouncedSearch, categoryFilter, locationFilter, statusFilter]);
+  }, [debouncedSearch, categoryFilter, locationParam, statusFilter]);
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -208,7 +211,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     try {
       setLoadingVelocity(true);
       const params = new URLSearchParams();
-      if (velocityLocation !== 'All') params.set('location', velocityLocation);
+      if (locationParam) params.set('location', locationParam);
       const res = await authFetch(`${API_URL}/api/inventory-analysis/velocity?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -219,7 +222,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     } finally {
       setLoadingVelocity(false);
     }
-  }, [velocityLocation]);
+  }, [locationParam]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350);
@@ -231,7 +234,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { if (view === 'stock') fetchGroups(); }, [view, fetchGroups]);
   useEffect(() => { if (view === 'reorder') fetchVelocity(); }, [view, fetchVelocity]);
-  useEffect(() => { resetPage(); }, [resetPage, debouncedSearch, categoryFilter, locationFilter, statusFilter]);
+  useEffect(() => { resetPage(); }, [resetPage, debouncedSearch, categoryFilter, locationParam, statusFilter]);
   // A changed filter can change which slabs belong to an already-expanded
   // group (or make the group disappear entirely) — collapse and drop the
   // cache rather than show a stale expansion against the new filtered set.
@@ -425,13 +428,6 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                 </div>
                 <div className="invan-select-filter-wrap">
                   <CustomSelect
-                    value={locationFilter}
-                    onChange={(e) => setLocationFilter(e.target.value)}
-                    options={[{ value: 'All', label: 'All Locations' }, ...filterOptions.locations.map(l => ({ value: l, label: l }))]}
-                  />
-                </div>
-                <div className="invan-select-filter-wrap">
-                  <CustomSelect
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
                     options={[
@@ -441,8 +437,18 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                     ]}
                   />
                 </div>
+                <LocationFilter
+                  multiple
+                  options={filterOptions.locations}
+                  value={locationFilter}
+                  onChange={setLocationFilter}
+                  user={currentUser}
+                />
               </div>
 
+              {/* One card for the stock list and its pager — the pager is the
+                  card's bottom row, like the Customer List's (.invan-list-card). */}
+              <div className="invan-list-card">
               <div className={`invan-grid-wrapper${loadingGroups && groups.length > 0 ? ' invan-refetching' : ''}`}>
                 {loadingGroups && groups.length === 0 ? (
                   <div className="invan-loading"><RefreshCw size={24} className="invan-spin-icon" /><span>Loading inventory...</span></div>
@@ -586,20 +592,20 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                   />
                 </div>
               )}
+              </div>
             </>
           )}
 
           {view === 'reorder' && (
             <>
               <div className="invan-filter-bar">
-                <div className="invan-select-filter-wrap">
-                  <Filter size={14} className="invan-filter-icon" />
-                  <CustomSelect
-                    value={velocityLocation}
-                    onChange={(e) => setVelocityLocation(e.target.value)}
-                    options={[{ value: 'All', label: 'All Locations' }, ...filterOptions.locations.map(l => ({ value: l, label: l }))]}
-                  />
-                </div>
+                <LocationFilter
+                  multiple
+                  options={filterOptions.locations}
+                  value={locationFilter}
+                  onChange={setLocationFilter}
+                  user={currentUser}
+                />
               </div>
               <p className="invan-subtitle">
                 Days of supply = available quantity ÷ daily sell-through rate from the most recent sales export for that product and location. "No sales data" means no matching sales import exists yet — it isn't the same as zero risk.

@@ -60,13 +60,16 @@ delivery data is really just a view over that one cache, kept in sync via
    `scheduleCache` when a specific branch is selected — see
    `getLocationScopedScheduleData` in `deliverySchedule.js` for why (so switching
    the filter on and off can never leave the shared cache — which every
-   other consumer of this data relies on — in a filtered state). The default
-   view is the live-updating cache; a narrowed view is a **snapshot**: it
-   re-fetches on filter/week change but does not merge incoming socket
-   events. If you're adding a feature that needs a *live* filtered view,
-   that's a real design decision (probably a dedicated Socket.IO room per
-   branch, which the join-side already supports — see below), not something
-   to bolt on casually.
+   other consumer of this data relies on — in a filtered state). The All
+   Locations view is the live-updating cache. A narrowed view — which is
+   what a multi-location user now opens on, their home location from Users &
+   Roles — stays live a different way: it subscribes to
+   `subscribeScheduleChanges` (told "something changed" on every socket
+   update, reconnect and fallback poll, with no data) and refetches its one
+   branch through `getLocationScopedScheduleData`, so the server's location
+   rules decide what it shows every time. Its saves/moves refetch too
+   (`applyUpdatedList` in `DeliveryScheduleTab.jsx`), because the mutation
+   helpers return the shared cache's week, not the narrowed one.
 
 2. **The socket only pushes updates to rooms a client has actually joined.**
    `deliverySchedule.js`'s `initScheduleSocket()` connects, then emits

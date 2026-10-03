@@ -1,0 +1,313 @@
+/* Shared location filter — see LocationFilter.jsx. Same round filter button
+   and Filters panel as the Check-In Log (.clp-filter-* in CheckInLogPanel.css),
+   so every screen's filter looks like that one.
+
+   Light theme: most screens follow body.light-theme-active (some also put
+   `light-theme-active` on their own root); the Check-In Log uses its own
+   `.light-theme` root, and puts <LocationField> inside its own panel — so
+   every light rule below matches either. */
+
+.lf {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.lf-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: #c7cdd6;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  font-family: inherit;
+}
+
+/* The circle itself, at .lf .lf-btn + !important: toolbars restyle every
+   button inside them on small screens with !important rules of their own
+   (Delivery Schedule's `.manifest-header-actions button`), and a plain
+   .lf-btn loses that tie on specificity — it came out a rounded square. */
+.lf .lf-btn {
+  width: 42px !important;
+  height: 42px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+}
+
+.lf-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.lf-btn.is-active {
+  background: rgba(212, 175, 55, 0.1);
+  border-color: rgba(212, 175, 55, 0.32);
+  color: #d4af37;
+}
+
+.lf-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d4af37;
+  box-shadow: 0 0 6px rgba(212, 175, 55, 0.85);
+}
+
+/* ── Panel ── (`left` is set inline when it opens — see toggleOpen) */
+.lf-pop {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 1.25rem;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  text-align: left;
+  animation: lf-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes lf-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.lf-pop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #fff;
+}
+
+.lf-pop-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.lf-pop-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.lf-pop-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lf-clear {
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  color: #f87171;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.lf-clear:hover {
+  color: #ef4444;
+  text-decoration: underline;
+}
+
+.lf-done {
+  padding: 0.4rem 0.9rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.lf-done:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── The Location field (also used inside the Check-In Log's own panel) ── */
+.lf-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-align: left;
+}
+
+.lf-group-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+}
+
+/* index.css's global `select` rule draws the chevron as a background image
+   with 2rem of right padding reserved for it — so this sets background-color
+   (not the `background` shorthand, which would wipe the chevron) and keeps
+   that right padding. */
+.lf-select {
+  width: 100%;
+  padding: 0.5rem 2rem 0.5rem 0.6rem;
+  background-color: #27272a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.lf-select:focus {
+  border-color: #d4af37;
+}
+
+.lf-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.lf-check {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  color: #e5e7eb;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.lf-check:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.lf-check input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #d4af37;
+  cursor: pointer;
+}
+
+/* ── Light theme ── */
+.light-theme-active .lf-btn,
+.light-theme .lf-btn {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  color: #475569;
+}
+
+.light-theme-active .lf-btn:hover,
+.light-theme .lf-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.light-theme-active .lf-btn.is-active,
+.light-theme .lf-btn.is-active {
+  background: rgba(212, 175, 55, 0.1);
+  border-color: rgba(212, 175, 55, 0.35);
+  color: #b8961f;
+}
+
+.light-theme-active .lf-pop,
+.light-theme .lf-pop {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 16px -8px rgba(15, 23, 42, 0.08);
+}
+
+.light-theme-active .lf-pop-head,
+.light-theme .lf-pop-head {
+  color: #0f172a;
+  border-bottom-color: #e2e8f0;
+}
+
+.light-theme-active .lf-pop-close,
+.light-theme .lf-pop-close {
+  color: #64748b;
+}
+
+.light-theme-active .lf-pop-close:hover,
+.light-theme .lf-pop-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.light-theme-active .lf-pop-foot,
+.light-theme .lf-pop-foot {
+  border-top-color: #e2e8f0;
+}
+
+.light-theme-active .lf-clear,
+.light-theme .lf-clear {
+  color: #ef4444;
+}
+
+.light-theme-active .lf-done,
+.light-theme .lf-done {
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  color: #475569;
+}
+
+.light-theme-active .lf-done:hover,
+.light-theme .lf-done:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.light-theme-active .lf-group-label,
+.light-theme .lf-group-label {
+  color: #64748b;
+}
+
+.light-theme-active .lf-select,
+.light-theme .lf-select {
+  background-color: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.light-theme-active .lf-check,
+.light-theme .lf-check {
+  color: #0f172a;
+}
+
+.light-theme-active .lf-check:hover,
+.light-theme .lf-check:hover {
+  background: #f1f5f9;
+}

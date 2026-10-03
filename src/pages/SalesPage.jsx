@@ -38,7 +38,9 @@ import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
 import { splitContactValues } from '../utils/contactValues';
 import { isPdfSource } from '../utils/attachments';
 import VisitsListDetail from '../components/sales/VisitsListDetail';
-import VisitsLocationFilter from '../components/sales/VisitsLocationFilter';
+import LocationFilter from '../components/shared/LocationFilter';
+import { useLocationFilter } from '../components/shared/useLocationFilter';
+import { accessibleLocations } from '../utils/locationFilter';
 import CustomerProfileHeader from '../components/sales/customerList/CustomerProfileHeader';
 import { splitCustomer } from '../components/sales/visitsListHelpers';
 import { canAddVisit, canModifyVisit, canDeleteVisit, visitViewScope } from '../utils/visitAccess';
@@ -152,8 +154,22 @@ const SalesPage = () => {
 
         // Dashboard State (Required for memoized values)
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
-    // Sales Visits location filter ('' = every branch the viewer may see).
-    const [visitsLocation, setVisitsLocation] = useState('');
+    // The Sales dashboard's location filter: Visits, Follow-ups, Resources and
+    // the tiles above them all follow it ('' = every branch the viewer may
+    // see). Offered from the viewer's Visits permissions (visitViewScope in
+    // src/utils/visitAccess.js): every branch with view_all_visits, their
+    // assigned ones with view_branch_visits (all, if assigned '*'), none for
+    // anyone who only sees their own visits. The server enforces the same
+    // limits (narrowScopeToLocation). Opens on their home location.
+    const dashboardLocationOptions = React.useMemo(() => {
+        const all = (locations || []).map(l => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
+        const scope = visitViewScope(currentUser);
+        if (scope.kind === 'all') return all;
+        if (scope.kind === 'branches') return scope.locations;
+        return [];
+    }, [locations, currentUser]);
+    const [dashboardLocation, setDashboardLocation] = useLocationFilter('salesDashboard', currentUser, dashboardLocationOptions);
+    const dashboardLocationParam = dashboardLocation ? `&location=${encodeURIComponent(dashboardLocation)}` : '';
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
     
     const getDefaultTab = () => {
@@ -182,7 +198,11 @@ const SalesPage = () => {
     const currentSalesDate = new Date();
     const [checkInFilterMonth, setCheckInFilterMonth] = useState(currentSalesDate.getMonth() + 1);
     const [checkInFilterYear, setCheckInFilterYear] = useState(currentSalesDate.getFullYear());
-    const [checkInFilterLocation, setCheckInFilterLocation] = useState(null);
+    // null = every branch they're assigned; opens on their home location.
+    const checkInLocationOptions = React.useMemo(() => accessibleLocations(currentUser, locations), [currentUser, locations]);
+    const [checkInLocationPick, setCheckInLocationPick] = useLocationFilter('checkInLog', currentUser, checkInLocationOptions);
+    const checkInFilterLocation = checkInLocationPick || null;
+    const setCheckInFilterLocation = (val) => setCheckInLocationPick(val || '');
     const [selectedCheckIn, setSelectedCheckIn] = useState(null);
     const [checkInModalMode, setCheckInModalMode] = useState(null); // 'view' | 'edit'
     const [checkInForm, setCheckInForm] = useState({
@@ -368,7 +388,7 @@ const SalesPage = () => {
         setStatsLoading(true);
         try {
             const localDate = new Date().toLocaleDateString('en-CA');
-            const response = await authFetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}&localDate=${localDate}`);
+            const response = await authFetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}&localDate=${localDate}${dashboardLocationParam}`);
             if (response.ok) {
                 const data = await response.json();
                 if (reqId === dashboardStatsReqRef.current) setStats(data);
@@ -378,7 +398,7 @@ const SalesPage = () => {
         } finally {
             if (reqId === dashboardStatsReqRef.current) setStatsLoading(false);
         }
-    }, [dashboardTimeRange]);
+    }, [dashboardTimeRange, dashboardLocationParam]);
 
     // Fetch Independent Dashboard Data
     const fetchDashboardData = useCallback(async () => {
@@ -387,9 +407,9 @@ const SalesPage = () => {
         try {
             const localDateStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
             const [visitsRes, resourcesRes, followupsRes] = await Promise.all([
-                authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}${visitsLocation ? `&location=${encodeURIComponent(visitsLocation)}` : ''}`),
-                authFetch(`${API_URL}/api/dashboard/resources?timeRange=${dashboardTimeRange}&localDate=${localDateStr}`),
-                authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}&filterType=followup`)
+                authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}${dashboardLocationParam}`),
+                authFetch(`${API_URL}/api/dashboard/resources?timeRange=${dashboardTimeRange}&localDate=${localDateStr}${dashboardLocationParam}`),
+                authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}&filterType=followup${dashboardLocationParam}`)
             ]);
             const visits = await visitsRes.json();
             const resources = await resourcesRes.json();
@@ -407,7 +427,7 @@ const SalesPage = () => {
                 setDashboardLoaded(true);
             }
         }
-    }, [dashboardTimeRange, visitsLocation]);
+    }, [dashboardTimeRange, dashboardLocationParam]);
 
     // A dashboard table with no rows yet while its data is still on the way
     // says so, instead of claiming there's nothing there.
@@ -992,19 +1012,6 @@ const SalesPage = () => {
     }, [dashboardTimeRange]);
 
 
-    // Branches the Sales Visits filter offers, from the viewer's Visits
-    // permissions (visitViewScope in src/utils/visitAccess.js): every branch
-    // with view_all_visits, their assigned ones with view_branch_visits (all,
-    // if assigned '*'), none for anyone who only sees their own visits. The
-    // server enforces the same limits.
-    const visitsLocationOptions = React.useMemo(() => {
-        const all = (locations || []).map(l => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
-        const scope = visitViewScope(currentUser);
-        if (scope.kind === 'all') return all;
-        if (scope.kind === 'branches') return scope.locations;
-        return [];
-    }, [locations, currentUser]);
-
     // Whether the viewer may see other people's visits and resources at all.
     const seesOthers = React.useMemo(() => visitViewScope(currentUser).kind !== 'own', [currentUser]);
     // Whether to offer Add Visit / Add Resource anywhere (Users & Roles → Visits → Add).
@@ -1393,6 +1400,15 @@ const SalesPage = () => {
 
     const handleVisitsPerPageChange = (newVal) => {
         setVisitsPerPage(newVal);
+        setCurrentVisitsPage(1);
+        setCurrentFollowUpPage(1);
+        setCurrentResourcesPage(1);
+    };
+
+    // Visits, Follow-ups and Resources share the dashboard's location, so a
+    // switch on any of them sends all three back to their first page.
+    const handleDashboardLocationChange = (loc) => {
+        setDashboardLocation(loc);
         setCurrentVisitsPage(1);
         setCurrentFollowUpPage(1);
         setCurrentResourcesPage(1);
@@ -4199,10 +4215,11 @@ const SalesPage = () => {
                                             <div className="section-header">
                                                 <h2>Sales Visits</h2>
                                                 <div className="table-controls">
-                                                    <VisitsLocationFilter
-                                                        options={visitsLocationOptions}
-                                                        value={visitsLocation}
-                                                        onChange={(loc) => { setVisitsLocation(loc); setCurrentVisitsPage(1); }}
+                                                    <LocationFilter
+                                                        options={dashboardLocationOptions}
+                                                        value={dashboardLocation}
+                                                        onChange={handleDashboardLocationChange}
+                                                        user={currentUser}
                                                     />
                                                     <button className="export-btn" onClick={() => handleExportVisits()}>
                                                         <Download size={18} /> Excel
@@ -4277,6 +4294,12 @@ const SalesPage = () => {
                                                             Next Week
                                                         </button>
                                                     </div>
+                                                    <LocationFilter
+                                                        options={dashboardLocationOptions}
+                                                        value={dashboardLocation}
+                                                        onChange={handleDashboardLocationChange}
+                                                        user={currentUser}
+                                                    />
                                                     <button className="export-btn" onClick={() => {
                                                         const followups = memoizedFilteredVisits.filter(v => v && (v.nextAction || v.followUp));
                                                         handleExportVisits(followups);
@@ -4423,6 +4446,12 @@ const SalesPage = () => {
                                                 <h2>Resources</h2>
                                                 {activeResourceSubTab === 'client' && (
                                                     <div className="table-controls">
+                                                        <LocationFilter
+                                                            options={dashboardLocationOptions}
+                                                            value={dashboardLocation}
+                                                            onChange={handleDashboardLocationChange}
+                                                            user={currentUser}
+                                                        />
                                                         <button className="export-btn" onClick={handleExportResources}>
                                                             <Download size={18} /> Excel
                                                         </button>

@@ -676,28 +676,69 @@ body.light-theme-active .matrix-chip-color,
   transform: translateY(-2px);
 }
 
-/* ── PAGINATION ── */
-.xover-pagination-wrapper {
-  display: flex;
-  align-items: center;
-  margin-top: 0.75rem;
-  background: rgba(28, 28, 30, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  overflow: hidden;
+/* ── LIST CARD + PAGINATION ──
+   Desktop: the grid and the shared pager share one card, the pager its bottom
+   row with its own divider line — the Customer List's layout. The grid keeps
+   its own scrolling inside the card (sideways for the list, both ways for
+   the matrix, which has no pager on desktop), so the pager never slides with
+   it. 900px and under the grid becomes cards, so the list card has no box and
+   the pager gets one of its own. The pager keeps its shared padding. */
+@media (min-width: 901px) {
+  .xover-list-card {
+    background: rgba(28, 28, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  }
+
+  body.light-theme-active .xover-list-card,
+  .light-theme-active .xover-list-card {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+  }
+
+  /* The grid's own card look moves to the list card. !important because the
+     grid's rules (light theme especially) outrank a child selector. */
+  .xover-list-card > .xover-grid-wrapper {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
 }
 
-body.light-theme-active .xover-pagination-wrapper,
-.light-theme-active .xover-pagination-wrapper {
-  background: #ffffff;
-  border-color: #e2e8f0;
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+@media (max-width: 900px) {
+  .xover-pagination-wrapper {
+    margin-top: 0.75rem;
+    background: rgba(28, 28, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  body.light-theme-active .xover-pagination-wrapper,
+  .light-theme-active .xover-pagination-wrapper {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+  }
+
+  .xover-pagination-wrapper .spag-root {
+    border-top: none;
+  }
 }
 
-.xover-pagination-wrapper .spag-root {
-  background: transparent !important;
-  border-top: none !important;
-  padding: 0.55rem 0.9rem !important;
+/* The printed sheet has no card around it (the pager is .no-print). */
+@media print {
+  .xover-list-card {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
 }
 
 /* ── LOADING ── */

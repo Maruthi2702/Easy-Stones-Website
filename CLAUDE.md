@@ -120,8 +120,11 @@ Work Report's derive/save-payload rules (`src/routes/dailyReports.js`'s
 after the incident above, and the customer list's rules
 (`src/utils/customerList.js`: status labels, the ⚠ data-quality checks and
 the "Incomplete" query that must match them, saved views, A–Z, role-scoped
-filter options), and the shared pagination sizes/range math
-(`src/components/shared/paginationConfig.js`). Nothing else in the app has test coverage — no
+filter options), the shared pagination sizes/range math
+(`src/components/shared/paginationConfig.js`), and the location-filter rules
+every screen's location filter shares (`src/utils/locationFilter.js`: home
+location, which branch a filter opens on, remembered picks, and the server's
+home-location validation). Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 
 That means passing `npm test` only proves the math didn't regress; it says

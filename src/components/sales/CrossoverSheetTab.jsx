@@ -418,6 +418,9 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
         </div>
       </div>
 
+      {/* One card for the list and its pager — the pager is the card's bottom
+          row on desktop, like the Customer List's (see .xover-list-card). */}
+      <div className="xover-list-card">
       <div className={`xover-grid-wrapper desktop-only ${viewMode === 'matrix' ? 'is-matrix' : ''}`}>
         {loading ? (
           <div className="xover-loading">
@@ -631,6 +634,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }) => {
           />
         </div>
       )}
+      </div>
 
       <CrossoverSheetModal
         isOpen={isModalOpen}

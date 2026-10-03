@@ -24,6 +24,7 @@ import CustomerDrawer from './customerList/CustomerDrawer';
 import BulkBar from './customerList/BulkBar';
 import LogCallSheet from './customerList/LogCallSheet';
 import { canAddVisit } from '../../utils/visitAccess';
+import { useLocationsFilter } from '../shared/useLocationFilter';
 import { FilterDropdown } from './customerList/parts';
 import { useDismiss, copyText } from './customerList/uiHelpers';
 // Kept for the add/edit modal and the classes other sales screens share with it
@@ -135,7 +136,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const [filterCities, setFilterCities] = useState([]);
     const [filterStatuses, setFilterStatuses] = useState([]);
     const [filterSalesReps, setFilterSalesReps] = useState([]);
-    const [filterLocations, setFilterLocations] = useState([]);
+    // filterLocations is further down, once `scoped` says which locations are offered.
     const [filterModa, setFilterModa] = useState([]);
     const [view, setView] = useState('');
     const [letter, setLetter] = useState('');
@@ -252,6 +253,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     // What this person is offered in the Rep and Location filters (by the
     // Visits view rule) — not what they're allowed to see; the list isn't scoped.
     const scoped = useMemo(() => scopedFilterOptions({ user, salesReps, locations }), [user, salesReps, locations]);
+    // Opens with just their home location ticked ([] = every location), like
+    // every other location filter — see useLocationFilter.js.
+    const [filterLocations, setFilterLocations] = useLocationsFilter('customerList', user, scoped.locations);
     const repOptions = useMemo(() => [
         { group: null, options: [{ value: UNASSIGNED, label: 'Unassigned' }] },
         ...groupRepsByLocation(scoped.reps).map(g => ({
@@ -368,8 +372,10 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
     const handleTabChange = (tabKey) => {
         setActiveTab(tabKey);
         setSearchTerm(''); setDebouncedSearch('');
+        // Location is kept: it's which branch you're working in, not a
+        // filter on this tab's list.
         setFilterLevels([]); setFilterTypes([]); setFilterCities([]); setFilterStatuses([]);
-        setFilterSalesReps([]); setFilterLocations([]); setFilterModa([]);
+        setFilterSalesReps([]); setFilterModa([]);
         setView(''); setLetter('');
         setSelected(new Map());
         setOpenCustomer(null);

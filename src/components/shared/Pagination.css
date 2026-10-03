@@ -32,6 +32,9 @@
     padding: 10px 16px;
     border-top: 1px solid var(--spag-line);
     font-size: 13px;
+    /* Set here rather than inherited, so the pager's text sits the same on
+       every screen (the Check-In Log's root sets its own line-height). */
+    line-height: 1.4;
     color: var(--spag-muted);
     user-select: none;
 }
@@ -84,6 +87,7 @@ body.light-theme-active .spag-root {
     font-family: inherit;
     font-size: 13px;
     font-weight: 600;
+    line-height: inherit;
     font-variant-numeric: tabular-nums;
     color: var(--spag-text-2);
     cursor: pointer;

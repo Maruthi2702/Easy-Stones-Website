@@ -4,6 +4,7 @@ import SearchableSelect from '../SearchableSelect';
 import CustomSelect from '../shared/CustomSelect';
 import { formatForDateInput } from '../../utils/dateUtils';
 import { REASON_OPTIONS, getCustomerName } from '../../utils/lostSale';
+import { homeLocationOf } from '../../utils/locationFilter';
 
 /**
  * The one list of loss reasons. `id` is what gets stored, so it has to match
@@ -77,6 +78,11 @@ const LostSaleModal = ({
       return locName;
     }).filter(Boolean);
   }, [locationsList]);
+  // New entries start on the person's home location (Users & Roles).
+  const homeLocation = homeLocationOf(currentUser);
+  const newEntryLocation = locationOptions.includes(homeLocation)
+    ? homeLocation
+    : (locationOptions[0] || 'Seattle');
 
   // Declared above the effect that calls it. As a plain const below, the effect
   // closed over a binding that did not exist yet at that point in the module —
@@ -93,13 +99,12 @@ const LostSaleModal = ({
     setPricePerSf(12.5);
     setReason('Out of Stock');
 
-    const firstLoc = locationOptions.length > 0 ? locationOptions[0] : 'Seattle';
-    setLocation(firstLoc);
+    setLocation(newEntryLocation);
     setCompetitorName('');
     setNotes('');
     setDate(new Date().toISOString().split('T')[0]);
     setError('');
-  }, [locationOptions]);
+  }, [newEntryLocation]);
 
   useEffect(() => {
     if (initialData) {

@@ -414,7 +414,6 @@ body.light-theme-active .invan-search-box input,
 .invan-select-filter-wrap button {
   padding-left: 2.1rem;
 }
-
 /* ── DATA GRID ── */
 .invan-grid-wrapper {
   background: rgba(28, 28, 30, 0.95);
@@ -1045,8 +1044,33 @@ body.light-theme-active .invan-empty-state p,
   color: #64748b;
 }
 
-.invan-pagination-wrapper {
-  margin-top: 1rem;
+/* Stock Detail: the grid and the shared pager share one card, the pager its
+   bottom row with its own divider line — the Customer List's layout. The grid
+   keeps its sideways scroll inside the card, so the pager doesn't slide with
+   it. (Reorder Risk has no pager; its grid keeps its own card.) */
+.invan-list-card {
+  background: rgba(28, 28, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+body.light-theme-active .invan-list-card,
+.light-theme-active .invan-list-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+}
+
+/* The grid's own card look moves to the list card. !important because the
+   grid's rules (light theme especially) outrank a child selector. */
+.invan-list-card > .invan-grid-wrapper {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }
 
 /* Applied while a filter change is re-fetching but stale data is still on
@@ -1180,6 +1204,8 @@ body.light-theme-active .invan-card-stat-grid,
   .invan-filter-bar { flex-direction: column; align-items: stretch; }
   .invan-search-box { min-width: 100%; }
   .invan-select-filter-wrap { width: 100%; }
+  /* The round filter button keeps its size; it just ends the column. */
+  .invan-filter-bar .lf { align-self: flex-end; }
 
   .desktop-only { display: none !important; }
   .mobile-only { display: flex !important; }

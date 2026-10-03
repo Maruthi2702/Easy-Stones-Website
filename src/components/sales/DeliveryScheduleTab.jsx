@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search, AlertTriangle, MapPin, ArrowUpToLine, Link2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, Search, AlertTriangle, ArrowUpToLine, Link2 } from 'lucide-react';
 import BoardGrid from './delivery/BoardGrid';
 import { WILL_CALL_COLUMN_ID, defaultStatusFor } from '../../utils/deliveryTypes';
 import DriverView from './delivery/DriverView';
@@ -8,7 +8,9 @@ import PodModal from './delivery/PodModal';
 import PodViewer from './delivery/PodViewer';
 import PendingDeliveries from './delivery/PendingDeliveries';
 import CancelledOrders from './delivery/CancelledOrders';
-import CustomSelect from '../shared/CustomSelect';
+import LocationFilter from '../shared/LocationFilter';
+import { useLocationFilter } from '../shared/useLocationFilter';
+import { accessibleLocations } from '../../utils/locationFilter';
 import {
   saveDelivery,
   deleteDelivery,
@@ -19,6 +21,7 @@ import {
   getLocationScopedScheduleData,
   getScheduleCacheSync,
   subscribeScheduleCache,
+  subscribeScheduleChanges,
   getDeliveryById,
   isWeekCached,
   getCachedWeekDeliveries,
@@ -77,19 +80,17 @@ const DeliveryScheduleTab = ({
     if (currentUser) setRole(getUserRoleFromPermissions(currentUser));
   }, [currentUser]);
 
-  // '' means "All Locations" — the existing, unchanged default view. Only
-  // offered as a real choice to someone who can already reach more than one
-  // branch; picking one narrows the board to just that branch instead of
-  // every branch they're allowed to see mashed together on one board.
-  const [locationFilter, setLocationFilter] = useState('');
-  const filterableLocations = useMemo(() => {
-    const names = (locationsList || [])
-      .map(loc => (typeof loc === 'object' && loc ? (loc.name || loc.locationName || '') : String(loc || '')))
-      .filter(Boolean);
-    const userLocations = currentUser?.assignedLocations || [];
-    const scoped = userLocations.includes('*') ? names : names.filter(n => userLocations.includes(n));
-    return Array.from(new Set(scoped)).sort((a, b) => a.localeCompare(b));
-  }, [locationsList, currentUser]);
+  // '' means "All Locations" — the shared, cached board. Only offered as a
+  // real choice to someone who can already reach more than one branch, and
+  // opens on their home location (Users & Roles), so a manager sees their own
+  // branch's drivers rather than every branch mashed together on one board.
+  // Not for drivers: their view is their own stops, wherever those are.
+  const filterableLocations = useMemo(() => (
+    role === 'driver'
+      ? []
+      : accessibleLocations(currentUser, locationsList).sort((a, b) => a.localeCompare(b))
+  ), [locationsList, currentUser, role]);
+  const [locationFilter, setLocationFilter] = useLocationFilter('deliverySchedule', currentUser, filterableLocations);
 
   const [currentMonday, setCurrentMonday] = useState(() => getWeekMonday(new Date()));
   // Seven dates, Monday to Sunday. The fetch spans all of them so a weekend
@@ -172,7 +173,20 @@ const DeliveryScheduleTab = ({
     return updated;
   };
 
+  // Every load and background refresh takes a number; only the latest one may
+  // write to the board, so switching location or week mid-fetch can't have the
+  // slower, older response land on top of the view now on screen.
+  const dataReqRef = useRef(0);
+  // Which view the driver columns on screen were fetched for ('' = All). A
+  // background refresh skips the driver list to stay cheap — but when one
+  // lands first and supersedes the opening load (the socket connects while
+  // that load is still waiting on the users list), the load's drivers are
+  // discarded with it, and the board said "No drivers assigned" until reload.
+  // So a refresh fetches drivers too until this view's have actually landed.
+  const trucksViewRef = useRef(null);
+
   const loadData = useCallback(async (forceRefresh = false) => {
+    const reqId = ++dataReqRef.current;
     if (!isWeekCached(weekStart) || forceRefresh || locationFilter) {
       setLoading(true);
     }
@@ -180,52 +194,108 @@ const DeliveryScheduleTab = ({
       // A location filter bypasses the shared "All Locations" cache entirely
       // — see getLocationScopedScheduleData's own comment for why (so
       // switching it on/off can't corrupt the live cache every other
-      // consumer of this data relies on). It's a snapshot, not a live view;
-      // clearing the trailing live-update subscription's effect below is
-      // what keeps a stray delivery_update from silently overwriting it
-      // with the unfiltered set.
+      // consumer of this data relies on). It's kept live by refetching
+      // (refreshScoped below) rather than by the cache subscription, which
+      // would overwrite it with the unfiltered set.
       const data = locationFilter
         ? await getLocationScopedScheduleData(weekStart, weekEnd, locationFilter)
         : await getScheduleDataCached(currentUser, weekStart, weekEnd, forceRefresh);
+      if (reqId !== dataReqRef.current) return;
       setTrucks(data.trucks || []);
+      trucksViewRef.current = locationFilter;
       setDeliveries(data.deliveries || []);
       setPending(data.pending || []);
       setCancelled(data.cancelled || []);
       setLoadError(null);
     } catch (err) {
+      if (reqId !== dataReqRef.current) return;
       console.error('Error loading schedule data:', err);
       setLoadError("Couldn't load this week's schedule. Check your connection and refresh.");
     } finally {
-      setLoading(false);
+      if (reqId === dataReqRef.current) setLoading(false);
     }
   }, [currentUser, weekStart, weekEnd, locationFilter]);
+
+  // The narrowed board's live update: refetch the branch, quietly (no
+  // spinner). Drivers only when the driver list itself changed, or this
+  // branch's drivers haven't landed yet (see trucksViewRef).
+  const refreshScoped = useCallback(async ({ includeTrucks = false } = {}) => {
+    if (!locationFilter) return;
+    const reqId = ++dataReqRef.current;
+    const withTrucks = includeTrucks || trucksViewRef.current !== locationFilter;
+    try {
+      const data = await getLocationScopedScheduleData(weekStart, weekEnd, locationFilter, { includeTrucks: withTrucks });
+      if (reqId !== dataReqRef.current) return;
+      if (data.trucks) {
+        setTrucks(data.trucks);
+        trucksViewRef.current = locationFilter;
+      }
+      setDeliveries(data.deliveries);
+      setPending(data.pending);
+      setCancelled(data.cancelled);
+      setLoadError(null);
+    } catch (err) {
+      // What's on screen is still the last good fetch; the connection badge
+      // already says when updates aren't getting through.
+      console.warn('[schedule] location refresh failed:', err);
+    } finally {
+      if (reqId === dataReqRef.current) setLoading(false);
+    }
+  }, [weekStart, weekEnd, locationFilter]);
 
   useEffect(() => {
     loadData();
 
     // The shared cache only ever holds the unfiltered "All Locations" view —
-    // while a location filter is active, this board is showing a scoped
-    // snapshot instead (see loadData above), so an unrelated live update
-    // here must not overwrite it. Connection status is unrelated to which
-    // data is on screen, so that subscription stays active either way.
-    const unsubscribe = locationFilter ? null : subscribeScheduleCache(({ deliveries: newDeliveries, pending: newPending, cancelled: newCancelled, trucks: newTrucks }) => {
-      setDeliveries(newDeliveries);
-      setPending(newPending || []);
-      setCancelled(newCancelled || []);
-      if (newTrucks && newTrucks.length > 0) {
-        setTrucks(newTrucks);
-      }
-      // Data arriving means the connection recovered — clear the stale warning.
-      setLoadError(null);
-    });
+    // while a location filter is active, this board is showing its own
+    // fetch of one branch instead (see loadData above), so it must not take
+    // the cache's data. It still hears that something changed, and refetches
+    // its branch — batched, since one drag can fire several updates.
+    // Connection status is unrelated to which data is on screen, so that
+    // subscription stays active either way.
+    let refreshTimer = null;
+    let trucksChanged = false;
+    const unsubscribe = locationFilter
+      ? subscribeScheduleChanges(({ trucks: truckChange } = {}) => {
+        trucksChanged = trucksChanged || Boolean(truckChange);
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+          const includeTrucks = trucksChanged;
+          trucksChanged = false;
+          refreshScoped({ includeTrucks });
+        }, 400);
+      })
+      : subscribeScheduleCache(({ deliveries: newDeliveries, pending: newPending, cancelled: newCancelled, trucks: newTrucks }) => {
+        setDeliveries(newDeliveries);
+        setPending(newPending || []);
+        setCancelled(newCancelled || []);
+        if (newTrucks && newTrucks.length > 0) {
+          setTrucks(newTrucks);
+        }
+        // Data arriving means the connection recovered — clear the stale warning.
+        setLoadError(null);
+      });
 
     const unsubscribeConnection = subscribeScheduleConnection(({ status }) => setConnection(status));
 
     return () => {
-      unsubscribe?.();
+      unsubscribe();
+      clearTimeout(refreshTimer);
       unsubscribeConnection();
     };
-  }, [loadData, locationFilter]);
+  }, [loadData, refreshScoped, locationFilter]);
+
+  // Every save/move helper in deliverySchedule.js hands back the shared
+  // cache's week — every branch's tickets, or nothing if that cache was never
+  // loaded. Right for the All Locations board; a board narrowed to one branch
+  // refetches that branch instead.
+  const applyUpdatedList = useCallback(async (updatedList) => {
+    if (locationFilter) {
+      await refreshScoped();
+    } else if (Array.isArray(updatedList)) {
+      setDeliveries(updatedList);
+    }
+  }, [locationFilter, refreshScoped]);
 
   const handleRefresh = useCallback(async () => {
     const list = await refreshScheduleNow();
@@ -288,16 +358,14 @@ const DeliveryScheduleTab = ({
 
   const handleSaveDelivery = async (payload) => {
     const updatedList = await saveDelivery(payload);
-    if (updatedList && Array.isArray(updatedList)) {
-      setDeliveries(updatedList);
-    }
+    await applyUpdatedList(updatedList);
     // Don't null editingDelivery here — modal awaits this and calls onClose itself
     return updatedList;
   };
 
   const handleDeleteDelivery = async (id) => {
     const updatedList = await deleteDelivery(id);
-    setDeliveries(updatedList);
+    await applyUpdatedList(updatedList);
     setEditingDelivery(null);
   };
 
@@ -305,7 +373,7 @@ const DeliveryScheduleTab = ({
   // that silently does nothing is worse than one that says it didn't work.
   const handleUpdateStatus = async (id, newStatus) => {
     const updatedList = await updateDeliveryStatus(id, newStatus);
-    setDeliveries(updatedList);
+    await applyUpdatedList(updatedList);
     return updatedList;
   };
 
@@ -324,7 +392,7 @@ const DeliveryScheduleTab = ({
   const handleMoveDelivery = async (id, assignment) => {
     try {
       const updatedList = await updateDeliveryAssignment(id, assignment);
-      setDeliveries(updatedList);
+      await applyUpdatedList(updatedList);
       return updatedList;
     } catch (err) {
       reportMoveFailure(err);
@@ -337,7 +405,7 @@ const DeliveryScheduleTab = ({
   const handleReorderDeliveries = async (updates) => {
     try {
       const updatedList = await reorderDeliveries(updates);
-      setDeliveries(updatedList);
+      await applyUpdatedList(updatedList);
       return updatedList;
     } catch (err) {
       reportMoveFailure(err);
@@ -375,7 +443,7 @@ const DeliveryScheduleTab = ({
         // itself has no date requirement, only a real truck column does.
         date: delivery.date
       });
-      setDeliveries(updatedList);
+      await applyUpdatedList(updatedList);
       return updatedList;
     } catch (err) {
       reportMoveFailure(err);
@@ -390,7 +458,7 @@ const DeliveryScheduleTab = ({
   const handleMoveToCancelled = async (id) => {
     try {
       const updatedList = await updateDeliveryStatus(id, 'cancelled');
-      setDeliveries(updatedList);
+      await applyUpdatedList(updatedList);
       return updatedList;
     } catch (err) {
       reportMoveFailure(err);
@@ -446,19 +514,12 @@ const DeliveryScheduleTab = ({
 
         {/* Right: Search / New Ticket Action */}
         <div className="manifest-header-actions">
-          {filterableLocations.length > 1 && (
-            <div className="location-filter-wrap-header">
-              <MapPin size={14} className="location-filter-icon" />
-              <CustomSelect
-                value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
-                options={[
-                  { value: '', label: 'All Locations' },
-                  ...filterableLocations.map(loc => ({ value: loc, label: loc }))
-                ]}
-              />
-            </div>
-          )}
+          <LocationFilter
+            options={filterableLocations}
+            value={locationFilter}
+            onChange={setLocationFilter}
+            user={currentUser}
+          />
 
           {role === 'sales' && (
             <div className="search-box-wrap-header">

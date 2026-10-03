@@ -251,6 +251,15 @@
     box-shadow: var(--shadow-md);
 }
 
+/* The shared pager as the section card's bottom row, edge to edge with its
+   divider line, the way the Customer List's pager ends its table card —
+   pulled out through the card's 1.5rem padding rather than sitting inset
+   inside it. */
+.visits-table-section > .spag-root {
+    width: calc(100% + 3rem);
+    margin: 1.5rem -1.5rem -1.5rem;
+}
+
 .section-header {
     display: flex;
     justify-content: space-between;

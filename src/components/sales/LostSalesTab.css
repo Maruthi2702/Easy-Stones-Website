@@ -405,29 +405,58 @@ body.light-theme-active .select-filter-wrap select option,
   color: #0f172a;
 }
 
-/* ── PAGINATION WRAPPER ──
-   Reads as the footer of the grid above it rather than a loose grey slab. */
-.lost-sales-pagination-wrapper {
-  display: flex;
-  align-items: center;
-  margin-top: 0.75rem;
-  background: rgba(28, 28, 30, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  overflow: hidden;
+/* ── LIST CARD + PAGINATION ──
+   Desktop: the grid and the shared pager share one card, the pager its bottom
+   row with its own divider line — the Customer List's layout. The grid keeps
+   its sideways scroll inside the card, so the pager doesn't slide with it.
+   900px and under the grid becomes cards, so the list card has no box and the
+   pager gets one of its own. The pager keeps its shared padding either way. */
+@media (min-width: 901px) {
+  .lost-sales-list-card {
+    background: rgba(28, 28, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  }
+
+  body.light-theme-active .lost-sales-list-card,
+  .light-theme-active .lost-sales-list-card {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+  }
+
+  /* The grid's own card look moves to the list card. !important because the
+     grid's rules (light theme especially) outrank a child selector. */
+  .lost-sales-list-card > .lost-sales-grid-wrapper {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
 }
 
-body.light-theme-active .lost-sales-pagination-wrapper,
-.light-theme-active .lost-sales-pagination-wrapper {
-  background: #ffffff;
-  border-color: #e2e8f0;
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
-}
+@media (max-width: 900px) {
+  .lost-sales-pagination-wrapper {
+    margin-top: 0.75rem;
+    background: rgba(28, 28, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    overflow: hidden;
+  }
 
-.lost-sales-pagination-wrapper .spag-root {
-  background: transparent !important;
-  border-top: none !important;
-  padding: 0.55rem 0.9rem !important;
+  body.light-theme-active .lost-sales-pagination-wrapper,
+  .light-theme-active .lost-sales-pagination-wrapper {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+  }
+
+  .lost-sales-pagination-wrapper .spag-root {
+    border-top: none;
+  }
 }
 
 /* ── HIGH DENSITY DATA GRID ── */
