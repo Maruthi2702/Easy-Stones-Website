@@ -16,10 +16,7 @@ agreed template, built from design **A · One clear form** on the
 
 **Add User** and **Edit User** (`src/components/sales/users/`) are on it, on
 both Sales CRM → Users & Roles and the /admin page. **Add / Edit location**
-(`src/components/sales/locations/LocationForm.jsx`, size L) is on it too. On
-phones that form puts Cancel and the main button on one row (`FormModal`'s
-opt-in `phoneFooterRow`, the owner's call on 2026-10-04); every other form
-keeps the stacked footer below unless that's made the rule. Move the other forms over **one at a time** and check each one by hand.
+(`src/components/sales/locations/LocationForm.jsx`, size L) is on it too. Move the other forms over **one at a time** and check each one by hand.
 This is a live app, and `CLAUDE.md`'s shared-component rule applies,
 especially to dropdowns inside a modal (see the CustomSelect z-index
 incident). Use `FormPicker` for new dropdowns: it opens in the flow of the
@@ -51,8 +48,12 @@ painted over.
 | L | 960px | Delivery |
 
 **Phone** (below 640px): the form fills the screen and fields stack in one
-column. The main button spans the full width, is 50px tall, and is pinned to
-the bottom, with Cancel as a text link under it. Inputs grow to 46px with
+column. The footer is pinned to the bottom with **Cancel and the main button
+side by side on one row**, both 50px tall, the main button twice as wide
+(decided 2026-10-04, replacing a full-width button with Cancel as a text link
+under it). An edit form's Deactivate/Delete sits on its own line above them,
+the "Last changed by" note below; a form with no Cancel (a lone Done) gives
+the main button the whole row. Inputs grow to 46px with
 **16px text**. On iPhone, text smaller than 16px makes Safari zoom the page
 every time a field is tapped.
 

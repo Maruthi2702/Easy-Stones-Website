@@ -24,9 +24,6 @@ import './LocationForm.css';
  * locations can be an RDC — are src/utils/locationForm.js, which the server
  * runs too. The short name is locked on edit: it's the key on users,
  * check-ins and reports, so renaming would orphan them.
- *
- * On phones Cancel and the main button share a row (phoneFooterRow) — the
- * owner's call for this form; other forms keep the template's stacked footer.
  */
 
 // Input clean-up as you type: the stored formats, so what's on screen is
@@ -244,7 +241,6 @@ export default function LocationForm({ location = null, locations = [], onClose,
             footerNote={formError
                 ? <span className="fm-error" role="alert"><AlertCircle size={13} aria-hidden="true" />{formError}</span>
                 : (isEdit ? lastChangedText(location) : null)}
-            phoneFooterRow
         >
             <FormSection number={1} title="Which location is it?">
                 <FormRow>

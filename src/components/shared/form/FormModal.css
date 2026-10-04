@@ -552,30 +552,27 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
     .fm-input { height: 46px; font-size: 16px; }
     .fm-picker-trigger { min-height: 46px; }
     .fm-opt-label { font-size: 15px; }
-    /* Kept short so the form keeps most of the screen: the main button,
-       then Cancel (and an edit form's Deactivate) on one line, then the note. */
+    /* Kept short so the form keeps most of the screen: Cancel and the main
+       button side by side on one row (owner's call, 2026-10-04), an edit
+       form's Deactivate/Delete on the line above, the note below. */
     .fm-footer {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        grid-template-areas: "primary primary" "start cancel" "note note";
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+        grid-template-areas: "start start" "cancel primary" "note note";
         align-items: center;
         gap: 4px 8px;
         padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
     }
-    .fm-footer:not(:has(.fm-footer-start)) { grid-template-areas: "primary primary" "cancel cancel" "note note"; }
+    .fm-footer:not(:has(.fm-footer-start)) { grid-template-areas: "cancel primary" "note note"; }
+    /* No Cancel (a confirmation's lone Done): the main button takes the row. */
+    .fm-footer:not(:has(.fm-btn-cancel)) { grid-template-areas: "start start" "primary primary" "note note"; }
+    .fm-footer:not(:has(.fm-footer-start)):not(:has(.fm-btn-cancel)) { grid-template-areas: "primary primary" "note note"; }
     .fm-footer .fm-btn-primary { grid-area: primary; height: 50px; font-size: 16px; width: 100%; }
-    .fm-footer .fm-btn-cancel { grid-area: cancel; justify-self: center; border-color: transparent; background: transparent; color: var(--fm-mut); height: 40px; }
-    .fm-footer:has(.fm-footer-start) .fm-btn-cancel { justify-self: end; }
+    .fm-footer .fm-btn-cancel { grid-area: cancel; height: 50px; font-size: 16px; width: 100%; }
     .fm-footer-start { grid-area: start; justify-self: start; }
     .fm-footer-start .fm-btn { height: 40px; padding: 0 4px; }
     .fm-footer-note { grid-area: note; text-align: center; font-size: 12px; }
     .fm-footer-note:empty { display: none; }
-    /* phoneFooterRow (opt-in): Cancel and the main button on one row, Cancel
-       a full outlined button rather than a text link. Forms that don't ask
-       for it keep the stacked footer above. */
-    .fm-footer.fm-footer-row { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); grid-template-areas: "start start" "cancel primary" "note note"; }
-    .fm-footer.fm-footer-row:not(:has(.fm-footer-start)) { grid-template-areas: "cancel primary" "note note"; }
-    .fm-footer.fm-footer-row .fm-btn-cancel { justify-self: stretch; height: 50px; font-size: 16px; border-color: var(--fm-bd); background: transparent; color: var(--fm-tx); }
 }
 
 @media (prefers-reduced-motion: reduce) {
