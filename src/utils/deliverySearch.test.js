@@ -1,18 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isDriverRole, normalizeSearchTerm, buildDeliverySearchFilter, sortSearchResults,
+  normalizeSearchTerm, buildDeliverySearchFilter, sortSearchResults,
   longDateLabel, describeSearchResult
 } from './deliverySearch.js';
-
-describe('isDriverRole', () => {
-  it('blocks drivers and logistics, case-insensitively', () => {
-    expect(isDriverRole('driver')).toBe(true);
-    expect(isDriverRole('Logistics')).toBe(true);
-    expect(isDriverRole('sales_rep')).toBe(false);
-    expect(isDriverRole('admin')).toBe(false);
-    expect(isDriverRole(undefined)).toBe(false);
-  });
-});
 
 describe('normalizeSearchTerm', () => {
   it('pulls the bare number out of SO#-style input', () => {

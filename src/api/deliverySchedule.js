@@ -550,10 +550,11 @@ async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocat
     const payload = await res.json();
     const allUsers = payload.data || payload || [];
 
-    // Filter to driver/logistics role users only
-    let drivers = allUsers.filter(u =>
-      u.role === 'driver' || u.role === 'logistics'
-    );
+    // The truck columns: users whose role has Users & Roles → Delivery
+    // Schedule → Driver view — the same switch that gives them the driver
+    // screen (src/utils/deliveryAccess.js). /api/salesreps works it out per
+    // user. It used to be users whose role was named driver or logistics.
+    let drivers = allUsers.filter(u => u.isDeliveryDriver === true);
 
     // Filter to users assigned to the current user's location
     if (userLocation || userAssignedLocations.length > 0) {

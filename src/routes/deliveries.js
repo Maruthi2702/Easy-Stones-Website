@@ -17,9 +17,10 @@ import {
 } from '../utils/deliveryPickup.js';
 import { DELIVERY_TYPES, isReturn, defaultStatusFor, isPendingDelivery, showOnArrivalDay, transferArrivalFor } from '../utils/deliveryTypes.js';
 import {
-  isDriverRole, buildDeliverySearchFilter, sortSearchResults,
+  buildDeliverySearchFilter, sortSearchResults,
   SEARCH_RESULT_LIMIT, SEARCH_SCAN_LIMIT
 } from '../utils/deliverySearch.js';
+import { isDeliveryDriver } from '../utils/deliveryAccess.js';
 
 /**
  * Delivery Schedule + Truck API.
@@ -576,7 +577,8 @@ export default function createDeliveriesRouter({
   // src/utils/deliverySearch.js, shared with the search box.
   router.get('/deliveries/search', authenticate, canViewDeliveries, async (req, res) => {
     try {
-      if (isDriverRole(req.user?.role)) {
+      // Drivers (Users & Roles → Delivery Schedule → Driver view) don't search.
+      if (isDeliveryDriver(req.user)) {
         return res.status(403).json({ error: 'Order search is not available for drivers' });
       }
       const filter = buildDeliverySearchFilter(req.query.q, req.user?.assignedLocations);

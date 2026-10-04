@@ -55,8 +55,9 @@ ticket opened, sales gets the Pending/Cancelled list scrolled into view.
 The rules — who may search, what matches, the branch scope, the result
 wording — live in `src/utils/deliverySearch.js`, shared by the route and the
 box. Two deliberate differences from the board:
-- **Drivers are refused** server-side (role `driver`/`logistics`), not just
-  hidden in the UI.
+- **Drivers are refused** server-side — anyone whose role has Users &
+  Roles → Delivery Schedule → **Driver view** (`isDeliveryDriver`,
+  `src/utils/deliveryAccess.js`) — not just hidden in the UI.
 - **Only the user's own `assignedLocations`** (plus transfers heading to
   them). The board's `scopeDeliveryQueryToLocations` also shows tickets with
   no location at all; search does not. Admins/directors (`'*'`) see every
@@ -123,6 +124,11 @@ comment for the exact contract.
 **Permission model**, since it's easy to get backwards:
 - `view_delivery_schedule` — read-only, held by all six staff roles.
 - `edit_delivery_schedule` — the real "can dispatch" permission.
+- `delivery_driver_view` — "Driver view": the user gets the driver screen
+  (only their own stops) and no order search. Which screen anyone gets —
+  driver, office board or read-only board — comes from these permissions
+  alone (`deliveryViewMode`, `src/utils/deliveryAccess.js`, Driver view →
+  Edit → View), never from the role's name.
 - `delete_delivery_schedule` — separate again; admin/director/manager only
   by default.
 - A driver's app calls exactly two write routes — `POST /api/deliveries`

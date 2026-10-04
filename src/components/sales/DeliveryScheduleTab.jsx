@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, RefreshCw, AlertTriangle, ArrowUpToLine, Link2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, AlertTriangle, ArrowUpToLine, Link2, Search, X } from 'lucide-react';
 import BoardGrid from './delivery/BoardGrid';
 import { WILL_CALL_COLUMN_ID, defaultStatusFor } from '../../utils/deliveryTypes';
 import DriverView from './delivery/DriverView';
@@ -38,29 +38,15 @@ import {
 } from '../../utils/deliveryWeek';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
+import { deliveryViewMode } from '../../utils/deliveryAccess';
 import './DeliveryScheduleTab.css';
 
 // getWeekMonday / getWeekDates / formatWeekRangeText now live in
 // utils/deliveryWeek.js, alongside the rules about which days a week shows.
 
-const getUserRoleFromPermissions = (user) => {
-  if (!user) return 'office';
-  const roleName = user.role?.toLowerCase() || '';
-  const perms = user.permissions || [];
-
-  if (roleName === 'driver' || roleName === 'logistics') return 'driver';
-
-  if (
-    roleName === 'admin' ||
-    roleName === 'manager' ||
-    perms.includes('edit_delivery_schedule') ||
-    perms.includes('manage_users')
-  ) return 'office';
-
-  if (roleName === 'sales_rep' || perms.includes('view_delivery_schedule')) return 'sales';
-
-  return 'office';
-};
+// Which screen this person gets — driver, office board or read-only board —
+// comes from their role's Delivery Schedule permissions in Users & Roles
+// (deliveryViewMode in src/utils/deliveryAccess.js), not the role's name.
 
 const ROLE_SUBTITLES = {
   office: 'Office · full edit access',
@@ -75,11 +61,7 @@ const DeliveryScheduleTab = ({
   locationsList = ['Seattle', 'Spokane', 'Salt Lake City'],
   sidebarToggle = null
 }) => {
-  const [role, setRole] = useState(() => getUserRoleFromPermissions(currentUser));
-
-  useEffect(() => {
-    if (currentUser) setRole(getUserRoleFromPermissions(currentUser));
-  }, [currentUser]);
+  const role = deliveryViewMode(currentUser);
 
   // '' means "All Locations" — the shared, cached board. Only offered as a
   // real choice to someone who can already reach more than one branch, and
@@ -534,33 +516,77 @@ const DeliveryScheduleTab = ({
           <span className="week-range-label-text">{weekRangeText}</span>
         </div>
 
-        {/* Order search — every date, the user's own branches only. Also
-            still filters the week on screen, as the old sales-only box did.
-            Drivers don't get it (the server refuses them too). */}
-        {role !== 'driver' && (
-          <DeliveryOrderSearch
-            value={searchQuery}
-            onChange={setSearchQuery}
-            onSelect={handleOrderSearchSelect}
-            onViewPod={handleOpenPodViewer}
-            trucks={trucks}
-            viewerLocations={currentUser?.assignedLocations || []}
-          />
-        )}
-
-        {/* Right: Location filter / New Ticket Action */}
+        {/* Right: Filters (order search + location) / New Ticket Action */}
         <div className="manifest-header-actions">
-          <LocationFilter
-            options={filterableLocations}
-            value={locationFilter}
-            onChange={setLocationFilter}
-            user={currentUser}
-          />
+          {/* While the panel is shut, a search still filtering the board says
+              so here — otherwise rows would vanish with no visible reason. */}
+          {role !== 'driver' && searchQuery.trim() && (
+            <button
+              type="button"
+              className="delivery-search-chip"
+              onClick={() => setSearchQuery('')}
+              title="Clear search"
+              aria-label={`Clear search "${searchQuery.trim()}"`}
+            >
+              <Search size={13} aria-hidden="true" />
+              <span className="delivery-search-chip-text">{searchQuery.trim()}</span>
+              <X size={13} aria-hidden="true" />
+            </button>
+          )}
+
+          {/* Order search lives in the Filters panel, above Location — every
+              date, the user's own branches only, and it still filters the week
+              on screen. Drivers don't get it (the server refuses them too), so
+              theirs is the plain location filter. Picking a result shuts the
+              panel before jumping to the order. */}
+          {role !== 'driver' ? (
+            <LocationFilter
+              options={filterableLocations}
+              value={locationFilter}
+              onChange={setLocationFilter}
+              user={currentUser}
+              label="Search & filters"
+              wide
+              active={Boolean(searchQuery.trim())}
+              onClear={() => setSearchQuery('')}
+            >
+              {({ close }) => (
+                <div className="lf-group">
+                  <span className="lf-group-label">Search orders</span>
+                  <DeliveryOrderSearch
+                    inline
+                    autoFocus
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    onSelect={(result, info) => { close(); handleOrderSearchSelect(result, info); }}
+                    onViewPod={(delivery) => { close(); handleOpenPodViewer(delivery); }}
+                    trucks={trucks}
+                    viewerLocations={currentUser?.assignedLocations || []}
+                  />
+                </div>
+              )}
+            </LocationFilter>
+          ) : (
+            <LocationFilter
+              options={filterableLocations}
+              value={locationFilter}
+              onChange={setLocationFilter}
+              user={currentUser}
+            />
+          )}
 
           {role === 'office' && (
-            <button type="button" className="btn-add-delivery gold-glow-btn" onClick={() => handleOpenAddModal()}>
+            <button
+              type="button"
+              className="btn-add-delivery gold-glow-btn"
+              onClick={() => handleOpenAddModal()}
+              aria-label="Add delivery"
+              title="Add delivery"
+            >
               <Plus size={16} />
-              <span>Add Delivery</span>
+              {/* "Delivery" drops on small phones so the header row fits
+                  beside the title (DeliveryScheduleTab.css). */}
+              <span>Add<span className="btn-add-delivery-word"> Delivery</span></span>
             </button>
           )}
         </div>

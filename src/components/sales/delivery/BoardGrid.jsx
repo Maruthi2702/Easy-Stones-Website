@@ -487,7 +487,7 @@ const BoardGrid = ({
           <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
         </svg>
         <h3>No drivers assigned to this location</h3>
-        <p>Add users with the <strong>Driver</strong> role in <strong>Users &amp; Roles</strong> and assign them to this location.</p>
+        <p>Give a role <strong>Driver view</strong> under <strong>Users &amp; Roles → Delivery Schedule</strong>, then assign its users to this location.</p>
       </div>
     );
   }

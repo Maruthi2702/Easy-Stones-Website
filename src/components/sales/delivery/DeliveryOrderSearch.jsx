@@ -16,6 +16,11 @@ import './DeliveryOrderSearch.css';
  * Picking a result calls `onSelect(result, info)`; the parent decides what
  * that means for the viewer's role (jump to its week, open the ticket).
  * Rules for who can search and what matches: src/utils/deliverySearch.js.
+ *
+ * `inline` is for when it lives inside the header's Filters panel
+ * (LocationFilter): the results list flows under the box at the panel's own
+ * width instead of floating over the page, and `autoFocus` puts the cursor in
+ * the box as the panel opens.
  */
 const DEBOUNCE_MS = 300;
 
@@ -37,7 +42,7 @@ const signedTime = (r) => {
   return Number.isNaN(t.getTime()) ? '' : t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
 
-const DeliveryOrderSearch = ({ value, onChange, onSelect, onViewPod, trucks = [], viewerLocations = [] }) => {
+const DeliveryOrderSearch = ({ value, onChange, onSelect, onViewPod, trucks = [], viewerLocations = [], inline = false, autoFocus = false }) => {
   const [open, setOpen] = useState(false);
   // The last answer from the server, tagged with the text it answered.
   const [answer, setAnswer] = useState({ query: '', error: false, results: [], total: 0, more: false });
@@ -112,11 +117,12 @@ const DeliveryOrderSearch = ({ value, onChange, onSelect, onViewPod, trucks = []
   const showPanel = open && searchable;
 
   return (
-    <div className="order-search" ref={rootRef}>
+    <div className={`order-search${inline ? ' order-search--inline' : ''}`} ref={rootRef}>
       <div className="order-search-box">
         <Search size={15} className="order-search-icon" aria-hidden="true" />
         <input
           ref={inputRef}
+          autoFocus={autoFocus}
           type="text"
           value={value}
           onChange={(e) => { onChange(e.target.value); setOpen(true); }}

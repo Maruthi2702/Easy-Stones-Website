@@ -22,11 +22,10 @@ export const SEARCH_RESULT_LIMIT = 25;
 // by its long delivery history.
 export const SEARCH_SCAN_LIMIT = 200;
 
-/** Drivers don't get search — same role names the board treats as a driver. */
-export const isDriverRole = (role) => {
-  const r = String(role || '').toLowerCase();
-  return r === 'driver' || r === 'logistics';
-};
+// Who may search: not drivers — anyone whose role has Delivery Schedule →
+// Driver view (isDeliveryDriver in deliveryAccess.js), the same switch that
+// gives them the driver screen. It used to go by the role being named
+// "driver" or "logistics".
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

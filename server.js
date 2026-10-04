@@ -641,7 +641,7 @@ async function startServer() {
           name: 'driver',
           displayName: 'Driver / Logistics',
           permissions: [
-            'view_delivery_schedule'
+            'view_delivery_schedule', 'delivery_driver_view'
           ],
           isSystem: true
         }
@@ -709,7 +709,12 @@ async function startServer() {
         // Delete split out from edit, so a role can correct visits without
         // being able to remove them. Defaults match what edit allowed before.
         { roles: ['admin', 'director'], permissions: ['delete_all_visits'] },
-        { roles: ['manager'], permissions: ['delete_branch_visits'] }
+        { roles: ['manager'], permissions: ['delete_branch_visits'] },
+        // Which Delivery Schedule screen someone gets was decided by role name
+        // (driver/logistics → driver screen, admin/manager → office board).
+        // It's now permissions only (src/utils/deliveryAccess.js), with Driver
+        // view as its own switch; this keeps today's drivers on their screen.
+        { roles: ['driver', 'logistics'], permissions: ['delivery_driver_view'] }
       ];
 
       // Each grant reaches a role once. Its permissions are recorded in
@@ -772,35 +777,11 @@ async function startServer() {
         console.log(`🧹 Removed orphaned permission 'manage_delivery_schedule' from role '${role.name}'`);
       }
 
-      // Seed default driver account if no driver user exists yet
-      const existingDriver = await User.findOne({ role: 'driver' });
-      if (!existingDriver) {
-        const defaultDriver = new User({
-          username: 'driver',
-          password: 'driver123',
-          email: 'driver@easystones.com',
-          role: 'driver',
-          location: 'Seattle',
-          assignedLocations: ['*']
-        });
-        await defaultDriver.save();
-        console.log('🚚 Seeded default driver account: username "driver", password "driver123"');
-      }
-
-      // Seed driver account for Sergio
-      const existingSergio = await User.findOne({ username: 'sergio' });
-      if (!existingSergio) {
-        const sergioUser = new User({
-          username: 'sergio',
-          password: 'sergio123',
-          email: 'sergio@easystones.com',
-          role: 'driver',
-          location: 'Seattle',
-          assignedLocations: ['*']
-        });
-        await sergioUser.save();
-        console.log('🚚 Seeded driver account for Sergio: username "sergio", password "sergio123"');
-      }
+      // Driver accounts used to be re-created here on every start-up when
+      // missing — username "driver" and "sergio" with passwords written in this
+      // file. Anyone who read the source could sign in as them, and deleting
+      // either account brought it straight back. Staff accounts are created in
+      // Users & Roles, with their own passwords, like every other user.
     } catch (seedRoleErr) {
       console.error('Error seeding roles:', seedRoleErr);
     }
@@ -1621,6 +1602,7 @@ app.post('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), asy
     });
 
     await newRole.save();
+    bustUserCaches(); // see the role update route below
     res.status(201).json({ message: 'Role created successfully', role: newRole });
   } catch (error) {
     res.status(500).json({ message: 'Failed to create role', error: error.message });
@@ -1642,6 +1624,9 @@ app.put('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), 
     if (displayName !== undefined) role.displayName = displayName;
 
     await role.save();
+    // A role's permissions decide who counts as a delivery driver in the
+    // staff list (/api/salesreps), so it can't serve a stale copy.
+    bustUserCaches();
     res.json({ message: 'Role updated successfully', role });
   } catch (error) {
     res.status(500).json({ message: 'Failed to update role', error: error.message });
@@ -1662,6 +1647,9 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'
     }
 
     await Role.findByIdAndDelete(roleId);
+    // A role's permissions decide who counts as a delivery driver in the
+    // staff list (/api/salesreps), so it can't serve a stale copy.
+    bustUserCaches();
     res.json({ message: 'Role deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to delete role', error: error.message });
@@ -2968,7 +2956,14 @@ app.get('/api/salesreps', authenticate, async (req, res) => {
     const cached = cacheHit('salesreps');
     if (cached) return res.json(cached);
 
-    const users = await User.find({}, 'username displayName email role location assignedLocations');
+    const [users, driverRoles] = await Promise.all([
+      User.find({}, 'username displayName email role location assignedLocations'),
+      // Roles with Delivery Schedule → Driver view: their users are the truck
+      // columns on the delivery board (src/api/deliverySchedule.js). Sent as a
+      // flag per user rather than every user's permission list.
+      Role.find({ permissions: 'delivery_driver_view' }, 'name').lean()
+    ]);
+    const driverRoleNames = new Set(driverRoles.map(r => r.name));
     const formattedUsers = users.map(user => ({
       // Consumers that store a reference to a person — the customer's owning
       // rep, for one — need the id, not just the name.
@@ -2979,7 +2974,8 @@ app.get('/api/salesreps', authenticate, async (req, res) => {
       email: user.email,
       role: user.role,
       location: user.location,
-      assignedLocations: user.assignedLocations || []
+      assignedLocations: user.assignedLocations || [],
+      isDeliveryDriver: driverRoleNames.has(user.role)
     }));
     res.json(cachePut('salesreps', { success: true, data: formattedUsers }));
   } catch (error) {

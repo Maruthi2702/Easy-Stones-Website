@@ -20,12 +20,22 @@ import './LocationFilter.css';
  *
  * A screen whose Filters panel already exists (the Check-In Log) puts
  * <LocationField> inside its own panel instead of adding a second button.
+ *
+ * A screen with more to filter by than location (the Delivery Schedule's
+ * order search) passes it as `children` — a node, or a function given
+ * `{ close }` so a pick can shut the panel. It renders above the Location
+ * field, the button shows even when there's only one location to offer (the
+ * extra field still needs a home), `active` lights the button's dot for it,
+ * `onClear` runs alongside the location reset, and `wide` gives the panel
+ * room for them. Without these props the filter is exactly as before.
  * The field is a native <select>, not CustomSelect: CustomSelect portals its
  * menu to <body>, so picking from it inside a panel reads as a click outside
  * and closes the panel mid-choice.
  */
 
 const PANEL_WIDTH = 300;
+// A panel with extra fields in it (`wide`, sized by .lf-pop--wide).
+const WIDE_PANEL_WIDTH = 380;
 const EDGE = 16; // the page gutter the panel keeps clear of
 
 export const LocationField = ({
@@ -86,7 +96,12 @@ const LocationFilter = ({
   user = null,
   multiple = false,
   allLabel = 'All locations',
-  className = ''
+  className = '',
+  children = null,
+  active = false,
+  onClear,
+  wide = false,
+  label = 'Filters'
 }) => {
   const [open, setOpen] = useState(false);
   // Where the panel sits, in px from the button's left edge: lined up with
@@ -98,7 +113,9 @@ const LocationFilter = ({
   useEffect(() => {
     if (!open) return undefined;
     const onDown = (e) => { if (!rootRef.current?.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    // A field inside the panel that used Escape itself (closing its own
+    // results list) marks it handled; only an unhandled Escape shuts the panel.
+    const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) setOpen(false); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('touchstart', onDown);
     document.addEventListener('keydown', onKey);
@@ -110,16 +127,21 @@ const LocationFilter = ({
   }, [open]);
 
   const names = locationNames(options);
-  if (names.length < 2) return null;
+  const hasExtra = children != null;
+  const showLocation = names.length >= 2;
+  if (!showLocation && !hasExtra) return null;
 
   const picked = multiple ? (Array.isArray(value) ? value : []) : (typeof value === 'string' ? value : ALL_LOCATIONS);
   const isAll = multiple ? picked.length === 0 : !picked;
   const summary = isAll ? allLabel : (multiple ? picked.join(', ') : picked);
+  const lit = (showLocation && !isAll) || active;
+  const buttonLabel = showLocation ? `${label}, location: ${summary}` : label;
+  const close = () => setOpen(false);
 
   const toggleOpen = () => {
     const rect = rootRef.current?.getBoundingClientRect();
     if (!open && rect) {
-      const width = Math.min(PANEL_WIDTH, window.innerWidth - 2 * EDGE);
+      const width = Math.min(wide ? WIDE_PANEL_WIDTH : PANEL_WIDTH, window.innerWidth - 2 * EDGE);
       const left = Math.max(EDGE, Math.min(rect.right - width, window.innerWidth - width - EDGE));
       setPanelLeft(left - rect.left);
     }
@@ -130,38 +152,52 @@ const LocationFilter = ({
     <div className={`lf ${className}`} ref={rootRef}>
       <button
         type="button"
-        className={`lf-btn${isAll ? '' : ' is-active'}`}
+        className={`lf-btn${lit ? ' is-active' : ''}`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        title={`Filters — location: ${summary}`}
-        aria-label={`Filters, location: ${summary}`}
+        title={showLocation ? `${label} — location: ${summary}` : label}
+        aria-label={buttonLabel}
         onClick={toggleOpen}
       >
         <Filter size={14} aria-hidden="true" />
-        {!isAll && <span className="lf-dot" aria-hidden="true" />}
+        {lit && <span className="lf-dot" aria-hidden="true" />}
       </button>
 
       {open && (
-        <div className="lf-pop" style={{ left: panelLeft }} role="dialog" aria-label="Filters">
+        <div className={`lf-pop${wide ? ' lf-pop--wide' : ''}`} style={{ left: panelLeft }} role="dialog" aria-label={label}>
           <div className="lf-pop-head">
-            <span>Filters</span>
-            <button type="button" className="lf-pop-close" onClick={() => setOpen(false)} aria-label="Close filters">
+            <span>{label}</span>
+            <button type="button" className="lf-pop-close" onClick={close} aria-label={`Close ${label.toLowerCase()}`}>
               <X size={14} />
             </button>
           </div>
-          <LocationField
-            options={names}
-            value={picked}
-            onChange={onChange}
-            user={user}
-            multiple={multiple}
-            allLabel={allLabel}
-          />
+          {hasExtra && (
+            <div className="lf-extra">
+              {typeof children === 'function' ? children({ close }) : children}
+            </div>
+          )}
+          {showLocation && (
+            <LocationField
+              options={names}
+              value={picked}
+              onChange={onChange}
+              user={user}
+              multiple={multiple}
+              allLabel={allLabel}
+            />
+          )}
           <div className="lf-pop-foot">
-            <button type="button" className="lf-clear" onClick={() => onChange?.(multiple ? [] : ALL_LOCATIONS)}>
+            <button
+              type="button"
+              className="lf-clear"
+              onClick={() => {
+                if (showLocation) onChange?.(multiple ? [] : ALL_LOCATIONS);
+                onClear?.();
+              }}
+            >
               Clear Filter
             </button>
-            <button type="button" className="lf-done" onClick={() => setOpen(false)}>
+            <button type="button" className="lf-done" onClick={close}>
               Close
             </button>
           </div>

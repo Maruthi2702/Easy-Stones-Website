@@ -77,6 +77,19 @@
   animation: lf-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* A panel with more than the Location field in it (LocationFilter's
+   `wide`) — the Delivery Schedule puts its order search here, and
+   the search's results list needs the room. Keep in step with
+   WIDE_PANEL_WIDTH in LocationFilter.jsx, which places the panel. */
+.lf-pop.lf-pop--wide {
+  width: 380px;
+}
+
+/* Extra fields sit above the Location field with the same spacing as one. */
+.lf-pop > .lf-extra + .lf-group {
+  margin-top: 1rem;
+}
+
 @keyframes lf-pop {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }

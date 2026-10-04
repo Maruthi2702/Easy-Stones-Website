@@ -121,7 +121,9 @@ const PAGE_PERMISSIONS = [
         color: '#3b82f6',
         actions: [
             { key: 'view_delivery_schedule', label: 'View', icon: Eye, desc: 'View delivery schedules and routes' },
-            { key: 'edit_delivery_schedule', label: 'Edit', icon: Pencil, desc: 'Schedule and edit delivery jobs' },
+            { key: 'edit_delivery_schedule', label: 'Edit', icon: Pencil, desc: 'Schedule and edit delivery jobs — opens the full dispatch board (without it, the board is read-only)' },
+            // Decides the screen, not just a button: src/utils/deliveryAccess.js.
+            { key: 'delivery_driver_view', label: 'Driver view', icon: Truck, desc: 'Show only this user’s own stops, on the driver screen (no order search). Overrides Edit' },
             { key: 'delete_delivery_schedule', label: 'Delete', icon: Trash2, desc: 'Permanently delete delivery jobs (no undo)' },
             // Separate from Delete on purpose: voiding a proof the wrong customer
             // signed is a different level of trust from removing the job itself.
@@ -475,6 +477,8 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
 
             // Update local state
             setRoles(prev => prev.map(r => r._id === selectedRole._id ? { ...r, permissions: editedPermissions } : r));
+            // Driver view decides who's a truck column on the delivery board.
+            clearDriversCache();
             setSelectedRole(prev => ({ ...prev, permissions: editedPermissions }));
             alert('Permissions updated successfully!');
         } catch (err) {

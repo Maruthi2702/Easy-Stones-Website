@@ -239,6 +239,22 @@ body.light-theme-active .order-search .order-search-pod,
   border-color: rgba(29, 107, 85, 0.4);
 }
 
+/* ── Inside the header's Filters panel (LocationFilter, `inline`) ──
+   The panel is already a floating layer, so the results list flows under
+   the box at the panel's width — floating it again would hang it off the
+   panel's edge. Capped so a long list scrolls inside the panel. */
+.order-search.order-search--inline {
+  width: 100%;
+}
+
+.order-search--inline .order-search-panel {
+  position: static;
+  width: auto;
+  max-height: min(45vh, 380px);
+  margin-top: 0.5rem;
+  box-shadow: none;
+}
+
 /* ── Phone / narrow tablet: own full-width row in the header grid ── */
 @media (max-width: 768px) {
   .manifest-top-header.header-option-1 > .order-search {

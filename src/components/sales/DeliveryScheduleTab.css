@@ -3819,3 +3819,64 @@ body.light-theme-active .pending-order-note,
   text-transform: none;
   letter-spacing: 0;
 }
+
+/* ── Header search chip (order search lives in the Filters panel) ──
+   The chip shows an active search while the panel is shut — the board is
+   still filtered by it — and clears it on click. */
+.delivery-search-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 220px;
+  height: 32px;
+  padding: 0 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  background: rgba(212, 175, 55, 0.12);
+  color: #f5d77a;
+  font: 600 0.8rem var(--font-main);
+  cursor: pointer;
+}
+
+.delivery-search-chip:hover { background: rgba(212, 175, 55, 0.2); }
+
+.delivery-search-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.light-theme-active .delivery-search-chip,
+.light-theme-active .delivery-search-chip {
+  border-color: #e6d8a8;
+  background: #f6efd9;
+  color: #5c4508;
+}
+
+body.light-theme-active .delivery-search-chip:hover,
+.light-theme-active .delivery-search-chip:hover { background: #efe3bf; }
+
+
+/* Phones: the header's actions share one row with the title, and the chip
+   pushed over it. The filter button's dot still shows a search is on. */
+@media (max-width: 768px) {
+  .delivery-search-chip { display: none; }
+
+  /* The title never wraps, so on a narrow screen it ran on under the filter
+     button. It now stops at its own column and ends in "…" if it must. */
+  .manifest-title-block > div {
+    min-width: 0;
+  }
+  .manifest-title,
+  .manifest-subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Small phones: "+ Add" instead of "+ Add Delivery" frees the room the title
+   needs (the button keeps its full name for screen readers and on hover). */
+@media (max-width: 480px) {
+  .btn-add-delivery-word { display: none; }
+}
