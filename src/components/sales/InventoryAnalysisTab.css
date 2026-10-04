@@ -1504,3 +1504,108 @@ body.light-theme-active .invan-btn-cancel,
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ── Location filter: Easy Stones locations, then consignment ──────────────
+   InventoryLocationField, inside the shared Filters panel. Reuses the panel's
+   lf-* checkbox styles; these only add the two sections, the consignment
+   search box and its scrolling list (~90 fabricators). */
+.invan-loc .lf-checks {
+  max-height: none;
+  overflow: visible;
+}
+
+.invan-loc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.invan-loc-heading {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.invan-loc-count {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: #d4af37;
+}
+
+.invan-loc-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 34px;
+  padding: 0 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #9ca3af;
+}
+
+.invan-loc-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #e5e7eb;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.invan-loc-search:focus-within {
+  border-color: rgba(212, 175, 55, 0.7);
+}
+
+.invan-loc .invan-loc-scroll {
+  /* Short enough that the panel's Clear / Close stay on screen on a laptop;
+     the list scrolls inside it. */
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.invan-loc .lf-check {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+.invan-loc-empty {
+  padding: 0.45rem 0.5rem;
+  font-size: 0.82rem;
+  color: #9ca3af;
+}
+
+body.light-theme-active .invan-loc-section,
+.light-theme-active .invan-loc-section,
+.light-theme .invan-loc-section { border-top-color: #e5e7eb; }
+
+body.light-theme-active .invan-loc-heading,
+.light-theme-active .invan-loc-heading,
+.light-theme .invan-loc-heading,
+body.light-theme-active .invan-loc-empty,
+.light-theme-active .invan-loc-empty,
+.light-theme .invan-loc-empty { color: #64748b; }
+
+body.light-theme-active .invan-loc-count,
+.light-theme-active .invan-loc-count,
+.light-theme .invan-loc-count { color: #7a5c0b; }
+
+body.light-theme-active .invan-loc-search,
+.light-theme-active .invan-loc-search,
+.light-theme .invan-loc-search {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #64748b;
+}
+
+body.light-theme-active .invan-loc-search input,
+.light-theme-active .invan-loc-search input,
+.light-theme .invan-loc-search input { color: #0f172a; }

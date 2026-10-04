@@ -53,13 +53,19 @@ export const useLocationFilter = (screen, user, options) => {
   return [value, setValue];
 };
 
-/** A multi-choice filter: [values, setValues], with [] meaning All locations. */
-export const useLocationsFilter = (screen, user, options) => {
+/**
+ * A multi-choice filter: [values, setValues], with [] meaning All locations.
+ * `defaultValues` replaces where it opens (normally just the home location)
+ * for a screen with its own rule — Inventory's, which must not open on its
+ * consignment sites (src/utils/inventoryLocations.js).
+ */
+export const useLocationsFilter = (screen, user, options, defaultValues = null) => {
   const key = storageKey(screen, user);
   const [picks, setPicks] = useState({});
   const names = locationNames(options);
   const picked = key in picks ? picks[key] : readStored(key);
-  const resolved = resolveStoredLocations(picked, names) ?? defaultLocationsFor(user, names);
+  const resolved = resolveStoredLocations(picked, names)
+    ?? (Array.isArray(defaultValues) ? defaultValues.filter(v => names.includes(v)) : defaultLocationsFor(user, names));
 
   // A fresh array every render would re-fire every effect that depends on it.
   const stable = JSON.stringify(resolved);

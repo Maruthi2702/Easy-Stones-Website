@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Boxes, Upload, RefreshCw, Search, Filter, Package, DollarSign,
   Layers, Clock, AlertTriangle, TrendingDown, ChevronRight
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
+import { peekInventory, rememberInventory, clearInventoryCache } from '../../api/inventoryAnalysisCache';
 import CustomSelect from '../shared/CustomSelect';
 import LocationFilter from '../shared/LocationFilter';
 import { useLocationsFilter } from '../shared/useLocationFilter';
+import InventoryLocationField from './InventoryLocationField';
+import { splitInventoryLocations, defaultInventoryLocations } from '../../utils/inventoryLocations';
 import Pagination from '../shared/Pagination';
 import { usePagination } from '../shared/paginationConfig';
 import InventoryImportModal from './InventoryImportModal';
@@ -65,6 +68,21 @@ const dominantStatus = (counts) => {
   return present.reduce((best, k) => (counts[k] > counts[best] ? k : best), present[0]);
 };
 
+// Fetched once per session and kept (src/api/inventoryAnalysisCache.js) until an
+// import, so returning to this tab paints at once instead of loading again.
+const PRESENCE_URL = `${API_URL}/api/inventory-analysis/summary`;
+const FILTERS_URL = `${API_URL}/api/inventory-analysis/filters`;
+const BRANCHES_URL = `${API_URL}/api/admin/locations`;
+
+/** A fresh answer for `url`, remembered for next time. Throws on a failed request. */
+const fetchInventoryJson = async (url) => {
+  const res = await authFetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  rememberInventory(url, data);
+  return data;
+};
+
 const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refreshSignal = 0 }) => {
   const [view, setView] = useState('stock'); // 'stock' | 'reorder'
   const [summary, setSummary] = useState(null);
@@ -72,7 +90,10 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // Tracked separately from `summary` (which reflects the active filters) so
   // that filtering down to zero matches shows "no matching items," not the
   // first-time "nothing has ever been imported" empty state.
-  const [hasAnyInventory, setHasAnyInventory] = useState(null);
+  const [hasAnyInventory, setHasAnyInventory] = useState(() => {
+    const remembered = peekInventory(PRESENCE_URL);
+    return remembered === undefined ? null : (remembered.totalItems || 0) > 0;
+  });
 
   // Stock Detail, grouped by product — one row per product with rolled-up
   // totals; slabsByProduct lazily holds each expanded product's individual
@@ -84,17 +105,34 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   const [slabsByProduct, setSlabsByProduct] = useState({});
   const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
 
-  const [filterOptions, setFilterOptions] = useState({ categories: [], locations: [], statuses: [] });
+  const [filterOptions, setFilterOptions] = useState(() => peekInventory(FILTERS_URL) || { categories: [], locations: [], statuses: [] });
   const [search, setSearch] = useState('');
   // Fetches key off this, not `search` — typing stays instant in the box
   // while the network request waits for a pause, instead of firing (and
   // re-rendering the summary/table) on every keystroke.
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
-  // Which branches' stock to show, for Stock Detail and Reorder Risk alike:
-  // every branch with inventory is offered, the person's home location is
-  // ticked to start with, and any others can be added ([] = all branches).
-  const [locationFilter, setLocationFilter] = useLocationsFilter('inventory', currentUser, filterOptions.locations);
+  // Which locations' stock to show, for Stock Detail and Reorder Risk alike.
+  // SPS's locations are Easy Stones' own warehouses plus ~90 fabricators
+  // holding stock on consignment, so the filter lists them apart (Easy Stones
+  // first) and opens on the person's home location if it has stock, otherwise
+  // on every Easy Stones location that does — never on everything by accident
+  // (src/utils/inventoryLocations.js). [] = every location.
+  // `branches` is Users & Roles → Locations: what tells ours from consignment.
+  const [branches, setBranches] = useState(() => peekInventory(BRANCHES_URL) || []);
+  // No stock is fetched until the locations and branches have both arrived,
+  // so the first load is already the right selection — not "everything"
+  // first, replaced a moment later.
+  const [filtersReady, setFiltersReady] = useState(() => peekInventory(FILTERS_URL) !== undefined && peekInventory(BRANCHES_URL) !== undefined);
+  const locationGroups = useMemo(
+    () => splitInventoryLocations(filterOptions.locations, branches),
+    [filterOptions.locations, branches]
+  );
+  const defaultLocations = useMemo(
+    () => defaultInventoryLocations(currentUser, filterOptions.locations, branches),
+    [currentUser, filterOptions.locations, branches]
+  );
+  const [locationFilter, setLocationFilter] = useLocationsFilter('inventory', currentUser, filterOptions.locations, defaultLocations);
   const locationParam = locationFilter.join(',');
   const [statusFilter, setStatusFilter] = useState('All');
 
@@ -129,16 +167,33 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     return params;
   }, [debouncedSearch, categoryFilter, locationParam, statusFilter]);
 
+  // Each fetch below remembers the newest request it sent and drops any
+  // answer to an older one: when filters change faster than the server
+  // answers, a slow reply for the previous filter (often the big unfiltered
+  // one) used to land last and overwrite the right numbers.
+  const summaryReqRef = useRef(0);
+  const groupsReqRef = useRef(0);
+  const velocityReqRef = useRef(0);
+
+  // Each fetch below shows a remembered answer straight away when it has one
+  // (no request, no loading state), and otherwise fetches and remembers it.
   const fetchSummary = useCallback(async () => {
+    const reqId = ++summaryReqRef.current;
+    const url = `${API_URL}/api/inventory-analysis/summary?${buildFilterParams().toString()}`;
+    const remembered = peekInventory(url);
+    if (remembered !== undefined) {
+      setSummary(remembered);
+      setLoadingSummary(false);
+      return;
+    }
     try {
       setLoadingSummary(true);
-      const params = buildFilterParams();
-      const res = await authFetch(`${API_URL}/api/inventory-analysis/summary?${params.toString()}`);
-      if (res.ok) setSummary(await res.json());
+      const data = await fetchInventoryJson(url);
+      if (reqId === summaryReqRef.current) setSummary(data);
     } catch (err) {
       console.error('Failed to fetch inventory summary:', err);
     } finally {
-      setLoadingSummary(false);
+      if (reqId === summaryReqRef.current) setLoadingSummary(false);
     }
   }, [buildFilterParams]);
 
@@ -146,42 +201,58 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // happened at all — see hasAnyInventory's declaration above.
   const checkHasAnyInventory = useCallback(async () => {
     try {
-      const res = await authFetch(`${API_URL}/api/inventory-analysis/summary`);
-      if (res.ok) {
-        const data = await res.json();
-        setHasAnyInventory((data.totalItems || 0) > 0);
-      }
+      const data = peekInventory(PRESENCE_URL) ?? await fetchInventoryJson(PRESENCE_URL);
+      setHasAnyInventory((data.totalItems || 0) > 0);
     } catch (err) {
       console.error('Failed to check inventory presence:', err);
     }
   }, []);
 
   const fetchFilterOptions = useCallback(async () => {
-    try {
-      const res = await authFetch(`${API_URL}/api/inventory-analysis/filters`);
-      if (res.ok) setFilterOptions(await res.json());
-    } catch (err) {
-      console.error('Failed to fetch inventory filters:', err);
+    const rememberedFilters = peekInventory(FILTERS_URL);
+    const rememberedBranches = peekInventory(BRANCHES_URL);
+    if (rememberedFilters !== undefined && rememberedBranches !== undefined) {
+      setFilterOptions(rememberedFilters);
+      setBranches(Array.isArray(rememberedBranches) ? rememberedBranches : []);
+      setFiltersReady(true);
+      return;
     }
+    const [filtersRes, branchesRes] = await Promise.allSettled([
+      rememberedFilters ?? fetchInventoryJson(FILTERS_URL),
+      rememberedBranches ?? fetchInventoryJson(BRANCHES_URL)
+    ]);
+    if (filtersRes.status === 'fulfilled') setFilterOptions(filtersRes.value);
+    else console.error('Failed to fetch inventory filters:', filtersRes.reason);
+    if (branchesRes.status === 'fulfilled') setBranches(Array.isArray(branchesRes.value) ? branchesRes.value : []);
+    else console.error('Failed to fetch branch list:', branchesRes.reason);
+    // Ready either way: if a list failed, the filter still works, it just
+    // can't tell our locations from consignment.
+    setFiltersReady(true);
   }, []);
 
   const fetchGroups = useCallback(async () => {
+    const reqId = ++groupsReqRef.current;
+    const params = buildFilterParams();
+    params.set('page', String(currentPage));
+    params.set('limit', String(rowsPerPage));
+    const url = `${API_URL}/api/inventory-analysis/items/grouped?${params.toString()}`;
+    const remembered = peekInventory(url);
+    if (remembered !== undefined) {
+      setGroups(remembered.groups || []);
+      setGroupsTotal(remembered.total || 0);
+      setLoadingGroups(false);
+      return;
+    }
     try {
       setLoadingGroups(true);
-      const params = buildFilterParams();
-      params.set('page', String(currentPage));
-      params.set('limit', String(rowsPerPage));
-
-      const res = await authFetch(`${API_URL}/api/inventory-analysis/items/grouped?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setGroups(data.groups || []);
-        setGroupsTotal(data.total || 0);
-      }
+      const data = await fetchInventoryJson(url);
+      if (reqId !== groupsReqRef.current) return;
+      setGroups(data.groups || []);
+      setGroupsTotal(data.total || 0);
     } catch (err) {
       console.error('Failed to fetch grouped inventory:', err);
     } finally {
-      setLoadingGroups(false);
+      if (reqId === groupsReqRef.current) setLoadingGroups(false);
     }
   }, [buildFilterParams, currentPage, rowsPerPage]);
 
@@ -194,13 +265,9 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
       const params = buildFilterParams();
       params.set('product', product);
       params.set('limit', '200');
-      const res = await authFetch(`${API_URL}/api/inventory-analysis/items?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSlabsByProduct(prev => ({ ...prev, [product]: { items: data.items || [], total: data.total || 0, loading: false, error: false } }));
-      } else {
-        setSlabsByProduct(prev => ({ ...prev, [product]: { items: [], total: 0, loading: false, error: true } }));
-      }
+      const url = `${API_URL}/api/inventory-analysis/items?${params.toString()}`;
+      const data = peekInventory(url) ?? await fetchInventoryJson(url);
+      setSlabsByProduct(prev => ({ ...prev, [product]: { items: data.items || [], total: data.total || 0, loading: false, error: false } }));
     } catch (err) {
       console.error('Failed to fetch slabs for product:', err);
       setSlabsByProduct(prev => ({ ...prev, [product]: { items: [], total: 0, loading: false, error: true } }));
@@ -208,19 +275,24 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   }, [buildFilterParams]);
 
   const fetchVelocity = useCallback(async () => {
+    const reqId = ++velocityReqRef.current;
+    const params = new URLSearchParams();
+    if (locationParam) params.set('location', locationParam);
+    const url = `${API_URL}/api/inventory-analysis/velocity?${params.toString()}`;
+    const remembered = peekInventory(url);
+    if (remembered !== undefined) {
+      setVelocityRows(remembered.rows || []);
+      setLoadingVelocity(false);
+      return;
+    }
     try {
       setLoadingVelocity(true);
-      const params = new URLSearchParams();
-      if (locationParam) params.set('location', locationParam);
-      const res = await authFetch(`${API_URL}/api/inventory-analysis/velocity?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setVelocityRows(data.rows || []);
-      }
+      const data = await fetchInventoryJson(url);
+      if (reqId === velocityReqRef.current) setVelocityRows(data.rows || []);
     } catch (err) {
       console.error('Failed to fetch inventory velocity:', err);
     } finally {
-      setLoadingVelocity(false);
+      if (reqId === velocityReqRef.current) setLoadingVelocity(false);
     }
   }, [locationParam]);
 
@@ -229,11 +301,13 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => { fetchFilterOptions(); }, [fetchFilterOptions]);
-  useEffect(() => { checkHasAnyInventory(); }, [checkHasAnyInventory]);
-  useEffect(() => { fetchSummary(); }, [fetchSummary]);
-  useEffect(() => { if (view === 'stock') fetchGroups(); }, [view, fetchGroups]);
-  useEffect(() => { if (view === 'reorder') fetchVelocity(); }, [view, fetchVelocity]);
+  // Layout effects, so a remembered answer is on screen in the first frame
+  // when someone returns to this tab — no flash of the loading state.
+  useLayoutEffect(() => { fetchFilterOptions(); }, [fetchFilterOptions]);
+  useLayoutEffect(() => { checkHasAnyInventory(); }, [checkHasAnyInventory]);
+  useLayoutEffect(() => { if (filtersReady) fetchSummary(); }, [filtersReady, fetchSummary]);
+  useLayoutEffect(() => { if (filtersReady && view === 'stock') fetchGroups(); }, [filtersReady, view, fetchGroups]);
+  useLayoutEffect(() => { if (filtersReady && view === 'reorder') fetchVelocity(); }, [filtersReady, view, fetchVelocity]);
   useEffect(() => { resetPage(); }, [resetPage, debouncedSearch, categoryFilter, locationParam, statusFilter]);
   // A changed filter can change which slabs belong to an already-expanded
   // group (or make the group disappear entirely) — collapse and drop the
@@ -261,6 +335,8 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // 'inventory_analysis_update' emit) refreshes this screen the same way
   // finishing an import locally does.
   const refreshAll = useCallback(() => {
+    // New data was imported: nothing remembered is current any more.
+    clearInventoryCache();
     setExpandedProducts(new Set());
     setSlabsByProduct({});
     fetchSummary();
@@ -277,13 +353,15 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
 
   // refreshSignal increments whenever the server emits 'inventory_analysis_update'
   // (someone — possibly on another device — imported stock or sales data).
-  // Skip the first render so this doesn't duplicate the mount-time fetches above.
-  const skippedFirstRefreshSignal = useRef(false);
+  // Acts only when it has actually moved since this tab last looked — not on
+  // mount, where the fetches above already ran. This used to skip "the first
+  // run" instead, which React's development double-mount defeated: every
+  // visit wiped the remembered answers and loaded everything again. (An
+  // import while this tab was closed has already cleared them — SalesPage.)
+  const seenRefreshSignal = useRef(refreshSignal);
   useEffect(() => {
-    if (!skippedFirstRefreshSignal.current) {
-      skippedFirstRefreshSignal.current = true;
-      return;
-    }
+    if (refreshSignal === seenRefreshSignal.current) return;
+    seenRefreshSignal.current = refreshSignal;
     refreshAll();
   }, [refreshSignal, refreshAll]);
 
@@ -438,12 +516,18 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                   />
                 </div>
                 <LocationFilter
-                  multiple
-                  options={filterOptions.locations}
-                  value={locationFilter}
-                  onChange={setLocationFilter}
-                  user={currentUser}
-                />
+                  wide
+                  active={locationFilter.length > 0}
+                  onClear={() => setLocationFilter([])}
+                >
+                  <InventoryLocationField
+                    company={locationGroups.company}
+                    consignment={locationGroups.consignment}
+                    value={locationFilter}
+                    onChange={setLocationFilter}
+                    user={currentUser}
+                  />
+                </LocationFilter>
               </div>
 
               {/* One card for the stock list and its pager — the pager is the
@@ -600,12 +684,18 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
             <>
               <div className="invan-filter-bar">
                 <LocationFilter
-                  multiple
-                  options={filterOptions.locations}
-                  value={locationFilter}
-                  onChange={setLocationFilter}
-                  user={currentUser}
-                />
+                  wide
+                  active={locationFilter.length > 0}
+                  onClear={() => setLocationFilter([])}
+                >
+                  <InventoryLocationField
+                    company={locationGroups.company}
+                    consignment={locationGroups.consignment}
+                    value={locationFilter}
+                    onChange={setLocationFilter}
+                    user={currentUser}
+                  />
+                </LocationFilter>
               </div>
               <p className="invan-subtitle">
                 Days of supply = available quantity ÷ daily sell-through rate from the most recent sales export for that product and location. "No sales data" means no matching sales import exists yet — it isn't the same as zero risk.

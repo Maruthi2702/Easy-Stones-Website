@@ -44,6 +44,7 @@ import { accessibleLocations } from '../utils/locationFilter';
 import CustomerProfileHeader from '../components/sales/customerList/CustomerProfileHeader';
 import { splitCustomer } from '../components/sales/visitsListHelpers';
 import { canAddVisit, canModifyVisit, canDeleteVisit, visitViewScope } from '../utils/visitAccess';
+import { clearInventoryCache } from '../api/inventoryAnalysisCache';
 import { toSalesRepList } from '../utils/salesReps';
 import { lazyRetry } from '../utils/lazyRetry';
 
@@ -310,6 +311,9 @@ const SalesPage = () => {
         // onComplete callback) ever saw the new data — everyone else's open
         // Inventory Analysis tab stayed on the pre-import snapshot.
         socket.on('inventory_analysis_update', () => {
+            // Forget remembered Inventory Analysis answers even while that tab
+            // isn't open, so the next visit shows the new import, not the old.
+            clearInventoryCache();
             setInventoryAnalysisRefreshTrigger(prev => prev + 1);
         });
 
