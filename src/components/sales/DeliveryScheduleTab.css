@@ -221,10 +221,6 @@ body.light-theme-active .manifest-load-error,
     font-size: clamp(1.05rem, 4.2vw, 1.25rem) !important;
     white-space: nowrap;
   }
-  .manifest-subtitle {
-    font-size: clamp(0.7rem, 2.8vw, 0.8rem) !important;
-    white-space: nowrap;
-  }
   .manifest-header-actions {
     grid-column: 2 / 3;
     grid-row: 1 / 2;
@@ -259,14 +255,6 @@ body.light-theme-active .manifest-load-error,
   color: #ffffff;
   letter-spacing: -0.02em;
   line-height: 1.1;
-}
-
-.manifest-subtitle {
-  font-size: 0.85rem;
-  color: #94a3b8;
-  display: block;
-  margin-top: 3px;
-  font-weight: 400;
 }
 
 /* ── NAV BAR: Week Navigator + Date Range + Search ── */
@@ -2699,11 +2687,6 @@ body.light-theme-active .manifest-title,
   text-shadow: none !important;
 }
 
-body.light-theme-active .manifest-subtitle,
-.light-theme-active .manifest-subtitle {
-  color: #475569 !important;
-}
-
 /* Integrated Glass Pill Navigation */
 body.light-theme-active .header-glass-pill-nav,
 .light-theme-active .header-glass-pill-nav {
@@ -3868,8 +3851,7 @@ body.light-theme-active .delivery-search-chip:hover,
   .manifest-title-block > div {
     min-width: 0;
   }
-  .manifest-title,
-  .manifest-subtitle {
+  .manifest-title {
     overflow: hidden;
     text-overflow: ellipsis;
   }

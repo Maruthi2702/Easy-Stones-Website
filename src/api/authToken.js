@@ -15,14 +15,38 @@
 // every plain fetch (authenticate() on the server checks it first).
 let token = null;
 
+// Things that hold on to the token after reading it — the delivery board's
+// Socket.IO room join, which proves who the socket belongs to once per
+// connection — are told when it changes, so a sign-out or a different person
+// signing in on the same tab updates them instead of leaving them on the old
+// session until the page is reloaded.
+const listeners = new Set();
+
+const notify = (previous) => {
+  if (previous === token) return;
+  listeners.forEach(cb => {
+    try { cb(token); } catch { /* one listener must not stop the rest */ }
+  });
+};
+
 export function getAuthToken() {
   return token;
 }
 
 export function setAuthToken(value) {
+  const previous = token;
   token = value || null;
+  notify(previous);
 }
 
 export function clearAuthToken() {
+  const previous = token;
   token = null;
+  notify(previous);
+}
+
+/** Hear when the token is set, replaced or cleared. Returns an unsubscribe function. */
+export function onAuthTokenChange(callback) {
+  listeners.add(callback);
+  return () => listeners.delete(callback);
 }

@@ -9,7 +9,7 @@
 import { API_URL } from '../config/api';
 import { io } from 'socket.io-client';
 import { authFetch } from './authFetch';
-import { getAuthToken } from './authToken';
+import { getAuthToken, setAuthToken, onAuthTokenChange } from './authToken';
 import { DAYS_IN_WEEK } from '../utils/deliveryWeek';
 import { isPendingDelivery, isCancelledDelivery, applyTransferPerspective } from '../utils/deliveryTypes';
 
@@ -225,6 +225,48 @@ function stopPolling() {
   }
 }
 
+// Proves who this socket belongs to so the server can join it to the room(s)
+// for its actual assigned location(s) — delivery_update carries customer
+// names/addresses/pricing per branch, so it isn't broadcast to every connected
+// socket. Sent on every (re)connect, since a fresh connection joins no rooms,
+// and whenever the session changes. The server leaves the old rooms first and
+// answers whether it worked:
+//   ok   → real-time updates flow; the fallback poll can stop.
+//   no   → the token was expired or refused. Fetch a fresh one from the
+//          session cookie and try once more; meanwhile keep polling, so the
+//          board still updates instead of silently freezing. With no token at
+//          all (signed out) it just leaves its rooms and stays quiet.
+let joinRetried = false;
+function joinDeliveryRooms() {
+  const socket = scheduleCache.socket;
+  if (!socket) return;
+  const token = getAuthToken();
+  socket.emit('join_delivery_rooms', { token }, async (res) => {
+    if (res?.ok) {
+      joinRetried = false;
+      if (socket.connected) stopPolling();
+      return;
+    }
+    // Signed out: the server has dropped this socket from every room, which
+    // is the point. Polling now would only hit 401s for a session that's gone.
+    if (!token) {
+      stopPolling();
+      return;
+    }
+    startPolling();
+    if (joinRetried) return;
+    joinRetried = true;
+    try {
+      const r = await fetch(`${API_URL}/api/auth/token`, { credentials: 'include' });
+      const data = r.ok ? await r.json() : null;
+      // A different token triggers onAuthTokenChange, which rejoins.
+      if (data?.token && data.token !== token) setAuthToken(data.token);
+    } catch {
+      // Stay on polling; the next reconnect tries again.
+    }
+  });
+}
+
 function initScheduleSocket() {
   if (scheduleCache.socket) return;
   try {
@@ -232,8 +274,13 @@ function initScheduleSocket() {
 
     scheduleCache.socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000
+      // Keep trying for as long as the page is open. This used to give up
+      // after 10 attempts (~40s) — shorter than a deploy restart — and the
+      // board then lived on the 3-second fallback poll for the rest of the
+      // day instead of getting back to real-time updates.
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000
     });
 
     // Assume disconnected until the socket proves otherwise — covers both an
@@ -241,20 +288,24 @@ function initScheduleSocket() {
     startPolling();
 
     scheduleCache.socket.on('connect', () => {
-      stopPolling();
       setConnectionStatus('online');
-      // Proves who this socket belongs to so the server can join it to the
-      // room(s) for its actual assigned location(s) — delivery_update carries
-      // customer names/addresses/pricing per branch, so it isn't broadcast to
-      // every connected socket the way other channels on this same
-      // connection are. Re-sent on every reconnect too, since a fresh
-      // connection joins no rooms until this fires again.
-      const token = getAuthToken();
-      if (token) scheduleCache.socket.emit('join_delivery_rooms', { token });
+      // Polling stops once the server confirms this socket is in its rooms
+      // (joinDeliveryRooms), not merely connected: a connected socket that
+      // isn't in any room receives nothing, and used to sit there looking
+      // live with the fallback poll switched off.
+      joinDeliveryRooms();
       // Re-sync the currently viewed week on connection / reconnection, in case
       // any updates were missed while offline.
       refreshActiveWeek();
       notifyScheduleChange();
+    });
+
+    // The session behind the join changed — signed out, signed back in, or a
+    // different person on this tab. Rejoin with the new token (or none), so
+    // the board follows the person now using it instead of the one who first
+    // opened it, until a reload.
+    onAuthTokenChange(() => {
+      if (scheduleCache.socket?.connected) joinDeliveryRooms();
     });
 
     scheduleCache.socket.on('disconnect', () => {
@@ -324,6 +375,10 @@ function notifyScheduleListeners() {
 }
 
 function notifyScheduleChange(detail = {}) {
+  // Every remembered branch-week may now be out of date — they're shown
+  // straight away on return but refreshed quietly behind (see
+  // peekLocationScopedWeek). The week on screen refetches anyway.
+  markScopedWeeksStale(detail);
   scheduleCache.changeListeners.forEach(cb => {
     try {
       cb(detail);
@@ -451,7 +506,57 @@ export async function getLocationScopedScheduleData(weekStart, weekEnd, location
     getPendingDeliveries(location),
     getCancelledDeliveries(location)
   ]);
-  return { trucks: includeTrucks ? (trucks || []) : null, deliveries: deliveries || [], pending: pending || [], cancelled: cancelled || [] };
+  const data = { trucks: includeTrucks ? (trucks || []) : null, deliveries: deliveries || [], pending: pending || [], cancelled: cancelled || [] };
+  rememberScopedWeek(weekStart, location, data);
+  return data;
+}
+
+// ── Remembered branch-weeks ──────────────────────────────────────────────
+// The branch-filtered board used to refetch — with a spinner — every time
+// someone stepped to another week and back. Each week it loads is kept here
+// so returning is instant. Kept honest by the live updates: any change
+// notification (a delivery_update, a reconnect, a fallback poll) marks every
+// remembered week stale, so a stale one is shown at once and refreshed quietly
+// behind; one untouched since it was fetched is shown with no request at all.
+// SCOPED_WEEK_TTL is the backstop for an update that never arrived.
+const SCOPED_WEEK_TTL = 10 * 60 * 1000;
+const SCOPED_WEEK_MAX = 40;
+const scopedWeeks = new Map(); // `${location}|${weekStart}` → { deliveries, pending, cancelled, at, stale }
+const scopedTrucks = new Map(); // location → driver columns
+
+const scopedKey = (weekStart, location) => `${location}|${weekStart}`;
+
+function rememberScopedWeek(weekStart, location, data) {
+  const key = scopedKey(weekStart, location);
+  scopedWeeks.delete(key); // re-insert so the Map's order is least-recently-loaded first
+  scopedWeeks.set(key, { deliveries: data.deliveries, pending: data.pending, cancelled: data.cancelled, at: Date.now(), stale: false });
+  if (data.trucks) scopedTrucks.set(location, data.trucks);
+  while (scopedWeeks.size > SCOPED_WEEK_MAX) scopedWeeks.delete(scopedWeeks.keys().next().value);
+}
+
+function markScopedWeeksStale({ trucks = false } = {}) {
+  scopedWeeks.forEach(entry => { entry.stale = true; });
+  if (trucks) scopedTrucks.clear();
+}
+
+/**
+ * A branch-week this session already loaded, to paint without a spinner:
+ * `{ deliveries, pending, cancelled, trucks, fresh }`, or null if it was never
+ * loaded. `fresh` is false when something changed since (or it's older than
+ * SCOPED_WEEK_TTL) — show it, then refetch quietly. `trucks` is null when the
+ * branch's driver columns need fetching again.
+ */
+export function peekLocationScopedWeek(weekStart, location) {
+  const entry = scopedWeeks.get(scopedKey(weekStart, location));
+  if (!entry) return null;
+  const trucks = scopedTrucks.get(location) || null;
+  return {
+    deliveries: entry.deliveries,
+    pending: entry.pending,
+    cancelled: entry.cancelled,
+    trucks,
+    fresh: !entry.stale && Boolean(trucks) && Date.now() - entry.at < SCOPED_WEEK_TTL
+  };
 }
 
 // ── GET TRUCKS ──

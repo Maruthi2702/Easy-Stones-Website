@@ -343,18 +343,31 @@ io.on('connection', (socket) => {
   // these (or whose token fails) simply never joins that feature's rooms and
   // never receives its update event — it isn't disconnected, since it may
   // still legitimately use other channels.
-  socket.on('join_delivery_rooms', async (payload) => {
+  // Re-sent whenever the browser's session changes (sign-in, sign-out, a
+  // different person on the same tab — src/api/deliverySchedule.js), so it
+  // first leaves whatever delivery rooms the socket was in: a new user must
+  // never keep the last one's branches. A missing or failed token leaves the
+  // socket in none. `ack` (optional) tells the browser whether it worked, so a
+  // refused join can fetch a fresh token or fall back to polling instead of
+  // sitting "connected" and receiving nothing.
+  socket.on('join_delivery_rooms', async (payload, ack) => {
+    const reply = typeof ack === 'function' ? ack : () => {};
+    for (const room of socket.rooms) {
+      if (room.startsWith('delivery-location:')) socket.leave(room);
+    }
     try {
       const assignedLocations = await resolveSocketAssignedLocations(payload?.token);
-      if (!assignedLocations) return;
+      if (!assignedLocations) return reply({ ok: false });
       if (assignedLocations.includes('*')) {
         socket.join(DELIVERY_ROOM_ALL);
       } else {
         for (const location of assignedLocations) socket.join(deliveryRoomFor(location));
       }
+      reply({ ok: true });
     } catch {
       // Invalid/expired token — leave the socket out of every delivery room
       // rather than erroring the whole connection.
+      reply({ ok: false });
     }
   });
 

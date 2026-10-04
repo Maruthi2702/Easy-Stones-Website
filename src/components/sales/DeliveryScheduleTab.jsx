@@ -20,6 +20,7 @@ import {
   reorderDeliveries,
   getScheduleDataCached,
   getLocationScopedScheduleData,
+  peekLocationScopedWeek,
   getScheduleCacheSync,
   subscribeScheduleCache,
   subscribeScheduleChanges,
@@ -47,12 +48,6 @@ import './DeliveryScheduleTab.css';
 // Which screen this person gets — driver, office board or read-only board —
 // comes from their role's Delivery Schedule permissions in Users & Roles
 // (deliveryViewMode in src/utils/deliveryAccess.js), not the role's name.
-
-const ROLE_SUBTITLES = {
-  office: 'Office · full edit access',
-  sales: 'Sales team · view and check capacity',
-  driver: 'Driver · your assigned stops'
-};
 
 const DeliveryScheduleTab = ({
   currentUser = null,
@@ -170,7 +165,24 @@ const DeliveryScheduleTab = ({
 
   const loadData = useCallback(async (forceRefresh = false) => {
     const reqId = ++dataReqRef.current;
-    if (!isWeekCached(weekStart) || forceRefresh || locationFilter) {
+
+    // A branch-week already loaded this session paints straight away — no
+    // spinner, and no request at all if nothing has changed since (live
+    // updates mark it otherwise; see peekLocationScopedWeek). A changed one
+    // is shown as it was and refreshed quietly behind.
+    const remembered = locationFilter && !forceRefresh ? peekLocationScopedWeek(weekStart, locationFilter) : null;
+    if (remembered) {
+      if (remembered.trucks) {
+        setTrucks(remembered.trucks);
+        trucksViewRef.current = locationFilter;
+      }
+      setDeliveries(remembered.deliveries);
+      setPending(remembered.pending);
+      setCancelled(remembered.cancelled);
+      setLoadError(null);
+      setLoading(false);
+      if (remembered.fresh) return;
+    } else if (!isWeekCached(weekStart) || forceRefresh || locationFilter) {
       setLoading(true);
     }
     try {
@@ -181,11 +193,13 @@ const DeliveryScheduleTab = ({
       // (refreshScoped below) rather than by the cache subscription, which
       // would overwrite it with the unfiltered set.
       const data = locationFilter
-        ? await getLocationScopedScheduleData(weekStart, weekEnd, locationFilter)
+        ? await getLocationScopedScheduleData(weekStart, weekEnd, locationFilter, { includeTrucks: !remembered?.trucks })
         : await getScheduleDataCached(currentUser, weekStart, weekEnd, forceRefresh);
       if (reqId !== dataReqRef.current) return;
-      setTrucks(data.trucks || []);
-      trucksViewRef.current = locationFilter;
+      if (data.trucks) {
+        setTrucks(data.trucks);
+        trucksViewRef.current = locationFilter;
+      }
       setDeliveries(data.deliveries || []);
       setPending(data.pending || []);
       setCancelled(data.cancelled || []);
@@ -193,7 +207,9 @@ const DeliveryScheduleTab = ({
     } catch (err) {
       if (reqId !== dataReqRef.current) return;
       console.error('Error loading schedule data:', err);
-      setLoadError("Couldn't load this week's schedule. Check your connection and refresh.");
+      // A quiet refresh behind a remembered week failing leaves that week on
+      // screen; the connection badge already says when updates aren't landing.
+      if (!remembered) setLoadError("Couldn't load this week's schedule. Check your connection and refresh.");
     } finally {
       if (reqId === dataReqRef.current) setLoading(false);
     }
@@ -495,7 +511,6 @@ const DeliveryScheduleTab = ({
           {sidebarToggle}
           <div>
             <h2 className="manifest-title">Delivery Schedule</h2>
-            <span className="manifest-subtitle">{ROLE_SUBTITLES[role]}</span>
           </div>
         </div>
 

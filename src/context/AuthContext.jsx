@@ -73,16 +73,18 @@ export const AuthProvider = ({ children }) => {
             // room join in particular runs early on the delivery board). Only
             // attempted once verify has already proven a session exists, so
             // an anonymous visit never has to see this as a 401.
-            if (!token) {
-                try {
-                    const tokenRes = await fetch(`${API_URL}/api/auth/token`, { credentials: 'include' });
-                    if (tokenRes.ok) {
-                        const tokenData = await tokenRes.json();
-                        if (tokenData.token) setAuthToken(tokenData.token);
-                    }
-                } catch {
-                    // Non-fatal — everything else here already works off the cookie alone
+            // Done even when a token is already held: after a session expires
+            // and someone signs in again on the same tab, the one in memory is
+            // the old, expired one — and the delivery board would keep re-using
+            // it to rejoin its live-update rooms, silently failing.
+            try {
+                const tokenRes = await fetch(`${API_URL}/api/auth/token`, { credentials: 'include' });
+                if (tokenRes.ok) {
+                    const tokenData = await tokenRes.json();
+                    if (tokenData.token) setAuthToken(tokenData.token);
                 }
+            } catch {
+                // Non-fatal — everything else here already works off the cookie alone
             }
 
             // Then fetch full profile based on authType
