@@ -51,9 +51,15 @@ export const toSalesRepList = (payload) => {
         return [];
     }
 
+    // Someone deactivated in Users & Roles stays in the list — customers they
+    // still own have to show who that is, and filtering by them is how those
+    // customers get found and handed over — but marked and sorted last, so
+    // nobody picks them for anything new.
     return list
         .filter(isSalesRep)
+        .map(u => (u.isActive === false ? { ...u, inactive: true, name: `${u.name || u.username} (inactive)` } : u))
         .sort((a, b) =>
+            Number(Boolean(a.inactive)) - Number(Boolean(b.inactive)) ||
             (a.location || '').localeCompare(b.location || '') ||
             (a.name || '').localeCompare(b.name || '')
         );

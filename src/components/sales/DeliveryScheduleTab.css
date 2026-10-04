@@ -3862,3 +3862,29 @@ body.light-theme-active .delivery-search-chip:hover,
 @media (max-width: 480px) {
   .btn-add-delivery-word { display: none; }
 }
+
+/* A deactivated driver's column (Users & Roles), shown only on weeks they
+   have orders — tagged so nobody schedules them by mistake. */
+.truck-former-tag {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.14);
+}
+
+.ux-driver-name-wrap .truck-former-tag {
+  align-self: center;
+  margin: 0 0 0 0.4rem;
+}
+
+body.light-theme-active .truck-former-tag,
+.light-theme-active .truck-former-tag {
+  color: #991b1b;
+  background: #fee2e2;
+}

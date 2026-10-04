@@ -175,6 +175,7 @@ const BoardGrid = ({
   const handleDropOnStop = (trk, dateStr, targetId, mode, cellStops, e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (trk?.inactive) { setDropSlot(null); setDragOverCellKey(null); return; } // a former driver takes no new orders
     setDropSlot(null);
     setDragOverCellKey(null);
 
@@ -271,7 +272,8 @@ const BoardGrid = ({
 
   const renderCellTickets = (trk, dateStr, cellDeliveries, listClassName) => {
     const cellKey = `${trk.id}_${dateStr}`;
-    const cellCanReorder = Boolean(editable && onReorderDeliveries);
+    // Not in a former driver's column: nothing new can be dropped onto them.
+    const cellCanReorder = Boolean(editable && onReorderDeliveries && !trk?.inactive);
     // Plain {id, routeNumber} pairs, not the delivery objects — see the note on
     // handleDropOnStop above for why the handler needs data rather than a
     // reference into `deliveries`/`cellDeliveries`.
@@ -345,7 +347,7 @@ const BoardGrid = ({
   const handleDropOnCell = (trk, dateStr, e) => {
     e.preventDefault();
     setDragOverCellKey(null);
-    if (!onMoveDelivery) return;
+    if (!onMoveDelivery || trk.inactive) return; // a former driver takes no new orders
 
     const deliveryId = e.dataTransfer.getData('text/plain');
     const delivery = deliveries.find(d => d.id === deliveryId)
@@ -415,14 +417,22 @@ const BoardGrid = ({
     return map;
   }, [filteredDeliveries]);
 
-  const displayTrucks = React.useMemo(() => {
+  // Recomputed each render — a few drivers, cheaper than a memo the compiler
+  // can't keep (see the cellMap note above).
+  const displayTrucks = (() => {
     // No "Unassigned" column: an order without a driver belongs to the Pending
     // list beneath the board, not to a column of its own. Will Call is the only
     // driverless column, pinned last so the drivers still read left to right —
     // it holds customer pickups and the occasional slab a customer brings back
     // themselves, both being orders that move without one of our drivers.
-    return [...trucks, WILL_CALL_COLUMN];
-  }, [trucks]);
+    //
+    // A deactivated driver (Users & Roles) keeps a column only on weeks they
+    // have orders: their history stays where it happened, and anything still
+    // on them can be dragged to someone else. Nothing can be added to them.
+    const weekHasOrders = new Set(deliveries.map(d => d.truckId));
+    const shown = trucks.filter(t => !t.inactive || weekHasOrders.has(t.id));
+    return [...shown, WILL_CALL_COLUMN];
+  })();
 
   /**
    * Which columns hold orders that change hands at the counter rather than at
@@ -432,11 +442,8 @@ const BoardGrid = ({
    * else is signed for at the jobsite, on the driver's phone, including a
    * return one of our own drivers goes out to collect.
    */
-  const pickupColumnIds = React.useMemo(
-    () => new Set(
-      displayTrucks.filter(t => t.isWillCall || isThirdPartyTruck(t)).map(t => t.id)
-    ),
-    [displayTrucks]
+  const pickupColumnIds = new Set(
+    displayTrucks.filter(t => t.isWillCall || isThirdPartyTruck(t)).map(t => t.id)
   );
 
   const podHandlerFor = (truckId) =>
@@ -544,6 +551,7 @@ const BoardGrid = ({
                     <div className="ux-driver-name-wrap">
                       <span className="ux-driver-dot" style={{ background: trk.color || '#D4AF37' }} />
                       <span className="ux-driver-name">{trk.driver || trk.name}</span>
+                      {trk.inactive && <span className="truck-former-tag" title="Deactivated in Users & Roles — shown for the orders they had">Former</span>}
                     </div>
 
                     <div className="ux-driver-actions">
@@ -553,7 +561,7 @@ const BoardGrid = ({
                       <span className={`ux-capacity-badge ${capCount > 0 ? 'has-stops' : 'empty'}`}>
                         {isCounterColumn(trk) ? capCount : `${capCount}/${MAX_TRUCK_CAPACITY}`}
                       </span>
-                      {editable && (
+                      {editable && !trk.inactive && (
                         <button
                           type="button"
                           className="ux-btn-add-stop"
@@ -607,6 +615,7 @@ const BoardGrid = ({
                       <div className="truck-color-dot" style={{ background: trk.color || '#D4AF37' }} />
                       <div className="truck-text-details">
                         <span className="truck-name">{trk.driver || trk.name}</span>
+                        {trk.inactive && <span className="truck-former-tag" title="Deactivated in Users & Roles — shown for the orders they had">Former</span>}
                         {trk.name && trk.driver && trk.name !== trk.driver && (
                           <span className="truck-driver">{trk.name}</span>
                         )}
@@ -642,11 +651,11 @@ const BoardGrid = ({
                           key={trk.id}
                           className={`dispatch-cell ${dragOverCellKey === cellKey ? 'drop-target' : ''}`}
                           onDragOver={(e) => {
-                            if (!onMoveDelivery) return;
+                            if (!onMoveDelivery || trk.inactive) return;
                             e.preventDefault();
                             e.dataTransfer.dropEffect = 'move';
                           }}
-                          onDragEnter={() => onMoveDelivery && setDragOverCellKey(cellKey)}
+                          onDragEnter={() => onMoveDelivery && !trk.inactive && setDragOverCellKey(cellKey)}
                           onDragLeave={() => {
                             if (!onMoveDelivery) return;
                             setDragOverCellKey(prev => (prev === cellKey ? null : prev));
@@ -663,7 +672,7 @@ const BoardGrid = ({
                             >
                               {isCounterColumn(trk) ? rawCount : `${rawCount}/${MAX_TRUCK_CAPACITY}`}
                             </span>
-                            {editable && (
+                            {editable && !trk.inactive && (
                               <button
                                 type="button"
                                 className="cell-add-btn"

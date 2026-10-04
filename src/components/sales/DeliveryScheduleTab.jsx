@@ -337,7 +337,9 @@ const DeliveryScheduleTab = ({
     // button sat in, since the common case by far is a driver going out for it.
     const isWillCallColumn = truckId === WILL_CALL_COLUMN_ID;
     const draft = {
-      truckId: isWillCallColumn ? '' : (truckId || trucks[0]?.id || 'trk_1'),
+      // The first driver still working — a deactivated one (Users & Roles) is
+      // in the list for their history, but takes no new orders.
+      truckId: isWillCallColumn ? '' : (truckId || trucks.find(t => !t.inactive)?.id || 'trk_1'),
       deliveryType: isWillCallColumn ? 'will_call' : 'jobsite',
       date: dateStr || weekDates[0],
       time: '09:00 AM',

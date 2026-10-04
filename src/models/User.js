@@ -40,6 +40,22 @@ const userSchema = new mongoose.Schema({
   lockUntil: {
     type: Date
   },
+  // Deactivated in Users & Roles: can't sign in, every open session is refused
+  // (authenticate in server.js), no new work is assigned, and a driver's
+  // column only reappears on weeks they actually delivered. Kept rather than
+  // deleted so their name stays on the history they made; reversible.
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  deactivatedAt: {
+    type: Date,
+    default: null
+  },
+  deactivatedBy: {
+    type: String,
+    default: ''
+  },
   location: {
     type: String,
     trim: true

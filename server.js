@@ -95,6 +95,7 @@ import {
 } from './src/utils/dashboardMatch.js';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.js';
+import Delivery from './src/models/Delivery.js';
 import { insertInBatches, withDbRetry, hasRowErrorsOnly } from './src/utils/dbRetry.js';
 import path from 'path';
 import fs from 'fs';
@@ -324,8 +325,9 @@ async function resolveSocketAssignedLocations(token) {
   const decoded = jwt.verify(token, process.env.JWT_SECRET);
   const userId = decoded.userId || decoded.id || decoded.sub;
   if (!userId || decoded.type === 'customer' || !mongoose.isValidObjectId(userId)) return null;
-  const user = await User.findById(userId, 'assignedLocations').lean();
-  return user ? (user.assignedLocations || []) : null;
+  const user = await User.findById(userId, 'assignedLocations isActive').lean();
+  if (!user || user.isActive === false) return null;
+  return user.assignedLocations || [];
 }
 
 io.on('connection', (socket) => {
@@ -1149,6 +1151,7 @@ const authenticate = async (req, res, next) => {
           // second findById — one round trip fewer on every page load.
           location: 1,
           routePlannerFilters: 1,
+          isActive: 1,
           permissions: { $ifNull: [{ $arrayElemAt: ['$_role.permissions', 0] }, []] }
         }
       }
@@ -1156,6 +1159,12 @@ const authenticate = async (req, res, next) => {
 
     if (!dbUser) {
       return res.status(401).json({ error: 'User account not found or has been removed.' });
+    }
+    // Deactivated in Users & Roles: a session they already had open ends on
+    // its next request, not only at the next sign-in. Missing = active (every
+    // account created before the switch existed).
+    if (dbUser.isActive === false) {
+      return res.status(401).json({ error: 'This account has been deactivated. Contact an administrator.' });
     }
 
     // Populate req.user with fresh data
@@ -1326,6 +1335,15 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
+      });
+    }
+
+    // Checked after the password, so it can't be used to probe which
+    // usernames exist. Missing = active.
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'This account has been deactivated. Contact an administrator.'
       });
     }
 
@@ -1568,9 +1586,92 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
 });
 
 // Delete user (manage_users permission needed)
+// A driver's orders that haven't happened yet: on their truck column, not
+// delivered or cancelled, dated today or later (or not dated). Taking the
+// driver away — deactivating or deleting them — would otherwise leave these
+// on a column nobody is driving.
+const DRIVER_ORDER_PROJECTION = { 'pod.customerSignature': 0, 'pod.driverSignature': 0, 'pod.photos': 0 };
+const upcomingDriverOrders = (user) => Delivery.find({
+  truckId: `drv_${user.username}`,
+  status: { $nin: ['completed', 'cancelled'] },
+  $or: [{ date: { $gte: pacificToday() } }, { date: '' }, { date: null }]
+}, '_id').lean();
+
+/** Move orders to Pending (no driver, same date) and tell open boards, branch by branch. */
+const moveOrdersToPending = async (req, orders) => {
+  if (!orders.length) return;
+  const ids = orders.map(o => o._id);
+  await withDbRetry(() => Delivery.updateMany({ _id: { $in: ids } }, { $set: { truckId: '', status: 'pending' } }));
+  const updated = await Delivery.find({ _id: { $in: ids } }, DRIVER_ORDER_PROJECTION).lean();
+  const io = req.app.get('io');
+  for (const delivery of updated) {
+    const rooms = new Set([DELIVERY_ROOM_ALL]);
+    if (delivery.location) rooms.add(deliveryRoomFor(delivery.location));
+    if (delivery.deliveryType === 'transfer' && delivery.transferDestination) rooms.add(deliveryRoomFor(delivery.transferDestination));
+    for (const room of rooms) io?.to(room).emit('delivery_update', { type: 'upsert', delivery });
+  }
+};
+
+/**
+ * Before a driver is taken away (deactivated or deleted): refuse while they
+ * still have upcoming orders, unless the request says to move those to
+ * Pending as part of it. Returns true once it's safe to go ahead; otherwise
+ * it has already answered 409 with the count.
+ */
+const clearDriverHandover = async (req, res, user, verb) => {
+  const upcoming = await upcomingDriverOrders(user);
+  if (!upcoming.length) return true;
+  if (!req.body?.moveUpcomingToPending) {
+    res.status(409).json({
+      code: 'has-upcoming-orders',
+      upcoming: upcoming.length,
+      message: `${displayNameOf(user)} still has ${upcoming.length} upcoming order${upcoming.length === 1 ? '' : 's'}. Move ${upcoming.length === 1 ? 'it' : 'them'} to another driver or to Pending before you ${verb} this account.`
+    });
+    return false;
+  }
+  await moveOrdersToPending(req, upcoming);
+  return true;
+};
+
+// Deactivate or reactivate a staff account. Deactivated: can't sign in, any
+// open session ends on its next request, their calendar feed stops, and a
+// driver drops off the board's columns except on weeks they delivered. Kept,
+// not deleted, so their name stays on the history they made.
+app.patch('/api/admin/users/:id/active', authenticate, requirePermission('manage_users'), async (req, res) => {
+  try {
+    const active = req.body?.active !== false;
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'User not found' });
+    if (!active && String(req.params.id) === String(req.user.id)) {
+      return res.status(400).json({ message: "You can't deactivate your own account." });
+    }
+    const user = await User.findById(req.params.id).select('username displayName isActive').lean();
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (!active && !(await clearDriverHandover(req, res, user, 'deactivate'))) return;
+
+    await User.updateOne({ _id: user._id }, active
+      ? { $set: { isActive: true }, $unset: { deactivatedAt: 1, deactivatedBy: 1 } }
+      : { $set: { isActive: false, deactivatedAt: new Date(), deactivatedBy: req.user?.username || '' } });
+    bustUserCaches();
+    req.app.get('io')?.emit('truck_update');
+    res.json({ success: true, isActive: active });
+  } catch (error) {
+    console.error('User activation change error:', error);
+    res.status(500).json({ message: 'Failed to change this account' });
+  }
+});
+
 app.delete('/api/admin/users/:id', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
+    if (String(req.params.id) === String(req.user.id)) {
+      return res.status(400).json({ message: "You can't delete your own account." });
+    }
+    const user = mongoose.Types.ObjectId.isValid(req.params.id)
+      ? await User.findById(req.params.id).select('username displayName').lean()
+      : null;
+    if (user && !(await clearDriverHandover(req, res, user, 'delete'))) return;
     await User.findByIdAndDelete(req.params.id);
+    bustUserCaches();
     req.app.get('io')?.emit('truck_update');
     res.json({ message: 'User deleted successfully' });
   } catch {
@@ -2077,6 +2178,14 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
           await account.incLoginAttempts();
         }
         return res.status(401).json({ message: 'Invalid email or password' });
+      }
+
+      // Deactivated — a staff user in Users & Roles, or a customer under
+      // Account & Security (whose switch, until now, never stopped them
+      // signing in). After the password check, so it can't probe which
+      // accounts exist. Missing = active.
+      if (account.isActive === false) {
+        return res.status(403).json({ message: 'This account has been deactivated. Contact Easy Stones for help.' });
       }
     } catch (dbError) {
       console.error(`[${new Date().toISOString()}] ❌ DB ERROR during account lookup:`, dbError);
@@ -2969,7 +3078,7 @@ app.get('/api/salesreps', authenticate, async (req, res) => {
     if (cached) return res.json(cached);
 
     const [users, driverRoles] = await Promise.all([
-      User.find({}, 'username displayName email role location assignedLocations'),
+      User.find({}, 'username displayName email role location assignedLocations isActive'),
       // Roles with Delivery Schedule → Driver view: their users are the truck
       // columns on the delivery board (src/api/deliverySchedule.js). Sent as a
       // flag per user rather than every user's permission list.
@@ -2987,7 +3096,10 @@ app.get('/api/salesreps', authenticate, async (req, res) => {
       role: user.role,
       location: user.location,
       assignedLocations: user.assignedLocations || [],
-      isDeliveryDriver: driverRoleNames.has(user.role)
+      isDeliveryDriver: driverRoleNames.has(user.role),
+      // Deactivated in Users & Roles: kept in this list so their name still
+      // shows on what they did, but offered for nothing new.
+      isActive: user.isActive !== false
     }));
     res.json(cachePut('salesreps', { success: true, data: formattedUsers }));
   } catch (error) {

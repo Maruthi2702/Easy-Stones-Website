@@ -586,7 +586,9 @@ const TRUCK_COLORS = ['#D4AF37', '#2F8F73', '#E1602A', '#3B82F6', '#8B5CF6', '#6
 // `drv_<username>`: those entries match no delivery's truckId, so a board
 // painting from one shows every column empty. They have to be retired on sight
 // rather than left to expire.
-const DRIVERS_CACHE_PREFIX = 'drivers_cache_v3:';
+// Bumped to v4 when deactivated drivers started arriving marked `inactive`:
+// a v3 entry would show a former driver as current until it expired.
+const DRIVERS_CACHE_PREFIX = 'drivers_cache_v4:';
 const DRIVERS_CACHE_TTL = 10 * 60 * 1000;
 
 /**
@@ -659,6 +661,9 @@ async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocat
     // Schedule → Driver view — the same switch that gives them the driver
     // screen (src/utils/deliveryAccess.js). /api/salesreps works it out per
     // user. It used to be users whose role was named driver or logistics.
+    // Deactivated drivers stay in the list, marked `inactive`: the board
+    // shows their column only on weeks they have orders (their history, and
+    // anything still to hand over), and nothing new can be given to them.
     let drivers = allUsers.filter(u => u.isDeliveryDriver === true);
 
     // Filter to users assigned to the current user's location
@@ -691,6 +696,7 @@ async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocat
       driver: u.name || u.username,
       color: TRUCK_COLORS[idx % TRUCK_COLORS.length],
       username: u.username,
+      inactive: u.isActive === false,
       location: u.location || (u.assignedLocations?.[0] || '')
     }));
     writeDriversCache(cacheKey, mapped);

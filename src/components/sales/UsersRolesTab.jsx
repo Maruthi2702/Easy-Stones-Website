@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Users, ShieldAlert, Plus, Edit2, Trash2, Search, Check,
+    Users, ShieldAlert, Plus, Edit2, Trash2, Search, UserX, Check,
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
     FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard, Eraser,
@@ -639,26 +639,53 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
         }
     };
 
-    const handleDeleteUser = async (user) => {
-        if (!window.confirm(`Are you sure you want to delete user "${user.username}"?`)) {
-            return;
-        }
-        try {
-            const res = await fetchWithAuth(`${API_URL}/api/admin/users/${user._id}`, {
-                method: 'DELETE'
-            });
+    // Deactivate, reactivate or delete. The server refuses to take away a
+    // driver who still has upcoming orders (they'd be left on a column nobody
+    // drives) and says how many; this asks once whether to move them to
+    // Pending as part of it, and resends.
+    const changeUserAccess = async (user, action) => {
+        const name = user.displayName || prettifyUsername(user.username);
+        const prompts = {
+            deactivate: `Deactivate ${name}? They won't be able to sign in, and won't be offered for new work. Their history stays, and you can reactivate them later.`,
+            reactivate: `Reactivate ${name}? They'll be able to sign in again.`,
+            delete: `Delete ${name} permanently? Their name will no longer show on the work they did — Deactivate keeps it.`
+        };
+        if (!window.confirm(prompts[action])) return;
 
-            if (!res.ok) {
-                throw new Error('Failed to delete user');
+        const send = (moveUpcomingToPending = false) => fetchWithAuth(
+            action === 'delete' ? `${API_URL}/api/admin/users/${user._id}` : `${API_URL}/api/admin/users/${user._id}/active`,
+            {
+                method: action === 'delete' ? 'DELETE' : 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(action === 'delete' ? { moveUpcomingToPending } : { active: action === 'reactivate', moveUpcomingToPending })
             }
-
-            setUsers(prev => prev.filter(u => u._id !== user._id));
+        );
+        try {
+            let res = await send();
+            if (res.status === 409) {
+                const info = await res.json().catch(() => ({}));
+                if (info.code !== 'has-upcoming-orders') throw new Error(info.message || 'Could not change this account');
+                if (!window.confirm(`${info.message}\n\nMove ${info.upcoming === 1 ? 'it' : 'them'} to Pending Delivery and ${action} now? (You can assign ${info.upcoming === 1 ? 'it' : 'them'} to another driver from there.)`)) return;
+                res = await send(true);
+            }
+            if (!res.ok) {
+                const info = await res.json().catch(() => ({}));
+                throw new Error(info.message || 'Could not change this account');
+            }
+            if (action === 'delete') {
+                setUsers(prev => prev.filter(u => u._id !== user._id));
+            } else {
+                const active = action === 'reactivate';
+                setUsers(prev => prev.map(u => (u._id === user._id ? { ...u, isActive: active, deactivatedAt: active ? null : new Date().toISOString() } : u)));
+            }
             clearDriversCache();
-            alert('User deleted successfully!');
+            alert(action === 'delete' ? 'User deleted.' : `${name} ${action === 'reactivate' ? 'reactivated' : 'deactivated'}.`);
         } catch (err) {
             alert(err.message);
         }
     };
+
+    const handleDeleteUser = (user) => changeUserAccess(user, 'delete');
 
     // What the user form's Home Location can be: one of their assigned
     // branches (any branch, for an all-locations user).
@@ -767,7 +794,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                             </tr>
                                         ) : (
                                             filteredUsers.map(u => (
-                                                <tr key={u._id}>
+                                                <tr key={u._id} className={u.isActive === false ? 'user-row-inactive' : undefined}>
                                                     <td className="username-cell" data-label="Username">
                                                         <div className="avatar-small">
                                                             {(u.displayName || u.username).substring(0, 2).toUpperCase()}
@@ -775,7 +802,10 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                         {/* Display Name is what the rest of the app shows, so lead with
                                                             it and keep the login username underneath for reference. */}
                                                         <div className="username-cell-names">
-                                                            <span>{u.displayName || prettifyUsername(u.username)}</span>
+                                                            <span>
+                                                                {u.displayName || prettifyUsername(u.username)}
+                                                                {u.isActive === false && <span className="user-inactive-badge" title={u.deactivatedAt ? `Deactivated ${new Date(u.deactivatedAt).toLocaleDateString()}` : 'Deactivated'}>Inactive</span>}
+                                                            </span>
                                                             <small>{u.username}</small>
                                                         </div>
                                                     </td>
@@ -812,6 +842,25 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                                 <Truck size={13} />
                                                                 Driver Access
                                                             </button>
+                                                            {u.isActive === false ? (
+                                                                <button
+                                                                    className="user-action-pill reactivate"
+                                                                    onClick={() => changeUserAccess(u, 'reactivate')}
+                                                                    title="Let this person sign in again"
+                                                                >
+                                                                    <UserCheck size={13} />
+                                                                    Reactivate
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    className="user-action-pill deactivate"
+                                                                    onClick={() => changeUserAccess(u, 'deactivate')}
+                                                                    title="Stop this person signing in, keep their history"
+                                                                >
+                                                                    <UserX size={13} />
+                                                                    Deactivate
+                                                                </button>
+                                                            )}
                                                             <button
                                                                 className="user-action-pill delete"
                                                                 onClick={() => handleDeleteUser(u)}

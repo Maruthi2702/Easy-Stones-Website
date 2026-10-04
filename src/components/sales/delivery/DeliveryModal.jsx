@@ -1051,7 +1051,13 @@ const DeliveryModal = ({
                     // Delivery last — the list reads as "who is taking this",
                     // ending in "nobody yet". Contract freight is pinned after
                     // the drivers rather than left wherever the API returned it.
-                    ...[...trucks].sort((a, b) => Number(isThirdParty(a)) - Number(isThirdParty(b))).map(trk => {
+                    // A deactivated driver (Users & Roles) takes no new orders, so
+                    // isn't offered — except on an order that's already theirs,
+                    // where the choice has to show who it's with until it's moved.
+                    ...trucks
+                      .filter(t => !t.inactive || t.id === truckId)
+                      .sort((a, b) => Number(isThirdParty(a)) - Number(isThirdParty(b)))
+                      .map(trk => {
                       // Contract freight is not one of our trucks, so the daily
                       // load cap does not apply and showing a x/12 count for it
                       // would be misleading.
@@ -1062,7 +1068,7 @@ const DeliveryModal = ({
                         value: trk.id,
                         label: contract
                           ? `🚚 3rd Party — Contract Freight`
-                          : `${trk.driver || trk.name} — ${booked}/${MAX_TRUCK_CAPACITY}${isFull ? ' FULL' : ''}`,
+                          : `${trk.driver || trk.name}${trk.inactive ? ' (former driver)' : ''} — ${booked}/${MAX_TRUCK_CAPACITY}${isFull ? ' FULL' : ''}`,
                         disabled: isFull
                       };
                     }),

@@ -322,6 +322,13 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         return res.status(400).send('Invalid user ID');
       }
 
+      // A deactivated user's calendar subscription stops with their account
+      // (Users & Roles); so does one for an account that no longer exists.
+      const owner = await User.findById(userId).select('isActive').lean();
+      if (!owner || owner.isActive === false) {
+        return res.status(404).send('Calendar not found');
+      }
+
       // Find all scheduled activities for this user (exclude cancelled ones)
       const schedules = await Schedule.find({
         userId,
