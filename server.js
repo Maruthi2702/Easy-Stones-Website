@@ -5027,6 +5027,9 @@ app.delete('/api/admin/customers/import/memory', verifyToken, requirePermission(
   }
 });
 
+// Rows per database round trip when an import is written.
+const IMPORT_WRITE_BATCH = 500;
+
 /**
  * Carry out an import. Rows flagged for review are never written — that is the
  * whole point of flagging them.
@@ -5040,25 +5043,69 @@ app.post('/api/admin/customers/import/apply', verifyToken, requirePermission('ma
     // rowNumber → new customer id, so a "create it" review decision can be
     // remembered as the record it made (see saveImportMemory).
     const createdByRow = new Map();
+    const rowError = (row, message) => results.errors.push(`Row ${row.rowNumber} (${row.label || ''}): ${message}`);
 
-    for (const row of plan.planned) {
-      try {
-        if (row.action === 'create') {
-          const saved = await new Customer({
-            ...row.create,
-            password: await bcrypt.hash('Welcome123!', 10)
-          }).save();
-          createdByRow.set(row.rowNumber, String(saved._id));
-          results.created++;
-        } else if (row.action === 'update') {
-          await Customer.updateOne({ _id: row.targetId }, { $set: row.apply });
-          results.updated++;
-        } else {
-          results.skipped++;
-        }
-      } catch (err) {
-        results.errors.push(`Row ${row.rowNumber} (${row.label || ''}): ${err.message}`);
+    // Written in batches, not one customer at a time. Each row used to cost
+    // two bcrypt hashes (~0.1s of CPU apiece, stalling every other request on
+    // the server) plus its own database round trip — about half a second a
+    // row against the remote database, so a 4,000-customer file ran for most
+    // of an hour.
+    //
+    // Every new customer gets the same starting password, so it's hashed once
+    // here. insertMany skips the model's pre('save') hook, which is also what
+    // stops it being hashed a second time: .save() used to re-hash this
+    // already-hashed value, so imported customers couldn't sign in with it.
+    const creates = plan.planned.filter(r => r.action === 'create');
+    const updates = plan.planned.filter(r => r.action === 'update');
+    results.skipped = plan.planned.length - creates.length - updates.length;
+
+    if (creates.length) {
+      const startingPassword = await bcrypt.hash('Welcome123!', 10);
+      const docs = [];
+      const docRows = [];
+      for (const row of creates) {
+        const doc = new Customer({ ...row.create, password: startingPassword });
+        const invalid = doc.validateSync();
+        if (invalid) { rowError(row, invalid.message); continue; }
+        docs.push(doc);
+        docRows.push(row);
       }
+      for (let start = 0; start < docs.length; start += IMPORT_WRITE_BATCH) {
+        const batch = docs.slice(start, start + IMPORT_WRITE_BATCH);
+        const failed = new Map(); // index in batch → message
+        try {
+          await Customer.insertMany(batch, { ordered: false });
+        } catch (err) {
+          // ordered:false writes every row it can; only the ones listed here
+          // (a duplicate email, say) were refused.
+          if (!err?.writeErrors) throw err;
+          for (const we of err.writeErrors) failed.set(we.index ?? we.err?.index, we.errmsg || we.err?.errmsg || 'Could not be saved');
+        }
+        batch.forEach((doc, i) => {
+          const row = docRows[start + i];
+          if (failed.has(i)) { rowError(row, failed.get(i)); return; }
+          createdByRow.set(row.rowNumber, String(doc._id));
+          results.created++;
+        });
+      }
+    }
+
+    for (let start = 0; start < updates.length; start += IMPORT_WRITE_BATCH) {
+      const batch = updates.slice(start, start + IMPORT_WRITE_BATCH);
+      const failed = new Map();
+      try {
+        await Customer.bulkWrite(
+          batch.map(row => ({ updateOne: { filter: { _id: row.targetId }, update: { $set: row.apply } } })),
+          { ordered: false }
+        );
+      } catch (err) {
+        if (!err?.writeErrors) throw err;
+        for (const we of err.writeErrors) failed.set(we.index ?? we.err?.index, we.errmsg || we.err?.errmsg || 'Could not be saved');
+      }
+      batch.forEach((row, i) => {
+        if (failed.has(i)) rowError(row, failed.get(i));
+        else results.updated++;
+      });
     }
 
     // The customers above are already written, so failing to remember the
