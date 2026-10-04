@@ -281,9 +281,13 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         </button>
     ) : <span className="ss-remove-spacer" aria-hidden="true" />);
 
-    // Customer and their phone — not the company too: two names side by side
-    // read as two people.
-    const customerLine = [record.name, record.phone].map((s) => String(s || '').trim()).filter(Boolean).join(' • ');
+    // Customer and their phone under the title — on phones only, where the
+    // body doesn't show the visit details (desktop/tablet list them in the
+    // body, so repeating them up here is noise). Not the company too: two
+    // names side by side read as two people.
+    const customerLine = isPhone
+        ? [record.name, record.phone].map((s) => String(s || '').trim()).filter(Boolean).join(' • ')
+        : '';
     const title = (
         <span className="ss-title">
             <span className="ss-title-main">Selection Sheet{record.location ? ` - ${record.location}` : ''}</span>
