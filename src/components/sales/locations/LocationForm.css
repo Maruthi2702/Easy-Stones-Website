@@ -1,0 +1,58 @@
+/*
+ * Add / Edit location — only what the shared form template (FormModal.css)
+ * doesn't already cover: the City / State / ZIP row, $ and % adornments,
+ * and the checkboxes. Colours come from the template's --fm-* tokens, so
+ * light and dark follow it.
+ */
+
+/* City / State / ZIP: one row, the city twice as wide. */
+.loc-csz {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+}
+
+/* $ before, % after the number. */
+.loc-adorn { position: relative; display: flex; align-items: center; }
+.loc-adorn-prefix,
+.loc-adorn-suffix {
+    position: absolute;
+    color: var(--fm-mut);
+    font-size: 14px;
+    font-weight: 600;
+    pointer-events: none;
+}
+.loc-adorn-prefix { left: 12px; }
+.loc-adorn-suffix { right: 12px; }
+.fm-input.loc-has-prefix { padding-left: 28px; }
+.fm-input.loc-has-suffix { padding-right: 34px; }
+
+/* Checkboxes: native, gold when ticked, 44px tap target. */
+.loc-checks { border: 0; margin: 0; padding: 0; min-width: 0; }
+.loc-checks legend { padding: 0; margin-bottom: 4px; }
+.loc-checks-row { display: flex; flex-wrap: wrap; gap: 0 28px; }
+.loc-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--fm-tx);
+    cursor: pointer;
+}
+.loc-check input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--fm-gold);
+    cursor: pointer;
+}
+
+@media (max-width: 639px) {
+    /* City on its own line, State and ZIP side by side under it. */
+    .loc-csz { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .loc-csz > .fm-field:first-child { grid-column: 1 / -1; }
+    .loc-adorn-prefix, .loc-adorn-suffix { font-size: 16px; }
+    .loc-check { font-size: 16px; }
+}

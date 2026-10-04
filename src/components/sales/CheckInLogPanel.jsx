@@ -37,6 +37,7 @@ import Pagination from '../shared/Pagination';
 import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import { LocationField } from '../shared/LocationFilter';
 import { accessibleLocations } from '../../utils/locationFilter';
+import { letterheadFor } from '../../utils/locationForm';
 import { useAuth } from '../../context/AuthContext';
 import {
   ORIENTATIONS, readStoneLabel, resolveLabelRead, scoreLabelRead, isUsableRead, isConfidentRead,
@@ -497,6 +498,10 @@ const CheckInLogPanel = ({
 
     const dateStr = formatDate(selectedCheckIn.createdAt);
     const validSelections = selections.filter(rowHasData);
+    // This check-in's branch's own address — Kent until the branch has one.
+    const letterhead = letterheadFor(
+      (Array.isArray(locations) ? locations : []).find((l) => l && typeof l === 'object' && l.name === selectedCheckIn.location)
+    );
 
     let selectionsRowsHtml = '';
     if (validSelections.length === 0) {
@@ -656,7 +661,8 @@ const CheckInLogPanel = ({
         <body>
           <div class="header">
             <h1>EASY STONES</h1>
-            <p>6012 S 196th St, Kent, WA 98032</p>
+            <p>${escapeHtml(letterhead.addressLine)}</p>
+            ${letterhead.contactLine ? `<p>${escapeHtml(letterhead.contactLine)}</p>` : ''}
           </div>
           
           <div class="title">Customer Visit / Stone Selection</div>

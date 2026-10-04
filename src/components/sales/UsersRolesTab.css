@@ -317,20 +317,7 @@ body.light-theme-active .location-name-text {
 }
 
 /* Location short codes (SEA, SPK, ATL…) */
-.search-input-wrapper.location-code-input-wrapper {
-    flex: 0 0 170px;
-    max-width: 170px;
-}
-
-.location-code-input-wrapper input,
-.location-code-edit-input {
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-weight: 600;
-}
-
-.location-code-display,
-.location-code-edit {
+.location-code-display {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -354,21 +341,6 @@ body.light-theme-active .location-name-text {
     font-style: italic;
 }
 
-.location-code-edit-input {
-    width: 88px;
-    padding: 0.4rem 0.6rem;
-    background: rgba(15, 23, 42, 0.4);
-    border: 1px solid rgba(212, 175, 55, 0.5);
-    border-radius: 8px;
-    color: #ffffff;
-    font-size: 0.88rem;
-    outline: none;
-}
-
-.location-code-edit-input:focus {
-    border-color: #d4af37;
-}
-
 body.light-theme-active .location-code-badge {
     background: rgba(212, 175, 55, 0.12);
     border-color: rgba(161, 128, 20, 0.45);
@@ -377,12 +349,6 @@ body.light-theme-active .location-code-badge {
 
 body.light-theme-active .location-code-empty {
     color: #64748b;
-}
-
-body.light-theme-active .location-code-edit-input {
-    background: #ffffff;
-    border-color: rgba(161, 128, 20, 0.5);
-    color: #0f172a;
 }
 
 .role-badge {
@@ -1151,21 +1117,6 @@ body.light-theme-active .user-inactive-badge,
         max-width: 95% !important;
         margin: auto !important;
     }
-
-    .add-location-form {
-        flex-direction: column !important;
-        width: 100% !important;
-    }
-
-    .add-location-form input,
-    .add-location-form button {
-        width: 100% !important;
-    }
-
-    .search-input-wrapper.location-code-input-wrapper {
-        flex: 0 0 auto;
-        max-width: none;
-    }
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1881,3 +1832,76 @@ body.light-theme-active .user-modal-card .btn-secondary:hover {
 
 
 
+
+/* Locations table: stacked lines in a cell (name + short name, address, contact). */
+.location-cell-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.4;
+    min-width: 0;
+}
+
+.location-sub {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
+.location-sub .location-code-badge {
+    padding: 0.05rem 0.45rem;
+    font-size: 0.72rem;
+}
+
+.location-types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.25rem;
+}
+
+.location-type-chip {
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: #e2e8f0;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* A branch whose selection sheets still print the Kent address. */
+.location-missing-chip {
+    display: inline-flex;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(251, 191, 36, 0.12);
+    color: #fcd34d;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.location-missing-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: 10px;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    color: #fcd34d;
+    font-size: 0.85rem;
+}
+
+body.light-theme-active .location-sub { color: #64748b; }
+body.light-theme-active .location-type-chip { border-color: #cbd5e1; color: #334155; }
+body.light-theme-active .location-missing-chip { background: #fef3c7; color: #92400e; }
+body.light-theme-active .location-missing-banner { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+
+/* Row actions in the Locations table: Edit and Delete side by side. */
+.action-buttons-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}

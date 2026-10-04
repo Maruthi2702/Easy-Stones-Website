@@ -68,6 +68,9 @@ export default function FormModal({
     fieldLabels = {},
     footerNote = null,
     footerStart = null,
+    // Phones only: Cancel and the main button side by side instead of the
+    // template's stacked footer. Opt-in — the Locations form uses it.
+    phoneFooterRow = false,
     children
 }) {
     const isPhone = useIsPhone();
@@ -277,7 +280,7 @@ export default function FormModal({
                     <div ref={bottomSentinel} className="fm-sentinel" aria-hidden="true" />
                 </div>
 
-                <footer className="fm-footer">
+                <footer className={`fm-footer${phoneFooterRow ? ' fm-footer-row' : ''}`}>
                     {footerStart && <span className="fm-footer-start">{footerStart}</span>}
                     <span className="fm-footer-note">{footerNote}</span>
                     {!hideCancel && (

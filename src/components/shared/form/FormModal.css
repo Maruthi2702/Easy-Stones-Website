@@ -570,6 +570,12 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
     .fm-footer-start .fm-btn { height: 40px; padding: 0 4px; }
     .fm-footer-note { grid-area: note; text-align: center; font-size: 12px; }
     .fm-footer-note:empty { display: none; }
+    /* phoneFooterRow (opt-in): Cancel and the main button on one row, Cancel
+       a full outlined button rather than a text link. Forms that don't ask
+       for it keep the stacked footer above. */
+    .fm-footer.fm-footer-row { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); grid-template-areas: "start start" "cancel primary" "note note"; }
+    .fm-footer.fm-footer-row:not(:has(.fm-footer-start)) { grid-template-areas: "cancel primary" "note note"; }
+    .fm-footer.fm-footer-row .fm-btn-cancel { justify-self: stretch; height: 50px; font-size: 16px; border-color: var(--fm-bd); background: transparent; color: var(--fm-tx); }
 }
 
 @media (prefers-reduced-motion: reduce) {

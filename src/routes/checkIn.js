@@ -4,6 +4,7 @@ import OfficeCheckIn from '../models/OfficeCheckIn.js';
 import Location from '../models/Location.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail } from '../services/emailService.js';
 import { stripPhone, formatPhoneForDisplay, maskPhone } from '../utils/phoneUtils.js';
+import { letterheadFor } from '../utils/locationForm.js';
 import rateLimit from 'express-rate-limit';
 
 /**
@@ -195,6 +196,16 @@ const selfCheckInLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many check-in attempts. Please ask the front desk for help.' }
 });
+
+// The address/contact printed under "EASY STONES" on a selection sheet: the
+// check-in's own location's, or the Kent default when it has none yet.
+const letterheadForCheckIn = async (checkIn) => {
+  try {
+    return letterheadFor(await Location.findOne({ name: checkIn.location }).lean());
+  } catch {
+    return letterheadFor(null);
+  }
+};
 
 export default function createCheckInRouter({ authenticate, requirePermission }) {
   const router = express.Router();
@@ -661,7 +672,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         (async () => {
           try {
             console.log(`📡 Automatically sending selection sheet alert to sales rep: ${checkIn.salesRepEmail}`);
-            await sendSelectionSheetEmail(checkIn, checkIn.salesRepEmail);
+            await sendSelectionSheetEmail(checkIn, checkIn.salesRepEmail, await letterheadForCheckIn(checkIn));
           } catch (err) {
             console.error('❌ Failed to auto-send selection sheet email to sales rep:', err.message);
           }
@@ -699,7 +710,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         return res.status(403).json({ message: 'Access denied to this check-in' });
       }
 
-      const emailResult = await sendSelectionSheetEmail(checkIn, email);
+      const emailResult = await sendSelectionSheetEmail(checkIn, email, await letterheadForCheckIn(checkIn));
 
       if (!emailResult.success) {
         return res.status(500).json({ message: `Failed to send selection sheet email. Details: ${emailResult.error || 'Unknown error'}` });

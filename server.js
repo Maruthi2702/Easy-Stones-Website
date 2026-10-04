@@ -50,7 +50,7 @@ import { EASY_STONES_COLORS } from './src/data/easyStonesColors.js';
 // see its own comment for why this used to be two hand-maintained arrays
 // (here and in ensure-indexes.js) that had already drifted apart.
 import { INDEXED_MODELS } from './src/config/indexedModels.js';
-import { normalizeLocationCode } from './src/utils/locationCode.js';
+import { parseLocationBody, publicLocationFields } from './src/utils/locationForm.js';
 import { sendContactFormEmail } from './src/services/emailService.js';
 import { scrapeErpCustomers, scrapeErpInventory, scrapeErpSales } from './src/services/erpImportService.js';
 // Shared with the client so an import can only assign a customer to someone the
@@ -1916,74 +1916,89 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'
 // ============================================
 
 // Get all locations (authenticated staff or kiosks can view)
+// Locations — Users & Roles → Locations, and every location filter.
+// The full record (accounting contact, sales defaults, cost overrides) is for
+// people who can manage locations; this endpoint also answers customer and
+// other staff logins, which get only what prints on a selection sheet and
+// what the filters need (publicLocationFields).
 app.get('/api/admin/locations', verifyAnyAuth, async (req, res) => {
   try {
-    const locations = await Location.find().sort({ name: 1 });
-    res.json(locations);
+    const locations = await Location.find().sort({ name: 1 }).lean();
+    const full = req.user?.permissions?.includes('manage_users');
+    res.json(full ? locations : locations.map(publicLocationFields));
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch locations', error: error.message });
   }
 });
 
+// The map pin for a location's primary address — only looked up again when
+// the address changed (geocodePatchFor), and never blocks the save.
+const applyLocationGeocode = async (location) => {
+  const a = location.primaryContact?.address || {};
+  const patch = await geocodePatchFor(
+    { street: a.street, city: a.city, state: a.state, zipCode: a.zipCode },
+    location.geocode?.addressKey || ''
+  );
+  if (!patch) return;
+  location.coordinates = patch.coordinates;
+  location.geocode = patch.geocode;
+};
+
+// Add / Edit location (src/components/sales/locations/LocationForm.jsx). The
+// body is the whole record; src/utils/locationForm.js runs the same checks
+// the form does, and answers { field, message } for the first problem so the
+// form can put it under the right field.
+const locationError = (res, errors) => {
+  const [field, message] = Object.entries(errors)[0];
+  return res.status(400).json({ field, message, errors });
+};
+
 // Create a new location (manage_users permission needed)
 app.post('/api/admin/locations', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
-    const { name, shortCode } = req.body;
-    if (!name || !name.trim()) {
-      return res.status(400).json({ message: 'Location name is required' });
+    const others = await Location.find({}, { name: 1, shortCode: 1 }).lean();
+    const { record, errors } = parseLocationBody(req.body, { others });
+    if (errors) return locationError(res, errors);
+
+    const location = new Location({ ...record, editedBy: req.user?.username || '', editedAt: new Date() });
+    await applyLocationGeocode(location);
+    try {
+      await location.save();
+    } catch (err) {
+      // Two people adding the same short name at once — the unique index wins.
+      if (err?.code === 11000) return locationError(res, { name: `${record.name} already exists` });
+      throw err;
     }
 
-    const cleanName = name.trim();
-    // Case-insensitive duplicate check
-    const existing = await Location.findOne({ name: { $regex: new RegExp(`^${escapeRegex(cleanName)}$`, 'i') } });
-    if (existing) {
-      return res.status(400).json({ message: 'Location already exists' });
-    }
-
-    const { code, error: codeError } = normalizeLocationCode(shortCode);
-    if (codeError) {
-      return res.status(400).json({ message: codeError });
-    }
-    if (code && await Location.findOne({ shortCode: code })) {
-      return res.status(400).json({ message: `Short code "${code}" is already used by another location` });
-    }
-
-    const location = new Location({ name: cleanName, shortCode: code });
-    await location.save();
-    
-    // Emit websocket update so frontend updates dynamically
     req.app.get('io').emit('location_update');
-    
     res.status(201).json(location);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create location', error: error.message });
   }
 });
 
-// Update a location's short code (manage_users permission needed).
-// Only the code is editable — the name is the key stored on users,
-// check-ins, daily reports, etc., so renaming would orphan those records.
+// Update a location (manage_users permission needed). Everything but the
+// short name is editable — the name is the key stored on users, check-ins,
+// daily reports, etc., so renaming would orphan those records.
 app.patch('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
-    const { code, error: codeError } = normalizeLocationCode(req.body.shortCode);
-    if (codeError) {
-      return res.status(400).json({ message: codeError });
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Location not found' });
     }
-
     const location = await Location.findById(req.params.id);
     if (!location) {
       return res.status(404).json({ message: 'Location not found' });
     }
 
-    if (code && await Location.findOne({ shortCode: code, _id: { $ne: location._id } })) {
-      return res.status(400).json({ message: `Short code "${code}" is already used by another location` });
-    }
+    const others = await Location.find({}, { name: 1, shortCode: 1 }).lean();
+    const { record, errors } = parseLocationBody(req.body, { isEdit: true, current: location, others });
+    if (errors) return locationError(res, errors);
 
-    location.shortCode = code;
+    location.set({ ...record, editedBy: req.user?.username || '', editedAt: new Date() });
+    await applyLocationGeocode(location);
     await location.save();
 
     req.app.get('io').emit('location_update');
-
     res.json(location);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update location', error: error.message });
@@ -2000,6 +2015,8 @@ app.delete('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_us
     }
 
     await Location.findByIdAndDelete(locationId);
+    // Nothing may keep pointing at it as their regional distribution center.
+    await Location.updateMany({ rdc: location.name }, { $set: { rdc: '' } });
     
     // Emit websocket update so frontend updates dynamically
     req.app.get('io').emit('location_update');

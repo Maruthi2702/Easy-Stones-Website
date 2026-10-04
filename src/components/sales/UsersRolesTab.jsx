@@ -12,7 +12,8 @@ import { getAuthToken, setAuthToken } from '../../api/authToken';
 import { prettifyUsername } from '../../utils/textUtils';
 import { clearDriversCache } from '../../api/deliverySchedule';
 import { homeLocationOf } from '../../utils/locationFilter';
-import { normalizeLocationCode, formatLocationLabel } from '../../utils/locationCode';
+import { addressLines, hasPrintableAddress } from '../../utils/locationForm';
+import LocationForm from './locations/LocationForm';
 import AddUserForm from './users/AddUserForm';
 import EditUserForm from './users/EditUserForm';
 import { PAGE_PERMISSIONS, describeRole, isDriverRole } from './users/pagePermissions';
@@ -24,12 +25,8 @@ const ALL_PERMISSION_KEYS = PAGE_PERMISSIONS.flatMap(p => p.actions.map(a => a.k
 
 const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     const [subTab, setSubTab] = useState('users'); // 'users', 'roles', 'locations'
-    const [newLocationName, setNewLocationName] = useState('');
-    const [newLocationCode, setNewLocationCode] = useState('');
-    const [isAddingLocation, setIsAddingLocation] = useState(false);
-    const [editingCodeId, setEditingCodeId] = useState(null);
-    const [editingCodeValue, setEditingCodeValue] = useState('');
-    const [isSavingCode, setIsSavingCode] = useState(false);
+    // Add / Edit location form: null (closed), 'new', or the location being edited.
+    const [locationForm, setLocationForm] = useState(null);
     const [locationError, setLocationError] = useState('');
     const [locationSuccess, setLocationSuccess] = useState('');
 
@@ -43,115 +40,41 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
         }
     }, [locationSuccess, locationError]);
 
-    const handleAddLocation = async (e) => {
-        e.preventDefault();
-        if (!newLocationName.trim()) return;
-
-        const { code, error: codeError } = normalizeLocationCode(newLocationCode);
-        if (codeError) {
-            setLocationError(codeError);
-            return;
-        }
-
-        setIsAddingLocation(true);
+    const handleLocationSaved = (saved, wasNew) => {
         setLocationError('');
-        setLocationSuccess('');
-
-        try {
-            const res = await fetchWithAuth(`${API_URL}/api/admin/locations`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newLocationName.trim(), shortCode: code })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                setLocationSuccess(`Location "${formatLocationLabel(data)}" added successfully!`);
-                setNewLocationName('');
-                setNewLocationCode('');
-                if (fetchLocations) fetchLocations();
-            } else {
-                const data = await res.json();
-                setLocationError(data.message || 'Failed to add location');
-            }
-        } catch (err) {
-            console.error('Error adding location:', err);
-            setLocationError('Network error. Failed to add location.');
-        } finally {
-            setIsAddingLocation(false);
-        }
+        setLocationSuccess(wasNew ? `${saved.fullName || saved.name} added.` : `${saved.fullName || saved.name} saved.`);
+        if (fetchLocations) fetchLocations();
     };
 
-    const startEditingCode = (loc) => {
-        setEditingCodeId(loc._id);
-        setEditingCodeValue(loc.shortCode || '');
-    };
-
-    const cancelEditingCode = () => {
-        setEditingCodeId(null);
-        setEditingCodeValue('');
-    };
-
-    const handleSaveLocationCode = async (loc) => {
-        const { code, error: codeError } = normalizeLocationCode(editingCodeValue);
-        if (codeError) {
-            setLocationError(codeError);
-            return;
-        }
-        if (code === (loc.shortCode || '')) {
-            cancelEditingCode();
-            return;
-        }
-
-        setIsSavingCode(true);
-        setLocationError('');
-        setLocationSuccess('');
+    // From the row's trash button and the edit form's "Delete location".
+    // Resolves true when it was deleted, so the form knows to close.
+    const handleDeleteLocation = async (loc) => {
+        if (!window.confirm(`Delete ${loc.fullName || loc.name}? Users assigned to this location might lose access.`)) return false;
 
         try {
             const res = await fetchWithAuth(`${API_URL}/api/admin/locations/${loc._id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ shortCode: code })
-            });
-
-            if (res.ok) {
-                setLocationSuccess(code
-                    ? `Short code for ${loc.name} set to ${code}.`
-                    : `Short code removed from ${loc.name}.`);
-                cancelEditingCode();
-                if (fetchLocations) fetchLocations();
-            } else {
-                const data = await res.json();
-                setLocationError(data.message || 'Failed to update short code');
-            }
-        } catch (err) {
-            console.error('Error updating location short code:', err);
-            setLocationError('Network error. Failed to update short code.');
-        } finally {
-            setIsSavingCode(false);
-        }
-    };
-
-    const handleDeleteLocation = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this location? Users assigned to this location might lose access.')) return;
-
-        try {
-            const res = await fetchWithAuth(`${API_URL}/api/admin/locations/${id}`, {
                 method: 'DELETE'
             });
 
             if (res.ok) {
                 setLocationSuccess('Location deleted successfully!');
                 if (fetchLocations) fetchLocations();
-            } else {
-                const data = await res.json();
-                setLocationError(data.message || 'Failed to delete location');
+                return true;
             }
+            const data = await res.json().catch(() => ({}));
+            setLocationError(data.message || 'Failed to delete location');
         } catch (err) {
             console.error('Error deleting location:', err);
             setLocationError('Network error. Failed to delete location.');
         }
+        return false;
     };
+
+    // Branches whose selection sheets still print the Kent address.
+    const locationsMissingAddress = useMemo(
+        () => (Array.isArray(locations) ? locations : []).filter((l) => l && typeof l === 'object' && !hasPrintableAddress(l)),
+        [locations]
+    );
 
     // Kept as a thin alias so the 9 call sites below don't need touching —
     // the actual auth/credentials wiring (and session-expiry detection) now
@@ -746,39 +669,24 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                     {/* ── SUB TAB 3: LOCATIONS MANAGEMENT ── */}
                     {subTab === 'locations' && (
                         <div className="locations-panel-layout">
-                            <div className="panel-actions-toolbar">
-                                <form onSubmit={handleAddLocation} className="add-location-form" style={{ display: 'flex', gap: '1rem', width: '100%', maxWidth: '720px' }}>
-                                    <div className="search-input-wrapper" style={{ flex: 1, maxWidth: 'none' }}>
-                                        <MapPin className="search-icon" size={18} />
-                                        <input
-                                            type="text"
-                                            placeholder="Add new location name (e.g. Portland, Salt Lake City)..."
-                                            value={newLocationName}
-                                            onChange={(e) => setNewLocationName(e.target.value)}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="search-input-wrapper location-code-input-wrapper">
-                                        <Tag className="search-icon" size={16} />
-                                        <input
-                                            type="text"
-                                            placeholder="Code (e.g. PDX)"
-                                            aria-label="Location short code"
-                                            value={newLocationCode}
-                                            onChange={(e) => setNewLocationCode(e.target.value.toUpperCase())}
-                                            maxLength={5}
-                                        />
-                                    </div>
-                                    <button type="submit" className="add-user-btn" disabled={isAddingLocation} style={{ whiteSpace: 'nowrap' }}>
-                                        {isAddingLocation ? (
-                                            <div className="loader-spinner" style={{ width: '16px', height: '16px', border: '2px solid transparent', borderTopColor: '#0f172a', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
-                                        ) : (
-                                            <Plus size={18} />
-                                        )}
-                                        <span>Add Location</span>
-                                    </button>
-                                </form>
+                            <div className="panel-actions-toolbar" style={{ justifyContent: 'flex-end' }}>
+                                <button type="button" className="add-user-btn" onClick={() => setLocationForm('new')} style={{ whiteSpace: 'nowrap' }}>
+                                    <Plus size={18} />
+                                    <span>Add location</span>
+                                </button>
                             </div>
+
+                            {locationsMissingAddress.length > 0 && (
+                                <div className="location-missing-banner" role="status">
+                                    <Info size={16} aria-hidden="true" />
+                                    <span>
+                                        {locationsMissingAddress.length === 1
+                                            ? `${locationsMissingAddress[0].name} has no address yet.`
+                                            : `${locationsMissingAddress.length} locations have no address yet.`}
+                                        {' '}Their selection sheets print the Kent address until one is added.
+                                    </span>
+                                </div>
+                            )}
 
                             {locationError && (
                                 <div className="profile-message-banner error">
@@ -798,93 +706,102 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                 <table className="users-table">
                                     <thead>
                                         <tr>
-                                            <th>Location Name</th>
-                                            <th>Short Code</th>
-                                            <th>Date Created</th>
-                                            <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
+                                            <th>Location</th>
+                                            <th>Address</th>
+                                            <th>Primary contact</th>
+                                            <th>Region · RDC</th>
+                                            <th style={{ width: '110px', textAlign: 'center' }}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {locations.length === 0 ? (
                                             <tr>
-                                                <td colSpan="4" className="empty-table-row">
+                                                <td colSpan="5" className="empty-table-row">
                                                     No locations found. Add one above!
                                                 </td>
                                             </tr>
                                         ) : (
-                                            locations.map(loc => (
-                                                <tr key={loc._id}>
-                                                    <td>
-                                                        <div className="username-cell">
-                                                            <div className="avatar-small location-avatar">
-                                                                <MapPin size={16} />
+                                            locations.map(loc => {
+                                                const pc = loc.primaryContact || {};
+                                                const lines = addressLines(pc.address || {});
+                                                const rdc = locations.find((l) => l.name === loc.rdc);
+                                                const types = [loc.profitCenter && 'Profit center', loc.warehouse && 'Warehouse'].filter(Boolean);
+                                                return (
+                                                    <tr key={loc._id}>
+                                                        <td>
+                                                            <div className="username-cell">
+                                                                <div className="avatar-small location-avatar">
+                                                                    <MapPin size={16} />
+                                                                </div>
+                                                                <div className="location-cell-stack">
+                                                                    <span className="location-name-text">{loc.fullName || loc.name}</span>
+                                                                    <span className="location-sub">
+                                                                        {loc.fullName ? loc.name : null}
+                                                                        {loc.shortCode && <span className="location-code-badge">{loc.shortCode}</span>}
+                                                                    </span>
+                                                                    {types.length > 0 && (
+                                                                        <span className="location-types">
+                                                                            {types.map((t) => <span key={t} className="location-type-chip">{t}</span>)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                            <span className="location-name-text">{loc.name}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td data-label="Short Code">
-                                                        {editingCodeId === loc._id ? (
-                                                            <form
-                                                                className="location-code-edit"
-                                                                onSubmit={(e) => { e.preventDefault(); handleSaveLocationCode(loc); }}
-                                                            >
-                                                                <input
-                                                                    type="text"
-                                                                    className="location-code-edit-input"
-                                                                    value={editingCodeValue}
-                                                                    onChange={(e) => setEditingCodeValue(e.target.value.toUpperCase())}
-                                                                    onKeyDown={(e) => { if (e.key === 'Escape') cancelEditingCode(); }}
-                                                                    maxLength={5}
-                                                                    placeholder="SEA"
-                                                                    aria-label={`Short code for ${loc.name}`}
-                                                                    autoFocus
-                                                                    disabled={isSavingCode}
-                                                                />
-                                                                <button type="submit" className="action-icon-btn" title="Save short code" disabled={isSavingCode}>
-                                                                    <Check size={16} />
-                                                                </button>
-                                                                <button type="button" className="action-icon-btn" title="Cancel" onClick={cancelEditingCode} disabled={isSavingCode}>
-                                                                    <X size={16} />
-                                                                </button>
-                                                            </form>
-                                                        ) : (
-                                                            <div className="location-code-display">
-                                                                {loc.shortCode ? (
-                                                                    <span className="location-code-badge">{loc.shortCode}</span>
-                                                                ) : (
-                                                                    <span className="location-code-empty">Not set</span>
-                                                                )}
+                                                        </td>
+                                                        <td data-label="Address">
+                                                            {lines.length > 0 ? (
+                                                                <div className="location-cell-stack">
+                                                                    {lines.map((line) => <span key={line}>{line}</span>)}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="location-missing-chip">No address yet</span>
+                                                            )}
+                                                        </td>
+                                                        <td data-label="Primary contact">
+                                                            {pc.name || pc.phone || pc.email ? (
+                                                                <div className="location-cell-stack">
+                                                                    {pc.name && <span>{pc.name}</span>}
+                                                                    {pc.phone && <span className="location-sub">{pc.phone}</span>}
+                                                                    {pc.email && <span className="location-sub">{pc.email}</span>}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="location-code-empty">Not set</span>
+                                                            )}
+                                                        </td>
+                                                        <td data-label="Region · RDC">
+                                                            {loc.region || loc.rdc ? (
+                                                                <div className="location-cell-stack">
+                                                                    {loc.region && <span>{loc.region}</span>}
+                                                                    {loc.rdc && <span className="location-sub">RDC: {rdc?.fullName || loc.rdc}</span>}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="location-code-empty">Not set</span>
+                                                            )}
+                                                        </td>
+                                                        <td>
+                                                            <div className="action-buttons-cell" style={{ justifyContent: 'center' }}>
                                                                 <button
                                                                     type="button"
                                                                     className="action-icon-btn"
-                                                                    onClick={() => startEditingCode(loc)}
-                                                                    title={loc.shortCode ? 'Edit short code' : 'Add short code'}
+                                                                    onClick={() => setLocationForm(loc)}
+                                                                    title={`Edit ${loc.name}`}
+                                                                    aria-label={`Edit ${loc.name}`}
                                                                 >
-                                                                    <Pencil size={14} />
+                                                                    <Pencil size={16} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="action-icon-btn delete"
+                                                                    onClick={() => handleDeleteLocation(loc)}
+                                                                    title={`Delete ${loc.name}`}
+                                                                    aria-label={`Delete ${loc.name}`}
+                                                                >
+                                                                    <Trash2 size={16} />
                                                                 </button>
                                                             </div>
-                                                        )}
-                                                    </td>
-                                                    <td data-label="Date Created">
-                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '0.88rem' }}>
-                                                            <Clock size={14} style={{ opacity: 0.7 }} />
-                                                            <span>{loc.createdAt ? new Date(loc.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'System Seeded'}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div className="action-buttons-cell" style={{ justifyContent: 'center' }}>
-                                                            <button 
-                                                                type="button"
-                                                                className="action-icon-btn delete"
-                                                                onClick={() => handleDeleteLocation(loc._id)}
-                                                                title="Delete Location"
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
                                         )}
                                     </tbody>
                                 </table>
@@ -892,6 +809,16 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                         </div>
                     )}
                 </div>
+            )}
+
+            {locationForm && (
+                <LocationForm
+                    location={locationForm === 'new' ? null : locationForm}
+                    locations={locations}
+                    onClose={() => setLocationForm(null)}
+                    onSaved={(saved) => handleLocationSaved(saved, locationForm === 'new')}
+                    onDelete={handleDeleteLocation}
+                />
             )}
 
             {showAddUser && (

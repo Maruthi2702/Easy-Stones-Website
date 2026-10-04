@@ -15,7 +15,11 @@ agreed template, built from design **A · One clear form** on the
 - `formFocus`: Go to first and the Tab trap
 
 **Add User** and **Edit User** (`src/components/sales/users/`) are on it, on
-both Sales CRM → Users & Roles and the /admin page. Move the other forms over **one at a time** and check each one by hand.
+both Sales CRM → Users & Roles and the /admin page. **Add / Edit location**
+(`src/components/sales/locations/LocationForm.jsx`, size L) is on it too. On
+phones that form puts Cancel and the main button on one row (`FormModal`'s
+opt-in `phoneFooterRow`, the owner's call on 2026-10-04); every other form
+keeps the stacked footer below unless that's made the rule. Move the other forms over **one at a time** and check each one by hand.
 This is a live app, and `CLAUDE.md`'s shared-component rule applies,
 especially to dropdowns inside a modal (see the CustomSelect z-index
 incident). Use `FormPicker` for new dropdowns: it opens in the flow of the

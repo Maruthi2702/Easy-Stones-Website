@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
+import { DEFAULT_LETTERHEAD } from '../utils/locationForm.js';
 
 // The check-in emails below interpolate visitor-supplied fields (name, notes,
 // selections...) straight into HTML. The self check-in endpoint that produces
@@ -170,7 +171,9 @@ export async function sendCheckInAlertEmail(checkIn) {
 }
 
 // 2. Send Selection Sheet Email
-export async function sendSelectionSheetEmail(checkIn, recipientEmail) {
+// `letterhead` is the check-in's location's address/contact lines
+// (letterheadFor in src/utils/locationForm.js); without one it's the Kent address.
+export async function sendSelectionSheetEmail(checkIn, recipientEmail, letterhead = DEFAULT_LETTERHEAD) {
   const dateStr = new Date(checkIn.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 
   let selectionsHtml = '';
@@ -199,7 +202,8 @@ export async function sendSelectionSheetEmail(checkIn, recipientEmail) {
     <div style="font-family: sans-serif; max-width: 700px; padding: 25px; border: 1px solid #e2e8f0; border-radius: 16px; background: #fafafa;">
       <div style="text-align: center; border-bottom: 2px solid #d4af37; padding-bottom: 15px; margin-bottom: 20px;">
         <h2 style="color: #111; margin: 0; font-weight: 800; letter-spacing: 0.05em; font-size: 1.6rem;">EASY STONES</h2>
-        <p style="color: #666; margin: 5px 0 0 0; font-size: 0.85rem;">6012 S 196th St, Kent, WA 98032</p>
+        <p style="color: #666; margin: 5px 0 0 0; font-size: 0.85rem;">${escapeHtml(letterhead.addressLine)}</p>
+        ${letterhead.contactLine ? `<p style="color: #666; margin: 2px 0 0 0; font-size: 0.8rem;">${escapeHtml(letterhead.contactLine)}</p>` : ''}
       </div>
       
       <h3 style="color: #d4af37; text-align: center; margin: 0 0 20px 0; font-size: 1.15rem; letter-spacing: 0.05em; text-transform: uppercase;">

@@ -55,7 +55,7 @@ profile) follows [`FORM_TEMPLATE.md`](FORM_TEMPLATE.md), approved
 2026-10-04. It covers sizes S/M/L and phone, field states, the required `*`,
 no helper text, validation banner, saving lock, unsaved-changes check, edit
 mode, and light/dark colors. It's built in `src/components/shared/form/`
-(Add and Edit User are on it); move the others onto it one at a time and
+(Add and Edit User, and Add / Edit location, are on it); move the others onto it one at a time and
 re-check each by hand, since every form with a dropdown is subject to the
 CustomSelect incident below.
 
@@ -140,7 +140,11 @@ username suggestion and format, required fields, temporary passwords, the
 Locations/home rule, role summaries), and the Selection Sheet's slab-tag
 scanner (`src/utils/stoneLabel.js`: reading lot/slab/size/material out of OCR
 text, rejecting wrong-rotation garbage, and when a lot may be matched to
-stock). Nothing else in the app has test coverage — no
+stock), and Add / Edit location's rules (`src/utils/locationForm.js`:
+required fields and formats, unique short name/code, which locations can be
+an RDC, the record ↔ form conversion the API also runs, what non-managers
+may read, and the selection-sheet letterhead with its Kent fallback).
+Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 
 That means passing `npm test` only proves the math didn't regress; it says
