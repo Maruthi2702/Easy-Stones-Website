@@ -92,7 +92,8 @@ export default function LocationForm({ location = null, locations = [], onClose,
             .map((l) => ({ value: l.name, label: l.fullName || l.name, description: l.fullName ? l.name : undefined }))
     ], [others, values.name]);
     const repOptions = useMemo(() => {
-        const names = [...new Set(salesReps.map((r) => String(r?.name || '').trim()).filter(Boolean))];
+        // Deactivated staff stay off the list; one already saved here still shows.
+        const names = [...new Set(salesReps.filter((r) => r?.isActive !== false).map((r) => String(r?.name || '').trim()).filter(Boolean))];
         if (values.salesRep && !names.includes(values.salesRep)) names.unshift(values.salesRep);
         return [{ value: '', label: 'None' }, ...names.map((n) => ({ value: n, label: n }))];
     }, [salesReps, values.salesRep]);

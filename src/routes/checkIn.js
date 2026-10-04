@@ -2,6 +2,7 @@ import express from 'express';
 
 import OfficeCheckIn from '../models/OfficeCheckIn.js';
 import Location from '../models/Location.js';
+import User from '../models/User.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail } from '../services/emailService.js';
 import { stripPhone, formatPhoneForDisplay, maskPhone } from '../utils/phoneUtils.js';
 import { letterheadFor } from '../utils/locationForm.js';
@@ -602,7 +603,8 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         specialNotes,
         salesRep,
         salesRepEmail,
-        location
+        location,
+        expectedUpdatedAt
       } = req.body;
       const checkIn = await OfficeCheckIn.findById(req.params.id);
       if (!checkIn) {
@@ -613,6 +615,23 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       const userLocations = req.user.assignedLocations || [];
       if (!hasLocationAccess(userLocations, checkIn.location)) {
         return res.status(403).json({ message: 'Access denied to this check-in' });
+      }
+
+      // Two people with the same selection sheet open: the second save used
+      // to silently overwrite the first. The sheet sends the updatedAt it
+      // loaded; if the record has moved on since, answer 409 with what's
+      // there now so the person can choose whose version to keep. Callers
+      // that don't send it (other edit screens) are unaffected.
+      if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== null) {
+        const expected = new Date(expectedUpdatedAt).getTime();
+        const current = checkIn.updatedAt ? checkIn.updatedAt.getTime() : null;
+        if (Number.isNaN(expected) || expected !== current) {
+          return res.status(409).json({
+            code: 'conflict',
+            message: 'Someone else saved this selection sheet while you had it open.',
+            data: checkIn
+          });
+        }
       }
       // The room a live update needs to reach before this save can change it —
       // captured up front so a location move still notifies viewers on the
@@ -668,7 +687,12 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       // Background alert to the sales rep — only when the selections, notes or
       // the rep themselves changed. It used to fire on every save, so re-saving
       // an unchanged sheet emailed the rep again each time.
-      if (checkIn.salesRepEmail && sheetSnapshot() !== sheetBefore) {
+      // …and never to someone deactivated in Users & Roles, who may still be
+      // named on an old sheet.
+      const repInactive = checkIn.salesRepEmail
+        ? await User.exists({ email: new RegExp(`^${escapeRegex(checkIn.salesRepEmail)}$`, 'i'), isActive: false })
+        : null;
+      if (checkIn.salesRepEmail && !repInactive && sheetSnapshot() !== sheetBefore) {
         (async () => {
           try {
             console.log(`📡 Automatically sending selection sheet alert to sales rep: ${checkIn.salesRepEmail}`);

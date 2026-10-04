@@ -3242,7 +3242,13 @@ app.post('/api/customers/:customerId/contacts', authenticate, requirePermission(
 // Get list of sales reps (all users for autocomplete/suggestions)
 // Staff-only: this is an internal directory (usernames, emails, roles, locations)
 // and was previously reachable unauthenticated.
+// The staff directory (names, usernames, emails, roles) — for staff screens
+// only. authenticate also admits customer logins, which used to be handed
+// the whole list.
 app.get('/api/salesreps', authenticate, async (req, res) => {
+  if (req.user?.type === 'customer') {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
   try {
     const cached = cacheHit('salesreps');
     if (cached) return res.json(cached);
