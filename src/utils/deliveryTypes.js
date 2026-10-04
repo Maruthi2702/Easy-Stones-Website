@@ -208,3 +208,76 @@ export const transferShipNote = (delivery, today = '') => {
   if (delivery.viewedAs === 'destination') return `Incoming · shipped ${shipped}`;
   return `Shipped ${shipped} · arrives ${delivery.date === today ? 'today' : shortDayLabel(delivery.date)}`;
 };
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * What a Pending Delivery card shows where a scheduled card shows "Stop #N":
+ * the day the customer wants it, coloured by how soon a truck is needed, so
+ * whoever books the trucks can see what's coming up. A pending order has no
+ * route yet, so its stop number meant nothing.
+ *
+ * `date` is the ticket's stored 'YYYY-MM-DD' (optional on a pending order);
+ * `today` is the same shape (formatForDateInput(new Date())). Worked from the
+ * strings' own parts, never through Date parsing, which would read a bare date
+ * as UTC midnight and show the day before for anyone west of Greenwich.
+ *
+ * Returns { text, tone }, weeks running Monday–Sunday:
+ *   'overdue'   the date has passed and it still has no truck — earlier days
+ *               of this week included
+ *   'this-week' today through Sunday
+ *   'next-week' the Monday–Sunday after that
+ *   'later'     beyond next week
+ *   'none'      no date entered yet
+ * Without a `today` there's nothing to measure against, so a date is 'later'.
+ */
+const ymdToDayNumber = (ymd) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || ''));
+  if (!m) return null;
+  return Math.round(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86400000);
+};
+
+export const pendingDeliveryDateLabel = (date, today = '') => {
+  const day = ymdToDayNumber(date);
+  if (day === null) return { text: 'No date', tone: 'none' };
+  const [, mo, d] = String(date).split('-').map(Number);
+  const asDate = new Date(day * 86400000);
+  // Compact on purpose: it shares the card's top line with the SO#, which has
+  // to stay whole on a 260px card.
+  const text = `${WEEKDAYS[asDate.getUTCDay()]} ${MONTHS[mo - 1]} ${d}`;
+
+  const now = ymdToDayNumber(today);
+  if (now === null) return { text, tone: 'later' };
+  if (day === now) return { text: 'Today', tone: 'this-week' };
+  if (day < now) return { text, tone: 'overdue' };
+  const daysSinceMonday = (new Date(now * 86400000).getUTCDay() + 6) % 7;
+  const sunday = now + (6 - daysSinceMonday);
+  if (day <= sunday) return { text, tone: 'this-week' };
+  if (day <= sunday + 7) return { text, tone: 'next-week' };
+  return { text, tone: 'later' };
+};
+
+/**
+ * Pending Delivery's order: by delivery date, soonest first — which puts
+ * overdue orders at the top on its own — then orders with no date yet at the
+ * end. Orders due the same day keep the one waiting longest (created first)
+ * ahead. Returns a new array; the list it's given is left alone.
+ */
+export const sortPendingByDate = (deliveries = []) => {
+  const dayOf = (d) => ymdToDayNumber(d?.date);
+  const createdOf = (d) => {
+    const t = new Date(d?.createdAt || 0).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  };
+  return [...deliveries].sort((a, b) => {
+    const da = dayOf(a);
+    const db = dayOf(b);
+    if (da !== db) {
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return da - db;
+    }
+    return createdOf(a) - createdOf(b);
+  });
+};

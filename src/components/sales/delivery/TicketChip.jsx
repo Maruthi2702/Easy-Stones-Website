@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine, Undo2, Layers, CalendarDays } from 'lucide-react';
 import StatusPill from './StatusPill';
 import EpodChip from './EpodChip';
-import { isCounterReturn, transferShipNote } from '../../../utils/deliveryTypes';
+import { isCounterReturn, transferShipNote, pendingDeliveryDateLabel } from '../../../utils/deliveryTypes';
 import { formatForDateInput } from '../../../utils/dateUtils';
 
 /**
@@ -56,7 +56,12 @@ const TicketChip = ({
   // Only supplied for tickets that are collected rather than delivered — the
   // board decides that per column and leaves it off everywhere else, so a
   // normal stop stays the driver's to sign for.
-  onOpenPod
+  onOpenPod,
+  // Pending Delivery passes this: an order with no truck has no route, so
+  // "Stop #N" means nothing there — its delivery date is what tells whoever
+  // books the trucks when it has to go out. It also drops the status pill,
+  // which can only ever say "Pending" in that list.
+  showDeliveryDate = false
 }) => {
   const [copied, setCopied] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -104,6 +109,12 @@ const TicketChip = ({
   // editable via its own modal, where both dates are what they really are.
   const canDrag = Boolean(editable && delivery.status !== 'completed' && !delivery.isIncomingView);
   const shipNote = isTransfer ? transferShipNote(delivery, formatForDateInput(new Date())) : '';
+  // Only where a stop number would otherwise show; a transfer, will call or
+  // drop-off already says what it is instead.
+  const dueDate = showDeliveryDate
+    ? pendingDeliveryDateLabel(delivery.date, formatForDateInput(new Date()))
+    : null;
+  const stopText = dueDate ? dueDate.text : `Stop #${stopNum}`;
 
   // Proof only means something once the delivery is done — an unsigned scheduled
   // job doesn't need telling that it has no ePOD yet. Suppressed entirely where
@@ -160,7 +171,7 @@ const TicketChip = ({
         // spot — and the exact label — a dispatcher was hovering over.
         const ghost = document.createElement('div');
         ghost.className = 'drag-ghost-pill';
-        ghost.textContent = `${isTransfer ? (soVal ? 'Transfer#' : 'Transfer') : `Stop #${stopNum}`} · ${delivery.customerName || 'Delivery'}`;
+        ghost.textContent = `${isTransfer ? (soVal ? 'Transfer#' : 'Transfer') : stopText} · ${delivery.customerName || 'Delivery'}`;
         // Off-screen rather than hidden — display:none or visibility:hidden
         // stop the browser from rasterizing an element at all, which is
         // exactly what setDragImage needs it for.
@@ -195,6 +206,18 @@ const TicketChip = ({
             // jobsite renders too. What kind of stop it is gets said under
             // the address instead.
             <><Undo2 size={11} style={{ marginRight: 2 }} /> Drop-Off</>
+          ) : dueDate ? (
+            <span
+              className={`ticket-due-date due-${dueDate.tone}`}
+              title={{
+                none: 'No delivery date yet — open the ticket to add one',
+                overdue: `Delivery date ${dueDate.text} has passed and no truck is assigned`,
+                'this-week': `Delivery date ${dueDate.text} — this week`,
+                'next-week': `Delivery date ${dueDate.text} — next week`
+              }[dueDate.tone] || `Delivery date ${dueDate.text}`}
+            >
+              <CalendarDays size={11} style={{ marginRight: 3 }} />{dueDate.text}
+            </span>
           ) : (
             <><Navigation size={11} style={{ marginRight: 2 }} /> Stop #{stopNum}</>
           )}
@@ -225,48 +248,54 @@ const TicketChip = ({
             </span>
           )}
         </span>
-        <StatusPill status={delivery.status} size="small" />
+        {/* Everything in Pending Delivery is pending by definition, so the pill
+            only repeated the section's own title there — and its space goes to
+            the date and SO#. On the board (no showDeliveryDate) it shows as
+            always. */}
+        {!showDeliveryDate && <StatusPill status={delivery.status} size="small" />}
       </div>
 
       <h5 className="ticket-customer">
         <Highlight text={delivery.customerName} query={searchQuery} />
       </h5>
 
-      {/* A will call has no delivery address — the useful line is which vehicle
-          is coming for it, which is what the counter needs on the day. */}
-      {isWillCall ? (
-        delivery.pickupInfo && (
-          <p className="ticket-address">
-            <Truck size={12} />
-            <Highlight text={delivery.pickupInfo} query={searchQuery} />
-          </p>
-        )
-      ) : delivery.address && (
-        <p className="ticket-address">
-          <MapPin size={12} />
-          <Highlight text={delivery.address} query={searchQuery} />
-        </p>
-      )}
-
-      {/* The one number a driver or the counter actually needs before touching
-          anything — today it only lived inside the edit modal, so seeing it
-          meant opening every card on the run just to find out how much to load.
-          One conditional placement covers every card shape: it falls right
-          after whatever the line above it was, so it reads as "next line under
-          the address" on a jobsite or return, "next line under the pickup
-          vehicle" on a will call, and — since a transfer shows neither of those
-          today — as the first line under the customer name there, which is the
-          same "next line" placement asked for.
-          0 is treated the same way the modal already treats it (see the No. of
-          Slabs field's own comment there): a ticket nobody has counted yet, not
-          a delivery of zero slabs, so it stays silent rather than claiming a
-          fact nobody has confirmed. */}
-      {Number(delivery.numberOfSlabs) > 0 && (
-        <p className="ticket-slabs">
-          <Layers size={12} />
-          {delivery.numberOfSlabs} {Number(delivery.numberOfSlabs) === 1 ? 'slab' : 'slabs'}
-        </p>
-      )}
+      {/* Where it's going and how much is going, on one line: the address (or,
+          for a will call, the vehicle collecting it — a will call has no
+          delivery address, and which vehicle is coming is what the counter
+          needs on the day) with the slab count beside it. The row wraps, so a
+          long address pushes the count onto its own line rather than squeezing
+          it. A transfer shows neither address nor vehicle, so its count stands
+          alone under the customer name.
+          A slab count of 0 is treated the way the modal already treats it (see
+          the No. of Slabs field's own comment there): a ticket nobody has
+          counted yet, not a delivery of zero slabs, so it stays silent rather
+          than claiming a fact nobody has confirmed. */}
+      {(() => {
+        const place = isWillCall
+          ? (delivery.pickupInfo && { icon: Truck, text: delivery.pickupInfo })
+          : (delivery.address && { icon: MapPin, text: delivery.address });
+        const slabs = Number(delivery.numberOfSlabs) > 0 ? Number(delivery.numberOfSlabs) : 0;
+        if (!place && !slabs) return null;
+        const PlaceIcon = place?.icon;
+        return (
+          <div className="ticket-place-row">
+            <div className="ticket-place-inner">
+            {place && (
+              <p className="ticket-address">
+                <PlaceIcon size={12} />
+                <Highlight text={place.text} query={searchQuery} />
+              </p>
+            )}
+            {slabs > 0 && (
+              <span className="ticket-slabs">
+                <Layers size={12} />
+                {slabs} {slabs === 1 ? 'slab' : 'slabs'}
+              </span>
+            )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Under the address rather than in the header, so every card's top line
           reads the same way. It still has to be impossible to miss — a driver

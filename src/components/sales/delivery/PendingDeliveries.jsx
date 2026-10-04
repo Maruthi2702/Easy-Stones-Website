@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Clock, Plus } from 'lucide-react';
 import TicketChip from './TicketChip';
+import { sortPendingByDate } from '../../../utils/deliveryTypes';
 
 /**
  * Orders with no driver assigned yet. They have no truck column to sit in, so
@@ -36,7 +37,8 @@ const PendingDeliveries = ({
     onMoveToPending(deliveryId);
   };
 
-  const visible = pending.filter(d => {
+  // Soonest delivery date first, so what needs a truck next is at the top.
+  const visible = sortPendingByDate(pending).filter(d => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return true;
     return (
@@ -105,6 +107,7 @@ const PendingDeliveries = ({
               key={d.id}
               delivery={d}
               truckColor="#94a3b8"
+              showDeliveryDate
               editable={editable}
               searchQuery={searchQuery}
               onClick={editable ? onEditDelivery : undefined}

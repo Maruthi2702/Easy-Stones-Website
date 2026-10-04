@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   DELIVERY_TYPES,
+  pendingDeliveryDateLabel,
+  sortPendingByDate,
   isWillCall,
   isReturn,
   isCounterReturn,
@@ -327,5 +329,91 @@ describe('transferArrivalFor', () => {
     expect(transferArrivalFor({ date: '', expectedArrivalDate: '' })).toBe('');
     expect(transferArrivalFor({ date: '', expectedArrivalDate: '2026-10-01' })).toBe('2026-10-01');
     expect(transferArrivalFor()).toBe('');
+  });
+});
+
+describe('pendingDeliveryDateLabel', () => {
+  // Wed Oct 7 2026: this week runs Mon Oct 5 – Sun Oct 11, next week Oct 12–18.
+  const wed = '2026-10-07';
+
+  it('shows a compact weekday and date', () => {
+    expect(pendingDeliveryDateLabel('2026-10-09', wed).text).toBe('Fri Oct 9');
+    expect(pendingDeliveryDateLabel('2027-01-01', wed).text).toBe('Fri Jan 1');
+  });
+
+  it('marks anything before today overdue, earlier days of this week included', () => {
+    expect(pendingDeliveryDateLabel('2026-10-05', wed)).toEqual({ text: 'Mon Oct 5', tone: 'overdue' });
+    expect(pendingDeliveryDateLabel('2026-09-30', wed)).toEqual({ text: 'Wed Sep 30', tone: 'overdue' });
+  });
+
+  it('puts today through Sunday in this week', () => {
+    expect(pendingDeliveryDateLabel('2026-10-07', wed)).toEqual({ text: 'Today', tone: 'this-week' });
+    expect(pendingDeliveryDateLabel('2026-10-11', wed).tone).toBe('this-week');
+  });
+
+  it('puts the following Monday–Sunday in next week, and beyond that later', () => {
+    expect(pendingDeliveryDateLabel('2026-10-12', wed).tone).toBe('next-week');
+    expect(pendingDeliveryDateLabel('2026-10-18', wed).tone).toBe('next-week');
+    expect(pendingDeliveryDateLabel('2026-10-19', wed).tone).toBe('later');
+  });
+
+  it('handles a Sunday today (end of the week) and a Monday today', () => {
+    expect(pendingDeliveryDateLabel('2026-10-12', '2026-10-11').tone).toBe('next-week');
+    expect(pendingDeliveryDateLabel('2026-10-18', '2026-10-11').tone).toBe('next-week');
+    expect(pendingDeliveryDateLabel('2026-10-19', '2026-10-11').tone).toBe('later');
+    expect(pendingDeliveryDateLabel('2026-10-11', '2026-10-05').tone).toBe('this-week');
+    expect(pendingDeliveryDateLabel('2026-10-12', '2026-10-05').tone).toBe('next-week');
+  });
+
+  it('crosses month and year ends', () => {
+    expect(pendingDeliveryDateLabel('2027-01-04', '2026-12-31').tone).toBe('next-week');
+    expect(pendingDeliveryDateLabel('2027-01-03', '2026-12-31').tone).toBe('this-week');
+  });
+
+  it('says so when no date has been entered', () => {
+    expect(pendingDeliveryDateLabel('', wed)).toEqual({ text: 'No date', tone: 'none' });
+    expect(pendingDeliveryDateLabel(undefined, wed)).toEqual({ text: 'No date', tone: 'none' });
+    expect(pendingDeliveryDateLabel('10/06/2026', wed)).toEqual({ text: 'No date', tone: 'none' });
+  });
+
+  it('does not judge a date without a today to compare against', () => {
+    expect(pendingDeliveryDateLabel('2020-01-01').tone).toBe('later');
+  });
+});
+
+describe('sortPendingByDate', () => {
+  const ids = (list) => list.map(d => d.id);
+
+  it('orders by delivery date, soonest first, with no-date orders last', () => {
+    const list = [
+      { id: 'later', date: '2026-10-20' },
+      { id: 'none', date: '' },
+      { id: 'overdue', date: '2026-10-01' },
+      { id: 'soon', date: '2026-10-06' },
+      { id: 'missing' }
+    ];
+    expect(ids(sortPendingByDate(list))).toEqual(['overdue', 'soon', 'later', 'none', 'missing']);
+  });
+
+  it('puts the order waiting longest first when two are due the same day', () => {
+    const list = [
+      { id: 'newer', date: '2026-10-06', createdAt: '2026-10-02T10:00:00Z' },
+      { id: 'older', date: '2026-10-06', createdAt: '2026-09-28T10:00:00Z' }
+    ];
+    expect(ids(sortPendingByDate(list))).toEqual(['older', 'newer']);
+  });
+
+  it('sorts no-date orders among themselves by how long they have waited', () => {
+    const list = [
+      { id: 'b', date: '', createdAt: '2026-10-02T00:00:00Z' },
+      { id: 'a', date: '', createdAt: '2026-09-20T00:00:00Z' }
+    ];
+    expect(ids(sortPendingByDate(list))).toEqual(['a', 'b']);
+  });
+
+  it('leaves the list it was given untouched', () => {
+    const list = [{ id: 'x', date: '2026-10-09' }, { id: 'y', date: '2026-10-01' }];
+    sortPendingByDate(list);
+    expect(ids(list)).toEqual(['x', 'y']);
   });
 });

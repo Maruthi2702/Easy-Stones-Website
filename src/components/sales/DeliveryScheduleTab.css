@@ -1098,6 +1098,42 @@ body.light-theme-active .ticket-ship-note,
   flex-shrink: 0;
 }
 
+/* Pending Delivery shows the delivery date where a scheduled card shows its
+   stop number (TicketChip's showDeliveryDate), coloured by how soon a truck is
+   needed (pendingDeliveryDateLabel in src/utils/deliveryTypes.js):
+     overdue   red   — the date has passed and it still has no truck
+     this week amber — today through Sunday
+     next week blue
+     later     grey;  no date yet: muted italic
+   Not green: green already means Completed on this board. Red, amber and blue
+   also stay distinct for colour-blind users. Each tone has a dark value (these)
+   and a light one (below), all at least 4.5:1 on their card background. */
+.ticket-due-date {
+  display: inline-flex;
+  align-items: center;
+  /* The card's sans face rather than the header's mono: a date in mono is
+     about twice the width of "Stop #1" and squeezed the SO# beside it. */
+  font-family: var(--font-main);
+  letter-spacing: 0;
+}
+
+.ticket-due-date.due-overdue { color: #f87171; }
+.ticket-due-date.due-this-week { color: #fbbf24; }
+.ticket-due-date.due-next-week { color: #60a5fa; }
+.ticket-due-date.due-later { color: #cbd5e1; }
+.ticket-due-date.due-none { color: #94a3b8; font-style: italic; }
+
+body.light-theme-active .ticket-due-date.due-overdue,
+.light-theme-active .ticket-due-date.due-overdue { color: #b91c1c; }
+body.light-theme-active .ticket-due-date.due-this-week,
+.light-theme-active .ticket-due-date.due-this-week { color: #b45309; }
+body.light-theme-active .ticket-due-date.due-next-week,
+.light-theme-active .ticket-due-date.due-next-week { color: #1d4ed8; }
+body.light-theme-active .ticket-due-date.due-later,
+.light-theme-active .ticket-due-date.due-later { color: #334155; }
+body.light-theme-active .ticket-due-date.due-none,
+.light-theme-active .ticket-due-date.due-none { color: #64748b; }
+
 /* Type steps down as the card narrows, so all three stay on one row.
    Sized against the worst realistic case — a "SCHEDULED" pill beside a long
    reference — and measured at each step rather than guessed. The pill shrinks
@@ -1160,19 +1196,54 @@ body.light-theme-active .ticket-customer,
   line-height: 1.2;
 }
 
+/* Address (or will-call vehicle) and slab count share one line. It wraps, so
+   a long address pushes the count to its own line instead of squeezing it; no
+   margin of its own — the chip's flex gap (.manifest-ticket-chip) spaces it
+   like any other line.
+   The "·" between them sits in each item's left padding, and the inner row is
+   pulled left by that same amount inside a clipping box — so whichever item
+   starts a line has its dot cut off. A count that wraps under a long address
+   then reads "2 slabs", not "· 2 slabs". */
+.ticket-place-row {
+  overflow: hidden;
+  min-width: 0;
+}
+
+.ticket-place-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 0.2rem;
+  margin-left: -0.8rem;
+}
+
+.ticket-place-inner > .ticket-address,
+.ticket-place-inner > .ticket-slabs {
+  position: relative;
+  min-width: 0;
+  padding-left: 0.8rem;
+}
+
+.ticket-place-inner > .ticket-address::before,
+.ticket-place-inner > .ticket-slabs::before {
+  content: '·';
+  position: absolute;
+  left: 0.3rem;
+  color: #94a3b8;
+}
+
 /* Same weight as .ticket-address on purpose — it reads as the same kind of
-   fact about the stop, not a separate badge. No margin of its own: the chip's
-   own flex gap (.manifest-ticket-chip) already spaces every line evenly,
-   whichever line happens to sit above it on a given card shape. */
+   fact about the stop, not a separate badge. */
 .ticket-slabs {
   margin: 0;
   font-size: 0.7rem;
   font-weight: 600;
   color: #64748b;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .ticket-footer {
