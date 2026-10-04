@@ -281,7 +281,9 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         </button>
     ) : <span className="ss-remove-spacer" aria-hidden="true" />);
 
-    const customerLine = [record.name, record.fabricatorCompany].map((s) => String(s || '').trim()).filter(Boolean).join(' & ');
+    // Customer and their phone — not the company too: two names side by side
+    // read as two people.
+    const customerLine = [record.name, record.phone].map((s) => String(s || '').trim()).filter(Boolean).join(' • ');
     const title = (
         <span className="ss-title">
             <span className="ss-title-main">Selection Sheet{record.location ? ` - ${record.location}` : ''}</span>
