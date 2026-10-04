@@ -6,7 +6,7 @@ import {
     Sun, Moon, LogOut, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { visibleSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS } from '../../utils/navPins';
+import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS } from '../../utils/navPins';
 import './CustomerSidebar.css';
 
 // Pages, sections and who sees what live in src/utils/navPins.js; only the
@@ -68,7 +68,7 @@ const CustomerSidebar = ({
     const navigate = useNavigate();
     const { user, logout } = useAuth();
 
-    const sections = visibleSections(user);
+    const sections = railSections(user);
     const pins = visiblePinnedTabs(user, pinnedTabs);
     const pinsFull = (pinnedTabs || []).length >= MAX_PINNED_TABS;
     const currentSection = sectionOf(crmTab);
@@ -109,10 +109,14 @@ const CustomerSidebar = ({
         };
     }, [menuOpen]);
 
-    const showPanel = isMobile || !panelHidden;
     const shownSection = sections.find(s => s.id === viewSection)
         || sections.find(s => s.id === currentSection)
         || sections[0];
+    // A one-page section (Admin today) has nothing to list beyond the page
+    // you're already on, so on desktop it's just the rail. Home always keeps
+    // its panel (the pins), and the mobile drawer always needs one.
+    const onePageSection = !!shownSection && shownSection.id !== 'home' && shownSection.items.length === 1;
+    const showPanel = isMobile || (!panelHidden && !onePageSection);
 
     const go = (tab) => {
         setMenuOpen(false);
@@ -121,8 +125,9 @@ const CustomerSidebar = ({
 
     const openSection = (section) => {
         setViewSection(section.id);
-        // A one-page section (Home, Admin today) goes straight to it.
-        if (section.items.length === 1) {
+        // A one-page section (Admin today) goes straight to it. Not Home:
+        // that's where the pins are, so it always opens the panel.
+        if (section.id !== 'home' && section.items.length === 1) {
             go(section.items[0].id);
             return;
         }
@@ -211,7 +216,7 @@ const CustomerSidebar = ({
                                 type="button"
                                 className={`side-nav-section${isCurrent ? ' is-current' : ''}${isViewing ? ' is-viewing' : ''}`}
                                 onClick={() => openSection(section)}
-                                title={section.items.length === 1 ? section.items[0].label : section.label}
+                                title={section.id !== 'home' && section.items.length === 1 ? section.items[0].label : section.label}
                             >
                                 <span className="side-nav-section-icon"><Icon size={20} /></span>
                                 <span className="side-nav-section-label">{section.label}</span>
@@ -220,7 +225,7 @@ const CustomerSidebar = ({
                     })}
                 </div>
 
-                {!showPanel && (
+                {!showPanel && panelHidden && (
                     <button
                         type="button"
                         className="side-nav-icon-btn"
@@ -274,57 +279,68 @@ const CustomerSidebar = ({
             </div>
 
             {/* Pinned + section panel */}
-            {showPanel && (
+            {showPanel && (() => {
+                // Hide-panel (desktop) / close-drawer (mobile) button, at the
+                // right end of the panel's first heading rather than a row of its own.
+                const panelButton = isMobile ? (
+                    <button
+                        type="button"
+                        className="side-nav-icon-btn side-nav-head-btn"
+                        onClick={() => setIsSidebarOpen(false)}
+                        aria-label="Close menu"
+                        title="Close menu"
+                    >
+                        <X size={18} />
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        className="side-nav-icon-btn side-nav-head-btn"
+                        onClick={() => { setPanelHidden(true); setMenuOpen(false); }}
+                        aria-label="Hide menu panel"
+                        title="Hide menu panel"
+                    >
+                        <PanelLeftClose size={18} />
+                    </button>
+                );
+                const isHome = shownSection?.id === 'home';
+                const sectionItems = !shownSection ? [] : isHome
+                    ? shownSection.items.filter(item => !pins.includes(item.id))
+                    : shownSection.items;
+                return (
                 <div className="side-nav-panel">
-                    <div className="side-nav-panel-head">
-                        <div className="side-nav-brand">
-                            <span className="side-nav-brand-name">EASY STONES</span>
-                            <span className="side-nav-brand-sub">Sales CRM</span>
-                        </div>
-                        {isMobile ? (
-                            <button
-                                type="button"
-                                className="side-nav-icon-btn"
-                                onClick={() => setIsSidebarOpen(false)}
-                                aria-label="Close menu"
-                                title="Close menu"
-                            >
-                                <X size={18} />
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                className="side-nav-icon-btn"
-                                onClick={() => { setPanelHidden(true); setMenuOpen(false); }}
-                                aria-label="Hide menu panel"
-                                title="Hide menu panel"
-                            >
-                                <PanelLeftClose size={18} />
-                            </button>
-                        )}
-                    </div>
-
                     <div className="side-nav-panel-body">
-                        <div className="side-nav-group">
-                            <div className="side-nav-group-label">Pinned</div>
-                            {pins.length > 0 ? (
-                                pins.map((id, index) => renderRow(navItem(id), { inPinned: true, index }))
-                            ) : (
-                                <p className="side-nav-empty">
-                                    Pin the pages you use most. Your first pin is the page that opens when you sign in.
-                                </p>
-                            )}
-                        </div>
-
-                        {shownSection && (
+                        {/* Home lists the pins (plus the Dashboard, unless it's
+                            pinned already); every other section only its own pages. */}
+                        {isHome && (
                             <div className="side-nav-group">
-                                <div className="side-nav-group-label">{shownSection.label}</div>
-                                {shownSection.items.map(item => renderRow(item))}
+                                <div className="side-nav-group-head">
+                                    <span className="side-nav-group-label">Pinned</span>
+                                    {panelButton}
+                                </div>
+                                {pins.length > 0 ? (
+                                    pins.map((id, index) => renderRow(navItem(id), { inPinned: true, index }))
+                                ) : (
+                                    <p className="side-nav-empty">
+                                        Pin the pages you use most from any section. Your first pin is the page that opens when you sign in.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {sectionItems.length > 0 && (
+                            <div className="side-nav-group">
+                                <div className="side-nav-group-head">
+                                    <span className="side-nav-group-label">{shownSection.label}</span>
+                                    {!isHome && panelButton}
+                                </div>
+                                {sectionItems.map(item => renderRow(item))}
                             </div>
                         )}
                     </div>
                 </div>
-            )}
+                );
+            })()}
         </nav>
     );
 };

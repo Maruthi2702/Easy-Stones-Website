@@ -70,6 +70,18 @@ export const visibleSections = (user) => {
     .filter((section) => section.items.length > 0);
 };
 
+/**
+ * The rail's sections: visibleSections, except Home is always there — it's
+ * where the pinned pages are listed, so it's needed even by someone without
+ * the Dashboard (its `items` is then empty).
+ */
+export const railSections = (user) => {
+  const sections = visibleSections(user);
+  if (sections.some((section) => section.id === 'home')) return sections;
+  const home = NAV_SECTIONS.find((section) => section.id === 'home');
+  return [{ ...home, items: [] }, ...sections];
+};
+
 export const sectionOf = (tabId) => navItem(tabId)?.section || null;
 
 /**

@@ -9,6 +9,7 @@
 .sales-sidebar.side-nav {
   --sn-bg: #0a0a0a;
   --sn-rail-bg: #000000;
+  --sn-panel-bg: #0a0a0a;
   --sn-border: rgba(255, 255, 255, 0.08);
   --sn-text: #b0b0b0;
   --sn-strong: #ffffff;
@@ -36,13 +37,14 @@
 
 body.light-theme-active .sales-sidebar.side-nav {
   --sn-bg: #f8fafc;
-  --sn-rail-bg: #ffffff;
+  --sn-rail-bg: #f8fafc;
+  --sn-panel-bg: #ffffff;
   --sn-border: rgba(0, 0, 0, 0.08);
   --sn-text: #475569;
   --sn-strong: #0f172a;
   --sn-muted: #64748b;
   --sn-hover: rgba(0, 0, 0, 0.04);
-  --sn-active-bg: rgba(212, 175, 55, 0.16);
+  --sn-active-bg: rgba(212, 175, 55, 0.12);
   --sn-active-fg: #7a5c0b;
   --sn-bar: #7a5c0b;
   --sn-pop: #ffffff;
@@ -278,40 +280,10 @@ body.light-theme-active .sales-sidebar.side-nav {
 .side-nav-panel {
   width: 232px;
   flex-shrink: 0;
+  background: var(--sn-panel-bg);
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-.side-nav-panel-head {
-  height: 64px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 10px 0 16px;
-  border-bottom: 1px solid var(--sn-border);
-}
-
-.side-nav-brand {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.side-nav-brand-name {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--sn-bar);
-}
-
-.side-nav-brand-sub {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--sn-muted);
 }
 
 .side-nav-panel-body {
@@ -334,6 +306,25 @@ body.light-theme-active .sales-sidebar.side-nav {
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--sn-border);
+}
+
+.side-nav-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding-top: 4px;
+}
+
+.side-nav-group-head .side-nav-group-label {
+  padding: 0 10px;
+}
+
+.side-nav-head-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
 }
 
 .side-nav-group-label {
@@ -369,17 +360,6 @@ body.light-theme-active .sales-sidebar.side-nav {
   background: var(--sn-active-bg);
 }
 
-.side-nav-row.active::before {
-  content: '';
-  position: absolute;
-  left: -10px;
-  top: 10px;
-  width: 3px;
-  height: 20px;
-  border-radius: 0 3px 3px 0;
-  background: var(--sn-bar);
-}
-
 .side-nav-link {
   flex: 1;
   min-width: 0;
@@ -409,7 +389,6 @@ body.light-theme-active .sales-sidebar.side-nav {
 
 .side-nav-row.active .side-nav-link {
   color: var(--sn-active-fg);
-  font-weight: 600;
 }
 
 .side-nav-link-label {
@@ -492,7 +471,8 @@ body.light-theme-active .sales-sidebar.side-nav {
     min-width: 0;
   }
 
-  .side-nav-row-action {
+  .side-nav-row-action,
+  .side-nav-head-btn {
     width: 40px;
     height: 40px;
   }

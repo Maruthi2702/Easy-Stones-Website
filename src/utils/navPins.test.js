@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  NAV_ITEMS, MAX_PINNED_TABS, visibleSections, sectionOf, sanitizePinnedTabs, visiblePinnedTabs,
+  NAV_ITEMS, MAX_PINNED_TABS, visibleSections, railSections, sectionOf, sanitizePinnedTabs, visiblePinnedTabs,
   pinnedDefaultTab, togglePinnedTab, makeDefaultTab
 } from './navPins.js';
 
@@ -26,6 +26,12 @@ describe('nav visibility', () => {
     expect(visibleSections(desk).map((s) => [s.id, s.items.map((i) => i.id)])).toEqual([
       ['operations', ['daily_report', 'checkin']]
     ]);
+  });
+
+  it('always puts Home on the rail, since the pins live there', () => {
+    expect(railSections(rep).map((s) => [s.id, s.items.length])).toEqual([['home', 0], ['sales', 2], ['operations', 1]]);
+    expect(railSections(admin).map((s) => s.id)).toEqual(['home', 'sales', 'operations', 'products', 'admin']);
+    expect(railSections(admin)[0].items.map((i) => i.id)).toEqual(['dashboard']);
   });
 
   it('knows every page’s section', () => {
