@@ -10,6 +10,7 @@
  * and clear their remembered answers (src/api/inventoryAnalysisCache.js).
  */
 import express from 'express';
+import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
 import InventoryItem from '../models/InventoryItem.js';
 import InventorySalesRecord from '../models/InventorySalesRecord.js';
@@ -17,6 +18,8 @@ import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.js';
 // Parses run in a worker thread — see runWorkbookParse.js for why an uploaded
 // file needs that isolation.
 import { runWorkbookParse } from '../utils/runWorkbookParse.js';
+// Big writes go in batches that survive a dropped database connection.
+import { insertInBatches, withDbRetry } from '../utils/dbRetry.js';
 
 /**
  * @param {object} deps
@@ -382,7 +385,9 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       // dropped), so the per-row casting and validation only cost time on the
       // ~11k-row file. Lean also skips the automatic timestamps and version key,
       // set here so the rows match what a normal insert writes.
-      const docs = rows.map(r => ({ ...r, importedAt, importedByName, importedById, createdAt: importedAt, updatedAt: importedAt, __v: 0 }));
+      // Each row gets its _id here, before it's sent, so a batch resent after
+      // a dropped connection can't write any row twice (src/utils/dbRetry.js).
+      const docs = rows.map(r => ({ _id: new mongoose.Types.ObjectId(), ...r, importedAt, importedByName, importedById, createdAt: importedAt, updatedAt: importedAt, __v: 0 }));
 
       // Insert the new snapshot BEFORE removing the old one. This used to
       // delete everything first — if insertMany then threw partway through
@@ -393,12 +398,21 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       // on failure, only this batch's (possibly partial) rows are removed and
       // the previous snapshot is untouched.
       try {
-        await InventoryItem.insertMany(docs, { ordered: false, lean: true });
+        // 1,000 rows per send, each send repeated if the connection drops
+        // ("SSL alert bad record mac" and the like) — one ~12 MB write over
+        // the long link to the database used to fail the whole import on a
+        // single bad packet. A snapshot is all or nothing: any row refused
+        // outright fails it, and the partial batch is cleared below.
+        const refused = await insertInBatches(InventoryItem, docs, { insertOptions: { lean: true } });
+        if (refused.size) {
+          const [index, message] = refused.entries().next().value;
+          throw new Error(`Row ${index + 1} could not be saved: ${message}`);
+        }
       } catch (insertErr) {
-        await InventoryItem.deleteMany({ importedAt }).catch(() => {});
+        await withDbRetry(() => InventoryItem.deleteMany({ importedAt })).catch(() => {});
         throw insertErr;
       }
-      await InventoryItem.deleteMany({ importedAt: { $ne: importedAt } });
+      await withDbRetry(() => InventoryItem.deleteMany({ importedAt: { $ne: importedAt } }));
 
       req.app.get('io')?.emit('inventory_analysis_update');
       res.json({ success: true, count: docs.length, importedAt });
@@ -462,18 +476,24 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       // replaced and restores it if insertMany throws partway — a failed
       // re-import falls back to the last-known-good data instead of leaving
       // that period+location empty.
-      const previousDocs = await InventorySalesRecord.find({ location, periodStart, periodEnd }).lean();
-      await InventorySalesRecord.deleteMany({ location, periodStart, periodEnd });
+      // Each step resent on a dropped connection (src/utils/dbRetry.js); rows
+      // carry their _id from here so a resent batch can't write one twice.
+      const previousDocs = await withDbRetry(() => InventorySalesRecord.find({ location, periodStart, periodEnd }).lean());
+      await withDbRetry(() => InventorySalesRecord.deleteMany({ location, periodStart, periodEnd }));
       try {
-        await InventorySalesRecord.insertMany(
-          rows.map(r => ({ ...r, location, periodStart, periodEnd, importedAt, importedByName, importedById })),
-          { ordered: false }
+        const refused = await insertInBatches(
+          InventorySalesRecord,
+          rows.map(r => ({ _id: new mongoose.Types.ObjectId(), ...r, location, periodStart, periodEnd, importedAt, importedByName, importedById }))
         );
+        if (refused.size) {
+          const [index, message] = refused.entries().next().value;
+          throw new Error(`Row ${index + 1} could not be saved: ${message}`);
+        }
       } catch (insertErr) {
-        await InventorySalesRecord.deleteMany({ location, periodStart, periodEnd }).catch(() => {});
+        await withDbRetry(() => InventorySalesRecord.deleteMany({ location, periodStart, periodEnd })).catch(() => {});
         if (previousDocs.length) {
           const restoreDocs = previousDocs.map(({ _id, __v, ...rest }) => rest);
-          await InventorySalesRecord.insertMany(restoreDocs, { ordered: false }).catch(() => {});
+          await withDbRetry(() => InventorySalesRecord.insertMany(restoreDocs, { ordered: false })).catch(() => {});
         }
         throw insertErr;
       }

@@ -95,6 +95,7 @@ import {
 } from './src/utils/dashboardMatch.js';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.js';
+import { insertInBatches, withDbRetry, hasRowErrorsOnly } from './src/utils/dbRetry.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -5068,38 +5069,37 @@ app.post('/api/admin/customers/import/apply', verifyToken, requirePermission('ma
         docs.push(doc);
         docRows.push(row);
       }
-      for (let start = 0; start < docs.length; start += IMPORT_WRITE_BATCH) {
-        const batch = docs.slice(start, start + IMPORT_WRITE_BATCH);
-        const failed = new Map(); // index in batch → message
-        try {
-          await Customer.insertMany(batch, { ordered: false });
-        } catch (err) {
-          // ordered:false writes every row it can; only the ones listed here
-          // (a duplicate email, say) were refused.
-          if (!err?.writeErrors) throw err;
-          for (const we of err.writeErrors) failed.set(we.index ?? we.err?.index, we.errmsg || we.err?.errmsg || 'Could not be saved');
-        }
-        batch.forEach((doc, i) => {
-          const row = docRows[start + i];
-          if (failed.has(i)) { rowError(row, failed.get(i)); return; }
-          createdByRow.set(row.rowNumber, String(doc._id));
-          results.created++;
-        });
-      }
+      // Batches resent if the connection drops mid-write; each document
+      // already has its _id, so a resend can't create anyone twice
+      // (src/utils/dbRetry.js). Rows refused for their data (a duplicate
+      // email, say) come back by index and don't stop the rest.
+      const refused = await insertInBatches(Customer, docs, { batchSize: IMPORT_WRITE_BATCH });
+      docs.forEach((doc, i) => {
+        const row = docRows[i];
+        if (refused.has(i)) { rowError(row, refused.get(i)); return; }
+        createdByRow.set(row.rowNumber, String(doc._id));
+        results.created++;
+      });
     }
 
     for (let start = 0; start < updates.length; start += IMPORT_WRITE_BATCH) {
       const batch = updates.slice(start, start + IMPORT_WRITE_BATCH);
       const failed = new Map();
-      try {
-        await Customer.bulkWrite(
-          batch.map(row => ({ updateOne: { filter: { _id: row.targetId }, update: { $set: row.apply } } })),
-          { ordered: false }
-        );
-      } catch (err) {
-        if (!err?.writeErrors) throw err;
-        for (const we of err.writeErrors) failed.set(we.index ?? we.err?.index, we.errmsg || we.err?.errmsg || 'Could not be saved');
-      }
+      // $set is safe to send twice, so a dropped connection just resends it.
+      await withDbRetry(async () => {
+        failed.clear();
+        try {
+          await Customer.bulkWrite(
+            batch.map(row => ({ updateOne: { filter: { _id: row.targetId }, update: { $set: row.apply } } })),
+            { ordered: false }
+          );
+        } catch (err) {
+          // A dropped connection (a bulk write error listing no rows) fails
+          // the whole batch — throw, so withDbRetry resends it.
+          if (!hasRowErrorsOnly(err)) throw err;
+          for (const we of err.writeErrors) failed.set(we.index ?? we.err?.index, we.errmsg || we.err?.errmsg || 'Could not be saved');
+        }
+      });
       batch.forEach((row, i) => {
         if (failed.has(i)) rowError(row, failed.get(i));
         else results.updated++;
