@@ -1,254 +1,331 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    LayoutDashboard, Pin, PinOff, Sun, Moon,
-    ChevronLeft, User, Clock, LogOut, Tag, Users, UserCheck, TrendingDown, Truck, ClipboardList, Map, ArrowLeftRight, Boxes
+    LayoutDashboard, User, Clock, Truck, Map as MapIcon, ClipboardList, Tag, TrendingDown, ArrowLeftRight, Boxes,
+    Users, Briefcase, Warehouse, Layers, Shield, Home, Pin, PinOff, PanelLeftClose, PanelLeftOpen, X,
+    Sun, Moon, LogOut, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { visibleSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS } from '../../utils/navPins';
+import './CustomerSidebar.css';
 
+// Pages, sections and who sees what live in src/utils/navPins.js; only the
+// icons are here. A page added there needs an icon added here.
+const ITEM_ICONS = {
+    dashboard: LayoutDashboard,
+    customers: User,
+    checkin: Clock,
+    route_planner: MapIcon,
+    lost_sales: TrendingDown,
+    delivery_schedule: Truck,
+    daily_report: ClipboardList,
+    pricelist: Tag,
+    inventory_analysis: Boxes,
+    crossover_sheet: ArrowLeftRight,
+    users: Users
+};
+const SECTION_ICONS = {
+    home: LayoutDashboard,
+    sales: Briefcase,
+    operations: Warehouse,
+    products: Layers,
+    admin: Shield
+};
+
+// Desktop only: the sub-panel can be hidden, leaving just the section rail.
+const PANEL_HIDDEN_KEY = 'sideNavPanelHidden';
+const readPanelHidden = () => {
+    try {
+        return localStorage.getItem(PANEL_HIDDEN_KEY) === '1';
+    } catch {
+        return false;
+    }
+};
+
+const getInitials = (name) => {
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+};
+
+/**
+ * The Sales CRM side nav (design "Option C"): a rail of sections, and a panel
+ * with the person's pinned pages on top and the chosen section's pages below.
+ * The first pin is their default page — where /sales opens (SalesPage's
+ * getDefaultTab). On phones/tablets (isMobile) the whole thing is a drawer.
+ */
 const CustomerSidebar = ({
     crmTab,
     handleCrmTabChange,
     isSidebarOpen,
     isMobile,
-    isPinned,
-    sidebarWidth,
-    startResizing,
-    togglePin,
     setIsSidebarOpen,
     theme,
-    toggleTheme
+    toggleTheme,
+    pinnedTabs,
+    onTogglePin,
+    onMakeDefault
 }) => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
 
+    const sections = visibleSections(user);
+    const pins = visiblePinnedTabs(user, pinnedTabs);
+    const pinsFull = (pinnedTabs || []).length >= MAX_PINNED_TABS;
+    const currentSection = sectionOf(crmTab);
+
+    const [panelHidden, setPanelHidden] = useState(readPanelHidden);
+    const [viewSection, setViewSection] = useState(currentSection);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef(null);
+
+    // The panel follows the page you're on; clicking a section only previews it.
+    const [lastSection, setLastSection] = useState(currentSection);
+    if (currentSection !== lastSection) {
+        setLastSection(currentSection);
+        if (currentSection) setViewSection(currentSection);
+    }
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(PANEL_HIDDEN_KEY, panelHidden ? '1' : '0');
+        } catch {
+            // storage unavailable — the panel just won't remember being hidden
+        }
+    }, [panelHidden]);
+
+    useEffect(() => {
+        if (!menuOpen) return undefined;
+        const onDown = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') setMenuOpen(false);
+        };
+        document.addEventListener('mousedown', onDown);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('mousedown', onDown);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, [menuOpen]);
+
+    const showPanel = isMobile || !panelHidden;
+    const shownSection = sections.find(s => s.id === viewSection)
+        || sections.find(s => s.id === currentSection)
+        || sections[0];
+
+    const go = (tab) => {
+        setMenuOpen(false);
+        handleCrmTabChange(tab); // also closes the drawer on mobile
+    };
+
+    const openSection = (section) => {
+        setViewSection(section.id);
+        // A one-page section (Home, Admin today) goes straight to it.
+        if (section.items.length === 1) {
+            go(section.items[0].id);
+            return;
+        }
+        if (!isMobile && panelHidden) setPanelHidden(false);
+    };
+
     const handleLogout = async () => {
+        setMenuOpen(false);
         await logout();
         navigate('/login');
     };
 
-    // Get initials for avatar
-    const getInitials = (name) => {
-        if (!name) return 'U';
-        return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-    };
-
-    const handleLinkClick = (tab) => {
-        handleCrmTabChange(tab);
-        if (isMobile || !isPinned) {
-            setIsSidebarOpen(false);
-        }
+    const renderRow = (item, { inPinned = false, index = 0 } = {}) => {
+        const Icon = ITEM_ICONS[item.id] || LayoutDashboard;
+        const active = crmTab === item.id;
+        const pinned = (pinnedTabs || []).includes(item.id);
+        const isDefault = inPinned && index === 0;
+        return (
+            <div key={`${inPinned ? 'pin' : 'sec'}-${item.id}`} className={`side-nav-row${active ? ' active' : ''}`}>
+                <button
+                    type="button"
+                    className="side-nav-link"
+                    onClick={() => go(item.id)}
+                    aria-current={active ? 'page' : undefined}
+                >
+                    <Icon size={18} />
+                    <span className="side-nav-link-label">{item.label}</span>
+                    {isDefault && (
+                        <span className="side-nav-default-tag" title="Opens first when you sign in">Default</span>
+                    )}
+                </button>
+                {inPinned && !isDefault && (
+                    <button
+                        type="button"
+                        className="side-nav-row-action"
+                        onClick={() => onMakeDefault(item.id)}
+                        aria-label={`Make ${item.label} your default page`}
+                        title="Make default (opens first when you sign in)"
+                    >
+                        <Home size={15} />
+                    </button>
+                )}
+                {inPinned ? (
+                    <button
+                        type="button"
+                        className="side-nav-row-action"
+                        onClick={() => onTogglePin(item.id)}
+                        aria-label={`Unpin ${item.label}`}
+                        title="Unpin"
+                    >
+                        <PinOff size={15} />
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        className={`side-nav-row-action${pinned ? ' is-pinned' : ''}`}
+                        onClick={() => onTogglePin(item.id)}
+                        disabled={!pinned && pinsFull}
+                        aria-pressed={pinned}
+                        aria-label={pinned ? `Unpin ${item.label}` : `Pin ${item.label}`}
+                        title={pinned ? 'Unpin' : (pinsFull ? `You can pin up to ${MAX_PINNED_TABS} pages` : 'Pin to the top')}
+                    >
+                        <Pin size={15} fill={pinned ? 'currentColor' : 'none'} />
+                    </button>
+                )}
+            </div>
+        );
     };
 
     return (
-        <div
-            className={`sales-sidebar ${!isSidebarOpen ? 'closed' : ''} ${!isPinned ? 'overlay' : ''}`}
-            style={{ width: isMobile ? '100%' : `${sidebarWidth}px` }}
+        <nav
+            aria-label="Main"
+            className={`sales-sidebar side-nav${!isSidebarOpen ? ' closed' : ''}${showPanel ? '' : ' panel-hidden'}`}
         >
-            {!isMobile && (
-                <div className="resize-handle" onMouseDown={startResizing} />
-            )}
-
-            {/* Sidebar Brand Header */}
-            <div className="sidebar-brand-header">
-                <div className="brand-logo-text">
-                    <h3>EASY STONES</h3>
-                    <span>SALES CRM</span>
+            {/* Section rail */}
+            <div className="side-nav-rail">
+                <div className="side-nav-logo" aria-hidden="true">ES</div>
+                <div className="side-nav-sections">
+                    {sections.map(section => {
+                        const Icon = SECTION_ICONS[section.id] || LayoutDashboard;
+                        const isCurrent = section.id === currentSection;
+                        const isViewing = showPanel && section.id === shownSection?.id;
+                        return (
+                            <button
+                                key={section.id}
+                                type="button"
+                                className={`side-nav-section${isCurrent ? ' is-current' : ''}${isViewing ? ' is-viewing' : ''}`}
+                                onClick={() => openSection(section)}
+                                title={section.items.length === 1 ? section.items[0].label : section.label}
+                            >
+                                <span className="side-nav-section-icon"><Icon size={20} /></span>
+                                <span className="side-nav-section-label">{section.label}</span>
+                            </button>
+                        );
+                    })}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+                {!showPanel && (
                     <button
-                        className="sidebar-pin-btn"
-                        onClick={toggleTheme}
-                        title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+                        type="button"
+                        className="side-nav-icon-btn"
+                        onClick={() => setPanelHidden(false)}
+                        aria-label="Show menu panel"
+                        title="Show menu panel"
                     >
-                        {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                        <PanelLeftOpen size={20} />
                     </button>
-                    {!isMobile && (
+                )}
+
+                {user && (
+                    <div className="side-nav-account" ref={menuRef}>
                         <button
-                            className="sidebar-pin-btn"
-                            onClick={togglePin}
-                            title={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}
+                            type="button"
+                            className={`side-nav-avatar${crmTab === 'profile' ? ' is-current' : ''}`}
+                            onClick={() => setMenuOpen(o => !o)}
+                            aria-haspopup="menu"
+                            aria-expanded={menuOpen}
+                            aria-label="Account menu"
+                            title={`${user.contactName || user.name || 'Account'}${user.role ? ` · ${user.role}` : ''}`}
                         >
-                            {isPinned ? <PinOff size={16} /> : <Pin size={16} />}
+                            {getInitials(user.contactName || user.name)}
                         </button>
-                    )}
-                </div>
-            </div>
-
-            {/* Top Navigation Links — shown only if user has the permission */}
-            <div className="sidebar-nav-links">
-                {/* Dashboard — requires view_dashboard */}
-                {user?.permissions?.includes('view_dashboard') && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'dashboard' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('dashboard')}
-                    >
-                        <LayoutDashboard size={18} />
-                        <span>Dashboard</span>
-                    </button>
-                )}
-
-                {/* Customers — requires view_customers */}
-                {user?.permissions?.includes('view_customers') && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'customers' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('customers')}
-                    >
-                        <User size={18} />
-                        <span>Customers</span>
-                    </button>
-                )}
-
-                {/* Check-In Log — requires view_checkins */}
-                {user?.permissions?.includes('view_checkins') && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'checkin' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('checkin')}
-                    >
-                        <Clock size={18} />
-                        <span>Check-In Log</span>
-                    </button>
-                )}
-
-                {/* Delivery Schedule — requires view_delivery_schedule */}
-                {(user?.permissions?.includes('view_delivery_schedule') || user?.role === 'admin' || !user) && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'delivery_schedule' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('delivery_schedule')}
-                        title="Delivery Schedule"
-                    >
-                        <Truck size={18} />
-                        <span>Delivery Schedule</span>
-                    </button>
-                )}
-
-                {/* Route Planner — requires view_route_planner. No admin-role
-                    fallback here on purpose: this one is granted deliberately
-                    under Users & Roles, so the permission is the only key. */}
-                {user?.permissions?.includes('view_route_planner') && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'route_planner' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('route_planner')}
-                        title="Plan a day of visits by area"
-                    >
-                        <Map size={18} />
-                        <span>Route Planner</span>
-                    </button>
-                )}
-
-                {/* Daily Report — requires view_daily_report */}
-                {(user?.permissions?.includes('view_daily_report') || user?.role === 'admin' || !user) && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'daily_report' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('daily_report')}
-                        title="Daily Work Report"
-                    >
-                        <ClipboardList size={18} />
-                        <span>Daily Report</span>
-                    </button>
-                )}
-
-                {/* Price List / Selection Sheet — requires view_pricelist */}
-                {user?.permissions?.includes('view_pricelist') && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'pricelist' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('pricelist')}
-                    >
-                        <Tag size={18} />
-                        <span>Price List</span>
-                    </button>
-                )}
-
-                {/* Lost Sales — requires view_lost_sales */}
-                {(user?.permissions?.includes('view_lost_sales') || user?.permissions?.includes('manage_lost_sales') || user?.role === 'admin' || !user) && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'lost_sales' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('lost_sales')}
-                        title="Lost Sales Tracker"
-                    >
-                        <TrendingDown size={18} />
-                        <span>Lost Sales</span>
-                    </button>
-                )}
-
-                {/* Crossover Sheet — requires view_crossover_sheet */}
-                {(user?.permissions?.includes('view_crossover_sheet') || user?.role === 'admin' || !user) && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'crossover_sheet' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('crossover_sheet')}
-                        title="Distributor color crossover reference"
-                    >
-                        <ArrowLeftRight size={18} />
-                        <span>Crossover Sheet</span>
-                    </button>
-                )}
-
-                {/* Inventory Analysis — requires view_inventory_analysis */}
-                {(user?.permissions?.includes('view_inventory_analysis') || user?.role === 'admin' || !user) && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'inventory_analysis' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('inventory_analysis')}
-                        title="Stock levels, aging, and reorder analysis"
-                    >
-                        <Boxes size={18} />
-                        <span>Inventory Analysis</span>
-                    </button>
-                )}
-
-                {/* Users & Roles — requires manage_users */}
-                {user?.permissions?.includes('manage_users') && (
-                    <button
-                        className={`sidebar-nav-link ${crmTab === 'users' ? 'active' : ''}`}
-                        onClick={() => handleLinkClick('users')}
-                    >
-                        <Users size={18} />
-                        <span>Users & Roles</span>
-                    </button>
-                )}
-
-                {/* My Profile */}
-                <button
-                    className={`sidebar-nav-link ${crmTab === 'profile' ? 'active' : ''}`}
-                    onClick={() => handleLinkClick('profile')}
-                >
-                    <UserCheck size={18} />
-                    <span>My Profile</span>
-                </button>
-            </div>
-
-            {/* User Profile / Logout Footer */}
-            {user && (
-                <div className="sidebar-user-footer">
-                    <div 
-                        className="user-profile-trigger" 
-                        onClick={() => handleLinkClick('profile')}
-                        title="View My Profile"
-                        style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flexGrow: 1 }}
-                    >
-                        <div className="user-avatar-pill">
-                            {getInitials(user.contactName)}
-                        </div>
-                        <div className="user-details-text">
-                            <span className="user-name" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <User size={12} style={{ opacity: 0.8 }} />
-                                {user.contactName}
-                            </span>
-                            <span className="user-role" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Users size={12} style={{ opacity: 0.8 }} />
-                                {user.role || 'Sales Rep'}
-                            </span>
-                        </div>
+                        {menuOpen && (
+                            <div className="side-nav-menu" role="menu">
+                                <div className="side-nav-menu-head">
+                                    <span className="side-nav-menu-name">{user.contactName || user.name}</span>
+                                    <span className="side-nav-menu-role">{user.role || 'Sales Rep'}</span>
+                                </div>
+                                <button type="button" role="menuitem" className="side-nav-menu-item" onClick={() => go('profile')}>
+                                    <UserCheck size={16} /><span>My Profile</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="side-nav-menu-item"
+                                    onClick={() => { toggleTheme(); setMenuOpen(false); }}
+                                >
+                                    {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                                    <span>{theme === 'dark' ? 'Light theme' : 'Dark theme'}</span>
+                                </button>
+                                <div className="side-nav-menu-divider" />
+                                <button type="button" role="menuitem" className="side-nav-menu-item danger" onClick={handleLogout}>
+                                    <LogOut size={16} /><span>Sign out</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
-                    <button
-                        className="sidebar-logout-btn"
-                        onClick={handleLogout}
-                        title="Logout"
-                    >
-                        <LogOut size={16} />
-                    </button>
+                )}
+            </div>
+
+            {/* Pinned + section panel */}
+            {showPanel && (
+                <div className="side-nav-panel">
+                    <div className="side-nav-panel-head">
+                        <div className="side-nav-brand">
+                            <span className="side-nav-brand-name">EASY STONES</span>
+                            <span className="side-nav-brand-sub">Sales CRM</span>
+                        </div>
+                        {isMobile ? (
+                            <button
+                                type="button"
+                                className="side-nav-icon-btn"
+                                onClick={() => setIsSidebarOpen(false)}
+                                aria-label="Close menu"
+                                title="Close menu"
+                            >
+                                <X size={18} />
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                className="side-nav-icon-btn"
+                                onClick={() => { setPanelHidden(true); setMenuOpen(false); }}
+                                aria-label="Hide menu panel"
+                                title="Hide menu panel"
+                            >
+                                <PanelLeftClose size={18} />
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="side-nav-panel-body">
+                        <div className="side-nav-group">
+                            <div className="side-nav-group-label">Pinned</div>
+                            {pins.length > 0 ? (
+                                pins.map((id, index) => renderRow(navItem(id), { inPinned: true, index }))
+                            ) : (
+                                <p className="side-nav-empty">
+                                    Pin the pages you use most. Your first pin is the page that opens when you sign in.
+                                </p>
+                            )}
+                        </div>
+
+                        {shownSection && (
+                            <div className="side-nav-group">
+                                <div className="side-nav-group-label">{shownSection.label}</div>
+                                {shownSection.items.map(item => renderRow(item))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
-        </div>
+        </nav>
     );
 };
 

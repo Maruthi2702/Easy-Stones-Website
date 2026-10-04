@@ -108,6 +108,12 @@ const userSchema = new mongoose.Schema({
   routePlannerFilters: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
+  },
+  // Side nav pins, in the order shown. The first one they can open is where
+  // /sales lands when the URL names no tab (src/utils/navPins.js).
+  pinnedTabs: {
+    type: [String],
+    default: []
   }
 }, {
   timestamps: true

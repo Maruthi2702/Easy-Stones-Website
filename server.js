@@ -83,6 +83,7 @@ import createDailyReportsRouter from './src/routes/dailyReports.js';
 import createDeliveriesRouter, { deliveryRoomFor, DELIVERY_ROOM_ALL } from './src/routes/deliveries.js';
 import createCheckInRouter, { checkinRoomFor, CHECKIN_ROOM_ALL } from './src/routes/checkIn.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
+import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import { linkVisitToSchedule, unlinkVisitFromSchedule, moveVisitOnSchedule } from './src/services/visitSchedule.js';
@@ -1151,6 +1152,7 @@ const authenticate = async (req, res, next) => {
           // second findById — one round trip fewer on every page load.
           location: 1,
           routePlannerFilters: 1,
+          pinnedTabs: 1,
           isActive: 1,
           permissions: { $ifNull: [{ $arrayElemAt: ['$_role.permissions', 0] }, []] }
         }
@@ -1990,7 +1992,9 @@ app.get('/api/user/me', authenticate, async (req, res) => {
       // It is what forms default a new record's branch to.
       location: user.location || '',
       assignedLocations: user.assignedLocations || ['Seattle'],
-      routePlannerFilters: user.routePlannerFilters || {}
+      routePlannerFilters: user.routePlannerFilters || {},
+      // Side nav pins; the first one they can open is their landing tab.
+      pinnedTabs: user.pinnedTabs || []
     });
   } catch (error) {
     console.error('Get user error:', error);
@@ -2002,6 +2006,7 @@ app.get('/api/user/me', authenticate, async (req, res) => {
 // more filter groups are expected to land here over time (see
 // src/routes/routePlannerFilters.js).
 app.use('/api/user/me/route-planner-filters', createRoutePlannerFiltersRouter({ authenticate }));
+app.use('/api/user/me/pinned-tabs', createPinnedTabsRouter({ authenticate }));
 app.use('/api/geocode', createGeocodeRouter({ authenticate }));
 
 // Contact form endpoint

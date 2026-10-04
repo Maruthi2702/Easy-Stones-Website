@@ -26,6 +26,8 @@ import CustomDatePicker from '../components/CustomDatePicker';
 import { formatForDateInput, formatDate, formatInstant, getLocalISOString, viewerTimeZone } from '../utils/dateUtils';
 import DashboardStats from '../components/sales/DashboardStats';
 import CustomerSidebar from '../components/sales/CustomerSidebar';
+import usePinnedTabs from '../components/sales/usePinnedTabs';
+import { pinnedDefaultTab } from '../utils/navPins';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
@@ -133,7 +135,7 @@ const SalesPage = () => {
     const [inventoryAnalysisRefreshTrigger, setInventoryAnalysisRefreshTrigger] = useState(0);
     const [locations, setLocations] = useState([]);
     const [salesReps, setSalesReps] = useState([]);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
     const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
@@ -142,15 +144,15 @@ const SalesPage = () => {
     // Latches on the first visit to the route planner and never clears, so the
     // map it builds survives navigating away and back. See where it renders.
     const [routePlannerOpened, setRoutePlannerOpened] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [, setLoading] = useState(true);
+    const [, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('visits');
     const [isDropdownLoading, setIsDropdownLoading] = useState(true); // tracks customer dropdown fetch
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalCustomers, setTotalCustomers] = useState(0);
+    const [, setTotalPages] = useState(1);
+    const [, setTotalCustomers] = useState(0);
     const customersPerPage = 50;
 
         // Dashboard State (Required for memoized values)
@@ -173,10 +175,17 @@ const SalesPage = () => {
     const dashboardLocationParam = dashboardLocation ? `&location=${encodeURIComponent(dashboardLocation)}` : '';
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
     
+    // Side nav pins (src/utils/navPins.js). The first one they can open is
+    // their default page, ahead of the role-based order below.
+    const { pinnedTabs, pinnedTabsRef, togglePin: togglePinnedTab, makeDefault: makeDefaultTab } = usePinnedTabs(currentUser);
+
     const getDefaultTab = () => {
         const searchParams = new URLSearchParams(window.location.search);
         const tabParam = searchParams.get('tab');
         if (tabParam) return tabParam;
+
+        const pinned = currentUser ? pinnedDefaultTab(currentUser, pinnedTabsRef.current) : null;
+        if (pinned) return pinned;
 
         const perms = currentUser?.permissions || [];
         if (perms.includes('view_dashboard')) return 'dashboard';
@@ -1238,21 +1247,9 @@ const SalesPage = () => {
     const [accountActionStatus, setAccountActionStatus] = useState(null);
 
 
-    // Sidebar State
-    const [isPinned, setIsPinned] = useState(() => {
-        try {
-            const saved = localStorage.getItem('sidebarPinned');
-            return saved !== null ? JSON.parse(saved) : true;
-        } catch {
-            return true;
-        }
-    });
-    const [sidebarWidth, setSidebarWidth] = useState(() => {
-        const saved = localStorage.getItem('sidebarWidth');
-        const parsed = saved ? parseInt(saved, 10) : 240;
-        return Math.min(Math.max(parsed, 200), 320); // Clamp between 200px and 320px for compact side nav bar
-    });
-    const [isResizing, setIsResizing] = useState(false);
+    // Sidebar State. On desktop the side nav is always docked (it collapses to
+    // its section rail instead of hiding — CustomerSidebar.jsx); below 1024px
+    // it's a drawer opened by each tab's SidebarToggleButton.
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
 
@@ -1267,52 +1264,6 @@ const SalesPage = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
-
-    const startResizing = useCallback(() => {
-        setIsResizing(true);
-    }, []);
-
-    const stopResizing = useCallback(() => {
-        setIsResizing(false);
-    }, []);
-
-    const resize = useCallback(
-        (mouseMoveEvent) => {
-            if (isResizing) {
-                const newWidth = mouseMoveEvent.clientX;
-                if (newWidth >= 200 && newWidth <= 320) {
-                    setSidebarWidth(newWidth);
-                }
-            }
-        },
-        [isResizing]
-    );
-
-    useEffect(() => {
-        window.addEventListener("mousemove", resize);
-        window.addEventListener("mouseup", stopResizing);
-        return () => {
-            window.removeEventListener("mousemove", resize);
-            window.removeEventListener("mouseup", stopResizing);
-        };
-    }, [resize, stopResizing]);
-
-    useEffect(() => {
-        localStorage.setItem('sidebarWidth', sidebarWidth);
-    }, [sidebarWidth]);
-
-    useEffect(() => {
-        localStorage.setItem('sidebarPinned', JSON.stringify(isPinned));
-        if (isPinned && !isMobile) {
-            setIsSidebarOpen(true);
-        } else {
-            // Collapse immediately when unpinning
-            setIsSidebarOpen(false);
-        }
-    }, [isPinned]);
-
-    
-    const togglePin = () => setIsPinned(!isPinned);
 
     // Form states
     const [contactForm, setContactForm] = useState({
@@ -1548,16 +1499,6 @@ const SalesPage = () => {
         }
     };
 
-    const handleGoLeads = () => {
-        setSelectedCustomerId(null);
-        setSelectedCustomerDetail(null);
-        handleCrmTabChange('dashboard');
-        setActiveDashboardTab('leads');
-
-        if (isMobile) {
-            setIsSidebarOpen(false);
-        }
-    };
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -1677,13 +1618,6 @@ const SalesPage = () => {
 
     // Simplified resources (no search filtering)
     const customerFilteredResources = customerResources;
-
-    const filteredCustomers = [...(Array.isArray(customers) ? customers : [])]
-        .sort((a, b) => {
-            const nameA = a.company || a.contactName || `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.email || '';
-            const nameB = b.company || b.contactName || `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.email || '';
-            return nameA.localeCompare(nameB);
-        });
 
     const handleActiveTabChange = (tabName) => {
         setActiveTab(tabName);
@@ -3346,7 +3280,7 @@ const SalesPage = () => {
     return (
         <div className="sales-container">
             {/* Sidebar Overlay */}
-            {(isMobile || !isPinned) && isSidebarOpen && (
+            {isMobile && isSidebarOpen && (
                 <div
                     className="sidebar-overlay-backdrop"
                     onClick={() => setIsSidebarOpen(false)}
@@ -3354,38 +3288,22 @@ const SalesPage = () => {
             )}
 
             {/* Sidebar */}
-            {/* Sidebar */}
             <CustomerSidebar
                 crmTab={crmTab}
                 handleCrmTabChange={handleCrmTabChange}
                 isSidebarOpen={isSidebarOpen}
                 isMobile={isMobile}
-                isPinned={isPinned}
-                sidebarWidth={sidebarWidth}
-                startResizing={startResizing}
-                filteredCustomers={filteredCustomers}
-                selectedCustomerId={selectedCustomerId}
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                loading={loading}
-                error={error}
-                togglePin={togglePin}
                 setIsSidebarOpen={setIsSidebarOpen}
-                handleGoHome={handleGoHome}
-                handleGoLeads={handleGoLeads}
-                handleSelectCustomer={handleSelectCustomer}
-                currentPage={currentPage}
-                setCurrentPage={setCurrentPage}
-                totalPages={totalPages}
-                totalCustomers={totalCustomers}
-                onAddCustomer={() => setShowAddCustomerModal(true)}
                 theme={theme}
                 toggleTheme={toggleTheme}
+                pinnedTabs={pinnedTabs}
+                onTogglePin={togglePinnedTab}
+                onMakeDefault={makeDefaultTab}
             />
 
             {/* Main Content */}
             <div
-                className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isPinned || !isSidebarOpen ? 'full-width' : ''}`}
+                className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isSidebarOpen ? 'full-width' : ''}`}
                 style={{
                     position: 'relative'
                 }}
@@ -4114,7 +4032,6 @@ const SalesPage = () => {
                                     onSelectCustomer={handleSelectCustomer}
                                     onToggleSidebar={() => setIsSidebarOpen(true)}
                                     isSidebarOpen={isSidebarOpen}
-                                    isPinned={isPinned}
                                     customerRefreshTrigger={customerRefreshTrigger}
                                     onPlanRoute={canPlanRoutes ? handlePlanRoute : undefined}
                                 />
@@ -4436,7 +4353,6 @@ const SalesPage = () => {
                                             onSelectCustomer={handleSelectCustomer}
                                             onToggleSidebar={() => setIsSidebarOpen(true)}
                                             isSidebarOpen={isSidebarOpen}
-                                            isPinned={isPinned}
                                             customerRefreshTrigger={customerRefreshTrigger}
                                             onPlanRoute={canPlanRoutes ? handlePlanRoute : undefined}
                                          />

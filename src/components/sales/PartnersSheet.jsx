@@ -104,7 +104,7 @@ const ViewPicker = ({ view, counts, onChange }) => {
     );
 };
 
-const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPinned, customerRefreshTrigger, onPlanRoute }) => {
+const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, customerRefreshTrigger, onPlanRoute }) => {
     const { user } = useAuth();
     const width = useWindowWidth();
     const narrow = width < 900;   // list rows + slide-over instead of table + side drawer
@@ -715,7 +715,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, isPin
         <div className="partners-sheet-container cl" ref={rootRef}>
             {/* ── Header ── */}
             <div className="cl-hdr">
-                {(!isSidebarOpen || !isPinned || isMobile) && onToggleSidebar && (
+                {(!isSidebarOpen || isMobile) && onToggleSidebar && (
                     <SidebarToggleButton isOpen={isSidebarOpen} onClick={onToggleSidebar} />
                 )}
                 <h2>Customers</h2>
