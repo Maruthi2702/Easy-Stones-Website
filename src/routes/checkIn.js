@@ -607,6 +607,14 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       // captured up front so a location move still notifies viewers on the
       // branch the record is leaving, not just the one it lands on.
       const previousLocation = checkIn.location;
+      // The sheet as it was before this save — the sales rep is only emailed
+      // when it actually changes, not on every save of the same sheet.
+      const sheetSnapshot = () => JSON.stringify({
+        selections: (checkIn.selections || []).map(({ material, details, size, lot }) => ({ material, details, size, lot })),
+        specialNotes: checkIn.specialNotes || '',
+        salesRepEmail: checkIn.salesRepEmail || '',
+      });
+      const sheetBefore = sheetSnapshot();
 
       if (name) checkIn.name = name;
       if (phone) checkIn.phone = phone;
@@ -646,12 +654,14 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       await checkIn.save();
       console.log(`✅ Office check-in ${checkIn._id} updated by ${req.user?.displayName || req.user?.username}`);
 
-      // If salesRepEmail is provided, automatically trigger background email alert to sales rep
-      if (salesRepEmail) {
+      // Background alert to the sales rep — only when the selections, notes or
+      // the rep themselves changed. It used to fire on every save, so re-saving
+      // an unchanged sheet emailed the rep again each time.
+      if (checkIn.salesRepEmail && sheetSnapshot() !== sheetBefore) {
         (async () => {
           try {
-            console.log(`📡 Automatically sending selection sheet alert to sales rep: ${salesRepEmail}`);
-            await sendSelectionSheetEmail(checkIn, salesRepEmail);
+            console.log(`📡 Automatically sending selection sheet alert to sales rep: ${checkIn.salesRepEmail}`);
+            await sendSelectionSheetEmail(checkIn, checkIn.salesRepEmail);
           } catch (err) {
             console.error('❌ Failed to auto-send selection sheet email to sales rep:', err.message);
           }

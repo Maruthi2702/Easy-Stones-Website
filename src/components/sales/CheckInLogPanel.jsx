@@ -38,6 +38,9 @@ import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import { LocationField } from '../shared/LocationFilter';
 import { accessibleLocations } from '../../utils/locationFilter';
 import { useAuth } from '../../context/AuthContext';
+import {
+  ORIENTATIONS, readStoneLabel, resolveLabelRead, scoreLabelRead, isUsableRead, isConfidentRead,
+} from '../../utils/stoneLabel';
 import './CheckInLogPanel.css';
 
 /* ── helpers ──────────────────────────────────── */
@@ -109,8 +112,9 @@ const preprocessImage = (file, degrees = 0) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Resize: limit max size to 1200px to optimize performance and prevent crashes
-        const MAX_DIM = 1200;
+        // Resize: cap at 1600px for speed and phone memory. The crop starts on
+        // the whole photo, so a smaller cap shrinks tag text below what OCR reads.
+        const MAX_DIM = 1600;
         let width = img.width;
         let height = img.height;
 
@@ -189,121 +193,54 @@ const getCroppedImageBlob = (file, cropXPercent, cropYPercent, cropWidthPercent,
   });
 };
 
-const getLevenshteinDistance = (a, b) => {
-  const matrix = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
-  for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
-  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+/* ── selection sheet helpers ──────────────────── */
+const SHEET_ROWS = 12;
+const ROW_FIELDS = ['material', 'lot', 'details', 'size'];
+const emptyRow = () => ({ material: '', details: '', size: '', lot: '' });
+// A row is kept on save if *any* field is filled — saving used to drop every
+// row without a material, taking a typed lot or slab numbers with it.
+const rowHasData = (row) => ROW_FIELDS.some((k) => String(row?.[k] || '').trim());
 
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
+// The print window is written with document.write in our own origin, and the
+// customer name/company come from the public self-check-in kiosk — unescaped,
+// a crafted name ran as script in the staff member's logged-in session.
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+
+// What a save would send, normalized so two snapshots compare field by field.
+const sheetValues = ({ builderName, builderPhone, salesRep, selections, specialNotes }) => ({
+  builderName: builderName || '',
+  builderPhone: builderPhone || '',
+  salesRep: salesRep || '',
+  specialNotes: specialNotes || '',
+  rows: selections.filter(rowHasData).map((r) => ROW_FIELDS.map((k) => String(r[k] || '').trim())),
+});
+
+// How many fields differ — the number the unsaved-changes check reports.
+const countSheetChanges = (a, b) => {
+  if (!a || !b) return 0;
+  let n = ['builderName', 'builderPhone', 'salesRep', 'specialNotes'].filter((k) => a[k] !== b[k]).length;
+  for (let i = 0; i < Math.max(a.rows.length, b.rows.length); i++) {
+    n += ROW_FIELDS.filter((_, f) => (a.rows[i]?.[f] || '') !== (b.rows[i]?.[f] || '')).length;
   }
-  return matrix[a.length][b.length];
+  return n;
 };
 
-const findCloseInventoryLot = (parsedMaterial, parsedLot, productList) => {
-  if (!parsedLot) return parsedLot;
-  
-  const matchedProduct = productList.find(p => 
-    p.name.toLowerCase().includes(parsedMaterial.toLowerCase()) || 
-    parsedMaterial.toLowerCase().includes(p.name.toLowerCase())
-  );
-  
-  if (matchedProduct && matchedProduct.bundles && matchedProduct.bundles.length > 0) {
-    const candidateLots = matchedProduct.bundles
-      .map(b => b.bundleNumber || b.serial)
-      .filter(Boolean)
-      .map(l => l.replace(/\D/g, ''));
-      
-    const cleanParsedLot = parsedLot.replace(/\D/g, '');
-    
-    let bestCandidate = null;
-    let minDistance = 999;
-    
-    for (const candidate of candidateLots) {
-      if (candidate === cleanParsedLot) return candidate;
-      
-      const distance = getLevenshteinDistance(cleanParsedLot, candidate);
-      if (distance < minDistance) {
-        minDistance = distance;
-        bestCandidate = candidate;
-      }
-    }
-    
-    const maxLen = bestCandidate ? Math.max(cleanParsedLot.length, bestCandidate.length) : 0;
-    const threshold = maxLen >= 5 ? 2 : 1;
-    if (bestCandidate && minDistance <= threshold) {
-      console.log(`Auto-corrected OCR lot typo: ${parsedLot} -> ${bestCandidate} (distance: ${minDistance})`);
-      return bestCandidate;
-    }
-  }
-  
-  return parsedLot;
-};
+const DRAFT_KEY = 'active_selection_sheet';
 
-const correctLotUsingBundle = (lot, bundle) => {
-  if (!lot || !bundle) return lot;
-  
-  const cleanBundle = bundle.replace(/[()[\]{}]/g, '').trim();
-  const parts = cleanBundle.split(/[/\\|I]/).map(p => p.trim()).filter(Boolean);
-  
-  if (parts.length >= 2) {
-    const bundleLotCandidate = parts[1]; // e.g. in "7/13845", this is "13845"
-    
-    if (/^\d+$/.test(bundleLotCandidate) && bundleLotCandidate.length >= 3) {
-      const distance = getLevenshteinDistance(lot, bundleLotCandidate);
-      if (distance > 0 && distance <= 2) {
-        console.log(`Auto-corrected OCR lot typo using bundle: ${lot} -> ${bundleLotCandidate} (distance: ${distance})`);
-        return bundleLotCandidate;
-      }
-    }
-  }
-  
-  return lot;
-};
-
-const findCloseInventorySize = (parsedMaterial, parsedSize, productList) => {
-  if (!parsedSize) return parsedSize;
-  
-  const matchedProduct = productList.find(p => 
-    p.name.toLowerCase().includes(parsedMaterial.toLowerCase()) || 
-    parsedMaterial.toLowerCase().includes(p.name.toLowerCase())
-  );
-  
-  if (matchedProduct && matchedProduct.sizes && matchedProduct.sizes.length > 0) {
-    const cleanParsedSize = parsedSize.replace(/\s+/g, '').toLowerCase();
-    
-    let bestCandidate = null;
-    let minDistance = 999;
-    
-    for (const sizeCandidate of matchedProduct.sizes) {
-      const cleanCandidate = sizeCandidate.replace(/\s+/g, '').toLowerCase();
-      if (cleanCandidate === cleanParsedSize) return sizeCandidate; // exact match
-      
-      const distance = getLevenshteinDistance(cleanParsedSize, cleanCandidate);
-      if (distance < minDistance) {
-        minDistance = distance;
-        bestCandidate = sizeCandidate;
-      }
-    }
-    
-    if (bestCandidate && minDistance <= 2) {
-      console.log(`Auto-corrected OCR size typo: ${parsedSize} -> ${bestCandidate} (distance: ${minDistance})`);
-      return bestCandidate;
-    }
-  }
-  
-  return parsedSize;
-};
+// Result of the last tag scan, under the row it filled.
+const ScanNotice = ({ notice, onDismiss }) => (
+  <div className={`sel-scan-notice sel-scan-notice-${notice.tone}`} role="status">
+    {notice.tone === 'ok' ? <Check size={13} /> : <AlertTriangle size={13} />}
+    <div className="sel-scan-notice-text">
+      {notice.lines.map((line) => <div key={line}>{line}</div>)}
+    </div>
+    <button type="button" className="sel-scan-notice-close" onClick={onDismiss} title="Dismiss">
+      <X size={12} />
+    </button>
+  </div>
+);
 
 /* ── component ────────────────────────────────── */
 const CheckInLogPanel = ({
@@ -411,86 +348,155 @@ const CheckInLogPanel = ({
   // ── OCR Tag Scanning State ──
   const [scanningIndex, setScanningIndex] = useState(null);
   const [scanningProgress, setScanningProgress] = useState(0);
+  // What the last scan did, shown under that row: { idx, tone: 'ok'|'warn'|'error', lines }
+  const [scanNotice, setScanNotice] = useState(null);
 
   // ── Tag Cropper State ──
   const [cropperOpen, setCropperOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState('');
-  const [cropBox, setCropBox] = useState({ x: 30, y: 10, width: 40, height: 80 });
+  const [cropBox, setCropBox] = useState({ x: 0, y: 0, width: 100, height: 100 });
   const [cropTargetIndex, setCropTargetIndex] = useState(null);
   const [cropFile, setCropFile] = useState(null);
 
-  // Load active selection sheet state from localStorage on mount (if page was refreshed)
+  // ── Unsaved-changes check ──
+  // sheetBaseline is what was last loaded or saved; the sheet is "dirty" when
+  // what's on screen differs from it.
+  const [sheetBaseline, setSheetBaseline] = useState(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const currentSheetValues = useMemo(
+    () => sheetValues({ builderName, builderPhone, salesRep, selections, specialNotes }),
+    [builderName, builderPhone, salesRep, selections, specialNotes]
+  );
+  const sheetChangeCount = countSheetChanges(sheetBaseline, currentSheetValues);
+  const sheetReadOnly = !hasEditPermission;
+
+  // An open sheet survives a page refresh, but only for the person who had it
+  // open — on a shared showroom computer it used to reopen for whoever logged
+  // in next.
+  const draftOwner = user?._id || user?.username || 'anonymous';
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('active_selection_sheet');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.checkIn) {
-          setSelectedCheckIn(parsed.checkIn);
-          setBuilderName(parsed.builderName || '');
-          setBuilderPhone(parsed.builderPhone || '');
-          setSalesRep(parsed.salesRep || '');
-          setSalesRepEmail(parsed.salesRepEmail || '');
-          setSelections(parsed.selections || Array.from({ length: 3 }, () => ({ material: '', details: '', size: '', lot: '' })));
-          setSpecialNotes(parsed.specialNotes || '');
-        }
-      }
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      if (!parsed?.checkIn || parsed.owner !== draftOwner) return;
+      setSelectedCheckIn(parsed.checkIn);
+      setBuilderName(parsed.builderName || '');
+      setBuilderPhone(parsed.builderPhone || '');
+      setSalesRep(parsed.salesRep || '');
+      setSalesRepEmail(parsed.salesRepEmail || '');
+      const rows = Array.isArray(parsed.selections) ? parsed.selections : [];
+      setSelections(Array.from({ length: SHEET_ROWS }, (_, i) => ({ ...emptyRow(), ...rows[i] })));
+      const filled = rows.filter(rowHasData).length;
+      setDesktopRowCount(Math.max(4, Math.min(SHEET_ROWS, filled)));
+      setMobItemCount(Math.max(2, Math.min(SHEET_ROWS, filled)));
+      setSpecialNotes(parsed.specialNotes || '');
+      setSheetBaseline(parsed.baseline || null);
     } catch (e) {
       console.error('Failed to load active selection sheet from localStorage:', e);
     }
-  }, []);
+  }, [draftOwner]);
 
-  // Save active selection sheet state to localStorage reactively when fields change
+  // Keep the open sheet's draft current. Cleared by closeSheet, not here — an
+  // effect that cleared it whenever no sheet was open wiped the draft on the
+  // first render, before the restore above had run.
   useEffect(() => {
-    if (selectedCheckIn) {
-      try {
-        localStorage.setItem('active_selection_sheet', JSON.stringify({
-          checkIn: selectedCheckIn,
-          builderName,
-          builderPhone,
-          salesRep,
-          salesRepEmail,
-          selections,
-          specialNotes
-        }));
-      } catch (e) {
-        console.error('Failed to save active selection sheet state to localStorage:', e);
-      }
-    } else {
-      try {
-        localStorage.removeItem('active_selection_sheet');
-      } catch { /* not fatal — carry on */ }
+    if (!selectedCheckIn) return;
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        owner: draftOwner,
+        checkIn: selectedCheckIn,
+        builderName,
+        builderPhone,
+        salesRep,
+        salesRepEmail,
+        selections,
+        specialNotes,
+        baseline: sheetBaseline,
+      }));
+    } catch (e) {
+      console.error('Failed to save active selection sheet state to localStorage:', e);
     }
-  }, [selectedCheckIn, builderName, builderPhone, salesRep, salesRepEmail, selections, specialNotes]);
+  }, [draftOwner, selectedCheckIn, builderName, builderPhone, salesRep, salesRepEmail, selections, specialNotes, sheetBaseline]);
 
-  // Fetch product and sales rep auto-suggestions when selections modal is opened
+  // Product and sales-rep suggestions: loaded the first time a sheet opens,
+  // not on every open — /api/products is the whole catalog with its bundles.
+  const sheetOpen = Boolean(selectedCheckIn);
   useEffect(() => {
-    if (selectedCheckIn) {
-      // 1. Products
-      authFetch(`${API_URL}/api/products`)
-        .then(res => res.json())
-        .then(data => {
-          const list = Array.isArray(data) ? data : (data.data || []);
-          setProductList(list);
-        })
-        .catch(err => console.error('Error fetching products:', err));
+    if (!sheetOpen || productList.length) return;
+    authFetch(`${API_URL}/api/products`)
+      .then(res => res.json())
+      .then(data => setProductList(Array.isArray(data) ? data : (data.data || [])))
+      .catch(err => console.error('Error fetching products:', err));
+  }, [sheetOpen, productList.length]);
+  useEffect(() => {
+    if (!sheetOpen || salesReps.length) return;
+    authFetch(`${API_URL}/api/salesreps`)
+      .then(res => res.json())
+      .then(data => setSalesReps(data.success ? data.data : (Array.isArray(data) ? data : [])))
+      .catch(err => console.error('Error fetching sales reps:', err));
+  }, [sheetOpen, salesReps.length]);
 
-      // 2. Sales Reps
-      authFetch(`${API_URL}/api/salesreps`)
-        .then(res => res.json())
-        .then(data => {
-          const list = data.success ? data.data : (Array.isArray(data) ? data : []);
-          setSalesReps(list);
-        })
-        .catch(err => console.error('Error fetching sales reps:', err));
+  // Sales reps offered for this check-in's branch, filtered by what's typed.
+  const salesRepSuggestions = useMemo(() => {
+    const typed = salesRep.trim().toLowerCase();
+    const branch = selectedCheckIn?.location;
+    return salesReps.filter(rep => {
+      const role = (rep.role || '').toLowerCase();
+      if (rep.role && !['sales', 'manager', 'director', 'admin'].some(r => role.includes(r))) return false;
+      if (branch && rep.location !== branch &&
+          !rep.assignedLocations?.includes(branch) &&
+          !rep.assignedLocations?.includes('*')) return false;
+      if (!typed) return true;
+      return (rep.name || '').toLowerCase().includes(typed) ||
+             (rep.username || '').toLowerCase().includes(typed);
+    }).slice(0, 10);
+  }, [salesReps, salesRep, selectedCheckIn?.location]);
+
+  const closeSheet = () => {
+    setSelectedCheckIn(null);
+    setSheetBaseline(null);
+    setShowDiscardConfirm(false);
+    setScanNotice(null);
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* not fatal — carry on */ }
+  };
+
+  // ✕ / Esc: ask first if anything changed (FORM_TEMPLATE.md's unsaved-changes check).
+  const requestCloseSheet = () => {
+    if (!sheetReadOnly && sheetChangeCount > 0) setShowDiscardConfirm(true);
+    else closeSheet();
+  };
+
+  // Esc closes the sheet (with the unsaved-changes check); inside the discard
+  // prompt it means "Keep editing". Popups layered on top handle their own.
+  useEffect(() => {
+    if (!sheetOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || cropperOpen || showEmailModal) return;
+      if (showDiscardConfirm) setShowDiscardConfirm(false);
+      else requestCloseSheet();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  // Enter in an autocomplete field closes its list instead of submitting the
+  // form — it used to save and close the whole sheet mid-typing.
+  const handleAutocompleteKeyDown = (e, close) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      close();
+    } else if (e.key === 'Escape') {
+      e.stopPropagation();
+      close();
     }
-  }, [selectedCheckIn]);
+  };
 
   const handlePrintPDF = () => {
     if (!selectedCheckIn) return;
 
     const dateStr = formatDate(selectedCheckIn.createdAt);
-    const validSelections = selections.filter(s => s.material.trim() !== '');
+    const validSelections = selections.filter(rowHasData);
 
     let selectionsRowsHtml = '';
     if (validSelections.length === 0) {
@@ -504,20 +510,24 @@ const CheckInLogPanel = ({
         selectionsRowsHtml += `
           <tr style="border-bottom: 1px solid #eaeaea;">
             <td style="padding: 10px; text-align: center; color: #d4af37; font-weight: bold;">${idx + 1}</td>
-            <td style="padding: 10px; color: #222; font-weight: 500;">${sel.material || 'N/A'}</td>
-            <td style="padding: 10px; color: #555;">${sel.lot || 'N/A'}</td>
-            <td style="padding: 10px; color: #555;">${sel.details || 'N/A'}</td>
-            <td style="padding: 10px; color: #555;">${sel.size || 'N/A'}</td>
+            <td style="padding: 10px; color: #222; font-weight: 500;">${escapeHtml(sel.material) || 'N/A'}</td>
+            <td style="padding: 10px; color: #555;">${escapeHtml(sel.lot) || 'N/A'}</td>
+            <td style="padding: 10px; color: #555;">${escapeHtml(sel.details) || 'N/A'}</td>
+            <td style="padding: 10px; color: #555;">${escapeHtml(sel.size) || 'N/A'}</td>
           </tr>
         `;
       });
     }
 
     const printWindow = window.open('', '_blank', 'width=800,height=800');
+    if (!printWindow) {
+      alert('Your browser blocked the print window. Allow pop-ups for this site, then try again.');
+      return;
+    }
     printWindow.document.write(`
       <html>
         <head>
-          <title>Selection Sheet - ${selectedCheckIn.name}</title>
+          <title>Selection Sheet - ${escapeHtml(selectedCheckIn.name)}</title>
           <style>
             body {
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -652,12 +662,12 @@ const CheckInLogPanel = ({
           <div class="title">Customer Visit / Stone Selection</div>
           
           <div class="details-grid">
-            <div class="detail-item"><span class="detail-label">Date:</span> <span class="detail-value">${dateStr}</span></div>
-            <div class="detail-item"><span class="detail-label">Customer Name:</span> <span class="detail-value">${selectedCheckIn.name}</span></div>
-            <div class="detail-item"><span class="detail-label">Phone Number:</span> <span class="detail-value">${selectedCheckIn.phone}</span></div>
-            <div class="detail-item"><span class="detail-label">Company Name:</span> <span class="detail-value">${selectedCheckIn.fabricatorCompany || 'N/A'}</span></div>
-            <div class="detail-item"><span class="detail-label">Company Phone:</span> <span class="detail-value">${selectedCheckIn.fabricatorPhone || 'N/A'}</span></div>
-            <div class="detail-item"><span class="detail-label">Sales Rep:</span> <span class="detail-value">${salesRep || 'N/A'}</span></div>
+            <div class="detail-item"><span class="detail-label">Date:</span> <span class="detail-value">${escapeHtml(dateStr)}</span></div>
+            <div class="detail-item"><span class="detail-label">Customer Name:</span> <span class="detail-value">${escapeHtml(selectedCheckIn.name)}</span></div>
+            <div class="detail-item"><span class="detail-label">Phone Number:</span> <span class="detail-value">${escapeHtml(selectedCheckIn.phone)}</span></div>
+            <div class="detail-item"><span class="detail-label">Company Name:</span> <span class="detail-value">${escapeHtml(selectedCheckIn.fabricatorCompany) || 'N/A'}</span></div>
+            <div class="detail-item"><span class="detail-label">Company Phone:</span> <span class="detail-value">${escapeHtml(selectedCheckIn.fabricatorPhone) || 'N/A'}</span></div>
+            <div class="detail-item"><span class="detail-label">Sales Rep:</span> <span class="detail-value">${escapeHtml(salesRep) || 'N/A'}</span></div>
           </div>
           
           <div class="section-title">Material Selection(s)</div>
@@ -679,7 +689,7 @@ const CheckInLogPanel = ({
           ${specialNotes ? `
           <div class="notes">
             <h4>Special Notes:</h4>
-            <p>${specialNotes.replace(/\n/g, '<br>')}</p>
+            <p>${escapeHtml(specialNotes).replace(/\n/g, '<br>')}</p>
           </div>
           ` : ''}
           
@@ -714,29 +724,36 @@ const CheckInLogPanel = ({
     setIsSendingEmail(false);
     setEmailSuccess(false);
     setSelMobileTab('customer');
+    setScanNotice(null);
+    setShowDiscardConfirm(false);
 
     const savedSelections = checkIn.selections || [];
-    const filledCount = savedSelections.filter(s => s.material?.trim() || s.lot?.trim()).length;
-    const initialDesktop = Math.max(4, Math.min(12, filledCount || savedSelections.length || 4));
-    const initialMobile = Math.max(2, Math.min(12, filledCount || savedSelections.length || 2));
+    const filledCount = savedSelections.filter(rowHasData).length;
+    const initialDesktop = Math.max(4, Math.min(SHEET_ROWS, filledCount || savedSelections.length || 4));
+    const initialMobile = Math.max(2, Math.min(SHEET_ROWS, filledCount || savedSelections.length || 2));
 
     setDesktopRowCount(initialDesktop);
     setMobItemCount(initialMobile);
 
-    const formattedSelections = Array.from({ length: 12 }, (_, idx) => {
-      if (savedSelections[idx]) {
-        return {
-          material: savedSelections[idx].material || '',
-          details: savedSelections[idx].details || '',
-          size: savedSelections[idx].size || '',
-          lot: savedSelections[idx].lot || ''
-        };
-      }
-      return { material: '', details: '', size: '', lot: '' };
+    const formattedSelections = Array.from({ length: SHEET_ROWS }, (_, idx) => {
+      const saved = savedSelections[idx];
+      return saved ? {
+        material: saved.material || '',
+        details: saved.details || '',
+        size: saved.size || '',
+        lot: saved.lot || ''
+      } : emptyRow();
     });
     setSelections(formattedSelections);
     setSpecialNotes(checkIn.specialNotes || '');
     setSaveSuccess(false);
+    setSheetBaseline(sheetValues({
+      builderName: checkIn.builderName,
+      builderPhone: checkIn.builderPhone,
+      salesRep: checkIn.salesRep,
+      selections: formattedSelections,
+      specialNotes: checkIn.specialNotes,
+    }));
   };
 
   const handleAddMobItem = () => {
@@ -759,16 +776,16 @@ const CheckInLogPanel = ({
     });
   };
 
+  // Shared by the mobile ✕ and the desktop trash button: blank the row, close
+  // the gap so filled rows stay on top, and show one fewer slot.
   const handleRemoveSelectionRow = (idx) => {
     setSelections(prev => {
-      const next = [...prev];
-      next[idx] = { material: '', details: '', size: '', lot: '' };
-      const filled = next.filter((item, i) => i !== idx && (item.material?.trim() || item.details?.trim() || item.size?.trim() || item.lot?.trim()));
-      const empties = Array.from({ length: 12 - filled.length }, () => ({ material: '', details: '', size: '', lot: '' }));
-      return [...filled, ...empties];
+      const filled = prev.filter((item, i) => i !== idx && rowHasData(item));
+      return [...filled, ...Array.from({ length: SHEET_ROWS - filled.length }, emptyRow)];
     });
     setDesktopRowCount(prev => Math.max(1, prev - 1));
     setMobItemCount(prev => Math.max(1, prev - 1));
+    setScanNotice(null);
   };
 
   const handleSalesRepChange = (val) => {
@@ -786,167 +803,15 @@ const CheckInLogPanel = ({
     }
   };
 
-  const parseStoneLabel = (text, productList = []) => {
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-
-    // 1. Try standard single-line parsing first
-    for (const line of lines) {
-      const sizeRegex = /(\d{2,4})\s*[xX×*%]\s*(\d{2,4})/;
-      const sizeMatch = line.match(sizeRegex);
-
-      if (sizeMatch) {
-        const sizeStr = sizeMatch[0];
-        const sizeIndex = line.indexOf(sizeStr);
-        
-        const beforeSize = line.substring(0, sizeIndex).trim();
-        const afterSize = line.substring(sizeIndex + sizeStr.length).trim();
-        
-        if (beforeSize.length > 5 && afterSize.length > 3) {
-          const material = afterSize.replace(/^[/\s|\\:\-—–]+|[/\s|\\:\-—–]+$/g, '').trim()
-                                    .replace(/^[iIl1|/\s\\:\-—–]+\s+/, '').trim();
-          
-          let bundle = '';
-          const bundleMatch = beforeSize.match(/[([{](.+?)[)}\]]/);
-          if (bundleMatch) bundle = bundleMatch[1].trim();
-          
-          const beforeWithoutBundle = beforeSize.replace(/[([{].+?[)}\]]/g, ' ');
-          const tokens = beforeWithoutBundle.match(/[a-zA-Z0-9]+/g) || [];
-          const numberMatches = tokens
-            .map(t => {
-              const cleaned = t
-                .replace(/[Ss]/g, '5')
-                .replace(/[Oo]/g, '0')
-                .replace(/[IiIl]/g, '1')
-                .replace(/[Bb]/g, '8')
-                .replace(/[Gg]/g, '6')
-                .replace(/[Zz]/g, '2')
-                .replace(/[Tt]/g, '7');
-              return /^\d+$/.test(cleaned) ? cleaned : null;
-            })
-            .filter(Boolean);
-
-          let lot = '';
-          let slab = '';
-          if (numberMatches && numberMatches.length >= 2) {
-            lot = numberMatches[0];
-            slab = numberMatches[1];
-          } else if (numberMatches && numberMatches.length === 1) {
-            lot = numberMatches[0];
-          }
-
-          return { lot, slab, bundle, size: sizeStr, material };
-        }
-      }
-    }
-
-    // 2. Multiline Fallback Parser
-    let sizeStr = '';
-    let lot = '';
-    let slab = '';
-    let material = '';
-    let bundle = '';
-
-    const sizeRegex = /(\d{2,4})\s*[xX×*%]\s*(\d{2,4})/;
-    const fullTextJoined = lines.join(' ');
-    const sizeMatch = fullTextJoined.match(sizeRegex);
-    
-    if (sizeMatch) {
-      sizeStr = sizeMatch[0];
-    }
-
-    const sizeNumbers = sizeMatch ? [sizeMatch[1], sizeMatch[2]] : [];
-    const allNumericTokens = [];
-
-    lines.forEach(line => {
-      const cleanLine = sizeMatch && line.includes(sizeStr) ? line.replace(sizeStr, ' ') : line;
-      const tokens = cleanLine.match(/[a-zA-Z0-9]+/g) || [];
-      tokens.forEach(t => {
-        const cleaned = t
-          .replace(/[Ss]/g, '5')
-          .replace(/[Oo]/g, '0')
-          .replace(/[IiIl]/g, '1')
-          .replace(/[Bb]/g, '8')
-          .replace(/[Gg]/g, '6')
-          .replace(/[Zz]/g, '2')
-          .replace(/[Tt]/g, '7');
-        
-        if (/^\d+$/.test(cleaned) && cleaned.length >= 2) {
-          if (!sizeNumbers.includes(cleaned)) {
-            allNumericTokens.push(cleaned);
-          }
-        }
-      });
-    });
-
-    if (allNumericTokens.length >= 2) {
-      lot = allNumericTokens[0];
-      slab = allNumericTokens[1];
-    } else if (allNumericTokens.length === 1) {
-      lot = allNumericTokens[0];
-    }
-
-    // Find the Material Name
-    // First, check if any line contains a substring of a product name from our database
-    let databaseMatchedMaterial = '';
-    for (const line of lines) {
-      const match = productList.find(p => 
-        line.toLowerCase().includes(p.name.toLowerCase())
-      );
-      if (match) {
-        databaseMatchedMaterial = line.trim();
-        break;
-      }
-    }
-
-    if (databaseMatchedMaterial) {
-      material = databaseMatchedMaterial;
-    } else {
-      // Fallback: line with the most alphabetical characters
-      let maxLetterCount = 0;
-      lines.forEach(line => {
-        if (/^\d+$/.test(line.replace(/[\s\-/]/g, ''))) return;
-        if (sizeMatch && line.includes(sizeStr) && line.replace(sizeStr, '').trim().length < 3) return;
-        
-        const letterCount = (line.match(/[a-zA-Z]/g) || []).length;
-        if (letterCount > maxLetterCount) {
-          maxLetterCount = letterCount;
-          material = line.trim();
-        }
-      });
-    }
-
-    // Clean size and leading/trailing delimiters from the material name
-    if (sizeStr && material.includes(sizeStr)) {
-      material = material.replace(sizeStr, '');
-    }
-    material = material.replace(/^[/\s|\\:\-—–]+|[/\s|\\:\-—–]+$/g, '').trim()
-                       .replace(/^[iIl1|/\s\\:\-—–]+\s+/, '').trim();
-
-    const bundleMatch = fullTextJoined.match(/[([{](.+?)[)}\]]/);
-    if (bundleMatch) {
-      bundle = bundleMatch[1].trim();
-    }
-
-    if (lot || slab || sizeStr || material) {
-      return {
-        lot,
-        slab,
-        bundle,
-        size: sizeStr,
-        material
-      };
-    }
-
-    return null;
-  };
-
   const handleTagImageUpload = (idx, event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     setCropFile(file);
     setCropTargetIndex(idx);
-    setCropBox({ x: 30, y: 10, width: 40, height: 80 });
+    // Start on the whole photo: the old centred 40%-wide box cut the ends off
+    // any tag nobody re-framed.
+    setCropBox({ x: 0, y: 0, width: 100, height: 100 });
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -959,101 +824,61 @@ const CheckInLogPanel = ({
   };
 
   const executeTagOcrScan = async (idx, croppedBlob) => {
-    const Tesseract = (await import('tesseract.js')).default;
     setCropperOpen(false);
     setScanningIndex(idx);
     setScanningProgress(0);
+    setScanNotice(null);
 
+    let worker = null;
+    let pass = 0;
     try {
-      const orientations = [0, 90, 270];
-      let bestText = '';
-      let parsed = null;
-
-      for (let i = 0; i < orientations.length; i++) {
-        const degrees = orientations[i];
-        console.log(`Scanning orientation: ${degrees}°...`);
-
-        // Resize and rotate image
-        const processedBlob = await preprocessImage(croppedBlob, degrees);
-
-        const { data: { text } } = await Tesseract.recognize(
-          processedBlob,
-          'eng',
-          {
-            logger: m => {
-              if (m.status === 'recognizing text') {
-                const overallProgress = Math.floor(((i + m.progress) / orientations.length) * 100);
-                setScanningProgress(overallProgress);
-              }
-            }
+      const { createWorker } = await import('tesseract.js');
+      // One worker for every rotation — Tesseract.recognize() used to start
+      // (and download into) a fresh one per pass.
+      worker = await createWorker('eng', undefined, {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            setScanningProgress(Math.floor(((pass + m.progress) / ORIENTATIONS.length) * 100));
           }
-        );
+        },
+      });
 
-        if (text && text.trim().length > bestText.trim().length) {
-          bestText = text;
-        }
-
-        parsed = parseStoneLabel(text, productList);
-        if (parsed) {
-          console.log(`Successfully parsed at ${degrees}° rotation!`, parsed);
-          break; // Found a valid layout, exit rotation loop
-        }
+      // Tags on standing slabs are usually shot sideways, so try every
+      // rotation and keep the best read — stopping early only on a confident,
+      // complete one. readStoneLabel rejects garbage, so a wrong rotation can
+      // no longer win just by coming first.
+      let best = null;
+      for (pass = 0; pass < ORIENTATIONS.length; pass++) {
+        const processedBlob = await preprocessImage(croppedBlob, ORIENTATIONS[pass]);
+        const { data } = await worker.recognize(processedBlob);
+        const read = readStoneLabel(data.text, productList);
+        const score = scoreLabelRead(read, data.confidence);
+        if (!best || score > best.score) best = { read, score, confidence: data.confidence };
+        if (isConfidentRead(read, data.confidence)) break;
       }
 
-      if (parsed) {
-        let finalLot = parsed.lot;
-        
-        // 1. Cross-reference Lot using Bundle Number
-        if (parsed.bundle) {
-          finalLot = correctLotUsingBundle(parsed.lot, parsed.bundle);
-        }
-        
-        // 2. Cross-reference Lot using Database Product Inventory
-        finalLot = findCloseInventoryLot(
-          parsed.material || selections[idx]?.material || "",
-          finalLot,
-          productList
-        );
-
-        // 3. Cross-reference Size using Database Product Sizes
-        const finalSize = findCloseInventorySize(
-          parsed.material || selections[idx]?.material || "",
-          parsed.size,
-          productList
-        );
-
-        setSelections(prev => prev.map((sel, i) => {
-          if (i === idx) {
-            return {
-              material: (parsed.material || sel.material).toUpperCase(),
-              lot: finalLot || sel.lot,
-              details: parsed.slab || sel.details,
-              size: finalSize || sel.size
-            };
-          }
-          return sel;
-        }));
-      } else {
-        const firstLine = bestText.split('\n').map(l => l.trim()).find(l => l.length > 0);
-        if (firstLine) {
-          setSelections(prev => prev.map((sel, i) => {
-            if (i === idx) {
-              return {
-                ...sel,
-                material: firstLine.toUpperCase()
-              };
-            }
-            return sel;
-          }));
-          alert("We recognized some text, but could not parse the exact 'Lot - Slab / (Bundle) / Size / Material' tag structure. We have filled the raw text into the Material Name field.");
-        } else {
-          alert("Could not recognize any text on this image. Please try a clearer picture.");
-        }
+      if (!best || !isUsableRead(best.read, best.confidence)) {
+        setScanNotice({
+          idx,
+          tone: 'error',
+          lines: ["Couldn't read this tag. Try a closer, straight-on photo and fit the crop box around just the tag."],
+        });
+        return;
       }
+
+      const row = resolveLabelRead(best.read, productList);
+      setSelections(prev => prev.map((sel, i) => (i === idx ? {
+        material: row.material || sel.material,
+        lot: row.lot || sel.lot,
+        details: row.details || sel.details,
+        size: row.size || sel.size,
+      } : sel)));
+      setScanNotice({ idx, tone: row.notes.length ? 'warn' : 'ok', lines: ['Filled from the tag — check it before saving.', ...row.notes] });
     } catch (err) {
       console.error('OCR recognition error:', err);
-      alert('Failed to scan tag image: ' + err.message);
+      setScanNotice({ idx, tone: 'error', lines: [`Couldn't scan the tag: ${err.message}`] });
     } finally {
+      if (worker) worker.terminate().catch(() => {});
       setScanningIndex(null);
       setScanningProgress(0);
     }
@@ -1071,16 +896,15 @@ const CheckInLogPanel = ({
     }));
   };
 
-  const handleSaveSelections = async (e) => {
-    if (e) e.preventDefault();
-    setIsSaving(true);
-    try {
-      // Filter out completely blank rows and strip internal _new flags
-      const cleanSelections = selections
-        .filter(s => s.material.trim() !== '')
-        .map(({  ...s }) => s);
+  // PUT what's on screen. Throws with a message the person can act on.
+  const persistSheet = async () => {
+    const cleanSelections = selections
+      .filter(rowHasData)
+      .map(({ material, details, size, lot }) => ({ material, details, size, lot }));
 
-      const response = await authFetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
+    let response;
+    try {
+      response = await authFetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
         method: 'PUT',
         body: JSON.stringify({
           builderName,
@@ -1091,28 +915,51 @@ const CheckInLogPanel = ({
           salesRepEmail
         })
       });
-
-      if (response.ok) {
-        setSaveSuccess(true);
-        setTimeout(() => {
-          setSelectedCheckIn(null);
-          if (onRefresh) onRefresh();
-        }, 1000);
-      } else {
-        alert('Failed to save selections. Please try again.');
-      }
     } catch (err) {
       console.error('Error saving selection sheet:', err);
-      alert('Network error. Please try again.');
+      throw new Error('Network error. Please try again.');
+    }
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || 'Failed to save selections. Please try again.');
+    }
+    setSheetBaseline(currentSheetValues);
+  };
+
+  const handleSaveSelections = async (e) => {
+    if (e) e.preventDefault();
+    if (sheetReadOnly || isSaving) return;
+    setIsSaving(true);
+    try {
+      await persistSheet();
+      setSaveSuccess(true);
+      setTimeout(() => {
+        closeSheet();
+        if (onRefresh) onRefresh();
+      }, 1000);
+    } catch (err) {
+      alert(err.message);
     } finally {
       setIsSaving(false);
     }
   };
+
   const handleSendEmail = async (e) => {
     if (e) e.preventDefault();
     if (!emailAddress.trim()) return;
     setIsSendingEmail(true);
     try {
+      // The email is built from the saved record, so save first — unsaved
+      // edits used to be left out of the email without any warning.
+      if (!sheetReadOnly && sheetChangeCount > 0) {
+        try {
+          await persistSheet();
+          if (onRefresh) onRefresh();
+        } catch (err) {
+          alert(`The sheet couldn't be saved, so the email wasn't sent. ${err.message}`);
+          return;
+        }
+      }
       const response = await authFetch(`${API_URL}/api/checkin/${selectedCheckIn._id}/send-email`, {
         method: 'POST',
         body: JSON.stringify({ email: emailAddress.trim() })
@@ -1125,7 +972,7 @@ const CheckInLogPanel = ({
           setEmailSuccess(false);
         }, 1500);
       } else {
-        const errData = await response.json();
+        const errData = await response.json().catch(() => ({}));
         alert(errData.message || 'Failed to send email. Please try again.');
       }
     } catch (err) {
@@ -1717,7 +1564,8 @@ const CheckInLogPanel = ({
                 <button
                   type="button"
                   className="sel-mob-close"
-                  onClick={() => setSelectedCheckIn(null)}
+                  onClick={requestCloseSheet}
+                  title="Close without saving"
                 >
                   <X size={20} />
                 </button>
@@ -1739,57 +1587,28 @@ const CheckInLogPanel = ({
                       }}
                       onFocus={() => setShowSalesRepDropdown(true)}
                       onBlur={() => setTimeout(() => setShowSalesRepDropdown(false), 200)}
+                      onKeyDown={(e) => handleAutocompleteKeyDown(e, () => setShowSalesRepDropdown(false))}
                       placeholder="Enter or select sales rep name"
                       className="sel-mob-text-input"
                       autoComplete="off"
+                      disabled={sheetReadOnly}
                     />
                     {showSalesRepDropdown && (
                       <div className="sel-mob-dropdown" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, marginTop: '4px' }}>
-                        {salesReps
-                          .filter(rep => {
-                            const r = (rep.role || '').toLowerCase();
-                            const isAllowedRole = !rep.role || r.includes('sales') || r.includes('manager') || r.includes('director') || r.includes('admin');
-                            if (!isAllowedRole) return false;
-                            if (selectedCheckIn?.location) {
-                              if (rep.location !== selectedCheckIn.location &&
-                                  !rep.assignedLocations?.includes(selectedCheckIn.location) &&
-                                  !rep.assignedLocations?.includes('*')) {
-                                return false;
-                              }
-                            }
-                            if (!salesRep.trim()) return true;
-                            return rep.name.toLowerCase().includes(salesRep.toLowerCase()) ||
-                                   rep.username?.toLowerCase().includes(salesRep.toLowerCase());
-                          })
-                          .slice(0, 10)
-                          .map((rep, i) => (
-                            <div
-                              key={rep.username || i}
-                              className="sel-mob-dropdown-item"
-                              onMouseDown={() => {
-                                handleSalesRepChange(rep.name);
-                                setShowSalesRepDropdown(false);
-                              }}
-                            >
-                              <Users size={13} style={{ color: '#d4af37' }} />
-                              <span>{rep.name}</span>
-                            </div>
-                          ))}
-                        {salesReps.filter(rep => {
-                          const r = (rep.role || '').toLowerCase();
-                          const isAllowedRole = !rep.role || r.includes('sales') || r.includes('manager') || r.includes('director') || r.includes('admin');
-                          if (!isAllowedRole) return false;
-                          if (selectedCheckIn?.location) {
-                            if (rep.location !== selectedCheckIn.location &&
-                                !rep.assignedLocations?.includes(selectedCheckIn.location) &&
-                                !rep.assignedLocations?.includes('*')) {
-                              return false;
-                            }
-                          }
-                          if (!salesRep.trim()) return true;
-                          return rep.name.toLowerCase().includes(salesRep.toLowerCase()) ||
-                                 rep.username?.toLowerCase().includes(salesRep.toLowerCase());
-                        }).length === 0 && (
+                        {salesRepSuggestions.map((rep, i) => (
+                          <div
+                            key={rep.username || i}
+                            className="sel-mob-dropdown-item"
+                            onMouseDown={() => {
+                              handleSalesRepChange(rep.name);
+                              setShowSalesRepDropdown(false);
+                            }}
+                          >
+                            <Users size={13} style={{ color: '#d4af37' }} />
+                            <span>{rep.name}</span>
+                          </div>
+                        ))}
+                        {salesRepSuggestions.length === 0 && (
                           <div className="sel-mob-dropdown-empty">Type custom sales rep name</div>
                         )}
                       </div>
@@ -1807,25 +1626,16 @@ const CheckInLogPanel = ({
                       <div key={idx} className="sel-mob-item-card">
                           <div className="sel-mob-item-header">
                             <span className="sel-mob-item-badge">ITEM {idx + 1}</span>
-                            <button
-                              type="button"
-                              className="sel-mob-item-remove"
-                              onClick={() => {
-                                // Clear the slot data and reduce visible count
-                                setSelections(prev => {
-                                  const next = [...prev];
-                                  next[idx] = { material: '', details: '', size: '', lot: '' };
-                                  // Shift remaining filled slots up
-                                  const filled = next.filter((_, i) => i !== idx);
-                                  const empties = Array.from({ length: 12 - filled.length }, () => ({ material: '', details: '', size: '', lot: '' }));
-                                  return [...filled, ...empties];
-                                });
-                                setMobItemCount(prev => Math.max(1, prev - 1));
-                              }}
-                              title="Remove item"
-                            >
-                              <X size={14} />
-                            </button>
+                            {!sheetReadOnly && (
+                              <button
+                                type="button"
+                                className="sel-mob-item-remove"
+                                onClick={() => handleRemoveSelectionRow(idx)}
+                                title="Remove item"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
                           </div>
 
                           {/* Material Search */}
@@ -1839,15 +1649,17 @@ const CheckInLogPanel = ({
                               }}
                               onFocus={() => setActiveDropdownIndex(idx)}
                               onBlur={() => setTimeout(() => setActiveDropdownIndex(null), 200)}
+                              onKeyDown={(e) => handleAutocompleteKeyDown(e, () => setActiveDropdownIndex(null))}
                               placeholder="Search material name..."
                               className="sel-mob-material-input"
+                              disabled={sheetReadOnly}
                             />
                             {scanningIndex === idx ? (
                               <div className="sel-mob-scanning-badge">
                                 <Loader2 size={12} className="animate-spin" />
                                 <span>{scanningProgress}%</span>
                               </div>
-                            ) : (
+                            ) : !sheetReadOnly && (
                               <label htmlFor={`mob-tag-${idx}`} className="sel-mob-scan-btn" title="Scan tag photo">
                                 <Scan size={13} />
                                 <input
@@ -1861,6 +1673,10 @@ const CheckInLogPanel = ({
                               </label>
                             )}
                           </div>
+
+                          {scanNotice?.idx === idx && (
+                            <ScanNotice notice={scanNotice} onDismiss={() => setScanNotice(null)} />
+                          )}
 
                           {/* Autocomplete */}
                           {activeDropdownIndex === idx && (
@@ -1891,15 +1707,15 @@ const CheckInLogPanel = ({
                           <div className="sel-mob-fields-row">
                             <div className="sel-mob-field">
                               <label className="sel-mob-field-label">Lot #</label>
-                              <input type="text" value={sel.lot} onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)} placeholder="—" className="sel-mob-field-input" />
+                              <input type="text" value={sel.lot} onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)} disabled={sheetReadOnly} placeholder="—" className="sel-mob-field-input" />
                             </div>
                             <div className="sel-mob-field">
                               <label className="sel-mob-field-label">Slabs</label>
-                              <input type="text" value={sel.details} onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)} placeholder="1, 2" className="sel-mob-field-input" />
+                              <input type="text" value={sel.details} onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)} disabled={sheetReadOnly} placeholder="1, 2" className="sel-mob-field-input" />
                             </div>
                             <div className="sel-mob-field">
                               <label className="sel-mob-field-label">Size</label>
-                              <input type="text" value={sel.size} onChange={(e) => handleSelectionChange(idx, 'size', e.target.value)} placeholder="120×60" className="sel-mob-field-input" />
+                              <input type="text" value={sel.size} onChange={(e) => handleSelectionChange(idx, 'size', e.target.value)} disabled={sheetReadOnly} placeholder="120×60" className="sel-mob-field-input" />
                             </div>
                           </div>
                         </div>
@@ -1907,7 +1723,7 @@ const CheckInLogPanel = ({
                     </div>
 
                   {/* Add Another Item */}
-                  {mobItemCount < 12 && (
+                  {!sheetReadOnly && mobItemCount < SHEET_ROWS && (
                     <button
                       type="button"
                       className="sel-mob-add-btn"
@@ -1925,6 +1741,7 @@ const CheckInLogPanel = ({
                     placeholder="Enter any special requests, delivery notes, or details..."
                     rows="4"
                     className="sel-mob-notes-textarea"
+                    disabled={sheetReadOnly}
                   />
 
                   {/* Warning / Disclaimer */}
@@ -1947,9 +1764,13 @@ const CheckInLogPanel = ({
                       <Printer size={15} /> Print / PDF
                     </button>
                   </div>
-                  <button type="submit" className="sel-mob-btn-save" disabled={isSaving}>
-                    {isSaving ? (<><Loader2 size={15} className="animate-spin" /> Saving...</>) : saveSuccess ? ('Saved ✓') : (<><Save size={15} /> Save Selection</>)}
-                  </button>
+                  {sheetReadOnly ? (
+                    <p className="sel-view-only-note">View only — you don't have permission to edit selection sheets.</p>
+                  ) : (
+                    <button type="submit" className="sel-mob-btn-save" disabled={isSaving}>
+                      {isSaving ? (<><Loader2 size={15} className="animate-spin" /> Saving...</>) : saveSuccess ? ('Saved ✓') : (<><Save size={15} /> Save Selection</>)}
+                    </button>
+                  )}
                 </div>
               </form>
             </div>
@@ -1965,7 +1786,8 @@ const CheckInLogPanel = ({
                 <button 
                   type="button" 
                   className="selection-modal-close" 
-                  onClick={() => setSelectedCheckIn(null)}
+                  onClick={requestCloseSheet}
+                  title="Close without saving"
                   autoFocus
                 >
                   <X size={20} />
@@ -2022,31 +1844,17 @@ const CheckInLogPanel = ({
                         }}
                         onFocus={() => setShowSalesRepDropdown(true)}
                         onBlur={() => setTimeout(() => setShowSalesRepDropdown(false), 200)}
+                        onKeyDown={(e) => handleAutocompleteKeyDown(e, () => setShowSalesRepDropdown(false))}
                         placeholder="Select or enter sales rep..."
                         className="selection-input selection-input-with-icon"
                         style={{ paddingLeft: '2.6rem' }}
                         autoComplete="off"
+                        disabled={sheetReadOnly}
                       />
                     </div>
                     {showSalesRepDropdown && (
                       <div className="custom-autocomplete-dropdown" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, marginTop: '4px' }}>
-                        {salesReps
-                          .filter(rep => {
-                            const r = (rep.role || '').toLowerCase();
-                            const isAllowedRole = !rep.role || r.includes('sales') || r.includes('manager') || r.includes('director') || r.includes('admin');
-                            if (!isAllowedRole) return false;
-                            if (selectedCheckIn?.location) {
-                              if (rep.location !== selectedCheckIn.location &&
-                                  !rep.assignedLocations?.includes(selectedCheckIn.location) &&
-                                  !rep.assignedLocations?.includes('*')) {
-                                return false;
-                              }
-                            }
-                            if (!salesRep.trim()) return true;
-                            return rep.name.toLowerCase().includes(salesRep.toLowerCase()) ||
-                                   rep.username?.toLowerCase().includes(salesRep.toLowerCase());
-                          })
-                          .slice(0, 10)
+                        {salesRepSuggestions
                           .map((rep, i) => (
                             <div
                               key={rep.username || i}
@@ -2100,9 +1908,11 @@ const CheckInLogPanel = ({
                                       setActiveDropdownIndex(null);
                                     }, 200);
                                   }}
+                                  onKeyDown={(e) => handleAutocompleteKeyDown(e, () => setActiveDropdownIndex(null))}
                                   placeholder="Type material name..."
                                   className="selection-grid-input"
                                   style={{ paddingRight: '2.2rem' }}
+                                  disabled={sheetReadOnly}
                                 />
                                 {scanningIndex === idx ? (
                                   <div style={{
@@ -2122,7 +1932,7 @@ const CheckInLogPanel = ({
                                     <Loader2 size={12} className="animate-spin" />
                                     <span style={{ fontWeight: 'bold' }}>{scanningProgress}%</span>
                                   </div>
-                                ) : (
+                                ) : !sheetReadOnly && (
                                   <label
                                     htmlFor={`tag-upload-${idx}`}
                                     className="scan-tag-btn"
@@ -2158,6 +1968,9 @@ const CheckInLogPanel = ({
                                   </label>
                                 )}
                               </div>
+                              {scanNotice?.idx === idx && (
+                                <ScanNotice notice={scanNotice} onDismiss={() => setScanNotice(null)} />
+                              )}
                               {activeDropdownIndex === idx && (
                                 <div className={`custom-autocomplete-dropdown ${(idx >= 2 && selections.length > 3) ? 'open-upward' : ''}`}>
                                   {productList
@@ -2198,6 +2011,7 @@ const CheckInLogPanel = ({
                               onChange={(e) => handleSelectionChange(idx, 'lot', e.target.value)}
                               placeholder="Lot / Bundle #"
                               className="selection-grid-input"
+                              disabled={sheetReadOnly}
                             />
                           </td>
                           <td>
@@ -2207,6 +2021,7 @@ const CheckInLogPanel = ({
                               onChange={(e) => handleSelectionChange(idx, 'details', e.target.value)}
                               placeholder="1, 2"
                               className="selection-grid-input"
+                              disabled={sheetReadOnly}
                             />
                           </td>
                           <td>
@@ -2216,10 +2031,11 @@ const CheckInLogPanel = ({
                               onChange={(e) => handleSelectionChange(idx, 'size', e.target.value)}
                               placeholder="120 x 60"
                               className="selection-grid-input"
+                              disabled={sheetReadOnly}
                             />
                           </td>
                           <td style={{ textAlign: 'center' }}>
-                            {selections.length > 1 && (
+                            {!sheetReadOnly && (
                               <button
                                 type="button"
                                 className="btn-remove-selection-row"
@@ -2237,7 +2053,7 @@ const CheckInLogPanel = ({
                 </div>
 
                 {/* Add Row Button */}
-                {desktopRowCount < 12 && (
+                {!sheetReadOnly && desktopRowCount < SHEET_ROWS && (
                   <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.25rem' }}>
                     <button
                       type="button"
@@ -2263,6 +2079,7 @@ const CheckInLogPanel = ({
                     placeholder="Enter any special requests, delivery notes, or details..."
                     rows="3"
                     className="selection-textarea"
+                    disabled={sheetReadOnly}
                   />
                 </div>
 
@@ -2298,29 +2115,59 @@ const CheckInLogPanel = ({
                   </div>
 
                   <div className="selection-modal-actions-right">
-                    <button
-                      type="submit"
-                      className="btn-save-selection"
-                      disabled={isSaving}
-                    >
-                      {isSaving ? (
-                        <>
-                          <Loader2 size={15} className="animate-spin" /> Saving...
-                        </>
-                      ) : saveSuccess ? (
-                        'Saved Successfully! ✓'
-                      ) : (
-                        <>
-                          <Save size={15} /> Save Selection
-                        </>
-                      )}
-                    </button>
+                    {sheetReadOnly ? (
+                      <p className="sel-view-only-note">View only — you don't have permission to edit selection sheets.</p>
+                    ) : (
+                      <button
+                        type="submit"
+                        className="btn-save-selection"
+                        disabled={isSaving}
+                      >
+                        {isSaving ? (
+                          <>
+                            <Loader2 size={15} className="animate-spin" /> Saving...
+                          </>
+                        ) : saveSuccess ? (
+                          'Saved Successfully! ✓'
+                        ) : (
+                          <>
+                            <Save size={15} /> Save Selection
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </form>
             </div>
             {/* END DESKTOP UI */}
 
+          </div>
+        </div>
+      )}
+
+      {selectedCheckIn && showDiscardConfirm && (
+        <div
+          className="selection-email-modal-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowDiscardConfirm(false); }}
+        >
+          <div className="selection-email-modal-container" role="alertdialog" aria-modal="true" aria-labelledby="sel-discard-title">
+            <div className="selection-email-modal-header">
+              <h4 id="sel-discard-title">Discard your changes?</h4>
+            </div>
+            <div className="selection-email-modal-body">
+              <p className="email-modal-description">
+                {sheetChangeCount === 1 ? 'You’ve changed 1 field.' : `You’ve changed ${sheetChangeCount} fields.`} They’ll be lost if you close now.
+              </p>
+              <div className="selection-email-modal-actions">
+                <button type="button" className="btn-email-modal-send" autoFocus onClick={() => setShowDiscardConfirm(false)}>
+                  Keep editing
+                </button>
+                <button type="button" className="btn-sel-discard" onClick={closeSheet}>
+                  Discard
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -2341,6 +2188,7 @@ const CheckInLogPanel = ({
             <form onSubmit={handleSendEmail} className="selection-email-modal-body">
               <p className="email-modal-description">
                 Enter the email address where you would like to send this customer selection sheet.
+                {!sheetReadOnly && sheetChangeCount > 0 && ' Your unsaved changes will be saved first.'}
               </p>
               <div className="email-field-wrapper">
                 <input
