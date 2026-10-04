@@ -642,6 +642,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       const sheetSnapshot = () => JSON.stringify({
         selections: (checkIn.selections || []).map(({ material, details, size, lot }) => ({ material, details, size, lot })),
         specialNotes: checkIn.specialNotes || '',
+        salesRep: checkIn.salesRep || '',
         salesRepEmail: checkIn.salesRepEmail || '',
       });
       const sheetBefore = sheetSnapshot();
@@ -681,6 +682,11 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       if (salesRep !== undefined) checkIn.salesRep = salesRep;
       if (salesRepEmail !== undefined) checkIn.salesRepEmail = salesRepEmail;
 
+      const sheetChanged = sheetSnapshot() !== sheetBefore;
+      if (sheetChanged) {
+        checkIn.sheetEditedBy = req.user?.username || '';
+        checkIn.sheetEditedAt = new Date();
+      }
       await checkIn.save();
       console.log(`✅ Office check-in ${checkIn._id} updated by ${req.user?.displayName || req.user?.username}`);
 
@@ -692,7 +698,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       const repInactive = checkIn.salesRepEmail
         ? await User.exists({ email: new RegExp(`^${escapeRegex(checkIn.salesRepEmail)}$`, 'i'), isActive: false })
         : null;
-      if (checkIn.salesRepEmail && !repInactive && sheetSnapshot() !== sheetBefore) {
+      if (checkIn.salesRepEmail && !repInactive && sheetChanged) {
         (async () => {
           try {
             console.log(`📡 Automatically sending selection sheet alert to sales rep: ${checkIn.salesRepEmail}`);

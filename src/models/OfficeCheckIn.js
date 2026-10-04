@@ -89,6 +89,10 @@ const officeCheckInSchema = new mongoose.Schema({
     default: '',
     maxlength: [254, 'Sales rep email is too long']
   },
+  // Who last changed the selection sheet (rep, materials or notes) and when.
+  // Kept for the record only — the sheet itself doesn't show it.
+  sheetEditedBy: { type: String, default: '' },
+  sheetEditedAt: { type: Date, default: null },
   loggedBy: {
     userId: {
       type: mongoose.Schema.Types.ObjectId,

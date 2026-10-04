@@ -68,6 +68,12 @@ export default function FormModal({
     fieldLabels = {},
     footerNote = null,
     footerStart = null,
+    // Opt-in extras (the Selection Sheet uses them; other forms are unchanged):
+    // headerActions — buttons placed just before the ✕ in the header;
+    // hideFooterOnPhone — no bottom bar on phones, for a form that puts its
+    // main button at the end of the body instead.
+    headerActions = null,
+    hideFooterOnPhone = false,
     children
 }) {
     const isPhone = useIsPhone();
@@ -254,6 +260,7 @@ export default function FormModal({
             >
                 <header className="fm-header">
                     <h2 className="fm-title" id={titleId}>{title}</h2>
+                    {headerActions}
                     <button type="button" className="fm-close" aria-label="Close" title="Close without saving" onClick={requestClose} disabled={saving}>
                         <X size={18} strokeWidth={2.4} aria-hidden="true" />
                     </button>
@@ -277,7 +284,7 @@ export default function FormModal({
                     <div ref={bottomSentinel} className="fm-sentinel" aria-hidden="true" />
                 </div>
 
-                <footer className="fm-footer">
+                <footer className={`fm-footer${hideFooterOnPhone ? ' fm-footer-no-phone' : ''}`}>
                     {footerStart && <span className="fm-footer-start">{footerStart}</span>}
                     <span className="fm-footer-note">{footerNote}</span>
                     {!hideCancel && (

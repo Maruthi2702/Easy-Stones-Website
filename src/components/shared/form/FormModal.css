@@ -573,6 +573,8 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
     .fm-footer-start .fm-btn { height: 40px; padding: 0 4px; }
     .fm-footer-note { grid-area: note; text-align: center; font-size: 12px; }
     .fm-footer-note:empty { display: none; }
+    /* hideFooterOnPhone (opt-in): the form shows its own main button in the body. */
+    .fm-footer.fm-footer-no-phone { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

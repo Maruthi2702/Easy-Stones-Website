@@ -1,0 +1,257 @@
+/*
+ * Selection Sheet — only what the form template (FormModal.css) doesn't
+ * already cover. Colours are the template's --fm-* tokens, so light and dark
+ * follow it. Phone rules are under the template's 639px breakpoint.
+ */
+
+/* Header: "Selection Sheet - Seattle" over the customer & company. */
+.ss-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ss-title-main, .ss-title-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ss-title-sub { font-size: 14px; font-weight: 600; color: var(--fm-mut); }
+
+/* Visit details: read-only fields in three columns, Sales rep last. */
+.ss-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.ss-fact {
+    display: block;
+    height: 42px;
+    line-height: 40px;
+    padding: 0 12px;
+    box-sizing: border-box;
+    border: 1px dashed var(--fm-bd);
+    border-radius: 10px;
+    background: var(--fm-dis);
+    color: var(--fm-label);
+    font-size: 14px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Materials table: # | material | lot · slabs · size | remove */
+.ss-table { display: flex; flex-direction: column; gap: 10px; }
+.ss-row { display: grid; grid-template-columns: 28px minmax(0, 2.2fr) minmax(0, 3fr) 40px; gap: 10px; align-items: start; }
+.ss-row-head { font-size: 12px; font-weight: 700; color: var(--fm-mut); text-transform: uppercase; letter-spacing: 0.04em; }
+.ss-row-head > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ss-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ss-row-num { height: 42px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--fm-gold-tx); }
+.ss-row-mat { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ss-add-row { align-self: flex-start; border-style: dashed; border-color: var(--fm-gold-bd); color: var(--fm-gold-tx); background: var(--fm-gold-soft); }
+
+.ss-remove {
+    width: 40px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--fm-err);
+    cursor: pointer;
+    padding: 0;
+}
+.ss-remove:hover { background: var(--fm-err-bg); }
+.ss-remove-spacer { width: 40px; }
+
+/* Material box with the scan button inside it; catalog names list under it. */
+.ss-mat { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.ss-mat-field { position: relative; display: flex; align-items: center; }
+.fm-input.ss-mat-input { padding-right: 46px; text-transform: uppercase; }
+.ss-scan-btn {
+    position: absolute;
+    right: 4px;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--fm-gold-bd);
+    border-radius: 8px;
+    background: var(--fm-gold-soft);
+    color: var(--fm-gold-tx);
+    cursor: pointer;
+    padding: 0;
+}
+.ss-scan-progress {
+    position: absolute;
+    right: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--fm-gold-tx);
+}
+.ss-suggest { margin: 0; list-style: none; }
+.ss-suggest-opt { min-height: 40px; font-weight: 600; }
+
+/* Scan result under a row. */
+.ss-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+.ss-notice svg { flex: none; margin-top: 1px; }
+.ss-notice-text { flex: 1; min-width: 0; }
+.ss-notice-ok { color: var(--fm-ok); background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.3); }
+.ss-notice-warn { color: #fbbf24; background: rgba(251, 191, 36, 0.08); border-color: rgba(251, 191, 36, 0.3); }
+.ss-notice-error { color: var(--fm-err); background: var(--fm-err-bg); border-color: var(--fm-err-bd); }
+body.light-theme-active .ss-notice-ok { background: #f0fdf4; border-color: #bbf7d0; }
+body.light-theme-active .ss-notice-warn { color: #92400e; background: #fffbeb; border-color: #fcd34d; }
+.ss-notice-close { flex: none; display: flex; border: 0; padding: 0; background: none; color: inherit; opacity: 0.7; cursor: pointer; }
+
+/* Someone else saved meanwhile. */
+.ss-conflict {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    color: var(--fm-label);
+    font-size: 13px;
+    line-height: 1.45;
+}
+.ss-conflict > svg { flex: none; color: #fbbf24; margin-top: 1px; }
+body.light-theme-active .ss-conflict { background: #fffbeb; border-color: #fcd34d; }
+body.light-theme-active .ss-conflict > svg { color: #b45309; }
+.ss-conflict-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.ss-conflict-body strong { color: var(--fm-tx); }
+.ss-conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Notes + the hold policy. */
+.fm-input.ss-notes { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.45; resize: vertical; font-family: inherit; }
+.ss-policy {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px dashed var(--fm-err-bd);
+    background: var(--fm-err-bg);
+}
+.ss-policy svg { flex: none; color: var(--fm-err-bd); margin-top: 2px; }
+.ss-policy p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fm-label); }
+
+/* Footer extras. */
+.ss-foot-actions { display: inline-flex; gap: 8px; }
+.ss-saved-note { color: var(--fm-ok); font-weight: 600; }
+
+/* "…" menu (phones) beside the ✕. */
+.ss-more { position: relative; flex: none; }
+.ss-more-btn {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--fm-bd);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--fm-tx);
+    cursor: pointer;
+    padding: 0;
+}
+.ss-more-btn[aria-expanded="true"] { background: var(--fm-hover); }
+.ss-more-menu {
+    position: absolute;
+    top: 46px;
+    right: 0;
+    z-index: 4;
+    min-width: 180px;
+    padding: 6px;
+    border: 1px solid var(--fm-bd2);
+    border-radius: 12px;
+    background: var(--fm-card);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ss-more-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--fm-tx);
+    font: 600 16px var(--font-main, 'Inter', system-ui, sans-serif);
+    text-align: left;
+    cursor: pointer;
+}
+.ss-more-item:hover { background: var(--fm-hover); }
+
+/* Tag cropper. */
+.fm-confirm.ss-cropper { max-width: 560px; }
+.ss-crop-stage { display: flex; justify-content: center; }
+.ss-crop-frame { position: relative; display: inline-block; max-width: 100%; }
+.ss-crop-img { display: block; max-width: 100%; max-height: 46vh; object-fit: contain; border-radius: 8px; }
+.ss-crop-box { position: absolute; border: 2px solid var(--fm-gold); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45); border-radius: 4px; pointer-events: none; }
+.ss-crop-frame { overflow: hidden; border-radius: 8px; }
+.ss-crop-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+.ss-crop-control { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--fm-mut); }
+.ss-crop-control input { accent-color: var(--fm-gold); }
+
+/* ── Phones ─────────────────────────────────────────────────────────────── */
+.ss-cards { display: flex; flex-direction: column; gap: 10px; }
+.ss-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 10px 10px 12px;
+    border: 1px solid var(--fm-bd2);
+    border-left: 3px solid var(--fm-gold);
+    border-radius: 12px;
+    background: var(--fm-hover);
+}
+.ss-card-top { display: flex; align-items: flex-start; gap: 8px; }
+.ss-card-num {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    margin-top: 10px;
+    border-radius: 7px;
+    background: var(--fm-gold);
+    color: var(--fm-on-gold);
+    font-size: 13px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.ss-card-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding-left: 34px; }
+.ss-card-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ss-card-field > span { font-size: 10.5px; font-weight: 700; color: var(--fm-mut); text-transform: uppercase; letter-spacing: 0.05em; }
+.ss-add-card {
+    height: 50px;
+    border: 1px dashed var(--fm-gold-bd);
+    border-radius: 12px;
+    background: transparent;
+    color: var(--fm-gold-tx);
+    font: 700 15px var(--font-main, 'Inter', system-ui, sans-serif);
+    cursor: pointer;
+}
+.ss-phone-save { width: 100%; height: 52px; font-size: 16px; margin-top: 4px; }
+.ss-phone-note { margin: 0; text-align: center; font-size: 13px; color: var(--fm-mut); }
+
+@media (max-width: 639px) {
+    .ss-title-sub { font-size: 13px; }
+    /* Thin cards: 40px boxes, 16px text so iPhone Safari doesn't zoom. */
+    .ss-card .fm-input { height: 40px; padding: 0 10px; }
+    .ss-card .fm-input.ss-mat-input { padding-right: 44px; }
+    .ss-card .ss-scan-btn { width: 32px; height: 32px; }
+    .ss-card .ss-remove { width: 40px; height: 40px; border: 1px solid var(--fm-err-bd); background: var(--fm-err-bg); border-radius: 8px; }
+    .ss-card .ss-remove-spacer { width: 0; }
+}
