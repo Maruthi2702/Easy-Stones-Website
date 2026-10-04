@@ -110,6 +110,12 @@ describe('validateLocationValues', () => {
       .toEqual(['acctEmail', 'acctPhone', 'acctState', 'acctZip']);
   });
 
+  it('only accepts C.O.D as payment terms for now, and new locations start on it', () => {
+    expect(emptyLocationValues().paymentTerms).toBe('C.O.D');
+    expect(validateLocationValues({ ...valid(), paymentTerms: 'Net 30' }, { others }).paymentTerms).toBe('Choose payment terms');
+    expect(validateLocationValues({ ...valid(), paymentTerms: '' }, { others }).paymentTerms).toBeUndefined();
+  });
+
   it('caps text length', () => {
     expect(validateLocationValues({ ...valid(), region: 'x'.repeat(301) }, { others }).region).toBe('Too long');
   });

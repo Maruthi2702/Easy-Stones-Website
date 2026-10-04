@@ -21,9 +21,11 @@ import { formatPhoneForDisplay, stripPhone } from './phoneUtils.js';
 
 export const PRICE_LEVELS = [1, 2, 3, 4];
 export const priceLevelLabel = (level) => (level ? `Price ${level}` : '');
-// The app has no payment-terms list of its own yet; C.O.D is what the
-// company-location record this form was modelled on uses.
-export const PAYMENT_TERMS = ['C.O.D', 'Prepaid', 'Net 15', 'Net 30'];
+// C.O.D is the only payment term for now (owner, 2026-10-04) — new locations
+// start on it. Add terms here when there are more; the API accepts only
+// what's listed.
+export const PAYMENT_TERMS = ['C.O.D'];
+export const DEFAULT_PAYMENT_TERMS = 'C.O.D';
 
 // Every field the form can flag, in on-screen order — the error banner lists
 // them in this order and "Go to first" goes to the first.
@@ -74,7 +76,7 @@ export const emptyLocationValues = () => ({
   phone: '', fax: '', website: '',
   acctSameAsPrimary: true,
   acctName: '', acctEmail: '', acctStreet: '', acctSuite: '', acctCity: '', acctState: '', acctZip: '', acctPhone: '',
-  salesRep: '', priceLevel: '', paymentTerms: '', salesTaxArea: '', salesTaxRate: '',
+  salesRep: '', priceLevel: '', paymentTerms: DEFAULT_PAYMENT_TERMS, salesTaxArea: '', salesTaxRate: '',
   avgUnitFreight: '', unitOverheadPct: ''
 });
 
