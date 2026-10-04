@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 // One row per slab/lot from SPS's "Inventory In Stock - Detail" export. This
 // is a full mirror of what SPS reports as on hand right now, not a ledger —
 // every import wipes and replaces the whole collection (see
-// /api/inventory-analysis/import/stock/apply in server.js), so a row missing
+// /api/inventory-analysis/import/stock/apply in src/routes/inventoryAnalysis.js), so a row missing
 // after an import means SPS no longer shows that lot as in stock (sold,
 // transferred, etc.), not that it was deleted by mistake.
 const inventoryItemSchema = new mongoose.Schema({
@@ -57,7 +57,7 @@ const inventoryItemSchema = new mongoose.Schema({
 
 // A text index used to exist here for product/supplier search, but nothing
 // in the app ever issues a $text query — the actual search (buildInventoryItemQuery
-// in server.js) is a plain regex $or, which a text index can't accelerate
+// in src/routes/inventoryAnalysis.js) is a plain regex $or, which a text index can't accelerate
 // anyway. Text indexes are also the most expensive kind to maintain (every
 // value gets tokenized on every write), so this was pure cost on every
 // import with zero query benefit. Removed rather than left unused.

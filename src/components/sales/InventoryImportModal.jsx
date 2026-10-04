@@ -72,15 +72,25 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
     setApplying(true);
     setError('');
     try {
-      const body = new FormData();
-      body.append('file', file);
-      if (isSales) {
-        body.append('location', location.trim());
-        body.append('periodStart', periodStart);
-        body.append('periodEnd', periodEnd);
-      }
       const endpoint = isSales ? 'sales' : 'stock';
-      const res = await authFetch(`${API_URL}/api/inventory-analysis/import/${endpoint}/apply`, { method: 'POST', body });
+      // The server kept the file it parsed for the preview, so Import sends
+      // only its id instead of uploading the whole file (~12 MB for a stock
+      // export) a second time. If that copy has gone (it lasts 10 minutes, and
+      // not past a server restart), the server answers 410 and the file is
+      // sent after all.
+      const send = (withFile) => {
+        const body = new FormData();
+        if (withFile || !preview.uploadId) body.append('file', file);
+        else body.append('uploadId', preview.uploadId);
+        if (isSales) {
+          body.append('location', location.trim());
+          body.append('periodStart', periodStart);
+          body.append('periodEnd', periodEnd);
+        }
+        return authFetch(`${API_URL}/api/inventory-analysis/import/${endpoint}/apply`, { method: 'POST', body });
+      };
+      let res = await send(false);
+      if (res.status === 410 && preview.uploadId) res = await send(true);
       const data = await res.json();
       if (!res.ok) {
         setError(data.message || 'Import failed');

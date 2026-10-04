@@ -4,7 +4,7 @@
  * status code falls into a visible bucket instead of quietly vanishing from
  * every count).
  *
- * Shared by server.js (grouped/aggregated counts) and InventoryAnalysisTab.jsx
+ * Shared by src/routes/inventoryAnalysis.js (grouped/aggregated counts) and InventoryAnalysisTab.jsx
  * (per-slab rows, which carry the raw slabStatus string) so the two can't
  * silently drift apart on what a status code means — they used to be two
  * hand-copied implementations of the same four-line function.

@@ -6,9 +6,9 @@ import mongoose from 'mongoose';
 // imports — each (product, location, periodStart, periodEnd) is its own
 // snapshot, so multiple periods/locations can coexist for trend comparisons.
 // Re-importing the same period+location replaces just that combination (see
-// /api/inventory-analysis/import/sales/apply in server.js).
+// /api/inventory-analysis/import/sales/apply in src/routes/inventoryAnalysis.js).
 const inventorySalesRecordSchema = new mongoose.Schema({
-  // Not indexed individually — server.js only ever queries this collection
+  // Not indexed individually — src/routes/inventoryAnalysis.js only ever queries this collection
   // by { location }, or by { location, periodStart, periodEnd } (see the
   // velocity/apply routes). Nothing filters by product, category, or a
   // period boundary alone, so the compound index below (led by location)

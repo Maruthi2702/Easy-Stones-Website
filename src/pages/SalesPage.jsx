@@ -306,7 +306,7 @@ const SalesPage = () => {
             fetchLocations();
         });
 
-        // Fired by server.js after an Inventory Analysis stock/sales import.
+        // Fired by src/routes/inventoryAnalysis.js after a stock/sales import.
         // Without this, only the importer's own browser (via the modal's
         // onComplete callback) ever saw the new data — everyone else's open
         // Inventory Analysis tab stayed on the pre-import snapshot.

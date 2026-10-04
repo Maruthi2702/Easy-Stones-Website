@@ -44,7 +44,7 @@ const ageDays = (dateStr) => {
   return Math.floor(diff / (1000 * 60 * 60 * 24));
 };
 
-// Matches src/routes... no — matches server.js's SLAB_STATUS_BUCKET, which
+// Matches SLAB_STATUS_BUCKET (src/utils/inventoryStatus.js), which
 // generalizes SPS's raw slabStatus strings into these four buckets (plus
 // "other" for anything unrecognized) so the UI never has to special-case
 // SPS's literal codes.
@@ -331,7 +331,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   };
 
   // Shared by the modal's onComplete and by the socket-driven refresh below,
-  // so an import applied from another tab/user (see server.js's
+  // so an import applied from another tab/user (see src/routes/inventoryAnalysis.js's
   // 'inventory_analysis_update' emit) refreshes this screen the same way
   // finishing an import locally does.
   const refreshAll = useCallback(() => {
