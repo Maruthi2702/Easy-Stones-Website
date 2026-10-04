@@ -1,0 +1,580 @@
+/*
+ * The app-wide form template — FORM_TEMPLATE.md is the spec, this is its
+ * implementation. Every rule here applies to every form built on FormModal,
+ * so check the spec (and CLAUDE.md's shared-component rule) before changing
+ * one to fix a single screen.
+ *
+ * Dark is the default theme; body.light-theme-active switches the tokens.
+ */
+.fm-overlay {
+    --fm-card: #1c1c1e;
+    --fm-in: #111113;
+    --fm-tx: #ffffff;
+    --fm-label: #e5e5e5;
+    --fm-mut: #999999;
+    --fm-bd: rgba(255, 255, 255, 0.18);
+    --fm-bd2: rgba(255, 255, 255, 0.1);
+    --fm-gold: #d4af37;
+    --fm-gold-bd: #c5a028;
+    --fm-gold-tx: #e6c25e;
+    --fm-gold-tint: rgba(212, 175, 55, 0.16);
+    --fm-gold-soft: rgba(212, 175, 55, 0.08);
+    --fm-ring: rgba(212, 175, 55, 0.25);
+    --fm-err: #f87171;
+    --fm-err-bd: #ef4444;
+    --fm-err-bg: rgba(239, 68, 68, 0.12);
+    --fm-ok: #4ade80;
+    --fm-on-gold: #1a1505;
+    --fm-footer: #141416;
+    --fm-dis: #2a2a2c;
+    --fm-dis-tx: #6b6b6b;
+    --fm-seg: #2a2a2c;
+    --fm-seg-on: #3a3a3c;
+    --fm-x: #ef4444;
+    --fm-x-hover: #dc2626;
+    --fm-hover: rgba(255, 255, 255, 0.06);
+    --fm-backdrop: rgba(0, 0, 0, 0.62);
+    --fm-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    --fm-edge-shadow: rgba(0, 0, 0, 0.45);
+}
+
+body.light-theme-active .fm-overlay {
+    --fm-card: #ffffff;
+    --fm-in: #ffffff;
+    --fm-tx: #0f172a;
+    --fm-label: #334155;
+    --fm-mut: #5a6574;
+    --fm-bd: #cbd5e1;
+    --fm-bd2: #e2e8f0;
+    --fm-gold: #c9a227;
+    --fm-gold-bd: #b8921d;
+    --fm-gold-tx: #7a5c0b;
+    --fm-gold-tint: #f6efd9;
+    --fm-gold-soft: #fffcf3;
+    --fm-ring: rgba(201, 162, 39, 0.18);
+    --fm-err: #b91c1c;
+    --fm-err-bd: #dc2626;
+    --fm-err-bg: #fef2f2;
+    --fm-ok: #166534;
+    --fm-on-gold: #1f1a08;
+    --fm-footer: #f8fafc;
+    --fm-dis: #f1f5f9;
+    --fm-dis-tx: #94a3b8;
+    --fm-seg: #f1f5f9;
+    --fm-seg-on: #ffffff;
+    --fm-x: #dc2626;
+    --fm-x-hover: #b91c1c;
+    --fm-hover: #f8fafc;
+    --fm-backdrop: rgba(15, 23, 42, 0.45);
+    --fm-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+    --fm-edge-shadow: rgba(15, 23, 42, 0.22);
+}
+
+/* ── Shell ─────────────────────────────────────────────────────────────── */
+
+/* Same top value as .modal-overlay / .custom-select-popover (CLAUDE.md,
+   CustomSelect incident): a CustomSelect opened inside a form is portaled
+   after the form, so with equal z-index it still paints on top. */
+.fm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    background: var(--fm-backdrop);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px 16px;
+    box-sizing: border-box;
+    font-family: var(--font-main, 'Inter', system-ui, -apple-system, sans-serif);
+    color: var(--fm-tx);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.fm-dialog {
+    position: relative;
+    width: 100%;
+    max-height: calc(100dvh - 48px);
+    display: flex;
+    flex-direction: column;
+    background: var(--fm-card);
+    border-radius: 18px;
+    box-shadow: var(--fm-shadow);
+    overflow: hidden;
+    margin: auto 0;
+    outline: none;
+}
+
+.fm-s { max-width: 480px; }
+.fm-m { max-width: 760px; }
+.fm-l { max-width: 960px; }
+
+.fm-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 24px 16px;
+    border-bottom: 1px solid var(--fm-bd2);
+    flex: none;
+    position: relative;
+    z-index: 2;
+    transition: box-shadow 0.15s ease;
+}
+
+.fm-title {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.25;
+    color: var(--fm-tx);
+}
+
+.fm-title-sub { font-weight: 600; color: var(--fm-mut); }
+
+/* Edge shadows appear only once content is hidden under the header/footer —
+   set by IntersectionObserver sentinels in FormModal, never a scroll listener. */
+.fm-dialog[data-scrolled-top="true"] .fm-header { box-shadow: 0 6px 12px -8px var(--fm-edge-shadow); }
+.fm-dialog[data-scrolled-bottom="true"] .fm-footer { box-shadow: 0 -6px 12px -8px var(--fm-edge-shadow); }
+
+.fm-close {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--fm-x);
+    color: #ffffff;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.fm-close svg { transition: transform 0.2s ease; }
+.fm-close:hover { background: var(--fm-x-hover); transform: scale(1.08); box-shadow: 0 0 0 4px var(--fm-err-bg); }
+.fm-close:hover svg { transform: rotate(90deg); }
+.fm-close:active { transform: scale(0.96); }
+.fm-close:focus-visible { outline: 2px solid var(--fm-err-bd); outline-offset: 2px; }
+.fm-close:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* The only thing that scrolls. Native momentum; a fling stops here instead of
+   dragging the page behind or triggering pull-to-refresh. */
+.fm-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 24px 20px;
+    position: relative;
+}
+
+.fm-sentinel { height: 1px; margin-bottom: -1px; pointer-events: none; }
+
+.fm-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; }
+
+.fm-footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 24px;
+    border-top: 1px solid var(--fm-bd2);
+    background: var(--fm-footer);
+    flex: none;
+    position: relative;
+    z-index: 2;
+    transition: box-shadow 0.15s ease;
+}
+
+.fm-footer-note { flex: 1; min-width: 0; font-size: 13px; color: var(--fm-mut); line-height: 1.4; }
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+
+.fm-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 42px;
+    padding: 0 18px;
+    border-radius: 10px;
+    border: 1px solid var(--fm-bd);
+    background: transparent;
+    color: var(--fm-tx);
+    font: 600 14px var(--font-main, 'Inter', system-ui, sans-serif);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.fm-btn:hover:not(:disabled) { background: var(--fm-hover); }
+.fm-btn:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 2px; }
+.fm-btn:disabled { cursor: not-allowed; opacity: 0.55; }
+
+.fm-btn-primary { background: var(--fm-gold); border-color: var(--fm-gold-bd); color: var(--fm-on-gold); font-weight: 700; }
+.fm-btn-primary:hover:not(:disabled) { background: var(--fm-gold-bd); }
+.fm-btn-primary[aria-busy="true"] { opacity: 0.8; cursor: progress; }
+
+.fm-btn-danger { background: var(--fm-err-bd); border-color: var(--fm-err-bd); color: #ffffff; font-weight: 700; }
+.fm-btn-danger:hover:not(:disabled) { background: var(--fm-x-hover); }
+
+.fm-btn-text-danger { border-color: transparent; color: var(--fm-err); padding: 0 8px; }
+
+.fm-btn-small { height: 34px; padding: 0 12px; font-size: 13px; }
+
+.fm-spinner {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    box-sizing: border-box;
+    animation: fm-spin 0.7s linear infinite;
+}
+@keyframes fm-spin { to { transform: rotate(360deg); } }
+
+/* ── Error banner ──────────────────────────────────────────────────────── */
+
+.fm-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 16px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    background: var(--fm-err-bg);
+    border: 1px solid var(--fm-err-bd);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--fm-label);
+}
+.fm-banner svg { color: var(--fm-err-bd); margin-top: 1px; flex: none; }
+.fm-banner strong { color: var(--fm-tx); }
+.fm-banner-text { flex: 1; min-width: 0; }
+.fm-banner-link {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: 700 13px var(--font-main, 'Inter', system-ui, sans-serif);
+    color: var(--fm-err);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.fm-banner-link:hover { text-decoration: underline; }
+
+/* ── Sections, rows, fields ────────────────────────────────────────────── */
+
+.fm-section { display: flex; flex-direction: column; gap: 14px; padding: 18px 0 4px; }
+.fm-section + .fm-section { border-top: 1px solid var(--fm-bd2); margin-top: 14px; }
+.fm-section-title { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 15px; font-weight: 800; color: var(--fm-tx); }
+.fm-section-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--fm-gold-tint);
+    color: var(--fm-gold-tx);
+    font-size: 12px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+}
+
+.fm-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+
+.fm-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; scroll-margin: 24px; }
+.fm-label { font-size: 13px; font-weight: 700; color: var(--fm-label); }
+.fm-req { color: var(--fm-err-bd); margin-left: 3px; }
+
+.fm-input {
+    height: 42px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border: 1px solid var(--fm-bd);
+    border-radius: 10px;
+    background: var(--fm-in);
+    color: var(--fm-tx);
+    font: 500 14px var(--font-main, 'Inter', system-ui, sans-serif);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.fm-input::placeholder { color: var(--fm-mut); opacity: 1; }
+.fm-input:focus { outline: none; border-color: var(--fm-gold); box-shadow: 0 0 0 3px var(--fm-ring); }
+.fm-input[aria-invalid="true"] { border-color: var(--fm-err-bd); box-shadow: 0 0 0 3px var(--fm-err-bg); }
+.fm-input:disabled, .fm-input[readonly] { background: var(--fm-dis); color: var(--fm-dis-tx); border-style: dashed; }
+.fm-input-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+input.fm-input[type="date"] { color-scheme: dark; }
+body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
+
+.fm-error, .fm-status { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1.35; }
+.fm-error { color: var(--fm-err); }
+.fm-status { color: var(--fm-mut); }
+.fm-status[data-tone="ok"] { color: var(--fm-ok); }
+.fm-error svg, .fm-status svg { flex: none; }
+
+/* Password with show/hide eye */
+.fm-input-wrap { position: relative; flex: 1; min-width: 0; }
+.fm-input-wrap .fm-input { padding-right: 48px; }
+.fm-eye {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--fm-mut);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.fm-eye:hover { background: var(--fm-hover); color: var(--fm-tx); }
+.fm-eye:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 1px; }
+.fm-inline { display: flex; gap: 8px; align-items: center; }
+
+/* Two-way toggle */
+.fm-seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: var(--fm-seg); }
+.fm-seg-btn {
+    height: 38px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--fm-mut);
+    font: 600 13.5px var(--font-main, 'Inter', system-ui, sans-serif);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.fm-seg-btn[aria-checked="true"] { background: var(--fm-seg-on); color: var(--fm-tx); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.fm-seg-btn:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 1px; }
+
+.fm-note-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    border: 1px solid var(--fm-bd);
+    border-radius: 10px;
+    font-size: 14px;
+    color: var(--fm-label);
+    word-break: break-word;
+}
+
+/* ── Picker (dropdown with descriptions) ───────────────────────────────── */
+
+.fm-picker-trigger {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    border: 1px solid var(--fm-bd);
+    border-radius: 10px;
+    background: var(--fm-in);
+    color: var(--fm-tx);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.fm-picker-trigger:focus-visible, .fm-picker-trigger[aria-expanded="true"] { outline: none; border-color: var(--fm-gold); box-shadow: 0 0 0 3px var(--fm-ring); }
+.fm-picker-trigger[aria-invalid="true"] { border-color: var(--fm-err-bd); box-shadow: 0 0 0 3px var(--fm-err-bg); }
+.fm-picker-trigger:disabled { background: var(--fm-dis); color: var(--fm-dis-tx); cursor: not-allowed; }
+.fm-picker-trigger svg { flex: none; transition: transform 0.15s ease; color: var(--fm-mut); }
+.fm-picker-trigger[aria-expanded="true"] > svg { transform: rotate(180deg); }
+.fm-opt-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.fm-opt-label { font-size: 14px; font-weight: 700; color: var(--fm-tx); }
+.fm-opt-desc { font-size: 12.5px; color: var(--fm-mut); line-height: 1.35; }
+.fm-placeholder { color: var(--fm-mut); font-size: 14px; }
+
+/* Opens in the flow of the form (pushes content down) rather than floating —
+   nothing to clip, nothing to out-stack, and the body stays the only scroller. */
+.fm-menu {
+    margin-top: 6px;
+    padding: 6px;
+    border: 1px solid var(--fm-bd2);
+    border-radius: 12px;
+    background: var(--fm-card);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.fm-opt {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.fm-opt:hover, .fm-opt[data-active="true"] { background: var(--fm-hover); }
+.fm-opt[aria-selected="true"] { background: var(--fm-gold-soft); }
+.fm-opt svg { flex: none; color: var(--fm-gold-tx); }
+
+/* ── Checkbox look (used by multi-pickers) ─────────────────────────────── */
+
+.fm-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1.5px solid var(--fm-bd);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    box-sizing: border-box;
+    color: transparent;
+}
+[aria-checked="true"] > .fm-check, .fm-check[data-on="true"] { background: var(--fm-gold); border-color: var(--fm-gold-bd); color: var(--fm-on-gold); }
+/* The tick follows the box's colour (transparent when unticked) — beats
+   `.fm-opt svg`, which would otherwise paint it gold on every row. */
+.fm-opt .fm-check svg, .fm-check svg { color: inherit; }
+
+/* ── Bottom sheet (phones) ─────────────────────────────────────────────── */
+
+.fm-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 5;
+    animation: fm-fade 0.18s ease;
+}
+.fm-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 6;
+    max-height: calc(var(--fm-vvh, 100dvh) * 0.82);
+    display: flex;
+    flex-direction: column;
+    background: var(--fm-card);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.35);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: fm-sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: transform;
+    outline: none;
+}
+.fm-sheet-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px 10px; flex: none; }
+.fm-sheet-head::before {
+    content: '';
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    margin-left: -18px;
+    border-radius: 2px;
+    background: var(--fm-bd);
+}
+.fm-sheet-title { margin: 0; flex: 1; font-size: 16px; font-weight: 800; }
+.fm-sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 0 10px 10px; }
+.fm-sheet-foot { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 18px 14px; border-top: 1px solid var(--fm-bd2); }
+.fm-sheet .fm-opt { min-height: 48px; font-size: 15px; }
+
+@keyframes fm-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes fm-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Discard check ─────────────────────────────────────────────────────── */
+
+.fm-confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: fm-fade 0.15s ease;
+}
+.fm-confirm {
+    width: 100%;
+    max-width: 400px;
+    background: var(--fm-card);
+    border: 1px solid var(--fm-bd2);
+    border-radius: 16px;
+    box-shadow: var(--fm-shadow);
+    padding: 22px 22px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    outline: none;
+}
+.fm-confirm-title { margin: 0; font-size: 17px; font-weight: 800; }
+.fm-confirm-text { margin: 0; font-size: 14px; line-height: 1.45; color: var(--fm-mut); }
+.fm-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+/* ── Phones (below 640px): full-screen sheet ───────────────────────────── */
+
+@media (max-width: 639px) {
+    .fm-overlay { padding: 0; align-items: stretch; }
+    /* Height and top follow window.visualViewport (set by FormModal) so the
+       footer rides above the on-screen keyboard; 100dvh until then. */
+    .fm-dialog,
+    .fm-s, .fm-m, .fm-l {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: var(--fm-vvtop, 0px);
+        height: var(--fm-vvh, 100dvh);
+        max-width: none;
+        max-height: none;
+        margin: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+    .fm-header { padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 12px; }
+    .fm-title { font-size: 19px; }
+    .fm-body { padding: 2px 16px 16px; }
+    .fm-row { grid-template-columns: minmax(0, 1fr); }
+    .fm-section { gap: 14px; }
+    /* 16px or iOS Safari zooms the page on every tap into a field. */
+    .fm-input { height: 46px; font-size: 16px; }
+    .fm-picker-trigger { min-height: 46px; }
+    .fm-opt-label { font-size: 15px; }
+    /* Kept short so the form keeps most of the screen: the main button,
+       then Cancel (and an edit form's Deactivate) on one line, then the note. */
+    .fm-footer {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: "primary primary" "start cancel" "note note";
+        align-items: center;
+        gap: 4px 8px;
+        padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+    .fm-footer:not(:has(.fm-footer-start)) { grid-template-areas: "primary primary" "cancel cancel" "note note"; }
+    .fm-footer .fm-btn-primary { grid-area: primary; height: 50px; font-size: 16px; width: 100%; }
+    .fm-footer .fm-btn-cancel { grid-area: cancel; justify-self: center; border-color: transparent; background: transparent; color: var(--fm-mut); height: 40px; }
+    .fm-footer:has(.fm-footer-start) .fm-btn-cancel { justify-self: end; }
+    .fm-footer-start { grid-area: start; justify-self: start; }
+    .fm-footer-start .fm-btn { height: 40px; padding: 0 4px; }
+    .fm-footer-note { grid-area: note; text-align: center; font-size: 12px; }
+    .fm-footer-note:empty { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fm-sheet, .fm-sheet-backdrop, .fm-confirm-backdrop { animation: none; }
+    .fm-close, .fm-close svg, .fm-picker-trigger svg { transition: none; }
+    .fm-close:hover { transform: none; }
+    .fm-close:hover svg { transform: none; }
+}

@@ -6,6 +6,10 @@ import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import './AdminPage.css';
 import { authFetch } from '../api/authFetch';
+import AddUserForm from '../components/sales/users/AddUserForm';
+import EditUserForm from '../components/sales/users/EditUserForm';
+import { describeRole, isDriverRole } from '../components/sales/users/pagePermissions';
+import { changeUserAccess } from '../components/sales/users/userAccess';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -33,18 +37,10 @@ const AdminPage = () => {
   // User Management State
   const [users, setUsers] = useState([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
-  const [userFormData, setUserFormData] = useState({
-    username: '',
-    displayName: '',
-    email: '',
-    password: '',
-    role: 'sales_rep',
-    location: ''
-  });
-  const [isNewUser, setIsNewUser] = useState(false);
-  const [editingUserId, setEditingUserId] = useState(null);
-  const [userSaveStatus, setUserSaveStatus] = useState(null);
-  const [errorMessage, setErrorMessage] = useState('');
+  // Add / Edit user use the same forms as Sales CRM → Users & Roles
+  // (components/sales/users/), which need the roles and branches.
+  const [userModal, setUserModal] = useState(null); // null | { mode: 'add' } | { mode: 'edit', user }
+  const [userFormRefs, setUserFormRefs] = useState({ roles: [], locations: [], loaded: false });
 
   // Mobile View State
   const [showMobileDetail, setShowMobileDetail] = useState(false);
@@ -318,74 +314,37 @@ const AdminPage = () => {
     (u.role?.toLowerCase() || '').includes(userSearchTerm.toLowerCase())
   );
 
-  const handleEditUser = (user) => {
-    setEditingUserId(user._id);
-    setUserFormData({
-      username: user.username,
-      displayName: user.displayName || '',
-      email: user.email || '',
-      password: '', // Keep blank unless changing
-      role: user.role,
-      location: user.location || ''
-    });
-    setIsNewUser(true);
+  // Roles and branches for the Add/Edit user forms, fetched the first time
+  // one is opened.
+  const openUserModal = async (modal) => {
+    if (!userFormRefs.loaded) {
+      try {
+        const [rolesRes, locationsRes] = await Promise.all([
+          authFetch(`${API_URL}/api/admin/roles`),
+          authFetch(`${API_URL}/api/admin/locations`)
+        ]);
+        if (!rolesRes.ok || !locationsRes.ok) throw new Error('Could not load roles and locations');
+        setUserFormRefs({ roles: await rolesRes.json(), locations: await locationsRes.json(), loaded: true });
+      } catch (err) {
+        alert(err.message || 'Could not load roles and locations');
+        return;
+      }
+    }
+    setUserModal(modal);
   };
 
-  const handleUserSubmit = async (e) => {
-    e.preventDefault();
-    setUserSaveStatus('saving');
-
-    const url = editingUserId
-      ? `${API_URL}/api/admin/users/${editingUserId}`
-      : `${API_URL}/api/admin/users`;
-
-    const method = editingUserId ? 'PUT' : 'POST';
-
-    try {
-      const response = await authFetch(url, {
-        method,
-        body: JSON.stringify(userFormData)
-      });
-
-      if (response.ok) {
-        setUserSaveStatus('success');
-        setIsNewUser(false);
-        setEditingUserId(null);
-        setUserFormData({ username: '', email: '', password: '', role: 'sales_rep', location: '' });
-        // Refresh users
-        const usersRes = await authFetch(`${API_URL}/api/admin/users`);
-        if (usersRes.ok) {
-          const data = await usersRes.json();
-          setUsers(data);
-        }
-      } else {
-        const errorData = await response.json();
-        setErrorMessage(errorData.message || `Failed to ${editingUserId ? 'update' : 'create'} user`);
-        setUserSaveStatus('error');
-      }
-    } catch (error) {
-      console.error(`Error ${editingUserId ? 'updating' : 'creating'} user:`, error);
-      setErrorMessage(`Error ${editingUserId ? 'updating' : 'creating'} user`);
-      setUserSaveStatus('error');
-    }
-
-    setTimeout(() => setUserSaveStatus(null), 3000);
+  const handleUserSaved = (saved) => {
+    if (saved) setUsers(prev => prev.map(u => (u._id === saved._id ? { ...u, ...saved } : u)));
   };
 
-  const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-
-    try {
-      const response = await authFetch(`${API_URL}/api/admin/users/${userId}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        setUsers(users.filter(u => u._id !== userId));
-      }
-    } catch (error) {
-      console.error('Error deleting user:', error);
-    }
+  // Deactivate / reactivate / delete, with the same prompts (and the move to
+  // Pending for a driver's upcoming orders) as Users & Roles.
+  const handleChangeAccess = async (user, action) => {
+    const done = await changeUserAccess(user, action);
+    if (!done) return false;
+    if (action === 'delete') setUsers(prev => prev.filter(u => u._id !== user._id));
+    else fetchUsers();
+    return true;
   };
 
   const handleSelectProduct = async (id) => {
@@ -758,111 +717,32 @@ const AdminPage = () => {
                   </div>
                   <button
                     className="primary-btn add-user-btn"
-                    onClick={() => {
-                      setIsNewUser(true);
-                      setEditingUserId(null);
-                      setUserFormData({ username: '', email: '', password: '', role: 'sales_rep', location: '' });
-                    }}
+                    onClick={() => openUserModal({ mode: 'add' })}
                   >
                     <Plus size={18} /> <span>Add User</span>
                   </button>
                 </div>
 
-                {isNewUser && (
-                  <div className="form-section" style={{ marginBottom: '2rem' }}>
-                    <h3>{editingUserId ? 'Edit User' : 'Add New User'}</h3>
-                    <form onSubmit={handleUserSubmit}>
-                      <div className="form-grid">
-                        <div className="form-group">
-                          <label>Username</label>
-                          <input
-                            type="text"
-                            value={userFormData.username}
-                            onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
-                            required
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label>Display Name</label>
-                          <input
-                            type="text"
-                            value={userFormData.displayName}
-                            onChange={(e) => setUserFormData({ ...userFormData, displayName: e.target.value })}
-                            placeholder="Shown in the app — blank uses the username"
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label>Email</label>
-                          <input
-                            type="email"
-                            value={userFormData.email}
-                            onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label>Password {editingUserId && '(Leave blank to keep current)'}</label>
-                          <input
-                            type="password"
-                            value={userFormData.password}
-                            onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-                            required={!editingUserId}
-                            placeholder={editingUserId ? "New password" : "Enter password"}
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label>Role</label>
-                          <select
-                            className="role-select"
-                            value={userFormData.role}
-                            onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
-                          >
-                            <option value="sales_rep">Sales Rep</option>
-                            <option value="manager">Manager</option>
-                            <option value="director">Director</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                        </div>
-                        <div className="form-group">
-                          <label>Location</label>
-                          <input
-                            type="text"
-                            value={userFormData.location}
-                            onChange={(e) => setUserFormData({ ...userFormData, location: e.target.value })}
-                            placeholder="e.g. New York, Austin, etc."
-                          />
-                        </div>
-                      </div>
-                      <div className="form-actions-bottom">
-                        <button
-                          type="button"
-                          className="secondary-btn"
-                          onClick={() => {
-                            setIsNewUser(false);
-                            setEditingUserId(null);
-                            setUserFormData({ username: '', email: '', password: '', role: 'sales_rep', location: '' });
-                          }}
-                          style={{ marginRight: '1rem' }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          className="save-btn"
-                          disabled={userSaveStatus === 'saving'}
-                        >
-                          {userSaveStatus === 'saving' ? (editingUserId ? 'Updating...' : 'Creating...') : (editingUserId ? 'Update User' : 'Create User')}
-                        </button>
-                      </div>
-                      {userSaveStatus === 'success' && (
-                        <div className="status-message success">User {editingUserId ? 'updated' : 'created'} successfully!</div>
-                      )}
-                      {userSaveStatus === 'error' && (
-                        <div className="status-message error">
-                          {errorMessage}
-                        </div>
-                      )}
-                    </form>
-                  </div>
+                {userModal?.mode === 'add' && (
+                  <AddUserForm
+                    roles={userFormRefs.roles}
+                    locations={userFormRefs.locations}
+                    describeRole={describeRole}
+                    isDriverRole={isDriverRole}
+                    onClose={() => setUserModal(null)}
+                    onCreated={() => fetchUsers()}
+                  />
+                )}
+                {userModal?.mode === 'edit' && (
+                  <EditUserForm
+                    user={userModal.user}
+                    roles={userFormRefs.roles}
+                    locations={userFormRefs.locations}
+                    describeRole={describeRole}
+                    onClose={() => setUserModal(null)}
+                    onSaved={handleUserSaved}
+                    onChangeAccess={handleChangeAccess}
+                  />
                 )}
 
                 <div className="users-list-section">
@@ -914,14 +794,14 @@ const AdminPage = () => {
                             <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>
                               <button
                                 className="secondary-btn"
-                                onClick={() => handleEditUser(user)}
+                                onClick={() => openUserModal({ mode: 'edit', user })}
                                 style={{ padding: '0.5rem', borderColor: 'var(--accent-primary)', color: 'var(--accent-primary)' }}
                               >
                                 <Pencil size={16} />
                               </button>
                               <button
                                 className="secondary-btn delete-btn-small"
-                                onClick={() => handleDeleteUser(user._id)}
+                                onClick={() => handleChangeAccess(user, 'delete')}
                                 style={{ padding: '0.5rem', borderColor: '#ef4444', color: '#ef4444' }}
                               >
                                 <Trash2 size={16} />

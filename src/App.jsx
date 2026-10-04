@@ -19,6 +19,7 @@ const CustomerLoginPage = lazyRetry(() => import('./pages/CustomerLoginPage'));
 const SalesPage = lazyRetry(() => import('./pages/SalesPage'));
 const AdminPage = lazyRetry(() => import('./pages/AdminPage'));
 const LoginPage = lazyRetry(() => import('./pages/LoginPage'));
+const SetPasswordPage = lazyRetry(() => import('./pages/SetPasswordPage'));
 const CheckInPage = lazyRetry(() => import('./pages/CheckInPage'));
 const CheckInLogPage = lazyRetry(() => import('./pages/CheckInLogPage'));
 
@@ -154,6 +155,7 @@ function App() {
                   <Route path="/customer/login" element={<CustomerLoginPage />} />
 
                   <Route path="/admin/login" element={<LoginPage />} />
+                  <Route path="/admin/set-password" element={<SetPasswordPage />} />
                   <Route
                     path="/admin"
                     element={

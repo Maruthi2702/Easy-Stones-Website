@@ -56,6 +56,42 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  // The day they started, as entered on Add User (stored as midnight UTC of
+  // that calendar date). Older accounts don't have one.
+  joiningDate: {
+    type: Date,
+    default: null
+  },
+  // Set when an admin creates the account with a temporary password: their
+  // first sign-in is answered with 'must-change-password' instead of a session
+  // until they pick their own (POST /api/auth/first-password). Missing/false
+  // for everyone else, so existing accounts are unaffected.
+  mustChangePassword: {
+    type: Boolean,
+    default: false
+  },
+  // Emailed invite (Add User → "Email an invite"): only a SHA-256 of the link's
+  // token is kept, never the token itself, and it's cleared once used.
+  inviteTokenHash: {
+    type: String,
+    default: null,
+    select: false
+  },
+  inviteExpiresAt: {
+    type: Date,
+    default: null
+  },
+  // Who last saved this account in Users & Roles (Add or Edit user), and
+  // when — the edit form's "Last changed by X · date". Kept separate from
+  // updatedAt, which also moves on every sign-in attempt.
+  editedBy: {
+    type: String,
+    default: ''
+  },
+  editedAt: {
+    type: Date,
+    default: null
+  },
   location: {
     type: String,
     trim: true

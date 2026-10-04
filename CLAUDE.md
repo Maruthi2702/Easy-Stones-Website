@@ -48,6 +48,17 @@ Customer List had its own until 2026-10-03). Check the server endpoint's
 the URL, like the Customer List's `?p=`), keep your own state but start at
 `DEFAULT_ROWS_PER_PAGE` and reset to page 1 on a size change.
 
+## Forms: one template, everywhere
+
+Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,
+profile) follows [`FORM_TEMPLATE.md`](FORM_TEMPLATE.md), approved
+2026-10-04. It covers sizes S/M/L and phone, field states, the required `*`,
+no helper text, validation banner, saving lock, unsaved-changes check, edit
+mode, and light/dark colors. It's built in `src/components/shared/form/`
+(Add and Edit User are on it); move the others onto it one at a time and
+re-check each by hand, since every form with a dropdown is subject to the
+CustomSelect incident below.
+
 ## Incident: CustomSelect portal broke dropdowns inside modals (2026-08-13)
 
 `CustomSelect`'s options popover was changed to `createPortal(…, document.body)`
@@ -124,7 +135,12 @@ filter options), the shared pagination sizes/range math
 (`src/components/shared/paginationConfig.js`), and the location-filter rules
 every screen's location filter shares (`src/utils/locationFilter.js`: home
 location, which branch a filter opens on, remembered picks, and the server's
-home-location validation). Nothing else in the app has test coverage — no
+home-location validation), and Add User's rules (`src/utils/userForm.js`:
+username suggestion and format, required fields, temporary passwords, the
+Locations/home rule, role summaries), and the Selection Sheet's slab-tag
+scanner (`src/utils/stoneLabel.js`: reading lot/slab/size/material out of OCR
+text, rejecting wrong-rotation garbage, and when a lot may be matched to
+stock). Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 
 That means passing `npm test` only proves the math didn't regress; it says

@@ -11,193 +11,16 @@ import { authFetch } from '../../api/authFetch';
 import { getAuthToken, setAuthToken } from '../../api/authToken';
 import { prettifyUsername } from '../../utils/textUtils';
 import { clearDriversCache } from '../../api/deliverySchedule';
-import { accessibleLocations, homeLocationOf, fallbackHomeLocation } from '../../utils/locationFilter';
+import { homeLocationOf } from '../../utils/locationFilter';
 import { normalizeLocationCode, formatLocationLabel } from '../../utils/locationCode';
+import AddUserForm from './users/AddUserForm';
+import EditUserForm from './users/EditUserForm';
+import { PAGE_PERMISSIONS, describeRole, isDriverRole } from './users/pagePermissions';
+import { changeUserAccess as changeAccountAccess } from './users/userAccess';
 import './UsersRolesTab.css';
-
-// Granular per-page permission definitions.
-// Each page has a set of "actions" that map to backend permission keys.
-const PAGE_PERMISSIONS = [
-    {
-        id: 'dashboard',
-        page: 'Dashboard',
-        icon: LayoutDashboard,
-        description: 'CRM overview: charts, stats, calendar',
-        color: '#6c8ebf',
-        actions: [
-            { key: 'view_dashboard', label: 'View', icon: Eye, desc: 'View dashboard charts and sales statistics' }
-        ]
-    },
-    {
-        id: 'customers',
-        page: 'Customers',
-        icon: User,
-        description: 'Customer database and contacts',
-        color: '#82b366',
-        actions: [
-            { key: 'view_customers',   label: 'View',   icon: Eye,    desc: 'View customer list and details' },
-            { key: 'manage_customers', label: 'Edit / Add', icon: Pencil, desc: 'Add and edit customers and contacts (visits are under Visits)' },
-            { key: 'delete_customers', label: 'Delete', icon: Trash2, desc: 'Delete customer records (visits are under Visits)' }
-        ]
-    },
-    {
-        // Checked by src/utils/visitAccess.js, on the server and for which
-        // buttons the screens offer. Resources follow the same switches.
-        // "Assigned branches" are the user's Locations.
-        id: 'visits',
-        page: 'Visits',
-        icon: UserCheck,
-        description: 'Logging, viewing, editing and deleting visits and resources',
-        color: '#5b9aa0',
-        actions: [
-            { key: 'add_visits',           label: 'Add',           icon: Plus,   desc: 'Log visits and add resources' },
-            { key: 'view_branch_visits',   label: 'View branch',   icon: MapPin, desc: "See everyone's visits and resources for customers in the user's assigned branches (everyone sees their own)" },
-            { key: 'view_all_visits',      label: 'View all',      icon: Eye,    desc: "See every branch's visits and resources on the dashboard" },
-            { key: 'edit_own_visits',      label: 'Edit own',      icon: Pencil, desc: 'Edit visits and resources the user logged themselves' },
-            { key: 'edit_branch_visits',   label: 'Edit branch',   icon: Edit2,  desc: "Edit anyone's visits and resources on customers in the user's assigned branches" },
-            { key: 'edit_all_visits',      label: 'Edit all',      icon: FileCog, desc: "Edit anyone's visits and resources" },
-            { key: 'delete_own_visits',    label: 'Delete own',    icon: Eraser, desc: 'Delete visits and resources the user logged themselves' },
-            { key: 'delete_branch_visits', label: 'Delete branch', icon: Trash2, desc: "Delete anyone's visits and resources on customers in the user's assigned branches" },
-            { key: 'delete_all_visits',    label: 'Delete all',    icon: Trash2, desc: "Delete anyone's visits and resources" }
-        ]
-    },
-    {
-        id: 'checkins',
-        page: 'Check-In Log',
-        icon: Clock,
-        description: 'Office check-ins and selection sheets',
-        color: '#d79b00',
-        actions: [
-            { key: 'view_checkins',     label: 'View',             icon: Eye,      desc: 'View check-in log records (read-only without Edit)' },
-            { key: 'send_checkin_email',label: 'Selection Sheet',  icon: MailIcon, desc: 'Send selection sheet emails to customers' },
-            { key: 'manage_checkins',   label: 'Edit',             icon: Pencil,   desc: 'Edit check-in details and selection sheets' },
-            { key: 'delete_checkins',   label: 'Delete',           icon: Trash2,   desc: 'Delete check-in records' }
-        ]
-    },
-    {
-        id: 'pricelist',
-        page: 'Price List',
-        icon: Tag,
-        description: 'Price levels, margins, Excel download',
-        color: '#9673a6',
-        actions: [
-            { key: 'view_pricelist',   label: 'View',            icon: Eye,    desc: 'View price lists and margins' },
-            { key: 'manage_pricelist', label: 'Edit / Download', icon: FileCog, desc: 'Edit margin levels and download Excel' },
-            { key: 'view_product_prices', label: 'View Product Prices', icon: Eye, desc: 'Allow viewing prices on product detail pages' }
-        ]
-    },
-    {
-        id: 'lost_sales',
-        page: 'Lost Sales',
-        icon: TrendingDown,
-        description: 'Track lost revenue, competitor pricing & stock friction',
-        color: '#ef4444',
-        actions: [
-            { key: 'view_lost_sales', label: 'View', icon: Eye, desc: 'View lost sales records and metrics' },
-            { key: 'edit_lost_sales', label: 'Edit', icon: Pencil, desc: 'Record new lost sales and edit existing records' },
-            { key: 'delete_lost_sales', label: 'Delete', icon: Trash2, desc: 'Delete lost sale records' }
-        ]
-    },
-    {
-        id: 'daily_report',
-        page: 'Daily Report',
-        icon: ClipboardList,
-        description: 'The daily work report for a branch',
-        color: '#0ea5a4',
-        actions: [
-            { key: 'view_daily_report',   label: 'View',    icon: Eye,       desc: 'Open the daily report and the month view' },
-            { key: 'edit_daily_report',   label: 'Edit',    icon: Pencil,    desc: "Fill in and save the day's figures" },
-            // Submit is separate from Edit: signing a day off is a statement,
-            // not just another save.
-            { key: 'submit_daily_report', label: 'Submit',  icon: CheckCheck, desc: 'Sign off a day and lock it' },
-            { key: 'reopen_daily_report', label: 'Reopen',  icon: RotateCcw, desc: 'Unlock a submitted day to correct it' }
-        ]
-    },
-    {
-        id: 'delivery_schedule',
-        page: 'Delivery Schedule',
-        icon: Truck,
-        description: 'Schedule, track, and dispatch slab deliveries',
-        color: '#3b82f6',
-        actions: [
-            { key: 'view_delivery_schedule', label: 'View', icon: Eye, desc: 'View delivery schedules and routes' },
-            { key: 'edit_delivery_schedule', label: 'Edit', icon: Pencil, desc: 'Schedule and edit delivery jobs — opens the full dispatch board (without it, the board is read-only)' },
-            // Decides the screen, not just a button: src/utils/deliveryAccess.js.
-            { key: 'delivery_driver_view', label: 'Driver view', icon: Truck, desc: 'Show only this user’s own stops, on the driver screen (no order search). Overrides Edit' },
-            { key: 'delete_delivery_schedule', label: 'Delete', icon: Trash2, desc: 'Permanently delete delivery jobs (no undo)' },
-            // Separate from Delete on purpose: voiding a proof the wrong customer
-            // signed is a different level of trust from removing the job itself.
-            { key: 'clear_pod_signatures', label: 'Clear POD', icon: Eraser, desc: 'Delete the signed packing list and reset signatures for re-signing' }
-        ]
-    },
-    {
-        id: 'route_planner',
-        page: 'Route Planner',
-        icon: Map,
-        description: 'Plan a day of visits by area from the customer map',
-        color: '#c33a3a',
-        actions: [
-            // View is the heavy one: the map shows every account's location and
-            // how long since anyone called on it, which is the shape of the whole
-            // territory in a single screen.
-            { key: 'view_route_planner', label: 'View', icon: Eye, desc: 'Open the map and see accounts, locations and how overdue each visit is' },
-            { key: 'create_route_plan', label: 'Plan', icon: Route, desc: 'Put a planned run of stops onto the calendar' },
-            // Separate from Plan on purpose: overwriting a day someone already
-            // planned is a different act from adding one.
-            { key: 'edit_route_plan', label: 'Replace', icon: Pencil, desc: 'Replace a day that was already planned with a new run' },
-            { key: 'delete_route_plan', label: 'Clear', icon: Trash2, desc: 'Clear the planned stops from a day (hand-added entries are left alone)' }
-        ]
-    },
-    {
-        id: 'crossover_sheet',
-        page: 'Crossover Sheet',
-        icon: ArrowLeftRight,
-        description: "Distributor color names mapped to their Easy Stones equivalent",
-        color: '#f59e0b',
-        actions: [
-            { key: 'view_crossover_sheet', label: 'View', icon: Eye, desc: 'View the crossover sheet' },
-            { key: 'add_crossover_sheet', label: 'Add', icon: Plus, desc: 'Add new crossover entries' },
-            { key: 'edit_crossover_sheet', label: 'Edit', icon: Pencil, desc: 'Edit existing crossover entries' },
-            { key: 'delete_crossover_sheet', label: 'Delete', icon: Trash2, desc: 'Delete crossover entries' },
-            { key: 'manage_easy_stones_colors', label: 'Manage Colors', icon: Palette, desc: 'Add, rename, or delete Easy Stones catalog colors (the master list every crossover maps against)' }
-        ]
-    },
-    {
-        id: 'inventory_analysis',
-        page: 'Inventory Analysis',
-        icon: Boxes,
-        description: 'Stock levels, aging, and reorder analysis from SPS exports',
-        color: '#0891b2',
-        actions: [
-            { key: 'view_inventory_analysis', label: 'View', icon: Eye, desc: 'View stock levels, aging, and reorder analysis' },
-            { key: 'import_inventory_analysis', label: 'Import', icon: Upload, desc: 'Import new SPS inventory/sales exports (replaces current stock data)' },
-            // Separate from View on purpose: seeing stock levels and seeing what
-            // that stock cost/is worth are different levels of trust.
-            { key: 'view_inventory_prices', label: 'View Prices', icon: DollarSign, desc: 'See dollar value/cost figures on lots and slabs' }
-        ]
-    },
-    {
-        id: 'users',
-        page: 'Users & Roles',
-        icon: Users,
-        description: 'User accounts, roles, permissions',
-        color: '#ae4132',
-        actions: [
-            { key: 'manage_users', label: 'Manage', icon: ShieldCheck, desc: 'Add/edit users and customize role permissions' }
-        ]
-    }
-];
 
 // Flat lookup for all permission keys (used for labels elsewhere)
 const ALL_PERMISSION_KEYS = PAGE_PERMISSIONS.flatMap(p => p.actions.map(a => a.key));
-
-// The home location to keep once Assigned Locations change: the current one
-// while it's still one of theirs, otherwise their first branch — or none for
-// an all-locations user, who picks one (or not) themselves. The server applies
-// the same rule (src/utils/locationFilter.js).
-const homeAfterAssignedChange = (home, assignedLocations) =>
-    homeLocationOf({ location: home, assignedLocations })
-    || (assignedLocations.includes('*') ? '' : fallbackHomeLocation(assignedLocations));
 
 const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     const [subTab, setSubTab] = useState('users'); // 'users', 'roles', 'locations'
@@ -377,22 +200,12 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     // Page permission popup state
     const [pagePopup, setPagePopup] = useState(null); // the PAGE_PERMISSIONS entry being edited
 
-    // Modal state
-    const [showUserModal, setShowUserModal] = useState(false);
-    const [modalMode, setModalMode] = useState('add'); // 'add' or 'edit'
+    // Add / Edit user: the form-template versions in ./users/.
+    const [showAddUser, setShowAddUser] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
-    const [userForm, setUserForm] = useState({
-        username: '',
-        displayName: '',
-        email: '',
-        role: 'sales_rep',
-        location: '',
-        assignedLocations: locations[0] ? [locations[0].name] : ['Seattle'],
-        password: ''
-    });
+    const addedUserRef = React.useRef(false);
 
     const [showRoleModal, setShowRoleModal] = useState(false);
-    const [showLocationDropdown, setShowLocationDropdown] = useState(false);
     const [roleForm, setRoleForm] = useState({
         name: '',
         displayName: ''
@@ -556,143 +369,47 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
 
     // User management crud handlers
     const openAddUserModal = () => {
-        setModalMode('add');
-        setUserForm({
-            username: '',
-            displayName: '',
-            email: '',
-            role: roles[0]?.name || 'sales_rep',
-            location: locations[0] ? locations[0].name : 'Seattle',
-            assignedLocations: locations[0] ? [locations[0].name] : ['Seattle'],
-            password: ''
-        });
-        setEditingUser(null);
-        setShowLocationDropdown(false);
-        setShowUserModal(true);
+        addedUserRef.current = false;
+        setShowAddUser(true);
     };
 
-    const openEditUserModal = (user) => {
-        setModalMode('edit');
-        const assignedLocations = user.assignedLocations || (locations[0] ? [locations[0].name] : ['Seattle']);
-        setUserForm({
-            username: user.username,
-            displayName: user.displayName || '',
-            email: user.email || '',
-            role: user.role || 'sales_rep',
-            // A stored home that's no longer valid (blank, '*', or a branch
-            // since taken off them) shows as the one saving would keep.
-            location: homeAfterAssignedChange(user.location, assignedLocations),
-            assignedLocations,
-            password: '' // Keep password empty unless changing
-        });
-        setEditingUser(user);
-        setShowLocationDropdown(false);
-        setShowUserModal(true);
+    // Reloaded once the "User created" screen closes, not the moment the user
+    // is created: fetchData() swaps the tab for its loading state, which would
+    // take the temporary password off screen before anyone could copy it.
+    const closeAddUser = () => {
+        setShowAddUser(false);
+        if (addedUserRef.current) fetchData();
     };
 
-    const handleUserSubmit = async (e) => {
-        e.preventDefault();
-        if (!userForm.username) {
-            alert('Username is required');
-            return;
-        }
-        if (modalMode === 'add' && !userForm.password) {
-            alert('Password is required for new users');
-            return;
-        }
 
-        try {
-            const url = modalMode === 'add' 
-                ? `${API_URL}/api/admin/users`
-                : `${API_URL}/api/admin/users/${editingUser._id}`;
-            const method = modalMode === 'add' ? 'POST' : 'PUT';
+    const openEditUserModal = (user) => setEditingUser(user);
 
-            // Filter out empty password on edit
-            const payload = { ...userForm };
-            if (modalMode === 'edit' && !payload.password) {
-                delete payload.password;
-            }
-
-            const res = await fetchWithAuth(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.message || `Failed to ${modalMode} user`);
-            }
-
-            // The delivery board caches the driver list in localStorage, so a
-            // rename would otherwise keep showing the old name for up to 10
-            // minutes in this tab.
-            clearDriversCache();
-
-            alert(`User ${modalMode === 'add' ? 'created' : 'updated'} successfully!`);
-            setShowUserModal(false);
-            fetchData(); // Reload table
-        } catch (err) {
-            alert(err.message);
-        }
+    // Saved from Edit user: patch the row in place (a reload would also take a
+    // just-set temporary password off screen before it's copied).
+    const handleUserSaved = (saved) => {
+        if (!saved) return;
+        setUsers(prev => prev.map(u => (u._id === saved._id ? { ...u, ...saved } : u)));
+        // The delivery board caches the driver list in localStorage, so a
+        // rename would otherwise keep showing the old name for up to 10
+        // minutes in this tab.
+        clearDriversCache();
     };
 
-    // Deactivate, reactivate or delete. The server refuses to take away a
-    // driver who still has upcoming orders (they'd be left on a column nobody
-    // drives) and says how many; this asks once whether to move them to
-    // Pending as part of it, and resends.
+    // Deactivate, reactivate or delete (./users/userAccess.js asks first, and
+    // about moving a driver's upcoming orders to Pending); then the row.
     const changeUserAccess = async (user, action) => {
-        const name = user.displayName || prettifyUsername(user.username);
-        const prompts = {
-            deactivate: `Deactivate ${name}? They won't be able to sign in, and won't be offered for new work. Their history stays, and you can reactivate them later.`,
-            reactivate: `Reactivate ${name}? They'll be able to sign in again.`,
-            delete: `Delete ${name} permanently? Their name will no longer show on the work they did — Deactivate keeps it.`
-        };
-        if (!window.confirm(prompts[action])) return;
-
-        const send = (moveUpcomingToPending = false) => fetchWithAuth(
-            action === 'delete' ? `${API_URL}/api/admin/users/${user._id}` : `${API_URL}/api/admin/users/${user._id}/active`,
-            {
-                method: action === 'delete' ? 'DELETE' : 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(action === 'delete' ? { moveUpcomingToPending } : { active: action === 'reactivate', moveUpcomingToPending })
-            }
-        );
-        try {
-            let res = await send();
-            if (res.status === 409) {
-                const info = await res.json().catch(() => ({}));
-                if (info.code !== 'has-upcoming-orders') throw new Error(info.message || 'Could not change this account');
-                if (!window.confirm(`${info.message}\n\nMove ${info.upcoming === 1 ? 'it' : 'them'} to Pending Delivery and ${action} now? (You can assign ${info.upcoming === 1 ? 'it' : 'them'} to another driver from there.)`)) return;
-                res = await send(true);
-            }
-            if (!res.ok) {
-                const info = await res.json().catch(() => ({}));
-                throw new Error(info.message || 'Could not change this account');
-            }
-            if (action === 'delete') {
-                setUsers(prev => prev.filter(u => u._id !== user._id));
-            } else {
-                const active = action === 'reactivate';
-                setUsers(prev => prev.map(u => (u._id === user._id ? { ...u, isActive: active, deactivatedAt: active ? null : new Date().toISOString() } : u)));
-            }
-            clearDriversCache();
-            alert(action === 'delete' ? 'User deleted.' : `${name} ${action === 'reactivate' ? 'reactivated' : 'deactivated'}.`);
-        } catch (err) {
-            alert(err.message);
+        const done = await changeAccountAccess(user, action);
+        if (!done) return false;
+        if (action === 'delete') {
+            setUsers(prev => prev.filter(u => u._id !== user._id));
+        } else {
+            const active = action === 'reactivate';
+            setUsers(prev => prev.map(u => (u._id === user._id ? { ...u, isActive: active, deactivatedAt: active ? null : new Date().toISOString() } : u)));
         }
+        return true;
     };
 
     const handleDeleteUser = (user) => changeUserAccess(user, 'delete');
-
-    // What the user form's Home Location can be: one of their assigned
-    // branches (any branch, for an all-locations user).
-    const homeLocationOptions = useMemo(
-        () => accessibleLocations({ assignedLocations: userForm.assignedLocations }, locations),
-        [userForm.assignedLocations, locations]
-    );
 
     // Filtered users
     const filteredUsers = useMemo(() => {
@@ -1177,189 +894,31 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                 </div>
             )}
 
-            {/* ── MODAL: ADD/EDIT USER ── */}
-            {showUserModal && (
-                <div className="user-modal-overlay">
-                    <div className="user-modal-card">
-                        <div className="modal-header">
-                            <h3>{modalMode === 'add' ? 'Add New User' : 'Edit User Profile'}</h3>
-                            <button className="modal-close-btn" onClick={() => setShowUserModal(false)}>&times;</button>
-                        </div>
-                        <form onSubmit={handleUserSubmit} className="modal-form">
-                            <div className="form-group">
-                                <label><UserCheck size={16} /> Username</label>
-                                <input
-                                    type="text"
-                                    value={userForm.username}
-                                    onChange={(e) => setUserForm(prev => ({ ...prev, username: e.target.value }))}
-                                    placeholder="e.g. jdoe"
-                                    required
-                                    disabled={modalMode === 'edit'} // Username remains constant
-                                />
-                                <small className="form-hint">Used to sign in. Always saved in lower case.</small>
-                            </div>
+            {showAddUser && (
+                <AddUserForm
+                    roles={roles}
+                    locations={locations}
+                    describeRole={describeRole}
+                    isDriverRole={isDriverRole}
+                    onClose={closeAddUser}
+                    onCreated={() => {
+                        addedUserRef.current = true;
+                        // A new driver is a new truck column on the delivery board.
+                        clearDriversCache();
+                    }}
+                />
+            )}
 
-                            <div className="form-group">
-                                <label><IdCard size={16} /> Display Name</label>
-                                <input
-                                    type="text"
-                                    value={userForm.displayName}
-                                    onChange={(e) => setUserForm(prev => ({ ...prev, displayName: e.target.value }))}
-                                    placeholder={userForm.username ? prettifyUsername(userForm.username) : 'e.g. J. Doe'}
-                                />
-                                <small className="form-hint">
-                                    Shown everywhere in the app — driver lists, check-in log, delivery tickets.
-                                    Leave blank to use <strong>{userForm.username ? prettifyUsername(userForm.username) : 'the username'}</strong>.
-                                </small>
-                            </div>
-
-                            <div className="form-group">
-                                <label><Mail size={16} /> Email Address</label>
-                                <input 
-                                    type="email" 
-                                    value={userForm.email}
-                                    onChange={(e) => setUserForm(prev => ({ ...prev, email: e.target.value }))}
-                                    placeholder="e.g. jdoe@easystones.com"
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label><ShieldCheck size={16} /> Assigned Role</label>
-                                <select 
-                                    value={userForm.role}
-                                    onChange={(e) => setUserForm(prev => ({ ...prev, role: e.target.value }))}
-                                >
-                                    {roles.map(r => (
-                                        <option key={r.name} value={r.name}>{r.displayName}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="form-group relative">
-                                <label><MapPin size={16} /> Assigned Locations</label>
-                                <div className="multi-select-container">
-                                    <div 
-                                        className="multi-select-trigger" 
-                                        onClick={() => setShowLocationDropdown(!showLocationDropdown)}
-                                    >
-                                        <div className="multi-select-tags">
-                                            {(!userForm.assignedLocations || userForm.assignedLocations.length === 0) && (
-                                                <span className="placeholder">Select locations...</span>
-                                            )}
-                                            {userForm.assignedLocations?.includes('*') ? (
-                                                <span className="multi-select-tag-pill">All Locations</span>
-                                            ) : (
-                                                userForm.assignedLocations?.map(loc => (
-                                                    <span key={loc} className="multi-select-tag-pill">
-                                                        {loc}
-                                                        <button 
-                                                            type="button" 
-                                                            className="remove-tag-btn"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setUserForm(prev => {
-                                                                    const list = (prev.assignedLocations || []).filter(k => k !== loc);
-                                                                    return {
-                                                                        ...prev,
-                                                                        assignedLocations: list,
-                                                                        location: homeAfterAssignedChange(prev.location, list)
-                                                                    };
-                                                                });
-                                                            }}
-                                                        >
-                                                            &times;
-                                                        </button>
-                                                    </span>
-                                                ))
-                                            )}
-                                        </div>
-                                        <span className="dropdown-arrow-icon">▼</span>
-                                    </div>
-                                    
-                                    {showLocationDropdown && (
-                                        <div className="multi-select-dropdown-list">
-                                            {[
-                                                ...locations.map(loc => ({ key: loc.name, label: loc.name })),
-                                                { key: '*', label: 'All Locations' }
-                                            ].map(loc => {
-                                                const isChecked = userForm.assignedLocations?.includes(loc.key);
-                                                return (
-                                                    <div 
-                                                        key={loc.key} 
-                                                        className={`multi-select-dropdown-option ${isChecked ? 'selected' : ''}`}
-                                                        onClick={() => {
-                                                            setUserForm(prev => {
-                                                                let list = prev.assignedLocations || [];
-                                                                if (loc.key === '*') {
-                                                                    list = isChecked ? [] : ['*'];
-                                                                } else {
-                                                                    list = list.filter(k => k !== '*');
-                                                                    if (isChecked) {
-                                                                        list = list.filter(k => k !== loc.key);
-                                                                    } else {
-                                                                        if (!list.includes(loc.key)) list = [...list, loc.key];
-                                                                    }
-                                                                }
-                                                                return { ...prev, assignedLocations: list, location: homeAfterAssignedChange(prev.location, list) };
-                                                            });
-                                                        }}
-                                                    >
-                                                        <input 
-                                                            type="checkbox" 
-                                                            checked={isChecked} 
-                                                            onChange={() => {}} 
-                                                        />
-                                                        <span>{loc.label}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {homeLocationOptions.length > 0 && (
-                                <div className="form-group">
-                                    <label htmlFor="user-home-location"><MapPin size={16} /> Home Location</label>
-                                    <select
-                                        id="user-home-location"
-                                        value={userForm.location || ''}
-                                        onChange={(e) => setUserForm(prev => ({ ...prev, location: e.target.value }))}
-                                    >
-                                        {/* Blank only for all-locations users: everyone else
-                                            always has one of their own branches as home. */}
-                                        {userForm.assignedLocations?.includes('*') && (
-                                            <option value="">None (opens on All locations)</option>
-                                        )}
-                                        {homeLocationOptions.map(loc => (
-                                            <option key={loc} value={loc}>{loc}</option>
-                                        ))}
-                                    </select>
-                                    <small className="form-hint">
-                                        Delivery Schedule, Sales Visits and every other location filter open on this
-                                        location; they can switch to their other locations from there.
-                                    </small>
-                                </div>
-                            )}
-
-                            <div className="form-group">
-                                <label><Key size={16} /> {modalMode === 'add' ? 'Password' : 'New Password'}</label>
-                                <input 
-                                    type="password" 
-                                    value={userForm.password}
-                                    onChange={(e) => setUserForm(prev => ({ ...prev, password: e.target.value }))}
-                                    placeholder={modalMode === 'add' ? 'Minimum 6 characters' : 'Leave blank to keep current password'}
-                                    required={modalMode === 'add'}
-                                />
-                            </div>
-
-                            <div className="modal-footer">
-                                <button type="button" className="btn-secondary" onClick={() => setShowUserModal(false)}>Cancel</button>
-                                <button type="submit" className="btn-primary">Save Profile</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+            {editingUser && (
+                <EditUserForm
+                    user={editingUser}
+                    roles={roles}
+                    locations={locations}
+                    describeRole={describeRole}
+                    onClose={() => setEditingUser(null)}
+                    onSaved={handleUserSaved}
+                    onChangeAccess={changeUserAccess}
+                />
             )}
 
             {/* ── MODAL: CREATE ROLE ── */}

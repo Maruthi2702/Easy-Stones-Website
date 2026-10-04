@@ -93,6 +93,37 @@
   animation: shake 0.4s ease;
 }
 
+/* After an invite link's password was set (SetPasswordPage → ?invited=1). */
+.login-notice {
+  padding: 1rem;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1.5px solid rgba(16, 185, 129, 0.35);
+  border-radius: 12px;
+  color: #10b981;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+body.light-theme-active .login-notice {
+  color: #166534;
+}
+
+/* "Back to sign in" under the choose-your-password step. */
+.login-back-btn {
+  padding: 0.6rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.login-back-btn:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
 .login-submit-btn {
   padding: 1rem 2rem;
   background: var(--gradient-primary);

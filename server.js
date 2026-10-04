@@ -96,6 +96,8 @@ import {
 } from './src/utils/dashboardMatch.js';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.js';
+import createUserOnboardingRouter, { newInvite, inviteLinkFor, sendInviteEmail } from './src/routes/userOnboarding.js';
+import { usernameProblem, isValidEmail, isValidDateInput, PASSWORD_MIN } from './src/utils/userForm.js';
 import Delivery from './src/models/Delivery.js';
 import { insertInBatches, withDbRetry, hasRowErrorsOnly } from './src/utils/dbRetry.js';
 import path from 'path';
@@ -1354,6 +1356,16 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       await user.resetLoginAttempts();
     }
 
+    // Created with a temporary password: no session until they choose their
+    // own. The login page asks for one and calls /api/auth/first-password.
+    if (user.mustChangePassword) {
+      return res.json({
+        success: false,
+        code: 'must-change-password',
+        message: 'Choose your own password to finish signing in.'
+      });
+    }
+
     // Generate JWT — identity only, NO role stored in token
     // Role is always fetched live from DB by the authenticate middleware
     const token = jwt.sign(
@@ -1444,6 +1456,9 @@ const resolveHomeLocation = async ({ requested, current, assignedLocations }) =>
   };
 };
 
+// Username check, first-sign-in password, emailed invites — see the module.
+app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter }));
+
 // Get all users (manage_users permission needed)
 app.get('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
@@ -1454,50 +1469,101 @@ app.get('/api/admin/users', authenticate, requirePermission('manage_users'), asy
   }
 });
 
-// Create new user (manage_users permission needed)
+// Create new user (manage_users permission needed) — Add User in Users &
+// Roles (src/components/sales/users/AddUserForm.jsx). The form checks all of
+// this first; it's repeated here because the server is what actually guards
+// the data. Sign-in is either a temporary password (mustChangePassword: they
+// pick their own at first sign-in) or an emailed invite link
+// (src/routes/userOnboarding.js).
 app.post('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
-    const { username, displayName, password, email, role, location, assignedLocations } = req.body;
+    const { displayName, email, role, location, assignedLocations, joiningDate, signInMethod = 'password', password } = req.body;
+    const username = String(req.body.username || '').trim().toLowerCase();
+    const fail = (field, message) => res.status(400).json({ field, message });
 
-    // Check if user exists
-    const existingUser = await User.findOne({ username });
-    if (existingUser) {
-      return res.status(400).json({ message: 'Username already exists' });
+    if (!String(displayName || '').trim()) return fail('displayName', 'Enter their full name');
+    if (!isValidEmail(email)) return fail('email', 'Enter a valid work email');
+    const uProblem = usernameProblem(username);
+    if (uProblem) return fail('username', uProblem);
+    if (!isValidDateInput(joiningDate)) return fail('joiningDate', 'Pick the day they start');
+    if (!Array.isArray(assignedLocations) || assignedLocations.length === 0 || !assignedLocations.every(l => typeof l === 'string' && l)) {
+      return fail('assignedLocations', 'Choose at least one location');
     }
+    if (!['password', 'invite'].includes(signInMethod)) return fail('signInMethod', 'Choose how they sign in');
+    if (signInMethod === 'password' && String(password || '').length < PASSWORD_MIN) {
+      return fail('password', `At least ${PASSWORD_MIN} characters`);
+    }
+    const roleName = String(role || '').trim().toLowerCase();
+    if (!roleName || !(await Role.exists({ name: roleName }))) return fail('role', 'Pick a role');
 
-    const home = await resolveHomeLocation({ requested: location, current: '', assignedLocations: assignedLocations || ['Seattle'] });
-    if (home.error) return res.status(400).json({ message: home.error });
+    if (await User.exists({ username })) return fail('username', 'Someone already has this username');
 
+    const home = await resolveHomeLocation({ requested: location, current: '', assignedLocations });
+    if (home.error) return fail('assignedLocations', home.error);
+
+    const invite = signInMethod === 'invite' ? newInvite() : null;
     const newUser = new User({
       username,
-      // Left blank on purpose when not supplied — displayNameOf() then derives
-      // one from the username rather than storing a guess we would have to
-      // keep in sync if the username ever changed.
-      displayName: (displayName || '').trim(),
-      password,
-      email,
-      role: role || 'sales_rep',
+      displayName: String(displayName).trim(),
+      password: invite ? invite.placeholderPassword : password,
+      email: String(email).trim(),
+      role: roleName,
       location: home.location,
-      assignedLocations: assignedLocations || ['Seattle']
+      assignedLocations,
+      joiningDate: new Date(`${joiningDate}T00:00:00Z`),
+      mustChangePassword: !invite,
+      ...(invite ? invite.fields : {}),
+      editedBy: req.user?.username || '',
+      editedAt: new Date()
     });
 
-    await newUser.save();
+    try {
+      await newUser.save();
+    } catch (err) {
+      // Two admins creating the same username at once — the unique index wins.
+      if (err?.code === 11000) return fail('username', 'Someone already has this username');
+      throw err;
+    }
 
+    bustUserCaches();
     // Driver lists on open delivery boards are built from these accounts and are
     // cached client-side, so tell them to refetch instead of showing a stale name.
     req.app.get('io')?.emit('truck_update');
 
+    let inviteSent = null;
+    let inviteLink;
+    if (invite) {
+      const link = inviteLinkFor(req, invite.token);
+      inviteSent = await sendInviteEmail({
+        to: newUser.email,
+        name: displayNameOf(newUser),
+        username: newUser.username,
+        link,
+        invitedBy: req.user?.displayName || req.user?.username
+      });
+      // Only when the email didn't go out: the admin can pass the link on
+      // themselves. They can already set this account's password, so it gives
+      // them nothing new.
+      if (!inviteSent) inviteLink = link;
+    }
+
     res.status(201).json({
       message: 'User created successfully',
+      inviteSent,
+      ...(inviteLink ? { inviteLink } : {}),
       user: {
         id: newUser._id,
+        _id: newUser._id,
         username: newUser.username,
         displayName: newUser.displayName,
         name: displayNameOf(newUser),
         email: newUser.email,
         role: newUser.role,
         location: newUser.location,
-        assignedLocations: newUser.assignedLocations
+        assignedLocations: newUser.assignedLocations,
+        joiningDate: newUser.joiningDate,
+        mustChangePassword: newUser.mustChangePassword,
+        isActive: true
       }
     });
   } catch (error) {
@@ -1508,12 +1574,42 @@ app.post('/api/admin/users', authenticate, requirePermission('manage_users'), as
 // Update user (manage_users permission needed)
 app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
-    const { username, displayName, email, role, password, location, assignedLocations } = req.body;
+    const { username, displayName, email, role, password, location, assignedLocations, joiningDate, signInReset } = req.body;
     const userId = req.params.id;
+    // Fields are checked only when sent, so the older /admin screen's partial
+    // saves still work; Edit user (users/EditUserForm.jsx) sends them all.
+    const fail = (field, message) => res.status(400).json({ field, message });
 
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (displayName !== undefined && !String(displayName).trim()) return fail('displayName', 'Enter their full name');
+    if (email !== undefined && !isValidEmail(email)) return fail('email', 'Enter a valid work email');
+    if (joiningDate !== undefined && !isValidDateInput(joiningDate)) return fail('joiningDate', 'Pick the day they start');
+    if (assignedLocations !== undefined && (!Array.isArray(assignedLocations) || assignedLocations.length === 0 || !assignedLocations.every(l => typeof l === 'string' && l))) {
+      return fail('assignedLocations', 'Choose at least one location');
+    }
+    let nextRole;
+    if (role !== undefined) {
+      nextRole = String(role || '').trim().toLowerCase();
+      if (!nextRole || !(await Role.exists({ name: nextRole }))) return fail('role', 'Pick a role');
+    }
+    if (signInReset !== undefined && !['password', 'invite'].includes(signInReset)) return fail('signInReset', 'Choose how they sign in');
+    if (signInReset === 'password' && String(password || '').length < PASSWORD_MIN) return fail('password', `At least ${PASSWORD_MIN} characters`);
+    if (signInReset === 'invite' && !isValidEmail(email !== undefined ? email : user.email)) return fail('email', 'Add a work email to send the link to');
+
+    // A driver moved to a role without Driver view loses their truck column;
+    // orders still on it would be stranded, exactly as when deactivating.
+    if (nextRole && nextRole !== user.role) {
+      const [fromRole, toRole] = await Promise.all([
+        Role.findOne({ name: user.role }).select('permissions').lean(),
+        Role.findOne({ name: nextRole }).select('permissions').lean()
+      ]);
+      const wasDriver = (fromRole?.permissions || []).includes('delivery_driver_view');
+      const staysDriver = (toRole?.permissions || []).includes('delivery_driver_view');
+      if (wasDriver && !staysDriver && !(await clearDriverHandover(req, res, user, 'change the role of'))) return;
     }
 
     // Read before anything is applied: displayNameOf() falls back to the
@@ -1525,7 +1621,7 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
     if (username && username !== user.username) {
       const existingUser = await User.findOne({ username });
       if (existingUser) {
-        return res.status(400).json({ message: 'Username already exists' });
+        return fail('username', 'Someone already has this username');
       }
       user.username = username;
     }
@@ -1533,17 +1629,38 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
     // Clearing the box is a real edit — '' means "go back to deriving it from
     // the username", so this is an !== undefined check, not a truthiness one.
     if (displayName !== undefined) user.displayName = String(displayName).trim();
-    if (email !== undefined) user.email = email;
-    if (role !== undefined) user.role = role;
+    if (email !== undefined) user.email = String(email).trim();
+    if (nextRole) user.role = nextRole;
+    if (joiningDate !== undefined) user.joiningDate = new Date(`${joiningDate}T00:00:00Z`);
     if (location !== undefined || assignedLocations !== undefined) {
       const nextAssigned = assignedLocations !== undefined ? assignedLocations : (user.assignedLocations || []);
       const home = await resolveHomeLocation({ requested: location, current: user.location, assignedLocations: nextAssigned });
-      if (home.error) return res.status(400).json({ message: home.error });
+      if (home.error) return fail('assignedLocations', home.error);
       user.location = home.location;
       if (assignedLocations !== undefined) user.assignedLocations = assignedLocations;
     }
-    if (password) user.password = password; // Will be hashed by pre-save hook
 
+    // Resetting sign-in (Edit user → Sign-in):
+    //   'password' — a temporary password they must replace at next sign-in;
+    //   'invite'   — an emailed link to choose one (their current password
+    //                keeps working until they use it).
+    // A bare `password` (the older /admin screen) still just sets it.
+    let invite = null;
+    if (signInReset === 'password') {
+      user.password = password; // hashed by the pre-save hook
+      user.mustChangePassword = true;
+      user.inviteTokenHash = null;
+      user.inviteExpiresAt = null;
+    } else if (signInReset === 'invite') {
+      invite = newInvite();
+      user.inviteTokenHash = invite.fields.inviteTokenHash;
+      user.inviteExpiresAt = invite.fields.inviteExpiresAt;
+    } else if (password) {
+      user.password = password; // Will be hashed by pre-save hook
+    }
+
+    user.editedBy = req.user?.username || '';
+    user.editedAt = new Date();
     await user.save();
 
     // Customers cache their owning rep's name so the customer list — an
@@ -1567,19 +1684,42 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
     }
 
     // A rename has to reach every open board — see the create route above.
+    bustUserCaches();
     req.app.get('io')?.emit('truck_update');
+
+    let inviteSent = null;
+    let inviteLink;
+    if (invite) {
+      const link = inviteLinkFor(req, invite.token);
+      inviteSent = await sendInviteEmail({
+        to: user.email,
+        name: displayNameOf(user),
+        username: user.username,
+        link,
+        invitedBy: req.user?.displayName || req.user?.username,
+        reset: true
+      });
+      if (!inviteSent) inviteLink = link;
+    }
 
     res.json({
       message: 'User updated successfully',
+      inviteSent,
+      ...(inviteLink ? { inviteLink } : {}),
       user: {
         id: user._id,
+        _id: user._id,
         username: user.username,
         displayName: user.displayName,
         name: displayNameOf(user),
         email: user.email,
         role: user.role,
         location: user.location,
-        assignedLocations: user.assignedLocations
+        assignedLocations: user.assignedLocations,
+        joiningDate: user.joiningDate,
+        mustChangePassword: user.mustChangePassword,
+        editedBy: user.editedBy,
+        editedAt: user.editedAt
       }
     });
   } catch (error) {
@@ -2191,6 +2331,14 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       // accounts exist. Missing = active.
       if (account.isActive === false) {
         return res.status(403).json({ message: 'This account has been deactivated. Contact Easy Stones for help.' });
+      }
+      // A staff account still on its temporary password finishes on the staff
+      // sign-in page, which is where choosing their own password happens.
+      if (accountType === 'internal' && account.mustChangePassword) {
+        return res.status(403).json({
+          code: 'must-change-password',
+          message: 'Finish setting up your account on the staff sign-in page (/admin/login), where you’ll choose your own password.'
+        });
       }
     } catch (dbError) {
       console.error(`[${new Date().toISOString()}] ❌ DB ERROR during account lookup:`, dbError);
