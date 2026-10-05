@@ -59,7 +59,7 @@ profile) follows [`FORM_TEMPLATE.md`](FORM_TEMPLATE.md), approved
 2026-10-04. It covers sizes S/M/L and phone, field states, the required `*`,
 no helper text, validation banner, saving lock, unsaved-changes check, edit
 mode, and light/dark colors. It's built in `src/components/shared/form/`
-(Add and Edit User, Add / Edit location, Add / Edit visit, Add / Edit customer, and the Selection Sheet are on it); move the others onto it one at a time and
+(Add and Edit User, Add / Edit location, Add / Edit visit, Add / Edit customer, Add / Edit delivery, and the Selection Sheet are on it); move the others onto it one at a time and
 re-check each by hand, since every form with a dropdown is subject to the
 CustomSelect incident below.
 
@@ -161,7 +161,11 @@ fills in), and the Delivery form's packing-list reader
 (`src/utils/packingListPdf.js`: reading packing list #, Bill To / Ship To,
 the order row and the slab count out of a StoneProfits packing list PDF, and
 which empty form fields an upload fills — Sales Orders, Pick Tickets and
-Invoices read the same way).
+Invoices read the same way), and Add / Edit delivery's rules
+(`src/utils/deliveryForm.js`: which fields each delivery type uses, Pending
+vs. a required date, the driver list with each truck's load and the full
+ones greyed out, a 3rd-party truck's optional carrier / BOL / agreed price,
+transfer checks, the change count, and the save body).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

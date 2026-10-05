@@ -106,7 +106,7 @@ const deliverySchema = new mongoose.Schema({
   timestamps: true,
   // Any field a client sends but isn't declared above still gets saved and
   // persists forever — Mongoose won't strip it. Checked against the current
-  // save payload (src/components/sales/delivery/DeliveryModal.jsx) and found
+  // save payload (buildDeliveryPayload in src/utils/deliveryForm.js) and found
   // no actual drift today; this is flexibility left over from when the model
   // was actively growing new fields, not a currently-needed escape hatch.
   // Before flipping this to strict mode, audit every write path (the board's

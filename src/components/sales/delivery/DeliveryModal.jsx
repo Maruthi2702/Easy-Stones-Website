@@ -1,3 +1,8 @@
+// ⚠ NOT MOUNTED ANYWHERE since 2026-10-05 — replaced by DeliveryForm.jsx
+// (the shared form template). Kept only as a fallback: delete this file on or
+// after 2026-10-19 if the new form has worked well (see KNOWN_ISSUES.md →
+// Cleanup due). Don't make changes here; make them in DeliveryForm.jsx.
+//
 // The one add/edit form for every delivery shape this feature has: jobsite,
 // transfer (branch-to-branch), will call, return, and customer drop-off —
 // plus POD (proof of delivery) capture, since that's a save through this

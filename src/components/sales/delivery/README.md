@@ -20,9 +20,10 @@ DeliveryScheduleTab.jsx  (page shell,       src/routes/deliveries.js
         │   stops, mobile-first)                      │ Socket.IO room
         ├─ PendingDeliveries.jsx (no driver/date       │ broadcasts
         │   assigned yet)                             │
-        ├─ DeliveryModal.jsx  (the one add/edit        │
+        ├─ DeliveryForm.jsx   (the one add/edit        │
         │   form — jobsite, transfer, will call,       ▼
-        │   return, drop-off, POD capture)      src/models/Delivery.js
+        │   return, drop-off; rules in          src/models/Delivery.js
+        │   utils/deliveryForm.js)
         ├─ PodModal.jsx / PodViewer.jsx          src/models/Truck.js
         │   (capture / view proof of delivery)
         └─ TicketChip.jsx → StatusPill.jsx,

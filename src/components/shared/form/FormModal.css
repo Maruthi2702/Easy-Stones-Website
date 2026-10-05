@@ -461,6 +461,10 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
 .fm-opt:hover, .fm-opt[data-active="true"] { background: var(--fm-hover); }
 .fm-opt[aria-selected="true"] { background: var(--fm-gold-soft); }
 .fm-opt svg { flex: none; color: var(--fm-gold-tx); }
+/* A choice that can't be picked right now (a full truck) — FormPicker's
+   `disabled` option. No other form passes one. */
+.fm-opt:disabled { opacity: 0.5; cursor: not-allowed; }
+.fm-opt:disabled:hover { background: transparent; }
 
 /* ── Checkbox look (used by multi-pickers) ─────────────────────────────── */
 

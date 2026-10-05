@@ -40,6 +40,15 @@ card (Scan card / Upload card photo) under a gold **+** beside the ✕
 (`headerActions`; a bottom sheet on phones). It opens through
 `AddCustomerModal` from Sales CRM, the Customers list and the route planner;
 that modal's old read-only View is unchanged for now.
+**Add / Edit delivery** (`src/components/sales/delivery/DeliveryForm.jsx`, size
+L; rules in `src/utils/deliveryForm.js`) is on it, built from the
+[Add & Edit Delivery canvas](https://claude.ai/artifact/MUFMQHSj2xPKo3o9JeXjXC)
+with the owner's field order (2026-10-05): Date | Delivery type, Customer |
+Sales rep, SO | No. of slabs, Driver | Status, Stop | Delivery address, then
+Packing list and Notes. Picking the 3rd-party truck as Driver adds Carrier
+name, BOL # and Agreed price (optional, owner's call 2026-10-05), on transfers
+too. It keeps
+Cancel. It replaced `DeliveryModal.jsx` on the Delivery Schedule board.
 Move the other forms over **one at a time** and check each one by hand.
 This is a live app, and `CLAUDE.md`'s shared-component rule applies,
 especially to dropdowns inside a modal (see the CustomSelect z-index

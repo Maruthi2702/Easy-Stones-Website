@@ -63,6 +63,14 @@ Both scripts only preview until run with `--apply`.
   sets `visitors.homeowners` from check-ins on every load. Same class of bug
   as issue 1 above.
 
+## Cleanup due
+
+- [ ] **On or after 2026-10-19:** delete
+      `src/components/sales/delivery/DeliveryModal.jsx` if the new Add / Edit
+      delivery form (`DeliveryForm.jsx`, live since 2026-10-05) has worked
+      well. Nothing mounts it; it's kept only as a fallback. Before deleting,
+      `grep -rn "DeliveryModal" src` should only find comments.
+
 ## Fixed
 
 | Date | Issue | Commit |

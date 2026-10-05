@@ -1,0 +1,111 @@
+/* Add / Edit delivery — only what the shared template (FormModal.css)
+   doesn't already cover. Colours come from the template's --fm-* tokens, so
+   light and dark both follow. */
+
+/* Two short fields that stay side by side on phones too (SO | No. of slabs,
+   From | To); a FormRow stacks there. */
+.df-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+
+/* 3rd-party truck: Carrier name | BOL # | Agreed price on one row; on narrower
+   screens the carrier gets its own row. */
+.df-freight { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.df-freight-carrier { display: contents; }
+@media (max-width: 899px) {
+    .df-freight { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .df-freight-carrier { display: block; grid-column: 1 / -1; }
+}
+
+/* Driver and Customer show their second line ("3 of 12 booked", the city)
+   beside the name in the closed box, so they stay as tall as the field next
+   to them. The open list keeps two lines. */
+#df-truckId .fm-opt-text,
+#df-customer .fm-opt-text { flex-direction: row; align-items: baseline; gap: 8px; }
+#df-truckId .fm-opt-label,
+#df-customer .fm-opt-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#df-truckId .fm-opt-desc,
+#df-customer .fm-opt-desc { flex: none; white-space: nowrap; }
+
+.df-money { position: relative; }
+.df-money > span {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--fm-mut);
+    font-weight: 600;
+    pointer-events: none;
+}
+.df-money .fm-input { padding-left: 26px; }
+
+/* Packing list */
+.df-drop,
+.df-file {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    min-height: 56px;
+    padding: 8px 10px 8px 14px;
+    border-radius: 10px;
+    box-sizing: border-box;
+}
+.df-drop { border: 1px dashed var(--fm-bd); color: var(--fm-mut); }
+.df-drop svg { flex: none; }
+.df-drop-text { flex: 1; min-width: 140px; font-size: 13.5px; font-weight: 600; }
+.df-file { flex-wrap: nowrap; border: 1px solid var(--fm-gold); background: var(--fm-gold-soft); color: var(--fm-gold-tx); }
+.df-file > svg { flex: none; }
+.df-file-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.df-file-text b { font-size: 14px; color: var(--fm-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.df-file-ok { font-size: 12px; font-weight: 600; color: var(--fm-ok); }
+.df-file .fm-btn { text-decoration: none; flex: none; }
+.df-icon-btn {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--fm-mut);
+    cursor: pointer;
+}
+.df-icon-btn:hover { background: var(--fm-hover); color: var(--fm-err); }
+.df-icon-btn:focus-visible, .df-link:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 2px; }
+.df-link {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--fm-gold-tx);
+    cursor: pointer;
+}
+
+/* What an uploaded packing list filled in, or left alone */
+.df-autofill { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; line-height: 1.4; }
+.df-autofill-ok { color: var(--fm-ok); }
+.df-autofill-kept { display: flex; align-items: flex-start; gap: 5px; color: var(--fm-gold-tx); }
+.df-autofill-kept svg { flex: none; margin-top: 2px; }
+
+/* Restored draft / a save that failed — top of the body */
+.df-note {
+    margin-top: 16px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+.df-note-ok { border: 1px solid var(--fm-ok); color: var(--fm-ok); }
+.df-note-err { border: 1px solid var(--fm-err-bd); background: var(--fm-err-bg); color: var(--fm-err); }
+
+@media (max-width: 639px) {
+    .df-drop .fm-btn { flex: 1; height: 44px; }
+    .df-link { min-height: 44px; font-size: 14px; }
+    .df-icon-btn { width: 44px; height: 44px; }
+    .df-money > span { font-size: 16px; }
+}

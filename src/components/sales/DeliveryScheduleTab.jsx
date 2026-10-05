@@ -3,7 +3,9 @@ import { ChevronLeft, ChevronRight, Plus, RefreshCw, AlertTriangle, ArrowUpToLin
 import BoardGrid from './delivery/BoardGrid';
 import { WILL_CALL_COLUMN_ID, defaultStatusFor } from '../../utils/deliveryTypes';
 import DriverView from './delivery/DriverView';
-import DeliveryModal from './delivery/DeliveryModal';
+// The Add / Edit delivery form (shared form template). The old DeliveryModal.jsx
+// is no longer mounted anywhere.
+import DeliveryForm from './delivery/DeliveryForm';
 import PodModal from './delivery/PodModal';
 import PodViewer from './delivery/PodViewer';
 import PendingDeliveries from './delivery/PendingDeliveries';
@@ -720,7 +722,7 @@ const DeliveryScheduleTab = ({
         </div>
       )}
 
-      <DeliveryModal
+      <DeliveryForm
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveDelivery}

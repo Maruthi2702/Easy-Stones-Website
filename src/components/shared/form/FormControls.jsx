@@ -165,7 +165,8 @@ export function FormSheet({ open, title, onClose, children, footer }) {
  * desktop the list floats over the fields under the picker (see .fm-menu in
  * FormModal.css — inside the form, never portaled, so a modal can't paint
  * over it: the CustomSelect incident in CLAUDE.md). On phones it's a bottom
- * sheet.
+ * sheet. An option with `disabled: true` is shown greyed out and skipped by
+ * the arrow keys (a driver whose truck is full).
  */
 export function FormPicker({ id, value, onChange, options, placeholder = 'Choose…', error, sheetTitle, disabled }) {
     const isPhone = useIsPhone();
@@ -187,8 +188,18 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
         onChange(v);
         close();
     };
+    // The next option the arrow keys can land on, skipping disabled ones.
+    const stepFrom = (from, step) => {
+        let i = from;
+        for (let n = 0; n < options.length; n++) {
+            i = (i + step + options.length) % options.length;
+            if (!options[i].disabled) return i;
+        }
+        return from;
+    };
     const openList = () => {
-        setActive(Math.max(0, options.findIndex((o) => o.value === value)));
+        const current = options.findIndex((o) => o.value === value);
+        setActive(current >= 0 && !options[current].disabled ? current : stepFrom(-1, 1));
         if (!isPhone) setPos(menuPlacement(triggerRef.current));
         setOpen(true);
     };
@@ -209,10 +220,10 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
             const step = e.key === 'ArrowDown' ? 1 : -1;
-            setActive((i) => (i + step + options.length) % options.length);
+            setActive((i) => stepFrom(i, step));
         } else if (e.key === 'Home' || e.key === 'End') {
             e.preventDefault();
-            setActive(e.key === 'Home' ? 0 : options.length - 1);
+            setActive(e.key === 'Home' ? stepFrom(-1, 1) : stepFrom(options.length, -1));
         } else if (e.key === 'Escape') {
             e.stopPropagation();
             close();
@@ -241,6 +252,7 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
                     aria-selected={o.value === value}
                     data-active={i === active ? 'true' : undefined}
                     tabIndex={i === active ? 0 : -1}
+                    disabled={o.disabled || undefined}
                     onClick={() => choose(o.value)}
                 >
                     <span className="fm-opt-text">
@@ -300,8 +312,11 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
  * rules: floating over the form on desktop, a bottom sheet on phones. Only
  * the first `maxResults` matches are drawn — typing narrows the rest — so a
  * few thousand customers don't make the form slow to open. `onCreateNew`
- * adds a "New …" row under the matches; `selectedLabel` is shown while the
- * options are still loading (an edit opened before the list arrived).
+ * adds a "New …" row under the matches and is called with what was typed;
+ * `createNewLabel` may be a function of that text, returning null to hide the
+ * row (the Delivery form only offers "Use “…”" once something is typed).
+ * `selectedLabel` is shown while the options are still loading (an edit
+ * opened before the list arrived).
  */
 export function FormSearchPicker({
     id, value, onChange, options, placeholder = 'Search…', searchPlaceholder = 'Type a name',
@@ -328,6 +343,7 @@ export function FormSearchPicker({
         ? options.filter((o) => `${o.label} ${o.description || ''}`.toLowerCase().includes(q))
         : options;
     const shown = matches.slice(0, maxResults);
+    const newLabel = typeof createNewLabel === 'function' ? createNewLabel(query.trim()) : createNewLabel;
 
     const close = (refocus = true) => {
         setOpen(false);
@@ -412,10 +428,10 @@ export function FormSearchPicker({
                     <div className="fm-menu-note">{`Showing ${shown.length} of ${matches.length} — type to narrow`}</div>
                 )}
             </div>
-            {onCreateNew && (
-                <button type="button" className="fm-opt fm-opt-new" onClick={() => { close(false); onCreateNew(); }}>
+            {onCreateNew && newLabel && (
+                <button type="button" className="fm-opt fm-opt-new" onClick={() => { const typed = query.trim(); close(false); onCreateNew(typed); }}>
                     <Plus size={18} aria-hidden="true" />
-                    <span className="fm-opt-label">{createNewLabel}</span>
+                    <span className="fm-opt-label">{newLabel}</span>
                 </button>
             )}
         </>
