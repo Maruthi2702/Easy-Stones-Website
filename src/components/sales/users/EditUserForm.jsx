@@ -178,6 +178,7 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
                             id="eu-name"
                             className="fm-input"
                             type="text"
+                            autoCapitalize="words"
                             value={values.displayName}
                             placeholder={prettifyUsername(user.username)}
                             autoComplete="off"

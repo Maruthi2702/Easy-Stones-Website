@@ -360,7 +360,6 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             savingLabel="Saving…"
             saving={saving}
             submitDisabled={canEdit && dirty === 0}
-            hideCancel={!canEdit}
             dirtyCount={dirty}
             discardTitle="Discard your changes?"
             footerStart={footerStart}

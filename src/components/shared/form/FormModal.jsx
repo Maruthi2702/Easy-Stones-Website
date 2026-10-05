@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, AlertCircle } from 'lucide-react';
 import useIsPhone, { prefersReducedMotion } from './useIsPhone';
 import { goToField, trapTab } from './formFocus';
+import { FormLayerContext } from './formLayer';
 import './FormModal.css';
 
 /*
@@ -12,8 +13,9 @@ import './FormModal.css';
  *   - header and footer fixed, only the body scrolls (native momentum, no
  *     scroll listeners; edge shadows from IntersectionObserver sentinels);
  *   - the page behind is locked and keeps its scroll position;
- *   - on phones the sheet follows window.visualViewport, so the footer rides
- *     above the keyboard, and a field the keyboard hides is scrolled into view;
+ *   - on phones the sheet follows window.visualViewport, so it ends where the
+ *     keyboard starts; while the keyboard is up the footer steps aside so the
+ *     fields get the room, and a field the keyboard hides is scrolled into view;
  *   - "N fields need attention" banner with Go to first;
  *   - saving locks every field and the buttons (no double submit);
  *   - ✕ / Esc / a click outside ask before throwing away typed changes;
@@ -59,8 +61,6 @@ export default function FormModal({
     saving = false,
     // Edit forms: greyed out until something has changed (FORM_TEMPLATE.md).
     submitDisabled = false,
-    cancelLabel = 'Cancel',
-    hideCancel = false,
     dirtyCount = 0,
     discardTitle = 'Discard your changes?',
     errors = {},
@@ -85,6 +85,9 @@ export default function FormModal({
     const bottomSentinel = useRef(null);
     const pressStartedOnOverlay = useRef(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
+    // The form element, once mounted, for FormSheet to portal into.
+    const [layer, setLayer] = useState(null);
+    useLayoutEffect(() => { setLayer(dialogRef.current); }, []);
 
     const errorKeys = Object.keys(errors).filter((k) => errors[k]);
     const bannerVisible = showErrors && errorKeys.length > 0;
@@ -162,7 +165,17 @@ export default function FormModal({
     }, []);
 
     // Phones: size the sheet to the visible area (it shrinks when the keyboard
-    // opens), written straight to CSS variables, at most once per frame.
+    // opens), written straight to CSS variables and a data attribute, at most
+    // once per frame — nothing here re-renders React.
+    //
+    // --fm-kb is how much of the screen the keyboard covers, so a bottom sheet
+    // can sit on top of it. data-keyboard="open" hides the footer meanwhile:
+    // pinned above the keyboard it took a third of what's left (Delete, Save
+    // and the note on an edit form) and floated mid-screen. It comes back the
+    // moment the keyboard closes. innerHeight is the layout viewport, which
+    // the keyboard doesn't shrink on iOS Safari or Chrome for Android; a
+    // pinch-zoom shrinks visualViewport too, so a zoomed page never counts as
+    // a keyboard.
     useEffect(() => {
         const dialog = dialogRef.current;
         const vv = window.visualViewport;
@@ -170,8 +183,12 @@ export default function FormModal({
         let frame = 0;
         const apply = () => {
             frame = 0;
+            const zoomed = vv.scale > 1.01;
+            const kb = zoomed ? 0 : Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height));
             dialog.style.setProperty('--fm-vvh', `${vv.height}px`);
             dialog.style.setProperty('--fm-vvtop', `${vv.offsetTop}px`);
+            dialog.style.setProperty('--fm-kb', `${kb}px`);
+            dialog.dataset.keyboard = kb > 120 ? 'open' : 'closed';
         };
         const schedule = () => { if (!frame) frame = requestAnimationFrame(apply); };
         apply();
@@ -183,6 +200,8 @@ export default function FormModal({
             vv.removeEventListener('scroll', schedule);
             dialog.style.removeProperty('--fm-vvh');
             dialog.style.removeProperty('--fm-vvtop');
+            dialog.style.removeProperty('--fm-kb');
+            delete dialog.dataset.keyboard;
         };
     }, [isPhone]);
 
@@ -279,7 +298,9 @@ export default function FormModal({
                         </div>
                     )}
                     <fieldset className="fm-fieldset" disabled={saving}>
-                        {children}
+                        <FormLayerContext.Provider value={layer}>
+                            {children}
+                        </FormLayerContext.Provider>
                     </fieldset>
                     <div ref={bottomSentinel} className="fm-sentinel" aria-hidden="true" />
                 </div>
@@ -287,9 +308,8 @@ export default function FormModal({
                 <footer className={`fm-footer${hideFooterOnPhone ? ' fm-footer-no-phone' : ''}`}>
                     {footerStart && <span className="fm-footer-start">{footerStart}</span>}
                     <span className="fm-footer-note">{footerNote}</span>
-                    {!hideCancel && (
-                        <button type="button" className="fm-btn fm-btn-cancel" onClick={requestClose} disabled={saving}>{cancelLabel}</button>
-                    )}
+                    {/* No Cancel: the ✕ in the header does the same, unsaved-changes
+                        check included (owner's call, 2026-10-05). */}
                     <button type="submit" className="fm-btn fm-btn-primary" disabled={saving || submitDisabled} aria-busy={saving ? 'true' : undefined}>
                         {saving ? <><span className="fm-spinner" aria-hidden="true" />{savingLabel}</> : submitLabel}
                     </button>

@@ -1,7 +1,9 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useContext, useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, Check, ChevronDown, Eye, EyeOff, Plus, Search } from 'lucide-react';
 import useIsPhone from './useIsPhone';
 import { firstFocusableIn, describedBy, menuPlacement } from './formFocus';
+import { FormLayerContext } from './formLayer';
 
 /*
  * The form template's controls (FORM_TEMPLATE.md → Fields). Styles live in
@@ -125,13 +127,16 @@ export function SegmentedToggle({ label, value, onChange, options }) {
 export function FormSheet({ open, title, onClose, children, footer }) {
     const sheetRef = useRef(null);
     const titleId = useId();
+    // Drawn at the form's top level, not inside the scrolling body, so it
+    // covers the footer on iOS too (see formLayer.js).
+    const layer = useContext(FormLayerContext);
     useEffect(() => {
         if (!open) return;
         const sheet = sheetRef.current;
         (firstFocusableIn(sheet?.querySelector('.fm-sheet-body')) || sheet)?.focus({ preventScroll: true });
     }, [open]);
     if (!open) return null;
-    return (
+    const sheet = (
         <>
             <div className="fm-sheet-backdrop" onClick={onClose} aria-hidden="true" />
             <div
@@ -158,6 +163,7 @@ export function FormSheet({ open, title, onClose, children, footer }) {
             </div>
         </>
     );
+    return layer ? createPortal(sheet, layer) : sheet;
 }
 
 /**

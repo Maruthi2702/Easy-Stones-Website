@@ -281,6 +281,9 @@ export default function CustomerForm({
                     value={value ?? values[name] ?? ''}
                     placeholder={placeholder}
                     autoComplete={autoComplete}
+                    // Names and addresses: the keyboard capitalizes each word
+                    // as typed (the form shows and saves exactly what's typed).
+                    autoCapitalize={asTyped ? undefined : 'words'}
                     onChange={onChange || ((e) => set({ [name]: e.target.value }))}
                     onBlur={onBlur}
                     {...describedBy(id, error, status)}
@@ -320,7 +323,6 @@ export default function CustomerForm({
             savingLabel="Saving…"
             saving={isSaving}
             submitDisabled={isEdit && dirtyCount === 0}
-            hideCancel
             dirtyCount={dirtyCount}
             discardTitle={isEdit ? 'Discard your changes?' : 'Discard this customer?'}
             errors={visibleErrors}
@@ -433,7 +435,7 @@ export default function CustomerForm({
                     {picker('modaDisplay', 'Moda display', withCurrent(MODA_DISPLAY_OPTIONS, values.modaDisplay))}
                 </FormRow>
                 <FormRow>
-                    {text('modaBinder', 'Moda binders', { placeholder: '0', asTyped: true })}
+                    {text('modaBinder', 'Moda binders', { placeholder: '0', inputMode: 'numeric', asTyped: true })}
                 </FormRow>
             </FormSection>
 

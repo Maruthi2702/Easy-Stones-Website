@@ -127,7 +127,6 @@ export default function VisitForm({
             savingLabel="Saving…"
             saving={saving}
             submitDisabled={isEdit && dirtyCount === 0}
-            hideCancel
             dirtyCount={dirtyCount}
             discardTitle={isEdit ? 'Discard your changes?' : 'Discard this visit?'}
             errors={visibleErrors}
@@ -249,6 +248,7 @@ export default function VisitForm({
                                 id="vf-managerComment"
                                 className="fm-input"
                                 type="text"
+                                autoCapitalize="sentences"
                                 value={values.managerComment || ''}
                                 onChange={(e) => set({ managerComment: e.target.value })}
                             />
@@ -258,6 +258,7 @@ export default function VisitForm({
                                 id="vf-headquartersComment"
                                 className="fm-input"
                                 type="text"
+                                autoCapitalize="sentences"
                                 value={values.headquartersComment || ''}
                                 onChange={(e) => set({ headquartersComment: e.target.value })}
                             />

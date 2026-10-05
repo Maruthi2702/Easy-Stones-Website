@@ -318,6 +318,8 @@ body.light-theme-active .fm-overlay {
 .fm-input:disabled, .fm-input[readonly] { background: var(--fm-dis); color: var(--fm-dis-tx); border-style: dashed; }
 .fm-input-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 input.fm-input[type="date"] { color-scheme: dark; }
+/* iPhone centres a date field's value; every other field reads from the left. */
+input.fm-input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
 
 .fm-error, .fm-status { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1.35; }
@@ -498,7 +500,9 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    /* On top of the keyboard while one is open (--fm-kb, set by FormModal),
+       so typing in the sheet's search never hides the list under it. */
+    bottom: var(--fm-kb, 0px);
     z-index: 6;
     max-height: calc(var(--fm-vvh, 100dvh) * 0.82);
     display: flex;
@@ -564,7 +568,10 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
 /* ── Phones (below 640px): full-screen sheet ───────────────────────────── */
 
 @media (max-width: 639px) {
-    .fm-overlay { padding: 0; align-items: stretch; }
+    /* Solid, not the dimmed page: the form fills the screen anyway, and the
+       iPhone keyboard is see-through — with a translucent backdrop the page
+       behind showed around and under it. */
+    .fm-overlay { padding: 0; align-items: stretch; background: var(--fm-card); }
     /* Height and top follow window.visualViewport (set by FormModal) so the
        footer rides above the on-screen keyboard; 100dvh until then. */
     .fm-dialog,
@@ -581,7 +588,9 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
         box-shadow: none;
     }
     .fm-header { padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 12px; }
-    .fm-title { font-size: 19px; }
+    /* One line, ending in "…" — "Edit customer · Western Tile Inc." wrapped
+       to two beside the header buttons and pushed the fields down. */
+    .fm-title { font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fm-body { padding: 2px 16px 16px; }
     .fm-row { grid-template-columns: minmax(0, 1fr); }
     .fm-section { gap: 14px; }
@@ -589,29 +598,32 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
     .fm-input { height: 46px; font-size: 16px; }
     .fm-picker-trigger { min-height: 46px; }
     .fm-opt-label { font-size: 15px; }
-    /* Kept short so the form keeps most of the screen: Cancel and the main
-       button side by side on one row (owner's call, 2026-10-04), an edit
-       form's Deactivate/Delete on the line above, the note below. */
+    /* Kept short so the form keeps most of the screen: the main button on
+       its own full-width row (no Cancel — the ✕ does that; owner's call,
+       2026-10-05), an edit form's Deactivate/Delete on the line above, the
+       note below. */
     .fm-footer {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-        grid-template-areas: "start start" "cancel primary" "note note";
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: "start" "primary" "note";
         align-items: center;
         gap: 4px 8px;
         padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
     }
-    .fm-footer:not(:has(.fm-footer-start)) { grid-template-areas: "cancel primary" "note note"; }
-    /* No Cancel (a confirmation's lone Done): the main button takes the row. */
-    .fm-footer:not(:has(.fm-btn-cancel)) { grid-template-areas: "start start" "primary primary" "note note"; }
-    .fm-footer:not(:has(.fm-footer-start)):not(:has(.fm-btn-cancel)) { grid-template-areas: "primary primary" "note note"; }
+    .fm-footer:not(:has(.fm-footer-start)) { grid-template-areas: "primary" "note"; }
     .fm-footer .fm-btn-primary { grid-area: primary; height: 50px; font-size: 16px; width: 100%; }
-    .fm-footer .fm-btn-cancel { grid-area: cancel; height: 50px; font-size: 16px; width: 100%; }
     .fm-footer-start { grid-area: start; justify-self: start; }
     .fm-footer-start .fm-btn { height: 40px; padding: 0 4px; }
     .fm-footer-note { grid-area: note; text-align: center; font-size: 12px; }
     .fm-footer-note:empty { display: none; }
     /* hideFooterOnPhone (opt-in): the form shows its own main button in the body. */
     .fm-footer.fm-footer-no-phone { display: none; }
+    /* Keyboard up: the fields get the whole space above it. The footer is back
+       as soon as the keyboard closes (✓ / Done, or a tap outside a field);
+       Enter / Go still submits. Owner's call, 2026-10-05. */
+    .fm-dialog[data-keyboard="open"] .fm-footer { display: none; }
+    /* With the keyboard up there's no home bar to clear under the sheet. */
+    .fm-dialog[data-keyboard="open"] .fm-sheet { padding-bottom: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

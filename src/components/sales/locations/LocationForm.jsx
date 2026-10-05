@@ -152,7 +152,7 @@ export default function LocationForm({ location = null, locations = [], onClose,
                 readOnly={readOnly}
                 title={title}
                 autoComplete="off"
-                autoCapitalize={autoCapitalize}
+                autoCapitalize={autoCapitalize ?? (asTyped ? undefined : 'words')}
                 spellCheck={type === 'email' || type === 'url' ? false : undefined}
                 onChange={(e) => set({ [name]: CLEAN[name] ? CLEAN[name](e.target.value) : e.target.value })}
                 onBlur={() => touch(name)}
