@@ -75,6 +75,6 @@ Both scripts only preview until run with `--apply`.
 
 | Date | Issue | Commit |
 |---|---|---|
-| 2026-10-05 | Month view, month PDF and CSV counted only outgoing transfers — incoming now shown beside them | (this commit) |
+| 2026-10-05 | Month view, month PDF and CSV counted only outgoing transfers — incoming now shown beside them | `32caf27` |
 | 2026-09-29 | Driverless transfers counted as incoming on the receiving branch's Daily Report | `20e7102` |
 | 2026-09-29 | Transfers could be saved with no expected arrival, no From/To branch, or From = To | `354f986` |
