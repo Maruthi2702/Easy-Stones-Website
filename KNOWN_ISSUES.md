@@ -37,7 +37,7 @@ Both scripts only preview until run with `--apply`.
 | 4 | A transfer on a branch-only driver is invisible on the receiving branch's board (no column for that driver). 1 of 76 transfers today (Sergio); the rest use the all-branch "3rd party - delivery" driver, which shows on every board. | `BoardGrid.jsx` columns, `fetchDriverUsers` in `src/api/deliverySchedule.js` | Blocked on question B | Open |
 | 5 | No "mark received" button. `PATCH /deliveries/:id/receive` and the report's received fields exist, but nothing calls them. | `src/routes/deliveries.js`, inbound `ticketIds` in `deriveFromSystem` | New feature: a Received button on incoming lines or cards | Open |
 | 6 | A transfer line added by hand always counts as Outgoing; there's no way to add an incoming line. | `addTransfer` in `DailyReportTab.jsx`, PUT `/api/daily-reports/:date` | New feature: an In/Out toggle on manual lines | Open |
-| 7 | Minor: month view and CSV count only outgoing transfers (the PDF shows incoming too). A driver assigned after the arrival day's 11:59 PM auto-submit never reaches that report. | `summarise` in `dailyReports.js`, `src/jobs/autoSubmitDailyReports.js` | Probably leave as-is | Open |
+| 7 | Minor: a driver assigned after the arrival day's 11:59 PM auto-submit never reaches that report. (The other half of this row — month view and CSV counting only outgoing transfers — is fixed; see Fixed.) | `src/jobs/autoSubmitDailyReports.js` | Probably leave as-is | Open |
 
 ### Open questions
 
@@ -75,5 +75,6 @@ Both scripts only preview until run with `--apply`.
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-05 | Month view, month PDF and CSV counted only outgoing transfers — incoming now shown beside them | (this commit) |
 | 2026-09-29 | Driverless transfers counted as incoming on the receiving branch's Daily Report | `20e7102` |
 | 2026-09-29 | Transfers could be saved with no expected arrival, no From/To branch, or From = To | `354f986` |

@@ -356,8 +356,12 @@ async function slabExpectation(locations) {
   };
 }
 
+const outboundLines = (r) => (r.transfers || []).filter(t => t.direction !== 'in');
+const inboundLines = (r) => (r.transfers || []).filter(t => t.direction === 'in');
+const total = (lines, key) => lines.reduce((sum, t) => sum + (t[key] || 0), 0);
+
 /** Everything the month view needs, without shipping whole documents. */
-const summarise = (r) => ({
+export const summarise = (r) => ({
   date: r.date,
   location: r.location,
   status: r.status,
@@ -366,12 +370,14 @@ const summarise = (r) => ({
   pickups: r.pickups?.assigned || 0,
   // A transfer line is a route, and its `count` is how many went down it — the
   // figure the tiles quote is the transfers, not the lines they are grouped on.
-  // Outbound only — a report's own transfer figures have always meant "what
-  // this branch shipped"; inbound lines are a newer, separate concept and
-  // folding them in here would quietly inflate a number month views and the
-  // CSV export already rely on meaning one direction.
-  transferCount: (r.transfers || []).filter(t => t.direction !== 'in').reduce((sum, t) => sum + (t.count || 0), 0),
-  transferSlabs: (r.transfers || []).filter(t => t.direction !== 'in').reduce((sum, t) => sum + (t.slabs || 0), 0),
+  // transferCount/transferSlabs are outbound only — "what this branch
+  // shipped", as they always have been. Incoming has its own pair, named as
+  // on the day sheet (DailyReportTab's totals), so the month view and the CSV
+  // show both without changing what the existing figures mean.
+  transferCount: total(outboundLines(r), 'count'),
+  transferSlabs: total(outboundLines(r), 'slabs'),
+  transferCountIn: total(inboundLines(r), 'count'),
+  transferSlabsIn: total(inboundLines(r), 'slabs'),
   // A container line with a blank PO# continues the one above it (a container
   // that arrived with a couple of different colors on it), so the count is
   // the number of distinct containers, not the number of lines.
@@ -723,7 +729,10 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         'Deliveries count', 'Deliveries slabs',
         'Pick-ups count', 'Pick-ups slabs',
         'Returns', 'Sinks',
-        'Transfer routes', 'Transfer count', 'Transfer slabs',
+        // Outgoing (what this branch shipped), then incoming (what arrived from
+        // another branch) — the incoming three were missing until 2026-10-05.
+        'Transfer routes out', 'Transfer count out', 'Transfer slabs out',
+        'Transfer routes in', 'Transfer count in', 'Transfer slabs in',
         'Container lines', 'Container slabs',
         'Cash count', 'Cash amount', 'Card count', 'Card amount',
         'Check count', 'Check amount', 'Payments total',
@@ -743,9 +752,8 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           r.deliveries?.assigned || 0, r.deliveries?.capacity || 0,
           r.pickups?.assigned || 0, r.pickups?.capacity || 0,
           r.returns || 0, r.sinks || 0,
-          (r.transfers || []).filter(t => t.direction !== 'in').map(t => t.fromTo).join(' / '),
-          (r.transfers || []).filter(t => t.direction !== 'in').reduce((n, t) => n + (t.count || 0), 0),
-          s.transferSlabs,
+          outboundLines(r).map(t => t.fromTo).join(' / '), s.transferCount, s.transferSlabs,
+          inboundLines(r).map(t => t.fromTo).join(' / '), s.transferCountIn, s.transferSlabsIn,
           (r.containers || []).length, s.containerSlabs,
           r.payments?.cash?.count || 0, (r.payments?.cash?.amount || 0).toFixed(2),
           r.payments?.card?.count || 0, (r.payments?.card?.amount || 0).toFixed(2),

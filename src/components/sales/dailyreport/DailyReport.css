@@ -780,6 +780,17 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   border-color: var(--dr-derived-l);
 }
 
+/* The system's answer, full stop: counted from the check-in log, the schedule
+   or the transfer tickets on every load, so a typed figure could never stick.
+   Keeps the derived tint, but reads as a figure, not a field — no border,
+   no focus ring, no caret. */
+.dr-cell.is-readonly {
+  background: var(--dr-derived);
+  border-color: transparent;
+  cursor: default;
+}
+.dr-cell.is-readonly:focus { border-color: transparent; box-shadow: none; }
+
 .dr-cell::placeholder { color: var(--dr-text-3); }
 
 .dr-money {
@@ -863,7 +874,7 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 
 /* Fixed shares for the figures, so the leading column takes the slack instead
    of the gaps between the numbers. */
-.dr-table--month .dr-num { width: 11%; }
+.dr-table--month .dr-num { width: 10%; }
 .dr-table--month th:last-child { width: 8rem; }
 
 .dr-monthrow { cursor: pointer; }

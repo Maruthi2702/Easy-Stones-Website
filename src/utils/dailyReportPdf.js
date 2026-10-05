@@ -406,6 +406,7 @@ export async function buildMonthPdf({ month, rows, scopeLabel }) {
     visitors: sum(rows, 'visitors'), deliveries: sum(rows, 'deliveries'), pickups: sum(rows, 'pickups'),
     containerCount: sum(rows, 'containerCount'), containerSlabs: sum(rows, 'containerSlabs'),
     transferCount: sum(rows, 'transferCount'), transferSlabs: sum(rows, 'transferSlabs'),
+    transferCountIn: sum(rows, 'transferCountIn'), transferSlabsIn: sum(rows, 'transferSlabsIn'),
     payments: sum(rows, 'payments')
   };
 
@@ -470,7 +471,15 @@ export async function buildMonthPdf({ month, rows, scopeLabel }) {
         { label: 'Visitors', value: int(grand.visitors), sub: `${byBranch.size} branch${byBranch.size === 1 ? '' : 'es'}` },
         { label: 'Orders', value: int(grand.deliveries + grand.pickups), sub: `${int(grand.deliveries)} out · ${int(grand.pickups)} picked up` },
         { label: 'Containers', value: int(grand.containerCount), sub: `${int(grand.containerSlabs)} slabs` },
-        { label: 'Transfers', value: int(grand.transferCount), sub: `${int(grand.transferSlabs)} slabs` },
+        // Outgoing, as on the day sheet; incoming in the line under it. The
+        // table's "Slabs out" column stays outgoing transfers only.
+        {
+          label: 'Transfers', value: int(grand.transferCount),
+          // Short: the tile is narrow and fit() cuts anything longer.
+          sub: grand.transferCountIn
+            ? `${int(grand.transferSlabs)} slabs · ${int(grand.transferCountIn)} in`
+            : `${int(grand.transferSlabs)} slabs`
+        },
         { label: 'Payments', value: money(grand.payments), sub: `${rows.length} day${rows.length === 1 ? '' : 's'}` }
       ]);
     }

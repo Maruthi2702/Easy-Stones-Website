@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyDerived, incomingTransferQuery } from './dailyReports.js';
+import { applyDerived, incomingTransferQuery, summarise } from './dailyReports.js';
 
 const baseReport = (overrides = {}) => ({
   status: 'draft',
@@ -166,5 +166,29 @@ describe('incomingTransferQuery', () => {
   // isn't counted as shipped on their report, so it isn't incoming yet either.
   it('only counts transfers the sending branch has put on a truck', () => {
     expect(q.truckId).toEqual({ $nin: ['', null] });
+  });
+});
+
+describe('summarise (month view and CSV figures)', () => {
+  const report = {
+    date: '2026-10-05', location: 'Spokane', status: 'submitted',
+    transfers: [
+      { fromTo: 'Spokane → Seattle', count: 2, slabs: 10, direction: 'out' },
+      { fromTo: 'Spokane → Kent', count: 1, slabs: 4 },
+      { fromTo: 'Seattle → Spokane', count: 3, slabs: 14, direction: 'in' }
+    ]
+  };
+
+  it('keeps transferCount/transferSlabs as what the branch shipped', () => {
+    const s = summarise(report);
+    expect(s.transferCount).toBe(3);
+    expect(s.transferSlabs).toBe(14);
+  });
+
+  it('counts incoming transfers separately', () => {
+    const s = summarise(report);
+    expect(s.transferCountIn).toBe(3);
+    expect(s.transferSlabsIn).toBe(14);
+    expect(summarise({ date: '2026-10-05', location: 'Kent' })).toMatchObject({ transferCountIn: 0, transferSlabsIn: 0 });
   });
 });

@@ -31,6 +31,7 @@ export const STATUS = {
 const ZERO_TOTALS = {
   visitors: 0, deliveries: 0, pickups: 0,
   transferCount: 0, transferSlabs: 0,
+  transferCountIn: 0, transferSlabsIn: 0,
   containerCount: 0, containerSlabs: 0,
   payments: 0
 };
@@ -41,6 +42,8 @@ export const sumRows = (rows) => rows.reduce((t, r) => ({
   pickups: t.pickups + (r.pickups || 0),
   transferCount: t.transferCount + (r.transferCount || 0),
   transferSlabs: t.transferSlabs + (r.transferSlabs || 0),
+  transferCountIn: t.transferCountIn + (r.transferCountIn || 0),
+  transferSlabsIn: t.transferSlabsIn + (r.transferSlabsIn || 0),
   containerCount: t.containerCount + (r.containerCount || 0),
   containerSlabs: t.containerSlabs + (r.containerSlabs || 0),
   payments: t.payments + (r.payments || 0)

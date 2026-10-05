@@ -47,9 +47,14 @@ export const SummaryStats = ({ totals, visitorsNote, paymentsNote }) => {
       key: 'transfers',
       icon: ArrowLeftRight,
       label: 'Transfers',
+      // The figure is what this branch shipped, as on the day sheet; what
+      // arrived from other branches is in the line under it.
       value: totals.transferCount,
-      sub: totals.transferCount
-        ? (totals.transferSlabs ? `${totals.transferSlabs} slabs` : 'no slabs counted')
+      sub: totals.transferCount || totals.transferCountIn
+        ? [
+            totals.transferCount ? `${totals.transferSlabs} slabs out` : 'none out',
+            totals.transferCountIn ? `${totals.transferCountIn} in (${totals.transferSlabsIn} slabs)` : null
+          ].filter(Boolean).join(' · ')
         : 'none recorded'
     },
     {
@@ -91,7 +96,8 @@ const SummaryTable = ({ lead, rows, totals, totalLabel, onRowClick, rowKey, rowT
             <th className="dr-num">Visitors</th>
             <th className="dr-num">Deliveries</th>
             <th className="dr-num">Pick-ups</th>
-            <th className="dr-num">Transfer slabs</th>
+            <th className="dr-num">Transfer slabs out</th>
+            <th className="dr-num">Transfer slabs in</th>
             <th className="dr-num">Container slabs</th>
             <th className="dr-num">Payments</th>
             <th>Status</th>
@@ -124,6 +130,7 @@ const SummaryTable = ({ lead, rows, totals, totalLabel, onRowClick, rowKey, rowT
               <td className="dr-num">{r.deliveries || '—'}</td>
               <td className="dr-num">{r.pickups || '—'}</td>
               <td className="dr-num">{r.transferSlabs || '—'}</td>
+              <td className="dr-num">{r.transferSlabsIn || '—'}</td>
               <td className="dr-num">{r.containerSlabs || '—'}</td>
               <td className="dr-num">{r.payments ? money(r.payments) : '—'}</td>
               <td>
@@ -145,6 +152,7 @@ const SummaryTable = ({ lead, rows, totals, totalLabel, onRowClick, rowKey, rowT
             <td className="dr-num">{totals.deliveries}</td>
             <td className="dr-num">{totals.pickups}</td>
             <td className="dr-num">{totals.transferSlabs}</td>
+            <td className="dr-num">{totals.transferSlabsIn}</td>
             <td className="dr-num">{totals.containerSlabs}</td>
             <td className="dr-num">{money(totals.payments)}</td>
             <td />
