@@ -250,6 +250,7 @@ function DeliveryFormBody({
                     value={value ?? values[name] ?? ''}
                     placeholder={placeholder}
                     autoComplete="off"
+                    autoCapitalize={asTyped ? undefined : 'words'}
                     onChange={onChange || ((e) => set({ [name]: e.target.value }))}
                     onBlur={onBlur}
                     {...describedBy(id, error, status)}

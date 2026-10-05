@@ -18,7 +18,7 @@ export default function SignInHandover({ method, result, password, reset = false
     const name = result.user?.name || result.user?.username;
     const invited = method === 'invite';
     return (
-        <FormModal title={reset ? 'Sign-in reset' : 'User created'} size="s" onClose={onClose} onSubmit={onClose} submitLabel="Done" hideCancel>
+        <FormModal title={reset ? 'Sign-in reset' : 'User created'} size="s" onClose={onClose} onSubmit={onClose} submitLabel="Done">
             <div className="up-done">
                 <p className="up-done-lead">
                     <strong>{name}</strong>

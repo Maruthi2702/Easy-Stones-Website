@@ -23,8 +23,7 @@ both Sales CRM → Users & Roles and the /admin page. **Add / Edit location**
 [Add & Edit Visit canvas](https://claude.ai/artifact/UPcjj89doxCRsubhTrDZfN):
 no section headings, follow-up behind a toggle, and **no Cancel button**
 (owner's call, 2026-10-04: the ✕ closes, with the unsaved-changes check).
-Whether every form drops Cancel is still open; until it's decided, the others
-keep it.
+Since 2026-10-05 no form has a Cancel button (see Footer below).
 The **Selection Sheet** (`src/components/sales/selectionSheet/SelectionSheetForm.jsx`,
 size L; rules in `src/utils/selectionSheet.js`; design on the
 [Selection Sheet canvas](https://claude.ai/artifact/VjjzPT6QRMaDWa3G9WVCCd)) is
@@ -65,7 +64,8 @@ suggestions) uses the same `.fm-pop` + `.fm-menu` classes.
 
 - **Header:** a title only, with no subtitle, and the ✕ close button on the
   right. The title says what is happening: "Add a user", or
-  "Edit user · Alex Rivera".
+  "Edit user · Alex Rivera". On phones it stays on one line and ends in "…"
+  when it doesn't fit.
 - **Body:** fields in groups, separated by a thin divider. **No section
   headings unless the owner asks for them** (owner's call, 2026-10-05: the
   field labels already say what each group is). `FormSection` without a
@@ -74,9 +74,12 @@ suggestions) uses the same `.fm-pop` + `.fm-menu` classes.
   Where two groups have the same fields (a primary and an accounting
   contact), say which is which in the field labels, or ask whether that form
   should keep headings.
-- **Footer:** Cancel, then the main button, both on the right. The main
-  button names the action ("Create user", "Save delivery"), never just "Save"
-  or "Submit".
+- **Footer:** the main button on the right. **No Cancel button** (owner's
+  call, 2026-10-05): the ✕ in the header does the same, with the
+  unsaved-changes check, and so does Esc. The main button names the action
+  ("Create user", "Save delivery"), never just "Save" or "Submit".
+  Confirmation boxes (Discard your changes?, Send by email) keep their two
+  buttons — they aren't forms.
 - **No helper text under fields.** The space under a field is only for error
   messages and live status such as "✓ Available".
 - **Fixed header and footer.** Only the body scrolls. Show a soft shadow
@@ -91,12 +94,10 @@ suggestions) uses the same `.fm-pop` + `.fm-menu` classes.
 | L | 960px | Delivery |
 
 **Phone** (below 640px): the form fills the screen and fields stack in one
-column. The footer is pinned to the bottom with **Cancel and the main button
-side by side on one row**, both 50px tall, the main button twice as wide
-(decided 2026-10-04, replacing a full-width button with Cancel as a text link
-under it). An edit form's Deactivate/Delete sits on its own line above them,
-the "Last changed by" note below; a form with no Cancel (a lone Done) gives
-the main button the whole row. Inputs grow to 46px with
+column. The footer is pinned to the bottom with **the main button full
+width**, 50px tall (no Cancel since 2026-10-05). An edit form's
+Deactivate/Delete sits on its own line above it, the "Last changed by" note
+below. Inputs grow to 46px with
 **16px text**. On iPhone, text smaller than 16px makes Safari zoom the page
 every time a field is tapped.
 
@@ -128,8 +129,18 @@ of the template, not extras:
   footer with `env(safe-area-inset-bottom)` so the button clears the iPhone
   home bar.
 - **The keyboard never covers the field being typed in.**
-  - When the keyboard opens, keep the footer above it by following
-    `window.visualViewport` resizes.
+  - The form ends where the keyboard starts (it follows
+    `window.visualViewport`), and its background is solid, so nothing from
+    the page behind shows around the see-through iPhone keyboard.
+  - While the keyboard is open the footer is hidden, so the fields get all
+    the room above it; it's back as soon as the keyboard closes (✓/Done or a
+    tap outside a field), and Enter/Go still submits. Owner's call,
+    2026-10-05, replacing a footer pinned above the keyboard, which floated
+    mid-screen and took a third of the space on an edit form.
+  - A bottom sheet sits on top of the keyboard, so typing in its search
+    never hides the list. Sheets are drawn at the form's top level, not
+    inside the scrolling body: on iPhone a scrolling body is its own layer,
+    and a sheet inside it showed under the footer.
   - Scroll the focused field to the middle of the visible area only if it is
     hidden.
   - Never scroll a field that is already in view.
@@ -143,9 +154,9 @@ of the template, not extras:
   no helper text, and no section headings. Tap targets
   must be at least 44px, so nobody scrolls back up to re-tap a missed
   control.
-- **A short footer.** On phones the footer is the main button, then Cancel
-  (and an edit form's Deactivate) on one line, then the note, about 130px.
-  Stacking every action leaves too little room for the form.
+- **A short footer.** On phones the footer is an edit form's Deactivate,
+  then the main button, then the note, about 130px. Stacking more actions
+  leaves too little room for the form.
 - **No swipe-down to close.** On a form with typing in it, that closes
   forms by accident. Use ✕ and the unsaved-changes check.
 
@@ -168,6 +179,16 @@ tests can't check any of this.
   | Typing | gold border plus a 3px gold ring |
   | Error | red border, a soft red ring, and a red message with an icon under the field |
   | Read-only | dashed border, grey text |
+
+- **Shown as typed, saved as shown.** Fields never change how text looks
+  with CSS (`text-transform`): a company typed "western tile" used to show
+  as "Western Tile" and be saved lowercase. Name and address fields set
+  `autoCapitalize="words"` so the phone keyboard capitalizes what's actually
+  typed; comments use `"sentences"`; emails, usernames, codes and numbers
+  `"off"`/as typed. Number-only fields (counts, ZIP) use
+  `inputMode="numeric"` for the number pad.
+- **Dates read from the left** like every other field (iPhone centres them
+  unless told otherwise).
 
 - **Controls in the set:**
   - text

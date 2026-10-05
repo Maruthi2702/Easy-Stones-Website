@@ -192,6 +192,7 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
                             id="au-name"
                             className="fm-input"
                             type="text"
+                            autoCapitalize="words"
                             value={values.displayName}
                             autoComplete="off"
                             onChange={(e) => {

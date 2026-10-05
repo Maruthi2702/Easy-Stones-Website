@@ -344,9 +344,15 @@ body.light-theme-active .sel-mob-dropdown .sel-mob-dropdown-item:hover {
    input buffer while the user sees something else on screen. Sentence
    capitalization for notes fields is handled per-field via the native
    autoCapitalize="sentences" attribute instead, which capitalizes the
-   actual keystroke rather than just the rendering. */
-input[type="text"]:not(.no-capitalize):not([name="email"]):not([name="username"]):not([name="password"]),
-input:not([type]):not(.no-capitalize) {
+   actual keystroke rather than just the rendering.
+
+   Forms on the shared template (.fm-input) are left out for the same reason:
+   none of them title-case on save, so a company typed "western tile" showed
+   as "Western Tile" and was stored lowercase. Their name and address fields
+   use autoCapitalize="words" instead, which capitalizes what's actually
+   typed (FORM_TEMPLATE.md, 2026-10-05). */
+input[type="text"]:not(.no-capitalize):not(.fm-input):not([name="email"]):not([name="username"]):not([name="password"]),
+input:not([type]):not(.no-capitalize):not(.fm-input) {
   text-transform: capitalize;
 }
 
