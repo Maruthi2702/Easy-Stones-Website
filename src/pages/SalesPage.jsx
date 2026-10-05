@@ -2337,9 +2337,12 @@ const SalesPage = () => {
         setShowVisitModal(false);
     };
 
-    const handleSaveVisit = async () => {
-        const targetCustomerId = visitForm.customerId || selectedCustomerId;
-        if (!targetCustomerId || !visitForm.date || !visitForm.purpose) {
+    // VisitForm passes what to save (hidden follow-up fields already cleared —
+    // visitValuesToSave); anything else, such as a click event, means the form state.
+    const handleSaveVisit = async (values) => {
+        const form = values && typeof values === 'object' && !values.nativeEvent ? values : visitForm;
+        const targetCustomerId = form.customerId || selectedCustomerId;
+        if (!targetCustomerId || !form.date || !form.purpose) {
             alert('Please fill in all mandatory fields (Customer, Date, Visit Type)');
             return;
         }
@@ -2360,9 +2363,9 @@ const SalesPage = () => {
             const method = editingVisit ? 'PUT' : 'POST';
 
             const payload = {
-                ...visitForm,
-                date: visitForm.date, // Send as-is, backend will handle with ensureDateString
-                followUpDate: visitForm.followUpDate || ''
+                ...form,
+                date: form.date, // Send as-is, backend will handle with ensureDateString
+                followUpDate: form.followUpDate || ''
             };
 
             // Smart Retry Logic for cold-starts/stale connections
@@ -2416,7 +2419,7 @@ const SalesPage = () => {
                 url: editingVisit
                     ? `${API_URL}/api/customers/${targetCustomerId}/visits/${editingVisit._id}`
                     : `${API_URL}/api/customers/${targetCustomerId}/visits`,
-                payload: visitForm
+                payload: form
             });
             alert(error.fromServer ? error.message : 'Failed to save visit. Please check your connection and try again.');
         } finally {

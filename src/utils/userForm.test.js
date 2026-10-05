@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     suggestUsername, usernameProblem, isValidEmail, isValidDateInput,
     generateTempPassword, validateNewUser, countChangedFields, toggleLocation,
-    summarizeRole, homeAfterChange, validateUserEdit, userToFormValues, lastChangedText, PASSWORD_MIN
+    summarizeRole, homeAfterChange, validateUserEdit, userEditFields, userToFormValues, lastChangedText, PASSWORD_MIN
 } from './userForm';
 
 describe('suggestUsername', () => {
@@ -184,8 +184,24 @@ describe('validateUserEdit', () => {
         expect(validateUserEdit({ ...good, signInMethod: 'invite' })).toEqual({});
         expect(validateUserEdit({ ...good, signInMethod: 'password' }).password).toBeTruthy();
     });
-    it('still requires the joining date — older accounts get one the first time they’re edited', () => {
+    it('lets an older account with no email or joining date be edited as it is', () => {
+        const old = { ...good, displayName: '', email: '', joiningDate: '' };
+        expect(validateUserEdit({ ...old, role: 'manager' }, old)).toEqual({});
+    });
+    it('still checks a field that was changed or cleared', () => {
+        expect(validateUserEdit({ ...good, joiningDate: '' }, good).joiningDate).toBe('Pick the day they start');
+        expect(validateUserEdit({ ...good, email: 'nope' }, { ...good, email: '' }).email).toBeTruthy();
+        // Without the starting values (Add user's rule) everything is required.
         expect(validateUserEdit({ ...good, joiningDate: '' }).joiningDate).toBe('Pick the day they start');
+    });
+});
+
+describe('userEditFields', () => {
+    const start = { displayName: '', email: '', joiningDate: '', role: 'driver', assignedLocations: ['Seattle'], location: 'Seattle' };
+    it('sends role and home always, other fields only when changed', () => {
+        expect(userEditFields({ ...start, role: 'manager' }, start)).toEqual({ role: 'manager', location: 'Seattle' });
+        expect(userEditFields({ ...start, email: ' a@b.co ', assignedLocations: ['Seattle', 'Kent'] }, start))
+            .toEqual({ role: 'driver', location: 'Seattle', email: 'a@b.co', assignedLocations: ['Seattle', 'Kent'] });
     });
 });
 

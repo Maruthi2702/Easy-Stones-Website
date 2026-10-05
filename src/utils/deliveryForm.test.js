@@ -170,6 +170,15 @@ describe('changes', () => {
     expect(applyCustomName(form(), 'new co', (s) => s.toUpperCase())).toMatchObject({ customerName: 'NEW CO', selectedCustomerId: 'NEW CO' });
   });
 
+  it('keeps an address someone typed or the packing list filled in', () => {
+    const nw = { value: 'c2', label: 'NW Granite', city: 'Seattle' };
+    const kent = { value: 'c1', label: 'Cascade', city: 'Kent' };
+    expect(applyCustomerPick(form({ address: '1234 Main St, Bellevue, WA' }), nw).address).toBe('1234 Main St, Bellevue, WA');
+    // …but swaps the one the previous customer filled in
+    expect(applyCustomerPick(form({ address: 'Kent' }), nw, kent).address).toBe('Seattle');
+    expect(applyCustomerPick(form({ address: '' }), nw).address).toBe('Seattle');
+  });
+
   it('counts changed fields', () => {
     const a = form();
     expect(countDeliveryChanges(a, a)).toBe(0);

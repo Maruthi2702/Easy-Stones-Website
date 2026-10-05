@@ -102,6 +102,9 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         setValues((v) => ({ ...v, rows: [...v.rows, emptyRow()] }));
     };
     const removeRow = (i) => {
+        // A tag scan writes its result to the row it started on, by position;
+        // removing a row mid-scan would shift it onto a different item.
+        if (scanning != null) return;
         touch();
         setNotices({});
         setValues((v) => {
@@ -276,7 +279,14 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         />
     );
     const removeButton = (i) => (canEdit && values.rows.length > 1 ? (
-        <button type="button" className="ss-remove" onClick={() => removeRow(i)} aria-label={`Remove item ${i + 1}`} title="Remove this item">
+        <button
+            type="button"
+            className="ss-remove"
+            onClick={() => removeRow(i)}
+            disabled={scanning != null}
+            aria-label={`Remove item ${i + 1}`}
+            title={scanning != null ? 'Wait for the tag scan to finish' : 'Remove this item'}
+        >
             {isPhone ? <X size={15} aria-hidden="true" /> : <Trash2 size={16} aria-hidden="true" />}
         </button>
     ) : <span className="ss-remove-spacer" aria-hidden="true" />);

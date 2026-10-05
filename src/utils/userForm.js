@@ -99,12 +99,46 @@ export const validateNewUser = (values, { usernameTaken = false, checkUsername =
     return errors;
 };
 
+const norm = (v) => (typeof v === 'string' ? v.trim() : v ?? '');
+const sameValue = (a, b) => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+// Fields an older account may be missing (or have in an old format).
+const KEPT_AS_IS = ['displayName', 'email', 'joiningDate', 'assignedLocations'];
+
 /**
  * Edit user's checks: the same as Add user's, minus the username — it can't
  * be changed there, and older accounts have names (spaces, capitals) the new
  * format rule would reject.
+ *
+ * Given the account as it was opened (`initial`), a field left exactly as it
+ * was isn't held against the edit: an older account with no email or joining
+ * date can still have its role or password changed without someone making
+ * those up (owner's call, 2026-10-05). Changing or clearing one is checked.
  */
-export const validateUserEdit = (values) => validateNewUser(values, { checkUsername: false });
+export const validateUserEdit = (values, initial = null) => {
+    const errors = validateNewUser(values, { checkUsername: false });
+    if (initial) {
+        for (const k of KEPT_AS_IS) if (errors[k] && sameValue(values[k], initial[k])) delete errors[k];
+    }
+    return errors;
+};
+
+/**
+ * The account fields Edit user sends: role and home branch always, the rest
+ * only when changed — the server rejects a blank name, email, joining date or
+ * location list whenever one is sent, so an older account's missing ones are
+ * left out rather than sent back blank.
+ */
+export const userEditFields = (values, initial = {}) => {
+    const out = { role: values.role, location: values.location };
+    const fields = {
+        displayName: String(values.displayName || '').trim(),
+        email: String(values.email || '').trim(),
+        joiningDate: values.joiningDate,
+        assignedLocations: values.assignedLocations
+    };
+    for (const [k, v] of Object.entries(fields)) if (!sameValue(v, initial[k])) out[k] = v;
+    return out;
+};
 
 /** An account as the Edit user form holds it. */
 export const userToFormValues = (user = {}) => {

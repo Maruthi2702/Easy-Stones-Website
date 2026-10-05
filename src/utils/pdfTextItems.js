@@ -11,10 +11,15 @@
  */
 
 // Text-only reads stop after this many pages; a packing list is one or two.
-const MAX_PAGES = 10;
+const MAX_PAGES = 5;
 const PAGE_GAP = 10000;
 
-export async function extractPdfTextItems(buffer) {
+/**
+ * `deadline` (a Date.now() timestamp): stop reading further pages after it,
+ * so a slow PDF doesn't keep the server busy after the upload route has
+ * stopped waiting for it.
+ */
+export async function extractPdfTextItems(buffer, { deadline = Infinity } = {}) {
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const doc = await getDocument({
     data: new Uint8Array(buffer),
@@ -28,6 +33,7 @@ export async function extractPdfTextItems(buffer) {
     const items = [];
     const pages = Math.min(doc.numPages, MAX_PAGES);
     for (let p = 1; p <= pages; p++) {
+      if (Date.now() > deadline) break;
       const page = await doc.getPage(p);
       const { items: pageItems } = await page.getTextContent();
       const offset = (p - 1) * PAGE_GAP;

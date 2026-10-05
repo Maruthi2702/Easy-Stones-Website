@@ -142,7 +142,11 @@ export default function CustomerForm({
         return () => document.removeEventListener('mousedown', onDown);
     }, [menuOpen, isPhone]);
 
+    // Bumped by every stop, so a camera that finishes starting after the form
+    // closed (or Stop camera was pressed) is switched off instead of kept.
+    const cameraRun = useRef(0);
     const stopCamera = () => {
+        cameraRun.current += 1;
         streamRef.current?.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
         if (videoRef.current) videoRef.current.srcObject = null;
@@ -168,10 +172,16 @@ export default function CustomerForm({
     const startCamera = async () => {
         setMenuOpen(false);
         setScan({ status: 'camera', progress: 0, result: '' });
+        const run = ++cameraRun.current;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
             });
+            // Closed (or stopped) while the permission prompt was up.
+            if (run !== cameraRun.current) {
+                stream.getTracks().forEach((t) => t.stop());
+                return;
+            }
             streamRef.current = stream;
             if (videoRef.current) videoRef.current.srcObject = stream;
         } catch (err) {

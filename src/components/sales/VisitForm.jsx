@@ -7,7 +7,8 @@ import useTouched from '../shared/form/useTouched';
 import { API_URL } from '../../config/api';
 import { isPdfSource } from '../../utils/attachments';
 import {
-    VISIT_TYPES, FIELD_LABELS, visitFieldsFor, validateVisitValues, countVisitChanges, visitLastChangedText
+    VISIT_TYPES, FIELD_LABELS, visitFieldsFor, validateVisitValues, countVisitChanges, visitLastChangedText,
+    followUpShown, visitValuesToSave
 } from '../../utils/visitForm';
 import './VisitForm.css';
 
@@ -63,7 +64,7 @@ export default function VisitForm({
     const dirtyCount = countVisitChanges(values, initial);
 
     const fields = visitFieldsFor(values.purpose);
-    const showFollowUpFields = fields.followUp && (!fields.followUpToggle || followUpOn);
+    const showFollowUpFields = followUpShown(values.purpose, followUpOn);
 
     const customers = useMemo(
         () => customerOptions.map((c) => ({ value: c.value, label: c.label, description: c.city || undefined })),
@@ -85,7 +86,8 @@ export default function VisitForm({
             goToField(first);
             return;
         }
-        onSave();
+        // Hidden follow-up fields are cleared, not saved (visitValuesToSave).
+        onSave(visitValuesToSave(values, followUpOn));
     };
 
     const textarea = (name, label, { placeholder, rows = 3, large = false } = {}) => (

@@ -43,6 +43,20 @@ export const visitFieldsFor = (purpose) => {
     };
 };
 
+/** Whether the follow-up fields are on screen for this type and toggle. */
+export const followUpShown = (purpose, followUpOn = false) => {
+    const f = visitFieldsFor(purpose);
+    return f.followUp && (!f.followUpToggle || Boolean(followUpOn));
+};
+
+/**
+ * What Save sends: follow-up details only when they're on screen. Typed into
+ * a follow-up, then switched to a type (or toggle) that hides it, they used to
+ * be saved anyway — with a calendar reminder nobody could see on the form.
+ */
+export const visitValuesToSave = (values = {}, followUpOn = false) =>
+    (followUpShown(values.purpose, followUpOn) ? values : { ...values, followUp: '', followUpDate: '' });
+
 /** Whether a visit already has follow-up details (opens the toggle on "Set a follow-up"). */
 export const hasFollowUp = (values = {}) =>
     Boolean(String(values.followUp || '').trim() || String(values.followUpDate || '').trim());

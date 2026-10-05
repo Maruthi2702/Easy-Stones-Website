@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   VISIT_TYPES, visitTypeLabel, visitFieldsFor, hasFollowUp, validateVisitValues,
-  countVisitChanges, visitLastChangedText
+  countVisitChanges, visitLastChangedText, visitValuesToSave, followUpShown
 } from './visitForm.js';
 
 describe('visit types', () => {
@@ -84,4 +84,25 @@ describe('visitLastChangedText', () => {
     expect(visitLastChangedText({ createdAt: '2025-09-28T09:00:00' }, now)).toBe('Added Sep 28, 2025');
     expect(visitLastChangedText({}, now)).toBe('');
   });
+});
+
+describe('visitValuesToSave', () => {
+    const typed = { purpose: 'Scheduled in Person Sales Meeting', notes: 'n', followUp: 'Call back', followUpDate: '2026-10-09' };
+
+    it('drops follow-up details the form is hiding', () => {
+        expect(visitValuesToSave(typed, false)).toMatchObject({ followUp: '', followUpDate: '', notes: 'n' });
+        expect(visitValuesToSave({ ...typed, purpose: 'Quick Note' }, true)).toMatchObject({ followUp: '', followUpDate: '' });
+    });
+
+    it('keeps them when they are on screen', () => {
+        expect(visitValuesToSave(typed, true)).toBe(typed);
+        expect(visitValuesToSave({ ...typed, purpose: 'Follow up Notes' }, false).followUp).toBe('Call back');
+    });
+
+    it('followUpShown matches what the form shows', () => {
+        expect(followUpShown('Scheduled in Person Sales Meeting', false)).toBe(false);
+        expect(followUpShown('Scheduled in Person Sales Meeting', true)).toBe(true);
+        expect(followUpShown('Follow up Notes', false)).toBe(true);
+        expect(followUpShown('Quick Note', true)).toBe(false);
+    });
 });

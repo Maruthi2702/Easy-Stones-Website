@@ -833,7 +833,11 @@ export async function searchDeliveries(query, { signal } = {}) {
 }
 
 // ── DELETE DELIVERY (100% MONGODB DATABASE) ──
+// Throws when the ticket wasn't deleted, with `userMessage` to show. It used
+// to swallow every failure and return the list, so the Delivery form closed as
+// if the delete had worked while the ticket stayed on the board.
 export async function deleteDelivery(id) {
+  let failure;
   try {
     const res = await authFetch(`${API_URL}/api/deliveries/${id}`, { method: 'DELETE' });
     if (res.ok) {
@@ -841,19 +845,21 @@ export async function deleteDelivery(id) {
       notifyScheduleListeners();
       return getActiveWeekDeliveries();
     }
-    if (res.status === 403) {
-      // Reachable if the role's delete permission was revoked mid-session — without
-      // this the click would just appear to do nothing.
-      alert("You don't have permission to delete deliveries. Ask an administrator to grant Delivery Schedule → Delete for your role.");
-      return getActiveWeekDeliveries();
-    }
-    console.error('[schedule] deleteDelivery API failed with status:', res.status);
+    // 403 is reachable if the role's delete permission was revoked mid-session.
+    failure = res.status === 403
+      ? "You don't have permission to delete deliveries. Ask an administrator to grant Delivery Schedule → Delete for your role."
+      : 'Couldn’t delete it. Try again.';
+    if (res.status !== 403) console.error('[schedule] deleteDelivery API failed with status:', res.status);
   } catch (err) {
     console.error('[schedule] deleteDelivery API error:', err);
+    failure = 'Couldn’t delete it — check your connection and try again.';
   }
 
+  // The board may be out of date; bring it back in line before reporting.
   await refreshActiveWeek().catch(() => {});
-  return getActiveWeekDeliveries();
+  const error = new Error(failure);
+  error.userMessage = failure;
+  throw error;
 }
 
 // ── UPDATE DELIVERY STATUS ──

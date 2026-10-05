@@ -13,7 +13,7 @@ import { authFetch } from '../../../api/authFetch';
 import { locationNames } from '../../../utils/locationFilter';
 import { prettifyUsername } from '../../../utils/textUtils';
 import {
-    generateTempPassword, validateUserEdit, userToFormValues, lastChangedText,
+    generateTempPassword, validateUserEdit, userEditFields, userToFormValues, lastChangedText,
     countChangedFields, FIELD_LABELS
 } from '../../../utils/userForm';
 import './AddUserForm.css';
@@ -61,7 +61,7 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
     };
     const touch = (field) => touchField(field, String(values[field] ?? '') !== String(initial[field] ?? ''));
 
-    const allErrors = useMemo(() => ({ ...validateUserEdit(values), ...serverErrors }), [values, serverErrors]);
+    const allErrors = useMemo(() => ({ ...validateUserEdit(values, initial), ...serverErrors }), [values, initial, serverErrors]);
     const shown = (field) => (allErrors[field] && (submitted || touched[field] || serverErrors[field]) ? allErrors[field] : '');
     const visibleErrors = Object.fromEntries(Object.keys(FIELD_LABELS).filter((k) => allErrors[k]).map((k) => [k, allErrors[k]]));
 
@@ -89,7 +89,7 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
     const submit = async () => {
         setSubmitted(true);
         setFormError('');
-        const errors = validateUserEdit(values);
+        const errors = validateUserEdit(values, initial);
         const first = Object.keys(FIELD_LABELS).find((k) => errors[k] || serverErrors[k]);
         if (first) {
             goToField(first);
@@ -101,12 +101,8 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    displayName: values.displayName.trim(),
-                    email: values.email.trim(),
-                    joiningDate: values.joiningDate,
-                    role: values.role,
-                    assignedLocations: values.assignedLocations,
-                    location: values.location,
+                    // Unchanged fields stay out, so an older account's blank ones aren't sent.
+                    ...userEditFields(values, initial),
                     ...(values.signInMethod === 'password' ? { signInReset: 'password', password: values.password } : {}),
                     ...(values.signInMethod === 'invite' ? { signInReset: 'invite' } : {}),
                     moveUpcomingToPending

@@ -229,15 +229,27 @@ export function applyDateChange(v, date) {
   };
 }
 
-/** Picking a customer brings their address and the rep who owns the account. */
-export function applyCustomerPick(v, option) {
+const pickedAddress = (option) => {
+  const addr = option ? (option.city || option.fullAddress || option.address || '') : '';
+  return addr === '[object Object]' ? '' : addr;
+};
+
+/**
+ * Picking a customer brings the rep who owns the account, and their address —
+ * but only into an empty Delivery address, or one the previously picked
+ * customer filled in. A jobsite address someone typed, or the packing list's
+ * Ship To, is kept: it used to be replaced by the customer's city.
+ */
+export function applyCustomerPick(v, option, previousOption = null) {
   if (!option) return v;
-  const addr = option.city || option.fullAddress || option.address || '';
+  const addr = pickedAddress(option);
+  const current = trim(v.address);
+  const replaceable = !current || (previousOption && current === trim(pickedAddress(previousOption)));
   return {
     ...v,
     customerName: option.label,
     selectedCustomerId: option.value,
-    address: addr && addr !== '[object Object]' ? addr : v.address,
+    address: addr && replaceable ? addr : v.address,
     // An account with no owner yet leaves the rep alone: blanking it would be
     // worse than a stale guess.
     salesRepName: option.salesRepName || v.salesRepName

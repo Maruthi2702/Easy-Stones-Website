@@ -51,7 +51,8 @@
     cursor: pointer;
     padding: 0;
 }
-.ss-remove:hover { background: var(--fm-err-bg); }
+.ss-remove:hover:not(:disabled) { background: var(--fm-err-bg); }
+.ss-remove:disabled { opacity: 0.4; cursor: not-allowed; }
 .ss-remove-spacer { width: 40px; }
 
 /* Material box with the scan button inside it; catalog names list under it. */

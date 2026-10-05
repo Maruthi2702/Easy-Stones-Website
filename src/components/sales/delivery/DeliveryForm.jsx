@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Clock, FileText, Trash2, Upload, X } from 'lucide-react';
 import FormModal from '../../shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '../../shared/form/FormControls';
@@ -180,7 +180,10 @@ function DeliveryFormBody({
             onClose();
         } catch (err) {
             console.error('[DeliveryForm] save failed:', err);
-            setSaveError('Couldn’t save. Check your connection and try again.');
+            // The server's reason when it gave one (saveDelivery throws it);
+            // a dropped connection gets the plain message.
+            const reason = err?.message && !/fetch|network|malformed/i.test(err.message) ? err.message : '';
+            setSaveError(reason || 'Couldn’t save. Check your connection and try again.');
             setSaving(false);
         }
     };
@@ -193,8 +196,10 @@ function DeliveryFormBody({
             await onDelete(initialData.id);
             onClose();
         } catch (err) {
+            // deleteDelivery throws when the ticket wasn't deleted, so the form
+            // stays open and says so instead of closing as if it had worked.
             console.error('[DeliveryForm] delete failed:', err);
-            setSaveError('Couldn’t delete it. Try again.');
+            setSaveError(err?.userMessage || 'Couldn’t delete it. Try again.');
             setSaving(false);
         }
     };
@@ -212,14 +217,25 @@ function DeliveryFormBody({
     ) : null;
 
     // ── Options ──
-    const branchNames = (locationsList || [])
-        .map((loc) => (typeof loc === 'object' && loc ? (loc.name || loc.locationName || '') : String(loc || '')))
-        .filter(Boolean)
-        .sort((a, b) => a.localeCompare(b));
-    const branchOptions = [...new Set([...branchNames, values.transferOrigin, values.transferDestination].filter(Boolean))]
-        .map((n) => ({ value: n, label: n }));
-    const customerPickerOptions = customers.map((o) => ({ value: o.value, label: o.label, description: o.city || undefined }));
-    const drivers = driverOptions(trucks, values, { deliveries, exceptId: initialData?.id, max: MAX_TRUCK_CAPACITY });
+    // Built only when what they depend on changes, not on every keystroke: the
+    // customer list can be thousands long, and each driver's load is counted
+    // across the week's deliveries.
+    const { transferOrigin, transferDestination, truckId, date, deliveryType, customerDropOff } = values;
+    const branchOptions = useMemo(() => {
+        const names = (locationsList || [])
+            .map((loc) => (typeof loc === 'object' && loc ? (loc.name || loc.locationName || '') : String(loc || '')))
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b));
+        return [...new Set([...names, transferOrigin, transferDestination].filter(Boolean))].map((n) => ({ value: n, label: n }));
+    }, [locationsList, transferOrigin, transferDestination]);
+    const customerPickerOptions = useMemo(
+        () => customers.map((o) => ({ value: o.value, label: o.label, description: o.city || undefined })),
+        [customers]
+    );
+    const drivers = useMemo(
+        () => driverOptions(trucks, { truckId, date, deliveryType, customerDropOff }, { deliveries, exceptId: initialData?.id, max: MAX_TRUCK_CAPACITY }),
+        [trucks, truckId, date, deliveryType, customerDropOff, deliveries, initialData?.id]
+    );
 
     // ── Field helpers ──
     const text = (name, label, { required = false, placeholder, inputMode, asTyped = false, error, status, value, onChange, onBlur, inputType = 'text' } = {}) => {
@@ -345,7 +361,11 @@ function DeliveryFormBody({
                                     id="df-customer"
                                     value={values.selectedCustomerId}
                                     selectedLabel={values.customerName}
-                                    onChange={(v) => setValues((cur) => applyCustomerPick(cur, customers.find((o) => o.value === v)))}
+                                    onChange={(v) => setValues((cur) => applyCustomerPick(
+                                        cur,
+                                        customers.find((o) => o.value === v),
+                                        customers.find((o) => o.value === cur.selectedCustomerId)
+                                    ))}
                                     options={customerPickerOptions}
                                     loading={customersLoading && !customers.length}
                                     placeholder="Search customers"
@@ -419,7 +439,18 @@ function DeliveryFormBody({
                                 <b>{values.packingListFilename || 'Packing list.pdf'}</b>
                                 <span className="df-file-ok">Attached</span>
                             </span>
-                            <a className="fm-btn fm-btn-small" href={initialData?.pod?.signedPdfUrl || values.packingListUrl} target="_blank" rel="noopener noreferrer">View</a>
+                            {/* The signed copy only while this is still the packing list it was
+                                signed on; a newly attached file opens itself. */}
+                            <a
+                                className="fm-btn fm-btn-small"
+                                href={initialData?.pod?.signedPdfUrl && values.packingListUrl === initialData?.packingListUrl
+                                    ? initialData.pod.signedPdfUrl
+                                    : values.packingListUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                View
+                            </a>
                             <button type="button" className="df-icon-btn" aria-label="Remove packing list" title="Remove" onClick={removePdf}>
                                 <X size={16} aria-hidden="true" />
                             </button>

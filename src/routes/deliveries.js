@@ -1217,22 +1217,36 @@ export default function createDeliveriesRouter({
           ? podAssetIds(deliveryId).packingList
           : `deliveries/packing_lists/tmp_${Date.now()}_${Math.round(Math.random() * 1e4)}`;
 
-        const stored = await storeDeliveryPdf(
-          req.file.buffer,
-          key,
-          `packing_list_${safeIdSegment(deliveryId || Date.now())}.pdf`
-        );
-
         // Read the order details back out of it so the form can fill itself
         // in (see planPackingListAutofill). Best-effort: a PDF that isn't a
         // StoneProfits packing list, or one pdf.js can't read, still uploads.
-        let packingList = null;
-        try {
-          const parsed = parsePackingList(itemsToLines(await extractPdfTextItems(req.file.buffer)));
-          if (looksLikePackingList(parsed)) packingList = parsed;
-        } catch (parseErr) {
-          console.warn('[deliveries] could not read packing list text:', parseErr.message);
-        }
+        // Runs alongside storing the file rather than after it, and gives up
+        // after READ_LIMIT_MS — a slow or huge PDF then just uploads without
+        // the auto-fill instead of holding the form's "Attaching PDF…".
+        const READ_LIMIT_MS = 4000;
+        let giveUp;
+        const readText = Promise.race([
+          extractPdfTextItems(req.file.buffer, { deadline: Date.now() + READ_LIMIT_MS })
+            .then((items) => {
+              const parsed = parsePackingList(itemsToLines(items));
+              return looksLikePackingList(parsed) ? parsed : null;
+            }),
+          new Promise((resolve) => { giveUp = setTimeout(() => resolve(null), READ_LIMIT_MS); })
+        ])
+          .catch((parseErr) => {
+            console.warn('[deliveries] could not read packing list text:', parseErr.message);
+            return null;
+          })
+          .finally(() => clearTimeout(giveUp));
+
+        const [stored, packingList] = await Promise.all([
+          storeDeliveryPdf(
+            req.file.buffer,
+            key,
+            `packing_list_${safeIdSegment(deliveryId || Date.now())}.pdf`
+          ),
+          readText
+        ]);
 
         res.json({
           success: true,
