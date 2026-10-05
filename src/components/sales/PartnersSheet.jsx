@@ -431,22 +431,24 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         }
     };
 
+    // Resolves true once the customer is gone (the Edit form closes on that).
     const handleDeletePartner = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this customer?')) return;
+        if (!window.confirm('Are you sure you want to delete this customer?')) return false;
         try {
             const response = await authFetch(`${API_URL}/api/partners/${id}`, { method: 'DELETE' });
             if (response.ok) {
                 if (openCustomer?._id === id) setOpenCustomer(null);
                 setSelected(prev => { const next = new Map(prev); next.delete(id); return next; });
                 refreshAll();
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                alert(errorData.message || 'Failed to delete customer');
+                return true;
             }
+            const errorData = await response.json().catch(() => ({}));
+            alert(errorData.message || 'Failed to delete customer');
         } catch (error) {
             console.error('Error deleting customer:', error);
             alert('An error occurred while deleting the customer');
         }
+        return false;
     };
 
     const handleStatusChange = async (id, status) => {
@@ -932,6 +934,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                 locations={locations}
                 currentUser={user}
                 onOpenExisting={(c) => (phone ? openProfile(c) : setOpenCustomer(c))}
+                onDelete={canDelete ? (c) => handleDeletePartner(c._id) : null}
             />
 
             <CustomerImportModal

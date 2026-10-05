@@ -7,9 +7,15 @@ import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import CustomSelect from '../shared/CustomSelect';
 import AlertModal from '../shared/AlertModal';
+import CustomerForm from './CustomerForm';
 import './AddCustomerModal.css';
 
-const AddCustomerModal = ({
+/*
+ * Add and Edit now open CustomerForm (the shared form template, design A).
+ * This older modal is only reached for the read-only View — the Customers
+ * list's eye button — until that view is redesigned too.
+ */
+const LegacyCustomerModal = ({
     show, onClose, onSave, isSaving, editingCustomer, viewingCustomer,
     salesReps = [], locations = [], currentUser = null, onOpenExisting = null
 }) => {
@@ -794,6 +800,15 @@ const AddCustomerModal = ({
             />
         </div>
     );
+};
+
+const AddCustomerModal = (props) => {
+    // Add and Edit: the template form. Keyed by customer so opening another
+    // one starts fresh instead of keeping the last one's typing.
+    if (props.show && !props.viewingCustomer) {
+        return <CustomerForm key={props.editingCustomer?._id || 'new'} {...props} />;
+    }
+    return <LegacyCustomerModal {...props} show={Boolean(props.show && props.viewingCustomer)} />;
 };
 
 export default AddCustomerModal;

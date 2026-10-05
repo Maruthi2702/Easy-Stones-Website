@@ -1,0 +1,97 @@
+/* Add / Edit customer — only what the shared template (FormModal.css)
+   doesn't already cover. Colours come from the template's --fm-* tokens, so
+   light and dark both follow. */
+
+/* + next to the ✕: the business card */
+.cf-plus { position: relative; flex: none; }
+.cf-plus-btn {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--fm-gold);
+    border-radius: 50%;
+    background: var(--fm-gold-tint);
+    color: var(--fm-gold-tx);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.cf-plus-btn:hover:not(:disabled),
+.cf-plus-btn[aria-expanded="true"] { background: var(--fm-gold); color: var(--fm-on-gold); }
+.cf-plus-btn:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 2px; }
+.cf-plus-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Opens under the +, lined up with its right edge (the header sits above the
+   body, so it floats over the fields). */
+.fm-menu.cf-plus-menu { left: auto; right: 0; top: calc(100% + 8px); width: 230px; }
+.cf-plus-menu .fm-opt svg, .fm-sheet .fm-opt svg { color: var(--fm-gold-tx); }
+
+/* Camera / reading the card — at the top of the body */
+.cf-scan {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 12px;
+    border: 1px solid var(--fm-bd);
+    border-radius: 12px;
+}
+.cf-scan-frame { position: relative; border-radius: 10px; overflow: hidden; background: #000000; aspect-ratio: 16 / 10; }
+.cf-scan-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cf-scan-guide { position: absolute; inset: 14% 10%; border: 2px dashed rgba(255, 255, 255, 0.8); border-radius: 12px; pointer-events: none; }
+.cf-scan-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.cf-scan-reading { gap: 8px; }
+.cf-scan-reading-text { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--fm-label); }
+.cf-progress { height: 6px; border-radius: 3px; background: var(--fm-seg); overflow: hidden; }
+.cf-progress > span { display: block; height: 100%; background: var(--fm-gold); transition: width 0.2s ease; }
+.cf-scan-note { margin-top: 16px; font-size: 13px; font-weight: 600; color: var(--fm-ok); }
+.cf-scan-note-err { color: var(--fm-err); }
+
+/* Possible duplicate — advice, so gold rather than error red */
+.cf-dup {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border: 1px solid var(--fm-gold);
+    border-radius: 10px;
+    background: var(--fm-gold-soft);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--fm-label);
+}
+.cf-dup > svg { color: var(--fm-gold-tx); margin-top: 2px; flex: none; }
+.cf-dup-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.cf-dup-body strong { color: var(--fm-tx); }
+.cf-dup-row { display: flex; align-items: center; gap: 10px; }
+.cf-dup-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cf-dup-text b { color: var(--fm-tx); }
+.cf-dup-text span { color: var(--fm-mut); font-size: 12.5px; }
+.cf-link {
+    align-self: flex-start;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: 700 13px var(--font-main, 'Inter', system-ui, sans-serif);
+    color: var(--fm-mut);
+    cursor: pointer;
+}
+.cf-link:hover { color: var(--fm-tx); text-decoration: underline; }
+
+/* Send marketing emails */
+.cf-check { display: flex; align-items: center; gap: 10px; min-height: 28px; font-size: 14px; font-weight: 600; color: var(--fm-label); cursor: pointer; align-self: flex-start; }
+.cf-check input { width: 18px; height: 18px; margin: 0; accent-color: var(--fm-gold); }
+
+/* City / State / ZIP */
+.cf-csz { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+
+@media (max-width: 639px) {
+    .cf-plus-btn { width: 44px; height: 44px; }
+    .cf-check { min-height: 44px; font-size: 15px; }
+    .cf-csz { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cf-csz > :first-child { grid-column: 1 / -1; }
+    .cf-dup-row { flex-wrap: wrap; }
+    .cf-link { min-height: 44px; }
+}

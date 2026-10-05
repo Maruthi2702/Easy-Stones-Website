@@ -31,7 +31,16 @@ size L; rules in `src/utils/selectionSheet.js`; design on the
 on it too, with one deliberate phone exception (owner's call, 2026-10-04): no
 footer — Save selection is a full-width button at the end of the body, and
 Email / Print sit under a "…" button beside the ✕ (`FormModal`'s opt-in
-`hideFooterOnPhone` and `headerActions`). Move the other forms over **one at a time** and check each one by hand.
+`hideFooterOnPhone` and `headerActions`).
+**Add / Edit customer** (`src/components/sales/CustomerForm.jsx`, size M; rules
+in `src/utils/customerForm.js`) is on it, built from model A on the
+[Add & Edit Customer canvas](https://claude.ai/artifact/G6YUNXvbtVqScRGB7dHtXD):
+no headings, every account setting a dropdown, no Cancel, and the business
+card (Scan card / Upload card photo) under a gold **+** beside the ✕
+(`headerActions`; a bottom sheet on phones). It opens through
+`AddCustomerModal` from Sales CRM, the Customers list and the route planner;
+that modal's old read-only View is unchanged for now.
+Move the other forms over **one at a time** and check each one by hand.
 This is a live app, and `CLAUDE.md`'s shared-component rule applies,
 especially to dropdowns inside a modal (see the CustomSelect z-index
 incident). Use `FormPicker` (or `FormSearchPicker` for long lists) for new
@@ -48,9 +57,14 @@ suggestions) uses the same `.fm-pop` + `.fm-menu` classes.
 - **Header:** a title only, with no subtitle, and the ✕ close button on the
   right. The title says what is happening: "Add a user", or
   "Edit user · Alex Rivera".
-- **Body:** fields in sections. Use numbered section headings (gold circle,
-  for example "1 Who are they?") only on forms with 3–5 sections. Short forms
-  use plain headings or none.
+- **Body:** fields in groups, separated by a thin divider. **No section
+  headings unless the owner asks for them** (owner's call, 2026-10-05: the
+  field labels already say what each group is). `FormSection` without a
+  `title` gives the group and its divider. The title in the header ("Add a
+  customer") stays: it names the form for everyone, including screen readers.
+  Where two groups have the same fields (a primary and an accounting
+  contact), say which is which in the field labels, or ask whether that form
+  should keep headings.
 - **Footer:** Cancel, then the main button, both on the right. The main
   button names the action ("Create user", "Save delivery"), never just "Save"
   or "Submit".
@@ -117,7 +131,7 @@ of the template, not extras:
   - Tapping Next on the keyboard moves to the next field without jumping the
     page.
 - **Less to scroll.** Keep the phone spacing compact: 14px between fields,
-  no helper text, and section headings only where they help. Tap targets
+  no helper text, and no section headings. Tap targets
   must be at least 44px, so nobody scrolls back up to re-tap a missed
   control.
 - **A short footer.** On phones the footer is the main button, then Cancel

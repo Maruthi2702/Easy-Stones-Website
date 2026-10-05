@@ -55,7 +55,7 @@ profile) follows [`FORM_TEMPLATE.md`](FORM_TEMPLATE.md), approved
 2026-10-04. It covers sizes S/M/L and phone, field states, the required `*`,
 no helper text, validation banner, saving lock, unsaved-changes check, edit
 mode, and light/dark colors. It's built in `src/components/shared/form/`
-(Add and Edit User, Add / Edit location, Add / Edit visit, and the Selection Sheet are on it); move the others onto it one at a time and
+(Add and Edit User, Add / Edit location, Add / Edit visit, Add / Edit customer, and the Selection Sheet are on it); move the others onto it one at a time and
 re-check each by hand, since every form with a dropdown is subject to the
 CustomSelect incident below.
 
@@ -149,7 +149,11 @@ their stored values, which fields each type uses, required fields, the
 change count, and the "Last changed by" note), and the Selection Sheet's
 rules (`src/utils/selectionSheet.js`: rows, the change count behind the
 unsaved-changes check, the save body with its stale-save
-`expectedUpdatedAt`, which active reps are offered, and the escaped print page).
+`expectedUpdatedAt`, which active reps are offered, and the escaped print page),
+and Add / Edit customer's rules (`src/utils/customerForm.js`: stored option
+values, new-customer defaults, record ↔ form mapping, required fields, the
+email/marketing-email sync, the change count, and what a business-card scan
+fills in).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

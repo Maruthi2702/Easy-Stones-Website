@@ -240,7 +240,7 @@ export default function VisitForm({
             </FormSection>
 
             {isEdit && (
-                <FormSection title="Comments">
+                <FormSection>
                     <FormRow>
                         <FormField name="managerComment" id="vf-managerComment" label="Manager comment">
                             <input
