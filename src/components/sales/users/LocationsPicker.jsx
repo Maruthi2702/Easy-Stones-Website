@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Star, X } from 'lucide-react';
 import useIsPhone from '../../shared/form/useIsPhone';
 import { FormSheet } from '../../shared/form/FormControls';
-import { describedBy } from '../../shared/form/formFocus';
+import { describedBy, menuPlacement } from '../../shared/form/formFocus';
 import { toggleLocation, homeAfterChange } from '../../../utils/userForm';
 
 /**
@@ -13,8 +13,14 @@ import { toggleLocation, homeAfterChange } from '../../../utils/userForm';
 export default function LocationsPicker({ id, locations, value, home, onChange, error }) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
+    const [pos, setPos] = useState({ placement: 'down', maxHeight: 440 });
     const wrapRef = useRef(null);
+    const fieldRef = useRef(null);
     const allOn = value.includes('*');
+    const toggleOpen = () => {
+        if (!open && !isPhone) setPos(menuPlacement(fieldRef.current));
+        setOpen(!open);
+    };
 
     const set = (list, nextHome = home) => onChange({ assignedLocations: list, location: homeAfterChange(nextHome, list) });
     const toggle = (key) => set(toggleLocation(value, key));
@@ -70,8 +76,8 @@ export default function LocationsPicker({ id, locations, value, home, onChange, 
     const countText = `${count} of ${locations.length} selected`;
 
     return (
-        <div ref={wrapRef}>
-            <div className="up-ms" data-open={open ? 'true' : undefined} data-invalid={error ? 'true' : undefined}>
+        <div ref={wrapRef} className="fm-pop">
+            <div ref={fieldRef} className="up-ms" data-open={open ? 'true' : undefined} data-invalid={error ? 'true' : undefined}>
                 {allOn && <span className="up-tag">Every location</span>}
                 {allOn && home && (
                     <span className="up-tag up-tag-home"><Star size={14} fill="currentColor" aria-hidden="true" />{home}<span className="up-tag-suffix"> · home</span></span>
@@ -103,14 +109,14 @@ export default function LocationsPicker({ id, locations, value, home, onChange, 
                     className="up-ms-toggle"
                     aria-haspopup="true"
                     aria-expanded={open}
-                    onClick={() => setOpen((v) => !v)}
+                    onClick={toggleOpen}
                     {...describedBy(id, error)}
                 >
                     {count ? 'Edit' : 'Choose'}<ChevronDown size={16} aria-hidden="true" />
                 </button>
             </div>
             {open && !isPhone && (
-                <div className="fm-menu up-loc-menu" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } }}>
+                <div className="fm-menu up-loc-menu" data-placement={pos.placement} style={{ maxHeight: pos.maxHeight }} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } }}>
                     {options}
                     <div className="up-loc-foot">
                         <span className="fm-status">{countText}</span>

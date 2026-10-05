@@ -10,18 +10,38 @@ agreed template, built from design **A · One clear form** on the
 **Status:** built (2026-10-05) in `src/components/shared/form/`:
 
 - `FormModal`: the shell and all the behaviour below
-- `FormControls`: section, row, field, password, toggle, picker, bottom sheet
+- `FormControls`: section, row, field, password, toggle, picker, search
+  picker (`FormSearchPicker`, for long lists such as customers), bottom sheet
 - `useTouched`: when to show errors
 - `formFocus`: Go to first and the Tab trap
 
 **Add User** and **Edit User** (`src/components/sales/users/`) are on it, on
 both Sales CRM → Users & Roles and the /admin page. **Add / Edit location**
-(`src/components/sales/locations/LocationForm.jsx`, size L) is on it too. Move the other forms over **one at a time** and check each one by hand.
+(`src/components/sales/locations/LocationForm.jsx`, size L) is on it too.
+**Add / Edit visit** (`src/components/sales/VisitForm.jsx`, size M; rules in
+`src/utils/visitForm.js`) is on it, built from model C on the
+[Add & Edit Visit canvas](https://claude.ai/artifact/UPcjj89doxCRsubhTrDZfN):
+no section headings, follow-up behind a toggle, and **no Cancel button**
+(owner's call, 2026-10-04: the ✕ closes, with the unsaved-changes check).
+Whether every form drops Cancel is still open; until it's decided, the others
+keep it.
+The **Selection Sheet** (`src/components/sales/selectionSheet/SelectionSheetForm.jsx`,
+size L; rules in `src/utils/selectionSheet.js`; design on the
+[Selection Sheet canvas](https://claude.ai/artifact/VjjzPT6QRMaDWa3G9WVCCd)) is
+on it too, with one deliberate phone exception (owner's call, 2026-10-04): no
+footer — Save selection is a full-width button at the end of the body, and
+Email / Print sit under a "…" button beside the ✕ (`FormModal`'s opt-in
+`hideFooterOnPhone` and `headerActions`). Move the other forms over **one at a time** and check each one by hand.
 This is a live app, and `CLAUDE.md`'s shared-component rule applies,
 especially to dropdowns inside a modal (see the CustomSelect z-index
-incident). Use `FormPicker` for new dropdowns: it opens in the flow of the
-form on desktop and as a bottom sheet on phones, so it can't be clipped or
-painted over.
+incident). Use `FormPicker` (or `FormSearchPicker` for long lists) for new
+dropdowns. On desktop the list **floats over the fields below it and never
+pushes the form down** (owner's call, 2026-10-04): it's positioned inside its
+field (`.fm-pop` / `.fm-menu`), not portaled, so it scrolls with the form and
+can't land under a modal. It flips above the field when there's more room
+there, and a long list scrolls inside it. On phones it's a bottom sheet. A
+custom dropdown in a form (Locations, the Selection Sheet's material
+suggestions) uses the same `.fm-pop` + `.fm-menu` classes.
 
 ## Layout
 
@@ -72,6 +92,10 @@ of the template, not extras:
   `scroll` event, no snap points. Use `overflow-y: auto` and
   `overscroll-behavior: contain`, so a fling stops at the end instead of
   pulling the page behind it or triggering pull-to-refresh.
+- **No visible scrollbar** (owner's call, 2026-10-04: people know a form
+  goes on below). The form body and bottom sheets hide it
+  (`scrollbar-width: none` and `::-webkit-scrollbar`); scrolling by wheel,
+  trackpad, touch and keyboard is unchanged.
 - **Nothing that stutters while scrolling.** Don't put `backdrop-filter`
   blur or large animated shadows on content that scrolls. Use only passive
   scroll listeners, and nothing that re-renders React on every scroll. The

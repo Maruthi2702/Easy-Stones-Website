@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { AlertCircle, Check, ChevronDown, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Eye, EyeOff, Plus, Search } from 'lucide-react';
 import useIsPhone from './useIsPhone';
-import { firstFocusableIn, describedBy } from './formFocus';
+import { firstFocusableIn, describedBy, menuPlacement } from './formFocus';
 
 /*
  * The form template's controls (FORM_TEMPLATE.md → Fields). Styles live in
@@ -162,14 +162,16 @@ export function FormSheet({ open, title, onClose, children, footer }) {
 
 /**
  * A dropdown whose options can carry a description line (roles, say). On
- * desktop the list opens in the flow of the form, right under the field —
- * nothing floats, so nothing can be clipped or painted over by a modal (the
- * CustomSelect incident in CLAUDE.md). On phones it's a bottom sheet.
+ * desktop the list floats over the fields under the picker (see .fm-menu in
+ * FormModal.css — inside the form, never portaled, so a modal can't paint
+ * over it: the CustomSelect incident in CLAUDE.md). On phones it's a bottom
+ * sheet.
  */
 export function FormPicker({ id, value, onChange, options, placeholder = 'Choose…', error, sheetTitle, disabled }) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState(-1);
+    const [pos, setPos] = useState({ placement: 'down', maxHeight: 440 });
     const wrapRef = useRef(null);
     const triggerRef = useRef(null);
     const optionRefs = useRef([]);
@@ -187,6 +189,7 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
     };
     const openList = () => {
         setActive(Math.max(0, options.findIndex((o) => o.value === value)));
+        if (!isPhone) setPos(menuPlacement(triggerRef.current));
         setOpen(true);
     };
 
@@ -219,7 +222,15 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
     };
 
     const list = (
-        <div className={isPhone ? undefined : 'fm-menu'} role="listbox" id={listId} aria-label={sheetTitle} onKeyDown={onListKeyDown}>
+        <div
+            className={isPhone ? undefined : 'fm-menu'}
+            data-placement={isPhone ? undefined : pos.placement}
+            style={isPhone ? undefined : { maxHeight: pos.maxHeight }}
+            role="listbox"
+            id={listId}
+            aria-label={sheetTitle}
+            onKeyDown={onListKeyDown}
+        >
             {options.map((o, i) => (
                 <button
                     key={o.value}
@@ -243,7 +254,7 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
     );
 
     return (
-        <div ref={wrapRef}>
+        <div ref={wrapRef} className="fm-pop">
             <button
                 ref={triggerRef}
                 id={id}
@@ -278,6 +289,178 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
             {isPhone && (
                 <FormSheet open={open} title={sheetTitle} onClose={() => close()}>
                     {list}
+                </FormSheet>
+            )}
+        </div>
+    );
+}
+
+/**
+ * FormPicker with a search box, for long lists (customers). Same placement
+ * rules: floating over the form on desktop, a bottom sheet on phones. Only
+ * the first `maxResults` matches are drawn — typing narrows the rest — so a
+ * few thousand customers don't make the form slow to open. `onCreateNew`
+ * adds a "New …" row under the matches; `selectedLabel` is shown while the
+ * options are still loading (an edit opened before the list arrived).
+ */
+export function FormSearchPicker({
+    id, value, onChange, options, placeholder = 'Search…', searchPlaceholder = 'Type a name',
+    error, sheetTitle, loading = false, onCreateNew, createNewLabel = 'New', selectedLabel = '',
+    maxResults = 50, disabled
+}) {
+    const isPhone = useIsPhone();
+    const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const [active, setActive] = useState(0);
+    const [pos, setPos] = useState({ placement: 'down', maxHeight: 440 });
+    const wrapRef = useRef(null);
+    const triggerRef = useRef(null);
+    const searchRef = useRef(null);
+    const openList = () => {
+        if (!isPhone) setPos(menuPlacement(triggerRef.current));
+        setOpen(true);
+    };
+    const listId = `${id}-list`;
+    const selected = options.find((o) => o.value === value);
+
+    const q = query.trim().toLowerCase();
+    const matches = q
+        ? options.filter((o) => `${o.label} ${o.description || ''}`.toLowerCase().includes(q))
+        : options;
+    const shown = matches.slice(0, maxResults);
+
+    const close = (refocus = true) => {
+        setOpen(false);
+        setQuery('');
+        setActive(0);
+        if (refocus) triggerRef.current?.focus({ preventScroll: true });
+    };
+    const choose = (v) => {
+        onChange(v);
+        close();
+    };
+
+    useEffect(() => {
+        if (!open || isPhone) return;
+        searchRef.current?.focus({ preventScroll: true });
+        const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) close(false); };
+        document.addEventListener('mousedown', onDown);
+        return () => document.removeEventListener('mousedown', onDown);
+    }, [open, isPhone]);
+
+    const onSearchKeyDown = (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (shown.length) setActive((i) => (i + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length);
+        } else if (e.key === 'Enter') {
+            // Enter picks the highlighted match — never submits the form.
+            e.preventDefault();
+            if (shown[active]) choose(shown[active].value);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            close();
+        } else if (e.key === 'Tab' && !isPhone) {
+            close(false);
+        }
+    };
+
+    const body = (
+        <>
+            <div className="fm-search">
+                <Search size={16} aria-hidden="true" />
+                <input
+                    ref={searchRef}
+                    className="fm-search-input no-capitalize"
+                    type="text"
+                    value={query}
+                    placeholder={searchPlaceholder}
+                    aria-label={`Search ${sheetTitle || ''}`.trim()}
+                    aria-controls={listId}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    onChange={(e) => { setQuery(e.target.value); setActive(0); }}
+                    onKeyDown={onSearchKeyDown}
+                />
+            </div>
+            <div role="listbox" id={listId} aria-label={sheetTitle}>
+                {loading ? (
+                    <div className="fm-menu-note">Loading…</div>
+                ) : shown.length === 0 ? (
+                    <div className="fm-menu-note">No matches</div>
+                ) : shown.map((o, i) => (
+                    <button
+                        key={o.value}
+                        type="button"
+                        role="option"
+                        className="fm-opt"
+                        aria-selected={o.value === value}
+                        data-active={i === active ? 'true' : undefined}
+                        tabIndex={-1}
+                        onMouseEnter={() => setActive(i)}
+                        onClick={() => choose(o.value)}
+                    >
+                        <span className="fm-opt-text">
+                            <span className="fm-opt-label">{o.label}</span>
+                            {o.description && <span className="fm-opt-desc">{o.description}</span>}
+                        </span>
+                        {o.value === value && <Check size={18} strokeWidth={2.6} aria-label="Selected" />}
+                    </button>
+                ))}
+                {!loading && matches.length > shown.length && (
+                    <div className="fm-menu-note">{`Showing ${shown.length} of ${matches.length} — type to narrow`}</div>
+                )}
+            </div>
+            {onCreateNew && (
+                <button type="button" className="fm-opt fm-opt-new" onClick={() => { close(false); onCreateNew(); }}>
+                    <Plus size={18} aria-hidden="true" />
+                    <span className="fm-opt-label">{createNewLabel}</span>
+                </button>
+            )}
+        </>
+    );
+
+    const label = selected?.label || selectedLabel;
+    return (
+        <div ref={wrapRef} className="fm-pop">
+            <button
+                ref={triggerRef}
+                id={id}
+                type="button"
+                className="fm-picker-trigger"
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                aria-controls={open ? listId : undefined}
+                disabled={disabled}
+                onClick={() => (open ? close() : openList())}
+                onKeyDown={(e) => {
+                    if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                        e.preventDefault();
+                        openList();
+                    }
+                }}
+                {...describedBy(id, error)}
+            >
+                <Search size={16} aria-hidden="true" className="fm-trigger-icon" />
+                <span className="fm-opt-text">
+                    {label ? (
+                        <>
+                            <span className="fm-opt-label">{label}</span>
+                            {selected?.description && <span className="fm-opt-desc">{selected.description}</span>}
+                        </>
+                    ) : (
+                        <span className="fm-placeholder">{placeholder}</span>
+                    )}
+                </span>
+                <ChevronDown size={18} aria-hidden="true" />
+            </button>
+            {open && !isPhone && (
+                <div className="fm-menu" data-placement={pos.placement} style={{ maxHeight: pos.maxHeight }}>{body}</div>
+            )}
+            {isPhone && (
+                <FormSheet open={open} title={sheetTitle} onClose={() => close()}>
+                    {body}
                 </FormSheet>
             )}
         </div>

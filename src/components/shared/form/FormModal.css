@@ -396,10 +396,28 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
 .fm-opt-desc { font-size: 12.5px; color: var(--fm-mut); line-height: 1.35; }
 .fm-placeholder { color: var(--fm-mut); font-size: 14px; }
 
-/* Opens in the flow of the form (pushes content down) rather than floating —
-   nothing to clip, nothing to out-stack, and the body stays the only scroller. */
+/* A dropdown floats over the fields under it — it never pushes the form down
+   (owner's call, 2026-10-04: opening a list mustn't rearrange the form).
+   It's absolutely positioned inside its field (.fm-pop), NOT portaled: it
+   stays inside the form's body, so it scrolls with the form, is clipped to
+   it, and can't end up under a modal (CLAUDE.md, CustomSelect incident).
+   menuPlacement() in FormControls flips it above the field when there isn't
+   room below and caps its height to the room there is; a long list scrolls
+   inside it. */
+.fm-pop { position: relative; }
 .fm-menu {
-    margin-top: 6px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 30;
+    margin: 0;
+    max-height: 320px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    box-sizing: border-box;
     padding: 6px;
     border: 1px solid var(--fm-bd2);
     border-radius: 12px;
@@ -409,6 +427,11 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
     flex-direction: column;
     gap: 2px;
 }
+.fm-menu::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.fm-menu[data-placement="up"] { top: auto; bottom: calc(100% + 6px); }
+.fm-menu > * { flex: none; }
+/* The search box stays put while the matches scroll under it. */
+.fm-menu > .fm-search { position: sticky; top: -6px; z-index: 1; margin-top: -6px; padding-top: 6px; height: 46px; background: var(--fm-card); }
 .fm-opt {
     display: flex;
     align-items: center;
@@ -582,4 +605,52 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
     .fm-close, .fm-close svg, .fm-picker-trigger svg { transition: none; }
     .fm-close:hover { transform: none; }
     .fm-close:hover svg { transform: none; }
+}
+
+/* ── Search picker (FormSearchPicker) and textareas ────────────────────── */
+
+.fm-picker-trigger[aria-expanded="true"] > .fm-trigger-icon { transform: none; }
+.fm-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--fm-bd2);
+    color: var(--fm-mut);
+}
+.fm-search-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--fm-tx);
+    font: 500 14px var(--font-main, 'Inter', system-ui, sans-serif);
+    outline: none;
+}
+.fm-search-input::placeholder { color: var(--fm-mut); opacity: 1; }
+.fm-menu-note { padding: 10px 12px; font-size: 13px; color: var(--fm-mut); }
+.fm-opt-new { color: var(--fm-gold-tx); border-top: 1px solid var(--fm-bd2); border-radius: 0 0 9px 9px; margin-top: 4px; }
+.fm-opt-new .fm-opt-label { color: var(--fm-gold-tx); }
+
+textarea.fm-input,
+.fm-textarea {
+    height: auto;
+    min-height: 76px;
+    padding: 10px 12px;
+    line-height: 1.45;
+    resize: vertical;
+}
+
+/* No visible scrollbars (owner's call, 2026-10-04: people know a form goes
+   on below). Scrolling itself is unchanged — wheel, trackpad, touch, keys. */
+.fm-body, .fm-sheet-body { scrollbar-width: none; -ms-overflow-style: none; }
+.fm-body::-webkit-scrollbar, .fm-sheet-body::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+@media (max-width: 639px) {
+    .fm-search { height: 48px; }
+    .fm-search-input { font-size: 16px; }
+    textarea.fm-input, .fm-textarea { height: auto; min-height: 96px; }
 }

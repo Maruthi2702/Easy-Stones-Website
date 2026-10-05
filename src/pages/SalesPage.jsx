@@ -1480,6 +1480,10 @@ const SalesPage = () => {
             await fetchCustomers(true);
             await fetchAllCustomersForDropdown(); // Refresh dropdown options
             closeModal();
+            // Opened from the Visit form's "New customer": it's the visit's customer.
+            if (showVisitModal && !isViewingVisit && newCustomer?._id) {
+                setVisitForm(prev => ({ ...prev, customerId: newCustomer._id }));
+            }
             handleSelectCustomer(newCustomer);
         } catch (error) {
             console.error('Error creating customer:', error);
@@ -2242,7 +2246,9 @@ const SalesPage = () => {
                     followUpDate: data.visit.followUpDate ? formatForDateInput(data.visit.followUpDate) : ''
                 };
                 setVisitForm(formattedVisit);
-                setEditingVisit(formattedVisit);
+                // The dashboard's row knows the customer's branch; the form's
+                // Delete needs it for branch-level delete permission.
+                setEditingVisit({ ...formattedVisit, location: visit.location });
             } else {
                 const formattedVisit = {
                     ...visit,
@@ -4858,7 +4864,6 @@ const SalesPage = () => {
                     editingVisit={editingVisit}
                     visitForm={visitForm}
                     setVisitForm={setVisitForm}
-                    isMobile={isMobile}
                     customerOptions={customerOptions}
                     isDropdownLoading={isDropdownLoading}
                     isSaving={isSaving}
@@ -4871,6 +4876,20 @@ const SalesPage = () => {
                     setFullScreenImage={setFullScreenImage}
                     handleOpenGallery={handleOpenGallery}
                     onCreateNew={() => setShowAddCustomerModal(true)}
+                    suspended={showAddCustomerModal}
+                    // Users & Roles → Visits → Delete own / branch / all (visitAccess.js).
+                    canDelete={Boolean(editingVisit?._id) && canDeleteVisit(
+                        { ...currentUser, id: currentUserId },
+                        editingVisit,
+                        editingVisit?.location || (selectedCustomer?._id === editingVisit?.customerId ? selectedCustomer?.location : undefined)
+                    )}
+                    // The form closes first: the delete check is a page modal and
+                    // would otherwise open underneath it.
+                    onDelete={() => {
+                        const { _id, customerId } = editingVisit;
+                        handleCloseVisitModal();
+                        handleDeleteVisit(_id, customerId);
+                    }}
                 />
 
                 {/* Calendar Sync Modal */}

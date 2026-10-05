@@ -1,0 +1,78 @@
+/* Add / Edit visit — only what the shared template (FormModal.css) doesn't
+   already cover: the bigger Notes box and the attachments row. */
+
+.fm-dialog .vf-notes { min-height: 120px; }
+
+.vf-tiles { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.vf-tile {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    border: 1px solid var(--fm-bd);
+    background: var(--fm-dis);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: var(--fm-mut);
+    font-size: 10px;
+    font-weight: 700;
+}
+.vf-tile img { width: 100%; height: 100%; object-fit: cover; }
+
+.vf-tile-rm {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.65);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.vf-tile-rm:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 1px; }
+
+.vf-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 64px;
+    padding: 0 16px;
+    border: 1px dashed var(--fm-bd);
+    border-radius: 10px;
+    color: var(--fm-gold-tx);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.vf-add:hover { background: var(--fm-gold-soft); border-color: var(--fm-gold); }
+.vf-add:focus-within { outline: 2px solid var(--fm-gold); outline-offset: 2px; }
+.fm-fieldset:disabled .vf-add { opacity: 0.55; cursor: not-allowed; }
+
+/* Hidden but still reachable by keyboard (the label shows the focus ring). */
+.vf-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+}
+
+@media (max-width: 639px) {
+    .fm-dialog .vf-notes { min-height: 140px; }
+    .vf-tile { width: 72px; height: 72px; }
+    .vf-tile-rm { width: 28px; height: 28px; }
+    .vf-add { flex: 1; height: 72px; justify-content: center; font-size: 15px; }
+}

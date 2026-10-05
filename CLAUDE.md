@@ -55,7 +55,7 @@ profile) follows [`FORM_TEMPLATE.md`](FORM_TEMPLATE.md), approved
 2026-10-04. It covers sizes S/M/L and phone, field states, the required `*`,
 no helper text, validation banner, saving lock, unsaved-changes check, edit
 mode, and light/dark colors. It's built in `src/components/shared/form/`
-(Add and Edit User, and Add / Edit location, are on it); move the others onto it one at a time and
+(Add and Edit User, Add / Edit location, Add / Edit visit, and the Selection Sheet are on it); move the others onto it one at a time and
 re-check each by hand, since every form with a dropdown is subject to the
 CustomSelect incident below.
 
@@ -143,7 +143,13 @@ text, rejecting wrong-rotation garbage, and when a lot may be matched to
 stock), and Add / Edit location's rules (`src/utils/locationForm.js`:
 required fields and formats, unique short name/code, which locations can be
 an RDC, the record ↔ form conversion the API also runs, what non-managers
-may read, and the selection-sheet letterhead with its Kent fallback).
+may read, and the selection-sheet letterhead with its Kent fallback), and
+Add / Edit visit's rules (`src/utils/visitForm.js`: the visit types and
+their stored values, which fields each type uses, required fields, the
+change count, and the "Last changed by" note), and the Selection Sheet's
+rules (`src/utils/selectionSheet.js`: rows, the change count behind the
+unsaved-changes check, the save body with its stale-save
+`expectedUpdatedAt`, which active reps are offered, and the escaped print page).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

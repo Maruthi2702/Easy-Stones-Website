@@ -1,10 +1,10 @@
-import React from 'react';
-import { X, FileText, Loader, Plus } from 'lucide-react';
-import SearchableSelect from '../SearchableSelect';
+import React, { useState } from 'react';
+import { X, FileText } from 'lucide-react';
 import { API_URL } from '../../config/api';
-import CustomDatePicker from '../CustomDatePicker';
 import { formatDate } from '../../utils/dateUtils';
 import { isPdfSource } from '../../utils/attachments';
+import { hasFollowUp } from '../../utils/visitForm';
+import VisitForm from './VisitForm';
 
 const VisitModal = ({
     showVisitModal,
@@ -13,7 +13,6 @@ const VisitModal = ({
     editingVisit,
     visitForm,
     setVisitForm,
-    isMobile,
     customerOptions,
     isSaving,
     handleSaveVisit,
@@ -24,8 +23,26 @@ const VisitModal = ({
     handleDashboardDownload,
     handleOpenGallery,
     onCreateNew,
-    isDropdownLoading
+    isDropdownLoading,
+    // Add / Edit form only:
+    canDelete = false,
+    onDelete,
+    // True while Add customer is open on top: the form steps aside (it would
+    // otherwise paint over it) and comes back with everything still filled in.
+    suspended = false
 }) => {
+    const formOpen = showVisitModal && !isViewingVisit;
+
+    // One open form: where it started (for "Save changes" and the discard
+    // check) and the follow-up toggle. Kept here, not in VisitForm, so both
+    // survive the form stepping aside (`suspended`).
+    //   choice — the follow-up toggle once touched (null = on if the visit
+    //            already has follow-up details)
+    //   kept   — what turning it off cleared, put back if it's turned on again
+    const [session, setSession] = useState(null);
+    if (formOpen && !session) setSession({ initial: visitForm, choice: null, kept: null });
+    if (!formOpen && session) setSession(null);
+
     if (!showVisitModal) return null;
 
     const resolveImageSrc = (img) => {
@@ -35,170 +52,55 @@ const VisitModal = ({
         return `${API_URL}/uploads/visits/${img}`;
     };
 
-    const renderAddEditModal = () => (
-        <div className="modal-overlay visit-modal-overlay" onClick={handleCloseVisitModal}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h2>{editingVisit ? 'Edit Visit' : 'Add Visit'}</h2>
-                    <button className="close-btn" onClick={handleCloseVisitModal}>
-                        <X size={20} />
-                    </button>
-                </div>
-                <div className="modal-body">
-                    <div className="form-group">
-                        <label>Date <span className="req-star">*</span></label>
-                        <CustomDatePicker
-                            value={visitForm.date}
-                            onChange={(value) => setVisitForm({ ...visitForm, date: value })}
-                            required
-                        />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                        <div className="form-group">
-                            <label>Customer <span className="req-star">*</span></label>
-                            <SearchableSelect
-                                options={customerOptions}
-                                value={visitForm.customerId}
-                                onChange={(value) => setVisitForm({ ...visitForm, customerId: value })}
-                                placeholder="Select a Customer..."
-                                onCreateNew={onCreateNew}
-                                createNewLabel="New Customer"
-                                isLoading={isDropdownLoading}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Visit Type <span className="req-star">*</span></label>
-                            <SearchableSelect
-                                options={[
-                                    'Quick Note',
-                                    'Follow up Notes',
-                                    'Scheduled in Person Sales Meeting',
-                                    'Unscheduled in Person Sales Call',
-                                    'Resource Placement',
-                                    'Resource Update',
-                                    'Formal Presentation',
-                                    'Important Remote Meeting/Call',
-                                    'In Office Administration Day',
-                                    'Personal Time Off'
-                                ].map(type => ({ value: type, label: type }))}
-                                value={visitForm.purpose}
-                                onChange={(value) => setVisitForm({ ...visitForm, purpose: value })}
-                                placeholder="Please Select Visit Type"
-                            />
-                        </div>
-                    </div>
-                    {visitForm.purpose !== 'Follow up Notes' && (
-                        <div className="form-group">
-                            <label>Notes</label>
-                            <textarea
-                                value={visitForm.notes}
-                                onChange={(e) => setVisitForm({ ...visitForm, notes: e.target.value })}
-                                placeholder="Additional notes"
-                                rows="4"
-                                autoCapitalize="sentences"
-                            />
-                        </div>
-                    )}
-                    {!visitForm.purpose?.toLowerCase().includes('quick note') && (
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                            {visitForm.purpose !== 'Follow up Notes' && (
-                                <div className="form-group" style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
-                                    <label>Outcome</label>
-                                    <textarea
-                                        value={visitForm.outcome}
-                                        onChange={(e) => setVisitForm({ ...visitForm, outcome: e.target.value })}
-                                        placeholder="Visit outcome"
-                                        rows="3"
-                                        autoCapitalize="sentences"
-                                    />
-                                </div>
-                            )}
-                            <div className="form-group">
-                                <label>Follow Up Date</label>
-                                <CustomDatePicker
-                                    value={visitForm.followUpDate}
-                                    onChange={(value) => setVisitForm({ ...visitForm, followUpDate: value })}
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Follow Up Notes</label>
-                                <textarea
-                                    value={visitForm.followUp}
-                                    onChange={(e) => setVisitForm({ ...visitForm, followUp: e.target.value })}
-                                    placeholder="Followup Notes"
-                                    rows="3"
-                                    autoCapitalize="sentences"
-                                />
-                            </div>
-                        </div>
-                    )}
-                    <div className="form-group">
-                        <label>Attachments</label>
-                        <div className="image-upload-container">
-                            <div className="image-upload-grid">
-                                {visitForm.image && (Array.isArray(visitForm.image) ? visitForm.image : [visitForm.image]).map((img, idx) => (
-                                    <div key={idx} className="image-preview-wrapper">
-                                        {isPdfSource(img) ? (
-                                            <div className="pdf-preview-thumbnail">
-                                                <FileText size={24} />
-                                                <span>PDF Document</span>
-                                            </div>
-                                        ) : (
-                                            <img src={resolveImageSrc(img)} alt="Preview" loading="lazy" />
-                                        )}
-                                        <button type="button" className="remove-image-btn" onClick={() => handleRemoveVisitImage(idx)}>
-                                            <X size={12} />
-                                        </button>
-                                    </div>
-                                ))}
-                                <label className="upload-placeholder">
-                                    <input
-                                        type="file"
-                                        accept="image/*,application/pdf"
-                                        multiple
-                                        onChange={handleVisitImageUpload}
-                                        hidden
-                                    />
-                                    <Plus size={20} />
-                                    <span>Add Files</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                    {editingVisit && (
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
-                            <div className="form-group">
-                                <label>Manager Comment</label>
-                                <input
-                                    type="text"
-                                    value={visitForm.managerComment}
-                                    onChange={(e) => setVisitForm({ ...visitForm, managerComment: e.target.value })}
-                                    placeholder="Comment from Manager"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Headquarters Comment</label>
-                                <input
-                                    type="text"
-                                    value={visitForm.headquartersComment}
-                                    onChange={(e) => setVisitForm({ ...visitForm, headquartersComment: e.target.value })}
-                                    placeholder="Comment from HQ"
-                                />
-                            </div>
-                        </div>
-                    )}
-                </div>
-                <div className="modal-footer">
-                    <button className="btn-secondary" onClick={handleCloseVisitModal} disabled={isSaving}>
-                        Cancel
-                    </button>
-                    <button className="btn-primary" onClick={handleSaveVisit} disabled={isSaving}>
-                        {isSaving ? 'Saving...' : (editingVisit ? 'Save Changes' : 'Add Visit')}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
+    const customerName = () => {
+        const id = visitForm.customerId || editingVisit?.customerId;
+        const option = (customerOptions || []).find((o) => o.value === id);
+        if (option) return option.label;
+        if (selectedCustomer && (!id || selectedCustomer._id === id)) return selectedCustomer.company || selectedCustomer.contactName;
+        const c = (customers || []).find((x) => x._id === id);
+        if (c) return c.company || c.contactName;
+        return visitForm?.customerContactName || visitForm?.customerName || editingVisit?.customerName || '';
+    };
+
+    const renderAddEditForm = () => {
+        if (suspended || !session) return null;
+        const { initial } = session;
+        const followUpOn = session.choice ?? hasFollowUp(initial);
+        // Off clears the follow-up fields so they aren't saved.
+        const setFollowUp = (on) => {
+            if (on === followUpOn) return;
+            if (!on) {
+                const kept = { followUp: visitForm.followUp || '', followUpDate: visitForm.followUpDate || '' };
+                setVisitForm((v) => ({ ...v, followUp: '', followUpDate: '' }));
+                setSession((s) => ({ ...s, choice: false, kept }));
+            } else {
+                if (session.kept) setVisitForm((v) => ({ ...v, ...session.kept }));
+                setSession((s) => ({ ...s, choice: true, kept: null }));
+            }
+        };
+        return (
+            <VisitForm
+                isEdit={Boolean(editingVisit)}
+                visit={editingVisit}
+                values={visitForm}
+                setValues={setVisitForm}
+                initial={initial}
+                followUpOn={followUpOn}
+                onFollowUpChange={setFollowUp}
+                customerOptions={customerOptions}
+                customersLoading={isDropdownLoading}
+                customerLabel={editingVisit || visitForm.customerId ? customerName() : ''}
+                saving={isSaving}
+                onSave={handleSaveVisit}
+                onClose={handleCloseVisitModal}
+                onUpload={handleVisitImageUpload}
+                onRemoveImage={handleRemoveVisitImage}
+                onCreateCustomer={onCreateNew}
+                canDelete={canDelete}
+                onDelete={onDelete}
+            />
+        );
+    };
 
     const renderViewModal = () => (
         <div className="modal-overlay visit-modal-overlay" onClick={handleCloseVisitModal}>
@@ -290,7 +192,7 @@ const VisitModal = ({
         </div>
     );
 
-    return isViewingVisit ? renderViewModal() : renderAddEditModal();
+    return isViewingVisit ? renderViewModal() : renderAddEditForm();
 };
 
 export default VisitModal;

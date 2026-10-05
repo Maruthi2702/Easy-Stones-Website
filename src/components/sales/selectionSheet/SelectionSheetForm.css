@@ -55,7 +55,7 @@
 .ss-remove-spacer { width: 40px; }
 
 /* Material box with the scan button inside it; catalog names list under it. */
-.ss-mat { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.ss-mat { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; } /* anchors the floating suggestions (.fm-menu) */
 .ss-mat-field { position: relative; display: flex; align-items: center; }
 .fm-input.ss-mat-input { padding-right: 46px; text-transform: uppercase; }
 .ss-scan-btn {

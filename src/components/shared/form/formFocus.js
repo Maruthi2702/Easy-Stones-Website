@@ -51,3 +51,19 @@ export const describedBy = (id, error, status) => ({
     'aria-invalid': error ? 'true' : undefined,
     'aria-describedby': error || status ? `${id}-msg` : undefined
 });
+
+/**
+ * Where a desktop dropdown (.fm-menu) opens: below its field, or above it
+ * when the form body has more room there, with its height capped to that
+ * room. Measured when the list opens, against the form body it scrolls in.
+ */
+export function menuPlacement(anchor, wanted = 440) {
+    if (!anchor) return { placement: 'down', maxHeight: wanted };
+    const a = anchor.getBoundingClientRect();
+    const scroller = anchor.closest('.fm-body, .fm-sheet-body');
+    const b = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+    const below = b.bottom - a.bottom - 12;
+    const above = a.top - b.top - 12;
+    const up = below < Math.min(wanted, 240) && above > below;
+    return { placement: up ? 'up' : 'down', maxHeight: Math.round(Math.max(160, Math.min(wanted, up ? above : below))) };
+}
