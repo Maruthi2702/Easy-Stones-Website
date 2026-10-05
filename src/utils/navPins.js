@@ -62,25 +62,78 @@ export const navItem = (id) => ITEM_BY_ID.get(id) || null;
 
 export const visibleNavItems = (user) => NAV_ITEMS.filter((item) => item.canSee(user));
 
-/** Sections that have at least one page this person can open, in nav order. */
-export const visibleSections = (user) => {
-  const items = visibleNavItems(user);
-  return NAV_SECTIONS
-    .map((section) => ({ ...section, items: items.filter((item) => item.section === section.id) }))
-    .filter((section) => section.items.length > 0);
+const SECTION_IDS = NAV_SECTIONS.map((section) => section.id);
+const unique = (list) => list.filter((id, i) => list.indexOf(id) === i);
+
+/**
+ * The admin-set nav order (saved site-wide by src/routes/navOrder.js) cleaned
+ * up: { sections: [section ids], items: { [section id]: [page ids] } }, known
+ * ids only, each page only under its own section. Null when it isn't an
+ * object, which means "no order set": the lists above are the default.
+ */
+export const sanitizeNavOrder = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const sections = Array.isArray(value.sections) ? unique(value.sections.filter((id) => SECTION_IDS.includes(id))) : [];
+  const items = {};
+  for (const sectionId of SECTION_IDS) {
+    const list = value.items?.[sectionId];
+    if (Array.isArray(list)) items[sectionId] = unique(list.filter((id) => navItem(id)?.section === sectionId));
+  }
+  return { sections, items };
 };
+
+/**
+ * Every section with every page, in the admin's order. Anything the order
+ * doesn't mention — a page or section added since it was saved — goes after
+ * the ordered ones, in the default order, so nothing ever disappears.
+ */
+export const orderedSections = (order) => {
+  const saved = sanitizeNavOrder(order) || { sections: [], items: {} };
+  const sectionIds = [...saved.sections, ...SECTION_IDS.filter((id) => !saved.sections.includes(id))];
+  return sectionIds.map((sectionId) => {
+    const listed = saved.items[sectionId] || [];
+    const rest = NAV_ITEMS.filter((item) => item.section === sectionId && !listed.includes(item.id)).map((item) => item.id);
+    return {
+      ...NAV_SECTIONS.find((section) => section.id === sectionId),
+      items: [...listed, ...rest].map(navItem)
+    };
+  });
+};
+
+/** The saved shape for sections as orderedSections returns them (the order editor's state). */
+export const navOrderOf = (sections) => ({
+  sections: sections.map((section) => section.id),
+  items: Object.fromEntries(sections.map((section) => [section.id, section.items.map((item) => item.id)]))
+});
+
+/** True when `order` is the same as having no order set. */
+export const isDefaultNavOrder = (order) =>
+  JSON.stringify(navOrderOf(orderedSections(order))) === JSON.stringify(navOrderOf(orderedSections(null)));
+
+/** Move entry `index` of `list` by `delta` (−1 up, +1 down); a move past either end changes nothing. */
+export const moveInList = (list, index, delta) => {
+  const to = index + delta;
+  if (index < 0 || index >= list.length || to < 0 || to >= list.length) return list;
+  const next = [...list];
+  [next[index], next[to]] = [next[to], next[index]];
+  return next;
+};
+
+/** Sections that have at least one page this person can open, in nav order. */
+export const visibleSections = (user, order = null) =>
+  orderedSections(order)
+    .map((section) => ({ ...section, items: section.items.filter((item) => item.canSee(user)) }))
+    .filter((section) => section.items.length > 0);
 
 /**
  * The rail's sections: visibleSections, except Home is always there — it's
  * where the pinned pages are listed, so it's needed even by someone without
  * the Dashboard (its `items` is then empty).
  */
-export const railSections = (user) => {
-  const sections = visibleSections(user);
-  if (sections.some((section) => section.id === 'home')) return sections;
-  const home = NAV_SECTIONS.find((section) => section.id === 'home');
-  return [{ ...home, items: [] }, ...sections];
-};
+export const railSections = (user, order = null) =>
+  orderedSections(order)
+    .map((section) => ({ ...section, items: section.items.filter((item) => item.canSee(user)) }))
+    .filter((section) => section.items.length > 0 || section.id === 'home');
 
 export const sectionOf = (tabId) => navItem(tabId)?.section || null;
 

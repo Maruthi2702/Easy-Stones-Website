@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  NAV_ITEMS, MAX_PINNED_TABS, visibleSections, railSections, sectionOf, sanitizePinnedTabs, visiblePinnedTabs,
+  NAV_ITEMS, MAX_PINNED_TABS, visibleSections, railSections, sectionOf,
+  sanitizeNavOrder, orderedSections, navOrderOf, isDefaultNavOrder, moveInList, sanitizePinnedTabs, visiblePinnedTabs,
   pinnedDefaultTab, togglePinnedTab, makeDefaultTab
 } from './navPins.js';
 
@@ -83,5 +84,50 @@ describe('pin edits', () => {
   it('makes a pin the default by moving it to the top', () => {
     expect(makeDefaultTab(['customers', 'checkin', 'pricelist'], 'pricelist')).toEqual(['pricelist', 'customers', 'checkin']);
     expect(makeDefaultTab(['customers'], 'checkin')).toEqual(['customers']);
+  });
+});
+
+describe('admin nav order', () => {
+  const ids = (sections) => sections.map((s) => [s.id, s.items.map((i) => i.id)]);
+
+  it('keeps only known ids, each page under its own section, once', () => {
+    expect(sanitizeNavOrder({
+      sections: ['sales', 'nope', 'sales', 'home'],
+      items: { sales: ['lost_sales', 'pricelist', 'customers', 'lost_sales'], bogus: ['users'] }
+    })).toEqual({ sections: ['sales', 'home'], items: { sales: ['lost_sales', 'customers'] } });
+    expect(sanitizeNavOrder(null)).toBeNull();
+    expect(sanitizeNavOrder(['sales'])).toBeNull();
+  });
+
+  it('applies the order and puts anything it doesn’t mention after, in the default order', () => {
+    const order = { sections: ['operations', 'sales'], items: { sales: ['lost_sales'], operations: ['checkin', 'delivery_schedule'] } };
+    expect(ids(orderedSections(order))).toEqual([
+      ['operations', ['checkin', 'delivery_schedule', 'daily_report']],
+      ['sales', ['lost_sales', 'customers', 'route_planner']],
+      ['home', ['dashboard']],
+      ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet']],
+      ['admin', ['users']]
+    ]);
+  });
+
+  it('is the default with no order, and round-trips through navOrderOf', () => {
+    expect(isDefaultNavOrder(null)).toBe(true);
+    expect(isDefaultNavOrder(navOrderOf(orderedSections(null)))).toBe(true);
+    const custom = { sections: ['admin'] };
+    expect(isDefaultNavOrder(custom)).toBe(false);
+    expect(navOrderOf(orderedSections(navOrderOf(orderedSections(custom))))).toEqual(navOrderOf(orderedSections(custom)));
+  });
+
+  it('orders what each person sees, Home still kept for their pins', () => {
+    const order = { sections: ['operations', 'sales', 'home'], items: { sales: ['route_planner', 'customers'] } };
+    expect(ids(visibleSections(rep, order))).toEqual([['operations', ['daily_report']], ['sales', ['route_planner', 'customers']]]);
+    expect(railSections(rep, order).map((s) => s.id)).toEqual(['operations', 'sales', 'home']);
+  });
+
+  it('moves an entry up or down, never past the ends', () => {
+    expect(moveInList(['a', 'b', 'c'], 2, -1)).toEqual(['a', 'c', 'b']);
+    expect(moveInList(['a', 'b', 'c'], 0, 1)).toEqual(['b', 'a', 'c']);
+    expect(moveInList(['a', 'b'], 0, -1)).toEqual(['a', 'b']);
+    expect(moveInList(['a', 'b'], 1, 1)).toEqual(['a', 'b']);
   });
 });

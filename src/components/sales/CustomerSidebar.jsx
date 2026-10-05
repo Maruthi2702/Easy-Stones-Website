@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, User, Clock, Truck, Map as MapIcon, ClipboardList, Tag, TrendingDown, ArrowLeftRight, Boxes,
     Users, Briefcase, Warehouse, Layers, Shield, Home, Pin, PinOff, PanelLeftClose, PanelLeftOpen, X,
-    Sun, Moon, LogOut, UserCheck
+    Sun, Moon, LogOut, UserCheck, ArrowUpDown
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS } from '../../utils/navPins';
+import useNavOrder from './useNavOrder';
+import NavOrderForm from './NavOrderForm';
 import './CustomerSidebar.css';
 
 // Pages, sections and who sees what live in src/utils/navPins.js; only the
@@ -68,7 +70,11 @@ const CustomerSidebar = ({
     const navigate = useNavigate();
     const { user, logout } = useAuth();
 
-    const sections = railSections(user);
+    // Admin-set order of sections and their pages, for everyone (navPins.js).
+    const { order: navOrder, saveOrder: saveNavOrder } = useNavOrder(!!user);
+    const canSetOrder = !!user?.permissions?.includes('manage_users');
+    const [orderFormOpen, setOrderFormOpen] = useState(false);
+    const sections = railSections(user, navOrder);
     const pins = visiblePinnedTabs(user, pinnedTabs);
     const pinsFull = (pinnedTabs || []).length >= MAX_PINNED_TABS;
     const currentSection = sectionOf(crmTab);
@@ -268,6 +274,16 @@ const CustomerSidebar = ({
                                     {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                                     <span>{theme === 'dark' ? 'Light theme' : 'Dark theme'}</span>
                                 </button>
+                                {canSetOrder && (
+                                    <button
+                                        type="button"
+                                        role="menuitem"
+                                        className="side-nav-menu-item"
+                                        onClick={() => { setMenuOpen(false); setOrderFormOpen(true); }}
+                                    >
+                                        <ArrowUpDown size={16} /><span>Side nav order</span>
+                                    </button>
+                                )}
                                 <div className="side-nav-menu-divider" />
                                 <button type="button" role="menuitem" className="side-nav-menu-item danger" onClick={handleLogout}>
                                     <LogOut size={16} /><span>Sign out</span>
@@ -341,6 +357,14 @@ const CustomerSidebar = ({
                 </div>
                 );
             })()}
+
+            {orderFormOpen && (
+                <NavOrderForm
+                    order={navOrder}
+                    onSave={saveNavOrder}
+                    onClose={() => setOrderFormOpen(false)}
+                />
+            )}
         </nav>
     );
 };

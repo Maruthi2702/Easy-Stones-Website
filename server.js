@@ -84,6 +84,7 @@ import createDeliveriesRouter, { deliveryRoomFor, DELIVERY_ROOM_ALL } from './sr
 import createCheckInRouter, { checkinRoomFor, CHECKIN_ROOM_ALL } from './src/routes/checkIn.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
+import createNavOrderRouter from './src/routes/navOrder.js';
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import { linkVisitToSchedule, unlinkVisitFromSchedule, moveVisitOnSchedule } from './src/services/visitSchedule.js';
@@ -2164,6 +2165,8 @@ app.get('/api/user/me', authenticate, async (req, res) => {
 // src/routes/routePlannerFilters.js).
 app.use('/api/user/me/route-planner-filters', createRoutePlannerFiltersRouter({ authenticate }));
 app.use('/api/user/me/pinned-tabs', createPinnedTabsRouter({ authenticate }));
+// The side nav's admin-set order, for everyone (src/routes/navOrder.js).
+app.use('/api/nav-order', createNavOrderRouter({ authenticate, requirePermission }));
 app.use('/api/geocode', createGeocodeRouter({ authenticate }));
 
 // Contact form endpoint
