@@ -14,7 +14,7 @@ describe('nav visibility', () => {
     expect(ids(rep)).toEqual(['customers', 'route_planner', 'daily_report']);
     expect(ids(admin)).toEqual([
       'dashboard', 'lost_sales', 'delivery_schedule', 'daily_report',
-      'inventory_analysis', 'crossover_sheet', 'users'
+      'inventory_analysis', 'crossover_sheet', 'users', 'nav_order'
     ]);
   });
 
@@ -106,7 +106,7 @@ describe('admin nav order', () => {
       ['sales', ['lost_sales', 'customers', 'route_planner']],
       ['home', ['dashboard']],
       ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet']],
-      ['admin', ['users']]
+      ['admin', ['users', 'nav_order']]
     ]);
   });
 

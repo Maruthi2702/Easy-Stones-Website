@@ -1,0 +1,269 @@
+/*
+ * Admin → Side Nav Order (NavOrderTab.jsx). Colours match the form template's
+ * tokens (shared/form/FormModal.css) so it reads like the rest of the admin
+ * screens; dark by default, body.light-theme-active switches them.
+ */
+
+.nvo-page {
+    --nvo-card: #1c1c1e;
+    --nvo-tx: #ffffff;
+    --nvo-label: #e5e5e5;
+    --nvo-mut: #999999;
+    --nvo-bd: rgba(255, 255, 255, 0.18);
+    --nvo-bd2: rgba(255, 255, 255, 0.1);
+    --nvo-gold: #d4af37;
+    --nvo-gold-bd: #c5a028;
+    --nvo-gold-soft: rgba(212, 175, 55, 0.08);
+    --nvo-on-gold: #1a1505;
+    --nvo-hover: rgba(255, 255, 255, 0.07);
+    --nvo-err: #f87171;
+    --nvo-ok: #4ade80;
+
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    font-family: var(--font-main, 'Inter', system-ui, sans-serif);
+    color: var(--nvo-tx);
+}
+
+body.light-theme-active .nvo-page {
+    --nvo-card: #ffffff;
+    --nvo-tx: #0f172a;
+    --nvo-label: #334155;
+    --nvo-mut: #5a6574;
+    --nvo-bd: #cbd5e1;
+    --nvo-bd2: #e2e8f0;
+    --nvo-gold: #d4af37;
+    --nvo-gold-bd: #b8961f;
+    --nvo-gold-soft: rgba(212, 175, 55, 0.1);
+    --nvo-on-gold: #1a1505;
+    --nvo-hover: rgba(15, 23, 42, 0.06);
+    --nvo-err: #dc2626;
+    --nvo-ok: #15803d;
+}
+
+.nvo-inner {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 24px 24px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.nvo-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.nvo-header-icon {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    border-radius: 10px;
+    background: var(--nvo-gold-soft);
+    color: var(--nvo-gold-bd);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nvo-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+/* Save bar: status on the left, buttons on the right; sticks to the top of
+   the page while the list scrolls under it. */
+.nvo-bar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 0;
+    background: var(--bg-primary, #000000);
+}
+
+body.light-theme-active .nvo-bar {
+    background: var(--bg-primary, #f8fafc);
+}
+
+.nvo-status {
+    flex: 1;
+    min-width: 140px;
+    font-size: 13px;
+    color: var(--nvo-mut);
+}
+
+.nvo-status-error,
+.nvo-status-ok {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.nvo-status-error { color: var(--nvo-err); }
+.nvo-status-ok { color: var(--nvo-ok); }
+
+.nvo-btn {
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 10px;
+    border: 1px solid var(--nvo-bd);
+    background: transparent;
+    color: var(--nvo-tx);
+    font: 600 14px var(--font-main, 'Inter', system-ui, sans-serif);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.nvo-btn:hover:not(:disabled) { background: var(--nvo-hover); }
+.nvo-btn:focus-visible { outline: 2px solid var(--nvo-gold); outline-offset: 2px; }
+.nvo-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.nvo-btn-primary {
+    background: var(--nvo-gold);
+    border-color: var(--nvo-gold-bd);
+    color: var(--nvo-on-gold);
+    font-weight: 700;
+}
+
+.nvo-btn-primary:hover:not(:disabled) { background: var(--nvo-gold-bd); }
+
+.nvo-btn-text {
+    border-color: transparent;
+    color: var(--nvo-mut);
+    padding: 0 8px;
+}
+
+/* ── The list ── */
+.nvo-sections,
+.nvo-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nvo-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.nvo-section {
+    border: 1px solid var(--nvo-bd2);
+    border-radius: 12px;
+    background: var(--nvo-card);
+    overflow: hidden;
+}
+
+.nvo-section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 50px;
+    padding: 0 6px 0 14px;
+    background: var(--nvo-gold-soft);
+    border-bottom: 1px solid var(--nvo-bd2);
+}
+
+.nvo-num {
+    width: 24px;
+    height: 24px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--nvo-gold);
+    color: var(--nvo-on-gold);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.nvo-section-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.nvo-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 0 6px 0 18px;
+}
+
+.nvo-item + .nvo-item {
+    border-top: 1px solid var(--nvo-bd2);
+}
+
+.nvo-item-num {
+    width: 18px;
+    flex: none;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--nvo-mut);
+    font-variant-numeric: tabular-nums;
+}
+
+.nvo-item-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    color: var(--nvo-label);
+}
+
+.nvo-arrows {
+    display: inline-flex;
+    gap: 2px;
+    flex: none;
+}
+
+.nvo-arrow {
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--nvo-mut);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.nvo-arrow:hover:not(:disabled) {
+    background: var(--nvo-hover);
+    color: var(--nvo-tx);
+}
+
+.nvo-arrow:focus-visible {
+    outline: 2px solid var(--nvo-gold);
+    outline-offset: 1px;
+}
+
+.nvo-arrow:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+@media (max-width: 639px) {
+    .nvo-inner {
+        padding: 16px 16px 40px;
+    }
+
+    .nvo-arrow {
+        width: 44px;
+        height: 44px;
+    }
+}

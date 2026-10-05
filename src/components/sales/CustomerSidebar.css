@@ -14,7 +14,9 @@
   --sn-text: #b0b0b0;
   --sn-strong: #ffffff;
   --sn-muted: #8a8a8a;
-  --sn-hover: rgba(255, 255, 255, 0.05);
+  --sn-hover: rgba(255, 255, 255, 0.07);
+  --sn-hover-strong: rgba(255, 255, 255, 0.11);
+  --sn-active-hover: rgba(212, 175, 55, 0.2);
   --sn-active-bg: rgba(212, 175, 55, 0.12);
   --sn-active-fg: #e6c25e;
   --sn-bar: #d4af37;
@@ -43,7 +45,9 @@ body.light-theme-active .sales-sidebar.side-nav {
   --sn-text: #475569;
   --sn-strong: #0f172a;
   --sn-muted: #64748b;
-  --sn-hover: rgba(0, 0, 0, 0.04);
+  --sn-hover: rgba(15, 23, 42, 0.06);
+  --sn-hover-strong: rgba(15, 23, 42, 0.09);
+  --sn-active-hover: rgba(212, 175, 55, 0.24);
   --sn-active-bg: rgba(212, 175, 55, 0.12);
   --sn-active-fg: #7a5c0b;
   --sn-bar: #7a5c0b;
@@ -112,6 +116,10 @@ body.light-theme-active .sales-sidebar.side-nav {
   font-family: inherit;
 }
 
+.side-nav-section {
+  transition: color 0.15s;
+}
+
 .side-nav-section-icon {
   width: 40px;
   height: 36px;
@@ -119,7 +127,7 @@ body.light-theme-active .sales-sidebar.side-nav {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s;
 }
 
 .side-nav-section-label {
@@ -128,13 +136,24 @@ body.light-theme-active .sales-sidebar.side-nav {
   white-space: nowrap;
 }
 
-.side-nav-section:hover .side-nav-section-icon {
-  background: var(--sn-hover);
+/* Hover: icon and label both react, clearly enough to see on the rail's
+   tinted background. The section shown in the panel (is-viewing) gets a
+   thin ring instead, so it never looks like the one under the pointer. */
+.side-nav-section:hover {
   color: var(--sn-strong);
 }
 
+.side-nav-section:hover .side-nav-section-icon {
+  background: var(--sn-hover-strong);
+  color: var(--sn-strong);
+}
+
+.side-nav-section:active .side-nav-section-icon {
+  transform: scale(0.95);
+}
+
 .side-nav-section.is-viewing .side-nav-section-icon {
-  background: var(--sn-hover);
+  box-shadow: inset 0 0 0 1.5px var(--sn-border);
   color: var(--sn-strong);
 }
 
@@ -144,6 +163,16 @@ body.light-theme-active .sales-sidebar.side-nav {
 
 .side-nav-section.is-current .side-nav-section-icon {
   background: var(--sn-active-bg);
+  color: var(--sn-active-fg);
+  box-shadow: none;
+}
+
+.side-nav-section.is-current:hover {
+  color: var(--sn-active-fg);
+}
+
+.side-nav-section.is-current:hover .side-nav-section-icon {
+  background: var(--sn-active-hover);
   color: var(--sn-active-fg);
 }
 
@@ -337,6 +366,13 @@ body.light-theme-active .sales-sidebar.side-nav {
   border-radius: 8px;
 }
 
+.side-nav-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 /* Sub-headings inside a panel (Home's "Pinned" and "Pages"). */
 .side-nav-group-label {
   display: flex;
@@ -371,10 +407,15 @@ body.light-theme-active .sales-sidebar.side-nav {
   align-items: center;
   border-radius: 8px;
   margin-bottom: 2px;
+  transition: background 0.12s;
 }
 
 .side-nav-row:hover {
   background: var(--sn-hover);
+}
+
+.side-nav-row.active:hover {
+  background: var(--sn-active-hover);
 }
 
 .side-nav-row.active {
@@ -471,9 +512,74 @@ body.light-theme-active .sales-sidebar.side-nav {
   opacity: 0.35;
 }
 
+/* New staff (no pins yet, tip not dismissed): show every pin faintly so
+   people can see pages are pinnable without hovering. */
+.side-nav-panel.show-pin-hints .side-nav-row-action:not(:disabled) {
+  opacity: 0.45;
+}
+
+.side-nav-panel.show-pin-hints .side-nav-row:hover .side-nav-row-action,
+.side-nav-panel.show-pin-hints .side-nav-row:focus-within .side-nav-row-action {
+  opacity: 1;
+}
+
+.side-nav-tip {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  border-radius: 12px;
+  background: rgba(212, 175, 55, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.side-nav-tip-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--sn-active-fg);
+}
+
+.side-nav-tip-text svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.side-nav-tip-text p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--sn-text);
+}
+
+.side-nav-tip-btn {
+  align-self: flex-end;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--sn-bar);
+  background: var(--sn-panel-bg);
+  color: var(--sn-active-fg);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.side-nav-tip-btn:hover {
+  background: var(--sn-active-bg);
+}
+
+.side-nav-tip-btn:focus-visible {
+  outline: 2px solid var(--sn-bar);
+  outline-offset: 2px;
+}
+
 /* No hover on touch screens: keep the actions reachable. */
 @media (hover: none) {
-  .side-nav-row-action {
+  .side-nav-row-action,
+  .side-nav-panel.show-pin-hints .side-nav-row-action:not(:disabled) {
     opacity: 1;
   }
 }

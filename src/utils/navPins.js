@@ -51,7 +51,9 @@ export const NAV_ITEMS = [
     id: 'crossover_sheet', label: 'Crossover Sheet', section: 'products',
     canSee: (u) => has(u, 'view_crossover_sheet') || isAdmin(u) || !u
   },
-  { id: 'users', label: 'Users & Roles', section: 'admin', canSee: (u) => has(u, 'manage_users') }
+  { id: 'users', label: 'Users & Roles', section: 'admin', canSee: (u) => has(u, 'manage_users') },
+  // The side nav's order for everyone (NavOrderTab.jsx); saving needs manage_users too.
+  { id: 'nav_order', label: 'Side Nav Order', section: 'admin', canSee: (u) => has(u, 'manage_users') }
 ];
 
 export const MAX_PINNED_TABS = 8;

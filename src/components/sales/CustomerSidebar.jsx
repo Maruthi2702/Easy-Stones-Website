@@ -7,8 +7,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS } from '../../utils/navPins';
-import useNavOrder from './useNavOrder';
-import NavOrderForm from './NavOrderForm';
 import './CustomerSidebar.css';
 
 // Pages, sections and who sees what live in src/utils/navPins.js; only the
@@ -24,7 +22,8 @@ const ITEM_ICONS = {
     pricelist: Tag,
     inventory_analysis: Boxes,
     crossover_sheet: ArrowLeftRight,
-    users: Users
+    users: Users,
+    nav_order: ArrowUpDown
 };
 const SECTION_ICONS = {
     home: LayoutDashboard,
@@ -39,6 +38,17 @@ const PANEL_HIDDEN_KEY = 'sideNavPanelHidden';
 const readPanelHidden = () => {
     try {
         return localStorage.getItem(PANEL_HIDDEN_KEY) === '1';
+    } catch {
+        return false;
+    }
+};
+
+// New staff: until someone pins a page or taps "Got it", the pin buttons
+// show faintly on every page and a short tip explains them. Per device.
+const PIN_TIP_KEY = 'sideNavPinTipDismissed';
+const readPinTipDismissed = () => {
+    try {
+        return localStorage.getItem(PIN_TIP_KEY) === '1';
     } catch {
         return false;
     }
@@ -65,15 +75,22 @@ const CustomerSidebar = ({
     toggleTheme,
     pinnedTabs,
     onTogglePin,
-    onMakeDefault
+    onMakeDefault,
+    navOrder
 }) => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
 
-    // Admin-set order of sections and their pages, for everyone (navPins.js).
-    const { order: navOrder, saveOrder: saveNavOrder } = useNavOrder(!!user);
-    const canSetOrder = !!user?.permissions?.includes('manage_users');
-    const [orderFormOpen, setOrderFormOpen] = useState(false);
+    const [pinTipDismissed, setPinTipDismissed] = useState(readPinTipDismissed);
+    const showPinHints = !pinTipDismissed && (pinnedTabs || []).length === 0;
+    const dismissPinTip = () => {
+        setPinTipDismissed(true);
+        try {
+            localStorage.setItem(PIN_TIP_KEY, '1');
+        } catch {
+            // storage unavailable — the tip just comes back next visit
+        }
+    };
     const sections = railSections(user, navOrder);
     const pins = visiblePinnedTabs(user, pinnedTabs);
     const pinsFull = (pinnedTabs || []).length >= MAX_PINNED_TABS;
@@ -274,16 +291,6 @@ const CustomerSidebar = ({
                                     {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
                                     <span>{theme === 'dark' ? 'Light theme' : 'Dark theme'}</span>
                                 </button>
-                                {canSetOrder && (
-                                    <button
-                                        type="button"
-                                        role="menuitem"
-                                        className="side-nav-menu-item"
-                                        onClick={() => { setMenuOpen(false); setOrderFormOpen(true); }}
-                                    >
-                                        <ArrowUpDown size={16} /><span>Side nav order</span>
-                                    </button>
-                                )}
                                 <div className="side-nav-menu-divider" />
                                 <button type="button" role="menuitem" className="side-nav-menu-item danger" onClick={handleLogout}>
                                     <LogOut size={16} /><span>Sign out</span>
@@ -324,12 +331,14 @@ const CustomerSidebar = ({
                     ? shownSection.items.filter(item => !pins.includes(item.id))
                     : shownSection.items;
                 return (
-                <div className="side-nav-panel">
+                <div className={`side-nav-panel${showPinHints ? ' show-pin-hints' : ''}`}>
                     {/* The section's name as the panel's title, with the
                         hide-panel / close button beside it. */}
                     <div className="side-nav-panel-title-row">
                         <h2 className="side-nav-panel-title">{shownSection?.label}</h2>
-                        {panelButton}
+                        <span className="side-nav-title-actions">
+                            {panelButton}
+                        </span>
                     </div>
                     <div className="side-nav-panel-body">
                         {/* Home lists the pins (plus the Dashboard, unless it's
@@ -360,18 +369,21 @@ const CustomerSidebar = ({
                                 {sectionItems.map(item => renderRow(item))}
                             </div>
                         )}
+
+                        {/* Home already explains pins in its empty Pinned list. */}
+                        {showPinHints && !isHome && (
+                            <div className="side-nav-tip" role="note">
+                                <div className="side-nav-tip-text">
+                                    <Pin size={16} aria-hidden="true" />
+                                    <p>Tap the pin next to a page to keep it on Home. Your first pin is the page that opens when you sign in.</p>
+                                </div>
+                                <button type="button" className="side-nav-tip-btn" onClick={dismissPinTip}>Got it</button>
+                            </div>
+                        )}
                     </div>
                 </div>
                 );
             })()}
-
-            {orderFormOpen && (
-                <NavOrderForm
-                    order={navOrder}
-                    onSave={saveNavOrder}
-                    onClose={() => setOrderFormOpen(false)}
-                />
-            )}
         </nav>
     );
 };

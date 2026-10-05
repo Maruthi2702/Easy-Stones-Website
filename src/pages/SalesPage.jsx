@@ -27,6 +27,7 @@ import { formatForDateInput, formatDate, formatInstant, getLocalISOString, viewe
 import DashboardStats from '../components/sales/DashboardStats';
 import CustomerSidebar from '../components/sales/CustomerSidebar';
 import usePinnedTabs from '../components/sales/usePinnedTabs';
+import useNavOrder from '../components/sales/useNavOrder';
 import { pinnedDefaultTab } from '../utils/navPins';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import VisitModal from '../components/sales/VisitModal';
@@ -64,6 +65,7 @@ const PartnersSheet = lazyRetry(() => import('../components/sales/PartnersSheet'
 const CheckInLogPanel = lazyRetry(() => import('../components/sales/CheckInLogPanel'));
 const PriceListPanel = lazyRetry(() => import('../components/sales/PriceListPanel'));
 const UsersRolesTab = lazyRetry(() => import('../components/sales/UsersRolesTab'));
+const NavOrderTab = lazyRetry(() => import('../components/sales/NavOrderTab'));
 const LostSalesTab = lazyRetry(() => import('../components/sales/LostSalesTab'));
 const CrossoverSheetTab = lazyRetry(() => import('../components/sales/CrossoverSheetTab'));
 const InventoryAnalysisTab = lazyRetry(() => import('../components/sales/InventoryAnalysisTab'));
@@ -178,6 +180,9 @@ const SalesPage = () => {
     // Side nav pins (src/utils/navPins.js). The first one they can open is
     // their default page, ahead of the role-based order below.
     const { pinnedTabs, pinnedTabsRef, togglePin: togglePinnedTab, makeDefault: makeDefaultTab } = usePinnedTabs(currentUser);
+    // The admin-set side nav order (Admin → Side Nav Order). One copy here so
+    // the nav and that page always agree: a save shows in the nav at once.
+    const { order: navOrder, saveOrder: saveNavOrder } = useNavOrder(!!currentUser);
 
     const getDefaultTab = () => {
         const searchParams = new URLSearchParams(window.location.search);
@@ -3305,6 +3310,7 @@ const SalesPage = () => {
                 pinnedTabs={pinnedTabs}
                 onTogglePin={togglePinnedTab}
                 onMakeDefault={makeDefaultTab}
+                navOrder={navOrder}
             />
 
             {/* Main Content */}
@@ -3338,6 +3344,20 @@ const SalesPage = () => {
                 {!authLoading && currentUser?.permissions && crmTab === 'users' && currentUser.permissions.includes('manage_users') && (
                     <ErrorBoundary key="users-roles-view">
                         {renderUsersRolesView()}
+                    </ErrorBoundary>
+                )}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'nav_order' && currentUser.permissions.includes('manage_users') && (
+                    <ErrorBoundary key="nav-order-view">
+                        <Suspense fallback={<TabLoader />}>
+                            <NavOrderTab
+                                order={navOrder}
+                                onSave={saveNavOrder}
+                                sidebarToggle={(!isSidebarOpen || isMobile) ? (
+                                    <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
+                                ) : null}
+                            />
+                        </Suspense>
                     </ErrorBoundary>
                 )}
 
