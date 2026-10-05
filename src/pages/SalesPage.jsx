@@ -233,8 +233,15 @@ const SalesPage = () => {
     const [checkInMonthCount, setCheckInMonthCount] = useState(0);
     const [checkInAllTimeCount, setCheckInAllTimeCount] = useState(0);
     const [checkInRefreshTrigger] = useState(0);
+    const [checkInExporting, setCheckInExporting] = useState(false);
+    // Each check-in request is numbered; a response that arrives after a newer
+    // one was sent (the filters or page changed meanwhile) is dropped, so a
+    // slow old answer can't replace the rows or counts for what's selected now.
+    const checkInListSeq = useRef(0);
+    const checkInStatsSeq = useRef(0);
 
     const fetchCheckInStats = async () => {
+        const seq = ++checkInStatsSeq.current;
         try {
             const params = new URLSearchParams({
                 tz: viewerTimeZone,
@@ -247,6 +254,7 @@ const SalesPage = () => {
             }
             if (res.ok) {
                 const data = await res.json();
+                if (seq !== checkInStatsSeq.current) return;
                 setCheckInTodayCount(data.todayCount || 0);
                 setCheckInMonthCount(data.monthCount || 0);
                 setCheckInAllTimeCount(data.allTimeCount || 0);
@@ -535,6 +543,7 @@ const SalesPage = () => {
     };
 
     const fetchCheckIns = useCallback(async (silent = false) => {
+        const seq = ++checkInListSeq.current;
         const cacheKey = `checkins_${checkInPage}_${checkInLimit}_${checkInSearch}_${checkInFilterMonth}_${checkInFilterYear}_${checkInFilterLocation}`;
         const cached = getCachedData(cacheKey);
 
@@ -566,6 +575,7 @@ const SalesPage = () => {
             }
             if (response.ok) {
                 const data = await response.json();
+                if (seq !== checkInListSeq.current) return;
                 let list = [];
                 let totalPages = 1;
                 let totalCount = 0;
@@ -585,9 +595,33 @@ const SalesPage = () => {
         } catch (error) {
             console.error('Error fetching check-ins:', error);
         } finally {
-            setCheckInsLoading(false);
+            // A newer request owns the spinner now.
+            if (seq === checkInListSeq.current) setCheckInsLoading(false);
         }
     }, [checkInPage, checkInLimit, checkInSearch, checkInFilterMonth, checkInFilterYear, checkInFilterLocation, logout]);
+
+    // Every row matching the tab's filters, not just the page on screen —
+    // shared with the /checkin-log page (exportCheckInLog). A failed page stops
+    // the export with a message instead of writing a partial file.
+    const handleExportCheckIns = async () => {
+        if (checkInExporting) return;
+        setCheckInExporting(true);
+        try {
+            // Loaded on click, like the other exports here, so xlsx stays out of the page bundle.
+            const { exportCheckInLog, truncatedExportNote } = await import('../components/sales/exportCheckInLog');
+            const result = await exportCheckInLog({
+                search: checkInSearch, month: checkInFilterMonth, year: checkInFilterYear,
+                location: checkInFilterLocation, timeZone: viewerTimeZone
+            });
+            if (result.truncated) alert(truncatedExportNote(result));
+        } catch (err) {
+            console.error('Error exporting check-ins:', err);
+            if (err.code === 'auth') logout();
+            else alert(err.message || 'Couldn’t export the check-ins. Try again.');
+        } finally {
+            setCheckInExporting(false);
+        }
+    };
 
     const handleViewCheckIn = (checkIn) => {
         setSelectedCheckIn(checkIn);
@@ -3137,6 +3171,8 @@ const SalesPage = () => {
                 onEdit={handleEditCheckIn}
                 onDelete={handleDeleteCheckIn}
                 locations={locations}
+                onExport={handleExportCheckIns}
+                isExporting={checkInExporting}
             />
             </Suspense>
         );

@@ -680,7 +680,19 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       }
       if (specialNotes !== undefined) checkIn.specialNotes = specialNotes;
       if (salesRep !== undefined) checkIn.salesRep = salesRep;
-      if (salesRepEmail !== undefined) checkIn.salesRepEmail = salesRepEmail;
+      if (salesRepEmail !== undefined) {
+        // The rep is picked from staff accounts (the Selection Sheet's list),
+        // so a new address has to be one of ours. Without this, anyone who
+        // could edit a check-in could have the sheet — the customer's name,
+        // phone and selections — emailed to any address (the auto-alert below).
+        // An address already on the record (a rep since deactivated) is kept.
+        const next = String(salesRepEmail || '').trim();
+        if (next && next.toLowerCase() !== String(checkIn.salesRepEmail || '').trim().toLowerCase()) {
+          const isStaff = await User.exists({ email: new RegExp(`^${escapeRegex(next)}$`, 'i') });
+          if (!isStaff) return res.status(400).json({ message: 'Pick the sales rep from the list.' });
+        }
+        checkIn.salesRepEmail = next;
+      }
 
       const sheetChanged = sheetSnapshot() !== sheetBefore;
       if (sheetChanged) {
@@ -693,12 +705,15 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       // Background alert to the sales rep — only when the selections, notes or
       // the rep themselves changed. It used to fire on every save, so re-saving
       // an unchanged sheet emailed the rep again each time.
-      // …and never to someone deactivated in Users & Roles, who may still be
-      // named on an old sheet.
-      const repInactive = checkIn.salesRepEmail
-        ? await User.exists({ email: new RegExp(`^${escapeRegex(checkIn.salesRepEmail)}$`, 'i'), isActive: false })
+      // …only to an active staff account (never someone deactivated in Users &
+      // Roles, who may still be named on an old sheet, and never an outside
+      // address), and only when the editor may send selection sheets at all —
+      // the same permission POST /:id/send-email requires.
+      const canSendSheet = (req.user?.permissions || []).includes('send_checkin_email');
+      const repIsActiveStaff = checkIn.salesRepEmail
+        ? await User.exists({ email: new RegExp(`^${escapeRegex(checkIn.salesRepEmail)}$`, 'i'), isActive: { $ne: false } })
         : null;
-      if (checkIn.salesRepEmail && !repInactive && sheetChanged) {
+      if (checkIn.salesRepEmail && repIsActiveStaff && canSendSheet && sheetChanged) {
         (async () => {
           try {
             console.log(`📡 Automatically sending selection sheet alert to sales rep: ${checkIn.salesRepEmail}`);

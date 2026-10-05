@@ -5,9 +5,9 @@ import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
 import { getAuthToken } from '../api/authToken';
 import { viewerTimeZone } from '../utils/dateUtils';
-import * as XLSX from 'xlsx';
 import { Sun, Moon } from 'lucide-react';
 import CheckInLogPanel from '../components/sales/CheckInLogPanel';
+import { exportCheckInLog, truncatedExportNote } from '../components/sales/exportCheckInLog';
 import { useAuth } from '../context/AuthContext';
 import { usePagination } from '../components/shared/paginationConfig';
 import { useLocationFilter } from '../components/shared/useLocationFilter';
@@ -135,7 +135,14 @@ const CheckInLogPage = () => {
     };
   }, []);
 
+  // Each request is numbered; a response that comes back after a newer one
+  // was sent (filters or page changed meanwhile) is dropped, so a slow old
+  // answer can't replace the rows or counts for what's selected now.
+  const listSeq = useRef(0);
+  const statsSeq = useRef(0);
+
   const fetchStats = async () => {
+    const seq = ++statsSeq.current;
     try {
       const params = new URLSearchParams({
         tz: viewerTimeZone,
@@ -148,6 +155,7 @@ const CheckInLogPage = () => {
       }
       if (res.ok) {
         const data = await res.json();
+        if (seq !== statsSeq.current) return;
         setTodayCount(data.todayCount || 0);
         setMonthCount(data.monthCount || 0);
         setAllTimeCount(data.allTimeCount || 0);
@@ -158,6 +166,7 @@ const CheckInLogPage = () => {
   };
 
   const fetchCheckIns = async (silent = false) => {
+    const seq = ++listSeq.current;
     const cacheKey = `page_checkins_${currentPage}_${limit}_${debouncedSearch}_${filterMonth}_${filterYear}_${filterLocation}`;
     const cached = getCachedData(cacheKey);
 
@@ -190,6 +199,7 @@ const CheckInLogPage = () => {
       }
       if (response.ok) {
         const data = await response.json();
+        if (seq !== listSeq.current) return;
         let list = [];
         let tPages = 1;
         let tCount = 0;
@@ -210,62 +220,29 @@ const CheckInLogPage = () => {
     } catch (err) {
       console.error('Error fetching check-ins:', err);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      // A newer request owns the spinner now.
+      if (seq === listSeq.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
-  // `checkIns` is only whatever page is currently on screen (15-20 rows) —
-  // exporting that instead of every row matching the active filters used to
-  // hand back a silently-truncated file with no indication it was partial.
-  // This re-fetches every matching page (server caps each page at 1000) up
-  // to a generous safety ceiling, using the same filters the table is showing.
-  const EXPORT_PAGE_SIZE = 1000;
-  const EXPORT_MAX_PAGES = 50;
+  // Every row matching the table's filters, not just the page on screen —
+  // see exportCheckInLog (shared with the Check-In Log tab). A failed page
+  // stops the export with a message instead of writing a partial file.
   const handleExport = async () => {
     if (isExporting) return;
     setIsExporting(true);
     try {
-      const rows = [];
-      let page = 1;
-      let totalPages = 1;
-      do {
-        const params = new URLSearchParams({
-          page,
-          limit: EXPORT_PAGE_SIZE,
-          tz: viewerTimeZone,
-          ...(debouncedSearch && { search: debouncedSearch }),
-          ...(filterMonth && { month: filterMonth }),
-          ...(filterYear && { year: filterYear }),
-          ...(filterLocation && { location: filterLocation }),
-        });
-        const response = await authFetch(`${API_URL}/api/checkin?${params}`);
-        if (response.status === 401) {
-          logout();
-          return;
-        }
-        if (!response.ok) break;
-        const data = await response.json();
-        const list = Array.isArray(data) ? data : (data.checkIns || data.data || []);
-        rows.push(...list);
-        totalPages = Array.isArray(data) ? 1 : (data.totalPages || 1);
-        page += 1;
-      } while (page <= totalPages && page <= EXPORT_MAX_PAGES);
-
-      const exportRows = rows.map((c) => ({
-        Date: new Date(c.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
-        Time: new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        Name: c.name,
-        Phone: c.phone,
-        'Company/Contact Name': c.fabricatorCompany || '',
-        'Fabricator Phone': c.fabricatorPhone || '',
-      }));
-      const ws = XLSX.utils.json_to_sheet(exportRows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Check-In Log');
-      XLSX.writeFile(wb, `checkin-log-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const result = await exportCheckInLog({
+        search: debouncedSearch, month: filterMonth, year: filterYear, location: filterLocation, timeZone: viewerTimeZone
+      });
+      if (result.truncated) alert(truncatedExportNote(result));
     } catch (err) {
       console.error('Error exporting check-ins:', err);
+      if (err.code === 'auth') logout();
+      else alert(err.message || 'Couldn’t export the check-ins. Try again.');
     } finally {
       setIsExporting(false);
     }
