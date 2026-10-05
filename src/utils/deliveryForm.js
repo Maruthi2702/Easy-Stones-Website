@@ -96,7 +96,13 @@ export function deliveryToFormValues(delivery, { currentUser = null, customerOpt
     const match = customerOptions.find((o) => o.label?.toLowerCase() === customerName.toLowerCase() || o.value === customerName);
     if (match) customerId = match.value;
   }
-  const date = formatForDateInput(d.date) || todayStr;
+  // A transfer drawn on its arrival day (showOnArrivalDay — the receiving
+  // branch's board, or the arrival week) carries the arrival date in `date`
+  // and the real one in `shipDate`. Opening it with `date` made the arrival
+  // the "Ship date", and any save wrote it back, moving the shipment and the
+  // sender's Daily Report count.
+  const storedDate = d.isIncomingView && d.shipDate !== undefined ? d.shipDate : d.date;
+  const date = formatForDateInput(storedDate) || todayStr;
   return {
     deliveryType: type,
     date,

@@ -71,6 +71,19 @@ describe('deliveryToFormValues', () => {
     expect(v.numberOfSlabs).toBe('0');
   });
 
+  it('opens a transfer drawn on its arrival day with its real ship date, and saves that', () => {
+    const stored = { id: 't1', deliveryType: 'transfer', date: '2026-10-05', expectedArrivalDate: '2026-10-07', location: 'Seattle', transferDestination: 'Spokane', truckId: 'trk_3rd_party' };
+    // What the receiving branch's board (or the arrival week) holds — see showOnArrivalDay.
+    const onArrivalDay = { ...stored, date: '2026-10-07', isIncomingView: true, shipDate: '2026-10-05', viewedAs: 'destination' };
+    const v = deliveryToFormValues(onArrivalDay, { todayStr: '2026-10-05' });
+    expect(v.date).toBe('2026-10-05');
+    expect(v.expectedArrivalDate).toBe('2026-10-07');
+    const p = buildDeliveryPayload({ ...v, notes: 'edited' }, { savedTicket: onArrivalDay, makeId: () => 'x' });
+    expect(p).toMatchObject({ id: 't1', date: '2026-10-05', expectedArrivalDate: '2026-10-07' });
+    // A normal ticket is unchanged.
+    expect(deliveryToFormValues(stored).date).toBe('2026-10-05');
+  });
+
   it('links a saved customer name to its record when the id is missing', () => {
     const v = deliveryToFormValues({ id: 'd', customerName: 'cascade' }, { customerOptions: [{ value: 'c1', label: 'Cascade' }] });
     expect(v.selectedCustomerId).toBe('c1');

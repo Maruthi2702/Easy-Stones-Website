@@ -797,7 +797,10 @@ export async function saveDelivery(delivery) {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Could not save the delivery (${res.status}).`);
+    // The deliveries routes answer { error }; reading only `message` hid the
+    // server's reason ("Transfer From and Transfer To can’t be the same
+    // branch.", "You do not have access to that location") behind a status code.
+    throw new Error(body.error || body.message || `Could not save the delivery (${res.status}).`);
   }
   const updated = await res.json();
   if (!updated || !updated.id) throw new Error('Malformed delivery save response');
