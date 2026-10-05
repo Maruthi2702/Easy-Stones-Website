@@ -290,7 +290,7 @@ body.light-theme-active .sales-sidebar.side-nav {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 10px 16px;
+  padding: 0 10px 16px;
 }
 
 .side-nav-panel-body::-webkit-scrollbar {
@@ -308,17 +308,27 @@ body.light-theme-active .sales-sidebar.side-nav {
   border-top: 1px solid var(--sn-border);
 }
 
-.side-nav-group-head {
+.side-nav-panel-title-row {
+  height: 64px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 40px;
-  padding-top: 4px;
+  padding: 0 10px 0 20px;
 }
 
-.side-nav-group-head .side-nav-group-label {
-  padding: 0 10px;
+.side-nav-panel-title {
+  margin: 0;
+  min-width: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--sn-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .side-nav-head-btn {
@@ -327,13 +337,24 @@ body.light-theme-active .sales-sidebar.side-nav {
   border-radius: 8px;
 }
 
+/* Sub-headings inside a panel (Home's "Pinned" and "Pages"). */
 .side-nav-group-label {
-  padding: 12px 10px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 10px 6px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--sn-muted);
+}
+
+.side-nav-group-count {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .side-nav-empty {
@@ -363,7 +384,7 @@ body.light-theme-active .sales-sidebar.side-nav {
 .side-nav-link {
   flex: 1;
   min-width: 0;
-  height: 40px;
+  height: 42px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -373,7 +394,7 @@ body.light-theme-active .sales-sidebar.side-nav {
   background: transparent;
   color: var(--sn-text);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   text-align: left;
   cursor: pointer;

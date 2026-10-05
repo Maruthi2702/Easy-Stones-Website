@@ -325,14 +325,24 @@ const CustomerSidebar = ({
                     : shownSection.items;
                 return (
                 <div className="side-nav-panel">
+                    {/* The section's name as the panel's title, with the
+                        hide-panel / close button beside it. */}
+                    <div className="side-nav-panel-title-row">
+                        <h2 className="side-nav-panel-title">{shownSection?.label}</h2>
+                        {panelButton}
+                    </div>
                     <div className="side-nav-panel-body">
                         {/* Home lists the pins (plus the Dashboard, unless it's
                             pinned already); every other section only its own pages. */}
                         {isHome && (
                             <div className="side-nav-group">
-                                <div className="side-nav-group-head">
-                                    <span className="side-nav-group-label">Pinned</span>
-                                    {panelButton}
+                                <div className="side-nav-group-label">
+                                    Pinned
+                                    {pins.length > 0 && (
+                                        <span className="side-nav-group-count" title={`You can pin up to ${MAX_PINNED_TABS} pages`}>
+                                            {pins.length}/{MAX_PINNED_TABS}
+                                        </span>
+                                    )}
                                 </div>
                                 {pins.length > 0 ? (
                                     pins.map((id, index) => renderRow(navItem(id), { inPinned: true, index }))
@@ -346,10 +356,7 @@ const CustomerSidebar = ({
 
                         {sectionItems.length > 0 && (
                             <div className="side-nav-group">
-                                <div className="side-nav-group-head">
-                                    <span className="side-nav-group-label">{shownSection.label}</span>
-                                    {!isHome && panelButton}
-                                </div>
+                                {isHome && <div className="side-nav-group-label">Pages</div>}
                                 {sectionItems.map(item => renderRow(item))}
                             </div>
                         )}
