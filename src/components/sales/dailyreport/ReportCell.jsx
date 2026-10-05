@@ -12,6 +12,7 @@ export const ReportCell = ({
   onChange,
   disabled = false,
   derived = false,        // the system's answer; still editable
+  readOnly = false,       // the system's answer, and only the system's — see .is-readonly
   align = 'right',
   width,
   placeholder = '',
@@ -28,21 +29,25 @@ export const ReportCell = ({
     inputMode={type === 'number' ? 'decimal' : 'text'}
     /* no-capitalize: index.css title-cases every text input, which would
        turn "Shadow SJ MQ 3CM" into "Shadow Sj Mq 3Cm". */
-    className={`dr-cell no-capitalize ${derived ? 'is-derived' : ''} ${align === 'left' ? 'is-left' : ''} ${className}`}
+    className={`dr-cell no-capitalize ${derived ? 'is-derived' : ''} ${readOnly ? 'is-readonly' : ''} ${align === 'left' ? 'is-left' : ''} ${className}`}
     style={width ? { width } : undefined}
     value={value === null || value === undefined ? '' : value}
     disabled={disabled}
+    readOnly={readOnly}
+    // Out of the Tab order: the keyboard walks the figures someone can type.
+    tabIndex={readOnly ? -1 : undefined}
     placeholder={placeholder || (type === 'number' ? '—' : '')}
     title={title}
     aria-label={ariaLabel}
     onChange={(e) => {
+      if (readOnly) return;
       const raw = e.target.value;
       if (type === 'number' && raw !== '' && !/^\d*\.?\d*$/.test(raw)) return;
       // Clearing a numeric field means "unsaid", not zero.
       onChange(type === 'number' && raw === '' ? null : raw);
     }}
     onKeyDown={onKeyDown}
-    onFocus={(e) => { e.target.select(); onFocus?.(e); }}
+    onFocus={(e) => { if (!readOnly) e.target.select(); onFocus?.(e); }}
     onBlur={onBlur}
   />
 );

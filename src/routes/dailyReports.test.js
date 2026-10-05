@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { applyDerived, incomingTransferQuery, summarise } from './dailyReports.js';
+import { applyDerived, incomingTransferQuery, summarise, handSetFigures } from './dailyReports.js';
+import { buildDraftPayload } from '../components/sales/dailyreport/savePayload.js';
 
 const baseReport = (overrides = {}) => ({
   status: 'draft',
@@ -105,6 +106,55 @@ describe('applyDerived', () => {
 // Returns arrived with the 'return' delivery type. They follow a stricter
 // fill rule than the capacity fields above, because `returns` is an older
 // hand-typed box and on this sheet a blank and a 0 are different answers.
+// POST /:date/submit runs applyDerived on the stored draft right before it
+// locks the day. The draft was saved by buildDraftPayload, so an untouched
+// slab figure arrives blank and a typed one arrives as typed; the read-only
+// figures arrive as whatever the page loaded, possibly hours ago.
+describe('applyDerived — at submit', () => {
+  const morningDraft = () => baseReport({
+    visitors: { homeowners: 2, fabricators: 1, designers: null },
+    deliveries: { assigned: 3, capacity: null },        // untouched → blank
+    pickups: { assigned: 0, capacity: 6 },               // typed
+    transfers: [
+      { fromTo: 'SEA — SLC', count: 1, slabs: 40, auto: true, direction: 'out' },  // slabs typed
+      { fromTo: 'DAL — HOU', count: 2, slabs: 9, auto: false, direction: 'out' }   // added by hand
+    ]
+  });
+  const evening = () => baseDerived({
+    visitorCheckIns: 9,
+    deliveriesAssigned: 6,
+    pickupsAssigned: 2,
+    deliveriesSlabs: 31,
+    transfers: [
+      { fromTo: 'SEA — SLC', count: 3, slabs: 120, auto: true, direction: 'out' },
+      { fromTo: 'SEA — SPO', count: 1, slabs: 44, auto: true, direction: 'out' }
+    ]
+  });
+
+  it('signs off the evening check-ins and schedule counts, not the morning page', () => {
+    const r = applyDerived(morningDraft(), evening());
+    expect(r.visitors.homeowners).toBe(9);
+    expect(r.deliveries.assigned).toBe(6);
+    expect(r.pickups.assigned).toBe(2);
+  });
+
+  it('fills an untouched slab figure fresh and keeps a typed one', () => {
+    const r = applyDerived(morningDraft(), evening());
+    expect(r.deliveries.capacity).toBe(31);
+    expect(r.pickups.capacity).toBe(6);
+    expect(r.visitors.fabricators).toBe(1);
+  });
+
+  it('takes transfer counts and routes from the tickets, keeping typed slabs and hand-added lines', () => {
+    const r = applyDerived(morningDraft(), evening());
+    expect(r.transfers).toEqual([
+      { fromTo: 'SEA — SLC', count: 3, slabs: 40, auto: true, direction: 'out' },
+      { fromTo: 'SEA — SPO', count: 1, slabs: 44, auto: true, direction: 'out' },
+      { fromTo: 'DAL — HOU', count: 2, slabs: 9, auto: false, direction: 'out' }
+    ]);
+  });
+});
+
 describe('applyDerived — returns', () => {
   it('fills both cells from the day’s return tickets', () => {
     const report = baseReport();
@@ -190,5 +240,41 @@ describe('summarise (month view and CSV figures)', () => {
     expect(s.transferCountIn).toBe(3);
     expect(s.transferSlabsIn).toBe(14);
     expect(summarise({ date: '2026-10-05', location: 'Kent' })).toMatchObject({ transferCountIn: 0, transferSlabsIn: 0 });
+  });
+});
+
+describe('handSetFigures — a correction typed earlier survives a reload and Submit', () => {
+  const route = 'SEA — SLC';
+  // As stored after a visit where someone typed Deliveries slabs 25 and an
+  // auto transfer line's slabs 40 (untouched figures are saved blank / dropped).
+  const stored = () => baseReport({
+    deliveries: { assigned: 5, capacity: 25 },
+    pickups: { assigned: 1, capacity: null },
+    transfers: [{ fromTo: route, count: 2, slabs: 40, auto: true, direction: 'out' }]
+  });
+  const derived = baseDerived({ deliveriesSlabs: 27, pickupsSlabs: 4, transfers: [{ fromTo: route, count: 2, slabs: 120, auto: true, direction: 'out' }] });
+
+  it('lists what a person set, read before the schedule fills the blanks', () => {
+    expect(handSetFigures(stored())).toEqual({ capacity: ['deliveries'], transferSlabs: [`out:${route}`] });
+    expect(handSetFigures(baseReport())).toEqual({ capacity: [], transferSlabs: [] });
+  });
+
+  it('a save after reloading keeps them, and the submit refresh only fills the blanks', () => {
+    // Reload: GET reports what was typed, then fills the blanks for the screen.
+    const report = stored();
+    const handSet = handSetFigures(report);
+    applyDerived(report, derived);
+    expect(report.pickups.capacity).toBe(4);
+    // The next save (e.g. the one right before Submit) with the sheet's
+    // touched sets seeded from handSet — nothing typed this visit.
+    const body = buildDraftPayload(report, new Set(handSet.capacity), new Set(handSet.transferSlabs));
+    expect(body.deliveries.capacity).toBe(25);
+    expect(body.pickups.capacity).toBe(null);
+    expect(body.transfers).toHaveLength(1);
+    // /submit re-derives before locking: corrections stay, blanks are filled.
+    applyDerived(body, derived);
+    expect(body.deliveries.capacity).toBe(25);
+    expect(body.pickups.capacity).toBe(4);
+    expect(body.transfers[0].slabs).toBe(40);
   });
 });

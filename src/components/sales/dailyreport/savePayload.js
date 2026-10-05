@@ -4,10 +4,17 @@
  * Pulled out of DailyReportTab as its own pure module so the rule can be unit
  * tested without a DOM: an incident (2026-08-28) shipped a version of this
  * that stripped untouched auto figures on *every* save, including the one
- * immediately before submitting — since /submit never re-derives, that
- * permanently wiped Deliveries/Pick-ups slabs and transfer lines off of
- * several already-submitted reports the moment they were signed off. See
- * savePayload.test.js for the regression coverage.
+ * immediately before submitting — and since /submit didn't re-derive back
+ * then, that permanently wiped Deliveries/Pick-ups slabs and transfer lines
+ * off of several already-submitted reports the moment they were signed off.
+ *
+ * The first fix sent the page's figures verbatim ("freeze") for that last
+ * save. That stopped the wipe but locked in whatever the page had loaded, so
+ * a sheet opened in the morning signed off the morning's check-ins. Since
+ * 2026-10-05 /submit re-derives itself (applyDerived, same as the 11:59
+ * auto-submit), so every save — the one before Submit included — is a draft
+ * save, and the blanks it leaves are filled with the figures as of the
+ * submit. See savePayload.test.js and applyDerived's tests.
  */
 
 /**
@@ -33,13 +40,10 @@ export const buildDraftPayload = (report, touchedCapacity, touchedTransferSlabs)
 };
 
 /**
- * The single decision point for what a save actually sends.
- *
- * `freeze: true` is for the save that immediately precedes submitting —
- * /submit locks in whatever this PUT just stored and never re-derives again,
- * so that save has to carry the real, currently-displayed figures verbatim
- * rather than the blanked-out draft version. Everything else goes through
- * buildDraftPayload so untouched figures stay live.
+ * The single decision point for what a save actually sends: always the draft
+ * body, so untouched figures stay live. Safe for the save right before Submit
+ * only because POST /submit re-derives before locking — if that ever stops
+ * being true, the 2026-08-28 incident comes straight back.
  */
-export const buildSaveBody = (report, { touchedCapacity, touchedTransferSlabs, freeze = false }) =>
-  freeze ? report : buildDraftPayload(report, touchedCapacity, touchedTransferSlabs);
+export const buildSaveBody = (report, { touchedCapacity, touchedTransferSlabs }) =>
+  buildDraftPayload(report, touchedCapacity, touchedTransferSlabs);

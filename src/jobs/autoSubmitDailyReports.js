@@ -23,14 +23,13 @@ import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail
  * auto transfer line nobody hand-corrected) as null after every autosave, so
  * they keep re-deriving from the schedule on the next page load — see
  * buildDraftPayload in src/components/sales/dailyreport/savePayload.js and the
- * 2026-08-28 incident note on applyDerived in ../routes/dailyReports.js. The
- * manual Submit button covers for that by having the browser PUT the real,
- * currently-displayed values immediately before calling POST .../submit — but
- * there is no browser here, so nothing ever did that PUT, and a day nobody
- * reopened after their last edit was freezing at whatever null the previous
- * autosave had deliberately left. The fix is to run the same derive this job's
- * own load route runs, apply it, and persist the result as part of the very
- * same write that sets status to submitted.
+ * 2026-08-28 incident note on applyDerived in ../routes/dailyReports.js. A day
+ * nobody reopened after their last edit was freezing at whatever null the
+ * previous autosave had deliberately left. The fix is to run the same derive
+ * the load route runs, apply it, and persist the result as part of the very
+ * same write that sets status to submitted. The manual Submit route (POST
+ * /:date/submit) does the same since 2026-10-05, so both sign off the figures
+ * as of the moment they lock.
  */
 
 const CUTOFF_MINUTES = 23 * 60 + 59;     // 11:59 PM, in the branch's timezone

@@ -165,10 +165,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const saveTimer = useRef(null);
   const skipAutosave = useRef(true);
   // The promise of whatever save() call is currently in flight, so submitDay
-  // can wait for it to actually land before sending the freeze save. Clearing
-  // the debounce timer only stops a save that hasn't fired yet — one already
-  // sent to the server races the freeze save on the wire, and if its
-  // stripped/draft-style body arrives second, submit locks that in forever.
+  // can wait for it to actually land before its own save and the submit.
+  // Clearing the debounce timer only stops a save that hasn't fired yet — one
+  // already on the wire could otherwise arrive after the submit and be
+  // refused (409), or be the one the server re-derives on instead of the
+  // last edit.
   const pendingSave = useRef(null);
   // Which of the system-derived slab figures this person has actually typed
   // into this session, as opposed to ones just sitting on screen because
@@ -211,8 +212,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       if (!res.ok) throw new Error((await res.json()).message || 'Could not load that day.');
       const data = await res.json();
       skipAutosave.current = true;
-      touchedCapacity.current = new Set();
-      touchedTransferSlabs.current = new Set();
+      // Figures someone typed on an earlier visit count as touched, so this
+      // visit's saves — and the one before Submit — keep them instead of
+      // blanking them for the schedule to refill (handSetFigures on the server).
+      touchedCapacity.current = new Set(data.handSet?.capacity || []);
+      touchedTransferSlabs.current = new Set(data.handSet?.transferSlabs || []);
       setReport({ ...emptyReport(date, location), ...data.report });
       setSlabRange(data.slabRange || null);
       setShippedEarlier(data.transfersShippedEarlier || []);
@@ -237,7 +241,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   useEffect(() => { loadDayRef.current = loadDay; }, [loadDay]);
 
   // ── autosave the draft ────────────────────────────────────────────────────
-  const save = useCallback((payload, { freeze = false } = {}) => {
+  const save = useCallback((payload) => {
     if (!canEdit || payload.status === 'submitted') return Promise.resolve();
     setSaving(true);
     const run = (async () => {
@@ -246,8 +250,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
           method: 'PUT',
           body: JSON.stringify(buildSaveBody(payload, {
             touchedCapacity: touchedCapacity.current,
-            touchedTransferSlabs: touchedTransferSlabs.current,
-            freeze
+            touchedTransferSlabs: touchedTransferSlabs.current
           }))
         });
         // 409 means the day was locked under us — someone else submitted it, or
@@ -343,7 +346,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
 
     if (e.key === 'Enter') {
       e.preventDefault();
-      const cells = [...(e.target.closest('tbody')?.querySelectorAll('.dr-cell:not(:disabled)') || [])];
+      const cells = [...(e.target.closest('tbody')?.querySelectorAll('.dr-cell:not(:disabled):not([readonly])') || [])];
       const here = cells.indexOf(e.target);
       const onLastRow = here >= cells.length - 1;
       if (onLastRow) addRow();
@@ -390,11 +393,13 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const submitDay = async () => {
     clearTimeout(saveTimer.current);
     // An autosave PUT may already be on the wire — cancelling the timer only
-    // stops one that hasn't fired yet. Wait for it to land before sending the
-    // freeze save, so its stripped/draft-style body can't arrive second and
-    // get locked in permanently by submit.
+    // stops one that hasn't fired yet. Wait for it to land first.
     if (pendingSave.current) await pendingSave.current.catch(() => {});
-    await save(report, { freeze: true });
+    // An ordinary draft save, not what this page loaded: /submit re-derives
+    // the system's figures as of now before it locks the day (applyDerived),
+    // keeping only what someone typed — so a sheet left open since the
+    // morning still signs off tonight's check-ins and tickets.
+    await save(report);
     const res = await authFetch(`${API_URL}/api/daily-reports/${date}/submit`, {
       method: 'POST',
       body: JSON.stringify({ location })
@@ -677,7 +682,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
               title="Visitors"
               icon={Users}
               source={{ kind: 'auto', label: `${n(report.visitors.homeowners)} from the check-in log` }}
-              footnote="Homeowners counted from today's check-ins. Type over it if someone didn't sign in."
+              footnote="Homeowners are counted from today's check-in log. If someone didn't sign in, check them in on the kiosk."
             >
               <table className="dr-table">
                 <tbody>
@@ -689,9 +694,14 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                     <tr key={path}>
                       <td>{label}</td>
                       <td className="dr-num">
+                        {/* Homeowners is the check-in log's count, refreshed on
+                            every load (applyDerived), so it can't be typed over —
+                            a typed figure would just snap back. */}
                         <ReportCell
                           value={report.visitors[path.split('.')[1]]}
                           derived={derived}
+                          readOnly={derived}
+                          title={derived ? 'From the check-in log' : undefined}
                           disabled={locked}
                           ariaLabel={label}
                           onChange={(v) => setPath(path, v)}
@@ -709,7 +719,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
               title="Delivery & Pick-Up Summary"
               icon={Truck}
               source={{ kind: 'auto', label: 'counted from the schedule' }}
-              footnote="The count comes from the schedule. Slabs is how many went out on them."
+              footnote="The count comes from the schedule; change the delivery board to change it. Slabs is how many went out on them."
             >
               <table className="dr-table">
                 <thead>
@@ -720,8 +730,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                     <tr key={key}>
                       <td>{label}</td>
                       <td className="dr-num">
-                        <ReportCell value={report[key].assigned} derived disabled={locked}
-                          ariaLabel={`${label} count`} onChange={(v) => setPath(`${key}.assigned`, v)} />
+                        <ReportCell value={report[key].assigned} derived readOnly disabled={locked}
+                          title="From the schedule" ariaLabel={`${label} count`} onChange={() => {}} />
                       </td>
                       <td className="dr-num">
                         <ReportCell value={report[key].capacity} derived disabled={locked}
@@ -809,7 +819,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                         </select>
                       </td>
                       <td className="dr-num">
-                        <ReportCell value={t.count} derived={t.auto} disabled={locked} ariaLabel="Transfer count"
+                        {/* An auto line's count is its tickets, rebuilt on every
+                            load — fix the ticket, not the report. A line added
+                            by hand is the report's own and stays editable. */}
+                        <ReportCell value={t.count} derived={t.auto} readOnly={t.auto} disabled={locked} ariaLabel="Transfer count"
+                          title={t.auto ? 'From the transfer tickets; change the ticket to change this' : undefined}
                           onChange={(v) => patch(r => { r.transfers[i].count = v; return r; })} />
                       </td>
                       <td className="dr-num">
@@ -823,7 +837,10 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                           })} />
                       </td>
                       <td className="dr-x">
-                        {!locked && (
+                        {/* Same for removing one: an auto line comes back from its
+                            tickets on the next load, so only hand-added lines
+                            get an X. Cancel the ticket to drop an auto line. */}
+                        {!locked && !t.auto && (
                           <button className="dr-rowdel" aria-label="Remove transfer"
                             onClick={() => patch(r => { r.transfers.splice(i, 1); return r; })}><X size={13} /></button>
                         )}

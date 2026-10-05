@@ -56,25 +56,26 @@ describe('buildSaveBody', () => {
   // before /submit permanently froze whatever had just been saved — wiping
   // Deliveries/Pick-ups slabs and transfer lines off of submitted reports
   // that nobody had ever hand-corrected.
-  it('freeze sends the real figures untouched, even with nothing hand-typed', () => {
-    const report = baseReport();
-    const body = buildSaveBody(report, {
-      touchedCapacity: new Set(),
-      touchedTransferSlabs: new Set(),
-      freeze: true
-    });
-    expect(body.deliveries.capacity).toBe(27);
-    expect(body.pickups.capacity).toBe(0);
-    expect(body.transfers).toHaveLength(3);
-  });
-
-  it('without freeze, falls back to the draft-stripping behavior', () => {
+  //
+  // The save before Submit is now a draft save like any other: POST /submit
+  // re-derives before locking (see 'applyDerived — at submit' in
+  // src/routes/dailyReports.test.js), so the blanks this leaves are filled
+  // with the figures as of the submit rather than locked in empty.
+  it('sends the draft body, leaving untouched figures for the server to fill', () => {
     const body = buildSaveBody(baseReport(), {
       touchedCapacity: new Set(),
-      touchedTransferSlabs: new Set(),
-      freeze: false
+      touchedTransferSlabs: new Set()
     });
     expect(body.deliveries.capacity).toBeNull();
     expect(body.transfers).toHaveLength(1);
+  });
+
+  it('carries what was typed this session through to the submit', () => {
+    const body = buildSaveBody(baseReport(), {
+      touchedCapacity: new Set(['deliveries']),
+      touchedTransferSlabs: new Set(['out:SEA — SLC'])
+    });
+    expect(body.deliveries.capacity).toBe(27);
+    expect(body.transfers.map(t => t.fromTo)).toEqual(['SEA — SLC', 'DAL — HOU']);
   });
 });

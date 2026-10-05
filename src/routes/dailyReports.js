@@ -3,7 +3,7 @@ import DailyReport from '../models/DailyReport.js';
 import { buildDayPdf, buildMonthPdf, dayPdfFileName, monthPdfFileName } from '../utils/dailyReportPdf.js';
 import { sendEmail } from '../services/emailService.js';
 import Delivery from '../models/Delivery.js';
-import { BRANCH_NAMES, branchCode, isBranch } from '../config/branches.js';
+import { BRANCH_NAMES, branchCode, isBranch, utcOffsetMinutes } from '../config/branches.js';
 import OfficeCheckIn from '../models/OfficeCheckIn.js';
 import Location from '../models/Location.js';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
@@ -256,6 +256,28 @@ async function transfersShippedEarlier(date, location) {
  * built what it sent here, but this function is what that payload has to be
  * correct against, so it gets the same regression coverage.
  */
+/**
+ * Which slab figures on a stored report a person set, as opposed to ones the
+ * schedule fills in on every load. Read before applyDerived, while the record
+ * is still as saved: a draft save blanks an untouched Deliveries / Pick-ups
+ * slab figure and drops an untouched auto transfer line (buildDraftPayload),
+ * so anything still there was typed (or signed off).
+ *
+ * The sheet seeds its "touched" sets from this on every load. Without it a
+ * correction typed earlier looked untouched after a reload, so the next save —
+ * including the one before Submit — blanked it and /submit locked the
+ * schedule's figure instead.
+ */
+export function handSetFigures(report) {
+  const set = (v) => v !== null && v !== undefined;
+  return {
+    capacity: ['deliveries', 'pickups'].filter((k) => set(report?.[k]?.capacity)),
+    transferSlabs: (report?.transfers || [])
+      .filter((t) => t.auto && set(t.slabs))
+      .map((t) => `${t.direction || 'out'}:${t.fromTo}`)
+  };
+}
+
 export function applyDerived(report, derived) {
   if (report.status === 'submitted') return report;
 
@@ -524,10 +546,13 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         deriveFromSystem(date, location, tz),
         transfersShippedEarlier(date, location)
       ]);
+      // Before applyDerived fills the blanks — see handSetFigures.
+      const handSet = handSetFigures(report);
       applyDerived(report, derived);
 
       res.json({
         transfersShippedEarlier: shippedEarlier,
+        handSet,
         report: report.toObject({ depopulate: true }),
         derived: {
           visitorCheckIns: derived.visitorCheckIns,
@@ -637,6 +662,17 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       if (report.status === 'submitted') {
         return res.status(409).json({ message: 'This day was already submitted.' });
       }
+
+      // Sign off what the system shows now, not what the page showed when it
+      // was opened. Homeowners, the Count figures and auto transfer lines are
+      // read-only on the sheet, and the draft save just before this one leaves
+      // untouched slab figures blank (buildDraftPayload) — so a report opened
+      // in the morning and submitted at night would otherwise lock in the
+      // morning's check-ins. Same derive/apply the 11:59 auto-submit runs, on
+      // the branch's own clock like it, so the two can't disagree. Anything a
+      // person typed is kept (applyDerived only fills blanks). If the derive
+      // throws, the catch below answers 500 and nothing is locked.
+      applyDerived(report, await deriveFromSystem(date, location, utcOffsetMinutes(location)));
 
       report.status = 'submitted';
       report.submittedBy = req.user?.displayName || req.user?.username || '';

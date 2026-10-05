@@ -31,8 +31,6 @@ Both scripts only preview until run with `--apply`.
 
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
-| 1 | Editing **Count** on an auto-filled transfer line doesn't stick. A draft save drops the line unless Slabs was also touched, and every reload resets Count from the tickets. | `DailyReportTab.jsx` transfer rows, `buildDraftPayload` in `savePayload.js`, `applyDerived` in `src/routes/dailyReports.js` | Make Count read-only on auto-filled lines, like From/To already are (or decide it should be overridable and persist it) | Open |
-| 2 | Deleting an auto-filled transfer line (X) doesn't stick — it's rebuilt from the tickets on the next reload. | `DailyReportTab.jsx`, `applyDerived` | Hide the X on auto-filled lines; the fix belongs on the ticket | Open |
 | 3 | The receiving branch can drag the sender's Pending transfers onto its own driver. The transfer then vanishes from the sender's board (no column for that driver) but still counts as shipped, and the drop day is saved as the *ship* date. | `?pending=true` in `GET /api/deliveries`, `scopeDeliveryQueryToLocations`, `PATCH /deliveries/:id/assignment` | Blocked on question A | Open |
 | 4 | A transfer on a branch-only driver is invisible on the receiving branch's board (no column for that driver). 1 of 76 transfers today (Sergio); the rest use the all-branch "3rd party - delivery" driver, which shows on every board. | `BoardGrid.jsx` columns, `fetchDriverUsers` in `src/api/deliverySchedule.js` | Blocked on question B | Open |
 | 5 | No "mark received" button. `PATCH /deliveries/:id/receive` and the report's received fields exist, but nothing calls them. | `src/routes/deliveries.js`, inbound `ticketIds` in `deriveFromSystem` | New feature: a Received button on incoming lines or cards | Open |
@@ -52,16 +50,13 @@ Both scripts only preview until run with `--apply`.
 ### Suggested order
 
 1. Update the live data (above).
-2. Issues 1 and 2 together — small, and stop report edits being silently lost.
+2. ~~Issues 1 and 2~~ — fixed (see Fixed).
 3. Answer A and B, then issues 3 and 4.
 4. Decide whether 5 and 6 are worth building.
 
 ## Daily Report — other
 
-- **Hand-corrected Homeowners count reverts on reload**, then the next autosave
-  overwrites it (reported 2026-09-20, not re-checked since). `applyDerived`
-  sets `visitors.homeowners` from check-ins on every load. Same class of bug
-  as issue 1 above.
+Nothing open.
 
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
 
@@ -99,7 +94,7 @@ permission holes (O4, O19).
 | O16 | Draft PDFs and emails, the month view and the CSV under-report (missing auto slabs and transfers, stale Homeowners): they read stored drafts without re-deriving. | PDF / month / export routes in `src/routes/dailyReports.js` | `applyDerived` drafts before summarising | Open |
 | O17 | Homeowners can count different check-ins on screen than at submit: the day window uses the viewer's browser offset on GET/overview, the branch's current offset at submit (wrong after a DST change). | `src/routes/dailyReports.js` (~line 650) | One rule: the branch's offset on the report's date | Open |
 | O18 | The All-locations overview runs the same all-branch delivery query 13 times per load. | `deriveFromSystem` / overview in `src/routes/dailyReports.js` | Query once, split by branch | Open |
-| O22 | (In the uncommitted read-only / submit-refresh work, as of 2026-10-05) after a reload, slab corrections typed earlier are lost on Submit; Enter jumps into the new read-only cells; manual submit isn't atomic against the 11:59 job (possible double email). | `DailyReportTab.jsx`, `savePayload.js`, `/submit` in `src/routes/dailyReports.js` | Check before that work is committed | Open |
+| O22 | Manual Submit isn't atomic against the 11:59 auto-submit: both can sign the same day off and the Seattle email can go twice. (The other two O22 items — slab corrections typed on an earlier visit lost at Submit, and Enter jumping into read-only cells — are fixed; see Fixed.) | `/:date/submit` in `src/routes/dailyReports.js`, `src/jobs/autoSubmitDailyReports.js` | Claim the day with a conditional update on `status: 'draft'`, as the job does | Open |
 
 ### Check-In Log
 
@@ -121,6 +116,9 @@ permission holes (O4, O19).
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-05 | Daily Report: after a reload, slab corrections typed on an earlier visit looked untouched, so the next save (the one before Submit included) blanked them and Submit locked the schedule's figure. GET now returns `handSet` and the sheet keeps them. Enter also skips the new read-only cells. | (not committed yet) |
+| 2026-10-05 | Daily Report: a sheet left open all day submitted the figures it loaded that morning (check-ins, Count figures, transfer lines, untouched slabs). `/submit` now re-derives before locking, like the 11:59 auto-submit. | (not committed yet) |
+| 2026-10-05 | Daily Report: hand edits to Homeowners, Deliveries / Pick-ups Count and auto transfer Count snapped back on reload, and removing an auto transfer line didn't stick (old issues 1, 2 and the Homeowners entry). All four are now read-only, from the check-in log / schedule / tickets; auto lines have no X. | (not committed yet) |
 | 2026-10-05 | Month view, month PDF and CSV counted only outgoing transfers — incoming now shown beside them | `32caf27` |
 | 2026-09-29 | Driverless transfers counted as incoming on the receiving branch's Daily Report | `20e7102` |
 | 2026-09-29 | Transfers could be saved with no expected arrival, no From/To branch, or From = To | `354f986` |

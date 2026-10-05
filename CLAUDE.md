@@ -117,11 +117,20 @@ what a *final, frozen* save needs (“persist exactly what's on screen, because
 nothing will ever fill this in again”). Before reusing one save path for both
 “autosave” and “finalize,” check whether anything downstream of finalize ever
 gets a second chance to fix what was sent — if not, finalize needs the real
-values, not the draft's placeholder-stripped ones. See
+values, not the draft's placeholder-stripped ones. The first fix sent the
+page's figures verbatim for the save before Submit; since 2026-10-05 `POST
+/:date/submit` instead re-derives (`applyDerived`, like the 11:59
+auto-submit) before locking, so a sheet left open all day still signs off
+the current check-ins and tickets, and every save is a draft save. That is
+only safe because `GET /:date` also returns `handSet` (`handSetFigures`):
+the slab figures a person saved on an earlier visit, which the sheet seeds
+its touched sets from on load. Without it a correction looked untouched after
+a reload and the next save (the one before Submit included) blanked it. See
 `buildSaveBody`/`buildDraftPayload` in
-`src/components/sales/dailyreport/savePayload.js` and their tests for the
-fix, and `applyDerived`'s tests in `src/routes/dailyReports.test.js` for the
-merge contract those payloads have to be correct against.
+`src/components/sales/dailyreport/savePayload.js` and their tests, and
+`applyDerived`'s tests in `src/routes/dailyReports.test.js` (including
+"at submit") for the merge contract those payloads have to be correct
+against.
 
 ## Automated tests are narrow — most verification is still manual
 
