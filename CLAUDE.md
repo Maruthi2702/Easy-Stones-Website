@@ -157,7 +157,11 @@ unsaved-changes check, the save body with its stale-save
 and Add / Edit customer's rules (`src/utils/customerForm.js`: stored option
 values, new-customer defaults, record ↔ form mapping, required fields, the
 email/marketing-email sync, the change count, and what a business-card scan
-fills in).
+fills in), and the Delivery form's packing-list reader
+(`src/utils/packingListPdf.js`: reading packing list #, Bill To / Ship To,
+the order row and the slab count out of a StoneProfits packing list PDF, and
+which empty form fields an upload fills — Sales Orders, Pick Tickets and
+Invoices read the same way).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

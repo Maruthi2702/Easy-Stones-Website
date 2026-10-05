@@ -24,6 +24,7 @@ import { isWeekendDate, dayLabel } from '../../../utils/deliveryWeek';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
+import { planPackingListAutofill } from '../../../utils/packingListPdf';
 
 // One option per stop a truck can actually hold. This stopped at 8 while a
 // truck takes MAX_TRUCK_CAPACITY, which was survivable while stop numbers were
@@ -284,6 +285,9 @@ const DeliveryModal = ({
   const [isReadingPdf, setIsReadingPdf] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [restoredNotice, setRestoredNotice] = useState(false);
+  // What the last uploaded packing list filled in (or left alone because the
+  // field already had something different) — shown under the PDF field.
+  const [pdfAutofill, setPdfAutofill] = useState(null);
 
   // Scoped by which ticket is open (or 'new') so a draft from editing one
   // delivery never resurfaces inside a different one.
@@ -398,6 +402,7 @@ const DeliveryModal = ({
       setFreightFee(initialData.freightFee ? formatAmount(initialData.freightFee) : '');
       setPackingListUrl(initialData.packingListUrl || '');
       setPackingListFilename(initialData.packingListFilename || '');
+      setPdfAutofill(null);
       setNumberOfSlabs(initialData.numberOfSlabs === null || initialData.numberOfSlabs === undefined ? '0' : String(initialData.numberOfSlabs));
       setCustomerDropOff(Boolean(initialData.customerDropOff));
       initialSnapshot.current = JSON.stringify(initialData);
@@ -437,6 +442,7 @@ const DeliveryModal = ({
     setFreightFee('');
     setPackingListUrl('');
     setPackingListFilename('');
+    setPdfAutofill(null);
     setNumberOfSlabs('0');
     setCustomerDropOff(false);
     setError('');
@@ -444,6 +450,23 @@ const DeliveryModal = ({
   };
 
   const markDirty = () => setIsDirty(true);
+
+  // Fill the form's empty fields from an uploaded StoneProfits packing list,
+  // Sales Order, Pick Ticket or Invoice.
+  // Reads the latest values from formStateRef, not this render's, since the
+  // upload may finish after someone has typed into the form.
+  const applyPackingListAutofill = (parsed) => {
+    const now = formStateRef.current || {};
+    const { updates, filled, kept } = planPackingListAutofill(now, parsed, activeCustomerOptions);
+    if (updates.soNumber !== undefined) setSoNumber(updates.soNumber);
+    if (updates.numberOfSlabs !== undefined) setNumberOfSlabs(updates.numberOfSlabs);
+    if (updates.customerName !== undefined) setCustomerName(updates.customerName);
+    if (updates.selectedCustomerId !== undefined) setSelectedCustomerId(updates.selectedCustomerId);
+    if (updates.salesRepName !== undefined) setSalesRepName(updates.salesRepName);
+    if (updates.address !== undefined) setAddress(updates.address);
+    const source = parsed.documentType || 'Packing List';
+    setPdfAutofill(filled.length || kept.length ? { source, filled, kept } : null);
+  };
 
   // Compute booked capacity count per truck for the selected date. Will calls
   // never ride on a truck, so older ones still carrying a truckId are left out
@@ -1198,6 +1221,7 @@ const DeliveryModal = ({
                             const data = await res.json();
                             setPackingListUrl(data.url);
                             setPackingListFilename(data.filename || file.name);
+                            if (data.packingList) applyPackingListAutofill(data.packingList);
                             markDirty();
                           } else {
                             const reader = new FileReader();
@@ -1248,13 +1272,29 @@ const DeliveryModal = ({
                     </a>
                     <button
                       type="button"
-                      onClick={() => { setPackingListUrl(''); setPackingListFilename(''); markDirty(); }}
+                      onClick={() => { setPackingListUrl(''); setPackingListFilename(''); setPdfAutofill(null); markDirty(); }}
                       style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '0.35rem 0.55rem', borderRadius: '8px', fontSize: '0.78rem', cursor: 'pointer' }}
                       title="Remove PDF"
                     >
                       <Trash2 size={13} />
                     </button>
                   </div>
+                </div>
+              )}
+
+              {packingListUrl && pdfAutofill && (
+                <div style={{ background: 'rgba(52, 211, 153, 0.1)', border: '1px solid rgba(52, 211, 153, 0.3)', borderRadius: '10px', padding: '0.6rem 0.9rem', marginTop: '8px', fontSize: '0.8rem', lineHeight: 1.45 }}>
+                  {pdfAutofill.filled.length > 0 && (
+                    <div style={{ color: '#34d399', fontWeight: 600 }}>
+                      Filled in from the {pdfAutofill.source}: {pdfAutofill.filled.join(', ')}. Check them before saving.
+                    </div>
+                  )}
+                  {pdfAutofill.kept.map(k => (
+                    <div key={k.field} style={{ color: '#fbbf24', marginTop: pdfAutofill.filled.length ? '4px' : 0 }}>
+                      <AlertTriangle size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                      {k.field} left as “{k.current}” — the {pdfAutofill.source} says “{k.pdf}”.
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -11,6 +11,8 @@ import ActivityLog from '../models/ActivityLog.js';
 
 import { stampSignaturesOnPdfBytes } from '../utils/pdfSigner.js';
 import { signedPackingListFileName } from '../utils/packingList.js';
+import { itemsToLines, parsePackingList, looksLikePackingList } from '../utils/packingListPdf.js';
+import { extractPdfTextItems } from '../utils/pdfTextItems.js';
 import {
   isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
   PICKUP_WORDING, DELIVERY_WORDING, RETURN_WORDING
@@ -1221,11 +1223,23 @@ export default function createDeliveriesRouter({
           `packing_list_${safeIdSegment(deliveryId || Date.now())}.pdf`
         );
 
+        // Read the order details back out of it so the form can fill itself
+        // in (see planPackingListAutofill). Best-effort: a PDF that isn't a
+        // StoneProfits packing list, or one pdf.js can't read, still uploads.
+        let packingList = null;
+        try {
+          const parsed = parsePackingList(itemsToLines(await extractPdfTextItems(req.file.buffer)));
+          if (looksLikePackingList(parsed)) packingList = parsed;
+        } catch (parseErr) {
+          console.warn('[deliveries] could not read packing list text:', parseErr.message);
+        }
+
         res.json({
           success: true,
           url: stored.url,
           publicId: stored.publicId,
-          filename: req.file.originalname
+          filename: req.file.originalname,
+          packingList
         });
       } catch (err) {
         console.error('Error uploading packing list PDF:', err);
