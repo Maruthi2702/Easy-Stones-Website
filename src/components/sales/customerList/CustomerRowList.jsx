@@ -17,6 +17,7 @@ const Row = ({ row, swiped, onSwipe, onOpen, onMore, onCall, isOpen }) => {
   const email = primaryEmailOf(row);
   const person = contactOf(row);
   const city = cityOf(row);
+  const level = String(row.level || row.segment || '');
 
   const onTouchStart = (e) => {
     const t = e.touches[0];
@@ -65,6 +66,8 @@ const Row = ({ row, swiped, onSwipe, onOpen, onMore, onCall, isOpen }) => {
           <span className="cl-co cl-li-name"><span>{companyOf(row)}</span><IssueFlag customer={row} /></span>
           <span className="cl-sub" style={{ display: 'block', fontSize: 13 }}>{[person, city].filter(Boolean).join(' · ') || '—'}</span>
           <span className="cl-li-meta">
+            {/* The list sorts by level by default, so show it — without it the order looks random. */}
+            {level && <span className="cl-lvl" title={level} aria-label={level}>{level.replace('Level - ', 'L')}</span>}
             <LocationTag customer={row} />
             <span className={`who${row.salesRepName ? '' : ' none'}`}><User size={13} aria-hidden="true" />{row.salesRepName || 'Unassigned'}</span>
             {/* On a phone the status moves down here so the company name gets the full width. */}
