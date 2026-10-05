@@ -150,10 +150,10 @@ describe('parseLocationBody (server)', () => {
 });
 
 describe('letterhead', () => {
-  it('prints the location’s own address and contact', () => {
+  it('prints the location’s own address, without the contact line for now', () => {
     expect(letterheadFor(charlotte)).toEqual({
       addressLine: '1440 Westinghouse Blvd, Suite A, Charlotte, NC 28273',
-      contactLine: '(980) 201-9506 · info.clt@easystones.com'
+      contactLine: ''
     });
   });
 

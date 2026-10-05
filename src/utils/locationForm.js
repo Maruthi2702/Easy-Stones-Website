@@ -280,13 +280,17 @@ export const DEFAULT_LETTERHEAD = { addressLine: '6012 S 196th St, Kent, WA 9803
 /**
  * The address and contact line under "EASY STONES" on a printed or emailed
  * selection sheet, for the check-in's location.
+ *
+ * The contact line (phone · email) is switched off for now (2026-10-04) —
+ * the user will add it back later. To restore it, set contactLine to
+ * [trim(pc.phone), trim(pc.email)].filter(Boolean).join(' · ').
  */
 export const letterheadFor = (loc) => {
   if (!hasPrintableAddress(loc)) return { ...DEFAULT_LETTERHEAD };
   const pc = loc.primaryContact || {};
   return {
     addressLine: addressLines(pc.address).join(', '),
-    contactLine: [trim(pc.phone), trim(pc.email)].filter(Boolean).join(' · ')
+    contactLine: ''
   };
 };
 
