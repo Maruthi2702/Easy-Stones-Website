@@ -459,6 +459,20 @@ body.light-theme-active .select-filter-wrap select option,
   }
 }
 
+/* Phones: the pager is just the page numbers (shared/Pagination.css), sitting
+   after the last card with no box of its own. */
+@media (max-width: 599px) {
+  .lost-sales-pagination-wrapper,
+  body.light-theme-active .lost-sales-pagination-wrapper,
+  .light-theme-active .lost-sales-pagination-wrapper {
+    margin-top: 0.25rem;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
 /* ── HIGH DENSITY DATA GRID ── */
 .lost-sales-grid-wrapper.high-capacity {
   background: rgba(28, 28, 30, 0.95);

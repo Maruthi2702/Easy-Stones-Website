@@ -153,29 +153,50 @@ body.light-theme-active .spag-root {
     box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
 }
 
-/* ── Phone: "Showing…" and Rows on the first line, pages centred below ── */
+/* ── Phone: just the page numbers, centred ─────────────────────
+   Same buttons and "…" as desktop, nothing else: no "Showing…", no Rows
+   (phones stay on the default 50), and none of a screen's extra `children`.
+   It sits after the last card and scrolls with the list — never pinned —
+   so a screen must not put it outside its scrolling area on phones (see
+   CheckInLogPanel.css). Buttons are 40px tall to tap; the worst case,
+   ‹ 1 … 5 6 7 … 14 ›, still fits a 320px-wide phone (below). */
 @media (max-width: 599px) {
     .spag-root {
-        padding: 10px 12px;
-        row-gap: 8px;
+        justify-content: center;
+        padding: 12px 0;
     }
 
-    .spag-root .spag-grow {
+    .spag-root > :not(.spag-pages) {
         display: none;
     }
 
-    .spag-root .spag-rows {
-        margin-left: auto;
-    }
-
     .spag-root .spag-pages {
-        order: 3;
-        width: 100%;
-        justify-content: center;
-        gap: 4px;
+        gap: 2px;
     }
 
     .spag-root .spag-pb {
-        min-width: 30px;
+        min-width: 38px;
+        height: 40px;
+        padding: 0 4px;
+        font-size: 14px;
+    }
+
+    .spag-root .spag-gap {
+        min-width: 16px;
+        padding: 0;
     }
 }
+
+/* Worst case: 7 buttons + 2 "…" + gaps = 314px, inside a 360px phone's list
+   (16px side padding). The smallest phones (320px) get narrower buttons,
+   same height: 268px. */
+@media (max-width: 359px) {
+    .spag-root .spag-pb {
+        min-width: 32px;
+    }
+
+    .spag-root .spag-gap {
+        min-width: 14px;
+    }
+}
+

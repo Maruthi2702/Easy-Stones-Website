@@ -10,6 +10,8 @@ import './Pagination.css';
  *
  * Layout (from the Customer List design):
  *   Showing 1–50 of 312   [children]        ‹ 1 … 4 5 6 … 13 ›   Rows [50]
+ * On phones (<600px) only the page numbers show, centred, after the last
+ * card — never pinned to the screen (Pagination.css).
  *
  * Props:
  *   currentPage         {number}   – current active page (1-indexed)

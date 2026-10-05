@@ -41,6 +41,10 @@ Changing rows per page goes back to page 1; changing a search/filter/sort
 calls `resetPage()`. Pass `totalCount` so the bar shows "Showing 1–50 of 312".
 The look (numbered pages with "…", Rows select on the right) came from the
 Customer List design, which the user preferred over the old "Page n of T" bar.
+On phones (<600px) the same pager shows only the page numbers, centred,
+after the last card and scrolling with the list — never pinned to the screen,
+and with no box of its own. A screen whose list scrolls inside a panel must
+let the pager scroll with it on phones (see the end of `CheckInLogPanel.css`).
 
 When adding a list, don't hand-roll a pager or a different size set (the
 Customer List had its own until 2026-10-03). Check the server endpoint's

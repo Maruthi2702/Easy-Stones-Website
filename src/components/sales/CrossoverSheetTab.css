@@ -731,6 +731,20 @@ body.light-theme-active .matrix-chip-color,
   }
 }
 
+/* Phones: the pager is just the page numbers (shared/Pagination.css), sitting
+   after the last card with no box of its own. */
+@media (max-width: 599px) {
+  .xover-pagination-wrapper,
+  body.light-theme-active .xover-pagination-wrapper,
+  .light-theme-active .xover-pagination-wrapper {
+    margin-top: 0.25rem;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
 /* The printed sheet has no card around it (the pager is .no-print). */
 @media print {
   .xover-list-card {

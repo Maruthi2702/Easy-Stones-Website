@@ -5423,3 +5423,31 @@ body.light-theme-active .selection-input:focus {
   transition: background 0.2s ease;
 }
 .btn-sel-discard:hover { background: #dc2626; }
+
+/* Phones: the pager is just the page numbers (shared/Pagination.css) and
+   goes after the last card instead of staying pinned — the whole panel
+   scrolls rather than the list body, and the pager loses its box. */
+@media (max-width: 599px) {
+  .clp-embedded {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .clp-embedded .clp-table-card {
+    flex: none;
+  }
+
+  .clp-embedded .clp-table-body {
+    flex: none;
+    overflow: visible;
+  }
+
+  .clp-pag-bar,
+  .clp-root.light-theme .clp-pag-bar,
+  body.light-theme-active .clp-root .clp-pag-bar {
+    margin-top: 4px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+}
