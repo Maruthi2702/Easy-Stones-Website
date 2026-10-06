@@ -23,7 +23,7 @@ Code for these is on `main`; the database hasn't been updated yet.
 - [x] (2026-10-05: moved up to the ship date with `--fix-early`) Decide on the 5 completed transfers whose arrival is before their ship
       date (zd0nt, 0d5nx, ore1x, etqbu, fsvcu): set arrival = ship date, or
       leave them.
-- [ ] Delete test transfer #11111 (Seattle → Spokane, no driver).
+- [x] Delete test transfer #11111 (Seattle → Spokane, no driver). (Already gone on 2026-10-05 — no ticket mentions 11111 and no driverless Seattle → Spokane transfer exists; deleted by someone after 2026-09-29.)
 - [x] `node scripts/backfill-ticket-branches.js --apply` (done 2026-10-05: 54 set to Seattle) — sets Seattle on the
       54 tickets from Jul 27 – Aug 10, 2026 that were saved with no branch
       (all on Seattle drivers). Since 2026-10-05 a ticket with no branch counts
