@@ -86,7 +86,7 @@ permission holes (O4, O19).
 
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
-| O11 | **(confirmed)** Reopening a recent day doesn't work: auto-submit picks up every draft in its 3-day lookback and locks a reopened day again within about a minute. | `LOOKBACK_DAYS` / draft query in `src/jobs/autoSubmitDailyReports.js` | Skip reports reopened since their date (e.g. a `reopenedAt` flag) | Open |
+| O11 | **(confirmed)** Reopening a recent day doesn't work: auto-submit picks up every draft in its 3-day lookback and locks a reopened day again within about a minute. | `LOOKBACK_DAYS` / draft query in `src/jobs/autoSubmitDailyReports.js` | Skip reports reopened since their date (e.g. a `reopenedAt` flag) | Fixed `c115d4c` |
 | O12 | Edits typed in the ~1.2s before switching day, branch, view or tab aren't saved: the debounced autosave is cancelled, never flushed. | autosave effect in `DailyReportTab.jsx` (~line 283) | Flush the pending save on day/branch change and unmount | Open |
 | O13 | Submit goes ahead even if its own save failed (`save()` swallows errors), so the last edits are lost from a locked report. | `submitDay` / `save` in `DailyReportTab.jsx` | Stop and show the error when the pre-submit save fails | Open |
 | O14 | Tapping Next day twice on slow data can mix days up: an older response overwrites the newer one, edits save to the wrong day and Submit locks the day in the header. | `loadDay` in `DailyReportTab.jsx` | Ignore responses for a day that's no longer selected | Open |
@@ -94,7 +94,7 @@ permission holes (O4, O19).
 | O16 | Draft PDFs and emails, the month view and the CSV under-report (missing auto slabs and transfers, stale Homeowners): they read stored drafts without re-deriving. | PDF / month / export routes in `src/routes/dailyReports.js` | `applyDerived` drafts before summarising | Open |
 | O17 | Homeowners can count different check-ins on screen than at submit: the day window uses the viewer's browser offset on GET/overview, the branch's current offset at submit (wrong after a DST change). | `src/routes/dailyReports.js` (~line 650) | One rule: the branch's offset on the report's date | Open |
 | O18 | The All-locations overview runs the same all-branch delivery query 13 times per load. | `deriveFromSystem` / overview in `src/routes/dailyReports.js` | Query once, split by branch | Open |
-| O22 | Manual Submit isn't atomic against the 11:59 auto-submit: both can sign the same day off and the Seattle email can go twice. (The other two O22 items — slab corrections typed on an earlier visit lost at Submit, and Enter jumping into read-only cells — are fixed; see Fixed.) | `/:date/submit` in `src/routes/dailyReports.js`, `src/jobs/autoSubmitDailyReports.js` | Claim the day with a conditional update on `status: 'draft'`, as the job does | Open |
+| O22 | Manual Submit isn't atomic against the 11:59 auto-submit: both can sign the same day off and the Seattle email can go twice. (The other two O22 items — slab corrections typed on an earlier visit lost at Submit, and Enter jumping into read-only cells — are fixed; see Fixed.) | `/:date/submit` in `src/routes/dailyReports.js`, `src/jobs/autoSubmitDailyReports.js` | Claim the day with a conditional update on `status: 'draft'`, as the job does | Fixed `c115d4c` |
 
 ### Check-In Log
 
