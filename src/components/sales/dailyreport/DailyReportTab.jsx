@@ -404,7 +404,12 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       method: 'POST',
       body: JSON.stringify({ location })
     });
-    if (res.ok) { loadDay(); } else { setError((await res.json()).message); }
+    if (res.ok) { loadDay(); return; }
+    const message = (await res.json().catch(() => ({}))).message || 'Could not submit this day.';
+    // 409: someone else (or the 11:59 auto-submit) signed it off first —
+    // show the locked day they submitted, with the note why.
+    if (res.status === 409) await loadDay();
+    setError(message);
   };
 
   const reopenDay = async () => {

@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { applyDerived, incomingTransferQuery, summarise, handSetFigures } from './dailyReports.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { applyDerived, incomingTransferQuery, summarise, handSetFigures, claimSubmission } from './dailyReports.js';
+import DailyReport from '../models/DailyReport.js';
 import { buildDraftPayload } from '../components/sales/dailyreport/savePayload.js';
 
 const baseReport = (overrides = {}) => ({
@@ -276,5 +277,41 @@ describe('handSetFigures — a correction typed earlier survives a reload and Su
     expect(body.deliveries.capacity).toBe(25);
     expect(body.pickups.capacity).toBe(4);
     expect(body.transfers[0].slabs).toBe(40);
+  });
+});
+
+describe('claimSubmission — one sign-off per day', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // A stand-in for the stored day: findOneAndUpdate only matches while it's a draft.
+  const fakeStore = () => {
+    const doc = { _id: 'r1', status: 'draft' };
+    vi.spyOn(DailyReport, 'findOneAndUpdate').mockImplementation(async (filter, update) => {
+      if (filter._id !== doc._id || doc.status !== filter.status) return null;
+      Object.assign(doc, update.$set);
+      return { ...doc, toObject: () => ({ ...doc }) };
+    });
+    return doc;
+  };
+  const submittedBy = (who) => ({
+    _id: 'r1',
+    toObject: () => ({ _id: 'r1', __v: 3, status: 'submitted', submittedBy: who })
+  });
+
+  it('only matches a day still in draft, and never rewrites _id or __v', async () => {
+    fakeStore();
+    await claimSubmission(submittedBy('Ann'));
+    const [filter, update] = DailyReport.findOneAndUpdate.mock.calls[0];
+    expect(filter).toEqual({ _id: 'r1', status: 'draft' });
+    expect(update.$set).not.toHaveProperty('_id');
+    expect(update.$set).not.toHaveProperty('__v');
+  });
+
+  it('when manual Submit and the 11:59 job race, exactly one wins', async () => {
+    const doc = fakeStore();
+    const [manual, job] = await Promise.all([claimSubmission(submittedBy('Ann')), claimSubmission(submittedBy('Auto-submitted'))]);
+    expect([manual, job].filter(Boolean)).toHaveLength(1);
+    expect(doc.submittedBy).toBe('Ann');
+    expect(job).toBe(null); // the loser sends no email
   });
 });

@@ -257,6 +257,31 @@ async function transfersShippedEarlier(date, location) {
  * correct against, so it gets the same regression coverage.
  */
 /**
+ * Sign a day off: write the derived report as submitted, but only if it is
+ * still a draft at the moment of the write. Shared by POST /:date/submit and
+ * the 11:59 auto-submit so the two can't both lock the same day — before,
+ * manual submit checked for 'draft' and saved later, so a submit landing in
+ * the same moment as the job (or a second click, or a second tab) signed the
+ * day off twice and sent the Seattle email twice.
+ *
+ * `report` is the loaded document, already re-derived and with the submit
+ * fields set. Resolves the stored document if this call won, or null if the
+ * day had already been submitted by someone else — only a winner should send
+ * the email.
+ */
+export async function claimSubmission(report) {
+  const payload = report.toObject();
+  // _id can't move and shouldn't be restated in $set; __v is left for Mongo.
+  delete payload._id;
+  delete payload.__v;
+  return DailyReport.findOneAndUpdate(
+    { _id: report._id, status: 'draft' },
+    { $set: payload },
+    { new: true }
+  );
+}
+
+/**
  * Which slab figures on a stored report a person set, as opposed to ones the
  * schedule fills in on every load. Read before applyDerived, while the record
  * is still as saved: a draft save blanks an untouched Deliveries / Pick-ups
@@ -678,7 +703,12 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       report.submittedBy = req.user?.displayName || req.user?.username || '';
       report.submittedAt = new Date();
       report.autoSubmitted = false;
-      await report.save();
+      // Atomic, like the 11:59 job: only one of a racing submit, a second
+      // click or the job can flip the day, and only that one sends the email.
+      const claimed = await claimSubmission(report);
+      if (!claimed) {
+        return res.status(409).json({ message: 'This day was already submitted.' });
+      }
 
       if (logActivity) {
         logActivity(req, 'daily_report_submitted', `${location} · ${date}`);
@@ -687,9 +717,9 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       // Not awaited — the person submitting shouldn't wait on an email round
       // trip, and a failed send shouldn't turn a successful submit into an
       // error. notifyDailyReportSubmission no-ops for every branch but Seattle.
-      notifyDailyReportSubmission(report.toObject());
+      notifyDailyReportSubmission(claimed.toObject());
 
-      res.json({ report: report.toObject() });
+      res.json({ report: claimed.toObject() });
     } catch (error) {
       console.error('[daily-reports] submit failed:', error);
       res.status(500).json({ message: 'Could not submit this day.' });

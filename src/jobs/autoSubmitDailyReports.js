@@ -1,6 +1,6 @@
 import DailyReport from '../models/DailyReport.js';
 import { BRANCH_NAMES, branchNow, shiftDate, utcOffsetMinutes } from '../config/branches.js';
-import { deriveFromSystem, applyDerived } from '../routes/dailyReports.js';
+import { deriveFromSystem, applyDerived, claimSubmission } from '../routes/dailyReports.js';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
 
 /**
@@ -46,6 +46,30 @@ const LOOKBACK_DAYS = 3;
 export const AUTO_SUBMITTED_BY = 'Auto-submitted';
 
 /**
+ * Whether a draft is due to be signed off now, on the branch's clock.
+ *
+ *  - A day nobody reopened: once it's over — today at 11:59 PM, or straight
+ *    away for an earlier day (an instance asleep at 11:59 catching up).
+ *  - A reopened day: it waits for the person who reopened it to submit, like
+ *    today does. If nobody does, it's signed off at the first 11:59 PM after
+ *    it was reopened (owner's call, 2026-10-05). Before this a reopened
+ *    yesterday was locked again within a minute, often before the
+ *    correction it was reopened for had been made.
+ */
+export function isDueForAutoSubmit(report, location, now = new Date()) {
+  const { date: today, minutes } = branchNow(location, now);
+  const pastCutoff = minutes >= CUTOFF_MINUTES;
+  if (report.reopenedAt) {
+    const reopened = branchNow(location, new Date(report.reopenedAt));
+    // Reopened after 11:59 PM: that night's cutoff has gone, so the next one.
+    const dueOn = reopened.minutes < CUTOFF_MINUTES ? reopened.date : shiftDate(reopened.date, 1);
+    return today > dueOn || (today === dueOn && pastCutoff);
+  }
+  if (report.date < today) return true;
+  return report.date === today && pastCutoff;
+}
+
+/**
  * One pass. Exported on its own so it can be run by hand or tested without a
  * timer: `node -e "..."` against a database is the whole test.
  */
@@ -53,19 +77,25 @@ export async function autoSubmitDueDays(now = new Date()) {
   const submitted = [];
 
   for (const location of BRANCH_NAMES) {
-    const { date, minutes } = branchNow(location, now);
+    const { date } = branchNow(location, now);
 
-    // Days that are over for this branch: the ones behind it, and today too
-    // once its clock passes 11:59 PM.
-    const dates = [];
+    // Candidates: this branch's recent days (catch-up is bounded by the
+    // lookback), plus any earlier day someone reopened — a reopened day is
+    // still signed off at its 11:59 PM however old it is. isDueForAutoSubmit
+    // then decides which of them are due right now.
+    const dates = [date];
     for (let back = 1; back <= LOOKBACK_DAYS; back++) dates.push(shiftDate(date, -back));
-    if (minutes >= CUTOFF_MINUTES) dates.push(date);
 
     // Full documents, not just ids — each one needs its own derive/apply
     // before it can be written back, unlike the old single updateMany that
     // could flip every due draft in one call because it never had to look at
     // what was actually in any of them.
-    const drafts = await DailyReport.find({ location, date: { $in: dates }, status: 'draft' });
+    const candidates = await DailyReport.find({
+      location,
+      status: 'draft',
+      $or: [{ date: { $in: dates } }, { reopenedAt: { $ne: null }, date: { $lt: date } }]
+    });
+    const drafts = candidates.filter((r) => isDueForAutoSubmit(r, location, now));
     if (!drafts.length) continue;
 
     const tz = utcOffsetMinutes(location, now);
@@ -84,25 +114,12 @@ export async function autoSubmitDueDays(now = new Date()) {
       report.submittedBy = AUTO_SUBMITTED_BY;
       report.autoSubmitted = true;
 
-      // findOneAndUpdate against the id *and* status: 'draft', not
-      // report.save() — the atomic claim, not the derive above it, is what
-      // has to be race-safe. Two instances ticking the same second may both
-      // derive the same day harmlessly (identical, read-only computation from
-      // the same source data); only one of their subsequent writes can match
-      // a document still in 'draft', so only one of them ever actually flips
-      // it, and the loser's update here simply matches nothing.
-      const payload = report.toObject();
-      // _id can't move and shouldn't be restated in $set; __v is left for
-      // Mongo's own bookkeeping rather than pinned to whatever this process
-      // happened to read a moment ago.
-      delete payload._id;
-      delete payload.__v;
-
-      const claimed = await DailyReport.findOneAndUpdate(
-        { _id: report._id, status: 'draft' },
-        { $set: payload },
-        { new: true }
-      );
+      // The atomic claim (claimSubmission — the same one manual Submit uses),
+      // not the derive above it, is what has to be race-safe. Two instances
+      // ticking the same second, or a person pressing Submit at 11:59, may
+      // both derive the same day harmlessly; only one write can match a
+      // document still in 'draft', and the loser's simply matches nothing.
+      const claimed = await claimSubmission(report);
       if (!claimed) continue;
 
       count++;
