@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { applyDerived, incomingTransferQuery, summarise, handSetFigures, claimSubmission } from './dailyReports.js';
+import { applyDerived, incomingTransferQuery, summarise, handSetFigures, claimSubmission, writeDraft, withDraftsDerived, deriveFromSystem } from './dailyReports.js';
+import Delivery from '../models/Delivery.js';
+import OfficeCheckIn from '../models/OfficeCheckIn.js';
 import DailyReport from '../models/DailyReport.js';
 import { buildDraftPayload } from '../components/sales/dailyreport/savePayload.js';
 
@@ -313,5 +315,60 @@ describe('claimSubmission — one sign-off per day', () => {
     expect([manual, job].filter(Boolean)).toHaveLength(1);
     expect(doc.submittedBy).toBe('Ann');
     expect(job).toBe(null); // the loser sends no email
+  });
+});
+
+describe('writeDraft — an autosave never un-submits a day', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('only matches a day that is not submitted', async () => {
+    vi.spyOn(DailyReport, 'findOneAndUpdate').mockResolvedValue({ status: 'draft' });
+    await writeDraft('2026-10-05', 'Seattle', { status: 'draft' });
+    expect(DailyReport.findOneAndUpdate.mock.calls[0][0]).toEqual({ date: '2026-10-05', location: 'Seattle', status: { $ne: 'submitted' } });
+  });
+
+  it('a save that loses the race to Submit returns null (→ 409) instead of flipping it back', async () => {
+    vi.spyOn(DailyReport, 'findOneAndUpdate').mockRejectedValue(Object.assign(new Error('E11000 duplicate key'), { code: 11000 }));
+    await expect(writeDraft('2026-10-05', 'Seattle', { status: 'draft' })).resolves.toBe(null);
+  });
+
+  it('any other database error still surfaces', async () => {
+    vi.spyOn(DailyReport, 'findOneAndUpdate').mockRejectedValue(new Error('connection lost'));
+    await expect(writeDraft('2026-10-05', 'Seattle', {})).rejects.toThrow('connection lost');
+  });
+});
+
+describe('withDraftsDerived — exports read drafts with today\'s figures', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('re-derives drafts (one delivery query per date) and leaves submitted days as signed off', async () => {
+    const tickets = [{ deliveryType: 'jobsite', location: 'Seattle', numberOfSlabs: 12 }, { deliveryType: 'jobsite', location: 'Seattle', numberOfSlabs: 8 }];
+    const find = vi.spyOn(Delivery, 'find').mockImplementation((query) => ({ lean: async () => (query.deliveryType === 'transfer' ? [] : tickets) }));
+    vi.spyOn(OfficeCheckIn, 'countDocuments').mockResolvedValue(9);
+    const draft = { date: '2026-10-05', location: 'Seattle', status: 'draft', visitors: { homeowners: 2 }, deliveries: { assigned: 1, capacity: null }, pickups: { assigned: 0, capacity: null }, transfers: [] };
+    const draft2 = { ...draft, location: 'Kent' };
+    const signed = { ...draft, location: 'Spokane', status: 'submitted', deliveries: { assigned: 1, capacity: 5 } };
+
+    const [d, , s] = await withDraftsDerived([draft, draft2, signed]);
+    expect(d.visitors.homeowners).toBe(9);
+    expect(d.deliveries).toMatchObject({ assigned: 2, capacity: 20 });
+    expect(s).toBe(signed);
+    expect(s.deliveries.capacity).toBe(5);
+    // Two drafts on the same date: the all-branch delivery query runs once.
+    expect(find.mock.calls.filter(([q]) => q.deliveryType !== 'transfer')).toHaveLength(1);
+  });
+});
+
+describe('deriveFromSystem — Homeowners counted in the branch\'s own day', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('uses the branch clock on the report date, not the viewer\'s or today\'s offset', async () => {
+    vi.spyOn(Delivery, 'find').mockImplementation(() => ({ lean: async () => [] }));
+    const count = vi.spyOn(OfficeCheckIn, 'countDocuments').mockResolvedValue(0);
+    await deriveFromSystem('2026-07-01', 'Seattle');
+    expect(count.mock.calls[0][0].createdAt).toEqual({ $gte: new Date('2026-07-01T07:00:00Z'), $lt: new Date('2026-07-02T07:00:00Z') });
+    // A winter day is measured on winter time, whenever it's worked out.
+    await deriveFromSystem('2026-12-01', 'Seattle');
+    expect(count.mock.calls[1][0].createdAt.$gte).toEqual(new Date('2026-12-01T08:00:00Z'));
   });
 });

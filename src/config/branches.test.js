@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { utcOffsetMinutes } from './branches.js';
+import { utcOffsetMinutes, branchDayWindow } from './branches.js';
 
 // Fixed instants with a known DST state, so these assertions don't depend on
 // what timezone the machine running the test happens to be in — everything
@@ -44,5 +44,20 @@ describe('utcOffsetMinutes', () => {
 
   it('falls back to Pacific for an unknown branch name, same as branchZone does', () => {
     expect(utcOffsetMinutes('Nowhere', JUL)).toBe(-420);
+  });
+});
+
+describe('branchDayWindow', () => {
+  it('is the branch\'s own midnight to midnight, on that date\'s offset', () => {
+    // Seattle in summer (UTC-7) and winter (UTC-8)
+    expect(branchDayWindow('Seattle', '2026-07-01')).toEqual({ start: new Date('2026-07-01T07:00:00Z'), end: new Date('2026-07-02T07:00:00Z') });
+    expect(branchDayWindow('Seattle', '2026-12-01')).toEqual({ start: new Date('2026-12-01T08:00:00Z'), end: new Date('2026-12-02T08:00:00Z') });
+  });
+
+  it('is 25 hours on the day clocks go back and 23 on the day they go forward', () => {
+    const back = branchDayWindow('Seattle', '2026-11-01');
+    expect((back.end - back.start) / 3600000).toBe(25);
+    const fwd = branchDayWindow('Seattle', '2026-03-08');
+    expect((fwd.end - fwd.start) / 3600000).toBe(23);
   });
 });

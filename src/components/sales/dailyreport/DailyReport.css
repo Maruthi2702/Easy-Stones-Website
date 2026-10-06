@@ -941,6 +941,21 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   font-size: 0.82rem;
 }
 
+.dr-unassigned {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 0.85rem;
+  border-radius: 8px;
+  background: var(--dr-warn-bg);
+  border: 1px solid var(--dr-warn);
+  color: var(--dr-text);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.dr-unassigned svg { flex: none; color: var(--dr-warn); margin-top: 1px; }
+
 /* ── Reopen confirmation ─────────────────────────────────────────────────── */
 .dr-confirm-backdrop {
   position: fixed;

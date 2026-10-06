@@ -1,5 +1,5 @@
 import DailyReport from '../models/DailyReport.js';
-import { BRANCH_NAMES, branchNow, shiftDate, utcOffsetMinutes } from '../config/branches.js';
+import { BRANCH_NAMES, branchNow, shiftDate } from '../config/branches.js';
 import { deriveFromSystem, applyDerived, claimSubmission } from '../routes/dailyReports.js';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
 
@@ -98,11 +98,10 @@ export async function autoSubmitDueDays(now = new Date()) {
     const drafts = candidates.filter((r) => isDueForAutoSubmit(r, location, now));
     if (!drafts.length) continue;
 
-    const tz = utcOffsetMinutes(location, now);
     let count = 0;
 
     for (const report of drafts) {
-      const derived = await deriveFromSystem(report.date, location, tz);
+      const derived = await deriveFromSystem(report.date, location);
       // Fills only what a human never touched — an existing hand correction
       // is left exactly as typed. Safe to call unconditionally: applyDerived
       // itself is a no-op on anything already submitted, which nothing here

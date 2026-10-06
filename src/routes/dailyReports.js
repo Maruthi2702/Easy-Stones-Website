@@ -3,7 +3,7 @@ import DailyReport from '../models/DailyReport.js';
 import { buildDayPdf, buildMonthPdf, dayPdfFileName, monthPdfFileName } from '../utils/dailyReportPdf.js';
 import { sendEmail } from '../services/emailService.js';
 import Delivery from '../models/Delivery.js';
-import { BRANCH_NAMES, branchCode, isBranch, utcOffsetMinutes } from '../config/branches.js';
+import { BRANCH_NAMES, branchCode, isBranch, branchDayWindow } from '../config/branches.js';
 import OfficeCheckIn from '../models/OfficeCheckIn.js';
 import Location from '../models/Location.js';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
@@ -72,8 +72,8 @@ const canSeeLocation = (req, location) => {
  * The half of the report the system already knows.
  *
  * Visitors come from the check-in log, which records an instant — so the day is
- * bounded in the branch's own clock via the tz offset the caller passes, rather
- * than assuming the server's.
+ * bounded in the branch's own clock on that date (branchDayWindow), never the
+ * server's or the viewer's.
  *
  * Exported for src/jobs/autoSubmitDailyReports.js, which has to run this same
  * derive with nobody's browser open to trigger it from a page load — see the
@@ -100,57 +100,101 @@ export const incomingTransferQuery = (date, location) => ({
   truckId: { $nin: ['', null] }
 });
 
-export async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
-  // tzOffsetMinutes is the viewer's UTC offset (-420 for Pacific), so local
-  // midnight is that many minutes *behind* UTC midnight — subtract, don't add.
-  // Adding it put the window half a day out and undercounted the morning.
-  const dayStart = new Date(`${date}T00:00:00.000Z`);
-  dayStart.setUTCMinutes(dayStart.getUTCMinutes() - tzOffsetMinutes);
-  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+/**
+ * The day's tickets across every branch — one query, shared when a caller
+ * derives several branches at once (the All-locations overview used to run
+ * this identical query once per branch).
+ *
+ * A delivery's date is a plain calendar string, so this needs no timezone
+ * maths — it is already the branch's day.
+ *
+ * A will call never carries a truckId — the customer collects it, so it rides
+ * on no truck — which is why the board's own week query carves out the same
+ * exception. Without it every pick-up ticket fails the truckId check and the
+ * report's Pick-ups count and slabs sit at 0 regardless of how many pickups
+ * actually happened that day.
+ *
+ * A customer drop-off (a return with no driver) needs the same carve-out, for
+ * exactly the same reason. A return a driver goes out for already passes the
+ * truckId check.
+ *
+ * A cancelled ticket keeps its truckId as a record of what to restore it to
+ * (see isCancelledDelivery), so the truckId check alone lets it through and
+ * the day counts material that never moved. The board draws no card for one,
+ * and neither does this report.
+ */
+export const deliveriesOnDate = (date) => Delivery.find(
+  {
+    date,
+    status: { $ne: 'cancelled' },
+    $or: [
+      { truckId: { $nin: ['', null] } },
+      { deliveryType: 'will_call' },
+      { deliveryType: 'return' }
+    ]
+  },
+  'deliveryType transferDestination location numberOfSlabs'
+).lean();
 
-  const [checkIns, deliveryRows, incomingRows] = await Promise.all([
+/**
+ * Stored reports as they should be read for display or export. A draft is
+ * stored with its untouched figures blank (buildDraftPayload) and Homeowners
+ * and the Counts as of its last save, so reading it as stored under-reported:
+ * a draft PDF or email, the month view and the CSV showed no auto slabs or
+ * transfers and the morning's check-ins. Drafts are re-derived the same way
+ * GET /:date does for the sheet; submitted days are left exactly as signed
+ * off. One delivery query per date, shared across that date's branches.
+ * Works on lean (plain) documents.
+ */
+export async function withDraftsDerived(docs = []) {
+  const byDate = new Map();
+  return Promise.all(docs.map(async (doc) => {
+    if (doc.status !== 'draft') return doc;
+    if (!byDate.has(doc.date)) byDate.set(doc.date, deliveriesOnDate(doc.date));
+    const report = {
+      ...doc,
+      visitors: { ...(doc.visitors || {}) },
+      deliveries: { assigned: 0, capacity: null, ...(doc.deliveries || {}) },
+      pickups: { assigned: 0, capacity: null, ...(doc.pickups || {}) },
+      transfers: [...(doc.transfers || [])]
+    };
+    return applyDerived(report, await deriveFromSystem(doc.date, doc.location, { deliveryRows: byDate.get(doc.date) }));
+  }));
+}
+
+/**
+ * `deliveryRows`: deliveriesOnDate(date) already fetched (or in flight) by a
+ * caller deriving several branches for the same date.
+ */
+export async function deriveFromSystem(date, location, { deliveryRows } = {}) {
+  // Check-ins are counted in the branch's own calendar day — its midnight to
+  // midnight on that date's offset — wherever the person looking is and
+  // whenever it's worked out. It used to be the viewer's browser offset on a
+  // page load and the branch's *current* offset at Submit, so Homeowners on
+  // screen and as signed off could differ (a Seattle manager opening Dallas;
+  // a summer day submitted after the clocks changed).
+  const { start: dayStart, end: dayEnd } = branchDayWindow(location, date);
+
+  const [checkIns, allDeliveryRows, incomingRows] = await Promise.all([
     OfficeCheckIn.countDocuments({
       location,
       createdAt: { $gte: dayStart, $lt: dayEnd }
     }),
-    // A delivery's date is a plain calendar string, so this needs no timezone
-    // maths — it is already the branch's day.
-    //
-    // A will call never carries a truckId — the customer collects it, so it
-    // rides on no truck — which is why the board's own week query (server.js)
-    // carves out the same exception. Without it every pick-up ticket fails
-    // the truckId check and the report's Pick-ups count and slabs sit at 0
-    // regardless of how many pickups actually happened that day.
-    //
-    // A customer drop-off (a return with no driver) needs the same carve-out,
-    // for exactly the same reason. A return a driver goes out for already
-    // passes the truckId check.
-    //
-    // A cancelled ticket keeps its truckId as a record of what to restore it
-    // to (see isCancelledDelivery), so the truckId check alone lets it through
-    // and the day counts material that never moved. The board draws no card
-    // for one, and neither does this report.
-    Delivery.find(
-      {
-        date,
-        status: { $ne: 'cancelled' },
-        $or: [
-          { truckId: { $nin: ['', null] } },
-          { deliveryType: 'will_call' },
-          { deliveryType: 'return' }
-        ]
-      },
-      'deliveryType transferDestination location numberOfSlabs'
-    ).lean(),
+    deliveryRows || deliveriesOnDate(date),
     Delivery.find(
       incomingTransferQuery(date, location),
       'id location numberOfSlabs receivedAt receivedBy'
     ).lean()
   ]);
 
-  // Deliveries carry no location on most records yet, so an empty location is
-  // treated as belonging to the branch being reported on rather than dropped.
-  const mine = deliveryRows.filter(d => !d.location || d.location === location || d.location === '*');
+  // Only tickets filed under this branch. A ticket with no branch (or '*')
+  // used to count on *every* branch's report — a leftover from when most
+  // records had none — so one such ticket appeared on all 13 sheets and the
+  // All-locations total counted it 13 times (the #18299 transfer did exactly
+  // that). Now it counts nowhere and is reported as noBranchTickets, so the
+  // sheet can say so and someone can set its branch on the board.
+  const mine = allDeliveryRows.filter(d => d.location === location);
+  const noBranchTickets = allDeliveryRows.filter(d => !d.location || d.location === '*').length;
   // A ticket nobody has counted yet contributes nothing rather than blocking
   // the rest of the day's total.
   const slabsOf = (d) => (Number.isFinite(d.numberOfSlabs) ? d.numberOfSlabs : 0);
@@ -210,7 +254,10 @@ export async function deriveFromSystem(date, location, tzOffsetMinutes = 0) {
     pickupsSlabs: willCallRows.reduce((sum, d) => sum + slabsOf(d), 0),
     returnsCount: returnRows.length,
     returnsSlabs: returnRows.reduce((sum, d) => sum + slabsOf(d), 0),
-    transfers: [...outbound, ...inbound]
+    transfers: [...outbound, ...inbound],
+    // The day's tickets (every branch) with no branch set — counted on no
+    // report until someone sets one.
+    noBranchTickets
   };
 }
 
@@ -231,7 +278,8 @@ async function transfersShippedEarlier(date, location) {
     },
     'date expectedArrivalDate location numberOfSlabs'
   ).lean();
-  const mine = rows.filter(d => !d.location || d.location === location || d.location === '*');
+  // Filed under this branch only — same rule as deriveFromSystem.
+  const mine = rows.filter(d => d.location === location);
   const groups = arrivalsShippedEarlier(mine, date);
   if (!groups.length) return [];
 
@@ -277,8 +325,31 @@ export async function claimSubmission(report) {
   return DailyReport.findOneAndUpdate(
     { _id: report._id, status: 'draft' },
     { $set: payload },
-    { new: true }
+    { returnDocument: 'after' }
   );
+}
+
+/**
+ * A draft save: write the day only if it isn't submitted. PUT /:date checks
+ * the status first, but a submit (manual or the 11:59 job) can land between
+ * that check and this write — which used to $set status 'draft'
+ * unconditionally and quietly un-submit a signed-off day. With the status in
+ * the filter, a day submitted in between doesn't match; the upsert then tries
+ * to insert a second report for the same date and branch, which the unique
+ * { date, location } index refuses (E11000). Resolves the saved document, or
+ * null when the day was submitted.
+ */
+export async function writeDraft(date, location, update) {
+  try {
+    return await DailyReport.findOneAndUpdate(
+      { date, location, status: { $ne: 'submitted' } },
+      { $set: update },
+      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
+    );
+  } catch (error) {
+    if (error?.code === 11000) return null;
+    throw error;
+  }
 }
 
 /**
@@ -502,7 +573,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         date: { $regex: `^${month}-` }
       }).sort({ date: -1 }).lean();
 
-      res.json({ month, locations, reports: rows.map(summarise) });
+      res.json({ month, locations, reports: (await withDraftsDerived(rows)).map(summarise) });
     } catch (error) {
       console.error('[daily-reports] month view failed:', error);
       res.status(500).json({ message: 'Could not load the month.' });
@@ -522,7 +593,6 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   router.get('/overview/:date', canView, async (req, res) => {
     try {
       const { date } = req.params;
-      const tz = Number(req.query.tzOffset) || 0;
       if (!isValidDate(date)) return res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' });
 
       const allowed = allowedLocations(req);
@@ -532,15 +602,21 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
 
       const saved = await DailyReport.find({ date, location: { $in: locations } });
       const byLocation = new Map(saved.map(r => [r.location, r]));
+      // Every branch's tickets for the day in one query, shared below — it
+      // used to run once per branch, the same all-branch query 13 times.
+      const deliveryRows = deliveriesOnDate(date);
 
+      let noBranchTickets = 0;
       const rows = await Promise.all(locations.map(async (location) => {
         const stored = byLocation.get(location);
         const report = stored || new DailyReport({ date, location });
-        applyDerived(report, await deriveFromSystem(date, location, tz));
+        const derived = await deriveFromSystem(date, location, { deliveryRows });
+        noBranchTickets = derived.noBranchTickets;
+        applyDerived(report, derived);
         return { ...summarise(report), status: stored ? report.status : 'none' };
       }));
 
-      res.json({ date, rows });
+      res.json({ date, rows, noBranchTickets });
     } catch (error) {
       console.error('[daily-reports] overview failed:', error);
       res.status(500).json({ message: 'Could not load that day.' });
@@ -552,7 +628,6 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     try {
       const { date } = req.params;
       const location = req.query.location;
-      const tz = Number(req.query.tzOffset) || 0;
 
       if (!isValidDate(date)) return res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' });
       if (!location) return res.status(400).json({ message: 'Provide a branch.' });
@@ -568,7 +643,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       }
 
       const [derived, shippedEarlier] = await Promise.all([
-        deriveFromSystem(date, location, tz),
+        deriveFromSystem(date, location),
         transfersShippedEarlier(date, location)
       ]);
       // Before applyDerived fills the blanks — see handSetFigures.
@@ -586,7 +661,8 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           deliveriesSlabs: derived.deliveriesSlabs,
           pickupsSlabs: derived.pickupsSlabs,
           returnsCount: derived.returnsCount,
-          returnsSlabs: derived.returnsSlabs
+          returnsSlabs: derived.returnsSlabs,
+          noBranchTickets: derived.noBranchTickets
         },
         // The band a slab count is sane within, so the rule lives on the server
         // rather than being reinvented in the form.
@@ -657,11 +733,11 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         updatedBy: req.user?.displayName || req.user?.username || ''
       };
 
-      const saved = await DailyReport.findOneAndUpdate(
-        { date, location },
-        { $set: update },
-        { new: true, upsert: true, setDefaultsOnInsert: true }
-      );
+      // Only ever writes a day that isn't submitted — see writeDraft.
+      const saved = await writeDraft(date, location, update);
+      if (!saved) {
+        return res.status(409).json({ message: 'This day has been submitted. Reopen it to make changes.' });
+      }
 
       res.json({ report: saved.toObject() });
     } catch (error) {
@@ -697,7 +773,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       // the branch's own clock like it, so the two can't disagree. Anything a
       // person typed is kept (applyDerived only fills blanks). If the derive
       // throws, the catch below answers 500 and nothing is locked.
-      applyDerived(report, await deriveFromSystem(date, location, utcOffsetMinutes(location)));
+      applyDerived(report, await deriveFromSystem(date, location));
 
       report.status = 'submitted';
       report.submittedBy = req.user?.displayName || req.user?.username || '';
@@ -784,10 +860,10 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         locations = allowed === '*' ? BRANCH_NAMES : allowed;
       }
 
-      const rows = await DailyReport.find({
+      const rows = await withDraftsDerived(await DailyReport.find({
         location: { $in: locations },
         date: { $regex: `^${month}-` }
-      }).sort({ location: 1, date: 1 }).lean();
+      }).sort({ location: 1, date: 1 }).lean());
 
       const head = [
         'Date', 'Branch', 'Status',
@@ -851,11 +927,13 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     if (!canSeeLocation(req, location)) { res.status(403).json({ message: 'That branch is not assigned to you.' }); return null; }
 
     let report = await DailyReport.findOne({ date, location }).lean();
+    // A saved draft prints with the system's figures as of now, like the sheet.
+    if (report) [report] = await withDraftsDerived([report]);
     if (!report) {
       // A day nobody has saved still prints — as an empty sheet marked draft,
       // which is more useful than an error when someone asks for yesterday.
       const blank = new DailyReport({ date, location });
-      const derived = await deriveFromSystem(date, location, Number(req.query.tzOffset) || 0);
+      const derived = await deriveFromSystem(date, location);
       applyDerived(blank, derived);
       report = blank.toObject();
     }
@@ -884,7 +962,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       date: { $regex: `^${month}-` }
     }).sort({ location: 1, date: 1 }).lean();
 
-    return { month, rows: docs.map(summarise), scopeLabel };
+    return { month, rows: (await withDraftsDerived(docs)).map(summarise), scopeLabel };
   };
 
   /** GET /api/daily-reports/:date/pdf?location=Seattle */

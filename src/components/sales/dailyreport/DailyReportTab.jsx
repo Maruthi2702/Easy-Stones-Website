@@ -5,6 +5,7 @@ import {
   MapPin, AlertCircle, Loader2, FileText, Mail, FileSpreadsheet, Eye
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
+import NoBranchNote from './NoBranchNote';
 import { authFetch } from '../../../api/authFetch';
 import { branchCode } from '../../../config/branches.js';
 import ReportSection from './ReportSection';
@@ -161,6 +162,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   // Transfers the delivery board draws on this day that shipped in an earlier
   // week — see transfersShippedEarlier in src/routes/dailyReports.js.
   const [shippedEarlier, setShippedEarlier] = useState([]);
+  // The day's tickets with no branch — counted on no report (NoBranchNote).
+  const [noBranchTickets, setNoBranchTickets] = useState(0);
 
   const saveTimer = useRef(null);
   const skipAutosave = useRef(true);
@@ -228,12 +231,14 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       setReport({ ...emptyReport(date, location), ...data.report });
       setSlabRange(data.slabRange || null);
       setShippedEarlier(data.transfersShippedEarlier || []);
+      setNoBranchTickets(data.derived?.noBranchTickets || 0);
       setDirty(false);
     } catch (err) {
       if (!current()) return;
       setError(err.message);
       setReport(null);
       setShippedEarlier([]);
+      setNoBranchTickets(0);
     } finally {
       if (current()) setLoading(false);
     }
@@ -709,6 +714,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
           <AlertCircle size={16} /> <span>{error}</span>
         </div>
       )}
+
+      {view === 'day' && !allBranches && <NoBranchNote count={noBranchTickets} />}
 
       {view === 'month' ? (
         <MonthView

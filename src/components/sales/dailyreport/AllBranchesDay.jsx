@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2, AlertCircle, CalendarDays } from 'lucide-react';
+import NoBranchNote from './NoBranchNote';
 import { API_URL } from '../../../config/api';
 import SummaryTable, { SummaryStats } from './SummaryTable';
 import { sumRows } from './summaryFigures';
@@ -28,6 +29,7 @@ const AllBranchesDay = ({ date, authFetch, onOpenBranch }) => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [noBranchTickets, setNoBranchTickets] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -39,7 +41,7 @@ const AllBranchesDay = ({ date, authFetch, onOpenBranch }) => {
         if (!r.ok) throw new Error((await r.json()).message || 'Could not load that day.');
         return r.json();
       })
-      .then(data => { if (alive) setRows(data.rows || []); })
+      .then(data => { if (alive) { setRows(data.rows || []); setNoBranchTickets(data.noBranchTickets || 0); } })
       .catch(err => { if (alive) { setError(err.message); setRows([]); } })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -64,6 +66,7 @@ const AllBranchesDay = ({ date, authFetch, onOpenBranch }) => {
       </div>
 
       {error && <div className="dr-error"><AlertCircle size={16} /> <span>{error}</span></div>}
+      {!loading && !error && <NoBranchNote count={noBranchTickets} />}
 
       {loading ? (
         <div className="dr-empty"><Loader2 size={28} className="dr-spin" /><p>Loading every branch…</p></div>

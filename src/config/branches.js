@@ -102,3 +102,29 @@ export const shiftDate = (iso, days) => {
   const at = new Date(Date.UTC(y, m - 1, d + days));
   return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}-${String(at.getUTCDate()).padStart(2, '0')}`;
 };
+
+/**
+ * The instant a branch's calendar day starts — its local midnight — as a UTC
+ * Date. Uses the branch's offset *on that date*, so a summer day is measured
+ * on summer time even when it's worked out in winter.
+ */
+export const branchMidnight = (name, iso) => {
+  const asUTC = Date.parse(`${iso}T00:00:00.000Z`);
+  // Guess with the offset at midday, then correct with the offset at the
+  // guessed instant — differs only on a daylight-saving change day.
+  let offset = utcOffsetMinutes(name, new Date(asUTC + 12 * 3600000));
+  let at = asUTC - offset * 60000;
+  const actual = utcOffsetMinutes(name, new Date(at));
+  if (actual !== offset) at = asUTC - actual * 60000;
+  return new Date(at);
+};
+
+/**
+ * A branch's whole calendar day [start, end) in UTC: midnight to midnight on
+ * its own clock — 23 or 25 hours on a daylight-saving change day. The Daily
+ * Report counts check-ins in this window wherever the person looking is.
+ */
+export const branchDayWindow = (name, iso) => ({
+  start: branchMidnight(name, iso),
+  end: branchMidnight(name, shiftDate(iso, 1))
+});
