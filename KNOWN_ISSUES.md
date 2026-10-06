@@ -14,16 +14,22 @@ Found in a read-only review on 2026-09-29. Nothing below has been changed yet.
 
 Code for these is on `main`; the database hasn't been updated yet.
 
-- [ ] `node scripts/fix-transfer-origins.js --apply` — sets the sending branch
+- [x] `node scripts/fix-transfer-origins.js --apply` (done 2026-10-05) — sets the sending branch
       on #18356 (Salt Lake City), #18357 (Spokane) and #18299 (Seattle). Until
       then #18299 counts as outgoing on every branch's report for 8/10, because
       the report treats an empty branch as its own.
-- [ ] Then `node scripts/backfill-transfer-arrivals.js --apply` — fills the 14
+- [x] Then `node scripts/backfill-transfer-arrivals.js --apply` (done 2026-10-05: 14 filled) — fills the 14
       blank arrival dates with the ship date so receiving branches can see them.
-- [ ] Decide on the 5 completed transfers whose arrival is before their ship
+- [x] (2026-10-05: moved up to the ship date with `--fix-early`) Decide on the 5 completed transfers whose arrival is before their ship
       date (zd0nt, 0d5nx, ore1x, etqbu, fsvcu): set arrival = ship date, or
       leave them.
 - [ ] Delete test transfer #11111 (Seattle → Spokane, no driver).
+- [x] `node scripts/backfill-ticket-branches.js --apply` (done 2026-10-05: 54 set to Seattle) — sets Seattle on the
+      54 tickets from Jul 27 – Aug 10, 2026 that were saved with no branch
+      (all on Seattle drivers). Since 2026-10-05 a ticket with no branch counts
+      on no Daily Report (it used to count on all 13), so reopening one of
+      those days would otherwise drop them from Seattle's figures. #18299 is
+      left to `fix-transfer-origins.js`.
 
 Both scripts only preview until run with `--apply`.
 
@@ -90,10 +96,10 @@ permission holes (O4, O19).
 | O12 | Edits typed in the ~1.2s before switching day, branch, view or tab aren't saved: the debounced autosave is cancelled, never flushed. | autosave effect in `DailyReportTab.jsx` (~line 283) | Flush the pending save on day/branch change and unmount | Fixed `8fab81e` |
 | O13 | Submit goes ahead even if its own save failed (`save()` swallows errors), so the last edits are lost from a locked report. | `submitDay` / `save` in `DailyReportTab.jsx` | Stop and show the error when the pre-submit save fails | Fixed `8fab81e` |
 | O14 | Tapping Next day twice on slow data can mix days up: an older response overwrites the newer one, edits save to the wrong day and Submit locks the day in the header. | `loadDay` in `DailyReportTab.jsx` | Ignore responses for a day that's no longer selected | Fixed `8fab81e` |
-| O15 | An autosave racing a submit can un-submit the day: PUT checks for 'submitted', then upserts with an unconditional `status: 'draft'`. | PUT in `src/routes/dailyReports.js` (~line 610) | Make the update conditional on `status != 'submitted'` | Open |
-| O16 | Draft PDFs and emails, the month view and the CSV under-report (missing auto slabs and transfers, stale Homeowners): they read stored drafts without re-deriving. | PDF / month / export routes in `src/routes/dailyReports.js` | `applyDerived` drafts before summarising | Open |
-| O17 | Homeowners can count different check-ins on screen than at submit: the day window uses the viewer's browser offset on GET/overview, the branch's current offset at submit (wrong after a DST change). | `src/routes/dailyReports.js` (~line 650) | One rule: the branch's offset on the report's date | Open |
-| O18 | The All-locations overview runs the same all-branch delivery query 13 times per load. | `deriveFromSystem` / overview in `src/routes/dailyReports.js` | Query once, split by branch | Open |
+| O15 | An autosave racing a submit can un-submit the day: PUT checks for 'submitted', then upserts with an unconditional `status: 'draft'`. | PUT in `src/routes/dailyReports.js` (~line 610) | Make the update conditional on `status != 'submitted'` | Fixed `6d132f2` |
+| O16 | Draft PDFs and emails, the month view and the CSV under-report (missing auto slabs and transfers, stale Homeowners): they read stored drafts without re-deriving. | PDF / month / export routes in `src/routes/dailyReports.js` | `applyDerived` drafts before summarising | Fixed `6d132f2` |
+| O17 | Homeowners can count different check-ins on screen than at submit: the day window uses the viewer's browser offset on GET/overview, the branch's current offset at submit (wrong after a DST change). | `src/routes/dailyReports.js` (~line 650) | One rule: the branch's offset on the report's date | Fixed `6d132f2` |
+| O18 | The All-locations overview runs the same all-branch delivery query 13 times per load. | `deriveFromSystem` / overview in `src/routes/dailyReports.js` | Query once, split by branch | Fixed `6d132f2` |
 | O22 | Manual Submit isn't atomic against the 11:59 auto-submit: both can sign the same day off and the Seattle email can go twice. (The other two O22 items — slab corrections typed on an earlier visit lost at Submit, and Enter jumping into read-only cells — are fixed; see Fixed.) | `/:date/submit` in `src/routes/dailyReports.js`, `src/jobs/autoSubmitDailyReports.js` | Claim the day with a conditional update on `status: 'draft'`, as the job does | Fixed `c115d4c` |
 
 ### Check-In Log
