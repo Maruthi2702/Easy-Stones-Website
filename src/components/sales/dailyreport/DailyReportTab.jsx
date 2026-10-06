@@ -198,10 +198,17 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   }, []);
 
   // ── load the day ──────────────────────────────────────────────────────────
+  // Each load is numbered. On slow data, tapping Next day twice could have the
+  // first day's answer arrive last and replace the second's — the header said
+  // one day while the figures (and every save, and Submit) were another.
+  // A response for a load that's no longer the latest is dropped.
+  const loadSeq = useRef(0);
   const loadDay = useCallback(async () => {
     // "All locations" is a reading of the day, not a sheet to fill in — it
     // fetches every branch itself rather than one report to edit.
     if (!location || location === ALL) return;
+    const seq = ++loadSeq.current;
+    const current = () => seq === loadSeq.current;
     setLoading(true);
     setError(null);
     try {
@@ -211,6 +218,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       );
       if (!res.ok) throw new Error((await res.json()).message || 'Could not load that day.');
       const data = await res.json();
+      if (!current()) return;
       skipAutosave.current = true;
       // Figures someone typed on an earlier visit count as touched, so this
       // visit's saves — and the one before Submit — keep them instead of
@@ -222,11 +230,12 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       setShippedEarlier(data.transfersShippedEarlier || []);
       setDirty(false);
     } catch (err) {
+      if (!current()) return;
       setError(err.message);
       setReport(null);
       setShippedEarlier([]);
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
   }, [date, location]);
 
@@ -241,13 +250,23 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   useEffect(() => { loadDayRef.current = loadDay; }, [loadDay]);
 
   // ── autosave the draft ────────────────────────────────────────────────────
-  const save = useCallback((payload) => {
-    if (!canEdit || payload.status === 'submitted') return Promise.resolve();
-    setSaving(true);
+  // Resolves true once the server has the figures, false if it doesn't — so
+  // Submit can refuse to lock a day whose last save didn't land.
+  // `leaving`: the save of a day the person has just moved off (see
+  // flushPendingSave) — a failure names that day instead of disturbing the
+  // one now on screen. `keepalive`: the page itself is going away (tab
+  // closed, app switched); the browser finishes a keepalive request after the
+  // page is gone, where an ordinary one is usually dropped.
+  const savesInFlight = useRef(0);
+  const save = useCallback((payload, { leaving = false, keepalive = false } = {}) => {
+    if (!canEdit || payload.status === 'submitted') return Promise.resolve(false);
+    if (!leaving) setSaving(true);
+    savesInFlight.current += 1;
     const run = (async () => {
       try {
         const res = await authFetch(`${API_URL}/api/daily-reports/${payload.date}`, {
           method: 'PUT',
+          keepalive,
           body: JSON.stringify(buildSaveBody(payload, {
             touchedCapacity: touchedCapacity.current,
             touchedTransferSlabs: touchedTransferSlabs.current
@@ -258,31 +277,90 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
         // now is rather than leaving edits going into a sheet that won't take
         // them.
         if (res.status === 409) {
-          setError('This day has been submitted. Reopen it to make more changes.');
-          setDirty(false);
-          loadDayRef.current?.();
-          return;
+          if (leaving) {
+            setError(`Your last change to ${payload.date} wasn't saved — that day had been submitted. Reopen it to change it.`);
+          } else {
+            setError('This day has been submitted. Reopen it to make more changes.');
+            setDirty(false);
+            loadDayRef.current?.();
+          }
+          return false;
         }
-        if (!res.ok) throw new Error((await res.json()).message || 'Could not save.');
-        setSavedAt(new Date());
-        setDirty(false);
-        setError(null);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Could not save.');
+        if (!leaving) {
+          setSavedAt(new Date());
+          setDirty(false);
+          setError(null);
+        }
+        return true;
       } catch (err) {
-        setError(err.message);
+        setError(leaving
+          ? `Your last change to ${payload.date} wasn't saved (${err.message}). Open that day and check it.`
+          : err.message);
+        return false;
       } finally {
-        setSaving(false);
+        savesInFlight.current -= 1;
+        if (!leaving) setSaving(false);
       }
     })();
     pendingSave.current = run;
     return run;
   }, [canEdit]);
 
+  // The edits still waiting for the 1.2-second autosave. Moving to another
+  // day, branch or view (or leaving the tab) used to cancel that timer and
+  // throw them away; now they're sent straight away instead. Kept in a ref so
+  // the autosave effect's own cleanup — which runs on every keystroke — never
+  // clears it.
+  const pendingPayload = useRef(null);
+  const saveRef = useRef(save);
+  useEffect(() => { saveRef.current = save; }, [save]);
+  const flushPendingSave = useCallback(({ keepalive = false } = {}) => {
+    const payload = pendingPayload.current;
+    if (!payload) return;
+    pendingPayload.current = null;
+    clearTimeout(saveTimer.current);
+    saveRef.current(payload, { leaving: true, keepalive });
+  }, []);
+  // Before another day, branch or view loads (cleanups run before the next
+  // load starts), and when the sheet unmounts (another part of the app).
+  useEffect(() => () => flushPendingSave(), [date, location, view, flushPendingSave]);
+
+  // The browser tab closing, reloading, or the phone switching apps: send
+  // what's waiting as a keepalive request so it survives the page going away.
+  // 'visibilitychange' to hidden is the one signal phones reliably give;
+  // 'pagehide' covers desktop closes that skip it. And on desktop, while a
+  // save is still waiting or on its way, the browser asks "Leave site?"
+  // first — the save then has the moment it needs.
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') flushPendingSave({ keepalive: true }); };
+    const onPageHide = () => flushPendingSave({ keepalive: true });
+    const onBeforeUnload = (e) => {
+      if (!pendingPayload.current && savesInFlight.current === 0) return;
+      flushPendingSave({ keepalive: true });
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [flushPendingSave]);
+
   useEffect(() => {
     if (!report || !canEdit || report.status === 'submitted') return;
     if (skipAutosave.current) { skipAutosave.current = false; return; }
     setDirty(true);
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => save(report), 1200);
+    pendingPayload.current = report;
+    saveTimer.current = setTimeout(() => {
+      pendingPayload.current = null;
+      save(report);
+    }, 1200);
     return () => clearTimeout(saveTimer.current);
   }, [report, canEdit, save]);
 
@@ -392,6 +470,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   const submitDay = async () => {
     clearTimeout(saveTimer.current);
+    // This save covers whatever was waiting for the autosave.
+    pendingPayload.current = null;
     // An autosave PUT may already be on the wire — cancelling the timer only
     // stops one that hasn't fired yet. Wait for it to land first.
     if (pendingSave.current) await pendingSave.current.catch(() => {});
@@ -399,10 +479,21 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     // the system's figures as of now before it locks the day (applyDerived),
     // keeping only what someone typed — so a sheet left open since the
     // morning still signs off tonight's check-ins and tickets.
-    await save(report);
-    const res = await authFetch(`${API_URL}/api/daily-reports/${date}/submit`, {
+    // If that save didn't land, stop: locking now would sign off the older
+    // figures the server has, and lose what's on screen for good.
+    const saved = await save(report);
+    if (!saved) {
+      // save() already said why; a 409 ("has been submitted") needs nothing added.
+      setError((e) => (e && e.startsWith('This day has been submitted')
+        ? e
+        : `Couldn’t save your last changes, so the day wasn’t submitted${e ? ` (${e})` : ''}. Check your connection and try again.`));
+      return;
+    }
+    // The day whose figures these are — the report's own date and branch,
+    // not the header's, should the two ever disagree.
+    const res = await authFetch(`${API_URL}/api/daily-reports/${report.date}/submit`, {
       method: 'POST',
-      body: JSON.stringify({ location })
+      body: JSON.stringify({ location: report.location })
     });
     if (res.ok) { loadDay(); return; }
     const message = (await res.json().catch(() => ({}))).message || 'Could not submit this day.';
