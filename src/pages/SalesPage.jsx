@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 import { io } from 'socket.io-client';
-import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
+import { getCachedData, setCachedData, isCacheValid, expireCacheKeys } from '../utils/dataCache';
 import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
 import { getAuthToken } from '../api/authToken';
@@ -247,7 +247,6 @@ const SalesPage = () => {
         const seq = ++checkInStatsSeq.current;
         try {
             const params = new URLSearchParams({
-                tz: viewerTimeZone,
                 ...(checkInFilterLocation && { location: checkInFilterLocation })
             });
             const res = await authFetch(`${API_URL}/api/checkin/stats?${params}`);
@@ -297,6 +296,8 @@ const SalesPage = () => {
     // handler would keep believing that for the rest of the session. Kept in
     // step by the effect next to the currentUserId state below.
     const currentUserIdRef = useRef(null);
+    // Set after fetchCheckIns below; read by the checkin_update handler.
+    const refreshCheckInsRef = useRef(() => {});
 
     useEffect(() => {
         const socket = io(API_URL || window.location.origin, {
@@ -315,8 +316,14 @@ const SalesPage = () => {
             if (token) socket.emit('join_checkin_rooms', { token });
         });
 
+        // Through a ref: this handler is registered once, and calling
+        // fetchCheckIns directly ran the first render's copy — its page,
+        // search, month and branch — so a live update swapped the filtered
+        // list for an unfiltered one while the filters still showed. Same
+        // fix as the /checkin-log page.
         socket.on('checkin_update', () => {
-            fetchCheckIns(true);
+            expireCacheKeys('checkins_');
+            refreshCheckInsRef.current();
         });
 
         socket.on('customer_update', () => {
@@ -567,7 +574,6 @@ const SalesPage = () => {
             const params = new URLSearchParams({
                 page: checkInPage,
                 limit: checkInLimit,
-                tz: viewerTimeZone,
                 ...(checkInSearch && { search: checkInSearch }),
                 ...(checkInFilterMonth && { month: checkInFilterMonth }),
                 ...(checkInFilterYear && { year: checkInFilterYear }),
@@ -604,6 +610,8 @@ const SalesPage = () => {
             if (seq === checkInListSeq.current) setCheckInsLoading(false);
         }
     }, [checkInPage, checkInLimit, checkInSearch, checkInFilterMonth, checkInFilterYear, checkInFilterLocation, logout]);
+    // What a live check-in update runs: always the current filters' fetch.
+    refreshCheckInsRef.current = () => fetchCheckIns(true);
 
     // Every row matching the tab's filters, not just the page on screen —
     // shared with the /checkin-log page (exportCheckInLog). A failed page stops
@@ -616,7 +624,7 @@ const SalesPage = () => {
             const { exportCheckInLog, truncatedExportNote } = await import('../components/sales/exportCheckInLog');
             const result = await exportCheckInLog({
                 search: checkInSearch, month: checkInFilterMonth, year: checkInFilterYear,
-                location: checkInFilterLocation, timeZone: viewerTimeZone
+                location: checkInFilterLocation
             });
             if (result.truncated) alert(truncatedExportNote(result));
         } catch (err) {

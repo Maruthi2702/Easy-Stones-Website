@@ -29,7 +29,8 @@ import {
   Printer, Filter, Scan, Plus, MapPin,
   QrCode, Copy, Check, Smartphone, Settings, MoreHorizontal
 } from 'lucide-react';
-import { formatInstant, formatInstantTime } from '../../utils/dateUtils';
+import { formatInstantTime } from '../../utils/dateUtils';
+import { checkInMoment } from '../../utils/checkInClock';
 import Pagination from '../shared/Pagination';
 import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import { LocationField } from '../shared/LocationFilter';
@@ -39,27 +40,15 @@ import SelectionSheetForm, { SHEET_DRAFT_KEY } from './selectionSheet/SelectionS
 import './CheckInLogPanel.css';
 
 /* ── helpers ──────────────────────────────────── */
-// Every date shown here is a check-in's createdAt — a real moment, not a calendar
-// date — so these read through the shared instant helpers and render in the
-// viewer's own zone. This panel used to carry its own copies of them.
-const formatDate = (ts) => formatInstant(ts);
-
-const formatTime = (ts) => formatInstantTime(ts);
+// A check-in's date, time and "Today" are read on its own branch's clock
+// (checkInMoment, src/utils/checkInClock.js) — the same day the list's month
+// filter, the counts and the Daily Report put it on. A time from a branch in
+// another zone than the viewer's carries its zone ("12:30 AM EDT").
+const momentOf = (c) => checkInMoment(c.createdAt || c.date, c.location);
+const timeLabel = (m) => (m.zone ? `${m.time} ${m.zone}` : m.time);
 
 const formatLastUpdated = (d) =>
   d ? formatInstantTime(d, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
-
-const isToday = (ts) => {
-  if (!ts) return false;
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return false;
-  const now = new Date();
-  return (
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear()
-  );
-};
 
 const getInitials = (name) =>
   name ? name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) : '?';
@@ -139,6 +128,10 @@ const CheckInLogPanel = ({
   // What the location filter offers: the branches this person is assigned
   // (every branch for '*') — the same set the check-in API scopes them to.
   const locationOptions = useMemo(() => accessibleLocations(user, locations), [user, locations]);
+  // The Check-In button: locked to the branch being looked at; on "All" the
+  // page opens on their home branch and still lets them switch. It used to
+  // lock to their first assigned branch, which isn't always where they work.
+  const checkInPageHref = filterLocation ? `/checkin?location=${encodeURIComponent(filterLocation)}` : '/checkin';
   const isAdmin = !user || user.role === 'admin' || user.role === 'Admin' || user.permissions?.includes('*') || user.permissions?.includes('admin');
 
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -201,7 +194,7 @@ const CheckInLogPanel = ({
   // Use prop if provided (accurate from DB), else compute from loaded page
   const todayCount = useMemo(() => {
     if (todayCountProp !== null) return todayCountProp;
-    return checkIns.filter((c) => isToday(c.createdAt)).length;
+    return checkIns.filter((c) => momentOf(c).isToday).length;
   }, [checkIns, todayCountProp]);
 
   // Search is resolved server-side (across name, phone, fabricatorCompany and
@@ -234,11 +227,7 @@ const CheckInLogPanel = ({
 
           <a
             href={
-              filterLocation 
-                ? `/checkin?location=${encodeURIComponent(filterLocation)}`
-                : user?.assignedLocations?.find(l => l !== '*')
-                  ? `/checkin?location=${encodeURIComponent(user.assignedLocations.find(l => l !== '*'))}`
-                  : '/checkin'
+              checkInPageHref
             }
             target="_blank"
             rel="noopener noreferrer"
@@ -392,11 +381,7 @@ const CheckInLogPanel = ({
 
           <a
             href={
-              filterLocation 
-                ? `/checkin?location=${encodeURIComponent(filterLocation)}`
-                : user?.assignedLocations?.find(l => l !== '*')
-                  ? `/checkin?location=${encodeURIComponent(user.assignedLocations.find(l => l !== '*'))}`
-                  : '/checkin'
+              checkInPageHref
             }
             target="_blank"
             rel="noopener noreferrer"
@@ -485,13 +470,13 @@ const CheckInLogPanel = ({
                 </thead>
                 <tbody>
                   {filtered.map((c) => {
-                    const entryDate = c.createdAt || c.date;
-                    const entryIsToday = isToday(entryDate);
+                    const moment = momentOf(c);
+                    const entryIsToday = moment.isToday;
                     return (
                       <tr key={c._id} className={entryIsToday ? 'clp-row-today' : ''}>
                         <td className="clp-td-time">
-                          <div className="clp-date">{formatDate(entryDate)}</div>
-                          <div className="clp-time">{formatTime(entryDate)}</div>
+                          <div className="clp-date">{moment.date || '-'}</div>
+                          <div className="clp-time">{timeLabel(moment)}</div>
                           {entryIsToday && <span className="clp-badge clp-badge-today">Today</span>}
                         </td>
                         <td>
@@ -636,8 +621,8 @@ const CheckInLogPanel = ({
             {/* ── Mobile & iPad View: Cards Grid ── */}
             <div className="clp-cards-grid clp-mobile-only">
               {filtered.map((c) => {
-                const entryDate = c.createdAt || c.date;
-                const entryIsToday = isToday(entryDate);
+                const moment = momentOf(c);
+                const entryIsToday = moment.isToday;
                 return (
                   <div key={c._id} className={`clp-customer-style-card ${entryIsToday ? 'clp-row-today' : ''}`}>
                     {/* Top Row: Visitor Name & Phone (Left) + Status Date Pill & Location (Right) */}
@@ -653,7 +638,7 @@ const CheckInLogPanel = ({
                       <div className="clp-csc-right-meta">
                         <span className={`clp-csc-status-badge ${entryIsToday ? 'today' : ''}`}>
                           {entryIsToday && <span className="clp-live-pulse-dot" />}
-                          {entryIsToday ? `TODAY • ${formatTime(entryDate)}` : formatDate(entryDate)}
+                          {entryIsToday ? `TODAY • ${timeLabel(moment)}` : (moment.date || '-')}
                         </span>
                         {hasMultipleLocations && c.location && (
                           <span className="clp-csc-badge-pill location-pill" style={getLocationBadgeStyle(c.location, internalTheme || themeProp)}>

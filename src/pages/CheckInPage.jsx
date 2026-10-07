@@ -9,6 +9,7 @@ import { authFetch } from '../api/authFetch';
 import { formatPhoneInput } from '../utils/phoneUtils';
 import { formatTitleCase } from '../utils/textUtils';
 import { useAuth } from '../context/AuthContext';
+import { homeLocationOf } from '../utils/locationFilter';
 import { useNavigate } from 'react-router-dom';
 import './CheckInPage.css';
 
@@ -98,7 +99,12 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     ref.current?.focus();
   };
 
-  const [availableLocations, setAvailableLocations] = useState(['Seattle', 'Spokane', 'Salt Lake City']);
+  // Until the real list loads: the branches they're assigned, so the picker
+  // never briefly offers only Seattle/Spokane/SLC to someone based elsewhere.
+  const [availableLocations, setAvailableLocations] = useState(() => {
+    const assigned = (user?.assignedLocations || []).filter(l => l !== '*');
+    return assigned.length ? assigned : ['Seattle', 'Spokane', 'Salt Lake City'];
+  });
   
   const urlLocationParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('location') : null;
   const isLockedLocation = isSelf || Boolean(urlLocationParam);
@@ -108,18 +114,12 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     ? availableLocations
     : availableLocations.filter(loc => user?.assignedLocations?.includes(loc));
 
+  // The link's ?location=, else their home location (Users & Roles) — the
+  // same default the server files under. It used to be their first assigned
+  // branch, so a CSR based in Dallas who also covers Seattle opened on Seattle.
   const [selectedLocation, setSelectedLocation] = useState(() => {
-    try {
-      const locParam = new URLSearchParams(window.location.search).get('location');
-      if (locParam) return locParam;
-      const saved = localStorage.getItem('kiosk_location');
-      if (saved && !isSelf) return saved;
-    } catch { /* not fatal — carry on */ }
-    if (user?.assignedLocations) {
-      const primaryLoc = user.assignedLocations.find(l => l !== '*');
-      if (primaryLoc) return primaryLoc;
-    }
-    return 'Seattle';
+    if (urlLocationParam) return urlLocationParam;
+    return homeLocationOf(user) || user?.assignedLocations?.find(l => l !== '*') || 'Seattle';
   });
 
   

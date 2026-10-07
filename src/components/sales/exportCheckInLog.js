@@ -11,12 +11,11 @@ import { EXPORT_PAGE_SIZE, collectAllCheckIns, checkInExportRows, checkInExportF
  * shown as is (code 'auth' when the session has ended); nothing is written
  * then, rather than a file that silently stops partway.
  */
-export async function exportCheckInLog({ search = '', month = null, year = null, location = null, timeZone }) {
+export async function exportCheckInLog({ search = '', month = null, year = null, location = null }) {
   const fetchPage = async (page) => {
     const params = new URLSearchParams({
       page,
       limit: EXPORT_PAGE_SIZE,
-      ...(timeZone && { tz: timeZone }),
       ...(search && { search }),
       ...(month && { month }),
       ...(year && { year }),

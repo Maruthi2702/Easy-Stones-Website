@@ -6,6 +6,8 @@ import User from '../models/User.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail } from '../services/emailService.js';
 import { stripPhone, formatPhoneForDisplay, maskPhone } from '../utils/phoneUtils.js';
 import { letterheadFor } from '../utils/locationForm.js';
+import { homeLocationOf } from '../utils/locationFilter.js';
+import { byBranchClock } from '../utils/checkInClock.js';
 import rateLimit from 'express-rate-limit';
 
 /**
@@ -79,12 +81,11 @@ const digitTolerantPhoneRegex = (search) => {
   return new RegExp(digits.split('').map(escapeRegex).join('[\\s().-]*'), 'i');
 };
 
-// "Which day/month does this check-in belong to" has to be answered in some
-// timezone. Callers pass the viewer's own zone (the browser reports it), so
-// the counts and month filter line up with the dates that viewer sees on
-// screen. Falls back to Pacific — where most branches are — when none is
-// supplied.
-const DEFAULT_TZ = 'America/Los_Angeles';
+// "Which day/month does this check-in belong to" is answered on its own
+// branch's clock (byBranchClock in src/utils/checkInClock.js), the same way
+// the Daily Report counts visitors. It used to be the viewer's zone (?tz=),
+// so a Seattle admin filed an Atlanta visit at 12:30 AM Oct 1 under
+// September while Atlanta's report counted it on Oct 1. ?tz= is now ignored.
 
 const zoneFormatters = new Map();
 const zoneFormatter = (timeZone) => {
@@ -97,17 +98,6 @@ const zoneFormatter = (timeZone) => {
     }));
   }
   return zoneFormatters.get(timeZone);
-};
-
-// Reject anything Intl won't accept, so a bad ?tz= can't throw mid-request.
-const resolveTimeZone = (tz) => {
-  if (!tz || typeof tz !== 'string') return DEFAULT_TZ;
-  try {
-    zoneFormatter(tz).format(new Date());
-    return tz;
-  } catch {
-    return DEFAULT_TZ;
-  }
 };
 
 // How far behind UTC the zone is at a given instant (resolves DST automatically).
@@ -253,8 +243,12 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         }
         kioskLocation = bodyLocation;
       } else {
-        const validLoc = userLocations.find(l => l !== '*');
-        kioskLocation = validLoc || 'Seattle';
+        // Their home location (Users & Roles), the same branch the check-in
+        // page opens on. It used to be the first assigned branch, so a CSR
+        // based in Dallas who also covers Seattle filed visitors under Seattle.
+        kioskLocation = homeLocationOf({ location: req.authUserDoc?.location, assignedLocations: userLocations })
+          || userLocations.find(l => l !== '*')
+          || 'Seattle';
       }
 
       const duplicate = await findRecentDuplicateCheckIn(normalizedPhone, kioskLocation);
@@ -464,11 +458,13 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       if (locFilter.forbidden) {
         return res.status(403).json({ message: 'Access denied to this location' });
       }
-      const query = { ...locFilter };
+      // Location, month and search clauses, ANDed — the month window and the
+      // search can each be an $or of their own.
+      const clauses = [];
 
       // If query parameters are not supplied, return standard raw array for backward compatibility
       if (!page && !limit && !search && !month && !year) {
-        const checkIns = await OfficeCheckIn.find(query)
+        const checkIns = await OfficeCheckIn.find(locFilter)
           .sort({ createdAt: -1 })
           .limit(50);
         return res.json(checkIns);
@@ -481,17 +477,17 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       // filtered month at any single location.
       const limitNum = Math.min(parseInt(limit) || 20, 1000);
 
-      if (month && year) {
-        const m = parseInt(month);
-        const y = parseInt(year);
-        // Month boundaries in the viewer's own zone, matching GET /stats.
-        // These used to be reckoned in UTC, so a late-afternoon check-in on the last
-        // day of a month was listed under the following one.
-        const tz = resolveTimeZone(req.query.tz);
-        query.createdAt = {
-          $gte: zoneMidnightUtc(tz, y, m - 1, 1),
-          $lt: zoneMidnightUtc(tz, y, m, 1)
-        };
+      const m = parseInt(month);
+      const y = parseInt(year);
+      if (m >= 1 && m <= 12 && y > 2000) {
+        // The month on each check-in's own branch clock, matching GET /stats
+        // and the Daily Report.
+        clauses.push(byBranchClock(locFilter, (zone) => ({
+          $gte: zoneMidnightUtc(zone, y, m - 1, 1),
+          $lt: zoneMidnightUtc(zone, y, m, 1)
+        })));
+      } else if (locFilter.location) {
+        clauses.push(locFilter);
       }
 
       if (search) {
@@ -506,8 +502,9 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         if (phoneRegex) {
           orClauses.push({ phone: phoneRegex }, { fabricatorPhone: phoneRegex });
         }
-        query.$or = orClauses;
+        clauses.push({ $or: orClauses });
       }
+      const query = clauses.length > 1 ? { $and: clauses } : (clauses[0] || {});
 
       const total = await OfficeCheckIn.countDocuments(query);
       const checkIns = await OfficeCheckIn.find(query)
@@ -531,13 +528,13 @@ export default function createCheckInRouter({ authenticate, requirePermission })
     try {
       const now = new Date();
 
-      // Today's and this month's start in the viewer's own zone, via the same
-      // helpers the check-in list uses so both agree on which day/month a check-in
-      // belongs to — and so these counts match the dates rendered on screen.
-      const tz = resolveTimeZone(req.query.tz);
-      const { year, monthIndex, day } = zoneDateParts(now, tz);
-      const startOfToday = zoneMidnightUtc(tz, year, monthIndex, day);
-      const startOfMonth = zoneMidnightUtc(tz, year, monthIndex, 1);
+      // Today and this month on each branch's own clock — the same windows
+      // the list's month filter and the Daily Report use, so "Today" for
+      // Atlanta starts at Atlanta's midnight whoever is looking.
+      const startOf = (zone, wholeMonth) => {
+        const { year, monthIndex, day } = zoneDateParts(now, zone);
+        return { $gte: zoneMidnightUtc(zone, year, monthIndex, wholeMonth ? 1 : day) };
+      };
 
       const userLocations = req.user.assignedLocations || [];
       const locFilter = locationFilterFor(userLocations, req.query.location);
@@ -545,8 +542,8 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         return res.status(403).json({ message: 'Access denied to this location' });
       }
 
-      const queryToday = { createdAt: { $gte: startOfToday }, ...locFilter };
-      const queryMonth = { createdAt: { $gte: startOfMonth }, ...locFilter };
+      const queryToday = byBranchClock(locFilter, (zone) => startOf(zone, false));
+      const queryMonth = byBranchClock(locFilter, (zone) => startOf(zone, true));
       const queryAllTime = { ...locFilter };
 
       const [todayCount, monthCount, allTimeCount] = await Promise.all([

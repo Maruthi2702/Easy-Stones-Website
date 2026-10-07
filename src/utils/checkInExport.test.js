@@ -8,6 +8,12 @@ describe('checkInExportRows', () => {
     expect(row.Date).not.toBe('');
     expect(checkInExportRows([{}])[0]).toMatchObject({ Date: '', Time: '', Location: '' });
   });
+
+  it('dates and times are on the branch clock, with its zone when it isn\'t the exporter\'s', () => {
+    const atl = { createdAt: '2026-10-01T04:30:00Z', location: 'Atlanta' }; // 12:30 AM Oct 1 in Atlanta
+    expect(checkInExportRows([atl], { viewerZone: 'America/Los_Angeles' })[0]).toMatchObject({ Date: 'Oct 1, 2026', Time: '12:30 AM EDT' });
+    expect(checkInExportRows([atl], { viewerZone: 'America/New_York' })[0]).toMatchObject({ Date: 'Oct 1, 2026', Time: '12:30 AM' });
+  });
 });
 
 describe('collectAllCheckIns', () => {

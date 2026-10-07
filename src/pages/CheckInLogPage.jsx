@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { io } from 'socket.io-client';
-import { getCachedData, setCachedData, isCacheValid } from '../utils/dataCache';
+import { getCachedData, setCachedData, isCacheValid, expireCacheKeys } from '../utils/dataCache';
 import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
 import { getAuthToken } from '../api/authToken';
-import { viewerTimeZone } from '../utils/dateUtils';
 import { Sun, Moon } from 'lucide-react';
 import CheckInLogPanel from '../components/sales/CheckInLogPanel';
 import { exportCheckInLog, truncatedExportNote } from '../components/sales/exportCheckInLog';
@@ -127,6 +126,7 @@ const CheckInLogPage = () => {
     });
 
     socket.on('checkin_update', () => {
+      expireCacheKeys('page_checkins_');
       refreshRef.current();
     });
 
@@ -145,7 +145,6 @@ const CheckInLogPage = () => {
     const seq = ++statsSeq.current;
     try {
       const params = new URLSearchParams({
-        tz: viewerTimeZone,
         ...(filterLocation && { location: filterLocation })
       });
       const res = await authFetch(`${API_URL}/api/checkin/stats?${params}`);
@@ -186,7 +185,6 @@ const CheckInLogPage = () => {
       const params = new URLSearchParams({
         page: currentPage,
         limit: limit,
-        tz: viewerTimeZone,
         ...(debouncedSearch && { search: debouncedSearch }),
         ...(filterMonth && { month: filterMonth }),
         ...(filterYear && { year: filterYear }),
@@ -236,7 +234,7 @@ const CheckInLogPage = () => {
     setIsExporting(true);
     try {
       const result = await exportCheckInLog({
-        search: debouncedSearch, month: filterMonth, year: filterYear, location: filterLocation, timeZone: viewerTimeZone
+        search: debouncedSearch, month: filterMonth, year: filterYear, location: filterLocation
       });
       if (result.truncated) alert(truncatedExportNote(result));
     } catch (err) {

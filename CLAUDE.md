@@ -199,7 +199,11 @@ ones greyed out, a 3rd-party truck's optional carrier / BOL / agreed price,
 transfer checks, the change count, and the save body), and the customer
 write rules (`src/utils/customerRecord.js`: what a create/edit may write,
 defaults, the placeholder email, protected fields) and dropdown rules
-(`src/utils/customerOptions.js`: name, address parts, sort, search).
+(`src/utils/customerOptions.js`: name, address parts, sort, search), and
+the Check-In Log's branch clock (`src/utils/checkInClock.js`: which day and
+month a check-in belongs to on its own branch's clock, the per-zone query the
+list's month filter and counts use, and the date/time/"Today" shown and
+exported).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

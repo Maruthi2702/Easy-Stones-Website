@@ -61,3 +61,13 @@ export const clearAllCache = () => {
     else cacheStore[k] = null;
   });
 };
+
+// Marks every entry whose key starts with `prefix` as out of date: it still
+// paints instantly, but the next read refetches instead of trusting it for
+// two minutes. For live updates — a new check-in makes every cached page of
+// the log stale, not just the one on screen.
+export const expireCacheKeys = (prefix) => {
+  Object.keys(cacheStore.lastUpdated).forEach(k => {
+    if (k.startsWith(prefix)) cacheStore.lastUpdated[k] = 0;
+  });
+};
