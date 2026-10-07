@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   X, ChevronUp, ChevronDown, ExternalLink, Pencil, MoreHorizontal, Phone, Mail, Navigation,
-  Users, Wrench, Presentation, Clock, NotebookPen, Check, Trash2, Copy, MapPin
+  Users, Wrench, Presentation, Clock, NotebookPen, Check, Trash2, Copy, MapPin, BookUser
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
@@ -20,6 +20,28 @@ const fmtDate = (d) => {
 };
 
 const todayStr = () => new Date().toLocaleDateString('en-CA');
+
+/**
+ * Save this person to the phone's contacts: a link to their .vcf (GET
+ * /api/customers/:id/vcard, src/utils/vcard.js). On an iPhone it opens the
+ * contact card with Create New Contact; Android and laptops download it.
+ * A plain link, not a fetch — the phone has to open the file itself.
+ */
+const SaveContact = ({ customerId, person }) => {
+  if (!customerId || !(person.name || person.phone || person.email)) return null;
+  const who = person.name || person.email || 'this contact';
+  return (
+    <a
+      className="cl-ib box"
+      style={{ width: 32, height: 32, borderRadius: 8 }}
+      href={`${API_URL}/api/customers/${customerId}/vcard?contact=${encodeURIComponent(person.key)}`}
+      title="Save to phone contacts"
+      aria-label={`Save ${who} to phone contacts`}
+    >
+      <BookUser size={16} aria-hidden="true" />
+    </a>
+  );
+};
 
 const CopyCard = ({ person }) => {
   const [done, setDone] = useState(false);
@@ -191,7 +213,10 @@ const CustomerDrawer = ({
                     <b style={{ fontWeight: 650, fontSize: 13.5 }}>{p.name || p.email}</b>
                     {p.role && <span className="cl-lvl" style={{ height: 20, fontSize: 11 }}>{p.role}</span>}
                     <span className="cl-grow" />
-                    <CopyCard person={p} />
+                    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flex: 'none' }}>
+                      <CopyCard person={p} />
+                      <SaveContact customerId={customer?._id} person={p} />
+                    </span>
                   </div>
                   <div className="cl-ct-vals">
                     {p.phone && (
