@@ -52,6 +52,7 @@ import { toSalesRepList } from '../utils/salesReps';
 import { lazyRetry } from '../utils/lazyRetry';
 import { useCustomerOptions, refreshCustomers, addCustomerRecord } from '../api/customerOptions';
 import { toCustomerOptions } from '../utils/customerOptions';
+import { companyOf, contactOf, realEmailsOf } from '../utils/customerList';
 
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 
@@ -3794,11 +3795,41 @@ const SalesPage = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
+                                                    {/* The main contact lives on the customer record itself
+                                                        (Contact name / Phone / Email in Edit customer), not in
+                                                        `contacts`, so it's listed first here — it never showed. */}
+                                                    {(() => {
+                                                        const name = contactOf(selectedCustomer);
+                                                        const emails = realEmailsOf(selectedCustomer);
+                                                        if (!name && !selectedCustomer.phone && emails.length === 0) return null;
+                                                        return (
+                                                            <tr key="primary">
+                                                                <td data-label="Name">{name || companyOf(selectedCustomer)}</td>
+                                                                <td data-label="Phone" style={{ whiteSpace: 'nowrap' }}>{formatPhoneForDisplay(selectedCustomer.phone) || selectedCustomer.phone || '-'}</td>
+                                                                <td data-label="Email">{emails.length ? <span className="contact-emails">{emails.map(e => <span key={e}>{e}</span>)}</span> : '-'}</td>
+                                                                <td data-label="Role">Primary</td>
+                                                                <td data-label="Notes">-</td>
+                                                                <td data-label="Actions">
+                                                                    <div className="action-buttons">
+                                                                        <a
+                                                                            className="icon-btn"
+                                                                            href={`${API_URL}/api/customers/${selectedCustomer._id}/vcard?contact=primary`}
+                                                                            title="Save to phone contacts"
+                                                                            aria-label={`Save ${name || 'the primary contact'} to phone contacts`}
+                                                                            style={{ color: 'inherit' }}
+                                                                        >
+                                                                            <BookUser size={14} />
+                                                                        </a>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })()}
                                                     {selectedCustomer.contacts && selectedCustomer.contacts.length > 0 ? (
                                                         selectedCustomer.contacts.map(contact => (
                                                             <tr key={contact._id}>
                                                                 <td data-label="Name">{contact.name}</td>
-                                                                <td data-label="Phone">{formatPhoneForDisplay(contact.phone) || '-'}</td>
+                                                                <td data-label="Phone" style={{ whiteSpace: 'nowrap' }}>{formatPhoneForDisplay(contact.phone) || '-'}</td>
                                                                 <td data-label="Email">{contact.email || '-'}</td>
                                                                 <td data-label="Role">{contact.role || '-'}</td>
                                                                 <td data-label="Notes">{contact.notes || '-'}</td>
@@ -3824,11 +3855,11 @@ const SalesPage = () => {
                                                                 </td>
                                                             </tr>
                                                         ))
-                                                    ) : (
+                                                    ) : (!contactOf(selectedCustomer) && !selectedCustomer.phone && realEmailsOf(selectedCustomer).length === 0) ? (
                                                         <tr>
                                                             <td colSpan="6" className="empty-row">No contacts added yet</td>
                                                         </tr>
-                                                    )}
+                                                    ) : null}
                                                 </tbody>
                                             </table>
                                         </div>
