@@ -117,6 +117,12 @@ permission holes (O4, O19).
       delivery form (`DeliveryForm.jsx`, live since 2026-10-05) has worked
       well. Nothing mounts it; it's kept only as a fallback. Before deleting,
       `grep -rn "DeliveryModal" src` should only find comments.
+- [ ] **On or after 2026-11-06:** drop the old customer API addresses kept
+      as aliases when everything moved under `/api/customers` (2026-10-06):
+      `/api/sales/customers`, `/api/partners…`, `/api/admin/customers…` in
+      server.js's route arrays and the cache-bust middleware. By then every
+      cached app has updated. `grep -rn "api/partners\|api/sales/customers\|api/admin/customers" src`
+      should find nothing first.
 
 ## Fixed
 

@@ -50,6 +50,8 @@ import { canAddVisit, canModifyVisit, canDeleteVisit, visitViewScope } from '../
 import { clearInventoryCache } from '../api/inventoryAnalysisCache';
 import { toSalesRepList } from '../utils/salesReps';
 import { lazyRetry } from '../utils/lazyRetry';
+import { useCustomerOptions, refreshCustomers, addCustomerRecord } from '../api/customerOptions';
+import { toCustomerOptions } from '../utils/customerOptions';
 
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 
@@ -142,14 +144,14 @@ const SalesPage = () => {
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
     const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
     const [customerOriginTab, setCustomerOriginTab] = useState(null);
-    const [allCustomersForSelection, setAllCustomersForSelection] = useState([]);
+    // The shared customer list behind every customer dropdown (src/api/customerOptions.js).
+    const { records: allCustomersForSelection, options: sharedCustomerOptions, loading: isDropdownLoading } = useCustomerOptions();
     // Latches on the first visit to the route planner and never clears, so the
     // map it builds survives navigating away and back. See where it renders.
     const [routePlannerOpened, setRoutePlannerOpened] = useState(false);
     const [, setLoading] = useState(true);
     const [, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('visits');
-    const [isDropdownLoading, setIsDropdownLoading] = useState(true); // tracks customer dropdown fetch
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -318,6 +320,8 @@ const SalesPage = () => {
 
         socket.on('customer_update', () => {
             fetchCustomers(true);
+            // Every customer dropdown, for a change made by anyone, anywhere.
+            refreshCustomers();
         });
 
         socket.on('resource_update', () => {
@@ -989,45 +993,20 @@ const SalesPage = () => {
         }
     };
 
-    const customerOptions = React.useMemo(() => {
-        const sourceData = allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || []);
-        const extractStr = (val) => {
-            if (!val) return '';
-            if (typeof val === 'string') return val === '[object Object]' ? '' : val.trim();
-            if (typeof val === 'object') {
-                const res = val.street || val.address || val.line1 || val.city || val.name || '';
-                return typeof res === 'string' ? (res === '[object Object]' ? '' : res.trim()) : String(res || '').trim();
-            }
-            return String(val).trim();
-        };
+    // "New customer" in a dropdown — only for people the server lets create one
+    // (POST /api/customers needs manage_customers); undefined hides the option.
+    const openNewCustomer = currentUser?.permissions?.includes('manage_customers')
+        ? () => setShowAddCustomerModal(true)
+        : undefined;
 
-        return sourceData
-            .slice()
-            .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
-            .map(c => {
-                let cityPart = extractStr(c.city) || extractStr(c.shippingCity) || extractStr(c.billingCity);
-                if (!cityPart && c.shippingAddress && typeof c.shippingAddress === 'object') cityPart = extractStr(c.shippingAddress.city);
-                if (!cityPart && c.billingAddress && typeof c.billingAddress === 'object') cityPart = extractStr(c.billingAddress.city);
-                if (!cityPart && c.address && typeof c.address === 'object') cityPart = extractStr(c.address.city);
-
-                let addrPart = extractStr(c.address) || extractStr(c.street) || extractStr(c.shippingAddress) || extractStr(c.billingAddress);
-                if (addrPart === cityPart) addrPart = '';
-
-                const statePart = extractStr(c.state) || extractStr(c.shippingState) || extractStr(c.billingState);
-                const fullAddr = [addrPart, cityPart, statePart].filter(p => p && p !== '[object Object]').join(', ') || cityPart || addrPart;
-
-                return {
-                    value: c._id,
-                    label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
-                    city: cityPart,
-                    address: addrPart || cityPart,
-                    fullAddress: fullAddr,
-                    // The account's owning rep, so a form that picks a customer
-                    // can name the rep without looking the customer up again.
-                    salesRepName: c.salesRepName || ''
-                };
-            });
-    }, [allCustomersForSelection, customers]);
+    // Every customer dropdown on this page (Visit, Lost sale, Sales planner,
+    // Resource, Delivery) reads this one list — names, sorting and the city
+    // line come from src/utils/customerOptions.js. Until the shared list has
+    // loaded, the page's own first page of customers stands in.
+    const customerOptions = React.useMemo(
+        () => (sharedCustomerOptions.length > 0 ? sharedCustomerOptions : toCustomerOptions(customers || [])),
+        [sharedCustomerOptions, customers]
+    );
 
     const dashboardDateRangeStart = React.useMemo(() => {
         // If we are using the dedicated dashboardVisits/dashboardResources from the backend,
@@ -1429,25 +1408,6 @@ const SalesPage = () => {
 
     // Current user ID is managed directly via AuthContext (currentUser)
 
-    const fetchAllCustomersForDropdown = useCallback(async () => {
-        setIsDropdownLoading(true);
-        try {
-            const response = await authFetch(`${API_URL}/api/customers/dropdown`);
-
-            if (response.ok) {
-                const data = await response.json();
-                setAllCustomersForSelection(data);
-            }
-        } catch (error) {
-            console.error('Error fetching all customers for dropdown:', error);
-        } finally {
-            setIsDropdownLoading(false);
-        }
-    }, [customerRefreshTrigger]);
-
-    useEffect(() => {
-        fetchAllCustomersForDropdown();
-    }, [fetchAllCustomersForDropdown]);
 
 
     // Fetch Sales Dashboard Resources
@@ -1488,7 +1448,7 @@ const SalesPage = () => {
 
             for (let i = 0; i <= maxRetries; i++) {
                 try {
-                    response = await authFetch(`${API_URL}/api/sales/customers`, {
+                    response = await authFetch(`${API_URL}/api/customers`, {
                         method: 'POST',
                         body: JSON.stringify(formData)
                     });
@@ -1516,8 +1476,10 @@ const SalesPage = () => {
             // whether the customer we JUST created shows up — skip straight
             // to a fresh fetch instead of possibly redisplaying the
             // pre-create cached page.
-            await fetchCustomers(true);
-            await fetchAllCustomersForDropdown(); // Refresh dropdown options
+            // In the shared dropdown list at once, so the form that asked for it
+            // can show it selected; the refetch then brings everything else.
+            addCustomerRecord(newCustomer);
+            await Promise.all([fetchCustomers(true), refreshCustomers()]);
             closeModal();
             // Opened from the Visit form's "New customer": it's the visit's customer.
             if (showVisitModal && !isViewingVisit && newCustomer?._id) {
@@ -1644,17 +1606,14 @@ const SalesPage = () => {
     // Use selectedCustomerDetail for the main view, fallback to list item (which might be partial)
     const selectedCustomer = selectedCustomerDetail || customers.find(c => c._id === selectedCustomerId) || (selectedCustomerId ? { _id: selectedCustomerId } : null);
 
+    // Link a partner: the same customer options, minus this account and the
+    // ones already linked, with the type in the line under the name.
     const linkableCustomerOptions = React.useMemo(() => {
-        const sourceData = allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || []);
-        const linkedIds = new Set((selectedCustomer?.associatedCustomers || []).map(p => p._id));
-        return sourceData
-            .filter(c => c._id !== selectedCustomer?._id && !linkedIds.has(c._id) && c.isActive !== false)
-            .sort((a, b) => (a.company || a.contactName || '').localeCompare(b.company || b.contactName || ''))
-            .map(c => ({
-                value: c._id,
-                label: `${c.company || c.contactName} (${c.customerType || 'Fabricator'})`
-            }));
-    }, [allCustomersForSelection, customers, selectedCustomer]);
+        const linkedIds = new Set((selectedCustomer?.associatedCustomers || []).map(p => String(p._id)));
+        return customerOptions
+            .filter(o => String(o.value) !== String(selectedCustomer?._id) && !linkedIds.has(String(o.value)))
+            .map(o => ({ ...o, description: [o.customerType || 'Fabricator', o.city].filter(Boolean).join(' · ') }));
+    }, [customerOptions, selectedCustomer]);
 
     // Filter resources (scoped to selected customer only)
     const customerResources = selectedCustomer ? (selectedCustomer.resources || []) : [];
@@ -2051,7 +2010,7 @@ const SalesPage = () => {
         if (!window.confirm(`Are you sure you want to ${action} this customer?`)) return;
 
         try {
-            const response = await authFetch(`${API_URL}/api/admin/customers/${id}/status`, {
+            const response = await authFetch(`${API_URL}/api/customers/${id}/active`, {
                 method: 'PATCH',
                 body: JSON.stringify({ isActive: newStatus })
             });
@@ -2073,18 +2032,16 @@ const SalesPage = () => {
 
     /**
      * Admin-only capability, gated behind manage_customer_accounts. Goes through
-     * the legacy /api/admin/customers/:id route deliberately, never
-     * /api/partners/:id: that route updates via findByIdAndUpdate, which
-     * Mongoose does not run document middleware for — a password sent through
-     * it would be written in plain text, skipping the schema's pre('save')
-     * bcrypt hook. /api/admin/customers/:id updates via customer.save(),
-     * which does run it.
+     * its own route, /api/customers/:id/password, which updates via
+     * customer.save() so the schema's pre('save') bcrypt hook runs. The
+     * ordinary edit route (PUT /api/customers/:id) refuses a password
+     * outright: it uses findByIdAndUpdate, which skips that hook.
      */
     const handleResetCustomerPassword = async (id) => {
         if (!resetPasswordValue.trim()) return;
         if (!window.confirm("Reset this customer's password?")) return;
         try {
-            const response = await authFetch(`${API_URL}/api/admin/customers/${id}`, {
+            const response = await authFetch(`${API_URL}/api/customers/${id}/password`, {
                 method: 'PUT',
                 body: JSON.stringify({ password: resetPasswordValue })
             });
@@ -3420,7 +3377,7 @@ const SalesPage = () => {
                                 customerOptions={customerOptions}
                                 locationsList={locations || ['Seattle', 'Spokane', 'Salt Lake City']}
                                 theme={theme}
-                                onCreateNew={() => setShowAddCustomerModal(true)}
+                                onCreateNew={openNewCustomer}
                                 isDropdownLoading={isDropdownLoading}
                                 sidebarToggle={sidebarToggle}
                             />
@@ -4934,7 +4891,7 @@ const SalesPage = () => {
                     handleDashboardDownload={handleDashboardDownload}
                     setFullScreenImage={setFullScreenImage}
                     handleOpenGallery={handleOpenGallery}
-                    onCreateNew={() => setShowAddCustomerModal(true)}
+                    onCreateNew={openNewCustomer}
                     suspended={showAddCustomerModal}
                     // Users & Roles → Visits → Delete own / branch / all (visitAccess.js).
                     canDelete={Boolean(editingVisit?._id) && canDeleteVisit(
@@ -5295,7 +5252,7 @@ const SalesPage = () => {
                     handleDashboardDownload={handleDashboardDownload}
                     setFullScreenImage={setFullScreenImage}
                     handleOpenGallery={handleOpenGallery}
-                    onCreateNew={() => setShowAddCustomerModal(true)}
+                    onCreateNew={openNewCustomer}
                 />
 
                 {

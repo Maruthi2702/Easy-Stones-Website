@@ -57,6 +57,7 @@ import { scrapeErpCustomers, scrapeErpInventory, scrapeErpSales } from './src/se
 // Sales Rep dropdown would also have offered.
 import { isSalesRep } from './src/utils/salesReps.js';
 import { geocodeAddress, geocodePatchFor, addressKeyOf, GEOCODE_PRECISION } from './src/utils/geocode.js';
+import { newCustomerFields, customerUpdateFields, addressFrom, suppliedPoint } from './src/utils/customerRecord.js';
 // One definition of "these two records are the same business", shared by the
 // import, the duplicate audit and the merge script.
 import { groupDuplicates, STRONG, withoutSeparated, buildSignalIndex, matchAgainst } from './src/utils/customerMatch.js';
@@ -934,10 +935,10 @@ app.use('/api', (req, res, next) => {
   const url = req.originalUrl || '';
   res.on('finish', () => {
     if (res.statusCode >= 400) return;
-    // /api/sales/customers is where a new customer is created (Add customer,
-    // the Visit form's "New customer", the route planner). It was missing here,
-    // so the dropdown and map kept serving the pre-create list for up to ten
-    // minutes and the new customer couldn't be picked.
+    // Every customer write is under /api/customers since 2026-10-06; the other
+    // three are its old addresses, still answered until cached apps update.
+    // (/api/sales/customers missing from this list is why a new customer
+    // didn't show in the dropdown for up to ten minutes.)
     if (url.startsWith('/api/customers') || url.startsWith('/api/sales/customers') || url.startsWith('/api/partners') || url.startsWith('/api/admin/customers')) {
       bustCustomerCaches();
     }
@@ -3112,7 +3113,11 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
 });
 
 // Get single customer with full details (including images)
-app.get('/api/customers/:id', authenticate, requirePermission('view_customers'), async (req, res) => {
+// Every customer route lives under /api/customers (2026-10-06). Only a real id
+// reaches this one, so /api/customers/list, /cities and /view-counts — which
+// are registered further down — get to their own handlers.
+const customerIdOnly = (req, res, next) => (/^[a-f0-9]{24}$/i.test(req.params.id) ? next() : next('route'));
+app.get('/api/customers/:id', customerIdOnly, authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const customerObj = await Customer.findById(req.params.id)
       .populate('associatedCustomers', 'contactName company customerType status phone visits')
@@ -3188,7 +3193,7 @@ app.post('/api/customers/:customerId/associations', authenticate, requirePermiss
 });
 
 // Remove customer association (bi-directional unlinking) — manage_customers
-// kept alongside delete_customers, same reasoning as /api/partners/:id DELETE
+// kept alongside delete_customers, same reasoning as DELETE /api/customers/:id
 // above: the client here has no permission check of its own, so dropping it
 // would silently break this for any role that predates delete_customers.
 app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
@@ -3571,7 +3576,7 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res)
 
 // ============================================
 // GET DISTINCT CITIES (For dropdown checklists)
-app.get('/api/partners/cities', authenticate, requirePermission('view_customers'), async (req, res) => {
+app.get(['/api/customers/cities', '/api/partners/cities'], authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const cities1 = await Customer.distinct('city');
     const cities2 = await Customer.distinct('address.city');
@@ -3587,7 +3592,9 @@ app.get('/api/partners/cities', authenticate, requirePermission('view_customers'
 });
 
 // CUSTOMER LIST (Spreadsheet Data Source with Pagination & Search)
-app.get('/api/partners', authenticate, requirePermission('view_customers'), async (req, res) => {
+// The customer list (Customers page). /api/partners is the old address, kept
+// until cached apps have updated.
+app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limitInput = parseInt(req.query.limit);
@@ -3895,7 +3902,7 @@ const partnersTabQuery = (tab) => (tab === 'partners'
   });
 
 // Counts for the customer list's saved views, within one tab.
-app.get('/api/partners/view-counts', authenticate, requirePermission('view_customers'), async (req, res) => {
+app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const base = partnersTabQuery(req.query.tab);
     const opts = {
@@ -3915,7 +3922,7 @@ app.get('/api/partners/view-counts', authenticate, requirePermission('view_custo
 
 // Bulk "Assign rep" / "Set status" from the customer list's selection bar.
 // Only these two fields, so a selection can't be used to rewrite anything else.
-app.patch('/api/partners/bulk', authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.patch(['/api/customers/bulk', '/api/partners/bulk'], authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
     const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
@@ -3960,7 +3967,7 @@ app.patch('/api/partners/bulk', authenticate, requirePermission('manage_customer
 // Possible duplicates of a customer being added (or edited), by the same
 // signals the import and the duplicate audit use. Returns the strong matches
 // only — a shared email domain alone isn't worth interrupting someone for.
-app.post('/api/partners/possible-duplicates', authenticate, requirePermission('view_customers'), async (req, res) => {
+app.post(['/api/customers/possible-duplicates', '/api/partners/possible-duplicates'], authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
     const probe = {
       company: String(req.body?.company || ''),
@@ -3995,91 +4002,65 @@ app.post('/api/partners/possible-duplicates', authenticate, requirePermission('v
 });
 
 // Create a new lead (as a Customer)
-app.post('/api/partners', authenticate, requirePermission('manage_customers'), async (req, res) => {
+// Create a customer — the one create route for every screen (Add customer and
+// the visit form's "New customer" via SalesPage, the Customers page, the route
+// planner's "save as lead"). /api/sales/customers and /api/partners are the
+// old addresses of the two creates this replaced, kept until cached apps have
+// updated. The fields allowed and their defaults are in customerRecord.js;
+// the rep's name and the map point are derived here, never taken from the body.
+app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
-    let priceLevel = req.body.priceLevel;
-    if (req.body.level) {
-      const match = req.body.level.match(/\d+/);
-      if (match) {
-        priceLevel = parseInt(match[0], 10);
-      }
-    }
+    const { fields, error } = newCustomerFields(req.body);
+    if (error) return res.status(400).json({ message: error });
 
-    // Resolved from the id rather than read off the body, so the stored label
-    // always names the account it points at. Listed after the spread for the
-    // same reason — a client-sent salesRepName must not survive.
     const rep = await resolveSalesRep(req.body.salesRep);
 
-    const address = {
-      street: req.body.address?.street || '',
-      city: req.body.address?.city || req.body.city || '',
-      state: req.body.address?.state || '',
-      zipCode: req.body.address?.zipCode || ''
-    };
+    // A point the caller already has (the route planner's Places result) is
+    // used as is; otherwise the address is geocoded. An address that can't be
+    // resolved still saves, it just has no pin yet.
+    const point = suppliedPoint(req.body.coordinates);
+    const geo = point
+      ? {
+        coordinates: point,
+        geocode: {
+          status: 'ok',
+          precision: Object.values(GEOCODE_PRECISION).includes(req.body.precision) ? req.body.precision : GEOCODE_PRECISION.APPROXIMATE,
+          formattedAddress: '',
+          addressKey: addressKeyOf(fields.address),
+          updatedAt: new Date(),
+          error: ''
+        }
+      }
+      : await geocodeAddress(fields.address);
 
-    // Derived here rather than accepted from the body, for the same reason the
-    // rep is: a point the client made up would put a pin somewhere nobody can
-    // account for. An address that cannot be resolved still saves.
-    const geo = await geocodeAddress(address);
-
-    const newCustomer = new Customer({
-      ...req.body,
-      ...rep,
-      ...geo,
-      location: String(req.body.location || '').trim() || 'Seattle',
-      priceLevel: priceLevel || req.body.priceLevel || 1,
-      contactName: req.body.contactName || req.body.name || 'Unknown', // Map contactName/name to contactName
-      marketingEmail: req.body.marketingEmail || req.body.email || '',
-      receiveMarketing: req.body.receiveMarketing !== undefined ? req.body.receiveMarketing : true,
-      address,
-      password: '', // Leads don't have passwords yet
-      isVerified: false,
-      createdBy: req.userId
-    });
+    const newCustomer = new Customer({ ...fields, ...rep, ...geo, createdBy: req.userId });
     await newCustomer.save();
     req.app.get('io').emit('customer_update');
-    console.log(`✅ Unified Lead (Customer) created: ${req.body.company}`);
     res.status(201).json(newCustomer);
   } catch (error) {
-    console.error('Error creating customer-lead:', error);
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'A customer with this email already exists.' });
+    }
+    console.error('Error creating customer:', error);
     res.status(400).json({ message: error.message });
   }
 });
 
-// Update a lead (Customer)
-app.put('/api/partners/:id', authenticate, requirePermission('manage_customers'), async (req, res) => {
+// Edit a customer (also a status-only change). /api/partners/:id is the old
+// address. Password, login state, the map point and the rep's name are never
+// taken from the body (customerUpdateFields) — findByIdAndUpdate skips the
+// schema's bcrypt hook, so a password sent here used to be stored as typed.
+app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
-    const updateData = { ...req.body };
-    if (req.body.level) {
-      const match = req.body.level.match(/\d+/);
-      if (match) {
-        updateData.priceLevel = parseInt(match[0], 10);
-      }
-    }
-
-    if (req.body.contactName) {
-      updateData.contactName = req.body.contactName;
-    } else if (req.body.name) {
-      updateData.contactName = req.body.name;
-    }
+    const updateData = customerUpdateFields(req.body);
 
     // Only touch the rep when the edit actually carried one, so a partial update
     // cannot silently unassign an account. When it did, both halves are rewritten
     // together — including clearing the cached name as the rep is cleared, rather
     // than leaving a name behind pointing at nobody.
-    delete updateData.salesRepName;
     if (req.body.salesRep !== undefined) {
       Object.assign(updateData, await resolveSalesRep(req.body.salesRep));
     }
-
-    if (req.body.location !== undefined) {
-      updateData.location = String(req.body.location || '').trim() || 'Seattle';
-    }
-
-    // The point and the label for it are derived from the address, never taken
-    // from the body — a client-sent pin would sit somewhere nobody can account for.
-    delete updateData.coordinates;
-    delete updateData.geocode;
 
     // Needed twice below: the stored address, because findByIdAndUpdate replaces
     // a nested object wholesale and a city-only edit would otherwise drop the
@@ -4091,12 +4072,7 @@ app.put('/api/partners/:id', authenticate, requirePermission('manage_customers')
     }
 
     if (req.body.address) {
-      updateData.address = {
-        street: req.body.address.street || '',
-        city: req.body.address.city || req.body.city || '',
-        state: req.body.address.state || '',
-        zipCode: req.body.address.zipCode || ''
-      };
+      updateData.address = addressFrom(req.body);
     } else if (req.body.city) {
       updateData.address = {
         ...existing.address,
@@ -4132,7 +4108,7 @@ app.put('/api/partners/:id', authenticate, requirePermission('manage_customers')
 // check of its own, unlike the route planner's icon) keeps working for every
 // role that already had manage_customers before delete_customers existed as
 // its own permission.
-app.delete('/api/partners/:id', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
+app.delete(['/api/customers/:id', '/api/partners/:id'], authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
   try {
     const customer = await Customer.findByIdAndDelete(req.params.id);
 
@@ -5183,7 +5159,7 @@ const existingDuplicateReport = (existing) => {
  * Everything touched is snapshotted to customermergebackups first, and the
  * response carries its id for the Undo button.
  */
-app.post('/api/admin/customers/duplicates/resolve', verifyToken, requirePermission('manage_customers'), async (req, res) => {
+app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/resolve'], verifyToken, requirePermission('manage_customers'), async (req, res) => {
   try {
     const { keepId, actions } = req.body || {};
     const entries = Object.entries(actions || {});
@@ -5256,7 +5232,7 @@ app.post('/api/admin/customers/duplicates/resolve', verifyToken, requirePermissi
 
 // Put back what one resolve removed. Undone newest first, so a merge that
 // followed a delete in the same click is reversed before the delete is.
-app.post('/api/admin/customers/duplicates/undo', verifyToken, requirePermission('manage_customers', 'delete_customers'), async (req, res) => {
+app.post(['/api/customers/duplicates/undo', '/api/admin/customers/duplicates/undo'], verifyToken, requirePermission('manage_customers', 'delete_customers'), async (req, res) => {
   try {
     const ids = Array.isArray(req.body?.undoIds) ? req.body.undoIds : [];
     if (!ids.length || !ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
@@ -5282,7 +5258,7 @@ app.post('/api/admin/customers/duplicates/undo', verifyToken, requirePermission(
 });
 
 // Preview an import: parse, match, and report what would happen. Writes nothing.
-app.post('/api/admin/customers/import/preview', verifyToken, requirePermission('manage_customers'), uploadMemory.single('file'), async (req, res) => {
+app.post(['/api/customers/import/preview', '/api/admin/customers/import/preview'], verifyToken, requirePermission('manage_customers'), uploadMemory.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
@@ -5311,7 +5287,7 @@ app.post('/api/admin/customers/import/preview', verifyToken, requirePermission('
 // Forget every remembered rep mapping, branch mapping and review decision —
 // the way back from one that turned out wrong, since a remembered answer
 // stops being asked about and so has no dropdown left to change it in.
-app.delete('/api/admin/customers/import/memory', verifyToken, requirePermission('manage_customers'), async (req, res) => {
+app.delete(['/api/customers/import/memory', '/api/admin/customers/import/memory'], verifyToken, requirePermission('manage_customers'), async (req, res) => {
   try {
     await ImportMemory.deleteOne({ kind: 'customer' });
     res.json({ success: true });
@@ -5328,7 +5304,7 @@ const IMPORT_WRITE_BATCH = 500;
  * Carry out an import. Rows flagged for review are never written — that is the
  * whole point of flagging them.
  */
-app.post('/api/admin/customers/import/apply', verifyToken, requirePermission('manage_customers'), uploadMemory.single('file'), async (req, res) => {
+app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], verifyToken, requirePermission('manage_customers'), uploadMemory.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
@@ -5497,7 +5473,9 @@ app.get('/api/admin/products/:id', verifyToken, async (req, res) => {
 // customer.save() rather than findByIdAndUpdate so the schema's pre('save')
 // bcrypt hook actually runs; PUT /api/partners/:id (used for every other
 // customer field) uses findByIdAndUpdate and would store a plaintext password.
-app.put('/api/admin/customers/:id', verifyToken, requirePermission('manage_customer_accounts'), async (req, res) => {
+// Password reset. Its own route (and permission) so the ordinary edit route
+// never writes a password; customer.save() runs the schema's bcrypt hook.
+app.put(['/api/customers/:id/password', '/api/admin/customers/:id'], verifyToken, requirePermission('manage_customer_accounts'), async (req, res) => {
   try {
     const { password } = req.body;
     if (!password || !password.trim()) {
@@ -5977,7 +5955,7 @@ app.delete('/api/easy-stones-colors/:id', authenticate, requirePermission('manag
 });
 
 // Admin: Update customer status
-app.patch('/api/admin/customers/:id/status', verifyToken, requirePermission('manage_customer_accounts'), async (req, res) => {
+app.patch(['/api/customers/:id/active', '/api/admin/customers/:id/status'], verifyToken, requirePermission('manage_customer_accounts'), async (req, res) => {
   try {
     const { isActive } = req.body;
     const customer = await Customer.findByIdAndUpdate(
@@ -6257,89 +6235,8 @@ app.post('/api/migrate-collection', verifyToken, authorize('admin'), async (req,
 
 // ============================================
 // Create new sales customer (Maps to global Customer collection)
-app.post('/api/sales/customers', verifyAnyAuth, async (req, res) => {
-  try {
-    const { customerName, company, address, phone, email, notes, status, level, customerType, modaDisplay, modaBinder, salesRep, location, coordinates, precision } = req.body;
-
-    if (!company) {
-      return res.status(400).json({ message: 'Company name is required' });
-    }
-
-    // Auto-generate dummy credentials if missing (Customer model requires them)
-    const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(2, 8);
-
-    // Use provided email or generate a fake one
-    const customerEmail = email && email.trim() !== ''
-      ? email.trim().toLowerCase()
-      : `sales_${timestamp}_${randomString}@temp-customer.com`;
-
-    // Generate a random secure password
-    const customerPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).toUpperCase().slice(-4) + "1!";
-
-    // Optional point supplied by the caller — the route planner's "save this
-    // Places search result as a lead" flow sends the coordinates Google
-    // already returned, so this skips a redundant geocoding call (see
-    // geocodePatchFor in src/utils/geocode.js, which stays the path for
-    // every other create/edit route that only has an address to go on).
-    // Validated here since it's client-supplied and, unlike the geocoder
-    // response, never checked against a real address lookup.
-    const lat = Number(coordinates?.lat);
-    const lng = Number(coordinates?.lng);
-    const hasValidPoint = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
-    const validPrecision = Object.values(GEOCODE_PRECISION).includes(precision) ? precision : GEOCODE_PRECISION.APPROXIMATE;
-
-    const addressFields = {
-      street: address?.street || '',
-      city: address?.city || '',
-      state: address?.state || '',
-      zipCode: address?.zipCode || ''
-    };
-
-    const newCustomer = new Customer({
-      contactName: customerName || company, // Fallback to company if no contact name
-      email: customerEmail,
-      password: customerPassword,
-      company: company,
-      phone: phone || '',
-      address: addressFields,
-      quickNote: notes || '',
-      status: status || 'New',
-      level: level || 'Level - 3',
-      customerType: customerType || 'Fabricator',
-      modaDisplay: modaDisplay || 'No',
-      modaBinder: modaBinder || '0',
-      ...(await resolveSalesRep(salesRep)),
-      location: String(location || '').trim() || 'Seattle',
-      isVerified: true, // Auto-verify sales-created accounts
-      priceLevel: 1,
-      isActive: true,
-      ...(hasValidPoint && {
-        coordinates: { lat, lng },
-        geocode: {
-          status: 'ok',
-          precision: validPrecision,
-          formattedAddress: '',
-          addressKey: addressKeyOf(addressFields),
-          updatedAt: new Date(),
-          error: ''
-        }
-      })
-    });
-
-    await newCustomer.save();
-    req.app.get('io').emit('customer_update');
-
-    // Return formatted to match what the frontend expects
-    res.status(201).json(newCustomer);
-  } catch (error) {
-    if (error.code === 11000) {
-      return res.status(400).json({ message: 'A customer with this email already exists.' });
-    }
-    console.error('Error creating sales customer:', error);
-    res.status(500).json({ message: `Failed to create customer: ${error.message}` });
-  }
-});
+// POST /api/sales/customers is now an alias of the one create route — see
+// app.post(['/api/customers', …]) above.
 
 // ===== SALES RESOURCES (GLOBAL/SHARED) ENDPOINTS =====
 

@@ -18,6 +18,7 @@ import FilterButton from './FilterButton';
 import LeadSearchControl from './LeadSearchControl';
 import RunDrawer from './RunDrawer';
 import AddCustomerModal from '../AddCustomerModal';
+import { toCustomerOptions } from '../../../utils/customerOptions';
 import './RoutePlannerV2.css';
 
 /**
@@ -152,7 +153,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     const [recentLeadSearches, setRecentLeadSearches] = useState(() => loadRecentLeadSearches());
 
     // Edit/delete for an existing customer from the detail panel — reusing
-    // AddCustomerModal and the /api/partners/:id routes exactly as
+    // AddCustomerModal and the /api/customers/:id routes exactly as
     // PartnersSheet.jsx does, rather than building a second edit form. Edit
     // (PUT) checks manage_customers; delete (DELETE) accepts either
     // manage_customers or delete_customers, so a role can be granted delete
@@ -669,13 +670,11 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
 
     const pinById = useMemo(() => new Map(pins.map(p => [String(p._id), p])), [pins]);
 
-    // ScheduleVisitForm's customer picker — the same customers already
-    // loaded for the map (pins), reshaped into SearchableSelect's
-    // {value,label} pairs rather than a second fetch of the same data.
-    const customerOptions = useMemo(
-        () => pins.map(p => ({ value: p._id, label: nameOf(p) })).sort((a, b) => a.label.localeCompare(b.label)),
-        [pins]
-    );
+    // ScheduleVisitForm's customer picker — the customers already loaded for
+    // the map (only ones with a pin can be put on a route), shaped by the same
+    // rules as every other customer dropdown (customerOptions.js) rather than
+    // a second fetch of the same data.
+    const customerOptions = useMemo(() => toCustomerOptions(pins), [pins]);
 
     const addOneToCalendar = async (customer) => {
         if (saving) return;
@@ -1105,7 +1104,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         setLeadError('');
         try {
             const parts = place.addressParts || {};
-            const res = await authFetch(`${API_URL}/api/sales/customers`, {
+            const res = await authFetch(`${API_URL}/api/customers`, {
                 method: 'POST',
                 body: JSON.stringify({
                     company: place.name,
@@ -1165,7 +1164,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         setSavingCustomerEdit(true);
         setError('');
         try {
-            const res = await authFetch(`${API_URL}/api/partners/${editingCustomer._id}`, {
+            const res = await authFetch(`${API_URL}/api/customers/${editingCustomer._id}`, {
                 method: 'PUT',
                 body: JSON.stringify({
                     ...formData,
@@ -1198,7 +1197,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         if (!window.confirm(`Delete ${nameOf(customer)}? This can't be undone.`)) return;
         setError('');
         try {
-            const res = await authFetch(`${API_URL}/api/partners/${customer._id}`, { method: 'DELETE' });
+            const res = await authFetch(`${API_URL}/api/customers/${customer._id}`, { method: 'DELETE' });
             if (!res.ok) {
                 const body = await res.json().catch(() => ({}));
                 throw new Error(body.message || 'Could not delete this customer');

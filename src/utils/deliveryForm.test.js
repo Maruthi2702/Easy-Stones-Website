@@ -268,7 +268,7 @@ describe('lists', () => {
 
   it('reads a customer record’s address in its different shapes', () => {
     expect(customerOptionFromRecord({ _id: '1', company: 'Co', address: { street: '1 Main', city: 'Kent' }, state: 'WA', salesRepName: 'Sam' }))
-      .toEqual({ value: '1', label: 'Co', city: 'Kent', address: '1 Main', fullAddress: '1 Main, Kent, WA', salesRepName: 'Sam' });
+      .toMatchObject({ value: '1', label: 'Co', city: 'Kent', address: '1 Main', fullAddress: '1 Main, Kent, WA', salesRepName: 'Sam' });
     expect(customerOptionFromRecord({ _id: '2', firstName: 'Ann', lastName: 'Lee', city: 'Spokane' }))
       .toMatchObject({ label: 'Ann Lee', city: 'Spokane', address: 'Spokane' });
   });

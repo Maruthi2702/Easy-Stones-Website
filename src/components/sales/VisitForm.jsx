@@ -66,10 +66,9 @@ export default function VisitForm({
     const fields = visitFieldsFor(values.purpose);
     const showFollowUpFields = followUpShown(values.purpose, followUpOn);
 
-    const customers = useMemo(
-        () => customerOptions.map((c) => ({ value: c.value, label: c.label, description: c.city || undefined })),
-        [customerOptions]
-    );
+    // Already shaped by the shared rules (src/utils/customerOptions.js): the
+    // city under the name, and the contact and city searchable.
+    const customers = customerOptions;
     // A visit saved with a type that's since left the list still shows it.
     const typeOptions = useMemo(
         () => (values.purpose && !VISIT_TYPES.some((t) => t.value === values.purpose)

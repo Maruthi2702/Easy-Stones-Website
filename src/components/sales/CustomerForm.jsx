@@ -67,7 +67,7 @@ export default function CustomerForm({
 
     // ── Possible duplicates (new customers only; advice, never blocks saving) ──
     // Same rules as the import and the duplicate audit (customerMatch.js, via
-    // POST /api/partners/possible-duplicates).
+    // POST /api/customers/possible-duplicates).
     const [dupMatches, setDupMatches] = useState([]);
     const [dupDismissed, setDupDismissed] = useState(false);
     const dupSeq = useRef(0);
@@ -80,7 +80,7 @@ export default function CustomerForm({
         const timer = setTimeout(async () => {
             if (!company && !phone && !email) { setDupMatches([]); return; }
             try {
-                const res = await authFetch(`${API_URL}/api/partners/possible-duplicates`, {
+                const res = await authFetch(`${API_URL}/api/customers/possible-duplicates`, {
                     method: 'POST',
                     body: JSON.stringify({ company, phone, email })
                 });

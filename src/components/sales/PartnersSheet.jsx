@@ -230,7 +230,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     useEffect(() => {
         (async () => {
             try {
-                const res = await authFetch(`${API_URL}/api/partners/cities`);
+                const res = await authFetch(`${API_URL}/api/customers/cities`);
                 if (res.ok) setUniqueCities((await res.json()) || []);
             } catch (err) { console.error('Error fetching unique cities:', err); }
         })();
@@ -289,7 +289,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     }, [sortBy, sortOrder, debouncedSearch, filterLevels, filterTypes, filterCities, filterStatuses, filterSalesReps, filterLocations, filterModa, view, letter, activeTab]);
 
     const urlFor = (params) => {
-        const url = new URL(`${API_URL}/api/partners`, window.location.origin);
+        const url = new URL(`${API_URL}/api/customers/list`, window.location.origin);
         Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
         return url;
     };
@@ -350,7 +350,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         let live = true;
         (async () => {
             try {
-                const res = await authFetch(`${API_URL}/api/partners/view-counts?tab=${activeTab}`);
+                const res = await authFetch(`${API_URL}/api/customers/view-counts?tab=${activeTab}`);
                 if (res.ok && live) setViewCounts(await res.json());
             } catch { /* counts are a nicety; the views still work without them */ }
         })();
@@ -402,7 +402,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         setIsSaving(true);
         try {
             const method = editingPartner ? 'PUT' : 'POST';
-            const url = editingPartner ? `${API_URL}/api/partners/${editingPartner._id}` : `${API_URL}/api/partners`;
+            const url = editingPartner ? `${API_URL}/api/customers/${editingPartner._id}` : `${API_URL}/api/customers`;
             const leadData = {
                 ...formData,
                 contactName: formData.customerName,
@@ -435,7 +435,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const handleDeletePartner = async (id) => {
         if (!window.confirm('Are you sure you want to delete this customer?')) return false;
         try {
-            const response = await authFetch(`${API_URL}/api/partners/${id}`, { method: 'DELETE' });
+            const response = await authFetch(`${API_URL}/api/customers/${id}`, { method: 'DELETE' });
             if (response.ok) {
                 if (openCustomer?._id === id) setOpenCustomer(null);
                 setSelected(prev => { const next = new Map(prev); next.delete(id); return next; });
@@ -453,7 +453,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
 
     const handleStatusChange = async (id, status) => {
         try {
-            const res = await authFetch(`${API_URL}/api/partners/${id}`, { method: 'PUT', body: JSON.stringify({ status }) });
+            const res = await authFetch(`${API_URL}/api/customers/${id}`, { method: 'PUT', body: JSON.stringify({ status }) });
             if (!res.ok) return false;
             setPartners(list => list.map(p => (p._id === id ? { ...p, status } : p)));
             setOpenCustomer(c => (c && c._id === id ? { ...c, status } : c));
@@ -539,7 +539,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const bulkPatch = async (body, describe) => {
         setBulkBusy(true);
         try {
-            const res = await authFetch(`${API_URL}/api/partners/bulk`, {
+            const res = await authFetch(`${API_URL}/api/customers/bulk`, {
                 method: 'PATCH',
                 body: JSON.stringify({ ids: [...selected.keys()], ...body })
             });

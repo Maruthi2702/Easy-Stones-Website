@@ -40,7 +40,7 @@ const CustomerProfileHeader = ({
     setSaving(true);
     setError('');
     try {
-      const res = await authFetch(`${API_URL}/api/partners/${c._id}`, { method: 'PUT', body: JSON.stringify({ status: next }) });
+      const res = await authFetch(`${API_URL}/api/customers/${c._id}`, { method: 'PUT', body: JSON.stringify({ status: next }) });
       if (!res.ok) throw new Error();
       onStatusChanged?.(next);
       window.dispatchEvent(new CustomEvent('customers:changed'));

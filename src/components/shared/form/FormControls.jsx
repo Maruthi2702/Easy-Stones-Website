@@ -4,6 +4,7 @@ import { AlertCircle, Check, ChevronDown, Eye, EyeOff, Plus, Search } from 'luci
 import useIsPhone from './useIsPhone';
 import { firstFocusableIn, describedBy, menuPlacement } from './formFocus';
 import { FormLayerContext } from './formLayer';
+import { matchesOption } from '../../../utils/customerOptions';
 
 /*
  * The form template's controls (FORM_TEMPLATE.md → Fields). Styles live in
@@ -344,10 +345,9 @@ export function FormSearchPicker({
     const listId = `${id}-list`;
     const selected = options.find((o) => o.value === value);
 
-    const q = query.trim().toLowerCase();
-    const matches = q
-        ? options.filter((o) => `${o.label} ${o.description || ''}`.toLowerCase().includes(q))
-        : options;
+    // Name, the line under it, and any keywords (a customer's contact and
+    // city) — the same search SearchableSelect uses (customerOptions.js).
+    const matches = query.trim() ? options.filter((o) => matchesOption(o, query)) : options;
     const shown = matches.slice(0, maxResults);
     const newLabel = typeof createNewLabel === 'function' ? createNewLabel(query.trim()) : createNewLabel;
 
