@@ -4,7 +4,7 @@ import {
   needsFreightDetails, deliveryToFormValues, validateDeliveryValues, countDeliveryChanges, bookedOn,
   driverOptions, driverPickerValue, applyDriverPick, applyTypeChange, applyDateChange, applyCustomerPick,
   applyCustomName, buildDeliveryPayload, formWording, deliveryLastChangedText, repOptions,
-  salesRepNamesFor, customerOptionFromRecord, fieldLabelsFor, reportDaysFor, reportDaysTouched, submittedDayLabel
+  salesRepNamesFor, customerOptionFromRecord, fieldLabelsFor, reportDaysFor, reportDaysTouched, submittedDayLabel, ticketReportValues, reportDaysForMove
 } from './deliveryForm.js';
 
 const TRUCKS = [
@@ -301,5 +301,21 @@ describe('report days a ticket touches (submitted-day warning)', () => {
 
   it('labels the day', () => {
     expect(submittedDayLabel({ location: 'Seattle', date: '2026-10-02' })).toBe('Seattle\'s Daily Report for Fri, Oct 2');
+  });
+});
+
+describe('report days a board move touches', () => {
+  const ticket = { id: 't', deliveryType: 'jobsite', status: 'scheduled', truckId: 'mike', date: '2026-10-02', location: 'Seattle' };
+
+  it('dragging to another day touches both days; to Pending or Cancelled, the day it left', () => {
+    expect(reportDaysForMove(ticket, { ...ticket, date: '2026-10-06' })).toEqual([{ location: 'Seattle', date: '2026-10-02' }, { location: 'Seattle', date: '2026-10-06' }]);
+    expect(reportDaysForMove(ticket, { ...ticket, truckId: '' })).toEqual([{ location: 'Seattle', date: '2026-10-02' }]);
+    expect(reportDaysForMove(ticket, { ...ticket, status: 'cancelled' })).toEqual([{ location: 'Seattle', date: '2026-10-02' }]);
+  });
+
+  it('a transfer drawn on its arrival day uses its real ship date', () => {
+    const shown = { ...ticket, deliveryType: 'transfer', transferDestination: 'Spokane', expectedArrivalDate: '2026-10-05', date: '2026-10-05', shipDate: '2026-10-02', isIncomingView: true };
+    expect(ticketReportValues(shown).date).toBe('2026-10-02');
+    expect(reportDaysForMove(shown, { ...shown, truckId: '' })).toEqual([{ location: 'Seattle', date: '2026-10-02' }, { location: 'Spokane', date: '2026-10-05' }]);
   });
 });

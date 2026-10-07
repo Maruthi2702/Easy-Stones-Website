@@ -420,3 +420,23 @@ export const submittedDayLabel = ({ location, date }) => {
   const day = Number.isNaN(at.getTime()) ? date : at.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
   return `${location}'s Daily Report for ${day}`;
 };
+
+/**
+ * A saved ticket (as the board holds it) in the shape reportDaysFor reads.
+ * A transfer the board draws on its arrival day keeps its real ship date in
+ * shipDate (showOnArrivalDay).
+ */
+export const ticketReportValues = (d = {}) => ({
+  deliveryType: d.deliveryType || 'jobsite',
+  status: d.status,
+  truckId: d.truckId || '',
+  customerDropOff: Boolean(d.customerDropOff),
+  date: d.isIncomingView && d.shipDate !== undefined ? d.shipDate : d.date,
+  transferOrigin: d.location || '',
+  transferDestination: d.transferDestination || '',
+  expectedArrivalDate: d.expectedArrivalDate || ''
+});
+
+/** The report days a board move touches: where the ticket was counted, and where it is now. */
+export const reportDaysForMove = (before, after) =>
+  reportDaysTouched(ticketReportValues(after), { initial: ticketReportValues(before), location: before?.location || after?.location || '' });

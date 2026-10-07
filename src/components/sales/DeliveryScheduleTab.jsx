@@ -42,6 +42,7 @@ import {
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { deliveryViewMode } from '../../utils/deliveryAccess';
+import { reportDaysForMove, submittedDayLabel } from '../../utils/deliveryForm';
 import './DeliveryScheduleTab.css';
 
 // getWeekMonday / getWeekDates / formatWeekRangeText now live in
@@ -411,12 +412,39 @@ const DeliveryScheduleTab = ({
     setLoadError(err?.message || "Couldn't move that delivery.");
   };
 
+  // After a drag lands: if the day the ticket left, or the day it landed on,
+  // already has a submitted Daily Report (its branch's day, and a transfer's
+  // arrival day at the destination), say so — that report is frozen, so the
+  // board and it now disagree until someone reopens the day. The same check
+  // the delivery form makes (reportDaysForMove / submitted-days). Never blocks
+  // the move; a failed check just shows nothing.
+  const [submittedDayNotice, setSubmittedDayNotice] = useState('');
+  const findTicket = (id) => [...deliveries, ...pending, ...cancelled].find(d => d.id === id);
+  const warnIfSubmittedDays = async (before, after) => {
+    if (!before) return;
+    const days = reportDaysForMove(before, after);
+    if (!days.length) return;
+    try {
+      const key = days.map(d => `${d.location}|${d.date}`).join(',');
+      const res = await authFetch(`${API_URL}/api/daily-reports/submitted-days?days=${encodeURIComponent(key)}`);
+      if (!res.ok) return;
+      const found = (await res.json()).days || [];
+      if (!found.length) return;
+      const one = found.length === 1;
+      setSubmittedDayNotice(`${found.map(submittedDayLabel).join(' and ')} ${one ? 'is' : 'are'} already submitted, so ${one ? "it doesn't" : "they don't"} include this move. Reopen ${one ? 'that day' : 'those days'} in the Daily Report to bring the figures up to date.`);
+    } catch {
+      // Advice only.
+    }
+  };
+
   // Drag-and-drop move on the dispatch board: which driver/column/day a
   // ticket belongs to, nothing else (stop numbers are left as-is).
   const handleMoveDelivery = async (id, assignment) => {
+    const before = findTicket(id);
     try {
       const updatedList = await updateDeliveryAssignment(id, assignment);
       await applyUpdatedList(updatedList);
+      warnIfSubmittedDays(before, { ...before, ...assignment });
       return updatedList;
     } catch (err) {
       reportMoveFailure(err);
@@ -468,6 +496,7 @@ const DeliveryScheduleTab = ({
         date: delivery.date
       });
       await applyUpdatedList(updatedList);
+      warnIfSubmittedDays(delivery, { ...delivery, truckId: '', customerDropOff: false, deliveryType: delivery.deliveryType === 'will_call' ? 'jobsite' : delivery.deliveryType });
       return updatedList;
     } catch (err) {
       reportMoveFailure(err);
@@ -480,9 +509,11 @@ const DeliveryScheduleTab = ({
   // restore the ticket to (see handleMoveDelivery/handleMoveToPending above,
   // and PATCH /deliveries/:id/assignment server-side for the restore itself).
   const handleMoveToCancelled = async (id) => {
+    const before = findTicket(id);
     try {
       const updatedList = await updateDeliveryStatus(id, 'cancelled');
       await applyUpdatedList(updatedList);
+      warnIfSubmittedDays(before, { ...before, status: 'cancelled' });
       return updatedList;
     } catch (err) {
       reportMoveFailure(err);
@@ -625,6 +656,14 @@ const DeliveryScheduleTab = ({
               <AlertTriangle size={16} />
               <span>{loadError}</span>
               <button type="button" onClick={() => loadData(true)}>Retry</button>
+            </div>
+          )}
+
+          {submittedDayNotice && role === 'office' && (
+            <div className="manifest-submitted-day" role="status">
+              <AlertTriangle size={16} aria-hidden="true" />
+              <span>{submittedDayNotice}</span>
+              <button type="button" aria-label="Dismiss" onClick={() => setSubmittedDayNotice('')}><X size={14} /></button>
             </div>
           )}
 

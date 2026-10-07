@@ -69,6 +69,57 @@ body.light-theme-active .manifest-load-error,
   color: #c2410c;
 }
 
+/* A drag changed a day whose Daily Report is already submitted */
+.manifest-submitted-day {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.5rem 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  background: rgba(212, 175, 55, 0.12);
+  color: #f1dfa2;
+  font-size: 0.87rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.manifest-submitted-day > svg {
+  flex: none;
+  margin-top: 2px;
+  color: #d4af37;
+}
+
+.manifest-submitted-day span { flex: 1; min-width: 0; }
+
+.manifest-submitted-day button {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: -6px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.manifest-submitted-day button:hover { background: rgba(212, 175, 55, 0.18); }
+
+body.light-theme-active .manifest-submitted-day,
+.light-theme-active .manifest-submitted-day {
+  border-color: #e9c46a;
+  background: #fdf6e3;
+  color: #5c4813;
+}
+
+body.light-theme-active .manifest-submitted-day > svg,
+.light-theme-active .manifest-submitted-day > svg { color: #a07c12; }
+
 /* Custom Scrollbars */
 .delivery-schedule-container.high-density::-webkit-scrollbar,
 .board-grid-scroll-container::-webkit-scrollbar {
