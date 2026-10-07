@@ -4,6 +4,7 @@ import SearchableSelect from '../SearchableSelect';
 import CustomSelect from '../shared/CustomSelect';
 import { formatForDateInput } from '../../utils/dateUtils';
 import { REASON_OPTIONS, getCustomerName } from '../../utils/lostSale';
+import { toCustomerOptions } from '../../utils/customerOptions';
 import { homeLocationOf } from '../../utils/locationFilter';
 
 /**
@@ -58,17 +59,13 @@ const LostSaleModal = ({
 
   const [error, setError] = useState('');
 
-  // Formatted Customer Options for SearchableSelect (Identical to VisitModal)
+  // The shared customer options (src/utils/customerOptions.js), the same as
+  // every other customer dropdown; the page's list stands in until they load.
   const resolvedCustomerOptions = useMemo(() => {
     if (customerOptionsFromProps && customerOptionsFromProps.length > 0) {
       return customerOptionsFromProps;
     }
-    return (customersList || []).map(c => {
-      const labelStr = getCustomerName(c);
-      const valId = typeof c === 'object' && c ? (c._id || labelStr) : String(c);
-      return { value: valId, label: labelStr };
-    }).filter(opt => opt.label && opt.label !== 'Unknown Customer')
-      .sort((a, b) => a.label.localeCompare(b.label));
+    return toCustomerOptions((customersList || []).filter(c => c && typeof c === 'object'));
   }, [customerOptionsFromProps, customersList]);
 
   // Formatted Location Options

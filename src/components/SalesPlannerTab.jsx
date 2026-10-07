@@ -6,6 +6,7 @@ import {
 import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
 import SearchableSelect from './SearchableSelect';
+import { toCustomerOptions } from '../utils/customerOptions';
 import {
     getCachedPlannerRange,
     loadPlannerRange,
@@ -1014,10 +1015,8 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
     const effectiveCustomerOptions = useMemo(() => {
         if (customerOptions && customerOptions.length > 0) return customerOptions;
-        return [...(customerSelection || [])].map(c => ({
-            value: c._id,
-            label: c.company || c.contactName
-        })).sort((a, b) => (a.label || '').localeCompare(b.label || ''));
+        // Same options as every other customer dropdown (customerOptions.js).
+        return toCustomerOptions(customerSelection || []);
     }, [customerSelection, customerOptions]);
 
     const activityTypeOptions = [

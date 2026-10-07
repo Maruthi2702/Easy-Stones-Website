@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Check, Plus, Loader } from 'lucide-react';
+import { matchesOption } from '../utils/customerOptions';
 
 const SearchableSelect = ({ options, value, onChange, placeholder, className, style, onCreateNew, createNewLabel, isLoading }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -36,9 +37,9 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
 
     const filteredOptions = React.useMemo(() => {
         if (!hasOpenedOnce) return [];
-        return options.filter(option =>
-            (option.label || '').toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        // Same search as the form template's picker (customerOptions.js): the
+        // name, plus the city and contact a customer option carries.
+        return options.filter(option => matchesOption(option, searchTerm));
     }, [options, searchTerm, hasOpenedOnce]);
 
     const selectedOption = React.useMemo(() => 
@@ -198,7 +199,12 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                                                 if (value !== option.value) e.currentTarget.style.backgroundColor = 'transparent';
                                             }}
                                         >
-                                            <span>{option.label}</span>
+                                            <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                                <span>{option.label}</span>
+                                                {option.description && (
+                                                    <span style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: 2 }}>{option.description}</span>
+                                                )}
+                                            </span>
                                             {value === option.value && <Check size={14} color="#10B981" />}
                                         </div>
                                     ))

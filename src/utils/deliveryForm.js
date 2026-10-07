@@ -367,35 +367,9 @@ export function salesRepNamesFor(list = [], currentUser = null) {
   return [...new Set(['Admin', ...users.map((u) => u.name || u.username).filter(Boolean)])];
 }
 
-const textOf = (val) => {
-  if (!val) return '';
-  if (typeof val === 'string') return val === '[object Object]' ? '' : val.trim();
-  if (typeof val === 'object') {
-    const res = val.street || val.address || val.line1 || val.city || val.name || '';
-    return typeof res === 'string' ? (res === '[object Object]' ? '' : res.trim()) : String(res || '').trim();
-  }
-  return String(val).trim();
-};
-
 /**
  * A customer from /api/customers/dropdown → a picker option, with the city and
- * street the form fills in. Customers store addresses in several shapes.
+ * street the form fills in. The one rule every customer dropdown uses now
+ * (src/utils/customerOptions.js); kept under this name for the form's imports.
  */
-export function customerOptionFromRecord(c) {
-  let city = textOf(c.city) || textOf(c.shippingCity) || textOf(c.billingCity);
-  for (const nested of [c.shippingAddress, c.billingAddress, c.address]) {
-    if (!city && nested && typeof nested === 'object') city = textOf(nested.city);
-  }
-  let street = textOf(c.address) || textOf(c.street) || textOf(c.shippingAddress) || textOf(c.billingAddress);
-  if (street === city) street = '';
-  const state = textOf(c.state) || textOf(c.shippingState) || textOf(c.billingState);
-  const fullAddress = [street, city, state].filter(Boolean).join(', ') || city || street;
-  return {
-    value: c._id,
-    label: c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
-    city,
-    address: street || city,
-    fullAddress,
-    salesRepName: c.salesRepName || ''
-  };
-}
+export { customerOption as customerOptionFromRecord } from './customerOptions.js';

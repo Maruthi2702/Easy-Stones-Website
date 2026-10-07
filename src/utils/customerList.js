@@ -1,6 +1,6 @@
 /**
  * Rules for the customer list (PartnersSheet), shared by the screen and by
- * GET /api/partners so the two can't disagree — e.g. the ⚠ a row shows and the
+ * GET /api/customers/list so the two can't disagree — e.g. the ⚠ a row shows and the
  * "Incomplete" saved view that finds those rows are built from the same checks.
  *
  * Pure functions over plain records and plain query objects. Nothing here

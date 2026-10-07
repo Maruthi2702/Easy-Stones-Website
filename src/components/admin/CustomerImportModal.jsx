@@ -147,7 +147,7 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
         setDupBusy(groupKey(g));
         setError('');
         try {
-            const res = await authFetch(`${API_URL}/api/admin/customers/duplicates/resolve`, {
+            const res = await authFetch(`${API_URL}/api/customers/duplicates/resolve`, {
                 method: 'POST',
                 body: JSON.stringify({ keepId, actions })
             });
@@ -172,7 +172,7 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
         setDupBusy('undo');
         setError('');
         try {
-            const res = await authFetch(`${API_URL}/api/admin/customers/duplicates/undo`, {
+            const res = await authFetch(`${API_URL}/api/customers/duplicates/undo`, {
                 method: 'POST',
                 body: JSON.stringify({ undoIds: dupResult.undoIds })
             });
@@ -208,7 +208,7 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
             if (Object.keys(nextBranches).length) body.append('branchAliases', JSON.stringify(nextBranches));
             if (Object.keys(nextDecisions).length) body.append('decisions', JSON.stringify(nextDecisions));
 
-            const res = await authFetch(`${API_URL}/api/admin/customers/import/preview`, {
+            const res = await authFetch(`${API_URL}/api/customers/import/preview`, {
                 method: 'POST', body
             });
             if (!res.ok) throw new Error(await describeFailure(res));
@@ -296,7 +296,7 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
         setBusy('preview');
         setError('');
         try {
-            const res = await authFetch(`${API_URL}/api/admin/customers/import/memory`, { method: 'DELETE' });
+            const res = await authFetch(`${API_URL}/api/customers/import/memory`, { method: 'DELETE' });
             if (!res.ok) throw new Error(await describeFailure(res));
         } catch (err) {
             setError(err.message);
@@ -324,7 +324,7 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
             if (Object.keys(branchAliases).length) body.append('branchAliases', JSON.stringify(branchAliases));
             if (Object.keys(decisions).length) body.append('decisions', JSON.stringify(decisions));
 
-            const res = await authFetch(`${API_URL}/api/admin/customers/import/apply`, {
+            const res = await authFetch(`${API_URL}/api/customers/import/apply`, {
                 method: 'POST', body
             });
             if (!res.ok) throw new Error(await describeFailure(res));

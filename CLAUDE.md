@@ -52,6 +52,28 @@ Customer List had its own until 2026-10-03). Check the server endpoint's
 the URL, like the Customer List's `?p=`), keep your own state but start at
 `DEFAULT_ROWS_PER_PAGE` and reset to page 1 on a size change.
 
+## Customers: one API, one dropdown list
+
+Every customer route is under `/api/customers` (2026-10-06): create `POST`,
+edit `PUT /:id`, delete `DELETE /:id`, the Customers page list `GET /list`
+(+ `/cities`, `/view-counts`, `PATCH /bulk`, `POST /possible-duplicates`),
+password reset `PUT /:id/password`, active/inactive `PATCH /:id/active`,
+import and duplicates `/import/*`, `/duplicates/*`. The old addresses
+(`/api/sales/customers`, `/api/partners…`, `/api/admin/customers…`) still
+answer as aliases until cached apps update — see KNOWN_ISSUES.md's Cleanup
+due. Don't add a customer route anywhere else: the cache-busting middleware
+in server.js matches on the path, and a create living at
+`/api/sales/customers` is why new customers didn't show in the dropdown for
+ten minutes. What a create/edit may write is `src/utils/customerRecord.js`
+(never password, login state, the map point or the rep's name).
+
+Every customer dropdown reads the one shared list,
+`useCustomerOptions()` in `src/api/customerOptions.js` (or SalesPage's
+`customerOptions`, which is the same list), shaped by
+`src/utils/customerOptions.js`: the name rule, A–Z sort, the city under the
+name, and search by name/city/contact. A new customer dropdown uses those —
+don't map `/api/customers/dropdown` by hand again.
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,
@@ -174,7 +196,10 @@ Invoices read the same way), and Add / Edit delivery's rules
 (`src/utils/deliveryForm.js`: which fields each delivery type uses, Pending
 vs. a required date, the driver list with each truck's load and the full
 ones greyed out, a 3rd-party truck's optional carrier / BOL / agreed price,
-transfer checks, the change count, and the save body).
+transfer checks, the change count, and the save body), and the customer
+write rules (`src/utils/customerRecord.js`: what a create/edit may write,
+defaults, the placeholder email, protected fields) and dropdown rules
+(`src/utils/customerOptions.js`: name, address parts, sort, search).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

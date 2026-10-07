@@ -13,11 +13,12 @@ import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
 import { isWeekendDate, dayLabel } from '../../../utils/deliveryWeek';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
 import { planPackingListAutofill } from '../../../utils/packingListPdf';
+import { useCustomerOptions } from '../../../api/customerOptions';
 import {
     DELIVERY_TYPE_OPTIONS, STATUS_OPTIONS, isPendingOrder, dateLabelFor, needsFreightDetails, fieldLabelsFor,
     deliveryToFormValues, validateDeliveryValues, countDeliveryChanges, driverOptions, driverPickerValue,
     applyDriverPick, applyTypeChange, applyDateChange, applyCustomerPick, applyCustomName, buildDeliveryPayload,
-    formWording, deliveryLastChangedText, repOptions, salesRepNamesFor, customerOptionFromRecord
+    formWording, deliveryLastChangedText, repOptions, salesRepNamesFor
 } from '../../../utils/deliveryForm';
 import './DeliveryForm.css';
 
@@ -50,20 +51,15 @@ function DeliveryFormBody({
     const draftKey = `deliveryModal:${initialData?.id || 'new'}`;
 
     // ── Lists the form needs ──
-    const [fetchedCustomers, setFetchedCustomers] = useState([]);
-    const [customersLoading, setCustomersLoading] = useState(!customerOptions?.length);
-    const customers = customerOptions?.length ? customerOptions : fetchedCustomers;
+    // The shared customer list (src/api/customerOptions.js) when the board
+    // didn't hand one in — the same list and rules as every customer dropdown.
+    const { options: sharedCustomers, loading: sharedCustomersLoading } = useCustomerOptions();
+    const customers = customerOptions?.length ? customerOptions : sharedCustomers;
+    const customersLoading = !customers.length && sharedCustomersLoading;
     const [repNames, setRepNames] = useState(['Admin']);
 
     useEffect(() => {
         let live = true;
-        if (!customerOptions?.length) {
-            authFetch(`${API_URL}/api/customers/dropdown`)
-                .then((res) => (res.ok ? res.json() : []))
-                .then((data) => { if (live && Array.isArray(data)) setFetchedCustomers(data.map(customerOptionFromRecord)); })
-                .catch((err) => console.warn('Failed to fetch customer options in DeliveryForm:', err))
-                .finally(() => { if (live) setCustomersLoading(false); });
-        }
         authFetch(`${API_URL}/api/salesreps`)
             .then((res) => (res.ok ? res.json() : []))
             .then((payload) => { if (live) setRepNames(salesRepNamesFor(payload?.data || payload || [], currentUser)); })
@@ -228,10 +224,8 @@ function DeliveryFormBody({
             .sort((a, b) => a.localeCompare(b));
         return [...new Set([...names, transferOrigin, transferDestination].filter(Boolean))].map((n) => ({ value: n, label: n }));
     }, [locationsList, transferOrigin, transferDestination]);
-    const customerPickerOptions = useMemo(
-        () => customers.map((o) => ({ value: o.value, label: o.label, description: o.city || undefined })),
-        [customers]
-    );
+    // Already shaped by the shared rules: city under the name, contact searchable.
+    const customerPickerOptions = customers;
     const drivers = useMemo(
         () => driverOptions(trucks, { truckId, date, deliveryType, customerDropOff }, { deliveries, exceptId: initialData?.id, max: MAX_TRUCK_CAPACITY }),
         [trucks, truckId, date, deliveryType, customerDropOff, deliveries, initialData?.id]
