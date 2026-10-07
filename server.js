@@ -934,7 +934,11 @@ app.use('/api', (req, res, next) => {
   const url = req.originalUrl || '';
   res.on('finish', () => {
     if (res.statusCode >= 400) return;
-    if (url.startsWith('/api/customers') || url.startsWith('/api/partners') || url.startsWith('/api/admin/customers')) {
+    // /api/sales/customers is where a new customer is created (Add customer,
+    // the Visit form's "New customer", the route planner). It was missing here,
+    // so the dropdown and map kept serving the pre-create list for up to ten
+    // minutes and the new customer couldn't be picked.
+    if (url.startsWith('/api/customers') || url.startsWith('/api/sales/customers') || url.startsWith('/api/partners') || url.startsWith('/api/admin/customers')) {
       bustCustomerCaches();
     }
     if (url.startsWith('/api/admin/users') || url.startsWith('/api/admin/roles') || url.startsWith('/api/auth/change-password')) {
