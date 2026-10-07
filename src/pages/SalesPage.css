@@ -6863,3 +6863,31 @@ body.light-theme-active .partner-action-btn.view-btn:hover,
   background: #f1f5f9 !important;
   border-color: #cbd5e1 !important;
 }
+/* The primary contact's emails, one per line (Contacts tab). On the phone
+   card the cell is a row (label left, value right), so they stack as one
+   block on the right and long addresses wrap instead of running off. */
+.contact-emails { display: inline-flex; flex-direction: column; gap: 2px; min-width: 0; }
+@media (max-width: 1024px) {
+  .data-table td .contact-emails { align-items: flex-end; text-align: right; overflow-wrap: anywhere; }
+}
+
+/* Light theme for the phone/iPad card view of the profile's Contacts and
+   Resources tables (and the dashboard Resources table). The card rules above
+   hard-code a dark #1c1c1e card with !important, so in the light theme the
+   dark text sat on a dark card and couldn't be read. */
+@media (max-width: 1024px) {
+  body.light-theme-active .data-table tr,
+  body.light-theme-active .resources-table tr {
+    background: var(--bg-card, #ffffff) !important;
+    border-color: var(--border-color, rgba(0, 0, 0, 0.08)) !important;
+  }
+  body.light-theme-active .data-table td,
+  body.light-theme-active .resources-table td {
+    color: var(--text-primary, #0f172a);
+    border-bottom-color: rgba(0, 0, 0, 0.06) !important;
+  }
+  body.light-theme-active .resource-details .detail-item p,
+  body.light-theme-active .resource-details .detail-item div {
+    color: var(--text-primary, #0f172a) !important;
+  }
+}
