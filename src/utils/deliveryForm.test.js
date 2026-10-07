@@ -4,7 +4,7 @@ import {
   needsFreightDetails, deliveryToFormValues, validateDeliveryValues, countDeliveryChanges, bookedOn,
   driverOptions, driverPickerValue, applyDriverPick, applyTypeChange, applyDateChange, applyCustomerPick,
   applyCustomName, buildDeliveryPayload, formWording, deliveryLastChangedText, repOptions,
-  salesRepNamesFor, customerOptionFromRecord, fieldLabelsFor
+  salesRepNamesFor, customerOptionFromRecord, fieldLabelsFor, reportDaysFor, reportDaysTouched, submittedDayLabel
 } from './deliveryForm.js';
 
 const TRUCKS = [
@@ -271,5 +271,35 @@ describe('lists', () => {
       .toMatchObject({ value: '1', label: 'Co', city: 'Kent', address: '1 Main', fullAddress: '1 Main, Kent, WA', salesRepName: 'Sam' });
     expect(customerOptionFromRecord({ _id: '2', firstName: 'Ann', lastName: 'Lee', city: 'Spokane' }))
       .toMatchObject({ label: 'Ann Lee', city: 'Spokane', address: 'Spokane' });
+  });
+});
+
+describe('report days a ticket touches (submitted-day warning)', () => {
+  const base = form({ date: '2026-10-02', truckId: 'mike' });
+
+  it('a delivery on a truck counts on its branch and date; Pending or cancelled counts nowhere', () => {
+    expect(reportDaysFor(base, 'Seattle')).toEqual([{ location: 'Seattle', date: '2026-10-02' }]);
+    expect(reportDaysFor({ ...base, truckId: '' }, 'Seattle')).toEqual([]);
+    expect(reportDaysFor({ ...base, status: 'cancelled' }, 'Seattle')).toEqual([]);
+    expect(reportDaysFor({ ...base, deliveryType: 'will_call', truckId: '' }, 'Seattle')).toHaveLength(1);
+  });
+
+  it('a transfer counts at the origin on the ship date and the destination on arrival', () => {
+    const t = { ...base, deliveryType: 'transfer', transferOrigin: 'Seattle', transferDestination: 'Spokane', expectedArrivalDate: '2026-10-05' };
+    expect(reportDaysFor(t, 'Kent')).toEqual([{ location: 'Seattle', date: '2026-10-02' }, { location: 'Spokane', date: '2026-10-05' }]);
+  });
+
+  it('an edit touches the day it came from and the day it goes to, once each', () => {
+    const moved = { ...base, date: '2026-10-06' };
+    expect(reportDaysTouched(moved, { initial: base, location: 'Seattle' })).toEqual([
+      { location: 'Seattle', date: '2026-10-02' }, { location: 'Seattle', date: '2026-10-06' }
+    ]);
+    expect(reportDaysTouched(base, { initial: base, location: 'Seattle' })).toHaveLength(1);
+    // Cancelling it takes it off the day it was on.
+    expect(reportDaysTouched({ ...base, status: 'cancelled' }, { initial: base, location: 'Seattle' })).toEqual([{ location: 'Seattle', date: '2026-10-02' }]);
+  });
+
+  it('labels the day', () => {
+    expect(submittedDayLabel({ location: 'Seattle', date: '2026-10-02' })).toBe('Seattle\'s Daily Report for Fri, Oct 2');
   });
 });

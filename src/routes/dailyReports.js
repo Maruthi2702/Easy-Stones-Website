@@ -624,6 +624,41 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   });
 
   /** GET /api/daily-reports/:date?location=Seattle — one day, ready to edit. */
+  /**
+   * GET /api/daily-reports/submitted-days?days=Seattle|2026-10-02,Spokane|2026-10-03
+   * Which of these branch days already have a submitted report — the delivery
+   * form warns that changing a ticket on one won't change that report. Open to
+   * anyone who can see the board (not only Daily Report users): it says no
+   * more than "submitted, by whom, when". Declared before /:date so that route
+   * doesn't take "submitted-days" for a date.
+   */
+  const canSeeDayStatus = [authenticate, (req, res, next) => {
+    const perms = req.user?.permissions || [];
+    if (perms.includes('view_daily_report') || perms.includes('view_delivery_schedule')) return next();
+    return res.status(403).json({ message: 'Not allowed.' });
+  }];
+  router.get('/submitted-days', canSeeDayStatus, async (req, res) => {
+    try {
+      const pairs = String(req.query.days || '').split(',').slice(0, 10)
+        .map((p) => { const [location, date] = p.split('|'); return { location, date }; })
+        .filter((p) => isBranch(p.location) && isValidDate(p.date));
+      if (!pairs.length) return res.json({ days: [] });
+      const found = await DailyReport.find(
+        { status: 'submitted', $or: pairs.map((p) => ({ location: p.location, date: p.date })) },
+        'date location submittedAt submittedBy autoSubmitted'
+      ).lean();
+      res.json({
+        days: found.map((r) => ({
+          location: r.location, date: r.date, submittedAt: r.submittedAt,
+          submittedBy: r.submittedBy || '', autoSubmitted: Boolean(r.autoSubmitted)
+        }))
+      });
+    } catch (error) {
+      console.error('[daily-reports] submitted-days failed:', error);
+      res.status(500).json({ message: 'Could not check those days.' });
+    }
+  });
+
   router.get('/:date', canView, async (req, res) => {
     try {
       const { date } = req.params;

@@ -102,6 +102,8 @@
 }
 .df-note-ok { border: 1px solid var(--fm-ok); color: var(--fm-ok); }
 .df-note-err { border: 1px solid var(--fm-err-bd); background: var(--fm-err-bg); color: var(--fm-err); }
+.df-note-warn { display: flex; align-items: flex-start; gap: 8px; border: 1px solid var(--fm-gold); background: var(--fm-gold-soft); color: var(--fm-tx); font-weight: 600; }
+.df-note-warn svg { flex: none; margin-top: 2px; color: var(--fm-gold-tx); }
 
 @media (max-width: 639px) {
     .df-drop .fm-btn { flex: 1; height: 44px; }

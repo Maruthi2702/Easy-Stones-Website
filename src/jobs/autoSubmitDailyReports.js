@@ -9,10 +9,14 @@ import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail
  * At 11:59 PM on the branch's own clock, any draft still open for that day is
  * signed off as it stands. The point is that a day's figures stop being
  * editable once the day is over — a report amended a week later is not a record
- * of anything. Nothing is invented: only days somebody actually worked on are
- * submitted, because a draft only exists once a figure has been typed. A branch
- * that never opened the sheet stays "Not started", which is the truth, where a
- * sheet of automatic zeros would be a lie.
+ * of anything.
+ *
+ * A day nobody opened is filed too, if anything happened at the branch that
+ * day — a check-in, a delivery, a pick-up, a return or a transfer (owner's
+ * call, 2026-10-05: Seattle had days with deliveries and no report, so no
+ * evening email). It's built from the system's figures alone and marked
+ * auto-submitted. A day with nothing at all stays "Not started": a sheet of
+ * automatic zeros would claim someone looked.
  *
  * Auto-submitted days are marked as such, and reopening one is the same
  * permission-gated act as reopening any other — that is the way back in.
@@ -69,6 +73,52 @@ export function isDueForAutoSubmit(report, location, now = new Date()) {
   return report.date === today && pastCutoff;
 }
 
+/** Anything happened at the branch that day, by the system's own figures. */
+export const hasActivity = (derived) => Boolean(
+  derived && (derived.visitorCheckIns > 0 || derived.deliveriesAssigned > 0 || derived.pickupsAssigned > 0
+    || derived.returnsCount > 0 || (derived.transfers || []).length > 0)
+);
+
+// A quiet branch-day is re-checked at most hourly, not on every one-minute
+// tick: most of the 13 branches have nothing on most days, and deriving each
+// of them every minute would be ~40 queries a minute for nothing. A ticket
+// added later for a past day is still picked up within the hour.
+const QUIET_RECHECK_MS = 60 * 60 * 1000;
+const quietSince = new Map();
+
+/**
+ * File a day nobody opened: create its report from the system's figures and
+ * submit it in one insert. Resolves the new document, or null if there was
+ * nothing to report or someone created the day meanwhile (the unique
+ * { date, location } index refuses the second insert).
+ */
+export async function fileUnopenedDay(date, location, now = new Date()) {
+  const key = `${location}|${date}`;
+  const checked = quietSince.get(key);
+  if (checked && now - checked < QUIET_RECHECK_MS) return null;
+
+  const derived = await deriveFromSystem(date, location);
+  if (!hasActivity(derived)) {
+    if (quietSince.size > 2000) quietSince.clear(); // keeps a long-running server's memory flat
+    quietSince.set(key, now);
+    return null;
+  }
+  quietSince.delete(key);
+
+  const report = new DailyReport({ date, location });
+  applyDerived(report, derived);
+  report.status = 'submitted';
+  report.submittedAt = now;
+  report.submittedBy = AUTO_SUBMITTED_BY;
+  report.autoSubmitted = true;
+  try {
+    return await report.save();
+  } catch (error) {
+    if (error?.code === 11000) return null;
+    throw error;
+  }
+}
+
 /**
  * One pass. Exported on its own so it can be run by hand or tested without a
  * timer: `node -e "..."` against a database is the whole test.
@@ -96,7 +146,6 @@ export async function autoSubmitDueDays(now = new Date()) {
       $or: [{ date: { $in: dates } }, { reopenedAt: { $ne: null }, date: { $lt: date } }]
     });
     const drafts = candidates.filter((r) => isDueForAutoSubmit(r, location, now));
-    if (!drafts.length) continue;
 
     let count = 0;
 
@@ -125,6 +174,17 @@ export async function autoSubmitDueDays(now = new Date()) {
       // Every branch gets its day closed out; only Seattle's office reads the
       // evening summary email, same as before this derived its own figures.
       if (location === 'Seattle') notifyDailyReportSubmission(claimed.toObject());
+    }
+
+    // Days that are over with no report at all — nobody opened the sheet.
+    // Filed if the branch had any activity that day (hasActivity).
+    const dueDates = dates.filter((d) => isDueForAutoSubmit({ date: d }, location, now));
+    const existing = new Set((await DailyReport.find({ location, date: { $in: dueDates } }, 'date').lean()).map((r) => r.date));
+    for (const day of dueDates.filter((d) => !existing.has(d))) {
+      const created = await fileUnopenedDay(day, location, now);
+      if (!created) continue;
+      count++;
+      if (location === 'Seattle') notifyDailyReportSubmission(created.toObject());
     }
 
     if (count > 0) submitted.push({ location, count });

@@ -373,3 +373,50 @@ export function salesRepNamesFor(list = [], currentUser = null) {
  * (src/utils/customerOptions.js); kept under this name for the form's imports.
  */
 export { customerOption as customerOptionFromRecord } from './customerOptions.js';
+
+/**
+ * Whether a ticket counts on a Daily Report at all, the way deriveFromSystem
+ * reads them: not cancelled, and on a truck — except a will call or a return,
+ * which never ride one.
+ */
+const countsOnReport = (v) =>
+  v.status !== 'cancelled' && (Boolean(v.truckId) || isWillCall(v) || isReturnType(v));
+
+/**
+ * The branch Daily Report days this ticket is counted on: its own branch on
+ * its date, and for a transfer the destination on its arrival date too.
+ * `location` is the branch a non-transfer ticket is filed under.
+ */
+export function reportDaysFor(v, location) {
+  if (!v || !countsOnReport(v)) return [];
+  const days = [];
+  const origin = isTransfer(v) ? v.transferOrigin : location;
+  if (origin && v.date) days.push({ location: origin, date: v.date });
+  if (isTransfer(v) && v.transferDestination && v.expectedArrivalDate) {
+    days.push({ location: v.transferDestination, date: v.expectedArrivalDate });
+  }
+  return days;
+}
+
+/**
+ * Every report day an edit can change: the ones the ticket was counted on
+ * when it opened, and the ones it would be counted on now. One entry per
+ * branch and date.
+ */
+export function reportDaysTouched(values, { initial = null, location = '' } = {}) {
+  const all = [...(initial ? reportDaysFor(initial, location) : []), ...reportDaysFor(values, location)];
+  const seen = new Set();
+  return all.filter((d) => {
+    const key = `${d.location}|${d.date}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** "Seattle's Daily Report for Fri, Oct 2" — for the submitted-day warning. */
+export const submittedDayLabel = ({ location, date }) => {
+  const at = new Date(`${date}T12:00:00Z`);
+  const day = Number.isNaN(at.getTime()) ? date : at.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  return `${location}'s Daily Report for ${day}`;
+};

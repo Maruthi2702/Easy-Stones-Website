@@ -18,7 +18,8 @@ import {
     DELIVERY_TYPE_OPTIONS, STATUS_OPTIONS, isPendingOrder, dateLabelFor, needsFreightDetails, fieldLabelsFor,
     deliveryToFormValues, validateDeliveryValues, countDeliveryChanges, driverOptions, driverPickerValue,
     applyDriverPick, applyTypeChange, applyDateChange, applyCustomerPick, applyCustomName, buildDeliveryPayload,
-    formWording, deliveryLastChangedText, repOptions, salesRepNamesFor
+    formWording, deliveryLastChangedText, repOptions, salesRepNamesFor,
+    reportDaysTouched, submittedDayLabel
 } from '../../../utils/deliveryForm';
 import './DeliveryForm.css';
 
@@ -89,6 +90,28 @@ function DeliveryFormBody({
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
     const [confirmDelete, setConfirmDelete] = useState(false);
+
+    // ── Days whose Daily Report is already submitted ──
+    // A ticket changed (or added) on a signed-off day doesn't change that
+    // report — it's frozen as submitted — so the board and the report would
+    // quietly disagree. Say so, naming the day, so someone can reopen it.
+    // Checks the day the ticket was on when opened and the day it's on now
+    // (and a transfer's arrival day at the receiving branch).
+    const filedUnder = initialData?.location || currentUser?.location || '';
+    const touchedDays = reportDaysTouched(values, { initial: isEdit ? initial : null, location: filedUnder });
+    const touchedKey = touchedDays.map((d) => `${d.location}|${d.date}`).join(',');
+    const [submittedDays, setSubmittedDays] = useState([]);
+    useEffect(() => {
+        if (!touchedKey) { setSubmittedDays([]); return undefined; }
+        let live = true;
+        const timer = setTimeout(() => {
+            authFetch(`${API_URL}/api/daily-reports/submitted-days?days=${encodeURIComponent(touchedKey)}`)
+                .then((res) => (res.ok ? res.json() : { days: [] }))
+                .then((data) => { if (live) setSubmittedDays(data.days || []); })
+                .catch(() => { if (live) setSubmittedDays([]); });
+        }, 300);
+        return () => { live = false; clearTimeout(timer); };
+    }, [touchedKey]);
 
     const errors = validateDeliveryValues(values);
     const shown = (f) => (errors[f] && (submitted || touched[f]) ? errors[f] : '');
@@ -320,6 +343,16 @@ function DeliveryFormBody({
         >
             {restored && <div className="df-note df-note-ok" role="status">We restored what you’d entered before your session expired.</div>}
             {saveError && <div className="df-note df-note-err" role="alert">{saveError}</div>}
+            {submittedDays.length > 0 && (
+                <div className="df-note df-note-warn" role="status">
+                    <AlertTriangle size={15} aria-hidden="true" />
+                    <span>
+                        {submittedDays.map(submittedDayLabel).join(' and ')} {submittedDays.length === 1 ? 'is' : 'are'} already
+                        submitted. Saving won’t change {submittedDays.length === 1 ? 'it' : 'them'}; reopen {submittedDays.length === 1 ? 'that day' : 'those days'} in
+                        the Daily Report to bring the figures up to date.
+                    </span>
+                </div>
+            )}
 
             <FormSection>
                 <FormRow>
