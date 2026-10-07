@@ -108,7 +108,10 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const { user } = useAuth();
     const width = useWindowWidth();
     const narrow = width < 900;   // list rows + slide-over instead of table + side drawer
-    const phone = width < 600;    // tapping a customer goes straight to the full profile
+    // Phones open the same details panel as iPad and laptop (full screen there),
+    // with Open profile inside it — they used to skip straight to the profile,
+    // so a phone never saw the panel (changed 2026-10-06 at the owner's ask).
+    const phone = width < 600;
     const isMobile = width <= 1024; // the sales layout's own sidebar breakpoint
 
     const canEdit = !!user?.permissions?.includes('manage_customers');
@@ -564,7 +567,6 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     // ── Opening customers ────────────────────────────────────────────────────
     const openProfile = (row) => { setOpenCustomer(null); onSelectCustomer && onSelectCustomer(row); };
     const openRow = (row, index) => {
-        if (phone) { openProfile(row); return; }
         setOpenCustomer(row);
         if (index !== undefined) setFocusIndex(index);
     };
@@ -810,7 +812,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                                 loading={loading}
                                 openId={openCustomer?._id}
                                 onOpen={(row) => openRow(row)}
-                                onMore={(row) => (phone ? openProfile(row) : setOpenCustomer(row))}
+                                onOpenProfile={openProfile}
+                                onMore={(row) => setOpenCustomer(row)}
                                 onCall={rememberCall}
                             />
                         )}
@@ -933,7 +936,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                 salesReps={salesReps}
                 locations={locations}
                 currentUser={user}
-                onOpenExisting={(c) => (phone ? openProfile(c) : setOpenCustomer(c))}
+                onOpenExisting={(c) => setOpenCustomer(c)}
                 onDelete={canDelete ? (c) => handleDeletePartner(c._id) : null}
             />
 

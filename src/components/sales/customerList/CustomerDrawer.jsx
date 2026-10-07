@@ -118,7 +118,7 @@ const CustomerDrawer = ({
         <div className="cl-drawer-top">
           <button ref={closeRef} type="button" className="cl-ib" aria-label="Close details" onClick={onClose}><X size={20} /></button>
           <span className="cl-grow" />
-          {position && <span className="cl-muted" style={{ fontSize: 12.5 }}>{position.index + 1} of {position.total}</span>}
+          {position && <span className="cl-muted" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{position.index + 1} of {position.total}</span>}
           <button type="button" className="cl-ib" aria-label="Previous customer" disabled={!onPrev} onClick={onPrev}><ChevronUp size={18} /></button>
           <button type="button" className="cl-ib" aria-label="Next customer" disabled={!onNext} onClick={onNext}><ChevronDown size={18} /></button>
           <button type="button" className="cl-btn sm soft" onClick={() => onOpenProfile(customer)}>
@@ -146,7 +146,12 @@ const CustomerDrawer = ({
         <div className="cl-drawer-body">
           <div className="cl-dh" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h3>{companyOf(c)}</h3>
+              {/* The name opens the full profile, as it does in the table. */}
+              <h3>
+                <button type="button" className="cl-dh-name" title="Open profile" onClick={() => onOpenProfile(customer)}>
+                  {companyOf(c)}
+                </button>
+              </h3>
             </div>
             {canEdit ? (
               <label className="cl-pill" title="Change status" style={{ position: 'relative' }}>
