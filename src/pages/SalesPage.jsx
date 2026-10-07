@@ -3789,7 +3789,6 @@ const SalesPage = () => {
                                                         <th>Phone</th>
                                                         <th>Email</th>
                                                         <th>Role</th>
-                                                        <th>Primary</th>
                                                         <th>Notes</th>
                                                         <th>Actions</th>
                                                     </tr>
