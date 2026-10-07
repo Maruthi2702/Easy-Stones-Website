@@ -8,9 +8,10 @@ const SWIPE = 204; // three 68px actions
 /**
  * One customer as a three-line row (phone and iPad portrait):
  * company (+⚠) / contact · city / location + rep, status on the right.
- * Swipe left for Call / Email / More; tap to open.
+ * Swipe left for Call / Email / More; tap to open the details panel, or tap
+ * the company name for the full profile (as in the table).
  */
-const Row = ({ row, swiped, onSwipe, onOpen, onMore, onCall, isOpen }) => {
+const Row = ({ row, swiped, onSwipe, onOpen, onOpenProfile, onMore, onCall, isOpen }) => {
   const start = useRef(null);
   const [drag, setDrag] = useState(null);
   const phone = String(row.phone || '').replace(/[^\d+]/g, '');
@@ -59,7 +60,13 @@ const Row = ({ row, swiped, onSwipe, onOpen, onMore, onCall, isOpen }) => {
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        onClick={() => (swiped ? onSwipe(null) : onOpen(row))}
+        onClick={(e) => {
+          if (swiped) { onSwipe(null); return; }
+          // The name sits inside the card's one button (a button can't hold
+          // another), so it's told apart by where the tap landed.
+          if (onOpenProfile && e.target.closest?.('.cl-li-name > span:first-child')) { onOpenProfile(row); return; }
+          onOpen(row);
+        }}
       >
         <span className="cl-av lg" aria-hidden="true">{initialsOf(companyOf(row))}</span>
         <span className="cl-li-body">
@@ -93,7 +100,7 @@ const SkeletonRow = ({ i }) => (
   </div>
 );
 
-const CustomerRowList = ({ rows, loading, openId, onOpen, onMore, onCall }) => {
+const CustomerRowList = ({ rows, loading, openId, onOpen, onOpenProfile, onMore, onCall }) => {
   const [swipedId, setSwipedId] = useState(null);
   if (loading && rows.length === 0) {
     return <div className="cl-list" aria-busy="true">{Array.from({ length: 8 }, (_, i) => <SkeletonRow key={i} i={i} />)}</div>;
@@ -108,6 +115,7 @@ const CustomerRowList = ({ rows, loading, openId, onOpen, onMore, onCall }) => {
           swiped={swipedId === row._id}
           onSwipe={setSwipedId}
           onOpen={onOpen}
+          onOpenProfile={onOpenProfile}
           onMore={onMore}
           onCall={onCall}
         />
