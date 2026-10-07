@@ -58,6 +58,7 @@ import { scrapeErpCustomers, scrapeErpInventory, scrapeErpSales } from './src/se
 import { isSalesRep } from './src/utils/salesReps.js';
 import { geocodeAddress, geocodePatchFor, addressKeyOf, GEOCODE_PRECISION } from './src/utils/geocode.js';
 import { newCustomerFields, customerUpdateFields, addressFrom, suppliedPoint } from './src/utils/customerRecord.js';
+import { vcardPersonFor, buildVCard, vcardFileName } from './src/utils/vcard.js';
 // One definition of "these two records are the same business", shared by the
 // import, the duplicate audit and the merge script.
 import { groupDuplicates, STRONG, withoutSeparated, buildSignalIndex, matchAgainst } from './src/utils/customerMatch.js';
@@ -3113,6 +3114,33 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
 });
 
 // Get single customer with full details (including images)
+// One of a customer's contacts as a .vcf, for "Save to phone contacts"
+// (src/utils/vcard.js). ?contact=primary (the account's own contact) or a
+// saved contact's _id. Opened by a plain link, so the login cookie is what
+// authenticates it. An iPhone shows the contact card (Create New Contact)
+// when it's served inline; everything else gets a download, so a laptop
+// browser doesn't just print the text.
+app.get('/api/customers/:id/vcard', authenticate, requirePermission('view_customers'), async (req, res) => {
+  try {
+    if (!/^[a-f0-9]{24}$/i.test(req.params.id)) return res.status(404).json({ message: 'Customer not found' });
+    const customer = await Customer.findById(req.params.id)
+      .select('company contactName name phone email address city location salesRepName contacts')
+      .lean();
+    if (!customer) return res.status(404).json({ message: 'Customer not found' });
+    const person = vcardPersonFor(customer, String(req.query.contact || 'primary'));
+    if (!person) return res.status(404).json({ message: 'Contact not found' });
+
+    const fileName = vcardFileName(person);
+    const iOS = /iPhone|iPad|iPod/i.test(req.headers['user-agent'] || '');
+    res.set('Content-Type', 'text/vcard; charset=utf-8');
+    res.set('Content-Disposition', `${iOS ? 'inline' : 'attachment'}; filename="${fileName.replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    res.send(buildVCard(person));
+  } catch (error) {
+    console.error('Error building vCard:', error);
+    res.status(500).json({ message: 'Could not build the contact card' });
+  }
+});
+
 // Every customer route lives under /api/customers (2026-10-06). Only a real id
 // reaches this one, so /api/customers/list, /cities and /view-counts — which
 // are registered further down — get to their own handlers.

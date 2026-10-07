@@ -8,7 +8,7 @@ import {
     Info, DollarSign, ShieldCheck, FileText, Eye, Paperclip, Loader,
     CreditCard, Edit2, Hash, Smile, UserPlus, FolderPlus, Folder, Link,
     LayoutDashboard, Pencil, FileImage, File, MoreVertical, RefreshCw, FileSearch, ExternalLink,
-    Monitor, BookOpen, Lock, Globe
+    Monitor, BookOpen, Lock, Globe, BookUser
 } from 'lucide-react';
 
 import { io } from 'socket.io-client';
@@ -3805,6 +3805,16 @@ const SalesPage = () => {
                                                                 <td data-label="Notes">{contact.notes || '-'}</td>
                                                                 <td data-label="Actions">
                                                                     <div className="action-buttons">
+                                                                        {/* Save to the phone's contacts (a .vcf — see src/utils/vcard.js). */}
+                                                                        <a
+                                                                            className="icon-btn"
+                                                                            href={`${API_URL}/api/customers/${selectedCustomer._id}/vcard?contact=${encodeURIComponent(contact._id)}`}
+                                                                            title="Save to phone contacts"
+                                                                            aria-label={`Save ${contact.name || 'contact'} to phone contacts`}
+                                                                            style={{ color: 'inherit' }}
+                                                                        >
+                                                                            <BookUser size={14} />
+                                                                        </a>
                                                                         <button className="icon-btn edit" onClick={() => handleEditContact(contact)}>
                                                                             <Edit2 size={14} />
                                                                         </button>
