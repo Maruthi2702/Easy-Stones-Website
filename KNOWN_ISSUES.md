@@ -128,6 +128,8 @@ permission holes (O4, O19).
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-06 | Daily Report: a day nobody opened got no report and no email even with deliveries or check-ins (Seattle missed 4 days in September). The 11:59 PM job now files any day with activity. | `234aad2` |
+| 2026-10-06 | Delivery form: changing a ticket on a day whose report was already submitted left the board and the signed-off report quietly disagreeing. The form now warns and names the day. | `234aad2` |
 | 2026-10-05 | Daily Report: after a reload, slab corrections typed on an earlier visit looked untouched, so the next save (the one before Submit included) blanked them and Submit locked the schedule's figure. GET now returns `handSet` and the sheet keeps them. Enter also skips the new read-only cells. | `aa869db` |
 | 2026-10-05 | Daily Report: a sheet left open all day submitted the figures it loaded that morning (check-ins, Count figures, transfer lines, untouched slabs). `/submit` now re-derives before locking, like the 11:59 auto-submit. | `aa869db` |
 | 2026-10-05 | Daily Report: hand edits to Homeowners, Deliveries / Pick-ups Count and auto transfer Count snapped back on reload, and removing an auto transfer line didn't stick (old issues 1, 2 and the Homeowners entry). All four are now read-only, from the check-in log / schedule / tickets; auto lines have no X. | `aa869db` |
