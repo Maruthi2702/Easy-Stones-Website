@@ -6384,6 +6384,20 @@ if (fs.existsSync(distPath)) {
     }
   }));
 
+  // A build file that isn't here is a 404 — never index.html. During a deploy
+  // Render briefly runs the old and the new build side by side, so a page from
+  // one can ask the other for a chunk it doesn't have. Answered with
+  // index.html (200, text/html) that surfaced in Safari as "'text/html' is not
+  // a valid JavaScript MIME type" and the app's error screen (2026-10-07);
+  // a plain 404 fails the import cleanly, and lazyRetry reloads into the
+  // current build.
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && (req.path.startsWith('/assets/') || /\.(js|mjs|css|map|json|webmanifest|png|jpe?g|gif|svg|webp|ico|woff2?|ttf)$/i.test(req.path))) {
+      return res.status(404).set('Cache-Control', 'no-store').type('text/plain').send('Not found');
+    }
+    next();
+  });
+
   app.get(/(.*)/, (req, res) => {
     // Send index.html with NO CACHE so users always get the latest version of the app
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
