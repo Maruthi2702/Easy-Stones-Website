@@ -3124,7 +3124,7 @@ app.get('/api/customers/:id/vcard', authenticate, requirePermission('view_custom
   try {
     if (!/^[a-f0-9]{24}$/i.test(req.params.id)) return res.status(404).json({ message: 'Customer not found' });
     const customer = await Customer.findById(req.params.id)
-      .select('company contactName name phone email address city location salesRepName contacts')
+      .select('company contactName name phone email address city location salesRepName customerType contacts')
       .lean();
     if (!customer) return res.status(404).json({ message: 'Customer not found' });
     const person = vcardPersonFor(customer, String(req.query.contact || 'primary'));
