@@ -3667,12 +3667,31 @@ body.light-theme-active .pending-deliveries-section.drop-target,
   background: rgba(212, 175, 55, 0.14);
 }
 
+/* Title, hint, Add. A grid rather than a wrapping row: when the row ran out
+   of room the Add button wrapped onto a line of its own under the hint. Now
+   Add always sits on the title's line — on narrower screens the hint drops
+   below the two instead. */
 .pending-deliveries-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "title hint add";
   align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
+  column-gap: 0.6rem;
+  row-gap: 0.35rem;
   margin-bottom: 0.7rem;
+}
+
+.pending-deliveries-header > .pending-deliveries-title { grid-area: title; }
+.pending-deliveries-header > .pending-deliveries-hint { grid-area: hint; }
+.pending-deliveries-header > .pending-add-btn { grid-area: add; }
+
+@media (max-width: 899px) {
+  .pending-deliveries-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title add"
+      "hint hint";
+  }
 }
 
 .pending-deliveries-title {
@@ -3702,7 +3721,6 @@ body.light-theme-active .pending-deliveries-section.drop-target,
 .pending-deliveries-hint {
   font-size: 0.72rem;
   color: #64748b;
-  margin-right: auto;
 }
 
 .pending-add-btn {
