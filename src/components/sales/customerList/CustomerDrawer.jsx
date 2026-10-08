@@ -52,8 +52,14 @@ const CopyCard = ({ person }) => {
   const text = contactCard({ name: person.name, email: person.email, phone: formatPhoneForDisplay(person.phone) || person.phone });
   if (!text) return null;
   return (
-    <button type="button" className="cl-btn sm" title={`Copies: ${text}`} onClick={async () => { if (await copyText(text)) setDone(true); }}>
-      {done ? <Check size={13} strokeWidth={2.5} /> : <Copy size={13} />}{done ? 'Copied' : 'Copy card'}
+    <button
+      type="button" className="cl-btn sm cl-copycard" title={`Copies: ${text}`}
+      aria-label={done ? 'Copied' : 'Copy contact card'}
+      onClick={async () => { if (await copyText(text)) setDone(true); }}
+    >
+      {done ? <Check size={13} strokeWidth={2.5} /> : <Copy size={13} />}
+      {/* Hidden on phones, where the button is an icon like Save to contacts. */}
+      <span className="cl-copycard-label">{done ? 'Copied' : 'Copy card'}</span>
     </button>
   );
 };
@@ -69,8 +75,28 @@ const CustomerDrawer = ({
   const [statusError, setStatusError] = useState('');
   const menuRef = useRef(null);
   const closeRef = useRef(null);
+  const menuBtnRef = useRef(null);
   const [menuPos, setMenuPos] = useState(undefined);
   useDismiss(menuOpen, setMenuOpen, menuRef, { closeOnScroll: true });
+
+  // Keyboard: the menu opens with its first item focused, ↑/↓ (and Home/End)
+  // move between items, and Escape (useDismiss) closes it. Keys pressed in the
+  // menu stop here: the customer list (PartnersSheet) listens on the document
+  // for ↑/↓/Enter to move between customers, which would swap the panel.
+  useEffect(() => {
+    if (menuOpen) menuRef.current?.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
+  }, [menuOpen]);
+  const onMenuKey = (e) => {
+    e.stopPropagation();
+    const items = [...(menuRef.current?.querySelectorAll('[role="menuitem"]') || [])];
+    if (!items.length) return;
+    const at = items.indexOf(document.activeElement);
+    const go = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: items.length - 1 }[e.key];
+    if (go === undefined) return;
+    e.preventDefault();
+    items[(go + items.length) % items.length].focus();
+  };
+  const runMenu = (fn) => { setMenuOpen(false); fn(); };
 
   const id = customer?._id;
   useEffect(() => {
@@ -137,31 +163,49 @@ const CustomerDrawer = ({
       {overlay && <div className="cl-scrim" onClick={onClose} aria-hidden="true" />}
       <aside className="cl-drawer cl" role="dialog" aria-modal={overlay ? 'true' : 'false'} aria-label={`${companyOf(c)} details`}>
         <div className="cl-drawer-top">
-          <button ref={closeRef} type="button" className="cl-ib" aria-label="Close details" onClick={onClose}><X size={20} /></button>
+          <button ref={closeRef} type="button" className="cl-ib cl-drawer-close" aria-label="Close details" title="Close (Esc)" onClick={onClose}><X size={20} /></button>
           <span className="cl-grow" />
-          {position && <span className="cl-muted" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{position.index + 1} of {position.total}</span>}
-          <button type="button" className="cl-ib" aria-label="Previous customer" disabled={!onPrev} onClick={onPrev}><ChevronUp size={18} /></button>
-          <button type="button" className="cl-ib" aria-label="Next customer" disabled={!onNext} onClick={onNext}><ChevronDown size={18} /></button>
-          <button type="button" className="cl-btn sm soft" onClick={() => onOpenProfile(customer)}>
-            <ExternalLink size={15} aria-hidden="true" />Open profile
-          </button>
-          {canEdit && (
-            <button type="button" className="cl-ib" aria-label="Edit customer" onClick={() => onEdit(customer)}><Pencil size={17} /></button>
-          )}
-          {canDelete && (
-            <div className="cl-rowmenu" ref={menuRef}>
-              <button type="button" className="cl-ib" aria-label="More actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={(e) => { setMenuPos(anchoredMenuStyle(e.currentTarget, { align: 'right', estHeight: 60 })); setMenuOpen(o => !o); }}>
-                <MoreHorizontal size={18} />
-              </button>
-              {menuOpen && (
-                <div className="cl-pop right" role="menu" style={{ minWidth: 190, ...menuPos }}>
-                  <button type="button" role="menuitem" className="cl-opt danger" onClick={() => { setMenuOpen(false); onDelete(customer._id); }}>
-                    <Trash2 size={16} aria-hidden="true" />Delete customer…
+          {/* One joined control: ↑, where you are in the list, ↓ (2026-10-08). */}
+          <div className="cl-pager" role="group" aria-label="Move between customers">
+            <button type="button" className="cl-pager-btn" aria-label="Previous customer" title="Previous customer (↑)" disabled={!onPrev} onClick={onPrev}><ChevronUp size={18} /></button>
+            {position && (
+              <span className="cl-pager-pos" aria-live="polite">
+                {(position.index + 1).toLocaleString()}{' '}<span className="of">of {position.total.toLocaleString()}</span>
+              </span>
+            )}
+            <button type="button" className="cl-pager-btn" aria-label="Next customer" title="Next customer (↓)" disabled={!onNext} onClick={onNext}><ChevronDown size={18} /></button>
+          </div>
+          {/* Open profile, Edit and Delete live in this one menu (2026-10-08) so the
+              bar is just close, previous/next and ⋯ — the same items, in the same
+              order, as the ⋯ on a table row. The name below also opens the profile. */}
+          <div className="cl-rowmenu" ref={menuRef}>
+            <button
+              ref={menuBtnRef} type="button" className="cl-ib box cl-drawer-more" aria-label="More actions" aria-haspopup="menu" aria-expanded={menuOpen}
+              onClick={(e) => { setMenuPos(anchoredMenuStyle(e.currentTarget, { align: 'right', estHeight: canDelete ? 160 : 110 })); setMenuOpen(o => !o); }}
+            >
+              <MoreHorizontal size={18} />
+            </button>
+            {menuOpen && (
+              <div className="cl-pop right cl-drawer-menu" role="menu" aria-label="Customer actions" style={{ minWidth: 210, ...menuPos }} onKeyDown={onMenuKey}>
+                <button type="button" role="menuitem" className="cl-opt" onClick={() => runMenu(() => onOpenProfile(customer))}>
+                  <ExternalLink size={16} aria-hidden="true" />Open profile
+                </button>
+                {canEdit && (
+                  <button type="button" role="menuitem" className="cl-opt" onClick={() => runMenu(() => onEdit(customer))}>
+                    <Pencil size={16} aria-hidden="true" />Edit customer
                   </button>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+                {canDelete && (
+                  <>
+                    <div className="cl-pop-sep" role="separator" />
+                    <button type="button" role="menuitem" className="cl-opt danger" onClick={() => runMenu(() => onDelete(customer._id))}>
+                      <Trash2 size={16} aria-hidden="true" />Delete customer…
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="cl-drawer-body">
@@ -198,35 +242,6 @@ const CustomerDrawer = ({
               same numbers, emails and address are right below, each one
               tappable — Contacts calls and emails, the address opens directions. */}
 
-          <section className="cl-sec" aria-label="Contacts">
-            <h4><Users size={15} aria-hidden="true" />Contacts <span className="cl-plus" style={{ margin: 0 }}>{cards.length}</span></h4>
-            {cards.map(p => (
-              <div className="cl-ct" key={p.key}>
-                <span className="cl-av lg" aria-hidden="true" style={{ width: 32, height: 32, fontSize: 12 }}>{initialsOf(p.name || p.email)}</span>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div className="cl-ct-name">
-                    <b style={{ fontWeight: 650, fontSize: 13.5 }}>{p.name || p.email}</b>
-                    {p.role && <span className="cl-lvl" style={{ height: 20, fontSize: 11 }}>{p.role}</span>}
-                    <span className="cl-grow" />
-                    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flex: 'none' }}>
-                      <CopyCard person={p} />
-                      <SaveContact customerId={customer?._id} person={p} />
-                    </span>
-                  </div>
-                  <div className="cl-ct-vals">
-                    {p.phone && (
-                      <span className="cl-cp"><a href={telHref(p.phone)}>{formatPhoneForDisplay(p.phone)}</a><CopyButton value={formatPhoneForDisplay(p.phone) || p.phone} what="phone" always /></span>
-                    )}
-                    {[p.email, ...(p.moreEmails || [])].filter(Boolean).map(email => (
-                      <span className="cl-cp" key={email}><a href={`mailto:${email}`}>{email}</a><CopyButton value={email} what="email" always /></span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {loadError && <div className="cl-err">{loadError}</div>}
-          </section>
-
           <section className="cl-sec" aria-label="Account and address">
             <h4><Wrench size={15} aria-hidden="true" />Account &amp; address</h4>
             <dl className="cl-kv">
@@ -245,6 +260,37 @@ const CustomerDrawer = ({
               {nextFollowUp && (<><dt>Follow-up</dt><dd>{fmtDate(nextFollowUp)}</dd></>)}
               <dt>Marketing email</dt><dd>{c.receiveMarketing === false ? 'Opted out' : 'Opted in'}</dd>
             </dl>
+          </section>
+
+          <section className="cl-sec" aria-label="Contacts">
+            <h4><Users size={15} aria-hidden="true" />Contacts <span className="cl-plus" style={{ margin: 0 }}>{cards.length}</span></h4>
+            {cards.map(p => (
+              <div className="cl-ct" key={p.key}>
+                <span className="cl-av lg" aria-hidden="true" style={{ width: 32, height: 32, fontSize: 12 }}>{initialsOf(p.name || p.email)}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="cl-ct-name">
+                    <span className="cl-ct-who">
+                      <b style={{ fontWeight: 650, fontSize: 13.5 }}>{p.name || p.email}</b>
+                      {p.role && <span className="cl-lvl" style={{ height: 20, fontSize: 11 }}>{p.role}</span>}
+                    </span>
+                    <span className="cl-grow" />
+                    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flex: 'none' }}>
+                      <CopyCard person={p} />
+                      <SaveContact customerId={customer?._id} person={p} />
+                    </span>
+                  </div>
+                  <div className="cl-ct-vals">
+                    {p.phone && (
+                      <span className="cl-cp"><a href={telHref(p.phone)}>{formatPhoneForDisplay(p.phone)}</a><CopyButton value={formatPhoneForDisplay(p.phone) || p.phone} what="phone" always /></span>
+                    )}
+                    {[p.email, ...(p.moreEmails || [])].filter(Boolean).map(email => (
+                      <span className="cl-cp" key={email}><a href={`mailto:${email}`}>{email}</a><CopyButton value={email} what="email" always /></span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {loadError && <div className="cl-err">{loadError}</div>}
           </section>
 
           <section className="cl-sec" aria-label="Moda Resources">

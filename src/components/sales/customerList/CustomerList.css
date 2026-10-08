@@ -272,6 +272,27 @@ body.light-theme-active .cl-bulk { background: #0f172a; border-color: #0f172a; }
 .cl-drawer { position: fixed; top: var(--cl-top, 82px); right: 0; bottom: 0; width: min(600px, 100vw); background: var(--cl-surface-2); border-left: 1px solid var(--cl-line); box-shadow: -24px 0 60px rgba(0, 0, 0, 0.3); z-index: 890; display: flex; flex-direction: column; color: var(--cl-text); }
 body.light-theme-active .cl-drawer { background: #f5f6f8; }
 .cl-drawer-top { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--cl-line); background: var(--cl-surface); flex: none; }
+/* The panel's ⋯ menu (Open profile / Edit / Delete): roomier rows, and finger-
+   sized ones on touch screens. */
+.cl-drawer-menu .cl-opt { min-height: 40px; font-size: 14px; }
+/* The bar: close on the left; on the right one joined ↑ "n of N" ↓ control and
+   a boxed ⋯ of the same height, so the row reads as two clear groups. */
+.cl-drawer-top { gap: 8px; }
+.cl-drawer-top .cl-drawer-close { width: 36px; height: 36px; color: var(--cl-text-2); }
+.cl-drawer-top .cl-drawer-more { width: 36px; height: 36px; border-radius: 10px; }
+.cl-pager { display: inline-flex; align-items: stretch; height: 36px; border: 1px solid var(--cl-input-border); border-radius: 10px; background: var(--cl-surface); overflow: hidden; flex: none; }
+.cl-pager-btn { width: 34px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--cl-text-2); cursor: pointer; padding: 0; }
+.cl-pager-btn:hover:not(:disabled) { background: var(--cl-hover); color: var(--cl-text); }
+.cl-pager-btn:disabled { color: var(--cl-faint); cursor: default; }
+.cl-pager-btn:focus-visible { outline: 2px solid var(--cl-ring); outline-offset: -2px; }
+.cl-pager-pos { display: inline-flex; align-items: center; gap: 4px; padding: 0 10px; border-left: 1px solid var(--cl-line-soft); border-right: 1px solid var(--cl-line-soft); font-size: 13px; font-weight: 650; color: var(--cl-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cl-pager-pos .of { font-weight: 500; color: var(--cl-muted); }
+@media (pointer: coarse), (max-width: 599px) {
+  .cl-drawer-top .cl-drawer-close, .cl-drawer-top .cl-drawer-more { width: 44px; height: 44px; }
+  .cl-pager { height: 44px; }
+  .cl-pager-btn { width: 44px; }
+  .cl-drawer-menu .cl-opt { min-height: 44px; }
+}
 .cl-drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .cl-dh h3 { margin: 0; font-size: 22px; font-weight: 750; letter-spacing: -0.3px; line-height: 1.2; color: var(--cl-text); }
 .cl-dh-name { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
@@ -304,7 +325,23 @@ body.light-theme-active .cl-drawer { background: #f5f6f8; }
 .cl-kv a { color: var(--cl-gold-ink); }
 .cl-ct { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--cl-line-soft); }
 .cl-ct:first-of-type { border-top: 0; padding-top: 0; }
-.cl-ct-name { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* One row: name and role, then Copy card / Save to contacts on the right.
+   It used to wrap, which put the buttons on a line of their own on phones.
+   A long name shortens with "…" on wider screens; on phones, where Copy card
+   is an icon, it wraps instead, with the role tag following the last word,
+   and the buttons stay top right. */
+.cl-ct-name { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.cl-ct-who { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.cl-ct-who > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-ct-who > .cl-lvl { flex: none; }
+@media (max-width: 599px) {
+  .cl-ct-name { align-items: flex-start; }
+  .cl-ct-who { display: block; padding-top: 5px; line-height: 1.5; }
+  .cl-ct-who > b { white-space: normal; overflow-wrap: anywhere; margin-right: 6px; }
+  .cl-ct-who > .cl-lvl { display: inline-flex; vertical-align: 1px; }
+  .cl-copycard { width: 32px; padding: 0; justify-content: center; }
+  .cl-copycard-label { display: none; }
+}
 .cl-ct-vals { display: flex; flex-direction: column; font-size: 13.5px; margin-top: 4px; }
 .cl-ct-vals a { color: var(--cl-gold-ink); text-decoration: none; }
 .cl-ct-vals a:hover { text-decoration: underline; }
