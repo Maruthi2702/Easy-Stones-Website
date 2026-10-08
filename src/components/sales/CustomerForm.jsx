@@ -262,7 +262,8 @@ export default function CustomerForm({
     };
 
     const repOptions = withCurrent(
-        [{ value: '', label: 'Unassigned' }, ...salesReps.map((r) => ({ value: r._id, label: r.name, description: r.location || undefined }))],
+        // "Krish - Seattle" on one row, in the list and once chosen (2026-10-08).
+        [{ value: '', label: 'Unassigned' }, ...salesReps.map((r) => ({ value: r._id, label: r.location ? `${r.name} - ${r.location}` : r.name }))],
         values.salesRep
     ).map((o) => (o.value === values.salesRep && o.label === values.salesRep
         ? { ...o, label: editingCustomer?.salesRepName || 'Rep no longer listed' }
