@@ -244,6 +244,10 @@
   overflow: hidden;
   position: relative;
   z-index: 1;
+  /* Never squeezed: on phones the whole panel scrolls and the list is full
+     height, and a shrinkable box with overflow: hidden collapsed to an empty
+     18px bar (2026-10-08). */
+  flex-shrink: 0;
 }
 
 .clp-embedded .clp-stats {
