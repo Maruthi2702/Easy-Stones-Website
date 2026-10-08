@@ -274,6 +274,7 @@ const CheckInLogPage = () => {
           locations={locations}
           onExport={handleExport}
           isExporting={isExporting}
+          exportFilters={{ search: debouncedSearch, month: filterMonth, year: filterYear, location: filterLocation }}
           embedded={false}
           theme={theme}
           onToggleTheme={toggleTheme}

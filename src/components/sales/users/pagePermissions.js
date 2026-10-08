@@ -2,7 +2,7 @@
 // user forms (role summaries) and the /admin screen.
 import { summarizeRole } from '../../../utils/userForm';
 import {
-    ArrowLeftRight, Boxes, CheckCheck, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Palette, Pencil, Plus, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
+    ArrowLeftRight, Boxes, CheckCheck, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Palette, Pencil, Plus, QrCode, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
 } from 'lucide-react';
 
 // Granular per-page permission definitions.
@@ -59,6 +59,8 @@ export const PAGE_PERMISSIONS = [
         color: '#d79b00',
         actions: [
             { key: 'view_checkins',     label: 'View',             icon: Eye,      desc: 'View check-in log records (read-only without Edit)' },
+            // The QR / NFC self check-in codes, in the log's More menu (2026-10-08).
+            { key: 'view_checkin_qr',   label: 'QR / NFC',         icon: QrCode,   desc: 'See the QR / NFC self check-in codes in the More menu' },
             { key: 'send_checkin_email',label: 'Selection Sheet',  icon: MailIcon, desc: 'Send selection sheet emails to customers' },
             { key: 'manage_checkins',   label: 'Edit',             icon: Pencil,   desc: 'Edit check-in details and selection sheets' },
             { key: 'delete_checkins',   label: 'Delete',           icon: Trash2,   desc: 'Delete check-in records' }
