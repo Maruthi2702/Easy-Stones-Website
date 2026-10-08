@@ -51,5 +51,44 @@ export async function collectAllCheckIns(fetchPage, { maxPages = EXPORT_MAX_PAGE
 }
 
 /** The file name: the day it was made, and the branch when it's one branch. */
-export const checkInExportFileName = (location, today = new Date()) =>
-  `checkin-log-${location ? `${String(location).replace(/\s+/g, '_')}-` : ''}${today.toISOString().slice(0, 10)}.xlsx`;
+export const checkInExportFileName = (location, today = new Date(), ext = 'xlsx') =>
+  `checkin-log-${location ? `${String(location).replace(/\s+/g, '_')}-` : ''}${today.toISOString().slice(0, 10)}.${ext}`;
+
+// ── PDF (More menu → View as PDF / Download as PDF, 2026-10-08) ──────────
+
+/**
+ * A PDF stops here: 5,000 rows is ~130 pages, already more than anyone
+ * reads, and it keeps the server's answer quick. The Excel file has no such
+ * cap beyond the export's own (EXPORT_PAGE_SIZE × EXPORT_MAX_PAGES).
+ */
+export const CHECKIN_PDF_MAX_ROWS = 5000;
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** The PDF heading's filter line: "Seattle · October 2026 · matching “smith”". */
+export const checkInExportScope = ({ location, month, year, search } = {}) => {
+  const m = Number(month);
+  const y = Number(year);
+  const when = m >= 1 && m <= 12 && y > 2000 ? `${MONTHS[m - 1]} ${y}` : 'All dates';
+  const q = String(search || '').trim();
+  return [location || 'All branches', when, q ? `matching “${q}”` : ''].filter(Boolean).join(' · ');
+};
+
+/**
+ * The PDF's address for the log's current filters. A plain link (the login
+ * cookie signs it in), so "View" can open it in a new tab straight from the
+ * tap — an iPad blocks a tab opened after waiting on a fetch. `download`
+ * asks for a file instead of showing it; `tz` puts times on the reader's clock.
+ */
+export const checkInPdfUrl = (apiUrl, { search, month, year, location } = {}, { download = false, tz } = {}) => {
+  const params = new URLSearchParams();
+  const q = String(search || '').trim();
+  if (q) params.set('search', q);
+  if (month) params.set('month', String(month));
+  if (year) params.set('year', String(year));
+  if (location) params.set('location', location);
+  if (tz) params.set('tz', tz);
+  if (download) params.set('download', '1');
+  const qs = params.toString();
+  return `${apiUrl || ''}/api/checkin/export.pdf${qs ? `?${qs}` : ''}`;
+};

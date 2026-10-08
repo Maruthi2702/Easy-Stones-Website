@@ -583,7 +583,7 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
             'manage_customer_accounts',
-            'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
+            'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email', 'view_checkin_qr',
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
             'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report',
@@ -602,7 +602,7 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
             'manage_customer_accounts',
-            'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email',
+            'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email', 'view_checkin_qr',
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
             'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report',
@@ -734,7 +734,12 @@ async function startServer() {
         // (driver/logistics → driver screen, admin/manager → office board).
         // It's now permissions only (src/utils/deliveryAccess.js), with Driver
         // view as its own switch; this keeps today's drivers on their screen.
-        { roles: ['driver', 'logistics'], permissions: ['delivery_driver_view'] }
+        { roles: ['driver', 'logistics'], permissions: ['delivery_driver_view'] },
+        // The Check-In Log's QR / NFC self check-in codes were a button anyone
+        // with the log could see; now they're in its More menu behind their own
+        // permission (2026-10-08), given to admin and director to start with.
+        // Who else sees them is decided under Users & Roles.
+        { roles: ['admin', 'director'], permissions: ['view_checkin_qr'] }
       ];
 
       // Each grant reaches a role once. Its permissions are recorded in

@@ -3131,6 +3131,7 @@ const SalesPage = () => {
                 locations={locations}
                 onExport={handleExportCheckIns}
                 isExporting={checkInExporting}
+                exportFilters={{ search: checkInSearch, month: checkInFilterMonth, year: checkInFilterYear, location: checkInFilterLocation }}
             />
             </Suspense>
         );

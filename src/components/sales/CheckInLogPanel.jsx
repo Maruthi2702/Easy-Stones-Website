@@ -17,17 +17,19 @@
  *  currentPage     – number
  *  totalPages      – number
  *  onPageChange    – (page: number) => void
- *  onExport        – () => void  (if provided, shows Export button)
- *  isExporting     – boolean  (disables the Export button and shows progress)
+ *  onExport        – () => void  (if provided, shows the More menu: View as PDF,
+ *                    Download as PDF, Download as Excel — this is the Excel one)
+ *  isExporting     – boolean  (the Excel download is being prepared)
+ *  exportFilters   – { search, month, year, location } the PDFs are made for
  *  sidebarToggle   – ReactNode | null  (sidebar menu button for CRM mode)
  *  embedded        – bool  (true = CRM panel mode, false = full-page mode)
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search, Download, Loader2, Calendar,
   Users, Building2, Phone, UserCheck, X, Eye, Edit2, Trash2, ClipboardList,
   Printer, Filter, Scan, Plus, MapPin,
-  QrCode, Copy, Check, Smartphone, Settings, MoreHorizontal
+  QrCode, Copy, Check, Smartphone, Settings, MoreHorizontal, FileText, FileSpreadsheet
 } from 'lucide-react';
 import { formatInstantTime } from '../../utils/dateUtils';
 import { checkInMoment } from '../../utils/checkInClock';
@@ -36,6 +38,8 @@ import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import { LocationField } from '../shared/LocationFilter';
 import { accessibleLocations } from '../../utils/locationFilter';
 import { useAuth } from '../../context/AuthContext';
+import { API_URL } from '../../config/api';
+import { checkInPdfUrl } from '../../utils/checkInExport';
 import SelectionSheetForm, { SHEET_DRAFT_KEY } from './selectionSheet/SelectionSheetForm';
 import './CheckInLogPanel.css';
 
@@ -110,6 +114,7 @@ const CheckInLogPanel = ({
   onFilterYearChange = () => {},
   onExport,
   isExporting = false,
+  exportFilters = {},
   sidebarToggle = null,
   embedded = false,
   onView = null,
@@ -133,8 +138,41 @@ const CheckInLogPanel = ({
   // lock to their first assigned branch, which isn't always where they work.
   const checkInPageHref = filterLocation ? `/checkin?location=${encodeURIComponent(filterLocation)}` : '/checkin';
   const isAdmin = !user || user.role === 'admin' || user.role === 'Admin' || user.permissions?.includes('*') || user.permissions?.includes('admin');
+  // The QR / NFC self check-in codes: a Users & Roles permission (2026-10-08).
+  const canSeeQrCodes = isAdmin || !!user?.permissions?.includes('view_checkin_qr');
 
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+
+  // ── More menu (⋯): View as PDF, Download as PDF, Download as Excel ──
+  // The PDFs are plain links to the server (GET /api/checkin/export.pdf), so
+  // View opens its tab straight from the tap; the Excel file is made here.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef(null);
+  const viewerZone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })();
+  const pdfViewHref = checkInPdfUrl(API_URL, exportFilters, { tz: viewerZone });
+  const pdfDownloadHref = checkInPdfUrl(API_URL, exportFilters, { tz: viewerZone, download: true });
+  useEffect(() => {
+    if (!moreOpen) return undefined;
+    moreRef.current?.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
+    const onDown = (e) => { if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setMoreOpen(false); moreRef.current?.querySelector('button')?.focus(); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const items = [...(moreRef.current?.querySelectorAll('[role="menuitem"]:not([aria-disabled="true"])') || [])];
+      if (!items.length) return;
+      e.preventDefault();
+      const at = items.indexOf(document.activeElement);
+      items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [moreOpen]);
   // Which desktop table row currently has its View/Edit/Delete icons expanded
   // (see the "⋯" toggle in the Actions column) — only one row open at a time.
   const [expandedActionsId, setExpandedActionsId] = useState(null);
@@ -368,17 +406,6 @@ const CheckInLogPanel = ({
             </div>
           )}
 
-          <button
-            type="button"
-            className="clp-qr-btn clp-desktop-checkin"
-            onClick={() => setShowQrModal(true)}
-            title="QR Code & NFC Self Check-In"
-            aria-label="QR Code & NFC Self Check-In"
-          >
-            <QrCode size={14} />
-            <span className="clp-qr-btn-label">QR / NFC Code</span>
-          </button>
-
           <a
             href={
               checkInPageHref
@@ -391,11 +418,49 @@ const CheckInLogPanel = ({
             <span>Check-In</span>
           </a>
 
-          {onExport && (
-            <button className="clp-export-btn" onClick={onExport} disabled={isExporting}>
-              <Download size={14} />
-              {isExporting ? 'Exporting…' : 'Export'}
-            </button>
+          {(onExport || canSeeQrCodes) && (
+            <div className="clp-filter-container clp-more" ref={moreRef}>
+              <button
+                type="button"
+                className="clp-filter-btn clp-more-btn"
+                aria-label="More"
+                title="More"
+                aria-haspopup="menu"
+                aria-expanded={moreOpen}
+                onClick={() => setMoreOpen((o) => !o)}
+              >
+                {isExporting ? <Loader2 size={15} className="clp-spin" /> : <MoreHorizontal size={16} />}
+              </button>
+              {moreOpen && (
+                <div className="clp-more-menu" role="menu" aria-label="More">
+                  {onExport && (<>
+                  <a role="menuitem" className="clp-more-item" href={pdfViewHref} target="_blank" rel="noopener noreferrer" onClick={() => setMoreOpen(false)}>
+                    <Eye size={16} aria-hidden="true" />View as PDF
+                  </a>
+                  <a role="menuitem" className="clp-more-item" href={pdfDownloadHref} onClick={() => setMoreOpen(false)}>
+                    <FileText size={16} aria-hidden="true" />Download as PDF
+                  </a>
+                  <button
+                    type="button" role="menuitem" className="clp-more-item"
+                    aria-disabled={isExporting}
+                    onClick={() => { if (isExporting) return; setMoreOpen(false); onExport(); }}
+                  >
+                    <FileSpreadsheet size={16} aria-hidden="true" />{isExporting ? 'Preparing Excel…' : 'Download as Excel'}
+                  </button>
+                  </>)}
+                  {/* Below the downloads, for those Users & Roles allows. */}
+                  {canSeeQrCodes && (<>
+                    {onExport && <div className="clp-more-sep" role="separator" />}
+                    <button
+                      type="button" role="menuitem" className="clp-more-item"
+                      onClick={() => { setMoreOpen(false); setShowQrModal(true); }}
+                    >
+                      <QrCode size={16} aria-hidden="true" />QR / NFC codes
+                    </button>
+                  </>)}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -772,7 +837,7 @@ const CheckInLogPanel = ({
 
             <div className="selection-modal-form clp-qr-modal-body">
               {/* Branch Office Location & Domain Selector */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="clp-qr-fields">
                 <div className="clp-qr-location-selector">
                   <label className="clp-qr-label">
                     Showroom Branch Location:

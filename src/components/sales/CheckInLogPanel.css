@@ -136,35 +136,6 @@
   font-family: inherit;
 }
 
-/* Export is a secondary, quiet action — Check-In is the only button on this
-   toolbar that should read as "the" thing to press (see Toolbar Direction 2). */
-.clp-export-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: none;
-  border: none;
-  border-radius: 9px;
-  padding: 0.5rem 0.6rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-secondary, #94a3b8);
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-  font-family: inherit;
-}
-
-.clp-export-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.clp-export-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
 .clp-refresh-btn {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary, #fff);
@@ -1059,8 +1030,7 @@ table.clp-table {
     flex-shrink: 0 !important;
   }
 
-  .clp-header-btn-group .clp-checkin-btn,
-  .clp-header-btn-group .clp-qr-btn {
+  .clp-header-btn-group .clp-checkin-btn {
     height: 34px !important;
     padding: 0 0.75rem !important;
     font-size: 0.78rem !important;
@@ -2329,20 +2299,6 @@ body.light-theme-active .clp-root .clp-subtitle {
   border-color: #cbd5e1 !important;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08) !important;
   transform: translateY(-1px) !important;
-}
-
-/* Export stays a quiet text button in light mode too — Check-In is the only
-   gold action (see Toolbar Direction 2). */
-.clp-root.light-theme .clp-export-btn {
-  background: none !important;
-  border: none !important;
-  color: #64748b !important;
-  box-shadow: none !important;
-}
-
-.clp-root.light-theme .clp-export-btn:hover {
-  background: #f1f5f9 !important;
-  color: #1e293b !important;
 }
 
 .clp-root.light-theme .clp-checkin-btn {
@@ -4266,55 +4222,6 @@ body.light-theme-active .clp-csc-btn.btn-delete:hover {
   flex-shrink: 0 !important;
 }
 
-/* Icon-only, neutral — sits alongside the filter button as a matched pair of
-   utility toggles, so Check-In stays the one gold button (Toolbar Direction 2). */
-.clp-qr-btn {
-  display: inline-flex;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 0 !important;
-  padding: 0 !important;
-  width: 42px !important;
-  height: 42px !important;
-  border-radius: 50% !important;
-  font-size: 0.82rem !important;
-  font-weight: 600 !important;
-  white-space: nowrap !important;
-  flex-shrink: 0 !important;
-  cursor: pointer !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-  color: #c7cdd6 !important;
-  border: 1px solid rgba(255, 255, 255, 0.09) !important;
-  box-shadow: none !important;
-  transition: all 0.2s ease !important;
-}
-
-.clp-qr-btn-label {
-  display: none;
-}
-
-.clp-qr-btn:hover {
-  background: rgba(255, 255, 255, 0.09) !important;
-  color: #fff !important;
-  border-color: rgba(255, 255, 255, 0.18) !important;
-  transform: translateY(-1px) !important;
-}
-
-.clp-root.light-theme .clp-qr-btn,
-body.light-theme-active .clp-qr-btn {
-  background: #ffffff !important;
-  color: #475569 !important;
-  border: 1.5px solid #e2e8f0 !important;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
-}
-
-.clp-root.light-theme .clp-qr-btn:hover,
-body.light-theme-active .clp-qr-btn:hover {
-  background: #f8fafc !important;
-  color: #1e293b !important;
-  border-color: #cbd5e1 !important;
-}
-
 /* Logged By Badge */
 .clp-loggedby-pill {
   display: inline-flex !important;
@@ -4440,6 +4347,16 @@ body.light-theme-active .clp-qr-info h4 {
 .clp-root.light-theme .clp-qr-info p,
 body.light-theme-active .clp-qr-info p {
   color: #64748b !important;
+}
+
+/* Branch + domain side by side; stacked on phones, where the QR window can now
+   open from the More menu (it used to be a laptop-only button). */
+.clp-qr-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.clp-qr-info { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 599px) {
+  .clp-qr-fields { grid-template-columns: 1fr; }
+  .clp-qr-preview-card { flex-direction: column !important; align-items: stretch !important; text-align: center; }
+  .clp-qr-code-wrapper { align-self: center; }
 }
 
 .clp-nfc-card {
@@ -5455,3 +5372,56 @@ body.light-theme-active .selection-input:focus {
     border-radius: 0;
   }
 }
+
+/* ── More menu (⋯): View as PDF / Download as PDF / Download as Excel ──
+   2026-10-08, replacing the Export button. The ⋯ is a .clp-filter-btn, so it
+   matches the Filter button beside it at every size and in both themes; the
+   menu is dressed like the filter popover. */
+.clp-more-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 1000;
+  min-width: 220px;
+  padding: 6px;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  animation: clp-filter-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.clp-more-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: #e4e4e7;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.clp-more-item svg { color: #d4af37; flex: none; }
+.clp-more-item:hover, .clp-more-item:focus-visible { background: rgba(255, 255, 255, 0.07); outline: none; }
+.clp-more-item[aria-disabled="true"] { opacity: 0.55; cursor: progress; }
+.clp-more-sep { height: 1px; margin: 5px 6px; background: rgba(255, 255, 255, 0.1); }
+.clp-root.light-theme .clp-more-sep { background: #e2e8f0; }
+
+.clp-root.light-theme .clp-more-menu {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 16px -8px rgba(15, 23, 42, 0.08);
+}
+.clp-root.light-theme .clp-more-item { color: #1e293b; }
+.clp-root.light-theme .clp-more-item svg { color: #b8961f; }
+.clp-root.light-theme .clp-more-item:hover, .clp-root.light-theme .clp-more-item:focus-visible { background: #f1f5f9; }

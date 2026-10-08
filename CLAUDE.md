@@ -203,7 +203,9 @@ defaults, the placeholder email, protected fields) and dropdown rules
 the Check-In Log's branch clock (`src/utils/checkInClock.js`: which day and
 month a check-in belongs to on its own branch's clock, the per-zone query the
 list's month filter and counts use, and the date/time/"Today" shown and
-exported).
+exported), and the Check-In Log's exports (`src/utils/checkInExport.js`: the
+Excel rows, the PDF's filter line, link and row cap; `src/utils/checkInLogPdf.js`:
+that the PDF builds, pages, and survives characters its font lacks).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

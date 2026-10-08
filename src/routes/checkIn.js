@@ -8,6 +8,8 @@ import { stripPhone, formatPhoneForDisplay, maskPhone } from '../utils/phoneUtil
 import { letterheadFor } from '../utils/locationForm.js';
 import { homeLocationOf } from '../utils/locationFilter.js';
 import { byBranchClock } from '../utils/checkInClock.js';
+import { buildCheckInLogPdf } from '../utils/checkInLogPdf.js';
+import { CHECKIN_PDF_MAX_ROWS, checkInExportScope, checkInExportFileName } from '../utils/checkInExport.js';
 import rateLimit from 'express-rate-limit';
 
 /**
@@ -156,6 +158,59 @@ const locationFilterFor = (userLocations, requestedLocation) => {
       : { forbidden: true };
   }
   return { location: { $in: userLocations } };
+};
+
+/**
+ * The Check-In Log's filters as one Mongo query: the branches this user may
+ * see (or the one they picked), the month on each check-in's own branch
+ * clock, and the search. Shared by the list (GET /) and its PDF
+ * (GET /export.pdf) so the PDF is always exactly what the list shows.
+ * Returns { forbidden: true } for a branch they can't see.
+ */
+const checkInListQuery = (userLocations, { search, month, year, location } = {}) => {
+  const locFilter = locationFilterFor(userLocations, location);
+  if (locFilter.forbidden) return { forbidden: true };
+  // Location, month and search clauses, ANDed — the month window and the
+  // search can each be an $or of their own.
+  const clauses = [];
+  const m = parseInt(month);
+  const y = parseInt(year);
+  if (m >= 1 && m <= 12 && y > 2000) {
+    // The month on each check-in's own branch clock, matching GET /stats
+    // and the Daily Report.
+    clauses.push(byBranchClock(locFilter, (zone) => ({
+      $gte: zoneMidnightUtc(zone, y, m - 1, 1),
+      $lt: zoneMidnightUtc(zone, y, m, 1)
+    })));
+  } else if (locFilter.location) {
+    clauses.push(locFilter);
+  }
+  if (search) {
+    const searchRegex = new RegExp(escapeRegex(search), 'i');
+    const orClauses = [
+      { name: searchRegex },
+      { phone: searchRegex },
+      { fabricatorCompany: searchRegex },
+      { fabricatorPhone: searchRegex }
+    ];
+    const phoneRegex = digitTolerantPhoneRegex(search);
+    if (phoneRegex) {
+      orClauses.push({ phone: phoneRegex }, { fabricatorPhone: phoneRegex });
+    }
+    clauses.push({ $or: orClauses });
+  }
+  return { locFilter, query: clauses.length > 1 ? { $and: clauses } : (clauses[0] || {}) };
+};
+
+/** A time zone the browser sent (?tz=), or undefined when it isn't a real one. */
+const validZone = (tz) => {
+  if (!tz) return undefined;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: String(tz) });
+    return String(tz);
+  } catch {
+    return undefined;
+  }
 };
 
 // A double-tap on a touchscreen kiosk, or a client retrying after a slow/
@@ -454,13 +509,11 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       const { page, limit, search, month, year, location } = req.query;
 
       const userLocations = req.user.assignedLocations || [];
-      const locFilter = locationFilterFor(userLocations, location);
-      if (locFilter.forbidden) {
+      const built = checkInListQuery(userLocations, { search, month, year, location });
+      if (built.forbidden) {
         return res.status(403).json({ message: 'Access denied to this location' });
       }
-      // Location, month and search clauses, ANDed — the month window and the
-      // search can each be an $or of their own.
-      const clauses = [];
+      const { locFilter, query } = built;
 
       // If query parameters are not supplied, return standard raw array for backward compatibility
       if (!page && !limit && !search && !month && !year) {
@@ -477,35 +530,6 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       // filtered month at any single location.
       const limitNum = Math.min(parseInt(limit) || 20, 1000);
 
-      const m = parseInt(month);
-      const y = parseInt(year);
-      if (m >= 1 && m <= 12 && y > 2000) {
-        // The month on each check-in's own branch clock, matching GET /stats
-        // and the Daily Report.
-        clauses.push(byBranchClock(locFilter, (zone) => ({
-          $gte: zoneMidnightUtc(zone, y, m - 1, 1),
-          $lt: zoneMidnightUtc(zone, y, m, 1)
-        })));
-      } else if (locFilter.location) {
-        clauses.push(locFilter);
-      }
-
-      if (search) {
-        const searchRegex = new RegExp(escapeRegex(search), 'i');
-        const orClauses = [
-          { name: searchRegex },
-          { phone: searchRegex },
-          { fabricatorCompany: searchRegex },
-          { fabricatorPhone: searchRegex }
-        ];
-        const phoneRegex = digitTolerantPhoneRegex(search);
-        if (phoneRegex) {
-          orClauses.push({ phone: phoneRegex }, { fabricatorPhone: phoneRegex });
-        }
-        clauses.push({ $or: orClauses });
-      }
-      const query = clauses.length > 1 ? { $and: clauses } : (clauses[0] || {});
-
       const total = await OfficeCheckIn.countDocuments(query);
       const checkIns = await OfficeCheckIn.find(query)
         .sort({ createdAt: -1 })
@@ -520,6 +544,42 @@ export default function createCheckInRouter({ authenticate, requirePermission })
     } catch (error) {
       console.error('❌ Error fetching check-ins:', error);
       res.status(500).json({ message: 'Failed to fetch check-ins' });
+    }
+  });
+
+  // The log as a PDF for its current filters (More menu → View as PDF /
+  // Download as PDF, 2026-10-08). Opened by a plain link, so the login cookie
+  // signs it in and errors come back as a short readable page, not JSON.
+  // ?download=1 saves it; otherwise it opens in the browser's PDF viewer.
+  // Registered before GET /:id, which would otherwise take "export.pdf".
+  router.get('/export.pdf', authenticate, requirePermission('view_checkins'), async (req, res) => {
+    const fail = (status, message) => res.status(status).type('text/plain; charset=utf-8').send(message);
+    try {
+      const { search, month, year, location, download, tz } = req.query;
+      const built = checkInListQuery(req.user.assignedLocations || [], { search, month, year, location });
+      if (built.forbidden) return fail(403, 'You don’t have access to that branch’s check-ins.');
+
+      const [total, list] = await Promise.all([
+        OfficeCheckIn.countDocuments(built.query),
+        OfficeCheckIn.find(built.query).sort({ createdAt: -1 }).limit(CHECKIN_PDF_MAX_ROWS).lean()
+      ]);
+      const viewerZone = validZone(tz);
+      const generated = `Generated ${new Intl.DateTimeFormat('en-US', {
+        timeZone: viewerZone, month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
+      }).format(new Date())}${req.user.name ? ` by ${req.user.name}` : ''}`;
+
+      const bytes = await buildCheckInLogPdf({
+        list, total, viewerZone, generated,
+        scope: checkInExportScope({ search, month, year, location })
+      });
+      const fileName = checkInExportFileName(location, new Date(), 'pdf');
+      res.set('Content-Type', 'application/pdf');
+      res.set('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${fileName}"`);
+      res.set('Cache-Control', 'no-store');
+      res.send(Buffer.from(bytes));
+    } catch (error) {
+      console.error('❌ Error building check-in PDF:', error);
+      fail(500, 'Couldn’t make the PDF. Close this tab and try again.');
     }
   });
 
