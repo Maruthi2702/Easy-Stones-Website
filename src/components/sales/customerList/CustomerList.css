@@ -282,6 +282,7 @@ body.light-theme-active .cl-drawer { background: #f5f6f8; }
 .cl-dh-meta > * { flex: none; }
 .cl-dh-meta > .cl-dh-place { flex: 0 1 auto; min-width: 0; display: inline-flex; gap: 4px; align-items: center; }
 .cl-dh-place > span { overflow: hidden; text-overflow: ellipsis; }
+.cl-lvl-short { display: none; }
 .cl-qa { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .cl-split { position: relative; display: inline-flex; }
 .cl-split > a, .cl-split > button { height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; font-weight: 600; font-size: 14px; border: 1px solid var(--cl-input-border); background: var(--cl-surface); color: var(--cl-text); text-decoration: none; cursor: pointer; white-space: nowrap; }
@@ -337,10 +338,24 @@ body.light-theme-active .cl-type.fabricator { background: rgba(15, 118, 110, 0.1
 }
 @media (max-width: 599px) {
   /* Five items cannot fit one phone-width row; let the profile header wrap there. */
-  .cl-ph .cl-dh-meta { flex-wrap: wrap; white-space: normal; }
-  /* The details panel is full screen on a phone too: let its line of tags wrap
-     rather than cut the city to "K…". */
-  .cl-drawer .cl-dh-meta { flex-wrap: wrap; white-space: normal; }
+  /* One row on a phone (owner's call, 2026-10-07): type, L1, branch and the
+     rep's name. The profile's address leaves this line on a phone (it's in
+     Details & notes); the details panel never shows it here. */
+  .cl-ph .cl-dh-meta, .cl-drawer .cl-dh-meta { flex-wrap: nowrap; white-space: nowrap; gap: 6px; font-size: 12.5px; }
+  .cl-dh-meta .cl-lvl-full, .cl-ph .cl-dh-meta .cl-dh-place { display: none; }
+  .cl-dh-meta .cl-lvl-short { display: inline; }
+  /* A long rep name is what gives way on the narrowest phones. */
+  .cl-dh-meta > .cl-rep { flex: 0 1 auto; min-width: 0; }
+  .cl-dh-meta .cl-rep-name { overflow: hidden; text-overflow: ellipsis; }
+  .cl-dh-meta .cl-type { padding: 0 7px 0 6px; font-size: 12px; gap: 4px; }
+  /* Profile: name and status on the first row, the tag line under both at full
+     width — beside the status button it only had half the row. */
+  .cl-ph-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 8px; align-items: start; }
+  .cl-ph-id { display: contents; }
+  .cl-ph-id > .cl-ph-name { grid-column: 1; grid-row: 1; }
+  .cl-ph-id > .cl-dh-meta { grid-column: 1 / -1; grid-row: 2; margin-top: 0; }
+  .cl-ph-head > :last-child { grid-column: 2; grid-row: 1; }
+  .cl-dh-meta .cl-dh-place { gap: 3px; }
   .cl-ph .cl-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .cl-ph .cl-tab { flex: none; }
   .cl-ph-head { flex-wrap: wrap; }
