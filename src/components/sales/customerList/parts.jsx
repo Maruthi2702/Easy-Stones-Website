@@ -37,10 +37,10 @@ export const LevelTag = ({ level }) => {
   if (!raw) return null;
   const n = Number((raw.match(/\d+/) || [])[0]);
   const known = n >= 1 && n <= 4;
-  const full = known ? `Level ${n} · ${n * 10}%` : raw;
-  const short = known ? `L${n} · ${n * 10}%` : raw.replace(/^level\s*-?\s*/i, 'L');
+  const full = known ? `Level ${n}` : raw;
+  const short = known ? `L${n}` : raw.replace(/^level\s*-?\s*/i, 'L');
   return (
-    <span className="cl-lvl" title={known ? `Level ${n} — ${n * 10}% margin` : raw}>
+    <span className="cl-lvl" title={full}>
       <span className="cl-lvl-full">{full}</span>
       <span className="cl-lvl-short" aria-hidden="true">{short}</span>
     </span>
