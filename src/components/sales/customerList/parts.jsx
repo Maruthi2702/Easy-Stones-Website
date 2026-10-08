@@ -18,11 +18,25 @@ export const LocationTag = ({ customer, name }) => {
   return <span className={`location-badge ${locationClass(loc)}`}>{loc}</span>;
 };
 
+// The name is its own span so a phone-width header can show just the
+// initial (CustomerList.css, .cl-dh-meta) — the title keeps it readable.
 export const RepBadge = ({ name }) => (name ? (
-  <span className="cl-rep"><span className="cl-av" aria-hidden="true">{name[0].toUpperCase()}</span>{name}</span>
+  <span className="cl-rep" title={`Sales rep: ${name}`}><span className="cl-av" aria-hidden="true">{name[0].toUpperCase()}</span><span className="cl-rep-name">{name}</span></span>
 ) : (
-  <span className="cl-rep cl-muted"><span className="cl-un" aria-hidden="true" />Unassigned</span>
+  <span className="cl-rep cl-muted" title="No sales rep"><span className="cl-un" aria-hidden="true" /><span className="cl-rep-name">Unassigned</span></span>
 ));
+
+/** "Level - 1", or "L1" where the header has to fit one phone-width row. */
+export const LevelTag = ({ level }) => {
+  const full = String(level || '').trim();
+  if (!full) return null;
+  return (
+    <span className="cl-lvl" title={full}>
+      <span className="cl-lvl-full">{full}</span>
+      <span className="cl-lvl-short" aria-hidden="true">{full.replace(/^level\s*-?\s*/i, 'L')}</span>
+    </span>
+  );
+};
 
 export const TypeTag = ({ type }) => {
   const t = type || 'Fabricator';

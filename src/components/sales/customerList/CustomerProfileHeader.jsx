@@ -6,7 +6,7 @@ import {
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { STATUSES, companyOf, cityLineOf, streetOf } from '../../../utils/customerList';
-import { StatusDot, LocationTag, RepBadge, TypeTag } from './parts';
+import { StatusDot, LocationTag, RepBadge, TypeTag, LevelTag } from './parts';
 import SplitAction from './SplitAction';
 import { peopleOf, directionsHref, telHref, profileStats } from './uiHelpers';
 import './CustomerList.css';
@@ -74,11 +74,12 @@ const CustomerProfileHeader = ({
       <section className="cl-sec cl-ph-card" aria-label="Customer">
         <div className="cl-ph-head">
           <span className="cl-ph-mark cl-hide-phone" aria-hidden="true">{companyOf(c).replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()}</span>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="cl-ph-id" style={{ flex: 1, minWidth: 0 }}>
             <h1 className="cl-ph-name">{loading && !c.company ? 'Loading…' : companyOf(c)}</h1>
             <div className="cl-dh-meta">
               <TypeTag type={c.customerType} />
-              {(c.level || c.segment) && <span className="cl-lvl">{c.level || c.segment}</span>}
+              <LevelTag level={c.level || c.segment} />
+              {/* Hidden on a phone so the line fits one row; it's in Details & notes. */}
               {address && <span className="cl-dh-place" title={address}><MapPin size={14} aria-hidden="true" /><span>{address}</span></span>}
               <LocationTag customer={c} />
               <RepBadge name={c.salesRepName} />

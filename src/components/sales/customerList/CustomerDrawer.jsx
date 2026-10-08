@@ -1,17 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  X, ChevronUp, ChevronDown, ExternalLink, Pencil, MoreHorizontal, Phone, Mail, Navigation,
-  Users, Wrench, Presentation, Clock, NotebookPen, Check, Trash2, Copy, MapPin, BookUser
+  X, ChevronUp, ChevronDown, ExternalLink, Pencil, MoreHorizontal,
+  Users, Wrench, Presentation, Clock, NotebookPen, Check, Trash2, Copy, BookUser
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { formatPhoneForDisplay } from '../../../utils/phoneUtils';
 import {
-  STATUSES, companyOf, cityOf, cityLineOf, streetOf, contactCard, initialsOf
+  STATUSES, companyOf, cityLineOf, streetOf, contactCard, initialsOf
 } from '../../../utils/customerList';
-import { StatusDot, LocationTag, RepBadge, TypeTag, CopyButton } from './parts';
+import { StatusDot, LocationTag, RepBadge, TypeTag, LevelTag, CopyButton } from './parts';
 import { useDismiss, copyText, peopleOf, telHref, directionsHref, anchoredMenuStyle } from './uiHelpers';
-import SplitAction from './SplitAction';
 
 const fmtDate = (d) => {
   if (!d) return '';
@@ -188,20 +187,16 @@ const CustomerDrawer = ({
           </div>
           <div className="cl-dh-meta" style={{ marginTop: -6 }}>
             <TypeTag type={c.customerType} />
-            {(c.level || c.segment) && <span className="cl-lvl">{c.level || c.segment}</span>}
-            {cityOf(c) && <span className="cl-dh-place" title={[streetOf(c), cityLine].filter(Boolean).join(', ')}><MapPin size={14} aria-hidden="true" /><span>{[cityOf(c), c.address?.state].filter(Boolean).join(', ')}</span></span>}
+            <LevelTag level={c.level || c.segment} />
+            {/* No address here: it's in Account & address just below. */}
             <LocationTag customer={c} />
             <RepBadge name={c.salesRepName} />
           </div>
           {statusError && <div className="cl-err" role="alert">{statusError}</div>}
 
-          <div className="cl-qa">
-            <SplitAction icon={Phone} verb="Call" people={people} field="phone" hrefOf={telHref} />
-            <SplitAction icon={Mail} verb="Email" people={people} field="email" hrefOf={(e) => `mailto:${e}`} />
-            {directions && (
-              <a className="cl-btn" href={directions} target="_blank" rel="noopener noreferrer"><Navigation size={16} aria-hidden="true" />Directions</a>
-            )}
-          </div>
+          {/* No Call / Email / Directions buttons here (removed 2026-10-07): the
+              same numbers, emails and address are right below, each one
+              tappable — Contacts calls and emails, the address opens directions. */}
 
           <section className="cl-sec" aria-label="Contacts">
             <h4><Users size={15} aria-hidden="true" />Contacts <span className="cl-plus" style={{ margin: 0 }}>{cards.length}</span></h4>
