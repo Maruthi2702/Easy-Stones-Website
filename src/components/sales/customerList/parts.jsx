@@ -26,14 +26,23 @@ export const RepBadge = ({ name }) => (name ? (
   <span className="cl-rep cl-muted" title="No sales rep"><span className="cl-un" aria-hidden="true" /><span className="cl-rep-name">Unassigned</span></span>
 ));
 
-/** "Level - 1", or "L1" where the header has to fit one phone-width row. */
+/**
+ * "Level 1 · 10%" — the level with its margin (Level N is N×10%, as the price
+ * level has always read: getCustomerLevelLabel in SalesPage), or "L1 · 10%"
+ * where the header has to fit one phone-width row. A level that isn't 1–4
+ * shows as stored.
+ */
 export const LevelTag = ({ level }) => {
-  const full = String(level || '').trim();
-  if (!full) return null;
+  const raw = String(level || '').trim();
+  if (!raw) return null;
+  const n = Number((raw.match(/\d+/) || [])[0]);
+  const known = n >= 1 && n <= 4;
+  const full = known ? `Level ${n} · ${n * 10}%` : raw;
+  const short = known ? `L${n} · ${n * 10}%` : raw.replace(/^level\s*-?\s*/i, 'L');
   return (
-    <span className="cl-lvl" title={full}>
+    <span className="cl-lvl" title={known ? `Level ${n} — ${n * 10}% margin` : raw}>
       <span className="cl-lvl-full">{full}</span>
-      <span className="cl-lvl-short" aria-hidden="true">{full.replace(/^level\s*-?\s*/i, 'L')}</span>
+      <span className="cl-lvl-short" aria-hidden="true">{short}</span>
     </span>
   );
 };

@@ -282,7 +282,13 @@ body.light-theme-active .cl-drawer { background: #f5f6f8; }
 .cl-dh-meta > * { flex: none; }
 .cl-dh-meta > .cl-dh-place { flex: 0 1 auto; min-width: 0; display: inline-flex; gap: 4px; align-items: center; }
 .cl-dh-place > span { overflow: hidden; text-overflow: ellipsis; }
-.cl-lvl-short { display: none; }
+.cl-lvl-short, .cl-place-short { display: none; }
+/* iPad: the profile header's address shortens to city, state so the line
+   stays one row; a laptop shows it in full, a phone not at all. */
+@media (max-width: 1024px) {
+  .cl-ph .cl-place-full { display: none; }
+  .cl-ph .cl-place-short { display: inline; }
+}
 .cl-qa { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .cl-split { position: relative; display: inline-flex; }
 .cl-split > a, .cl-split > button { height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; font-weight: 600; font-size: 14px; border: 1px solid var(--cl-input-border); background: var(--cl-surface); color: var(--cl-text); text-decoration: none; cursor: pointer; white-space: nowrap; }
@@ -320,7 +326,7 @@ body.light-theme-active .cl-type.fabricator { background: rgba(15, 118, 110, 0.1
 @media (max-width: 599px) { .cl-ph-wrap { padding: 12px 12px 0; } }
 .cl-ph { padding: 4px 0 10px; }
 .cl-ph-top { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-.cl-ph-card { padding: 20px 22px 0; overflow: hidden; }
+.cl-ph-card { padding: 20px 22px; overflow: hidden; }
 .cl-ph-head { display: flex; gap: 16px; align-items: flex-start; }
 .cl-ph-mark { width: 56px; height: 56px; border-radius: 16px; background: var(--cl-gold-tint); color: var(--cl-gold-ink); font-weight: 800; font-size: 19px; display: flex; align-items: center; justify-content: center; flex: none; }
 .cl-ph-name { margin: 0; font-size: 26px; font-weight: 750; letter-spacing: -0.4px; line-height: 1.2; color: var(--cl-text); }
@@ -331,7 +337,7 @@ body.light-theme-active .cl-type.fabricator { background: rgba(15, 118, 110, 0.1
 .cl-stat .v { font-size: 20px; font-weight: 750; letter-spacing: -0.3px; color: var(--cl-text); }
 @media (max-width: 899px) {
   .cl-ph-name { font-size: 22px; }
-  .cl-ph-card { padding: 16px 16px 0; }
+  .cl-ph-card { padding: 16px; }
   .cl-stats { flex-wrap: wrap; margin: 16px -16px 0; }
   .cl-stat { flex: 1 1 33%; padding: 10px 16px; border-left: 0; border-top: 1px solid var(--cl-line-soft); }
   .cl-ph-log { margin-left: 0; }
@@ -397,4 +403,96 @@ body.light-theme-active .cl-type.fabricator { background: rgba(15, 118, 110, 0.1
 }
 @media (min-width: 600px) {
   .cl-only-phone { display: none !important; }
+}
+
+/* ── Profile Details tab (CustomerDetailsTab) ─────────────────────────────
+   Stats, pricing & Moda, marketing, quick note, admin account — what used
+   to be in the header and the dark "Details & notes" panel. */
+.cl-dt { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 24px; }
+.cl-dt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0; overflow: hidden; }
+.cl-dt-stat { display: flex; flex-direction: column; gap: 2px; padding: 14px 20px; border-left: 1px solid var(--cl-line-soft); min-width: 0; }
+.cl-dt-stat:first-child { border-left: 0; }
+.cl-dt-stat .v { font-size: 20px; font-weight: 750; letter-spacing: -0.3px; color: var(--cl-text); }
+.cl-dt-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.cl-dt-good { color: var(--cl-ok-ink) !important; }
+.cl-dt-note { width: 100%; min-height: 96px; resize: vertical; border: 1px solid var(--cl-input-border); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.5; color: var(--cl-text); background: var(--cl-surface-2); box-sizing: border-box; }
+.cl-dt-note:focus, .cl-dt-input:focus { outline: none; border-color: var(--cl-gold); box-shadow: 0 0 0 3px var(--cl-gold-tint); }
+.cl-dt-note-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.cl-dt-admin { background: var(--cl-gold-tint); border-color: var(--cl-gold-line); }
+.cl-dt-badge { margin-left: auto; font-size: 10.5px; letter-spacing: 0.6px; padding: 3px 8px; border-radius: 999px; background: var(--cl-surface); color: var(--cl-gold-ink); border: 1px solid var(--cl-gold-line); }
+.cl-dt-ok { color: var(--cl-ok-ink); font-size: 13px; margin-bottom: 8px; }
+.cl-dt-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; margin: 0; }
+.cl-dt-grid > div { min-width: 0; }
+.cl-dt-grid > div.wide { grid-column: 1 / -1; }
+.cl-dt-grid dt { font-size: 12.5px; color: var(--cl-muted); margin-bottom: 3px; }
+.cl-dt-grid dd { margin: 0; font-size: 14px; font-weight: 600; color: var(--cl-text); overflow-wrap: anywhere; }
+.cl-dt-admin-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.cl-dt-input { height: 36px; min-width: 0; width: 280px; max-width: 100%; border: 1px solid var(--cl-input-border); border-radius: 8px; padding: 0 12px; font: inherit; font-size: 14px; color: var(--cl-text); background: var(--cl-surface); box-sizing: border-box; }
+.cl-dt-danger { color: var(--cl-danger); }
+@media (max-width: 1024px) {
+  .cl-dt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 599px) {
+  .cl-dt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cl-dt-stat { padding: 12px 16px; }
+  .cl-dt-stat:nth-child(odd) { border-left: 0; }
+  .cl-dt-stat:nth-child(n+3) { border-top: 1px solid var(--cl-line-soft); }
+  .cl-dt-stat .v { font-size: 18px; }
+  .cl-dt-pair { grid-template-columns: minmax(0, 1fr); }
+  .cl-dt-note { font-size: 16px; }
+  .cl-dt-note-foot .cl-btn { height: 44px; padding: 0 18px; }
+  .cl-dt-grid { grid-template-columns: minmax(0, 1fr); }
+  .cl-dt-input { width: 100%; height: 44px; font-size: 16px; }
+  .cl-dt-admin-row .cl-btn { flex: 1 1 auto; height: 44px; }
+  .cl-dt-admin-row .cl-grow { display: none; }
+  /* Room under the last card, so its buttons scroll clear of the screen's
+     bottom edge (the other profile tabs keep the same spacer). */
+  .cl-dt { padding-bottom: 72px; }
+}
+
+/* ── Profile Contacts tab (CustomerContactsTab) ───────────────────────────
+   A copy button on every name, phone and email. Table on a laptop; cards on
+   an iPad (two across) and a phone (one across). */
+.cl-ct2 { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 24px; }
+.cl-ct2-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cl-ct2-head h3 { margin: 0; font-size: 18px; font-weight: 700; color: var(--cl-text); }
+.cl-ct2-tablewrap { padding: 0; overflow-x: auto; }
+.cl-ct2-table { width: 100%; border-collapse: collapse; }
+.cl-ct2-table th { font-size: 11.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--cl-muted); text-align: left; padding: 0 16px; height: 42px; background: var(--cl-surface-2); border-bottom: 1px solid var(--cl-line); white-space: nowrap; }
+.cl-ct2-table td { padding: 10px 16px; font-size: 14px; color: var(--cl-text); border-bottom: 1px solid var(--cl-line-soft); vertical-align: middle; }
+.cl-ct2-table tr:last-child td { border-bottom: 0; }
+.cl-ct2-table .r { text-align: right; }
+.cl-ct2-val { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.cl-ct2-val b { font-weight: 600; }
+.cl-ct2-block { display: flex; }
+.cl-ct2-pri { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--cl-gold-tint); color: var(--cl-gold-ink); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.cl-ct2-role { font-size: 12.5px; color: var(--cl-muted); font-weight: 600; white-space: nowrap; }
+.cl-ct2-acts { display: inline-flex; gap: 6px; }
+.cl-ct2-ic { width: 32px; height: 32px; border-radius: 8px; text-decoration: none; }
+.cl-ct2-edit { color: #2563eb; }
+.cl-ct2-del { color: var(--cl-danger); }
+.cl-ct2-cards { display: none; }
+.cl-ct2-card { display: flex; flex-direction: column; padding: 8px 14px 12px; }
+.cl-ct2-line { display: flex; align-items: center; gap: 8px; min-height: 46px; }
+.cl-ct2-line + .cl-ct2-line { border-top: 1px solid var(--cl-line-soft); }
+.cl-ct2-k { width: 50px; flex: none; font-size: 12.5px; color: var(--cl-muted); }
+.cl-ct2-v { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; color: var(--cl-text); }
+.cl-ct2-name { font-size: 16px; font-weight: 700; }
+.cl-ct2-link { color: var(--cl-gold-ink); text-decoration: none; font-weight: 600; }
+.cl-ct2-card .cl-cpb { width: 40px; height: 40px; border: 1px solid var(--cl-line); border-radius: 9px; }
+.cl-ct2-cardacts { display: flex; gap: 8px; justify-content: flex-end; padding-top: 10px; border-top: 1px solid var(--cl-line-soft); }
+.cl-ct2-cardacts .cl-ct2-ic { width: 40px; height: 40px; }
+.cl-ct2-savelbl { display: none; }
+@media (max-width: 1024px) {
+  .cl-ct2-tablewrap { display: none; }
+  .cl-ct2-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+}
+@media (max-width: 599px) {
+  .cl-ct2-cards { grid-template-columns: minmax(0, 1fr); }
+  .cl-ct2-card .cl-cpb { width: 44px; height: 44px; border-radius: 10px; }
+  .cl-ct2-cardacts .cl-ct2-save.labelled { flex: 1; width: auto; gap: 6px; font-weight: 600; font-size: 13px; }
+  .cl-ct2-savelbl { display: inline; }
+  .cl-ct2-cardacts .cl-ct2-ic { width: 44px; height: 44px; }
+  .cl-ct2-head .cl-btn { height: 44px; }
+  .cl-ct2 { padding-bottom: 72px; }
 }

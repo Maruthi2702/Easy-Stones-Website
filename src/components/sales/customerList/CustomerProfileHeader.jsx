@@ -1,39 +1,38 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ArrowLeft, ChevronDown, Phone, Mail, Navigation, FolderPlus, CalendarPlus, MapPin,
-  LayoutDashboard, Info, X, Clock, Folder, Users, Share2
+  ArrowLeft, ChevronDown, MapPin, LayoutDashboard, Info, Clock, Folder, Users, Share2
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
-import { STATUSES, companyOf, cityLineOf, streetOf } from '../../../utils/customerList';
+import { STATUSES, companyOf, cityLineOf, cityOf, streetOf } from '../../../utils/customerList';
 import { StatusDot, LocationTag, RepBadge, TypeTag, LevelTag } from './parts';
-import SplitAction from './SplitAction';
-import { peopleOf, directionsHref, telHref, profileStats } from './uiHelpers';
 import './CustomerList.css';
 
 const TABS = [
   { key: 'visits', label: 'Visits', icon: Clock, count: (c) => (c.visits || []).length },
   { key: 'resources', label: 'Resources', icon: Folder, count: (c) => (c.resources || []).length },
   { key: 'contacts', label: 'Contacts', icon: Users, count: (c) => (c.contacts || []).length },
-  { key: 'network', label: 'Network', icon: Share2, count: (c) => (c.associatedCustomers || []).length }
+  { key: 'network', label: 'Network', icon: Share2, count: (c) => (c.associatedCustomers || []).length },
+  // Stats, pricing & Moda, marketing, the quick note and admin account
+  // (CustomerDetailsTab) — what used to crowd the header (2026-10-07).
+  { key: 'details', label: 'Details', icon: Info, count: () => 0 }
 ];
 
 /**
- * The customer profile's header: who they are, their status, the actions you
- * take from here, a summary strip and the tabs. The tab contents below it are
- * SalesPage's own (Visits / Resources / Contacts / Network).
+ * The customer profile's header: who they are (name, type, level, address,
+ * branch, rep) and their status, then the tabs. Everything else — stats,
+ * pricing, marketing, the quick note, admin account — is in the Details tab;
+ * adding a visit, resource or contact is in the tab it belongs to. The tab
+ * contents are SalesPage's own.
  */
 const CustomerProfileHeader = ({
-  customer, activeTab, onTab, onBack, onGoHome, showInfo, onToggleInfo,
-  onLogVisit, onAddResource, canEdit, onStatusChanged, loading
+  customer, activeTab, onTab, onBack, onGoHome, canEdit, onStatusChanged, loading
 }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const c = useMemo(() => customer || {}, [customer]);
-  const stats = useMemo(() => profileStats(c), [c]);
-  const people = useMemo(() => peopleOf(c, c), [c]);
-  const directions = directionsHref(c);
   const address = [streetOf(c), cityLineOf(c)].filter(Boolean).join(', ');
+  const cityState = [cityOf(c), c.address?.state].filter(Boolean).join(', ');
 
   const changeStatus = async (next) => {
     if (!next || next === c.status || !c._id) return;
@@ -51,11 +50,6 @@ const CustomerProfileHeader = ({
     }
   };
 
-  const statCells = [
-    ['Last visit', stats.lastVisit], ['Visits · 12 mo', stats.visits12], ['Resources', stats.resources],
-    ['Next follow-up', stats.followUp], ['Customer since', stats.since]
-  ];
-
   return (
     <div className="cl cl-ph">
       <div className="cl-ph-top">
@@ -64,11 +58,6 @@ const CustomerProfileHeader = ({
         </button>
         <span className="cl-grow" />
         {onGoHome && <button type="button" className="cl-ib" onClick={onGoHome} title="Sales dashboard" aria-label="Sales dashboard"><LayoutDashboard size={18} /></button>}
-        {onToggleInfo && (
-          <button type="button" className={`cl-btn sm${showInfo ? ' soft' : ''}`} onClick={onToggleInfo} aria-pressed={!!showInfo}>
-            {showInfo ? <X size={15} aria-hidden="true" /> : <Info size={15} aria-hidden="true" />}{showInfo ? 'Hide details' : 'Details & notes'}
-          </button>
-        )}
       </div>
 
       <section className="cl-sec cl-ph-card" aria-label="Customer">
@@ -79,8 +68,15 @@ const CustomerProfileHeader = ({
             <div className="cl-dh-meta">
               <TypeTag type={c.customerType} />
               <LevelTag level={c.level || c.segment} />
-              {/* Hidden on a phone so the line fits one row; it's in Details & notes. */}
-              {address && <span className="cl-dh-place" title={address}><MapPin size={14} aria-hidden="true" /><span>{address}</span></span>}
+              {/* Full address on a laptop, city and state on an iPad, none on a
+                  phone — so the line stays one row (CustomerList.css). */}
+              {address && (
+                <span className="cl-dh-place" title={address}>
+                  <MapPin size={14} aria-hidden="true" />
+                  <span className="cl-place-full">{address}</span>
+                  <span className="cl-place-short">{cityState || address}</span>
+                </span>
+              )}
               <LocationTag customer={c} />
               <RepBadge name={c.salesRepName} />
             </div>
@@ -97,24 +93,6 @@ const CustomerProfileHeader = ({
           ) : <StatusDot status={c.status} />}
         </div>
         {error && <div className="cl-err" role="alert" style={{ marginTop: 8 }}>{error}</div>}
-
-        <div className="cl-qa" style={{ marginTop: 16 }}>
-          <SplitAction icon={Phone} verb="Call" people={people} field="phone" hrefOf={telHref} />
-          <SplitAction icon={Mail} verb="Email" people={people} field="email" hrefOf={(e) => `mailto:${e}`} />
-          {directions && <a className="cl-btn" href={directions} target="_blank" rel="noopener noreferrer"><Navigation size={16} aria-hidden="true" />Directions</a>}
-          {onAddResource && <button type="button" className="cl-btn" onClick={onAddResource}><FolderPlus size={16} aria-hidden="true" />Add resource</button>}
-          {onLogVisit && <button type="button" className="cl-btn gold cl-ph-log" onClick={onLogVisit}><CalendarPlus size={16} aria-hidden="true" />Log visit</button>}
-        </div>
-
-        <div className="cl-stats">
-          {statCells.map(([label, s]) => (
-            <div className="cl-stat" key={label}>
-              <span className="cl-muted" style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
-              <span className="v">{s.value}</span>
-              {s.sub && <span className="cl-sub" style={{ margin: 0 }}>{s.sub}</span>}
-            </div>
-          ))}
-        </div>
       </section>
 
       <div className="cl-tabs" role="tablist" aria-label="Customer sections" style={{ marginTop: 14 }}>

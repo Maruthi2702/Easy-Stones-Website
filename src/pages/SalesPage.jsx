@@ -37,14 +37,15 @@ import UserProfileTab from '../components/sales/UserProfileTab';
 import Pagination from '../components/shared/Pagination';
 import { DEFAULT_ROWS_PER_PAGE } from '../components/shared/paginationConfig';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
-import { formatPhoneInput, formatPhoneForDisplay } from '../utils/phoneUtils';
-import { splitContactValues } from '../utils/contactValues';
+import { formatPhoneInput } from '../utils/phoneUtils';
 import { isPdfSource } from '../utils/attachments';
 import VisitsListDetail from '../components/sales/VisitsListDetail';
 import LocationFilter from '../components/shared/LocationFilter';
 import { useLocationFilter } from '../components/shared/useLocationFilter';
 import { accessibleLocations } from '../utils/locationFilter';
 import CustomerProfileHeader from '../components/sales/customerList/CustomerProfileHeader';
+import CustomerDetailsTab from '../components/sales/customerList/CustomerDetailsTab';
+import CustomerContactsTab from '../components/sales/customerList/CustomerContactsTab';
 import { splitCustomer } from '../components/sales/visitsListHelpers';
 import { canAddVisit, canModifyVisit, canDeleteVisit, visitViewScope } from '../utils/visitAccess';
 import { clearInventoryCache } from '../api/inventoryAnalysisCache';
@@ -52,7 +53,6 @@ import { toSalesRepList } from '../utils/salesReps';
 import { lazyRetry } from '../utils/lazyRetry';
 import { useCustomerOptions, refreshCustomers, addCustomerRecord } from '../api/customerOptions';
 import { toCustomerOptions } from '../utils/customerOptions';
-import { companyOf, contactOf, realEmailsOf } from '../utils/customerList';
 
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 
@@ -1266,7 +1266,6 @@ const SalesPage = () => {
     const [isViewingResource, setIsViewingResource] = useState(false);
     const [isViewingVisit, setIsViewingVisit] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [showCustomerInfo, setShowCustomerInfo] = useState(false);
     const [isChatFullScreen] = useState(false);
     const [quickNote, setQuickNote] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
@@ -1690,7 +1689,7 @@ const SalesPage = () => {
                 setSelectedCustomerDetail(null);
                 setCustomerOriginTab(null);
             }
-            if (viewParam && ['visits', 'resources', 'contacts'].includes(viewParam)) {
+            if (viewParam && ['visits', 'resources', 'contacts', 'network', 'details'].includes(viewParam)) {
                 setActiveTab(viewParam);
             }
         };
@@ -1808,13 +1807,6 @@ const SalesPage = () => {
             return customer.level;
         }
         return getPriceLevelLabel(customer.priceLevel);
-    };
-
-    const getStatusClass = (status) => {
-        const s = (status || '').toLowerCase();
-        if (s === 'onboarded' || s === 'active') return 'status-active';
-        if (s === 'different sales person' || s === 'not interested' || s === 'inactive') return 'status-inactive';
-        return 'status-pending'; // Default gold or yellow for leads
     };
 
     // Contact CRUD operations
@@ -3508,10 +3500,6 @@ const SalesPage = () => {
                                         onTab={handleActiveTabChange}
                                         onBack={handleBackToCustomersList}
                                         onGoHome={handleGoHome}
-                                        showInfo={showCustomerInfo}
-                                        onToggleInfo={() => setShowCustomerInfo(!showCustomerInfo)}
-                                        onLogVisit={canAddVisits ? handleQuickAddVisit : null}
-                                        onAddResource={canAddVisits ? handleAddResource : null}
                                         canEdit={!!currentUser?.permissions?.includes('manage_customers')}
                                         onStatusChanged={(status) => {
                                             setSelectedCustomerDetail(prev => (prev ? { ...prev, status } : prev));
@@ -3522,358 +3510,41 @@ const SalesPage = () => {
                                 </div>
                             )}
 
-                            {/* Collapsible Info Section - Hide in full screen chat */}
-                            {!isChatFullScreen && showCustomerInfo && (
-                                <div className="customer-info-section">
-                                    {/* Info Boxes Row */}
-                                    <div className="info-boxes">
-                                        <div className="info-box">
-                                            <div className="info-box-header">
-                                                <DollarSign size={16} />
-                                                <label>Price Level</label>
-                                            </div>
-                                            <p>{getCustomerLevelLabel(selectedCustomer)}</p>
-                                        </div>
-                                        <div className="info-box">
-                                            <div className="info-box-header">
-                                                <User size={16} />
-                                                <label>Type</label>
-                                            </div>
-                                            <p>{selectedCustomer.customerType || 'Fabricator'}</p>
-                                        </div>
-                                        <div className="info-box">
-                                            <div className="info-box-header">
-                                                <UserCheck size={16} />
-                                                <label>Sales Rep</label>
-                                            </div>
-                                            <p>{selectedCustomer.salesRepName || 'Unassigned'}</p>
-                                        </div>
-                                        <div className="info-box">
-                                            <div className="info-box-header">
-                                                <MapPin size={16} />
-                                                <label>Location</label>
-                                            </div>
-                                            <p>{selectedCustomer.location || 'Seattle'}</p>
-                                        </div>
-                                        <div className="info-box">
-                                            <div className="info-box-header">
-                                                <ShieldCheck size={16} />
-                                                <label>Status</label>
-                                            </div>
-                                            <p className={getStatusClass(selectedCustomer.status || (selectedCustomer.isActive !== false ? 'Active' : 'Inactive'))}>
-                                                {selectedCustomer.status || (selectedCustomer.isActive !== false ? 'Active' : 'Inactive')}
-                                            </p>
-                                        </div>
-                                        <div className="info-box">
-                                            <div className="info-box-header">
-                                                <Calendar size={16} />
-                                                <label>Member Since</label>
-                                            </div>
-                                            <p>{formatInstant(selectedCustomer.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                                        </div>
-                                        <div className="info-box">
-                                            <div className="info-box-header">
-                                                <Monitor size={16} />
-                                                <label>Moda Display</label>
-                                            </div>
-                                            <p>{selectedCustomer.modaDisplay || 'No'}</p>
-                                        </div>
-                                        <div className="info-box">
-                                            <div className="info-box-header">
-                                                <BookOpen size={16} />
-                                                <label>Moda Binder</label>
-                                            </div>
-                                            <p>{selectedCustomer.modaBinder || '0'}</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Primary Contact (Left) & Address (Right) Side-by-Side Grid */}
-                                    <div className="detail-columns side-by-side">
-                                        <div className="detail-column">
-                                            <h3><User size={14} style={{ marginRight: '8px' }} />Primary Contact</h3>
-                                            <div className="column-content">
-                                                {selectedCustomer.contactName && (
-                                                    <div className="contact-item" style={{ marginBottom: '0.4rem' }}>
-                                                        <UserCheck size={16} style={{ color: 'var(--gold-color, #d4af37)' }} />
-                                                        <span>{selectedCustomer.contactName}</span>
-                                                    </div>
-                                                )}
-                                                {/* One line per address/number — a comma-joined
-                                                    field shown whole has no break point and pushed
-                                                    the Address column off a phone screen. */}
-                                                <div className="contact-item" style={{ marginBottom: '0.4rem' }}>
-                                                    <Mail size={16} />
-                                                    <div className="contact-values">
-                                                        {splitContactValues(selectedCustomer.email).map(email => (
-                                                            <span key={email}>{email}</span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                                {selectedCustomer.phone && (
-                                                    <div className="contact-item">
-                                                        <Phone size={16} />
-                                                        <div className="contact-values">
-                                                            {splitContactValues(selectedCustomer.phone).map(phone => (
-                                                                <span key={phone}>{formatPhoneForDisplay(phone)}</span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="detail-column">
-                                            <h3><MapPin size={14} style={{ marginRight: '8px' }} />Address</h3>
-                                            <div className="column-content">
-                                                <p className="address-line">
-                                                    {selectedCustomer.address?.street || 'No street address'}
-                                                </p>
-                                                <p className="address-line">
-                                                    {selectedCustomer.address?.city || ''}{selectedCustomer.address?.city && selectedCustomer.address?.state ? ', ' : ''}{selectedCustomer.address?.state || ''} {selectedCustomer.address?.zipCode || ''}
-                                                </p>
-                                                {!selectedCustomer.address?.city && !selectedCustomer.address?.state && (
-                                                    <p className="text-muted">No address provided</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Marketing Section Row */}
-                                    <div className="marketing-section-row">
-                                        <h3><Mail size={14} style={{ marginRight: '8px' }} />Marketing</h3>
-                                        <div className="marketing-single-line-wrapper">
-                                            <div className={`marketing-status-pill ${selectedCustomer.receiveMarketing !== false ? 'subscribed' : 'unsubscribed'}`}>
-                                                <Mail size={13} />
-                                                <span>{selectedCustomer.receiveMarketing !== false ? 'Subscribed' : 'Unsubscribed'}</span>
-                                            </div>
-                                            {/* A chip per address, wrapping onto the next line
-                                                when they don't fit, rather than one joined string
-                                                cut off mid-address. */}
-                                            {(() => {
-                                                const emails = splitContactValues(selectedCustomer.marketingEmail || selectedCustomer.email);
-                                                return (emails.length ? emails : ['No email provided']).map(email => (
-                                                    <div key={email} className="marketing-email-chip" title={email}>
-                                                        <Mail size={13} className="email-icon" />
-                                                        <span>{email}</span>
-                                                    </div>
-                                                ));
-                                            })()}
-                                        </div>
-                                    </div>
-
-                                    {/* Quick Notes Row with Gold Theme & Meta Footer */}
-                                    <div className="quick-notes-row">
-                                        <div className="quick-notes-header">
-                                            <div className="header-label">
-                                                <MessageSquare size={15} style={{ color: '#d4af37', marginRight: '8px' }} />
-                                                <h3>Quick Notes</h3>
-                                            </div>
-                                            <button
-                                                className={`save-note-btn ${isSavingNote ? 'saving' : ''}`}
-                                                onClick={handleSaveQuickNote}
-                                                disabled={isSavingNote}
-                                            >
-                                                {isSavingNote ? 'Saving...' : (selectedCustomerDetail?.quickNote ? 'Edit Quick Note' : 'Save Quick Note')}
-                                            </button>
-                                        </div>
-                                        <div className="quick-notes-container">
-                                            <textarea
-                                                className="quick-notes-textarea"
-                                                placeholder="Write a quick note or follow-up note for this customer..."
-                                                value={quickNote}
-                                                onChange={(e) => setQuickNote(e.target.value)}
-                                                autoCapitalize="sentences"
-                                            />
-                                            <div className="quick-notes-footer">
-                                                <span className="quick-notes-meta">
-                                                    <span className="meta-dot"></span>
-                                                    {quickNote.length} characters
-                                                </span>
-                                                {selectedCustomerDetail?.quickNote && (
-                                                    <span className="quick-notes-saved-status">
-                                                        Saved
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {currentUser?.permissions?.includes('manage_customer_accounts') && (
-                                        <div className="account-security-card">
-                                            <div className="account-security-header">
-                                                <Lock size={15} />
-                                                <h3>Account &amp; Security</h3>
-                                                <span className="account-security-badge">Admin Only</span>
-                                            </div>
-
-                                            {accountActionStatus && (
-                                                <div className={`status-message ${accountActionStatus.type}`}>
-                                                    {accountActionStatus.message}
-                                                </div>
-                                            )}
-
-                                            <div className="account-security-grid">
-                                                <div className="info-box">
-                                                    <div className="info-box-header"><label>Customer ID</label></div>
-                                                    <p>{selectedCustomerDetail?._id}</p>
-                                                </div>
-                                                <div className="info-box">
-                                                    <div className="info-box-header"><label>Verified</label></div>
-                                                    <p className={selectedCustomerDetail?.isVerified ? 'status-active' : 'status-inactive'}>
-                                                        {selectedCustomerDetail?.isVerified ? 'Yes' : 'No'}
-                                                    </p>
-                                                </div>
-                                                <div className="info-box">
-                                                    <div className="info-box-header"><label>Account Status</label></div>
-                                                    <div className="account-status-row">
-                                                        <p className={selectedCustomerDetail?.isActive !== false ? 'status-active' : 'status-inactive'}>
-                                                            {selectedCustomerDetail?.isActive !== false ? 'Active' : 'Deactivated'}
-                                                        </p>
-                                                        <button
-                                                            type="button"
-                                                            className="account-status-toggle-btn"
-                                                            onClick={() => handleToggleCustomerStatus(selectedCustomerDetail._id, selectedCustomerDetail?.isActive ?? true)}
-                                                            disabled={!selectedCustomerDetail}
-                                                        >
-                                                            {selectedCustomerDetail?.isActive !== false ? 'Deactivate' : 'Activate'}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <div className="info-box">
-                                                    <div className="info-box-header"><label>Login Attempts</label></div>
-                                                    <p>{selectedCustomerDetail?.loginAttempts || 0}</p>
-                                                </div>
-                                                <div className="info-box">
-                                                    <div className="info-box-header"><label>Locked Until</label></div>
-                                                    <p>{selectedCustomerDetail?.lockUntil ? new Date(selectedCustomerDetail.lockUntil).toLocaleString() : 'Not locked'}</p>
-                                                </div>
-                                                <div className="info-box">
-                                                    <div className="info-box-header"><label>Recent IPs</label></div>
-                                                    <p>{(selectedCustomerDetail?.loginIps || []).join(', ') || 'None recorded'}</p>
-                                                </div>
-                                                <div className="info-box account-security-geocode">
-                                                    <div className="info-box-header"><label>Geocode</label></div>
-                                                    <p>
-                                                        <Globe size={13} />
-                                                        {selectedCustomerDetail?.geocode?.precision ? `${selectedCustomerDetail.geocode.precision} · ` : ''}
-                                                        {selectedCustomerDetail?.geocode?.formattedAddress || 'Not geocoded'}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="account-security-reset-row">
-                                                <input
-                                                    type="password"
-                                                    placeholder="New password"
-                                                    value={resetPasswordValue}
-                                                    onChange={(e) => setResetPasswordValue(e.target.value)}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    className="save-note-btn"
-                                                    onClick={() => handleResetCustomerPassword(selectedCustomerDetail?._id)}
-                                                    disabled={!resetPasswordValue.trim() || !selectedCustomerDetail}
-                                                >
-                                                    Set New Password
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
                             <div className="tab-content">
-                                {activeTab === 'contacts' && (
-                                    <div className="tab-section contacts-tab">
-                                        <div className="tab-header">
-                                            <h3>Contacts</h3>
-                                            <button className="add-btn" onClick={handleAddContact}>
-                                                <Plus size={18} /> Add Contact
-                                            </button>
-                                        </div>
-                                        <div className="data-table">
-                                            <table>
-                                                <thead>
-                                                    <tr>
-                                                        <th>Name</th>
-                                                        <th>Phone</th>
-                                                        <th>Email</th>
-                                                        <th>Role</th>
-                                                        <th>Notes</th>
-                                                        <th>Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {/* The main contact lives on the customer record itself
-                                                        (Contact name / Phone / Email in Edit customer), not in
-                                                        `contacts`, so it's listed first here — it never showed. */}
-                                                    {(() => {
-                                                        const name = contactOf(selectedCustomer);
-                                                        const emails = realEmailsOf(selectedCustomer);
-                                                        if (!name && !selectedCustomer.phone && emails.length === 0) return null;
-                                                        return (
-                                                            <tr key="primary">
-                                                                <td data-label="Name">{name || companyOf(selectedCustomer)}</td>
-                                                                <td data-label="Phone" style={{ whiteSpace: 'nowrap' }}>{formatPhoneForDisplay(selectedCustomer.phone) || selectedCustomer.phone || '-'}</td>
-                                                                <td data-label="Email">{emails.length ? <span className="contact-emails">{emails.map(e => <span key={e}>{e}</span>)}</span> : '-'}</td>
-                                                                <td data-label="Role">Primary</td>
-                                                                <td data-label="Notes">-</td>
-                                                                <td data-label="Actions">
-                                                                    <div className="action-buttons">
-                                                                        <a
-                                                                            className="icon-btn"
-                                                                            href={`${API_URL}/api/customers/${selectedCustomer._id}/vcard?contact=primary`}
-                                                                            title="Save to phone contacts"
-                                                                            aria-label={`Save ${name || 'the primary contact'} to phone contacts`}
-                                                                            style={{ color: 'inherit' }}
-                                                                        >
-                                                                            <BookUser size={14} />
-                                                                        </a>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })()}
-                                                    {selectedCustomer.contacts && selectedCustomer.contacts.length > 0 ? (
-                                                        selectedCustomer.contacts.map(contact => (
-                                                            <tr key={contact._id}>
-                                                                <td data-label="Name">{contact.name}</td>
-                                                                <td data-label="Phone" style={{ whiteSpace: 'nowrap' }}>{formatPhoneForDisplay(contact.phone) || '-'}</td>
-                                                                <td data-label="Email">{contact.email || '-'}</td>
-                                                                <td data-label="Role">{contact.role || '-'}</td>
-                                                                <td data-label="Notes">{contact.notes || '-'}</td>
-                                                                <td data-label="Actions">
-                                                                    <div className="action-buttons">
-                                                                        {/* Save to the phone's contacts (a .vcf — see src/utils/vcard.js). */}
-                                                                        <a
-                                                                            className="icon-btn"
-                                                                            href={`${API_URL}/api/customers/${selectedCustomer._id}/vcard?contact=${encodeURIComponent(contact._id)}`}
-                                                                            title="Save to phone contacts"
-                                                                            aria-label={`Save ${contact.name || 'contact'} to phone contacts`}
-                                                                            style={{ color: 'inherit' }}
-                                                                        >
-                                                                            <BookUser size={14} />
-                                                                        </a>
-                                                                        <button className="icon-btn edit" onClick={() => handleEditContact(contact)}>
-                                                                            <Edit2 size={14} />
-                                                                        </button>
-                                                                        <button className="icon-btn delete" onClick={() => handleDeleteContact(contact._id)}>
-                                                                            <Trash2 size={14} />
-                                                                        </button>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        ))
-                                                    ) : (!contactOf(selectedCustomer) && !selectedCustomer.phone && realEmailsOf(selectedCustomer).length === 0) ? (
-                                                        <tr>
-                                                            <td colSpan="6" className="empty-row">No contacts added yet</td>
-                                                        </tr>
-                                                    ) : null}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                {activeTab === 'details' && (
+                                    // tab-section: on a phone/iPad the tab area only scrolls
+                                    // inside one (SalesPage.css), so without it the bottom
+                                    // of the tab — the admin card — was cut off.
+                                    <div className="tab-section details-tab">
+                                    <CustomerDetailsTab
+                                        customer={selectedCustomer}
+                                        detail={selectedCustomerDetail}
+                                        levelLabel={getCustomerLevelLabel(selectedCustomer)}
+                                        quickNote={quickNote}
+                                        onQuickNoteChange={setQuickNote}
+                                        onSaveQuickNote={handleSaveQuickNote}
+                                        savingNote={isSavingNote}
+                                        noteSaved={Boolean(selectedCustomerDetail?.quickNote) && quickNote === selectedCustomerDetail.quickNote}
+                                        canManageAccount={!!currentUser?.permissions?.includes('manage_customer_accounts')}
+                                        accountStatus={accountActionStatus}
+                                        onToggleActive={() => handleToggleCustomerStatus(selectedCustomerDetail?._id, selectedCustomerDetail?.isActive ?? true)}
+                                        resetPassword={resetPasswordValue}
+                                        onResetPasswordChange={setResetPasswordValue}
+                                        onResetPassword={() => handleResetCustomerPassword(selectedCustomerDetail?._id)}
+                                    />
                                     </div>
                                 )}
 
+                                {activeTab === 'contacts' && (
+                                    <div className="tab-section contacts-tab">
+                                        <CustomerContactsTab
+                                            customer={selectedCustomer}
+                                            onAdd={handleAddContact}
+                                            onEdit={handleEditContact}
+                                            onDelete={handleDeleteContact}
+                                        />
+                                    </div>
+                                )}
 
                                 {activeTab === 'visits' && (
                                     <div className="tab-section visits-tab">
