@@ -30,11 +30,18 @@ const fold = (line) => {
     return parts.join('\r\n');
 };
 
-/** "Jarren Cheha" → { first: 'Jarren', last: 'Cheha' }; a single word is a first name. */
-export const splitName = (name) => {
-    const words = clean(name).split(/\s+/).filter(Boolean);
-    if (words.length <= 1) return { first: words[0] || '', last: '' };
-    return { first: words.slice(0, -1).join(' '), last: words[words.length - 1] };
+/**
+ * What the phone shows as the contact's name: "Kyle Sears @ Backcountry
+ * Counters, LLC - Fabricator" (2026-10-08), so a rep searching their phone
+ * sees who, where and what kind of customer at once. A missing part is left
+ * out: "Backcountry Counters, LLC - Fabricator" when there's no person.
+ */
+export const vcardDisplayName = (person = {}) => {
+    const name = clean(person.name);
+    const company = clean(person.company);
+    const head = name && company ? `${name} @ ${company}` : (name || company);
+    const type = clean(person.type);
+    return (head && type ? `${head} - ${type}` : head) || 'Customer';
 };
 
 /**
@@ -44,6 +51,8 @@ export const splitName = (name) => {
  */
 export const vcardPersonFor = (customer = {}, key = 'primary') => {
     const company = companyOf(customer);
+    // The same default the app shows (TypeTag): no type set reads as Fabricator.
+    const type = clean(customer.customerType) || 'Fabricator';
     const address = {
         street: streetOf(customer),
         city: cityOf(customer),
@@ -56,6 +65,7 @@ export const vcardPersonFor = (customer = {}, key = 'primary') => {
         return {
             name: contactOf(customer),
             company,
+            type,
             title: '',
             phones: [clean(customer.phone)].filter(Boolean),
             emails: realEmailsOf(customer),
@@ -68,6 +78,7 @@ export const vcardPersonFor = (customer = {}, key = 'primary') => {
     return {
         name: clean(ct.name),
         company,
+        type,
         title: clean(ct.role),
         phones: [clean(ct.phone)].filter(Boolean),
         emails: [clean(ct.email)].filter(Boolean),
@@ -76,20 +87,20 @@ export const vcardPersonFor = (customer = {}, key = 'primary') => {
     };
 };
 
-/** The .vcf text for a person from vcardPersonFor. CRLF line endings, as phones expect. */
+/**
+ * The .vcf text for a person from vcardPersonFor. CRLF line endings, as phones
+ * expect. The whole vcardDisplayName goes in the first-name field, with last
+ * name and company left empty — the rep edits it on the phone if they want it
+ * split up.
+ */
 export const buildVCard = (person = {}) => {
-    const name = clean(person.name);
-    const company = clean(person.company);
-    const { first, last } = splitName(name);
+    const display = escapeVCard(vcardDisplayName(person));
     const lines = [
         'BEGIN:VCARD',
         'VERSION:3.0',
-        // No person, just the company: show it as a company card on iPhone.
-        `N:${escapeVCard(last)};${escapeVCard(first)};;;`,
-        `FN:${escapeVCard(name || company || 'Customer')}`
+        `N:;${display};;;`,
+        `FN:${display}`
     ];
-    if (company) lines.push(`ORG:${escapeVCard(company)}`);
-    if (!name && company) lines.push('X-ABShowAs:COMPANY');
     if (clean(person.title)) lines.push(`TITLE:${escapeVCard(person.title)}`);
     for (const phone of person.phones || []) if (clean(phone)) lines.push(`TEL;TYPE=WORK,VOICE:${escapeVCard(phone)}`);
     for (const email of person.emails || []) if (clean(email)) lines.push(`EMAIL;TYPE=INTERNET,WORK:${escapeVCard(email)}`);
@@ -102,8 +113,8 @@ export const buildVCard = (person = {}) => {
     return `${lines.map(fold).join('\r\n')}\r\n`;
 };
 
-/** "Jarren Cheha - Seattle Granite.vcf", safe for a download name. */
+/** "Jarren Cheha @ Seattle Granite - Fabricator.vcf", safe for a download name. */
 export const vcardFileName = (person = {}) => {
-    const base = [clean(person.name), clean(person.company)].filter(Boolean).join(' - ') || 'Contact';
-    return `${base.replace(/[^\w .&'-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Contact'}.vcf`;
+    const base = clean(person.name) || clean(person.company) ? vcardDisplayName(person) : 'Contact';
+    return `${base.replace(/[^\w .&'@-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Contact'}.vcf`;
 };
