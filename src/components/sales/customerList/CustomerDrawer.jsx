@@ -11,6 +11,7 @@ import {
 } from '../../../utils/customerList';
 import { StatusDot, LocationTag, RepBadge, TypeTag, LevelTag, CopyButton } from './parts';
 import { useDismiss, copyText, peopleOf, telHref, directionsHref, anchoredMenuStyle } from './uiHelpers';
+import '../../shared/form/FormModal.css';
 
 const fmtDate = (d) => {
   if (!d) return '';
@@ -163,30 +164,19 @@ const CustomerDrawer = ({
       {overlay && <div className="cl-scrim" onClick={onClose} aria-hidden="true" />}
       <aside className="cl-drawer cl" role="dialog" aria-modal={overlay ? 'true' : 'false'} aria-label={`${companyOf(c)} details`}>
         <div className="cl-drawer-top">
-          <button ref={closeRef} type="button" className="cl-ib cl-drawer-close" aria-label="Close details" title="Close (Esc)" onClick={onClose}><X size={20} /></button>
-          <span className="cl-grow" />
-          {/* One joined control: ↑, where you are in the list, ↓ (2026-10-08). */}
-          <div className="cl-pager" role="group" aria-label="Move between customers">
-            <button type="button" className="cl-pager-btn" aria-label="Previous customer" title="Previous customer (↑)" disabled={!onPrev} onClick={onPrev}><ChevronUp size={18} /></button>
-            {position && (
-              <span className="cl-pager-pos" aria-live="polite">
-                {(position.index + 1).toLocaleString()}{' '}<span className="of">of {position.total.toLocaleString()}</span>
-              </span>
-            )}
-            <button type="button" className="cl-pager-btn" aria-label="Next customer" title="Next customer (↓)" disabled={!onNext} onClick={onNext}><ChevronDown size={18} /></button>
-          </div>
-          {/* Open profile, Edit and Delete live in this one menu (2026-10-08) so the
-              bar is just close, previous/next and ⋯ — the same items, in the same
-              order, as the ⋯ on a table row. The name below also opens the profile. */}
+          {/* The bar, the same on every screen (2026-10-08): ⋯ on the left, the
+              ↑ "n of N" ↓ control in the middle, close on the right. The ⋯ holds
+              Open profile, Edit and Delete — the same items, in the same order, as
+              the ⋯ on a table row. The name below also opens the profile. */}
           <div className="cl-rowmenu" ref={menuRef}>
             <button
               ref={menuBtnRef} type="button" className="cl-ib box cl-drawer-more" aria-label="More actions" aria-haspopup="menu" aria-expanded={menuOpen}
-              onClick={(e) => { setMenuPos(anchoredMenuStyle(e.currentTarget, { align: 'right', estHeight: canDelete ? 160 : 110 })); setMenuOpen(o => !o); }}
+              onClick={(e) => { setMenuPos(anchoredMenuStyle(e.currentTarget, { align: 'left', estHeight: canDelete ? 160 : 110 })); setMenuOpen(o => !o); }}
             >
               <MoreHorizontal size={18} />
             </button>
             {menuOpen && (
-              <div className="cl-pop right cl-drawer-menu" role="menu" aria-label="Customer actions" style={{ minWidth: 210, ...menuPos }} onKeyDown={onMenuKey}>
+              <div className="cl-pop cl-drawer-menu" role="menu" aria-label="Customer actions" style={{ minWidth: 210, ...menuPos }} onKeyDown={onMenuKey}>
                 <button type="button" role="menuitem" className="cl-opt" onClick={() => runMenu(() => onOpenProfile(customer))}>
                   <ExternalLink size={16} aria-hidden="true" />Open profile
                 </button>
@@ -206,6 +196,20 @@ const CustomerDrawer = ({
               </div>
             )}
           </div>
+          {/* One joined control: ↑, where you are in the list, ↓. */}
+          <div className="cl-pager" role="group" aria-label="Move between customers">
+            <button type="button" className="cl-pager-btn" aria-label="Previous customer" title="Previous customer (↑)" disabled={!onPrev} onClick={onPrev}><ChevronUp size={18} /></button>
+            {position && (
+              <span className="cl-pager-pos" aria-live="polite">
+                {(position.index + 1).toLocaleString()}{' '}<span className="of">of {position.total.toLocaleString()}</span>
+              </span>
+            )}
+            <button type="button" className="cl-pager-btn" aria-label="Next customer" title="Next customer (↓)" disabled={!onNext} onClick={onNext}><ChevronDown size={18} /></button>
+          </div>
+          {/* The form template's close button (shared/form/FormModal.css .fm-close). */}
+          <button ref={closeRef} type="button" className="fm-close cl-drawer-close" aria-label="Close details" title="Close (Esc)" onClick={onClose}>
+            <X size={18} strokeWidth={2.4} aria-hidden="true" />
+          </button>
         </div>
 
         <div className="cl-drawer-body">
