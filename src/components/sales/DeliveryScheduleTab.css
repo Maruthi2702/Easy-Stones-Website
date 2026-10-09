@@ -533,6 +533,51 @@ body.light-theme-active .board-grid-scroll-container,
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
 }
 
+/* The week scrolls inside this box (2026-10-09) so the board can open on
+   today's row (BoardGrid) with the drivers' names and the Day column pinned —
+   scrolled to Friday you still see whose column is whose. Sized to the screen
+   under the toolbar; never shorter than a couple of days. */
+.board-grid-scroll-container {
+  overflow: auto;
+  max-height: max(420px, calc(100dvh - 190px));
+  overscroll-behavior: contain;
+}
+
+.manifest-dispatch-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.manifest-dispatch-table .day-col-header-row,
+.manifest-dispatch-table .day-info-cell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.manifest-dispatch-table thead .day-col-header-row { z-index: 4; }
+
+/* A pinned cell's collapsed border stays behind when it moves, so it draws
+   its own dividing line. Solid fill so cards slide under it, not through. */
+.manifest-dispatch-table thead th { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.12); }
+/* No top border on pinned header cells: it stays behind when they move, and
+   cards showed through that strip as they scrolled under. (The 3px driver
+   colour on .truck-col-header never showed — the 1px th border wins.) */
+.manifest-dispatch-table thead th { border-top-width: 0; }
+.manifest-dispatch-table .day-info-cell { box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.12); }
+.manifest-dispatch-table thead .day-col-header-row { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.12), inset -1px 0 0 rgba(255, 255, 255, 0.12); }
+.manifest-dispatch-table .day-info-cell:not(.today-cell) { background: #1f1f21; }
+
+body.light-theme-active .manifest-dispatch-table thead th,
+.light-theme-active .manifest-dispatch-table thead th { box-shadow: inset 0 -1px 0 #cbd5e1; }
+body.light-theme-active .manifest-dispatch-table .day-info-cell,
+.light-theme-active .manifest-dispatch-table .day-info-cell { box-shadow: inset -1px 0 0 #cbd5e1; }
+body.light-theme-active .manifest-dispatch-table thead .day-col-header-row,
+.light-theme-active .manifest-dispatch-table thead .day-col-header-row { box-shadow: inset 0 -1px 0 #cbd5e1, inset -1px 0 0 #cbd5e1; }
+body.light-theme-active .manifest-dispatch-table .day-info-cell:not(.today-cell),
+.light-theme-active .manifest-dispatch-table .day-info-cell:not(.today-cell) { background: #ffffff; }
+
 .manifest-dispatch-table {
   width: 100%;
   min-width: 1100px;
