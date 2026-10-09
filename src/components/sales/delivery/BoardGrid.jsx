@@ -4,7 +4,7 @@
 // separate, mobile-first component a driver sees instead. See
 // src/components/sales/delivery/README.md for how this fits with the rest
 // of the feature (deliverySchedule.js's cache, the backend router, the socket).
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Plus, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText, ArrowUpToLine, ArrowDownToLine, Link2 } from 'lucide-react';
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/deliverySchedule';
@@ -74,6 +74,8 @@ const BoardGrid = ({
   // truck cell has to find it here since it isn't in `deliveries` either.
   cancelled = [],
   weekDates = [],
+  // Bumped by the toolbar's Today button: bring today's day back into view.
+  todayRequest = 0,
   searchQuery = '',
   editable = false,
   onAddDelivery,
@@ -133,6 +135,60 @@ const BoardGrid = ({
 
   const [internalSearch] = useState('');
   const activeSearch = searchQuery || internalSearch;
+
+  // ── Open on today (2026-10-09) ──
+  // The week table scrolls inside its own box (header and Day column pinned),
+  // and puts today's row at the top: when the board appears, when the week
+  // changes, and when Today is pressed. Never on a live update or after a
+  // save — that would pull a dispatcher off the day they're working on. A
+  // week without today starts at its first day.
+  const tableScrollRef = useRef(null);
+  const showTodayRow = (behavior = 'auto') => {
+    const box = tableScrollRef.current;
+    if (!box) return;
+    const row = box.querySelector('tr.today-row');
+    if (!row) { box.scrollTo({ top: 0, behavior }); return; }
+    const head = box.querySelector('thead')?.getBoundingClientRect().height || 0;
+    const top = row.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - head;
+    box.scrollTo({ top: Math.max(0, top), behavior });
+  };
+  // Cards finish laying out after the jump (and a week can paint before its
+  // tickets arrive), which moves today's row. So for a moment after a jump it
+  // is kept lined up as the table resizes — until the person scrolls, clicks
+  // or types, which always wins.
+  const alignUntilRef = useRef(0);
+  const jumpToToday = (behavior) => {
+    alignUntilRef.current = Date.now() + 2000;
+    showTodayRow(behavior);
+  };
+  const weekKey = weekDates[0] || '';
+  useLayoutEffect(() => { jumpToToday('auto'); }, [weekKey, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const box = tableScrollRef.current;
+    const table = box?.querySelector('table');
+    if (!box || !table || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => { if (Date.now() < alignUntilRef.current) showTodayRow('auto'); });
+    ro.observe(table);
+    const stop = () => { alignUntilRef.current = 0; };
+    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+    events.forEach((ev) => box.addEventListener(ev, stop, { passive: true }));
+    return () => {
+      ro.disconnect();
+      events.forEach((ev) => box.removeEventListener(ev, stop));
+    };
+  }, [viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Today on phones/iPads (day pills): select today's pill, during render.
+  const [seenTodayRequest, setSeenTodayRequest] = useState(todayRequest);
+  if (todayRequest !== seenTodayRequest) {
+    setSeenTodayRequest(todayRequest);
+    if (weekDates.includes(todayStr)) setSelectedDate(todayStr);
+  }
+  const todayRequestRef = useRef(todayRequest);
+  useEffect(() => {
+    if (todayRequest === todayRequestRef.current) return;
+    todayRequestRef.current = todayRequest;
+    jumpToToday('smooth');
+  }, [todayRequest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Which cell (truck x day) a dragged ticket is currently hovering over, for
   // the drop-target highlight. Table view only — the cards view has no cells.
@@ -591,7 +647,7 @@ const BoardGrid = ({
         </div>
       ) : (
         /* ── DISPATCH TABLE MATRIX ── */
-        <div className="board-grid-scroll-container">
+        <div className="board-grid-scroll-container" ref={tableScrollRef}>
           {/* table-layout is fixed, so without a width that grows per driver the
               columns just divide the same 1100px and every extra driver squeezes
               the cards further. Give each driver a floor and let the container

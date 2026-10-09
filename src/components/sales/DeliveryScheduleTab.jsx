@@ -318,7 +318,12 @@ const DeliveryScheduleTab = ({
     setCurrentMonday(next);
   };
 
-  const handleTodayWeek = () => setCurrentMonday(getWeekMonday(new Date()));
+  // Today: this week, and the board brings today's day into view (BoardGrid).
+  const [todayRequest, setTodayRequest] = useState(0);
+  const handleTodayWeek = () => {
+    setCurrentMonday(getWeekMonday(new Date()));
+    setTodayRequest((n) => n + 1);
+  };
 
   // Opens the same modal with no driver, so the order is saved straight to Pending.
   const handleOpenAddPending = () => {
@@ -674,6 +679,7 @@ const DeliveryScheduleTab = ({
               pending={pending}
               cancelled={cancelled}
               weekDates={visibleDates}
+              todayRequest={todayRequest}
               searchQuery={searchQuery}
               editable={true}
               onAddDelivery={handleOpenAddModal}
@@ -694,6 +700,7 @@ const DeliveryScheduleTab = ({
               trucks={trucks}
               deliveries={deliveries}
               weekDates={visibleDates}
+              todayRequest={todayRequest}
               searchQuery={searchQuery}
               editable={false}
               onEditDelivery={null}
