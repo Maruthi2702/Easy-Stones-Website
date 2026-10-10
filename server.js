@@ -84,6 +84,10 @@ import { runWorkbookParse } from './src/utils/runWorkbookParse.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
 import createDeliveriesRouter, { deliveryRoomFor, DELIVERY_ROOM_ALL } from './src/routes/deliveries.js';
 import createCheckInRouter, { checkinRoomFor, CHECKIN_ROOM_ALL } from './src/routes/checkIn.js';
+import createAccountingRouter from './src/accounting/router.js';
+import { createFreightSync } from './src/accounting/sync.js';
+import { setDeliveriesChangedHandler } from './src/accounting/hooks.js';
+import { ALL_ACCOUNTING_PERMISSIONS } from './src/accounting/permissions.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
@@ -592,7 +596,8 @@ async function startServer() {
             'view_inventory_analysis', 'import_inventory_analysis', 'view_inventory_prices',
             'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures',
             'add_visits', 'edit_own_visits', 'delete_own_visits',
-            'view_all_visits', 'edit_all_visits', 'delete_all_visits'
+            'view_all_visits', 'edit_all_visits', 'delete_all_visits',
+            ...ALL_ACCOUNTING_PERMISSIONS
           ],
           isSystem: true
         },
@@ -739,7 +744,11 @@ async function startServer() {
         // with the log could see; now they're in its More menu behind their own
         // permission (2026-10-08), given to admin and director to start with.
         // Who else sees them is decided under Users & Roles.
-        { roles: ['admin', 'director'], permissions: ['view_checkin_qr'] }
+        { roles: ['admin', 'director'], permissions: ['view_checkin_qr'] },
+        // Accounting (src/accounting/permissions.js): admin only to start with.
+        // Every action is its own switch; an admin hands each one to the roles
+        // that need it under Users & Roles.
+        { roles: ['admin'], permissions: [...ALL_ACCOUNTING_PERMISSIONS] }
       ];
 
       // Each grant reaches a role once. Its permissions are recorded in
@@ -835,6 +844,10 @@ async function startServer() {
 
     httpServer.listen(PORT, () => {
       console.log(`🚀 Backend server running on port ${PORT}`);
+
+      // Accounting's freight catch-up: now, then every 10 minutes.
+      reconcileFreight();
+      setInterval(reconcileFreight, 10 * 60 * 1000).unref();
 
       // A day nobody signed off is closed out at 11:59 PM on the branch's own
       // clock, so the figures stop being editable once the day is over.
@@ -4589,6 +4602,31 @@ app.use('/api', createDeliveriesRouter({
 // reasoning as the daily-reports and deliveries routers above. Mounted at
 // '/api/checkin' — every route in that file is relative to this prefix.
 app.use('/api/checkin', createCheckInRouter({ authenticate, requirePermission }));
+
+// Accounting (src/accounting/) — 3rd-party freight charges, carriers and
+// carrier invoices. Every route checks its own Users & Roles permission and
+// the person's branches. Freight charges are created from the Delivery
+// Schedule: right after a delivery save (deliveriesChanged in deliveries.js)
+// and by a catch-up run at boot and every 10 minutes. Deliveries dated before
+// FREIGHT_CHARGES_FROM were settled the old way and never become charges.
+const freightSync = createFreightSync({
+  Delivery, User, startDate: process.env.FREIGHT_CHARGES_FROM || '2026-10-01'
+});
+setDeliveriesChangedHandler((ids) => freightSync.syncDeliveryIds(ids));
+app.use('/api/accounting', createAccountingRouter({ authenticate, sync: freightSync }));
+let freightReconcileRunning = false;
+const reconcileFreight = async () => {
+  if (freightReconcileRunning) return;
+  freightReconcileRunning = true;
+  try {
+    const r = await freightSync.reconcile();
+    if (r.create || r.update || r.error) console.log('[accounting] freight catch-up:', r);
+  } catch (err) {
+    console.error('[accounting] freight catch-up failed:', err?.message || err);
+  } finally {
+    freightReconcileRunning = false;
+  }
+};
 
 
 // Toggle reaction on visit

@@ -23,6 +23,9 @@ import {
   SEARCH_RESULT_LIMIT, SEARCH_SCAN_LIMIT
 } from '../utils/deliverySearch.js';
 import { isDeliveryDriver } from '../utils/deliveryAccess.js';
+// Accounting hears which deliveries changed, so a completed 3rd-party delivery
+// gets its freight charge. Fire-and-forget: never slows or fails a save here.
+import { deliveriesChanged } from '../accounting/hooks.js';
 
 /**
  * Delivery Schedule + Truck API.
@@ -819,6 +822,7 @@ export default function createDeliveriesRouter({
       // Broadcast just the single changed record — not the whole collection. Clients
       // merge it into whichever cached week(s) it belongs to.
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
+      deliveriesChanged([updated.id]);
       res.json(updated);
     } catch (err) {
       console.error('[server] save delivery error:', err);
@@ -858,6 +862,7 @@ export default function createDeliveriesRouter({
       // there; pod.verified stays whatever the signatures make it, so a card can
       // still honestly read "No ePOD" on a completed stop.
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
+      deliveriesChanged([updated.id]);
 
       res.json(updated);
     } catch (err) {
@@ -952,6 +957,7 @@ export default function createDeliveriesRouter({
       if (!updated) return res.status(404).json({ error: 'Delivery not found' });
 
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
+      deliveriesChanged([updated.id]);
 
       res.json(updated);
     } catch (err) {
@@ -1111,6 +1117,7 @@ export default function createDeliveriesRouter({
         return res.status(404).json({ error: 'Delivery not found' });
       }
       emitDeliveryUpdate(req, { type: 'delete', id }, deleted);
+      deliveriesChanged([id]);
       res.json({ success: true, id });
     } catch (err) {
       console.error('[server] delete delivery error:', err);

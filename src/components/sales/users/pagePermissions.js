@@ -1,8 +1,9 @@
 // Users & Roles' per-page permission definitions, shared with the Add/Edit
 // user forms (role summaries) and the /admin screen.
 import { summarizeRole } from '../../../utils/userForm';
+import { FREIGHT, CARRIERS } from '../../../accounting/permissions';
 import {
-    ArrowLeftRight, Boxes, CheckCheck, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Palette, Pencil, Plus, QrCode, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
+    ArrowLeftRight, Boxes, CheckCheck, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Palette, Pencil, Plus, QrCode, Receipt, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
 } from 'lucide-react';
 
 // Granular per-page permission definitions.
@@ -166,6 +167,39 @@ export const PAGE_PERMISSIONS = [
             // Separate from View on purpose: seeing stock levels and seeing what
             // that stock cost/is worth are different levels of trust.
             { key: 'view_inventory_prices', label: 'View Prices', icon: DollarSign, desc: 'See dollar value/cost figures on lots and slabs' }
+        ]
+    },
+    // Accounting (src/accounting/permissions.js, 2026-10-09). Nothing in
+    // Accounting opens by role name: every action is one of these switches,
+    // and the server checks each one plus the person's branches.
+    {
+        id: 'accounting_freight',
+        page: 'Accounting · 3rd-Party Freight',
+        icon: Receipt,
+        description: 'What we owe contract carriers for completed deliveries, and their invoices',
+        color: '#0f766e',
+        actions: [
+            { key: FREIGHT.VIEW,    label: 'View',         icon: Eye,        desc: 'See freight charges, carrier invoices and their amounts (assigned branches only)' },
+            { key: FREIGHT.ADD,     label: 'Add',          icon: Plus,       desc: 'Add a charge by hand and enter carrier invoices' },
+            { key: FREIGHT.EDIT,    label: 'Edit',         icon: Pencil,     desc: 'Correct a charge or invoice while it waits for approval, and clear review flags' },
+            { key: FREIGHT.APPROVE, label: 'Approve',      icon: CheckCheck, desc: 'Approve charges and invoices for payment (and send them back)' },
+            { key: FREIGHT.PAY,     label: 'Mark paid',    icon: DollarSign, desc: 'Record payments: date, method, check or reference # — each gets a payment ID. With Approve too, a charge or invoice can be approved and paid in one step' },
+            { key: FREIGHT.VOID,    label: 'Void',         icon: Trash2,     desc: 'Cancel a charge or invoice with a reason — nothing is ever deleted' },
+            { key: FREIGHT.EXPORT,  label: 'Export',       icon: Upload,     desc: 'Download charges as Excel' },
+            { key: FREIGHT.HISTORY, label: 'View history', icon: Clock,      desc: 'See who changed what, and when' }
+        ]
+    },
+    {
+        id: 'accounting_carriers',
+        page: 'Accounting · Carriers',
+        icon: Truck,
+        description: 'Contract carriers and how each is paid (per delivery or per invoice)',
+        color: '#0e7490',
+        actions: [
+            { key: CARRIERS.VIEW,       label: 'View',       icon: Eye,    desc: 'See the carrier list' },
+            { key: CARRIERS.ADD,        label: 'Add',        icon: Plus,   desc: 'Add carriers' },
+            { key: CARRIERS.EDIT,       label: 'Edit',       icon: Pencil, desc: 'Rename carriers, set other spellings and how they are paid' },
+            { key: CARRIERS.DEACTIVATE, label: 'Deactivate', icon: Eraser, desc: 'Deactivate or reactivate a carrier' }
         ]
     },
     {
