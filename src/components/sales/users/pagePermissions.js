@@ -2,8 +2,9 @@
 // user forms (role summaries) and the /admin screen.
 import { summarizeRole } from '../../../utils/userForm';
 import { FREIGHT, CARRIERS } from '../../../accounting/permissions';
+import { CART, HOLDS } from '../../../holds/permissions';
 import {
-    ArrowLeftRight, Boxes, CheckCheck, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Palette, Pencil, Plus, QrCode, Receipt, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
+    ArrowLeftRight, Boxes, CheckCheck, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
 } from 'lucide-react';
 
 // Granular per-page permission definitions.
@@ -167,6 +168,39 @@ export const PAGE_PERMISSIONS = [
             // Separate from View on purpose: seeing stock levels and seeing what
             // that stock cost/is worth are different levels of trust.
             { key: 'view_inventory_prices', label: 'View Prices', icon: DollarSign, desc: 'See dollar value/cost figures on lots and slabs' }
+        ]
+    },
+    // Cart & Holds (src/holds/permissions.js, 2026-10-10). Every action is its
+    // own switch; the server checks each one, and which holds someone sees is
+    // the three View switches (own / branch / all).
+    {
+        id: 'cart',
+        page: 'Cart',
+        icon: ShoppingCart,
+        description: 'Each person’s own slab cart, on the side rail',
+        color: '#b8961f',
+        actions: [
+            { key: CART.USE, label: 'Use cart', icon: ShoppingCart, desc: 'Tick or scan slabs into their own cart' }
+        ]
+    },
+    {
+        id: 'holds',
+        page: 'Holds',
+        icon: Lock,
+        description: 'Numbered holds that reserve slabs for a customer (7 days by default)',
+        color: '#a16207',
+        actions: [
+            { key: HOLDS.VIEW_OWN,    label: 'View own',      icon: Eye,        desc: 'See the holds they created' },
+            { key: HOLDS.VIEW_BRANCH, label: 'View branch',   icon: MapPin,     desc: 'See every hold in their assigned branches' },
+            { key: HOLDS.VIEW_ALL,    label: 'View all',      icon: Eye,        desc: 'See every branch’s holds' },
+            { key: HOLDS.CREATE,      label: 'Create',        icon: Plus,       desc: 'Turn cart slabs into a hold' },
+            { key: HOLDS.EDIT,        label: 'Edit details',  icon: Pencil,     desc: 'Change customer, job and notes on a hold' },
+            { key: HOLDS.SLABS,       label: 'Change slabs',  icon: Repeat,     desc: 'Add, remove or swap slabs on a hold' },
+            { key: HOLDS.PRICES,      label: 'Change prices', icon: DollarSign, desc: 'Set price per SF on a hold’s slabs' },
+            { key: HOLDS.EXTEND,      label: 'Extend',        icon: Timer,      desc: 'Hold longer than 7 days, or move the expiry later' },
+            { key: HOLDS.RELEASE,     label: 'Release',       icon: Eraser,     desc: 'Free a hold’s slabs early' },
+            { key: HOLDS.PRINT,       label: 'Print',         icon: Printer,    desc: 'Print or download the hold PDF' },
+            { key: HOLDS.HISTORY,     label: 'View history',  icon: Clock,      desc: 'See who changed what on a hold, and when' }
         ]
     },
     // Accounting (src/accounting/permissions.js, 2026-10-09). Nothing in

@@ -1609,3 +1609,71 @@ body.light-theme-active .invan-loc-search,
 body.light-theme-active .invan-loc-search input,
 .light-theme-active .invan-loc-search input,
 .light-theme .invan-loc-search input { color: #0f172a; }
+
+/* ── Cart column, grouping and bundle rows (InventorySlabList.jsx, 2026-10-10) ──
+   People with the Use cart permission get a 56px "cart" track at the end of
+   the slab grid; everyone else keeps the templates above unchanged. */
+.invan-slab-head.has-cart, .invan-slab-row.has-cart {
+  grid-template-columns: 0px minmax(88px, 0.6fr) repeat(7, 1fr) 56px;
+  grid-template-areas: "sp serial dims loc onhand landed recv age status cart";
+}
+.invan-slab-head.has-cart.no-price, .invan-slab-row.has-cart.no-price {
+  grid-template-columns: 0px minmax(88px, 0.6fr) repeat(6, 1fr) 56px;
+  grid-template-areas: "sp serial dims loc onhand recv age status cart";
+}
+.sa-cart { grid-area: cart; display: flex; justify-content: center; align-items: center; }
+.invan-slab-head > .sa-cart { text-align: center; justify-content: center; }
+.invan-cart-chk { width: 20px; height: 20px; margin: 0; accent-color: #a07c10; cursor: pointer; }
+.invan-cart-chk:disabled { cursor: not-allowed; opacity: 0.45; }
+.invan-cart-lock { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 7px; border-radius: 7px; background: rgba(239, 68, 68, 0.14); color: #fca5a5; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+body.light-theme-active .invan-cart-lock, .light-theme-active .invan-cart-lock { background: #fdecec; color: #b42318; }
+
+/* A slab in your cart is tinted gold, like the cart's own rows. */
+.invan-slab-row.in-cart, .invan-slab-group > .invan-slab-row.in-cart { background: rgba(212, 175, 55, 0.12); }
+body.light-theme-active .invan-slab-row.in-cart, .light-theme-active .invan-slab-row.in-cart { background: #fffbea; }
+
+/* Inside a group the band restarts after its summary row: shade every
+   second slab row only, not the summary. */
+.invan-slab-group > .invan-slab-row:nth-child(odd) { background: none; }
+.invan-slab-group > .invan-slab-row:nth-child(even of .invan-slab-row) { background: rgba(255, 255, 255, 0.025); }
+body.light-theme-active .invan-slab-group > .invan-slab-row:nth-child(even of .invan-slab-row),
+.light-theme-active .invan-slab-group > .invan-slab-row:nth-child(even of .invan-slab-row) { background: rgba(15, 23, 42, 0.035); }
+
+.invan-slab-tools { display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; padding: 0.4rem 1rem 0.5rem; font-size: 0.78rem; color: #94a3b8; }
+.invan-seg { display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 9px; overflow: hidden; }
+.invan-seg button { height: 32px; padding: 0 0.75rem; border: 0; border-right: 1px solid rgba(255, 255, 255, 0.1); background: transparent; color: #cbd5e1; font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+.invan-seg button:last-child { border-right: 0; }
+.invan-seg button.on { background: rgba(212, 175, 55, 0.18); color: #f2d77c; }
+body.light-theme-active .invan-slab-tools, .light-theme-active .invan-slab-tools { color: #64748b; }
+body.light-theme-active .invan-seg, .light-theme-active .invan-seg { border-color: #d6dae0; background: #ffffff; }
+body.light-theme-active .invan-seg button, .light-theme-active .invan-seg button { color: #475569; border-right-color: #e3e6ea; }
+body.light-theme-active .invan-seg button.on, .light-theme-active .invan-seg button.on { background: #faf1d6; color: #7a5c0c; }
+
+.invan-bundle-row { display: flex; align-items: center; gap: 1.1rem; min-height: 40px; padding: 0.35rem 1rem; font-size: 0.8rem; color: #cbd5e1; background: rgba(212, 175, 55, 0.06); border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.invan-bundle-row .invan-cart-chk { margin-left: auto; margin-right: 18px; }
+.invan-bundle-name { min-width: 180px; color: #94a3b8; }
+.invan-bundle-name b { color: #ffffff; font-weight: 700; }
+.invan-bundle-free { color: #4ade80; font-weight: 600; }
+.invan-bundle-none { color: #f87171; font-weight: 600; }
+body.light-theme-active .invan-bundle-row, .light-theme-active .invan-bundle-row { background: #fbfaf6; color: #334155; border-top-color: #eef0f3; }
+body.light-theme-active .invan-bundle-name b, .light-theme-active .invan-bundle-name b { color: #0f172a; }
+body.light-theme-active .invan-bundle-free, .light-theme-active .invan-bundle-free { color: #15803d; }
+body.light-theme-active .invan-bundle-none, .light-theme-active .invan-bundle-none { color: #b42318; }
+
+@media (max-width: 900px) {
+  /* The checkbox takes the top-right of each slab card, beside the serial. */
+  .invan-slab-row.has-cart, .invan-slab-row.has-cart.no-price {
+    grid-template-columns: 18px 1fr auto;
+    grid-template-areas:
+      "sp serial cart"
+      ".  dims   onhand"
+      ".  landed landed"
+      ".  status age";
+  }
+  .invan-slab-row.has-cart .sa-cart { justify-self: end; }
+  .invan-cart-chk { width: 24px; height: 24px; }
+  .invan-slab-tools { justify-content: flex-start; flex-wrap: wrap; padding: 0.5rem 0.9rem; }
+  .invan-bundle-row { flex-wrap: wrap; gap: 0.3rem 0.9rem; padding: 0.5rem 0.9rem; }
+  .invan-bundle-name { min-width: 0; flex-basis: 100%; }
+  .invan-bundle-row .invan-cart-chk { margin-right: 0; }
+}

@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, User, Clock, Truck, Map as MapIcon, ClipboardList, Tag, TrendingDown, ArrowLeftRight, Boxes,
     Users, Briefcase, Warehouse, Layers, Shield, Home, Pin, PinOff, PanelLeftClose, X,
-    Sun, Moon, LogOut, UserCheck, ArrowUpDown, Receipt, Calculator
+    Sun, Moon, LogOut, UserCheck, ArrowUpDown, Receipt, Calculator, Lock
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS } from '../../utils/navPins';
+import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS, isOnePageSection } from '../../utils/navPins';
+import CartRailButton from './holds/CartRailButton';
 import './CustomerSidebar.css';
 
 // Pages, sections and who sees what live in src/utils/navPins.js; only the
@@ -16,6 +17,7 @@ const ITEM_ICONS = {
     customers: User,
     checkin: Clock,
     route_planner: MapIcon,
+    holds: Lock,
     lost_sales: TrendingDown,
     delivery_schedule: Truck,
     daily_report: ClipboardList,
@@ -144,7 +146,7 @@ const CustomerSidebar = ({
     // A one-page section (Admin today) has nothing to list beyond the page
     // you're already on, so on desktop it's just the rail. Home always keeps
     // its panel (the pins), and the mobile drawer always needs one.
-    const onePageSection = !!shownSection && shownSection.id !== 'home' && shownSection.items.length === 1;
+    const onePageSection = isOnePageSection(shownSection);
     const showPanel = isMobile || (flyoutOpen && !onePageSection);
 
     const go = (tab) => {
@@ -155,9 +157,9 @@ const CustomerSidebar = ({
 
     const openSection = (section) => {
         setViewSection(section.id);
-        // A one-page section (Admin today) goes straight to it. Not Home:
-        // that's where the pins are, so it always opens the panel.
-        if (section.id !== 'home' && section.items.length === 1) {
+        // A one-page section (Admin today) goes straight to it. Not Home —
+        // that's where the pins are — nor Accounting (isOnePageSection).
+        if (isOnePageSection(section)) {
             go(section.items[0].id);
             return;
         }
@@ -249,8 +251,8 @@ const CustomerSidebar = ({
                                 type="button"
                                 className={`side-nav-section${isCurrent ? ' is-current' : ''}${isViewing ? ' is-viewing' : ''}`}
                                 onClick={() => openSection(section)}
-                                aria-expanded={!isMobile && (section.id === 'home' || section.items.length > 1) ? isViewing : undefined}
-                                title={section.id !== 'home' && section.items.length === 1 ? section.items[0].label : section.label}
+                                aria-expanded={!isMobile && !isOnePageSection(section) ? isViewing : undefined}
+                                title={isOnePageSection(section) ? section.items[0].label : section.label}
                             >
                                 <span className="side-nav-section-icon"><Icon size={20} /></span>
                                 <span className="side-nav-section-label">{section.label}</span>
@@ -258,6 +260,9 @@ const CustomerSidebar = ({
                         );
                     })}
                 </div>
+
+                {/* The cart, for everyone with the Use cart permission (src/holds/). */}
+                <CartRailButton user={user} />
 
                 {user && (
                     <div className="side-nav-account" ref={menuRef}>

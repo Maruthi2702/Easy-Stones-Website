@@ -211,7 +211,12 @@ counts, charges grouped by carrier, what a selection offers — Approve,
 Approve & pay, Mark paid — and why not, payment wording and the Excel rows).
 Accounting's server rules and API have their own tests in
 `src/accounting/*.test.js` (an in-memory MongoDB replica set, transactions
-included).
+included). Cart & Holds do too: `src/holds/*.test.js` (expiry and totals
+rules, the one-hold-per-slab lock, every edit, the expiry job, the customer
+letter PDF and what its Hide boxes leave out — `holdLetter.js`), and
+the Holds screens' rules in `src/utils/holdView.js` (tabs, expiry wording,
+which buttons each permission shows, the price editor, Extend's picks, cart
+slabs offered to a hold, history wording, the Edit form's patch).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

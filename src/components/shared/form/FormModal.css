@@ -5,8 +5,11 @@
  * one to fix a single screen.
  *
  * Dark is the default theme; body.light-theme-active switches the tokens.
+ * .fm-tokens carries the same colours for template controls used outside a
+ * form window (the cart drawer's checkout, 2026-10-10) — tokens only, no layout.
  */
-.fm-overlay {
+.fm-overlay,
+.fm-tokens {
     --fm-card: #1c1c1e;
     --fm-in: #111113;
     --fm-tx: #ffffff;
@@ -43,7 +46,8 @@
     --fm-confirm-scrim: rgba(0, 0, 0, 0.35);
 }
 
-body.light-theme-active .fm-overlay {
+body.light-theme-active .fm-overlay,
+body.light-theme-active .fm-tokens {
     --fm-card: #ffffff;
     --fm-in: #ffffff;
     --fm-tx: #0f172a;

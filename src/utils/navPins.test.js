@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  NAV_ITEMS, MAX_PINNED_TABS, visibleSections, railSections, sectionOf,
+  NAV_ITEMS, MAX_PINNED_TABS, visibleSections, railSections, sectionOf, isOnePageSection,
   sanitizeNavOrder, orderedSections, navOrderOf, isDefaultNavOrder, moveInList, sanitizePinnedTabs, visiblePinnedTabs,
   pinnedDefaultTab, togglePinnedTab, makeDefaultTab
 } from './navPins.js';
@@ -33,6 +33,16 @@ describe('nav visibility', () => {
     expect(railSections(rep).map((s) => [s.id, s.items.length])).toEqual([['home', 0], ['sales', 2], ['operations', 1]]);
     expect(railSections(admin).map((s) => s.id)).toEqual(['home', 'sales', 'operations', 'products', 'admin']);
     expect(railSections(admin)[0].items.map((i) => i.id)).toEqual(['dashboard']);
+  });
+
+  it('a one-page section opens its page, except Home and Accounting, which keep their panel', () => {
+    const one = (id) => ({ id, items: [{ id: 'x' }] });
+    expect(isOnePageSection(one('admin'))).toBe(true);
+    expect(isOnePageSection(one('home'))).toBe(false);
+    const accounting = railSections({ permissions: ['view_freight_charges'] }).find((s) => s.id === 'accounting');
+    expect(accounting.items.map((i) => i.id)).toEqual(['freight']);
+    expect(isOnePageSection(accounting)).toBe(false);
+    expect(isOnePageSection({ id: 'admin', items: [{ id: 'users' }, { id: 'nav_order' }] })).toBe(false);
   });
 
   it('knows every page’s section', () => {
@@ -103,7 +113,7 @@ describe('admin nav order', () => {
     const order = { sections: ['operations', 'sales'], items: { sales: ['lost_sales'], operations: ['checkin', 'delivery_schedule'] } };
     expect(ids(orderedSections(order))).toEqual([
       ['operations', ['checkin', 'delivery_schedule', 'daily_report']],
-      ['sales', ['lost_sales', 'customers', 'route_planner']],
+      ['sales', ['lost_sales', 'customers', 'route_planner', 'holds']],
       ['home', ['dashboard']],
       ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet']],
       ['accounting', ['freight']],

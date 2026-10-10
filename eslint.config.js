@@ -58,6 +58,14 @@ export default defineConfig([
       // browser bundle.
       'src/utils/runWorkbookParse.js',
       'src/utils/workbookParseWorker.js',
+      // Shared API plumbing and Cart & Holds' server half. holdRules.js,
+      // permissions.js and schemas.js are left out: the screens import them.
+      'src/server/**/*.js',
+      'src/holds/router.js',
+      'src/holds/models.js',
+      'src/holds/expiry.js',
+      'src/holds/holdPdf.js',
+      'src/holds/*.test.js',
     ],
     languageOptions: {
       globals: { ...globals.node },

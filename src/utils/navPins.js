@@ -13,6 +13,8 @@
  * deliberately, not while moving them.
  */
 
+import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions.js';
+
 const has = (user, perm) => !!user?.permissions?.includes(perm);
 const isAdmin = (user) => user?.role === 'admin';
 
@@ -21,7 +23,9 @@ export const NAV_SECTIONS = [
   { id: 'sales', label: 'Sales' },
   { id: 'operations', label: 'Operations' },
   { id: 'products', label: 'Products' },
-  { id: 'accounting', label: 'Accounting' },
+  // Opens its panel even with one page in it: more Accounting pages are
+  // coming (owner, 2026-10-10), so it shouldn't behave like a one-page link.
+  { id: 'accounting', label: 'Accounting', keepPanel: true },
   { id: 'admin', label: 'Admin' }
 ];
 
@@ -30,6 +34,8 @@ export const NAV_ITEMS = [
   { id: 'customers', label: 'Customers', section: 'sales', canSee: (u) => has(u, 'view_customers') },
   // Granted deliberately under Users & Roles, so the permission is the only key.
   { id: 'route_planner', label: 'Route Planner', section: 'sales', canSee: (u) => has(u, 'view_route_planner') },
+  // Holds (src/holds/): any of the three "whose holds" switches opens it.
+  { id: 'holds', label: 'Holds', section: 'sales', canSee: (u) => HOLD_VIEW_PERMISSIONS.some((p) => has(u, p)) },
   {
     id: 'lost_sales', label: 'Lost Sales', section: 'sales',
     canSee: (u) => has(u, 'view_lost_sales') || has(u, 'manage_lost_sales') || isAdmin(u) || !u
@@ -142,6 +148,14 @@ export const railSections = (user, order = null) =>
     .filter((section) => section.items.length > 0 || section.id === 'home');
 
 export const sectionOf = (tabId) => navItem(tabId)?.section || null;
+
+/**
+ * A section with a single page (Admin for most people) skips its panel on
+ * desktop: a rail click opens the page itself. Home never does (the pins
+ * live there), nor does a section marked keepPanel (Accounting).
+ */
+export const isOnePageSection = (section) =>
+  !!section && section.id !== 'home' && !section.keepPanel && section.items.length === 1;
 
 /**
  * A saved pin list cleaned up: known page ids only, no repeats, at most

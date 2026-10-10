@@ -55,6 +55,10 @@ import { useCustomerOptions, refreshCustomers, addCustomerRecord } from '../api/
 import { toCustomerOptions } from '../utils/customerOptions';
 
 import ErrorBoundary from '../components/shared/ErrorBoundary';
+import CartDrawer, { CartToast } from '../components/sales/holds/CartDrawer';
+import { cartActions } from '../components/sales/holds/cartStore';
+import { openHoldLink } from '../components/sales/holds/holdLink';
+import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions';
 
 // This page eagerly imported every tab it can show — Route Planner's Google
 // Maps code, Users & Roles, Price List, all of it — into one bundle loaded
@@ -75,6 +79,7 @@ const InventoryAnalysisTab = lazyRetry(() => import('../components/sales/Invento
 const DeliveryScheduleTab = lazyRetry(() => import('../components/sales/DeliveryScheduleTab'));
 const DailyReportTab = lazyRetry(() => import('../components/sales/dailyreport/DailyReportTab'));
 const FreightTab = lazyRetry(() => import('../components/sales/freight/FreightTab'));
+const HoldsTab = lazyRetry(() => import('../components/sales/holds/HoldsTab'));
 
 // One small, inline fallback rather than a full-page spinner — App.jsx's
 // <PageLoader/> is sized for a blank page, and using it here would flash the
@@ -345,6 +350,12 @@ const SalesPage = () => {
         // Without this, only the importer's own browser (via the modal's
         // onComplete callback) ever saw the new data — everyone else's open
         // Inventory Analysis tab stayed on the pre-import snapshot.
+        // Slabs held, released or carted by anyone (src/holds/router.js):
+        // the cart and any screen showing slab locks refresh.
+        socket.on('slab_reservations_changed', (payload) => {
+            cartActions.reservationsChanged(payload?.slabKeys || []);
+        });
+
         socket.on('inventory_analysis_update', () => {
             // Forget remembered Inventory Analysis answers even while that tab
             // isn't open, so the next visit shows the new import, not the old.
@@ -548,12 +559,21 @@ const SalesPage = () => {
         newUrl.searchParams.set('tab', tabName);
         newUrl.searchParams.delete('customer');
         newUrl.searchParams.delete('view');
+        newUrl.searchParams.delete('hold');
         window.history.pushState({ tab: tabName }, '', newUrl);
 
         if (isMobile) {
             setIsSidebarOpen(false);
         }
     };
+
+    // The cart's "Hold #12 created · Open hold": that hold's page, for anyone
+    // who may see holds (src/components/sales/holds/holdLink.js).
+    const canSeeHolds = HOLD_VIEW_PERMISSIONS.some((p) => currentUser?.permissions?.includes(p));
+    const openHoldFromCart = canSeeHolds ? (holdId) => {
+        handleCrmTabChange('holds');
+        openHoldLink(String(holdId));
+    } : undefined;
 
     const fetchCheckIns = useCallback(async (silent = false) => {
         const seq = ++checkInListSeq.current;
@@ -3312,6 +3332,10 @@ const SalesPage = () => {
                 navOrder={navOrder}
             />
 
+            {/* The cart drawer (opened from the side rail) and its "added · Open cart" bar. */}
+            <CartDrawer user={currentUser} onOpenHold={openHoldFromCart} />
+            <CartToast onOpenHold={openHoldFromCart} />
+
             {/* Main Content */}
             <div
                 className={`sales-main ${isChatFullScreen ? 'full-screen' : ''} ${!isSidebarOpen ? 'full-width' : ''}`}
@@ -3454,6 +3478,20 @@ const SalesPage = () => {
                                 locationsList={locations || []}
                                 sidebarToggle={sidebarToggle}
                             />
+                        </Suspense>
+                        </ErrorBoundary>
+                    );
+                })()}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'holds' && canSeeHolds && (() => {
+                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+                    ) : null;
+
+                    return (
+                        <ErrorBoundary key="holds-view">
+                        <Suspense fallback={<TabLoader />}>
+                            <HoldsTab currentUser={currentUser} sidebarToggle={sidebarToggle} />
                         </Suspense>
                         </ErrorBoundary>
                     );

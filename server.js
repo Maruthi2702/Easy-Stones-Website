@@ -88,6 +88,9 @@ import createAccountingRouter from './src/accounting/router.js';
 import { createFreightSync } from './src/accounting/sync.js';
 import { setDeliveriesChangedHandler } from './src/accounting/hooks.js';
 import { ALL_ACCOUNTING_PERMISSIONS } from './src/accounting/permissions.js';
+import createHoldsRouter from './src/holds/router.js';
+import { createHoldExpiry } from './src/holds/expiry.js';
+import { ALL_HOLD_PERMISSIONS } from './src/holds/permissions.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
@@ -597,7 +600,8 @@ async function startServer() {
             'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures',
             'add_visits', 'edit_own_visits', 'delete_own_visits',
             'view_all_visits', 'edit_all_visits', 'delete_all_visits',
-            ...ALL_ACCOUNTING_PERMISSIONS
+            ...ALL_ACCOUNTING_PERMISSIONS,
+            ...ALL_HOLD_PERMISSIONS
           ],
           isSystem: true
         },
@@ -748,7 +752,10 @@ async function startServer() {
         // Accounting (src/accounting/permissions.js): admin only to start with.
         // Every action is its own switch; an admin hands each one to the roles
         // that need it under Users & Roles.
-        { roles: ['admin'], permissions: [...ALL_ACCOUNTING_PERMISSIONS] }
+        { roles: ['admin'], permissions: [...ALL_ACCOUNTING_PERMISSIONS] },
+        // Cart & Holds (src/holds/permissions.js, 2026-10-10): admin only to
+        // start with; other roles get each switch under Users & Roles.
+        { roles: ['admin'], permissions: [...ALL_HOLD_PERMISSIONS] }
       ];
 
       // Each grant reaches a role once. Its permissions are recorded in
@@ -848,6 +855,10 @@ async function startServer() {
       // Accounting's freight catch-up: now, then every 10 minutes.
       reconcileFreight();
       setInterval(reconcileFreight, 10 * 60 * 1000).unref();
+
+      // Holds: note what expired, free slabs 7 days after expiry — now, then every 5 minutes.
+      runHoldExpiry();
+      setInterval(runHoldExpiry, 5 * 60 * 1000).unref();
 
       // A day nobody signed off is closed out at 11:59 PM on the branch's own
       // clock, so the figures stop being editable once the day is over.
@@ -4625,6 +4636,25 @@ const reconcileFreight = async () => {
     console.error('[accounting] freight catch-up failed:', err?.message || err);
   } finally {
     freightReconcileRunning = false;
+  }
+};
+
+// Cart & Holds (src/holds/) — each person's slab cart and numbered holds that
+// reserve slabs for a customer. Every route checks its own Users & Roles
+// permission; one active hold per slab is enforced by a unique index.
+app.use('/api/holds', createHoldsRouter({ authenticate }));
+const holdExpiry = createHoldExpiry({ io: { emit: (...args) => app.get('io')?.emit(...args) } });
+let holdExpiryRunning = false;
+const runHoldExpiry = async () => {
+  if (holdExpiryRunning) return;
+  holdExpiryRunning = true;
+  try {
+    const r = await holdExpiry.run();
+    if (r.noted || r.released) console.log('[holds] expiry:', r);
+  } catch (err) {
+    console.error('[holds] expiry run failed:', err?.message || err);
+  } finally {
+    holdExpiryRunning = false;
   }
 };
 

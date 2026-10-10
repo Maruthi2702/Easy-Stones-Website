@@ -14,15 +14,10 @@ import { splitInventoryLocations, defaultInventoryLocations } from '../../utils/
 import Pagination from '../shared/Pagination';
 import { usePagination } from '../shared/paginationConfig';
 import InventoryImportModal from './InventoryImportModal';
-import { SLAB_STATUS_BUCKET as statusBucket } from '../../utils/inventoryStatus';
+import { fmtMoney, fmtNum, ageDays, STATUS_ORDER, STATUS_LABEL, dominantStatus } from './inventoryFormat';
+import InventorySlabList from './InventorySlabList';
+import { CART, can } from '../../holds/permissions';
 import './InventoryAnalysisTab.css';
-
-const fmtMoney = (n) => `$${Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-const fmtNum = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 1 });
-// Rates keep their cents, unlike the whole-dollar extended amounts: a lot
-// priced at $12.94/SF vs $13/SF is a real difference once it's multiplied by
-// a few hundred feet, and this figure exists to be quoted from directly.
-const fmtRate = (n) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Matches the $bucket boundaries in GET /api/inventory-analysis/summary.
 // $bucket omits empty buckets from its output entirely, so buckets are
@@ -37,36 +32,6 @@ const AGING_BOUNDARIES = [
   { min: 180, label: '181–365 days' },
   { min: 365, label: '365+ days' }
 ];
-
-const ageDays = (dateStr) => {
-  if (!dateStr) return null;
-  const diff = Date.now() - new Date(dateStr).getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
-};
-
-// Matches SLAB_STATUS_BUCKET (src/utils/inventoryStatus.js), which
-// generalizes SPS's raw slabStatus strings into these four buckets (plus
-// "other" for anything unrecognized) so the UI never has to special-case
-// SPS's literal codes.
-// Ordered roughly by how far along the outbound path a slab is — available,
-// then spoken for, then being staged to leave, then gone — so the proportional
-// status bar reads left-to-right as progress rather than an arbitrary order.
-const STATUS_ORDER = ['available', 'hold', 'so', 'pickticket', 'packinglist', 'transfer', 'other'];
-const STATUS_LABEL = {
-  available: 'Available',
-  hold: 'Hold',
-  so: 'On SO',
-  pickticket: 'Pick Ticket',
-  packinglist: 'Packing List',
-  transfer: 'Transfer',
-  other: 'Other'
-};
-
-const dominantStatus = (counts) => {
-  const present = STATUS_ORDER.filter(k => counts[k] > 0);
-  if (!present.length) return null;
-  return present.reduce((best, k) => (counts[k] > counts[best] ? k : best), present[0]);
-};
 
 // Fetched once per session and kept (src/api/inventoryAnalysisCache.js) until an
 // import, so returning to this tab paints at once instead of loading again.
@@ -154,6 +119,8 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // permission, so this flag only controls whether the UI bothers to render
   // the column/card at all.
   const canViewPrices = userPermissions.includes('view_inventory_prices');
+  // The cart column on slab rows (Cart & Holds, src/holds/).
+  const canUseCart = can(currentUser, CART.USE);
 
   // Shared by fetchSummary and fetchItems so the summary cards/aging panel
   // always reflect the same search/category/location/status the Stock Detail
@@ -611,47 +578,12 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                                   <button type="button" className="invan-slabs-retry" onClick={() => fetchSlabsForProduct(g.product)}>Retry</button>
                                 </div>
                               ) : slabState?.items?.length ? (
-                                <div className="invan-slabs">
-                                  <div className={`invan-slab-head desktop-only${canViewPrices ? '' : ' no-price'}`}>
-                                    <span className="sa-sp"></span>
-                                    <span className="sa-serial">Serial#</span>
-                                    <span className="sa-dims">Dimensions</span>
-                                    <span className="sa-loc">Location</span>
-                                    <span className="sa-onhand">On Hand</span>
-                                    {canViewPrices && <span className="sa-landed">Landed Cost</span>}
-                                    <span className="sa-recv">Received</span>
-                                    <span className="sa-age">Age</span>
-                                    <span className="sa-status">Status</span>
-                                  </div>
-                                  {slabState.items.map(s => {
-                                    const sAge = ageDays(s.receivedDate);
-                                    const sBucket = statusBucket(s.slabStatus);
-                                    return (
-                                      <div key={s._id} className={`invan-slab-row${canViewPrices ? '' : ' no-price'}`}>
-                                        <span className="sa-sp"></span>
-                                        <span className="sa-serial invan-slab-serial">{s.serialNumber || '—'}</span>
-                                        <span className="sa-dims">{s.dimensions || '—'}</span>
-                                        <span className="sa-loc invan-slab-loc" title={s.location}>{s.location || '—'}</span>
-                                        <span className="sa-onhand num">{fmtNum(s.instockQty)}<span className="unit">{s.units}</span></span>
-                                        {/* Rate and slab total in one cell: they're the same
-                                            fact at two scales, and quoting means reading
-                                            them together rather than across the row. */}
-                                        {canViewPrices && (
-                                          <span className="sa-landed num">
-                                            {fmtRate(s.unitLandedCost)}<span className="unit">/{s.units || 'ea'}</span>
-                                            <span className="invan-slab-total">{fmtMoney(s.assetValue)}</span>
-                                          </span>
-                                        )}
-                                        <span className="sa-recv num">{s.receivedDate ? new Date(s.receivedDate).toLocaleDateString() : '—'}</span>
-                                        <span className={`sa-age num${sAge !== null && sAge > 365 ? ' invan-age-old' : ''}`}>{sAge !== null ? `${sAge}d` : '—'}</span>
-                                        <span className="sa-status"><span className={`invan-status-pill ${sBucket}`}>{STATUS_LABEL[sBucket]}</span></span>
-                                      </div>
-                                    );
-                                  })}
-                                  {slabState.total > slabState.items.length && (
-                                    <div className="invan-slabs-status">Showing {slabState.items.length} of {slabState.total} slabs.</div>
-                                  )}
-                                </div>
+                                <InventorySlabList
+                                  items={slabState.items}
+                                  total={slabState.total}
+                                  canViewPrices={canViewPrices}
+                                  canUseCart={canUseCart}
+                                />
                               ) : slabState ? (
                                 <div className="invan-slabs-status">No slabs found for this product under the current filters.</div>
                               ) : null}

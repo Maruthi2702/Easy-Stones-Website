@@ -1,0 +1,82 @@
+/*
+ * The hold letter's print preview (HoldPrintPreview.jsx): a full-screen layer
+ * over the app with the letter's pages on a grey desk. Dark by default, light
+ * under body.light-theme-active; the pages themselves are always paper white.
+ * Below the form layer (FormModal, 2147483647) — nothing opens on top of it.
+ */
+.hp {
+  --hp-bar: #17191e;
+  --hp-desk: #2a2d33;
+  --hp-text: #e8eaed;
+  --hp-muted: #9aa3af;
+  --hp-line: rgba(255, 255, 255, 0.1);
+  --hp-btn: #23262d;
+  --hp-btn-bd: rgba(255, 255, 255, 0.16);
+  --hp-gold: #d4af37;
+  --hp-gold-bd: #bf9b2a;
+  --hp-on-gold: #1a1505;
+  position: fixed;
+  inset: 0;
+  z-index: 2147482000;
+  display: flex;
+  flex-direction: column;
+  background: var(--hp-desk);
+  color: var(--hp-text);
+  font-size: 14px;
+}
+body.light-theme-active .hp {
+  --hp-bar: #ffffff;
+  --hp-desk: #e5e7eb;
+  --hp-text: #0f172a;
+  --hp-muted: #5a6574;
+  --hp-line: #e3e6ea;
+  --hp-btn: #ffffff;
+  --hp-btn-bd: #d6dae0;
+  --hp-gold: #c9a227;
+  --hp-gold-bd: #a88515;
+  --hp-on-gold: #1f1a08;
+}
+.hp *, .hp *::before, .hp *::after { box-sizing: border-box; }
+
+.hp-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top)); background: var(--hp-bar); border-bottom: 1px solid var(--hp-line); flex: none; }
+.hp-title { flex: 1; min-width: 0; text-align: center; font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hp-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border: 1px solid var(--hp-btn-bd); border-radius: 10px; background: var(--hp-btn); color: var(--hp-text); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.hp-btn.primary { background: var(--hp-gold); border-color: var(--hp-gold-bd); color: var(--hp-on-gold); font-weight: 700; }
+.hp-btn:disabled { opacity: 0.5; cursor: progress; }
+.hp-btn:focus-visible, .hp-close:focus-visible, .hp-opt input:focus-visible { outline: 2px solid var(--hp-gold); outline-offset: 2px; }
+/* The form template's red ✕. */
+.hp-close { width: 36px; height: 36px; border: 0; border-radius: 50%; background: #ef4444; color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none; }
+.hp-close:hover { background: #dc2626; }
+
+.hp-opts { display: flex; flex-wrap: wrap; gap: 6px 20px; padding: 10px 16px; background: var(--hp-bar); border-bottom: 1px solid var(--hp-line); flex: none; }
+.hp-opt { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; font-size: 14px; cursor: pointer; user-select: none; }
+.hp-opt input { width: 18px; height: 18px; margin: 0; accent-color: #a07c10; cursor: pointer; }
+.hp-opt.implied { color: var(--hp-muted); cursor: default; }
+
+.hp-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 24px 16px calc(40px + env(safe-area-inset-bottom)); position: relative; }
+.hp-scroll::-webkit-scrollbar { display: none; }
+.hp-pages { display: flex; flex-direction: column; align-items: center; gap: 20px; transition: opacity 0.15s; }
+.hp-pages.is-busy { opacity: 0.55; }
+.hp-page { display: block; width: min(816px, 100%); height: auto; background: #fff; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3); }
+.hp-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--hp-gold); }
+.hp-spin { animation: hp-spin 0.9s linear infinite; }
+@keyframes hp-spin { to { transform: rotate(360deg); } }
+.hp-error { display: flex; gap: 10px; align-items: center; max-width: 816px; margin: 0 auto 16px; padding: 12px 14px; border-radius: 12px; background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.35); color: #fca5a5; }
+body.light-theme-active .hp-error { background: #fdecec; border-color: #f3c9c4; color: #b42318; }
+
+/* Off-screen frame the PDF prints from (desktop Chrome, Edge, Firefox). */
+.hp-print-frame { position: fixed; right: 0; bottom: 0; width: 1px; height: 1px; border: 0; opacity: 0; pointer-events: none; }
+
+@media (max-width: 639px) {
+  .hp-bar { padding-left: 12px; padding-right: 12px; gap: 8px; }
+  .hp-label { display: none; }
+  .hp-btn { height: 44px; }
+  .hp-opts { padding: 8px 12px; gap: 2px 16px; }
+  .hp-opt { min-height: 36px; font-size: 13.5px; }
+  .hp-scroll { padding: 12px 8px calc(28px + env(safe-area-inset-bottom)); }
+  .hp-pages { gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-spin { animation: none; }
+  .hp-pages { transition: none; }
+}
