@@ -604,3 +604,32 @@ body.light-theme-active .sales-sidebar.side-nav {
     height: 40px;
   }
 }
+
+/* Desktop: the panel is a fly-out over the page (CustomerSidebar.jsx,
+   flyoutOpen) rather than a column beside it, so opening it never narrows the
+   page. The nav itself stays the rail's width; the panel hangs off its right
+   edge, above the page (the nav is z-index 95 in SalesPage.css). */
+@media (min-width: 1025px) {
+  .sales-sidebar.side-nav .side-nav-panel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 100%;
+    border-right: 1px solid var(--sn-border);
+    box-shadow: 12px 0 32px rgba(0, 0, 0, 0.28);
+    animation: side-nav-flyout-in 0.14s ease-out;
+  }
+
+  body.light-theme-active .sales-sidebar.side-nav .side-nav-panel {
+    box-shadow: 12px 0 32px rgba(15, 23, 42, 0.12);
+  }
+}
+
+@keyframes side-nav-flyout-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sales-sidebar.side-nav .side-nav-panel { animation: none; }
+}

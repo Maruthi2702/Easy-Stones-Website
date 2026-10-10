@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, User, Clock, Truck, Map as MapIcon, ClipboardList, Tag, TrendingDown, ArrowLeftRight, Boxes,
-    Users, Briefcase, Warehouse, Layers, Shield, Home, Pin, PinOff, PanelLeftClose, PanelLeftOpen, X,
+    Users, Briefcase, Warehouse, Layers, Shield, Home, Pin, PinOff, PanelLeftClose, X,
     Sun, Moon, LogOut, UserCheck, ArrowUpDown
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -31,16 +31,6 @@ const SECTION_ICONS = {
     operations: Warehouse,
     products: Layers,
     admin: Shield
-};
-
-// Desktop only: the sub-panel can be hidden, leaving just the section rail.
-const PANEL_HIDDEN_KEY = 'sideNavPanelHidden';
-const readPanelHidden = () => {
-    try {
-        return localStorage.getItem(PANEL_HIDDEN_KEY) === '1';
-    } catch {
-        return false;
-    }
 };
 
 // New staff: until someone pins a page or taps "Got it", the pin buttons
@@ -96,7 +86,13 @@ const CustomerSidebar = ({
     const pinsFull = (pinnedTabs || []).length >= MAX_PINNED_TABS;
     const currentSection = sectionOf(crmTab);
 
-    const [panelHidden, setPanelHidden] = useState(readPanelHidden);
+    // Desktop: the panel is a fly-out over the page, not a column beside it.
+    // A section on the rail opens it; picking a page, clicking outside it or
+    // Esc closes it, so every page keeps its full width (2026-10-09 — it
+    // used to stay docked until "Hide panel", squeezing wide tables like the
+    // Check-In Log). Phones and tablets keep their drawer (isMobile).
+    const [flyoutOpen, setFlyoutOpen] = useState(false);
+    const navRef = useRef(null);
     const [viewSection, setViewSection] = useState(currentSection);
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
@@ -109,12 +105,20 @@ const CustomerSidebar = ({
     }
 
     useEffect(() => {
-        try {
-            localStorage.setItem(PANEL_HIDDEN_KEY, panelHidden ? '1' : '0');
-        } catch {
-            // storage unavailable — the panel just won't remember being hidden
-        }
-    }, [panelHidden]);
+        if (isMobile || !flyoutOpen) return undefined;
+        const onDown = (e) => {
+            if (navRef.current && !navRef.current.contains(e.target)) setFlyoutOpen(false);
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') setFlyoutOpen(false);
+        };
+        document.addEventListener('mousedown', onDown);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('mousedown', onDown);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, [flyoutOpen, isMobile]);
 
     useEffect(() => {
         if (!menuOpen) return undefined;
@@ -139,10 +143,11 @@ const CustomerSidebar = ({
     // you're already on, so on desktop it's just the rail. Home always keeps
     // its panel (the pins), and the mobile drawer always needs one.
     const onePageSection = !!shownSection && shownSection.id !== 'home' && shownSection.items.length === 1;
-    const showPanel = isMobile || (!panelHidden && !onePageSection);
+    const showPanel = isMobile || (flyoutOpen && !onePageSection);
 
     const go = (tab) => {
         setMenuOpen(false);
+        setFlyoutOpen(false);
         handleCrmTabChange(tab); // also closes the drawer on mobile
     };
 
@@ -154,7 +159,9 @@ const CustomerSidebar = ({
             go(section.items[0].id);
             return;
         }
-        if (!isMobile && panelHidden) setPanelHidden(false);
+        if (isMobile) return;
+        // The open section's icon again closes it; another section switches.
+        setFlyoutOpen(open => !(open && viewSection === section.id));
     };
 
     const handleLogout = async () => {
@@ -222,6 +229,7 @@ const CustomerSidebar = ({
 
     return (
         <nav
+            ref={navRef}
             aria-label="Main"
             className={`sales-sidebar side-nav${!isSidebarOpen ? ' closed' : ''}${showPanel ? '' : ' panel-hidden'}`}
         >
@@ -239,6 +247,7 @@ const CustomerSidebar = ({
                                 type="button"
                                 className={`side-nav-section${isCurrent ? ' is-current' : ''}${isViewing ? ' is-viewing' : ''}`}
                                 onClick={() => openSection(section)}
+                                aria-expanded={!isMobile && (section.id === 'home' || section.items.length > 1) ? isViewing : undefined}
                                 title={section.id !== 'home' && section.items.length === 1 ? section.items[0].label : section.label}
                             >
                                 <span className="side-nav-section-icon"><Icon size={20} /></span>
@@ -247,18 +256,6 @@ const CustomerSidebar = ({
                         );
                     })}
                 </div>
-
-                {!showPanel && panelHidden && (
-                    <button
-                        type="button"
-                        className="side-nav-icon-btn"
-                        onClick={() => setPanelHidden(false)}
-                        aria-label="Show menu panel"
-                        title="Show menu panel"
-                    >
-                        <PanelLeftOpen size={20} />
-                    </button>
-                )}
 
                 {user && (
                     <div className="side-nav-account" ref={menuRef}>
@@ -319,9 +316,9 @@ const CustomerSidebar = ({
                     <button
                         type="button"
                         className="side-nav-icon-btn side-nav-head-btn"
-                        onClick={() => { setPanelHidden(true); setMenuOpen(false); }}
-                        aria-label="Hide menu panel"
-                        title="Hide menu panel"
+                        onClick={() => { setFlyoutOpen(false); setMenuOpen(false); }}
+                        aria-label="Close menu panel"
+                        title="Close menu panel"
                     >
                         <PanelLeftClose size={18} />
                     </button>
