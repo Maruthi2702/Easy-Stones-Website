@@ -28,12 +28,18 @@
     white-space: nowrap;
 }
 
-/* Materials table: # | material | lot · slabs · size | remove */
+/* Materials table: # | material | lot · slabs · size · price / SF | remove */
 .ss-table { display: flex; flex-direction: column; gap: 10px; }
-.ss-row { display: grid; grid-template-columns: 28px minmax(0, 2.2fr) minmax(0, 3fr) 40px; gap: 10px; align-items: start; }
+.ss-row { display: grid; grid-template-columns: 28px minmax(0, 2.2fr) minmax(0, 4fr) 40px; gap: 10px; align-items: start; }
 .ss-row-head { font-size: 12px; font-weight: 700; color: var(--fm-mut); text-transform: uppercase; letter-spacing: 0.04em; }
 .ss-row-head > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ss-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ss-trio { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+
+/* Price per SF: "$" inside the box; its error, if any, under it. */
+.ss-price-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ss-price { position: relative; display: flex; align-items: center; }
+.ss-price-sign { position: absolute; left: 12px; font-size: 14px; font-weight: 600; color: var(--fm-mut); pointer-events: none; }
+.fm-input.ss-price-input { padding-left: 24px; font-variant-numeric: tabular-nums; }
 .ss-row-num { height: 42px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--fm-gold-tx); }
 .ss-row-mat { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .ss-add-row { align-self: flex-start; border-style: dashed; border-color: var(--fm-gold-bd); color: var(--fm-gold-tx); background: var(--fm-gold-soft); }
@@ -129,8 +135,13 @@ body.light-theme-active .ss-conflict > svg { color: #b45309; }
 .ss-conflict-body strong { color: var(--fm-tx); }
 .ss-conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
-/* Notes + the hold policy. */
+/* Notes + the hold policy. Internal notes first (left), printed notes next;
+   the internal box has a faint gold wash so it never reads as the customer's. */
+.ss-notes-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.ss-note-label { display: inline-flex; align-items: center; gap: 6px; }
+.ss-note-label svg { color: var(--fm-mut); }
 .fm-input.ss-notes { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.45; resize: vertical; font-family: inherit; }
+.fm-input.ss-notes-internal:not(:disabled) { background: var(--fm-gold-soft); border-color: var(--fm-gold-bd); }
 .ss-policy {
     display: flex;
     align-items: flex-start;
@@ -194,6 +205,67 @@ body.light-theme-active .ss-conflict > svg { color: #b45309; }
 }
 .ss-more-item:hover { background: var(--fm-hover); }
 
+/* Print / Email pop-ups: title + ✕, then one big button per choice. */
+.fm-confirm.ss-dialog { max-width: 420px; gap: 16px; padding: 20px; }
+.ss-dialog-head { display: flex; align-items: flex-start; gap: 12px; }
+.ss-dialog-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ss-dialog-sub { margin: 0; font-size: 13px; font-weight: 600; color: var(--fm-mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ss-dialog-x {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--fm-bd2);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--fm-mut);
+    cursor: pointer;
+}
+.ss-dialog-x:hover:not(:disabled) { background: var(--fm-hover); color: var(--fm-tx); }
+.ss-choices { display: flex; flex-direction: column; gap: 10px; }
+.ss-choice {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    min-height: 68px;
+    padding: 12px 16px;
+    border: 1px solid var(--fm-bd);
+    border-radius: 14px;
+    background: transparent;
+    color: var(--fm-tx);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.ss-choice:hover:not(:disabled) { background: var(--fm-hover); }
+.ss-choice:disabled { opacity: 0.6; cursor: not-allowed; }
+.ss-choice:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--fm-ring); }
+.ss-choice-icon {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--fm-bd2);
+    border-radius: 10px;
+    background: var(--fm-gold-soft);
+    color: var(--fm-gold-tx);
+}
+.ss-choice-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ss-choice-title { font-size: 16px; font-weight: 800; }
+.ss-choice-sub { font-size: 13px; font-weight: 600; color: var(--fm-mut); }
+.ss-choice-warn { color: #fbbf24; }
+body.light-theme-active .ss-choice-warn { color: #92400e; }
+.ss-choice-primary { background: var(--fm-gold); border-color: var(--fm-gold-bd); color: var(--fm-on-gold); }
+.ss-choice-primary:hover:not(:disabled) { background: var(--fm-gold); filter: brightness(1.05); }
+.ss-choice-primary .ss-choice-icon { background: rgba(0, 0, 0, 0.12); border-color: transparent; color: inherit; }
+.ss-choice-primary .ss-choice-sub { color: inherit; opacity: 0.75; }
+
 /* Tag cropper. */
 .fm-confirm.ss-cropper { max-width: 560px; }
 .ss-crop-stage { display: flex; justify-content: center; }
@@ -232,7 +304,7 @@ body.light-theme-active .ss-conflict > svg { color: #b45309; }
     align-items: center;
     justify-content: center;
 }
-.ss-card-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding-left: 34px; }
+.ss-card-trio { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding-left: 34px; }
 .ss-card-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ss-card-field > span { font-size: 10.5px; font-weight: 700; color: var(--fm-mut); text-transform: uppercase; letter-spacing: 0.05em; }
 .ss-add-card {
@@ -255,4 +327,10 @@ body.light-theme-active .ss-conflict > svg { color: #b45309; }
     .ss-card .ss-scan-btn { width: 32px; height: 32px; }
     .ss-card .ss-remove { width: 40px; height: 40px; border: 1px solid var(--fm-err-bd); background: var(--fm-err-bg); border-radius: 8px; }
     .ss-card .ss-remove-spacer { width: 0; }
+    .ss-card .fm-input.ss-price-input { padding-left: 22px; }
+    .ss-price-sign { left: 10px; font-size: 16px; }
+    .ss-notes-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    /* Print / Email pop-ups sit at the bottom like the template's sheets. */
+    .fm-confirm-backdrop:has(> .ss-dialog) { align-items: flex-end; padding: 0; }
+    .fm-confirm.ss-dialog { max-width: none; border-radius: 20px 20px 0 0; padding: 18px 16px calc(20px + env(safe-area-inset-bottom)); }
 }

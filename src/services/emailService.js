@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { DEFAULT_LETTERHEAD } from '../utils/locationForm.js';
+import { formatSheetPrice } from '../utils/selectionSheet.js';
 
 // The check-in emails below interpolate visitor-supplied fields (name, notes,
 // selections...) straight into HTML. The self check-in endpoint that produces
@@ -173,7 +174,9 @@ export async function sendCheckInAlertEmail(checkIn) {
 // 2. Send Selection Sheet Email
 // `letterhead` is the check-in's location's address/contact lines
 // (letterheadFor in src/utils/locationForm.js); without one it's the Kent address.
-export async function sendSelectionSheetEmail(checkIn, recipientEmail, letterhead = DEFAULT_LETTERHEAD) {
+// `showPrices` adds the Price / SF column — always on for the sales rep's
+// automatic copy, only on request for anyone else. Internal notes are never in it.
+export async function sendSelectionSheetEmail(checkIn, recipientEmail, letterhead = DEFAULT_LETTERHEAD, { showPrices = false } = {}) {
   const dateStr = new Date(checkIn.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 
   let selectionsHtml = '';
@@ -181,7 +184,7 @@ export async function sendSelectionSheetEmail(checkIn, recipientEmail, letterhea
   if (selections.length === 0) {
     selectionsHtml = `
       <tr>
-        <td colspan="5" style="padding: 12px 10px; text-align: center; color: #666; font-style: italic;">No selections registered.</td>
+        <td colspan="${showPrices ? 6 : 5}" style="padding: 12px 10px; text-align: center; color: #666; font-style: italic;">No selections registered.</td>
       </tr>
     `;
   } else {
@@ -193,6 +196,7 @@ export async function sendSelectionSheetEmail(checkIn, recipientEmail, letterhea
           <td style="padding: 10px; color: #555;">${escapeHtml(sel.lot) || 'N/A'}</td>
           <td style="padding: 10px; color: #555;">${escapeHtml(sel.details) || 'N/A'}</td>
           <td style="padding: 10px; color: #555;">${escapeHtml(sel.size) || 'N/A'}</td>
+          ${showPrices ? `<td style="padding: 10px; color: #222; font-weight: 600; text-align: right; white-space: nowrap;">${escapeHtml(formatSheetPrice(sel.priceCentsPerSf))}</td>` : ''}
         </tr>
       `;
     });
@@ -250,6 +254,7 @@ export async function sendSelectionSheetEmail(checkIn, recipientEmail, letterhea
             <th style="padding: 8px 10px; text-align: left; font-weight: bold; color: #475569;">Lot/Bundle Number</th>
             <th style="padding: 8px 10px; text-align: left; font-weight: bold; color: #475569;">Slab Numbers</th>
             <th style="padding: 8px 10px; text-align: left; font-weight: bold; color: #475569;">Size</th>
+            ${showPrices ? '<th style="padding: 8px 10px; text-align: right; font-weight: bold; color: #475569; white-space: nowrap;">Price / SF</th>' : ''}
           </tr>
         </thead>
         <tbody>
@@ -259,7 +264,7 @@ export async function sendSelectionSheetEmail(checkIn, recipientEmail, letterhea
       
       ${checkIn.specialNotes ? `
       <div style="background: #fff; border: 1px solid #eaeaea; border-radius: 12px; padding: 15px; margin-bottom: 20px;">
-        <h4 style="margin: 0 0 8px 0; color: #475569; font-size: 0.9rem;">Special Notes:</h4>
+        <h4 style="margin: 0 0 8px 0; color: #475569; font-size: 0.9rem;">Notes:</h4>
         <p style="margin: 0; color: #334155; font-size: 0.875rem; white-space: pre-wrap; line-height: 1.5;">${escapeHtml(checkIn.specialNotes)}</p>
       </div>
       ` : ''}

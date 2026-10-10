@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mail } from 'lucide-react';
+import { DollarSign, Mail, Printer, X } from 'lucide-react';
 
 /*
  * Dialogs that open on top of the Selection Sheet. They sit inside the
@@ -13,7 +13,8 @@ function Layer({ labelledBy, onClose, className = '', children }) {
     const ref = useRef(null);
     useEffect(() => {
         const el = ref.current;
-        (el?.querySelector('input:not([type="range"]), button') || el)?.focus({ preventScroll: true });
+        // The marked button first (Print's main choice), else the first box or button.
+        (el?.querySelector('[data-autofocus]') || el?.querySelector('input:not([type="range"]), button') || el)?.focus({ preventScroll: true });
     }, []);
     return (
         <div className="fm-confirm-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -33,13 +34,77 @@ function Layer({ labelledBy, onClose, className = '', children }) {
     );
 }
 
-export function EmailDialog({ initialTo = '', savesFirst = false, sending = false, error = '', onSend, onClose }) {
-    const [to, setTo] = useState(initialTo);
-    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim());
-    const send = () => { if (valid && !sending) onSend(to.trim()); };
+// Title, the customer and how many materials, and the ✕ — the only way to
+// close the Print and Email pop-ups (no Cancel: the ✕ already does that).
+function DialogHead({ id, title, sub, onClose, disabled }) {
     return (
-        <Layer labelledBy="ss-email-title" onClose={sending ? () => {} : onClose}>
-            <h3 className="fm-confirm-title" id="ss-email-title">Email selection sheet</h3>
+        <div className="ss-dialog-head">
+            <div className="ss-dialog-titles">
+                <h3 className="fm-confirm-title" id={id}>{title}</h3>
+                {sub && <p className="ss-dialog-sub">{sub}</p>}
+            </div>
+            <button type="button" className="ss-dialog-x" aria-label="Close" onClick={onClose} disabled={disabled}>
+                <X size={18} aria-hidden="true" />
+            </button>
+        </div>
+    );
+}
+
+const pricedLine = (summary) => (summary.missing
+    ? `${summary.missing} material${summary.missing === 1 ? ' has' : 's have'} no price (prints “—”)`
+    : 'Price / SF on each material');
+
+// One big button per choice; pressing it does the thing (no separate confirm).
+function Choice({ primary, icon, title, sub, warn, onClick, disabled, busy, autoFocus }) {
+    return (
+        <button type="button" className={`ss-choice${primary ? ' ss-choice-primary' : ''}`} onClick={onClick} disabled={disabled} aria-busy={busy ? 'true' : undefined} data-autofocus={autoFocus ? '' : undefined}>
+            <span className="ss-choice-icon" aria-hidden="true">{busy ? <span className="fm-spinner" /> : icon}</span>
+            <span className="ss-choice-text">
+                <span className="ss-choice-title">{title}</span>
+                {sub && <span className={`ss-choice-sub${warn ? ' ss-choice-warn' : ''}`}>{sub}</span>}
+            </span>
+        </button>
+    );
+}
+
+const materialsLine = (customer, summary) => [
+    customer,
+    summary.materials ? `${summary.materials} material${summary.materials === 1 ? '' : 's'}` : ''
+].filter(Boolean).join(' · ');
+
+/**
+ * Print, when at least one material has a price: without (the customer's
+ * copy, the main button) or with prices. With no prices on the sheet the
+ * form prints straight away and this never opens.
+ */
+export function PrintDialog({ customer = '', summary, onPrint, onClose }) {
+    return (
+        <Layer labelledBy="ss-print-title" onClose={onClose} className="ss-dialog">
+            <DialogHead id="ss-print-title" title="Print selection sheet" sub={materialsLine(customer, summary)} onClose={onClose} />
+            <div className="ss-choices">
+                <Choice primary autoFocus icon={<Printer size={20} />} title="Print without prices" sub="Customer copy" onClick={() => onPrint(false)} />
+                <Choice icon={<DollarSign size={20} />} title="Print with prices" sub={pricedLine(summary)} warn={summary.missing > 0} onClick={() => onPrint(true)} />
+            </div>
+        </Layer>
+    );
+}
+
+/**
+ * Email the sheet. "Send without prices" (the customer's copy) and, when a
+ * material has a price, "Send with prices" — each sends straight away.
+ */
+export function EmailDialog({ initialTo = '', customer = '', summary, savesFirst = false, sending = null, error = '', onSend, onClose }) {
+    const [to, setTo] = useState(initialTo);
+    const [tried, setTried] = useState(false);
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim());
+    const send = (withPrices) => {
+        setTried(true);
+        if (valid && !sending) onSend(to.trim(), withPrices);
+    };
+    const shownError = error || (tried && !valid ? 'Enter an email address like name@example.com' : '');
+    return (
+        <Layer labelledBy="ss-email-title" onClose={sending ? () => {} : onClose} className="ss-dialog">
+            <DialogHead id="ss-email-title" title="Email selection sheet" sub={materialsLine(customer, summary)} onClose={onClose} disabled={Boolean(sending)} />
             <div className="fm-field">
                 <label className="fm-label" htmlFor="ss-email-to">Send to<span className="fm-req" aria-hidden="true">*</span></label>
                 <input
@@ -52,18 +117,35 @@ export function EmailDialog({ initialTo = '', savesFirst = false, sending = fals
                     spellCheck={false}
                     value={to}
                     placeholder="customer@email.com"
-                    disabled={sending}
+                    disabled={Boolean(sending)}
+                    aria-invalid={shownError ? 'true' : undefined}
                     onChange={(e) => setTo(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send(false); } }}
                 />
-                {error && <span className="fm-error" role="alert">{error}</span>}
+                {shownError && <span className="fm-error" role="alert">{shownError}</span>}
             </div>
             {savesFirst && <p className="fm-confirm-text">Your unsaved changes are saved first, so the email matches what's on screen.</p>}
-            <div className="fm-confirm-actions">
-                <button type="button" className="fm-btn fm-btn-cancel" onClick={onClose} disabled={sending}>Cancel</button>
-                <button type="button" className="fm-btn fm-btn-primary" onClick={send} disabled={!valid || sending} aria-busy={sending ? 'true' : undefined}>
-                    {sending ? <><span className="fm-spinner" aria-hidden="true" />Sending…</> : <><Mail size={16} aria-hidden="true" />Send email</>}
-                </button>
+            <div className="ss-choices">
+                <Choice
+                    primary
+                    icon={<Mail size={20} />}
+                    title={sending === 'plain' ? 'Sending…' : (summary.any ? 'Send without prices' : 'Send email')}
+                    sub={summary.any ? 'Customer copy' : ''}
+                    busy={sending === 'plain'}
+                    disabled={Boolean(sending)}
+                    onClick={() => send(false)}
+                />
+                {summary.any && (
+                    <Choice
+                        icon={<DollarSign size={20} />}
+                        title={sending === 'priced' ? 'Sending…' : 'Send with prices'}
+                        sub={pricedLine(summary)}
+                        warn={summary.missing > 0}
+                        busy={sending === 'priced'}
+                        disabled={Boolean(sending)}
+                        onClick={() => send(true)}
+                    />
+                )}
             </div>
         </Layer>
     );

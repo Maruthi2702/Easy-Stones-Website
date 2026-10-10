@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, Check, Mail, MoreHorizontal, Plus, Printer, Trash2, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Check, Lock, Mail, MoreHorizontal, Plus, Printer, Trash2, X } from 'lucide-react';
 import FormModal from '../../shared/form/FormModal';
 import { FormField, FormPicker } from '../../shared/form/FormControls';
 import useIsPhone from '../../shared/form/useIsPhone';
@@ -9,10 +9,10 @@ import { formatInstant } from '../../../utils/dateUtils';
 import { letterheadFor } from '../../../utils/locationForm';
 import {
     SHEET_ROWS, emptyRow, sheetValuesFromCheckIn, countSheetChanges, sheetPayload,
-    salesRepOptions, buildSelectionSheetHtml
+    salesRepOptions, buildSelectionSheetHtml, tidyPrice, sheetPriceErrors, sheetPriceSummary, PRICE_ERROR
 } from '../../../utils/selectionSheet';
 import MaterialInput from './MaterialInput';
-import { EmailDialog, TagCropper } from './SheetDialogs';
+import { EmailDialog, PrintDialog, TagCropper } from './SheetDialogs';
 import { getCroppedImageBlob } from './tagImage';
 import { scanTag } from './scanTag';
 import './SelectionSheetForm.css';
@@ -23,9 +23,14 @@ import './SelectionSheetForm.css';
  * (claude.ai/artifact/VjjzPT6QRMaDWa3G9WVCCd).
  *
  *  - Desktop/tablet: visit details as read-only fields + Sales rep, a
- *    materials table, notes; Email · Print on the left of the footer.
- *  - Phones: just Sales rep, one thin card per material, notes, and Save at
- *    the end of the form (no footer); Email · Print under "…" in the header.
+ *    materials table (with an optional price per SF), internal notes beside
+ *    printed notes; Email · Print on the left of the footer.
+ *  - Phones: just Sales rep, one thin card per material, internal notes then
+ *    printed notes, and Save at the end of the form (no footer); Email ·
+ *    Print under "…" in the header.
+ *  - Print / Email: when a material has a price, a pop-up offers "…without
+ *    prices" (the customer's copy) or "…with prices"; each acts at once.
+ *    Internal notes are never printed or emailed.
  *
  * Rules (rows, change count, PUT body, who can be the rep, the print page)
  * are src/utils/selectionSheet.js. The PUT carries the updatedAt this sheet
@@ -53,7 +58,11 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
     const [scanning, setScanning] = useState(null); // { idx, progress }
     const [cropper, setCropper] = useState(null); // { idx, file, src }
     const [emailOpen, setEmailOpen] = useState(false);
-    const [sending, setSending] = useState(false);
+    const [printOpen, setPrintOpen] = useState(false);
+    const [sending, setSending] = useState(null); // null | 'plain' | 'priced'
+    // Rows whose price box has been left (or a save tried) — a price is only
+    // marked wrong after that, not while "12." is still being typed.
+    const [priceTouched, setPriceTouched] = useState({});
     const [emailError, setEmailError] = useState('');
     const [moreOpen, setMoreOpen] = useState(false);
     const fileRef = useRef(null);
@@ -61,6 +70,9 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
     const focusAfterAdd = useRef(null);
 
     const dirty = canEdit ? countSheetChanges(values, baseline) : 0;
+    const priceErrors = useMemo(() => sheetPriceErrors(values), [values]);
+    const priceSummary = useMemo(() => sheetPriceSummary(values), [values]);
+    const priceError = (i) => (priceTouched[i] ? priceErrors[i] || '' : '');
 
     useEffect(() => {
         let alive = true;
@@ -107,6 +119,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         if (scanning != null) return;
         touch();
         setNotices({});
+        setPriceTouched({});
         setValues((v) => {
             const rows = v.rows.filter((_, j) => j !== i);
             return { ...v, rows: rows.length ? rows : [emptyRow()] };
@@ -140,7 +153,10 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             setConflict(data.data);
             return 'conflict';
         }
-        if (!res.ok) throw new Error(data.message || 'Couldn’t save this sheet. Try again.');
+        // Our routes answer { message }, but sign-in and permission checks
+        // answer { error }, and an outage answers an HTML page — say which,
+        // so "try again" isn't the only clue.
+        if (!res.ok) throw new Error(data.message || data.error || `Couldn’t save this sheet (error ${res.status}). Try again.`);
         const saved = data.data || record;
         setRecord(saved);
         setValues(sheetValuesFromCheckIn(saved));
@@ -151,12 +167,27 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         return 'saved';
     };
 
+    // A price that can't be read would otherwise be saved as no price. → the
+    // first bad row's number, or 0 when every price is fine.
+    // (Not focused from the Email pop-up — the box is behind it.)
+    const firstBadPrice = ({ focus = true } = {}) => {
+        const bad = Object.keys(priceErrors).map(Number).sort((a, b) => a - b);
+        if (!bad.length) return 0;
+        setPriceTouched((t) => ({ ...t, ...Object.fromEntries(bad.map((i) => [i, true])) }));
+        if (focus) document.getElementById(`ss-price-${bad[0]}`)?.focus();
+        return bad[0] + 1;
+    };
+
     const save = async (expectedUpdatedAt = loadedAt) => {
         if (!canEdit || saving) return;
+        const bad = firstBadPrice();
+        if (bad) { setFormError(`${PRICE_ERROR} (item ${bad}).`); return; }
         setSaving(true);
         setFormError('');
         try {
-            if ((await persist(expectedUpdatedAt)) === 'saved') setNote('✓ Saved');
+            // Saved → done with this sheet: close it (the log refreshes via
+            // onSaved). A conflict or an error keeps it open with what's typed.
+            if ((await persist(expectedUpdatedAt)) === 'saved') onClose?.();
         } catch (err) {
             setFormError(err.message);
         } finally {
@@ -165,6 +196,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
     };
 
     const loadTheirs = () => {
+        setPriceTouched({});
         setRecord(conflict);
         setValues(sheetValuesFromCheckIn(conflict));
         setLoadedAt(conflict.updatedAt || null);
@@ -172,9 +204,13 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         setNotices({});
     };
 
-    const sendEmail = async (to) => {
-        setSending(true);
+    const sendEmail = async (to, withPrices) => {
         setEmailError('');
+        if (canEdit && dirty > 0) {
+            const bad = firstBadPrice({ focus: false });
+            if (bad) { setEmailError(`Fix the price on item ${bad} first. ${PRICE_ERROR}.`); return; }
+        }
+        setSending(withPrices ? 'priced' : 'plain');
         try {
             if (canEdit && dirty > 0) {
                 const result = await persist(loadedAt);
@@ -183,27 +219,38 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             const res = await authFetch(`${API_URL}/api/checkin/${record._id}/send-email`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: to })
+                body: JSON.stringify({ email: to, withPrices })
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) { setEmailError(data.message || 'Couldn’t send the email. Try again.'); return; }
+            if (!res.ok) { setEmailError(data.message || data.error || `Couldn’t send the email (error ${res.status}). Try again.`); return; }
             setEmailOpen(false);
-            setNote(`✓ Emailed to ${to}`);
+            setNote(`✓ Emailed to ${to}${withPrices ? ' with prices' : ''}`);
         } catch (err) {
             setEmailError(err.message || 'Couldn’t send the email. Try again.');
         } finally {
-            setSending(false);
+            setSending(null);
         }
     };
 
-    const print = () => {
-        setMoreOpen(false);
+    // What's on screen, saved or not. With prices, every price has to read.
+    const printSheet = (showPrices) => {
+        setPrintOpen(false);
+        if (showPrices) {
+            const bad = firstBadPrice();
+            if (bad) { setFormError(`${PRICE_ERROR} (item ${bad}).`); return; }
+        }
         const location = (Array.isArray(locations) ? locations : []).find((l) => l && typeof l === 'object' && l.name === record.location);
-        const html = buildSelectionSheetHtml({ checkIn: record, dateStr: formatInstant(record.createdAt), values, letterhead: letterheadFor(location) });
+        const html = buildSelectionSheetHtml({ checkIn: record, dateStr: formatInstant(record.createdAt), values, letterhead: letterheadFor(location), showPrices });
         const win = window.open('', '_blank', 'width=800,height=800');
         if (!win) { setFormError('Your browser blocked the print window. Allow pop-ups for this site, then try again.'); return; }
         win.document.write(html);
         win.document.close();
+    };
+    // No price anywhere → nothing to choose, so print straight away.
+    const print = () => {
+        setMoreOpen(false);
+        if (priceSummary.any) setPrintOpen(true);
+        else printSheet(false);
     };
 
     // ── Tag scanning: pick a photo → frame the tag → read it into the row ──
@@ -278,6 +325,35 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             onChange={(e) => setRow(i, { [key]: e.target.value })}
         />
     );
+    const priceInput = (row, i) => {
+        const err = priceError(i);
+        return (
+            <span className="ss-price-cell">
+                <span className="ss-price">
+                    <span className="ss-price-sign" aria-hidden="true">$</span>
+                    <input
+                        id={`ss-price-${i}`}
+                        className="fm-input no-capitalize ss-price-input"
+                        type="text"
+                        inputMode="decimal"
+                        aria-label={`Price per square foot, item ${i + 1}`}
+                        aria-invalid={err ? 'true' : undefined}
+                        aria-describedby={err ? `ss-price-${i}-msg` : undefined}
+                        value={row.price}
+                        placeholder="0.00"
+                        disabled={!canEdit}
+                        onChange={(e) => setRow(i, { price: e.target.value })}
+                        onBlur={(e) => {
+                            setPriceTouched((t) => ({ ...t, [i]: true }));
+                            const tidy = tidyPrice(e.target.value);
+                            if (tidy !== row.price) setRow(i, { price: tidy });
+                        }}
+                    />
+                </span>
+                {err && <span className="fm-error" id={`ss-price-${i}-msg`}><AlertCircle size={13} aria-hidden="true" />{err}</span>}
+            </span>
+        );
+    };
     const removeButton = (i) => (canEdit && values.rows.length > 1 ? (
         <button
             type="button"
@@ -407,7 +483,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                     <div className="ss-table">
                         <div className="ss-row ss-row-head" aria-hidden="true">
                             <span>#</span><span>Material</span>
-                            <span className="ss-trio"><span>Lot #</span><span>Slabs</span><span>Size</span></span>
+                            <span className="ss-trio"><span>Lot #</span><span>Slabs</span><span>Size</span><span>Price / SF</span></span>
                             <span />
                         </div>
                         {values.rows.map((row, i) => (
@@ -418,6 +494,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                                     {smallInput(row, i, 'lot', 'Lot or bundle number', '13845', 'numeric')}
                                     {smallInput(row, i, 'details', 'Slab numbers', '1, 2')}
                                     {smallInput(row, i, 'size', 'Size', '126 x 63')}
+                                    {priceInput(row, i)}
                                 </div>
                                 {removeButton(i)}
                             </div>
@@ -442,6 +519,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                                     <label className="ss-card-field"><span>Lot #</span>{smallInput(row, i, 'lot', 'Lot or bundle number', '—', 'numeric')}</label>
                                     <label className="ss-card-field"><span>Slabs</span>{smallInput(row, i, 'details', 'Slab numbers', '1, 2')}</label>
                                     <label className="ss-card-field"><span>Size</span>{smallInput(row, i, 'size', 'Size', '120×60')}</label>
+                                    <label className="ss-card-field"><span>Price / SF</span>{priceInput(row, i)}</label>
                                 </div>
                             </div>
                         ))}
@@ -453,17 +531,30 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             </section>
 
             <section className="fm-section">
-                <FormField name="specialNotes" id="ss-notes" label="Special notes">
-                    <textarea
-                        id="ss-notes"
-                        className="fm-input ss-notes"
-                        rows={4}
-                        value={values.specialNotes}
-                        placeholder="Special requests, delivery notes or details…"
-                        disabled={!canEdit}
-                        onChange={(e) => { touch(); setValues((v) => ({ ...v, specialNotes: e.target.value })); }}
-                    />
-                </FormField>
+                <div className="ss-notes-grid">
+                    <FormField name="internalNotes" id="ss-internal" label={<span className="ss-note-label"><Lock size={14} aria-hidden="true" />Internal notes</span>}>
+                        <textarea
+                            id="ss-internal"
+                            className="fm-input ss-notes ss-notes-internal"
+                            rows={4}
+                            value={values.internalNotes}
+                            placeholder="Staff only, never printed or sent to the customer…"
+                            disabled={!canEdit}
+                            onChange={(e) => { touch(); setValues((v) => ({ ...v, internalNotes: e.target.value })); }}
+                        />
+                    </FormField>
+                    <FormField name="specialNotes" id="ss-notes" label={<span className="ss-note-label"><Printer size={14} aria-hidden="true" />Printed notes</span>}>
+                        <textarea
+                            id="ss-notes"
+                            className="fm-input ss-notes"
+                            rows={4}
+                            value={values.specialNotes}
+                            placeholder="Shown on the printed and emailed sheet…"
+                            disabled={!canEdit}
+                            onChange={(e) => { touch(); setValues((v) => ({ ...v, specialNotes: e.target.value })); }}
+                        />
+                    </FormField>
+                </div>
                 <div className="ss-policy">
                     <AlertTriangle size={16} aria-hidden="true" />
                     <p>Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice to you or your fabricator.</p>
@@ -479,11 +570,21 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             {emailOpen && (
                 <EmailDialog
                     initialTo={record.email || ''}
+                    customer={record.name || ''}
+                    summary={priceSummary}
                     savesFirst={canEdit && dirty > 0}
                     sending={sending}
                     error={emailError}
                     onSend={sendEmail}
                     onClose={() => setEmailOpen(false)}
+                />
+            )}
+            {printOpen && (
+                <PrintDialog
+                    customer={record.name || ''}
+                    summary={priceSummary}
+                    onPrint={printSheet}
+                    onClose={() => setPrintOpen(false)}
                 />
             )}
             {cropper && <TagCropper src={cropper.src} onScan={runScan} onClose={() => setCropper(null)} />}

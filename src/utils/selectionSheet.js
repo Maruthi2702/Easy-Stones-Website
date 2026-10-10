@@ -4,16 +4,28 @@
  * and its tests. Pure functions only — no React, no network.
  *
  * A sheet is a check-in's sales rep, up to SHEET_ROWS material rows
- * (material / lot / slab numbers / size) and special notes; the record lives
- * on OfficeCheckIn and is saved with PUT /api/checkin/:id.
+ * (material / lot / slab numbers / size / price per SF), internal notes and
+ * printed notes; the record lives on OfficeCheckIn and is saved with
+ * PUT /api/checkin/:id.
+ *
+ * Who sees what (approved 2026-10-10):
+ *  - Price per SF: optional, typed like Holds' ("68", "$1,250.50"), stored
+ *    as whole cents (priceCentsPerSf). The printed sheet and the customer's
+ *    email show it only when someone picks "…with prices"; the sales rep's
+ *    automatic email always shows it.
+ *  - Printed notes (specialNotes): on every printed/emailed copy.
+ *  - Internal notes: staff only — never printed or emailed to anyone.
  */
+
+import { toCents, formatCents, centsToPlain } from '../accounting/money.js';
 
 export const SHEET_ROWS = 12;
 // How many rows a new or short sheet shows before anyone presses "Add".
 export const MIN_VISIBLE_ROWS = 3;
-export const ROW_FIELDS = ['material', 'lot', 'details', 'size'];
+export const ROW_FIELDS = ['material', 'lot', 'details', 'size', 'price'];
+export const PRICE_ERROR = 'Enter the price like 12.50';
 
-export const emptyRow = () => ({ material: '', lot: '', details: '', size: '' });
+export const emptyRow = () => ({ material: '', lot: '', details: '', size: '', price: '' });
 
 // A row is kept on save if *any* field is filled — a lot or slab numbers
 // typed before the material is known still count.
@@ -21,10 +33,52 @@ export const rowHasData = (row) => ROW_FIELDS.some((k) => String(row?.[k] || '')
 
 const str = (v) => (v === null || v === undefined ? '' : String(v));
 
+const isPriceCents = (c) => Number.isSafeInteger(c) && c > 0;
+
+/**
+ * A typed price per SF → whole cents. '' → null (no price). Anything that
+ * isn't a positive amount with at most two decimals → undefined.
+ */
+export const priceCentsOf = (typed) => {
+  const c = toCents(typed);
+  if (c === null) return null;
+  return isPriceCents(c) ? c : undefined;
+};
+
+/** "68" → "68.00", "$1,250.5" → "1250.50"; anything unreadable stays as typed. */
+export const tidyPrice = (typed) => {
+  const c = priceCentsOf(typed);
+  return c === undefined ? str(typed) : centsToPlain(c);
+};
+
+/** A stored price → what the printed sheet and emails show: "$68.00" or "—". */
+export const formatSheetPrice = (cents) => (isPriceCents(cents) ? formatCents(cents) : '—');
+
+/** { [row index]: message } for every price that can't be read. Empty = fine to save. */
+export const sheetPriceErrors = (values) => Object.fromEntries(
+  (values?.rows || [])
+    .map((r, i) => [i, priceCentsOf(r?.price) === undefined ? PRICE_ERROR : null])
+    .filter(([, msg]) => msg)
+);
+
+/**
+ * What the Print / Email pop-ups need: whether any material has a price
+ * (no price anywhere → no "with prices" choice at all) and how many filled
+ * rows would print "—".
+ */
+export const sheetPriceSummary = (values) => {
+  const rows = (values?.rows || []).filter(rowHasData);
+  const priced = rows.filter((r) => isPriceCents(priceCentsOf(r.price))).length;
+  return { materials: rows.length, priced, missing: rows.length - priced, any: priced > 0 };
+};
+
 /** A check-in → the form's values. */
 export const sheetValuesFromCheckIn = (checkIn = {}) => {
   const saved = (Array.isArray(checkIn.selections) ? checkIn.selections : [])
-    .map((r) => ({ material: str(r?.material), lot: str(r?.lot), details: str(r?.details), size: str(r?.size) }))
+    .map((r) => ({
+      material: str(r?.material), lot: str(r?.lot), details: str(r?.details), size: str(r?.size),
+      price: isPriceCents(r?.priceCentsPerSf) ? centsToPlain(r.priceCentsPerSf) : ''
+    }))
     .filter(rowHasData)
     .slice(0, SHEET_ROWS);
   const rows = [...saved];
@@ -35,17 +89,22 @@ export const sheetValuesFromCheckIn = (checkIn = {}) => {
     builderName: str(checkIn.builderName),
     builderPhone: str(checkIn.builderPhone),
     rows,
+    internalNotes: str(checkIn.internalNotes),
     specialNotes: str(checkIn.specialNotes)
   };
 };
 
-// What a save would send, normalized so two snapshots compare field by field.
+// What a save would send, normalized so two snapshots compare field by field
+// ("68" and "68.00" are the same price).
+const comparableField = (r, k) => {
+  if (k !== 'price') return str(r[k]).trim();
+  const c = priceCentsOf(r.price);
+  return c === undefined ? str(r.price).trim() : str(c);
+};
+const NOTE_FIELDS = ['salesRep', 'builderName', 'builderPhone', 'internalNotes', 'specialNotes'];
 const comparable = (v) => ({
-  salesRep: str(v.salesRep).trim(),
-  builderName: str(v.builderName).trim(),
-  builderPhone: str(v.builderPhone).trim(),
-  specialNotes: str(v.specialNotes).trim(),
-  rows: (v.rows || []).filter(rowHasData).map((r) => ROW_FIELDS.map((k) => str(r[k]).trim()))
+  ...Object.fromEntries(NOTE_FIELDS.map((k) => [k, str(v[k]).trim()])),
+  rows: (v.rows || []).filter(rowHasData).map((r) => ROW_FIELDS.map((k) => comparableField(r, k)))
 });
 
 /** How many fields differ — the number the unsaved-changes check reports. */
@@ -53,7 +112,7 @@ export const countSheetChanges = (values, initial) => {
   if (!values || !initial) return 0;
   const a = comparable(values);
   const b = comparable(initial);
-  let n = ['salesRep', 'builderName', 'builderPhone', 'specialNotes'].filter((k) => a[k] !== b[k]).length;
+  let n = NOTE_FIELDS.filter((k) => a[k] !== b[k]).length;
   for (let i = 0; i < Math.max(a.rows.length, b.rows.length); i++) {
     n += ROW_FIELDS.filter((_, f) => (a.rows[i]?.[f] || '') !== (b.rows[i]?.[f] || '')).length;
   }
@@ -62,21 +121,62 @@ export const countSheetChanges = (values, initial) => {
 
 /**
  * The PUT body. `expectedUpdatedAt` is the check-in's updatedAt when the
- * sheet was loaded — the server answers 409 if someone saved since.
+ * sheet was loaded — the server answers 409 if someone saved since. Prices
+ * go as whole cents; check sheetPriceErrors first (an unreadable one would
+ * be sent as no price).
  */
 export const sheetPayload = (values, expectedUpdatedAt) => ({
   builderName: str(values.builderName),
   builderPhone: str(values.builderPhone),
   salesRep: str(values.salesRep),
   salesRepEmail: str(values.salesRepEmail),
+  internalNotes: str(values.internalNotes),
   specialNotes: str(values.specialNotes),
   selections: (values.rows || []).filter(rowHasData).map((r) => ({
     material: str(r.material).trim().toUpperCase(),
     lot: str(r.lot).trim(),
     details: str(r.details).trim(),
-    size: str(r.size).trim()
+    size: str(r.size).trim(),
+    priceCentsPerSf: priceCentsOf(r.price) ?? null
   })),
   ...(expectedUpdatedAt ? { expectedUpdatedAt } : {})
+});
+
+/**
+ * The server's read of a PUT's `selections` (PUT /api/checkin/:id): only the
+ * sheet's own fields, material in capitals, and a price that is whole cents
+ * or none. → { selections } or { error } for a 400.
+ */
+export const cleanSelections = (selections) => {
+  if (!Array.isArray(selections)) return { error: 'Selections must be a list' };
+  const out = [];
+  for (const sel of selections) {
+    const raw = sel?.priceCentsPerSf;
+    const blank = raw === null || raw === undefined || raw === '';
+    if (!blank && !isPriceCents(raw)) return { error: 'A price on the sheet isn’t a valid amount.' };
+    out.push({
+      material: typeof sel?.material === 'string' ? sel.material.toUpperCase() : '',
+      lot: str(sel?.lot),
+      details: str(sel?.details),
+      size: str(sel?.size),
+      priceCentsPerSf: blank ? null : raw
+    });
+  }
+  return { selections: out };
+};
+
+/**
+ * What the sales rep's automatic email shows — the server re-sends it only
+ * when this changes, so a new price re-sends it and an internal-notes-only
+ * edit (never in any email) doesn't.
+ */
+export const repEmailSnapshot = (checkIn = {}) => JSON.stringify({
+  selections: (checkIn.selections || []).map(({ material, details, size, lot, priceCentsPerSf }) => (
+    { material, details, size, lot, priceCentsPerSf: priceCentsPerSf ?? null }
+  )),
+  specialNotes: checkIn.specialNotes || '',
+  salesRep: checkIn.salesRep || '',
+  salesRepEmail: checkIn.salesRepEmail || ''
 });
 
 const SELLING_ROLES = ['sales', 'manager', 'director', 'admin'];
@@ -124,8 +224,10 @@ export const escapeHtml = (value) => str(value).replace(/[&<>"']/g, (c) => (
 /**
  * The printable page for a sheet — what's on screen, saved or not.
  * `letterhead` is letterheadFor(location) from src/utils/locationForm.js.
+ * `showPrices` adds the Price / SF column ("Print with prices"). Internal
+ * notes are never on it.
  */
-export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, letterhead }) => {
+export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, letterhead, showPrices = false }) => {
   const salesRep = values.salesRep;
   const specialNotes = values.specialNotes;
   const validSelections = (values.rows || []).filter(rowHasData);
@@ -133,7 +235,7 @@ export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, le
   if (validSelections.length === 0) {
     selectionsRowsHtml = `
         <tr>
-          <td colspan="5" style="padding: 12px 10px; text-align: center; color: #666; font-style: italic;">No selections registered.</td>
+          <td colspan="${showPrices ? 6 : 5}" style="padding: 12px 10px; text-align: center; color: #666; font-style: italic;">No selections registered.</td>
         </tr>
       `;
   } else {
@@ -145,6 +247,7 @@ export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, le
             <td style="padding: 10px; color: #555;">${escapeHtml(sel.lot) || 'N/A'}</td>
             <td style="padding: 10px; color: #555;">${escapeHtml(sel.details) || 'N/A'}</td>
             <td style="padding: 10px; color: #555;">${escapeHtml(sel.size) || 'N/A'}</td>
+            ${showPrices ? `<td style="padding: 10px; color: #222; font-weight: 600; text-align: right; white-space: nowrap;">${escapeHtml(formatSheetPrice(priceCentsOf(sel.price)))}</td>` : ''}
           </tr>
         `;
     });
@@ -305,6 +408,7 @@ export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, le
                 <th>Lot/Bundle Number</th>
                 <th>Slab Numbers</th>
                 <th>Size</th>
+                ${showPrices ? '<th style="text-align: right; white-space: nowrap;">Price / SF</th>' : ''}
               </tr>
             </thead>
             <tbody>
@@ -314,7 +418,7 @@ export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, le
           
           ${specialNotes ? `
           <div class="notes">
-            <h4>Special Notes:</h4>
+            <h4>Notes:</h4>
             <p>${escapeHtml(specialNotes).replace(/\n/g, '<br>')}</p>
           </div>
           ` : ''}
