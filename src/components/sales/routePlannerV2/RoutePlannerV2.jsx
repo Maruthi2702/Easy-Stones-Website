@@ -4,7 +4,7 @@ import { MapPin, LocateFixed, Gauge } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
-import { toSalesRepList } from '../../../utils/salesReps';
+import { toSalesRepList, groupRepOptions } from '../../../utils/salesReps';
 import {
     orderStops, planDay, daySummary, visitRecency,
     hasPoint, localISO, milesBetween, pointInPolygon, RECENCY_BUCKETS, DEFAULT_DAY
@@ -488,12 +488,21 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // the display name for each id; a key with no match (a rep removed from
     // the roster after being assigned accounts) falls back to a label that
     // still reads as "someone", not a blank row.
+    // Unassigned first, then reps grouped under their branch with you marked
+    // "(you)" — the format every rep dropdown and filter shares
+    // (groupRepOptions in src/utils/salesReps.js). `group` is the heading.
     const salesRepOptions = useMemo(() => {
-        const byId = new Map(salesReps.map(r => [String(r._id), r.name || 'Unnamed']));
-        return Object.keys(repCounts)
-            .map(key => ({ key, label: key === 'unassigned' ? 'Unassigned' : (byId.get(key) || 'Former rep') }))
-            .sort((a, b) => a.label.localeCompare(b.label));
-    }, [salesReps, repCounts]);
+        const byId = new Map(salesReps.map(r => [String(r._id), r]));
+        const keys = Object.keys(repCounts);
+        const reps = keys.filter(k => k !== 'unassigned').map(k => {
+            const r = byId.get(k);
+            return { value: k, id: k, label: r ? (r.name || 'Unnamed') : 'Former rep', location: r?.location || '' };
+        });
+        return [
+            ...(keys.includes('unassigned') ? [{ key: 'unassigned', label: 'Unassigned', group: null }] : []),
+            ...groupRepOptions(reps, { you: myId }).flatMap(g => g.options.map(o => ({ key: o.value, label: o.label, group: g.group })))
+        ];
+    }, [salesReps, repCounts, myId]);
 
     // Seeds the rep filter once, without clobbering a toggle the rep already
     // made this session (filtersSeededRef guards that, same intent as the

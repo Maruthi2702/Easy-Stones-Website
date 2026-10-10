@@ -21,8 +21,8 @@ export const formatTitleCase = (str) => {
  * identifiers, so they read badly on screen.
  * Example: "3rd party - delivery" -> "3rd Party Delivery"
  *
- * Mirrors prettifyUsername() in server.js — the server sends `name` already
- * resolved, so this is only for previewing the fallback as an admin types.
+ * The one copy: server.js uses it too (via displayNameOf in salesReps.js),
+ * so a name typed on screen and the server's `name` always agree.
  */
 export const prettifyUsername = (username = '') =>
   String(username)

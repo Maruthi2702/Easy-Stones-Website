@@ -3,8 +3,8 @@ import {
   DELIVERY_TYPE_OPTIONS, STATUS_OPTIONS, CUSTOMER_DROPOFF_VALUE, isPendingOrder, dateLabelFor,
   needsFreightDetails, deliveryToFormValues, validateDeliveryValues, countDeliveryChanges, bookedOn,
   driverOptions, driverPickerValue, applyDriverPick, applyTypeChange, applyDateChange, applyCustomerPick,
-  applyCustomName, buildDeliveryPayload, formWording, deliveryLastChangedText, repOptions,
-  salesRepNamesFor, customerOptionFromRecord, fieldLabelsFor, reportDaysFor, reportDaysTouched, submittedDayLabel, ticketReportValues, reportDaysForMove
+  applyCustomName, buildDeliveryPayload, formWording, deliveryLastChangedText,
+  customerOptionFromRecord, fieldLabelsFor, reportDaysFor, reportDaysTouched, submittedDayLabel, ticketReportValues, reportDaysForMove
 } from './deliveryForm.js';
 
 const TRUCKS = [
@@ -251,21 +251,6 @@ describe('wording', () => {
 });
 
 describe('lists', () => {
-  it('keeps the ticket’s own rep in the list', () => {
-    expect(repOptions(['Admin', 'Krish'], 'Gone Rep').map((o) => o.value)).toEqual(['Admin', 'Krish', 'Gone Rep']);
-  });
-
-  it('offers reps on the user’s branches in a sales role', () => {
-    const list = [
-      { name: 'A', role: 'Sales Rep', assignedLocations: ['Kent'] },
-      { name: 'B', role: 'Driver', assignedLocations: ['Kent'] },
-      { name: 'C', role: 'Sales Rep', location: 'Spokane' },
-      { name: 'D', role: 'Admin', assignedLocations: ['*'] }
-    ];
-    expect(salesRepNamesFor(list, { assignedLocations: ['Kent'] })).toEqual(['Admin', 'A', 'D']);
-    expect(salesRepNamesFor(list, { assignedLocations: ['*'] })).toEqual(['Admin', 'A', 'C', 'D']);
-  });
-
   it('reads a customer record’s address in its different shapes', () => {
     expect(customerOptionFromRecord({ _id: '1', company: 'Co', address: { street: '1 Main', city: 'Kent' }, state: 'WA', salesRepName: 'Sam' }))
       .toMatchObject({ value: '1', label: 'Co', city: 'Kent', address: '1 Main', fullAddress: '1 Main, Kent, WA', salesRepName: 'Sam' });
@@ -317,5 +302,14 @@ describe('report days a board move touches', () => {
     const shown = { ...ticket, deliveryType: 'transfer', transferDestination: 'Spokane', expectedArrivalDate: '2026-10-05', date: '2026-10-05', shipDate: '2026-10-02', isIncomingView: true };
     expect(ticketReportValues(shown).date).toBe('2026-10-02');
     expect(reportDaysForMove(shown, { ...shown, truckId: '' })).toEqual([{ location: 'Seattle', date: '2026-10-02' }, { location: 'Spokane', date: '2026-10-05' }]);
+  });
+});
+
+describe('a new ticket\'s sales rep', () => {
+  it('starts with the branch\'s starting rep, else you, and never replaces a saved one', () => {
+    const me = { name: 'Cara CSR', location: 'Kent' };
+    expect(deliveryToFormValues({}, { currentUser: me, startingRep: 'Jeremy' }).salesRepName).toBe('Jeremy');
+    expect(deliveryToFormValues({}, { currentUser: me }).salesRepName).toBe('Cara CSR');
+    expect(deliveryToFormValues({ salesRepName: 'Stephen' }, { currentUser: me, startingRep: 'Jeremy' }).salesRepName).toBe('Stephen');
   });
 });

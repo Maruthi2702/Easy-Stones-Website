@@ -10,6 +10,8 @@ import { formatPhoneInput } from '../../utils/phoneUtils';
 import { parseBusinessCard } from '../../utils/cardParser';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
+import { useStartingRep } from '../../api/salesRepOptions';
+import RepPicker from '../shared/form/RepPicker';
 import {
     STATUS_OPTIONS, LEVEL_OPTIONS, TYPE_OPTIONS, MODA_DISPLAY_OPTIONS, FIELD_LABELS, withCurrent,
     emptyCustomerValues, customerToFormValues, validateCustomerValues, withEmail, countCustomerChanges,
@@ -41,7 +43,10 @@ export default function CustomerForm({
 }) {
     const isEdit = Boolean(editingCustomer);
     const isPhone = useIsPhone();
-    const defaults = emptyCustomerValues({ salesReps, locations, currentUser });
+    // Who a new customer starts with: you if you're a sales rep, else the
+    // branch's sales person (src/api/salesRepOptions.js → useStartingRep).
+    const { repFor, ready: repsReady } = useStartingRep(currentUser);
+    const defaults = emptyCustomerValues({ salesReps, locations, currentUser, repFor: repsReady ? repFor : null });
     const [initial, setInitial] = useState(() => (isEdit ? customerToFormValues(editingCustomer) : defaults));
     const [values, setValues] = useState(initial);
     const [touched, touchField] = useTouched();
@@ -58,6 +63,17 @@ export default function CustomerForm({
     }
 
     const set = (patch) => setValues((v) => ({ ...v, ...patch }));
+    // A new customer moved to another branch takes that branch's starting rep
+    // — unless someone already picked a different rep by hand.
+    const offeredRep = (id) => Boolean(id) && salesReps.some((r) => String(r._id) === String(id) && !r.inactive);
+    const setLocation = (location) => setValues((v) => {
+        if (isEdit || !repsReady) return { ...v, location };
+        const before = String(repFor(v.location)?._id || '');
+        const after = String(repFor(location)?._id || '');
+        const followsBranch = String(v.salesRep || '') === before;
+        // Still the old branch's starting rep → the new branch's (Unassigned if it has none).
+        return { ...v, location, ...(followsBranch ? { salesRep: offeredRep(after) ? after : '' } : {}) };
+    });
     const setAddress = (patch) => setValues((v) => ({ ...v, address: { ...v.address, ...patch } }));
 
     const errors = validateCustomerValues(values);
@@ -261,13 +277,20 @@ export default function CustomerForm({
         onSave(values, onClose);
     };
 
-    const repOptions = withCurrent(
-        // "Krish - Seattle" on one row, in the list and once chosen (2026-10-08).
-        [{ value: '', label: 'Unassigned' }, ...salesReps.map((r) => ({ value: r._id, label: r.location ? `${r.name} - ${r.location}` : r.name }))],
-        values.salesRep
-    ).map((o) => (o.value === values.salesRep && o.label === values.salesRep
-        ? { ...o, label: editingCustomer?.salesRepName || 'Rep no longer listed' }
-        : o));
+    // Grouped under each rep's branch by RepPicker (the format every rep
+    // dropdown shares). The customer rep list (toSalesRepList) keeps
+    // deactivated reps so the Customer List can still filter by them; nobody
+    // picks one for an account, though — only the rep already on this
+    // customer still shows, and one no longer on the list shows under "Other".
+    const repOptions = (() => {
+        const list = salesReps
+            .filter((r) => !r.inactive || String(r._id) === String(values.salesRep))
+            .map((r) => ({ value: String(r._id), label: r.name, location: r.location || '', id: String(r._id) }));
+        if (values.salesRep && !list.some((o) => o.value === String(values.salesRep))) {
+            list.push({ value: String(values.salesRep), label: editingCustomer?.salesRepName || 'Rep no longer listed', location: '' });
+        }
+        return list;
+    })();
     const locationOptions = withCurrent(locations.map((l) => ({ value: l, label: l })), values.location);
 
     const text = (name, label, { required = false, type = 'text', placeholder, inputMode, autoComplete = 'off', asTyped = false, onBlur, status, error, value, onChange } = {}) => {
@@ -292,9 +315,9 @@ export default function CustomerForm({
             </FormField>
         );
     };
-    const picker = (name, label, options) => (
+    const picker = (name, label, options, onChange = (v) => set({ [name]: v })) => (
         <FormField name={name} id={`cf-${name}`} label={label}>
-            <FormPicker id={`cf-${name}`} value={values[name]} onChange={(v) => set({ [name]: v })} options={options} sheetTitle={label} />
+            <FormPicker id={`cf-${name}`} value={values[name]} onChange={onChange} options={options} sheetTitle={label} />
         </FormField>
     );
 
@@ -429,10 +452,12 @@ export default function CustomerForm({
                 </FormRow>
                 <FormRow>
                     {picker('customerType', 'Customer type', withCurrent(TYPE_OPTIONS, values.customerType))}
-                    {picker('salesRep', 'Sales rep', repOptions)}
+                    <FormField name="salesRep" id="cf-salesRep" label="Sales rep">
+                        <RepPicker id="cf-salesRep" value={values.salesRep ? String(values.salesRep) : ''} onChange={(v) => set({ salesRep: v })} options={repOptions} noneLabel="Unassigned" you={currentUser?.id || currentUser?._id} />
+                    </FormField>
                 </FormRow>
                 <FormRow>
-                    {picker('location', 'Location', locationOptions)}
+                    {picker('location', 'Location', locationOptions, setLocation)}
                     {picker('modaDisplay', 'Moda display', withCurrent(MODA_DISPLAY_OPTIONS, values.modaDisplay))}
                 </FormRow>
                 <FormRow>

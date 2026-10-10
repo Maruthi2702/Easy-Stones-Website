@@ -662,6 +662,10 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
 }
 .fm-search-input::placeholder { color: var(--fm-mut); opacity: 1; }
 .fm-menu-note { padding: 10px 12px; font-size: 13px; color: var(--fm-mut); }
+/* RepPicker (every sales rep dropdown): a branch heading over its reps, and
+   the chosen rep's branch beside their name — the Customer List filter's look. */
+.fm-opt-group { padding: 12px 12px 4px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fm-mut); }
+.fm-opt-branch { font-weight: 600; color: var(--fm-mut); }
 .fm-opt-new { color: var(--fm-gold-tx); border-top: 1px solid var(--fm-bd2); border-radius: 0 0 9px 9px; margin-top: 4px; }
 .fm-opt-new .fm-opt-label { color: var(--fm-gold-tx); }
 

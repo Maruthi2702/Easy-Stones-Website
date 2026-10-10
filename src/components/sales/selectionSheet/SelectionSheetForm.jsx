@@ -5,13 +5,15 @@ import { FormField, FormPicker } from '../../shared/form/FormControls';
 import useIsPhone from '../../shared/form/useIsPhone';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
+import { useSalesRepOptions } from '../../../api/salesRepOptions';
 import { formatInstant } from '../../../utils/dateUtils';
 import { letterheadFor } from '../../../utils/locationForm';
 import {
     SHEET_ROWS, emptyRow, sheetValuesFromCheckIn, countSheetChanges, sheetPayload,
-    salesRepOptions, buildSelectionSheetHtml, tidyPrice, sheetPriceErrors, sheetPriceSummary, PRICE_ERROR
+    buildSelectionSheetHtml, tidyPrice, formatSlabSize, sheetPriceErrors, sheetPriceSummary, PRICE_ERROR
 } from '../../../utils/selectionSheet';
 import MaterialInput from './MaterialInput';
+import RepPicker from '../../shared/form/RepPicker';
 import { EmailDialog, PrintDialog, TagCropper } from './SheetDialogs';
 import { getCroppedImageBlob } from './tagImage';
 import { scanTag } from './scanTag';
@@ -49,7 +51,6 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
     const [loadedAt, setLoadedAt] = useState(() => draft?.loadedAt || checkIn.updatedAt || null);
 
     const [products, setProducts] = useState([]);
-    const [reps, setReps] = useState([]);
     const [saving, setSaving] = useState(false);
     const [note, setNote] = useState('');
     const [formError, setFormError] = useState('');
@@ -79,10 +80,6 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         authFetch(`${API_URL}/api/products`)
             .then((r) => (r.ok ? r.json() : []))
             .then((d) => { if (alive) setProducts(Array.isArray(d) ? d : (d?.data || [])); })
-            .catch(() => {});
-        authFetch(`${API_URL}/api/salesreps`)
-            .then((r) => (r.ok ? r.json() : []))
-            .then((d) => { if (alive) setReps(d?.success ? d.data : (Array.isArray(d) ? d : [])); })
             .catch(() => {});
         return () => { alive = false; };
     }, []);
@@ -126,12 +123,15 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         });
     };
 
-    const repOptions = useMemo(() => {
-        const list = salesRepOptions(reps, record.location, { name: values.salesRep, email: values.salesRepEmail });
-        return [{ value: '', label: 'None' }, ...list];
-    }, [reps, record.location, values.salesRep, values.salesRepEmail]);
+    // The shared sales rep list (src/api/salesRepOptions.js): reps working at
+    // this visit's branch. The sheet emails its rep on every change, so nobody
+    // deactivated is offered (one already named here still shows, marked).
+    const repList = useSalesRepOptions({
+        branches: record.location ? [record.location] : [],
+        current: { name: values.salesRep, email: values.salesRepEmail }
+    });
     const chooseRep = (name) => {
-        const opt = repOptions.find((o) => o.value === name);
+        const opt = repList.find((o) => o.value === name);
         touch();
         setValues((v) => ({ ...v, salesRep: name, salesRepEmail: name ? (opt?.email || '') : '' }));
     };
@@ -276,7 +276,9 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                 return;
             }
             // Only what the tag gave; anything it didn't read stays as typed.
-            setRow(idx, Object.fromEntries(Object.entries(result.row).filter(([, v]) => String(v || '').trim())));
+            const read = Object.fromEntries(Object.entries(result.row).filter(([, v]) => String(v || '').trim()));
+            if (read.size) read.size = formatSlabSize(read.size);
+            setRow(idx, read);
             setNotices((n) => ({ ...n, [idx]: { tone: result.notes.length ? 'warn' : 'ok', lines: ['Filled from the tag — check it before saving.', ...result.notes] } }));
         } catch {
             setNotices((n) => ({ ...n, [idx]: { tone: 'error', lines: ['Couldn’t read that photo. Try another.'] } }));
@@ -312,7 +314,10 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             progress={scanning?.idx === i ? scanning.progress : 0}
         />
     );
-    const smallInput = (row, i, key, label, placeholder, inputMode) => (
+    // No example text in these boxes (2026-10-10): the same "13845 · 1, 2 ·
+    // 126 × 63 · $0.00" on every row read as real data nobody had entered.
+    // The column headings (cards: the labels) say what goes where.
+    const smallInput = (row, i, key, label, inputMode) => (
         <input
             id={`ss-${key}-${i}`}
             className="fm-input no-capitalize"
@@ -320,9 +325,14 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             inputMode={inputMode}
             aria-label={`${label}, item ${i + 1}`}
             value={row[key]}
-            placeholder={placeholder}
             disabled={!canEdit}
             onChange={(e) => setRow(i, { [key]: e.target.value })}
+            // Size: "142 79", "142x79", a pasted "142" x 79"" → "142 * 79"
+            // once you leave the box (formatSlabSize) — not while typing.
+            onBlur={key === 'size' ? (e) => {
+                const tidy = formatSlabSize(e.target.value);
+                if (tidy !== row.size) setRow(i, { size: tidy });
+            } : undefined}
         />
     );
     const priceInput = (row, i) => {
@@ -340,7 +350,6 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                         aria-invalid={err ? 'true' : undefined}
                         aria-describedby={err ? `ss-price-${i}-msg` : undefined}
                         value={row.price}
-                        placeholder="0.00"
                         disabled={!canEdit}
                         onChange={(e) => setRow(i, { price: e.target.value })}
                         onBlur={(e) => {
@@ -467,13 +476,13 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                         {fact('Company', record.fabricatorCompany)}
                         {fact('Company phone', record.fabricatorPhone)}
                         <FormField name="salesRep" id="ss-rep" label="Sales rep">
-                            <FormPicker id="ss-rep" value={values.salesRep} onChange={chooseRep} options={repOptions} placeholder="Choose a sales rep" sheetTitle="Sales rep" disabled={!canEdit} />
+                            <RepPicker id="ss-rep" value={values.salesRep} onChange={chooseRep} options={repList} noneLabel="None" you={owner} disabled={!canEdit} />
                         </FormField>
                     </div>
                 )}
                 {isPhone && (
                     <FormField name="salesRep" id="ss-rep" label="Sales rep">
-                        <FormPicker id="ss-rep" value={values.salesRep} onChange={chooseRep} options={repOptions} placeholder="Choose a sales rep" sheetTitle="Sales rep" disabled={!canEdit} />
+                        <RepPicker id="ss-rep" value={values.salesRep} onChange={chooseRep} options={repList} noneLabel="None" you={owner} disabled={!canEdit} />
                     </FormField>
                 )}
             </section>
@@ -491,9 +500,9 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                                 <span className="ss-row-num">{i + 1}</span>
                                 <div className="ss-row-mat">{materialBox(row, i)}{notice(i)}</div>
                                 <div className="ss-trio">
-                                    {smallInput(row, i, 'lot', 'Lot or bundle number', '13845', 'numeric')}
-                                    {smallInput(row, i, 'details', 'Slab numbers', '1, 2')}
-                                    {smallInput(row, i, 'size', 'Size', '126 x 63')}
+                                    {smallInput(row, i, 'lot', 'Lot or bundle number', 'numeric')}
+                                    {smallInput(row, i, 'details', 'Slab numbers')}
+                                    {smallInput(row, i, 'size', 'Size')}
                                     {priceInput(row, i)}
                                 </div>
                                 {removeButton(i)}
@@ -516,9 +525,9 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                                 </div>
                                 {notice(i)}
                                 <div className="ss-card-trio">
-                                    <label className="ss-card-field"><span>Lot #</span>{smallInput(row, i, 'lot', 'Lot or bundle number', '—', 'numeric')}</label>
-                                    <label className="ss-card-field"><span>Slabs</span>{smallInput(row, i, 'details', 'Slab numbers', '1, 2')}</label>
-                                    <label className="ss-card-field"><span>Size</span>{smallInput(row, i, 'size', 'Size', '120×60')}</label>
+                                    <label className="ss-card-field"><span>Lot #</span>{smallInput(row, i, 'lot', 'Lot or bundle number', 'numeric')}</label>
+                                    <label className="ss-card-field"><span>Slabs</span>{smallInput(row, i, 'details', 'Slab numbers')}</label>
+                                    <label className="ss-card-field"><span>Size</span>{smallInput(row, i, 'size', 'Size')}</label>
                                     <label className="ss-card-field"><span>Price / SF</span>{priceInput(row, i)}</label>
                                 </div>
                             </div>

@@ -74,6 +74,38 @@ Every customer dropdown reads the one shared list,
 name, and search by name/city/contact. A new customer dropdown uses those —
 don't map `/api/customers/dropdown` by hand again.
 
+## Sales reps: one rule, one list
+
+Who can be picked as a sales rep is decided once, in `src/utils/salesReps.js`
+(2026-10-10): `isSalesRep` (sales_rep, manager, director, admin — never the
+shared `admin` login, drivers or CSRs). The customer rep picker and Customer
+List filter use `toSalesRepList` (by id; deactivated reps kept, marked, for
+filtering — the Add/Edit customer form offers them only when already set).
+Every dropdown that saves a rep's **name** — Selection Sheet (the visit's
+branch), Delivery (your branches), Location's sales person (any branch) —
+uses `useSalesRepOptions()` in `src/api/salesRepOptions.js`, built on
+`salesRepNameOptions`: active reps only, A–Z, and whoever is already saved
+stays at the top. A new rep dropdown uses those; don't filter
+`/api/salesreps` by hand again.
+
+Every rep dropdown and filter also **looks** the same (the Customer List
+filter's format, the user's call 2026-10-10): a search box, None /
+Unassigned first, then reps under a heading for their branch (branches and
+names A–Z, "Other" last) with you marked "(you)" — `groupRepOptions`. On a
+form that's `src/components/shared/form/RepPicker.jsx` (not FormPicker);
+the Customer List filter and the Route Planner's rep filter render the same
+groups. A new rep dropdown or filter uses these. (The old `DeliveryModal` still has its own
+until it's deleted.)
+
+Something **new** at a branch starts with a rep by one rule too,
+`startingRepFor`: the person creating it if they're a sales rep, else that
+branch's **Sales person** (Users & Roles → Locations → Sales defaults; staff
+read it as `defaultSalesRep` from `GET /api/admin/locations`), else what
+the screen did before. New customers and deliveries get it on the form
+(`useStartingRep()`), new check-ins from the server when they're logged
+(so the Selection Sheet opens with a rep). It never replaces a rep someone
+already set or picked.
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,
@@ -170,7 +202,8 @@ filter options), the shared pagination sizes/range math
 (`src/components/shared/paginationConfig.js`), and the location-filter rules
 every screen's location filter shares (`src/utils/locationFilter.js`: home
 location, which branch a filter opens on, remembered picks, and the server's
-home-location validation), and Add User's rules (`src/utils/userForm.js`:
+home-location validation), and who can be picked as a sales rep (`src/utils/salesReps.js`: the role
+rule, branches, deactivated and already-saved reps), and Add User's rules (`src/utils/userForm.js`:
 username suggestion and format, required fields, temporary passwords, the
 Locations/home rule, role summaries), and the Selection Sheet's slab-tag
 scanner (`src/utils/stoneLabel.js`: reading lot/slab/size/material out of OCR
@@ -184,7 +217,7 @@ their stored values, which fields each type uses, required fields, the
 change count, and the "Last changed by" note), and the Selection Sheet's
 rules (`src/utils/selectionSheet.js`: rows, the change count behind the
 unsaved-changes check, the save body with its stale-save
-`expectedUpdatedAt`, which active reps are offered, the escaped print page,
+`expectedUpdatedAt`, the escaped print page,
 price per SF in cents and when it prints, internal vs printed notes, and
 what the server accepts and when it re-emails the rep) plus its save/email
 routes (`src/routes/checkIn.test.js`, in-memory MongoDB) and the email's

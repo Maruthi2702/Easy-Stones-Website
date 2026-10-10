@@ -97,3 +97,34 @@
     line-height: 1.5;
     color: var(--cd2-muted);
 }
+
+/* Sales rep filter: search, then reps under their branch — the format every
+   rep dropdown and filter shares (groupRepOptions, src/utils/salesReps.js). */
+.rpv2-filter-search {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0 0.6rem;
+    height: 2.25rem;
+    border: 1px solid var(--cd2-line);
+    border-radius: 8px;
+    color: var(--cd2-muted, inherit);
+}
+.rpv2-filter-search input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    outline: none;
+}
+.rpv2-filter-group {
+    padding: 0.6rem 0.2rem 0.1rem;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.65;
+}
