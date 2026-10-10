@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, User, Clock, Truck, Map as MapIcon, ClipboardList, Tag, TrendingDown, ArrowLeftRight, Boxes,
     Users, Briefcase, Warehouse, Layers, Shield, Home, Pin, PinOff, PanelLeftClose, X,
-    Sun, Moon, LogOut, UserCheck, ArrowUpDown
+    Sun, Moon, LogOut, UserCheck, ArrowUpDown, Receipt, Calculator
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS } from '../../utils/navPins';
@@ -23,13 +23,15 @@ const ITEM_ICONS = {
     inventory_analysis: Boxes,
     crossover_sheet: ArrowLeftRight,
     users: Users,
-    nav_order: ArrowUpDown
+    nav_order: ArrowUpDown,
+    freight: Receipt
 };
 const SECTION_ICONS = {
     home: LayoutDashboard,
     sales: Briefcase,
     operations: Warehouse,
     products: Layers,
+    accounting: Calculator,
     admin: Shield
 };
 

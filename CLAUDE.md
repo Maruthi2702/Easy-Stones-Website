@@ -205,7 +205,13 @@ month a check-in belongs to on its own branch's clock, the per-zone query the
 list's month filter and counts use, and the date/time/"Today" shown and
 exported), and the Check-In Log's exports (`src/utils/checkInExport.js`: the
 Excel rows, the PDF's filter line, link and row cap; `src/utils/checkInLogPdf.js`:
-that the PDF builds, pages, and survives characters its font lacks).
+that the PDF builds, pages, and survives characters its font lacks), and the
+3rd-Party Freight screen's rules (`src/utils/freightView.js`: its tabs and
+counts, charges grouped by carrier, what a selection offers — Approve,
+Approve & pay, Mark paid — and why not, payment wording and the Excel rows).
+Accounting's server rules and API have their own tests in
+`src/accounting/*.test.js` (an in-memory MongoDB replica set, transactions
+included).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

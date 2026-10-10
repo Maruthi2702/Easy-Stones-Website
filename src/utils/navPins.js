@@ -21,6 +21,7 @@ export const NAV_SECTIONS = [
   { id: 'sales', label: 'Sales' },
   { id: 'operations', label: 'Operations' },
   { id: 'products', label: 'Products' },
+  { id: 'accounting', label: 'Accounting' },
   { id: 'admin', label: 'Admin' }
 ];
 
@@ -51,6 +52,9 @@ export const NAV_ITEMS = [
     id: 'crossover_sheet', label: 'Crossover Sheet', section: 'products',
     canSee: (u) => has(u, 'view_crossover_sheet') || isAdmin(u) || !u
   },
+  // Accounting (src/accounting/): the permission is the only key, as with
+  // every Accounting action.
+  { id: 'freight', label: '3rd-Party Freight', section: 'accounting', canSee: (u) => has(u, 'view_freight_charges') },
   { id: 'users', label: 'Users & Roles', section: 'admin', canSee: (u) => has(u, 'manage_users') },
   // The side nav's order for everyone (NavOrderTab.jsx); saving needs manage_users too.
   { id: 'nav_order', label: 'Side Nav Order', section: 'admin', canSee: (u) => has(u, 'manage_users') }

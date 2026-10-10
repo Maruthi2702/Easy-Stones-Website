@@ -106,6 +106,7 @@ describe('admin nav order', () => {
       ['sales', ['lost_sales', 'customers', 'route_planner']],
       ['home', ['dashboard']],
       ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet']],
+      ['accounting', ['freight']],
       ['admin', ['users', 'nav_order']]
     ]);
   });

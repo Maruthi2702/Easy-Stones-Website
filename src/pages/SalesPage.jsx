@@ -74,6 +74,7 @@ const CrossoverSheetTab = lazyRetry(() => import('../components/sales/CrossoverS
 const InventoryAnalysisTab = lazyRetry(() => import('../components/sales/InventoryAnalysisTab'));
 const DeliveryScheduleTab = lazyRetry(() => import('../components/sales/DeliveryScheduleTab'));
 const DailyReportTab = lazyRetry(() => import('../components/sales/dailyreport/DailyReportTab'));
+const FreightTab = lazyRetry(() => import('../components/sales/freight/FreightTab'));
 
 // One small, inline fallback rather than a full-page spinner — App.jsx's
 // <PageLoader/> is sized for a blank page, and using it here would flash the
@@ -3433,6 +3434,24 @@ const SalesPage = () => {
                         <Suspense fallback={<TabLoader />}>
                             <DailyReportTab
                                 currentUser={currentUser}
+                                sidebarToggle={sidebarToggle}
+                            />
+                        </Suspense>
+                        </ErrorBoundary>
+                    );
+                })()}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'freight' && currentUser.permissions.includes('view_freight_charges') && (() => {
+                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+                    ) : null;
+
+                    return (
+                        <ErrorBoundary key="freight-view">
+                        <Suspense fallback={<TabLoader />}>
+                            <FreightTab
+                                currentUser={currentUser}
+                                locationsList={locations || []}
                                 sidebarToggle={sidebarToggle}
                             />
                         </Suspense>
