@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { DEFAULT_LETTERHEAD } from '../utils/locationForm.js';
-import { formatSheetPrice } from '../utils/selectionSheet.js';
+import { formatSheetPrice, formatSlabSize } from '../utils/selectionSheet.js';
 
 // The check-in emails below interpolate visitor-supplied fields (name, notes,
 // selections...) straight into HTML. The self check-in endpoint that produces
@@ -195,7 +195,7 @@ export async function sendSelectionSheetEmail(checkIn, recipientEmail, letterhea
           <td style="padding: 10px; color: #222; font-weight: 500;">${escapeHtml(sel.material) || 'N/A'}</td>
           <td style="padding: 10px; color: #555;">${escapeHtml(sel.lot) || 'N/A'}</td>
           <td style="padding: 10px; color: #555;">${escapeHtml(sel.details) || 'N/A'}</td>
-          <td style="padding: 10px; color: #555;">${escapeHtml(sel.size) || 'N/A'}</td>
+          <td style="padding: 10px; color: #555;">${escapeHtml(formatSlabSize(sel.size)) || 'N/A'}</td>
           ${showPrices ? `<td style="padding: 10px; color: #222; font-weight: 600; text-align: right; white-space: nowrap;">${escapeHtml(formatSheetPrice(sel.priceCentsPerSf))}</td>` : ''}
         </tr>
       `;

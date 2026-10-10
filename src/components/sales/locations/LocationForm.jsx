@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AlertCircle, Trash2 } from 'lucide-react';
 import FormModal from '../../shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker } from '../../shared/form/FormControls';
@@ -6,6 +6,9 @@ import { goToField, describedBy } from '../../shared/form/formFocus';
 import useTouched from '../../shared/form/useTouched';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
+import { useSalesRepOptions } from '../../../api/salesRepOptions';
+import RepPicker from '../../shared/form/RepPicker';
+import { useAuth } from '../../../context/AuthContext';
 import { formatPhoneInput } from '../../../utils/phoneUtils';
 import { lastChangedText } from '../../../utils/userForm';
 import {
@@ -51,16 +54,6 @@ export default function LocationForm({ location = null, locations = [], onClose,
     const [saving, setSaving] = useState(false);
     const [serverErrors, setServerErrors] = useState({});
     const [formError, setFormError] = useState('');
-    const [salesReps, setSalesReps] = useState([]);
-
-    useEffect(() => {
-        let alive = true;
-        authFetch(`${API_URL}/api/salesreps`)
-            .then((res) => (res.ok ? res.json() : []))
-            .then((data) => { if (alive) setSalesReps(data?.success ? data.data : (Array.isArray(data) ? data : [])); })
-            .catch(() => {});
-        return () => { alive = false; };
-    }, []);
 
     const others = useMemo(
         () => (Array.isArray(locations) ? locations : []).filter((l) => l && typeof l === 'object' && (!isEdit || String(l._id) !== String(location._id))),
@@ -91,12 +84,10 @@ export default function LocationForm({ location = null, locations = [], onClose,
             .filter((l) => l.name !== values.name.trim())
             .map((l) => ({ value: l.name, label: l.fullName || l.name, description: l.fullName ? l.name : undefined }))
     ], [others, values.name]);
-    const repOptions = useMemo(() => {
-        // Deactivated staff stay off the list; one already saved here still shows.
-        const names = [...new Set(salesReps.filter((r) => r?.isActive !== false).map((r) => String(r?.name || '').trim()).filter(Boolean))];
-        if (values.salesRep && !names.includes(values.salesRep)) names.unshift(values.salesRep);
-        return [{ value: '', label: 'None' }, ...names.map((n) => ({ value: n, label: n }))];
-    }, [salesReps, values.salesRep]);
+    // The shared sales rep list (src/api/salesRepOptions.js): sales roles at
+    // any branch, nobody deactivated; one already saved here still shows.
+    const repList = useSalesRepOptions({ current: { name: values.salesRep } });
+    const { user } = useAuth();
     const priceOptions = [{ value: '', label: 'None' }, ...PRICE_LEVELS.map((l) => ({ value: String(l), label: priceLevelLabel(l) }))];
     const termsOptions = [{ value: '', label: 'None' }, ...PAYMENT_TERMS.map((t) => ({ value: t, label: t }))];
 
@@ -308,7 +299,19 @@ export default function LocationForm({ location = null, locations = [], onClose,
 
             <FormSection number={4} title="Defaults for customer sales">
                 <FormRow>
-                    {picker('salesRep', repOptions, 'Choose a sales person')}
+                    <FormField name="salesRep" id="loc-salesRep" label={FIELD_LABELS.salesRep} error={shown('salesRep')}>
+                        <RepPicker
+                            id="loc-salesRep"
+                            value={values.salesRep}
+                            onChange={(v) => { set({ salesRep: v }); markTouched('salesRep'); }}
+                            options={repList}
+                            noneLabel="None"
+                            placeholder="Choose a sales person"
+                            sheetTitle={FIELD_LABELS.salesRep}
+                            you={user?._id || user?.id}
+                            error={shown('salesRep')}
+                        />
+                    </FormField>
                     {picker('priceLevel', priceOptions, 'Choose a price level')}
                     {picker('paymentTerms', termsOptions, 'Choose payment terms')}
                 </FormRow>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Filter, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Filter, Search, X } from 'lucide-react';
 import './FilterPanel.css';
 
 // A separate small hue family from the recency ramp (red/orange/yellow/gray)
@@ -61,6 +61,10 @@ const FilterPanel = ({
     const allTypeKeys = [...types, '(blank)'];
     const allTypesOn = allTypeKeys.every(t => activeTypes[t] !== false);
     const allRepsOn = salesRepOptions.every(r => activeSalesReps[r.key] === true);
+    // Same format as every rep dropdown: search, then reps under their branch.
+    const [repQuery, setRepQuery] = useState('');
+    const q = repQuery.trim().toLowerCase();
+    const shownReps = q ? salesRepOptions.filter(r => `${r.label} ${r.group || ''}`.toLowerCase().includes(q)) : salesRepOptions;
 
     return (
         <div className="rpv2-panel" data-dialog="filters">
@@ -112,15 +116,31 @@ const FilterPanel = ({
                 </Section>
 
                 <Section title="Sales rep filter" open={repOpen} onToggle={() => setRepOpen(v => !v)}>
-                    {salesRepOptions.map(rep => (
-                        <CheckRow
-                            key={rep.key}
-                            label={rep.label}
-                            count={repCounts[rep.key] ?? 0}
-                            on={activeSalesReps[rep.key] === true}
-                            onClick={() => onToggleSalesRep(rep.key)}
+                    <label className="rpv2-filter-search">
+                        <Search size={14} aria-hidden="true" />
+                        <input
+                            type="text"
+                            className="no-capitalize"
+                            value={repQuery}
+                            onChange={(e) => setRepQuery(e.target.value)}
+                            placeholder="Search rep or branch"
+                            aria-label="Search sales reps"
                         />
+                    </label>
+                    {shownReps.map((rep, i) => (
+                        <React.Fragment key={rep.key}>
+                            {rep.group && rep.group !== shownReps[i - 1]?.group && (
+                                <div className="rpv2-filter-group">{rep.group}</div>
+                            )}
+                            <CheckRow
+                                label={rep.label}
+                                count={repCounts[rep.key] ?? 0}
+                                on={activeSalesReps[rep.key] === true}
+                                onClick={() => onToggleSalesRep(rep.key)}
+                            />
+                        </React.Fragment>
                     ))}
+                    {shownReps.length === 0 && <p className="rpv2-filter-hint">No reps match “{repQuery.trim()}”</p>}
                     <button type="button" className="rpv2-filter-toggle-all" onClick={() => onToggleAllSalesReps(!allRepsOn)}>
                         {allRepsOn ? 'Toggle all off' : 'Toggle all on'}
                     </button>

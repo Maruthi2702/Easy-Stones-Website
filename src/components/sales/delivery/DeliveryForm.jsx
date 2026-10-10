@@ -7,6 +7,9 @@ import useTouched from '../../shared/form/useTouched';
 import { MAX_TRUCK_CAPACITY } from '../../../api/deliverySchedule';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
+import { useSalesRepOptions, useStartingRep } from '../../../api/salesRepOptions';
+import RepPicker from '../../shared/form/RepPicker';
+import { branchesOf } from '../../../utils/salesReps';
 import { formatTitleCase } from '../../../utils/textUtils';
 import { formatAmount, sanitizeAmountInput } from '../../../utils/money';
 import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
@@ -18,7 +21,7 @@ import {
     DELIVERY_TYPE_OPTIONS, STATUS_OPTIONS, isPendingOrder, dateLabelFor, needsFreightDetails, fieldLabelsFor,
     deliveryToFormValues, validateDeliveryValues, countDeliveryChanges, driverOptions, driverPickerValue,
     applyDriverPick, applyTypeChange, applyDateChange, applyCustomerPick, applyCustomName, buildDeliveryPayload,
-    formWording, deliveryLastChangedText, repOptions, salesRepNamesFor,
+    formWording, deliveryLastChangedText,
     reportDaysTouched, submittedDayLabel
 } from '../../../utils/deliveryForm';
 import './DeliveryForm.css';
@@ -57,24 +60,28 @@ function DeliveryFormBody({
     const { options: sharedCustomers, loading: sharedCustomersLoading } = useCustomerOptions();
     const customers = customerOptions?.length ? customerOptions : sharedCustomers;
     const customersLoading = !customers.length && sharedCustomersLoading;
-    const [repNames, setRepNames] = useState(['Admin']);
-
-    useEffect(() => {
-        let live = true;
-        authFetch(`${API_URL}/api/salesreps`)
-            .then((res) => (res.ok ? res.json() : []))
-            .then((payload) => { if (live) setRepNames(salesRepNamesFor(payload?.data || payload || [], currentUser)); })
-            .catch((err) => console.warn('Failed to fetch sales reps in DeliveryForm:', err));
-        return () => { live = false; };
-        // Once per open.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     // ── Values ──
-    const [initial] = useState(() => deliveryToFormValues(initialData, { currentUser, customerOptions: customers }));
+    // Who a new ticket starts with as its rep: you if you're a sales rep, else
+    // the branch's sales person (src/api/salesRepOptions.js → useStartingRep).
+    const { repFor, ready: repsReady } = useStartingRep(currentUser);
+    const branch = initialData?.location || currentUser?.location || '';
+    const startingRep = repsReady && !isEdit ? (repFor(branch)?.name || '') : '';
+    const [initial, setInitial] = useState(() => deliveryToFormValues(initialData, { currentUser, customerOptions: customers, startingRep }));
     // A session that expired mid-edit left this ticket's values behind.
     const [restored] = useState(() => loadDraft(draftKey));
     const [values, setValues] = useState(() => (restored ? { ...initial, ...pickKnown(restored, initial) } : initial));
+    // The lists can land after the form opens: fill the starting rep in then —
+    // only on a new ticket whose rep nobody has touched — and move the
+    // starting point with it, so it doesn't count as a change.
+    if (startingRep && !restored && !initialData?.salesRepName
+        && initial.salesRepName !== startingRep && values.salesRepName === initial.salesRepName) {
+        setInitial({ ...initial, salesRepName: startingRep });
+        setValues((v) => ({ ...v, salesRepName: startingRep }));
+    }
+    // The shared sales rep list (src/api/salesRepOptions.js): reps on the
+    // branches this person works at; the ticket's saved rep always shows.
+    const repChoices = useSalesRepOptions({ branches: branchesOf(currentUser), current: { name: values.salesRepName } });
     useEffect(() => { if (restored) clearDraft(draftKey); }, [restored, draftKey]);
     const valuesRef = useRef(values);
     valuesRef.current = values;
@@ -404,7 +411,9 @@ function DeliveryFormBody({
                                     error={shown('customer')}
                                 />
                             </FormField>
-                            {picker('salesRepName', 'Sales rep', repOptions(repNames, values.salesRepName))}
+                            <FormField name="salesRepName" id="df-salesRepName" label="Sales rep">
+                                <RepPicker id="df-salesRepName" value={values.salesRepName} onChange={(v) => set({ salesRepName: v })} options={repChoices} you={currentUser?._id || currentUser?.id} />
+                            </FormField>
                         </FormRow>
                         <div className="df-pair">
                             {text('soNumber', 'SO / invoice #', { asTyped: true, placeholder: 'SO-48213' })}

@@ -54,27 +54,33 @@ export const FIELD_LABELS = Object.freeze({
 });
 
 /**
- * A new customer: assumed to be the person entering it, at their branch —
- * right most of the time, and both stay editable. Someone who can't own
- * accounts (not in the rep list) starts Unassigned.
+ * A new customer: at the person's own branch, owned by them if they're a
+ * sales rep, otherwise by that branch's sales person (`repFor`, from
+ * useStartingRep — Users & Roles → Locations → Sales defaults), otherwise
+ * Unassigned. Only someone this form offers; both stay editable.
  */
-export const emptyCustomerValues = ({ salesReps = [], locations = [], currentUser = null } = {}) => ({
-    customerName: '',
-    company: '',
-    address: { street: '', city: '', state: '', zipCode: '' },
-    phone: '',
-    email: '',
-    marketingEmail: '',
-    receiveMarketing: true,
-    notes: '',
-    status: 'Onboarded',
-    level: 'Level - 3',
-    customerType: 'Fabricator',
-    modaDisplay: 'No',
-    modaBinder: '0',
-    salesRep: salesReps.some((r) => r._id === currentUser?.id) ? currentUser.id : '',
-    location: locations.find((l) => l === currentUser?.location) || locations[0] || ''
-});
+export const emptyCustomerValues = ({ salesReps = [], locations = [], currentUser = null, repFor = null } = {}) => {
+    const location = locations.find((l) => l === currentUser?.location) || locations[0] || '';
+    const offered = (id) => Boolean(id) && salesReps.some((r) => String(r._id) === String(id) && !r.inactive);
+    const start = repFor ? repFor(location)?._id : '';
+    return {
+        customerName: '',
+        company: '',
+        address: { street: '', city: '', state: '', zipCode: '' },
+        phone: '',
+        email: '',
+        marketingEmail: '',
+        receiveMarketing: true,
+        notes: '',
+        status: 'Onboarded',
+        level: 'Level - 3',
+        customerType: 'Fabricator',
+        modaDisplay: 'No',
+        modaBinder: '0',
+        salesRep: offered(start) ? String(start) : (salesReps.some((r) => r._id === currentUser?.id) ? currentUser.id : ''),
+        location
+    };
+};
 
 /** A stored customer → the form's values (the old modal's rules, unchanged). */
 export const customerToFormValues = (c = {}) => ({

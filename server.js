@@ -51,11 +51,12 @@ import { EASY_STONES_COLORS } from './src/data/easyStonesColors.js';
 // (here and in ensure-indexes.js) that had already drifted apart.
 import { INDEXED_MODELS } from './src/config/indexedModels.js';
 import { parseLocationBody, publicLocationFields } from './src/utils/locationForm.js';
+import { prettifyUsername } from './src/utils/textUtils.js';
 import { sendContactFormEmail } from './src/services/emailService.js';
 import { scrapeErpCustomers, scrapeErpInventory, scrapeErpSales } from './src/services/erpImportService.js';
 // Shared with the client so an import can only assign a customer to someone the
 // Sales Rep dropdown would also have offered.
-import { isSalesRep } from './src/utils/salesReps.js';
+import { isSalesRep, displayNameOf } from './src/utils/salesReps.js';
 import { geocodeAddress, geocodePatchFor, addressKeyOf, GEOCODE_PRECISION } from './src/utils/geocode.js';
 import { newCustomerFields, customerUpdateFields, addressFrom, suppliedPoint } from './src/utils/customerRecord.js';
 import { vcardPersonFor, buildVCard, vcardFileName } from './src/utils/vcard.js';
@@ -1065,15 +1066,8 @@ app.get('/api/products', async (req, res) => {
  *   { username: '3rd party - delivery', displayName: '3rd Party - Delivery' }
  *                                                                → '3rd Party - Delivery'
  */
-const prettifyUsername = (username = '') =>
-  String(username)
-    .split(/[._\-\s]+/)
-    .filter(Boolean)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-
-const displayNameOf = (user) =>
-  String(user?.displayName || '').trim() || prettifyUsername(user?.username);
+// displayNameOf lives in src/utils/salesReps.js, so the check-in routes name
+// a branch's default rep exactly as /api/salesreps does.
 
 /**
  * Resolve a customer's owning rep from an id into the { salesRep, salesRepName }
@@ -1961,7 +1955,8 @@ app.get('/api/admin/locations', verifyAnyAuth, async (req, res) => {
   try {
     const locations = await Location.find().sort({ name: 1 }).lean();
     const full = req.user?.permissions?.includes('manage_users');
-    res.json(full ? locations : locations.map(publicLocationFields));
+    const staff = req.user?.type !== 'customer';
+    res.json(full ? locations : locations.map((l) => publicLocationFields(l, { staff })));
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch locations', error: error.message });
   }

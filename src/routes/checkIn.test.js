@@ -17,6 +17,7 @@ const { sendSelectionSheetEmail } = await import('../services/emailService.js');
 const { default: createCheckInRouter } = await import('./checkIn.js');
 const { default: OfficeCheckIn } = await import('../models/OfficeCheckIn.js');
 const { default: User } = await import('../models/User.js');
+const { default: Location } = await import('../models/Location.js');
 
 let mongo;
 let app;
@@ -48,7 +49,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  await Promise.all([OfficeCheckIn.collection.deleteMany({}), User.collection.deleteMany({})]);
+  await Promise.all([OfficeCheckIn.collection.deleteMany({}), User.collection.deleteMany({}), Location.collection.deleteMany({})]);
   await User.collection.insertOne({ username: 'rita', email: 'rita@x.com', isActive: true });
   const c = await OfficeCheckIn.collection.insertOne({
     name: 'Pat Visitor', phone: '(206) 555-0142', location: 'Seattle', salesRep: 'Rita', salesRepEmail: 'rita@x.com',
@@ -133,5 +134,48 @@ describe('POST /api/checkin/:id/send-email', () => {
     expect(sendSelectionSheetEmail.mock.calls.map((c) => c[3])).toEqual([
       { showPrices: false }, { showPrices: false }, { showPrices: true }
     ]);
+  });
+});
+
+describe('a new check-in\'s sales rep', () => {
+  const visitor = { name: 'New Visitor', phone: '2065550100' };
+  beforeEach(async () => {
+    await User.collection.insertMany([
+      { username: 'jeremy', displayName: 'Jeremy Earnest', email: 'jeremy@x.com', role: 'manager', isActive: true },
+      { username: 'krish', email: 'krish@x.com', role: 'admin', isActive: true },
+      { username: 'cara', email: 'cara@x.com', role: 'csr', isActive: true },
+      { username: 'gone', displayName: 'Gone Rep', email: 'gone@x.com', role: 'sales_rep', isActive: false }
+    ]);
+    await Location.collection.insertMany([
+      { name: 'Spokane', salesDefaults: { salesRep: 'Jeremy Earnest' } },
+      { name: 'Kent', salesDefaults: { salesRep: 'Gone Rep' } },
+      { name: 'Tacoma' }
+    ]);
+  });
+  const userId = async (username) => String((await User.collection.findOne({ username }))._id);
+  const logVisit = async (location, username) => {
+    const user = { ...STAFF, id: await userId(username), username };
+    return request(app).post('/api/checkin').set('x-test-user', JSON.stringify(user)).send({ ...visitor, location }).expect(201);
+  };
+
+  it('logged by a CSR: the branch\'s sales person, with their email', async () => {
+    const res = await logVisit('Spokane', 'cara');
+    expect(res.body.data).toMatchObject({ salesRep: 'Jeremy Earnest', salesRepEmail: 'jeremy@x.com' });
+  });
+
+  it('logged by a sales rep: them', async () => {
+    const res = await logVisit('Spokane', 'krish');
+    expect(res.body.data).toMatchObject({ salesRep: 'Krish', salesRepEmail: 'krish@x.com' });
+  });
+
+  it('nobody when the branch has none, or theirs is deactivated', async () => {
+    expect((await logVisit('Tacoma', 'cara')).body.data.salesRep || '').toBe('');
+    expect((await logVisit('Kent', 'cara')).body.data.salesRep || '').toBe('');
+  });
+
+  it('a self check-in at the kiosk gets the branch\'s sales person', async () => {
+    const res = await request(app).post('/api/checkin/self')
+      .send({ ...visitor, location: 'Spokane', formLoadTime: Date.now() - 5000 }).expect(201);
+    expect(res.body.data).toMatchObject({ salesRep: 'Jeremy Earnest', salesRepEmail: 'jeremy@x.com' });
   });
 });

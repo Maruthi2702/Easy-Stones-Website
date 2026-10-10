@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  sheetValuesFromCheckIn, countSheetChanges, sheetPayload, salesRepOptions, buildSelectionSheetHtml,
+  sheetValuesFromCheckIn, countSheetChanges, sheetPayload, buildSelectionSheetHtml,
   rowHasData, MIN_VISIBLE_ROWS, SHEET_ROWS, priceCentsOf, tidyPrice, formatSheetPrice, sheetPriceErrors,
-  sheetPriceSummary, cleanSelections, repEmailSnapshot, PRICE_ERROR
+  sheetPriceSummary, cleanSelections, repEmailSnapshot, PRICE_ERROR, formatSlabSize
 } from './selectionSheet.js';
 
 const checkIn = {
@@ -111,7 +111,7 @@ describe('sheetPayload', () => {
     v.rows[0].material = 'calacatta gold';
     const p = sheetPayload(v, '2026-10-04T10:00:00.000Z');
     expect(p.selections).toEqual([
-      { material: 'CALACATTA GOLD', lot: '13845', details: '7', size: '126x63', priceCentsPerSf: 6800 },
+      { material: 'CALACATTA GOLD', lot: '13845', details: '7', size: '126 * 63', priceCentsPerSf: 6800 },
       { material: '', lot: '55555', details: '', size: '', priceCentsPerSf: null }
     ]);
     expect(p.internalNotes).toBe('Builder pricing — ask manager');
@@ -150,37 +150,14 @@ describe('repEmailSnapshot', () => {
     const repriced = { ...checkIn, selections: [{ ...checkIn.selections[0], priceCentsPerSf: 7000 }, checkIn.selections[1]] };
     expect(repEmailSnapshot(repriced)).not.toBe(base);
   });
+  it('compares sizes tidied, so an old "126x63" re-saved as "126 * 63" doesn\'t re-send', () => {
+    const old = { selections: [{ material: 'A', size: '126x63' }] };
+    expect(repEmailSnapshot({ selections: [{ material: 'A', size: '126 * 63' }] })).toBe(repEmailSnapshot(old));
+  });
   it('treats a missing price like no price, so old sheets don\'t re-send on their first save', () => {
     const old = { selections: [{ material: 'A', lot: '', details: '', size: '' }] };
     const saved = { selections: [{ material: 'A', lot: '', details: '', size: '', priceCentsPerSf: null }] };
     expect(repEmailSnapshot(saved)).toBe(repEmailSnapshot(old));
-  });
-});
-
-describe('salesRepOptions', () => {
-  const reps = [
-    { name: 'Rita Rep', email: 'rita@x.com', role: 'sales_rep', location: 'Seattle' },
-    { name: 'Gone Rep', email: 'gone@x.com', role: 'sales_rep', location: 'Seattle', isActive: false },
-    { name: 'Spokane Rep', email: 's@x.com', role: 'sales_rep', location: 'Spokane' },
-    { name: 'Everywhere Mgr', email: 'm@x.com', role: 'manager', assignedLocations: ['*'] },
-    { name: 'Driver Dan', email: 'd@x.com', role: 'driver', location: 'Seattle' }
-  ];
-
-  it('offers active selling staff at this branch, sorted', () => {
-    expect(salesRepOptions(reps, 'Seattle').map((o) => o.value)).toEqual(['Everywhere Mgr', 'Rita Rep']);
-  });
-
-  it('never offers someone deactivated…', () => {
-    expect(salesRepOptions(reps, 'Seattle').some((o) => o.value === 'Gone Rep')).toBe(false);
-  });
-
-  it('…but keeps them visible, marked, when the sheet already names them', () => {
-    const opts = salesRepOptions(reps, 'Seattle', { name: 'Gone Rep', email: 'gone@x.com' });
-    expect(opts[0]).toEqual({ value: 'Gone Rep', label: 'Gone Rep (inactive)', email: 'gone@x.com' });
-  });
-
-  it('keeps a hand-typed name from an older sheet as it was', () => {
-    expect(salesRepOptions(reps, 'Seattle', { name: 'Old Typed Name', email: '' })[0].label).toBe('Old Typed Name');
   });
 });
 
@@ -225,5 +202,36 @@ describe('buildSelectionSheetHtml', () => {
   it('says so when there are no selections', () => {
     const html = buildSelectionSheetHtml({ checkIn: {}, dateStr: '', values: sheetValuesFromCheckIn({}), letterhead });
     expect(html).toContain('No selections registered.');
+  });
+});
+
+describe('formatSlabSize — every slab size reads "142 * 79"', () => {
+  it('tidies every way people type or paste two numbers', () => {
+    for (const typed of [
+      '142 79', '  142   79  ', '142x79', '142X79', '142 x 79', '142×79', '142 × 79', '142*79', '142 * 79',
+      '142" x 79"', '142” × 79”', "142'' x 79''", '142in x 79in', '142IN X 79IN', '142 x 79in.', '142 inch x 79 inch',
+      '142 inches by 79 inches', '142 by 79', '142,79', '142, 79', '142/79', '142-79', '142 - 79'
+    ]) expect(formatSlabSize(typed), typed).toBe('142 * 79');
+  });
+  it('tidies the numbers themselves', () => {
+    expect(formatSlabSize('142.50 x 79.0')).toBe('142.5 * 79');
+    expect(formatSlabSize('063 x 079')).toBe('63 * 79');
+    expect(formatSlabSize('126 1/2 x 63')).toBe('126 1/2 * 63');
+    expect(formatSlabSize('126-1/2 x 63 1/4')).toBe('126 1/2 * 63 1/4');
+  });
+  it('leaves anything it can\'t be sure of exactly as typed', () => {
+    for (const typed of ['142 x 79 x 3', '142 x 79 cm', '3cm', '142', '142x', 'approx 142x79', 'max 79', '1/2', 'Jumbo'])
+      expect(formatSlabSize(typed), typed).toBe(typed);
+    expect(formatSlabSize('   ')).toBe('');
+    expect(formatSlabSize(null)).toBe('');
+  });
+  it('is the size a sheet loads, saves, compares and prints', () => {
+    const v = sheetValuesFromCheckIn({ selections: [{ material: 'A', size: '126x63' }] });
+    expect(v.rows[0].size).toBe('126 * 63');
+    expect(countSheetChanges({ ...v, rows: [{ ...v.rows[0], size: '126 63' }, ...v.rows.slice(1)] }, v)).toBe(0);
+    expect(sheetPayload({ rows: [{ material: 'a', size: '142" x 79"' }] }).selections[0].size).toBe('142 * 79');
+    expect(cleanSelections([{ material: 'A', size: '142x79' }]).selections[0].size).toBe('142 * 79');
+    const html = buildSelectionSheetHtml({ checkIn: {}, values: { rows: [{ material: 'A', size: '142x79' }] }, letterhead: { addressLine: '' } });
+    expect(html).toContain('142 * 79');
   });
 });

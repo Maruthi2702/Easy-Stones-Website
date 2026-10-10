@@ -7,6 +7,7 @@ import { sendCheckInAlertEmail, sendSelectionSheetEmail } from '../services/emai
 import { stripPhone, formatPhoneForDisplay, maskPhone } from '../utils/phoneUtils.js';
 import { letterheadFor } from '../utils/locationForm.js';
 import { cleanSelections, repEmailSnapshot } from '../utils/selectionSheet.js';
+import { startingRepFor, branchSalesRepOf, displayNameOf } from '../utils/salesReps.js';
 import { homeLocationOf } from '../utils/locationFilter.js';
 import { byBranchClock } from '../utils/checkInClock.js';
 import { buildCheckInLogPdf } from '../utils/checkInLogPdf.js';
@@ -66,6 +67,25 @@ const emitCheckInUpdate = (req, location) => {
 // unrelated features) rather than threaded through as a dependency — it's a
 // one-line pure function with no state to keep in sync.
 const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A new visit's sales rep, so its Selection Sheet opens with one: whoever
+// logged it if they're a sales rep, else the branch's sales person (Users &
+// Roles → Locations → Sales defaults) — the same rule as a new customer or
+// delivery (startingRepFor). Nobody if neither applies; never blocks a check-in.
+const startingRepForCheckIn = async (location, creatorId = null) => {
+  try {
+    const [loc, users] = await Promise.all([
+      Location.findOne({ name: location }, 'salesDefaults.salesRep').lean(),
+      User.find({}, 'username displayName email role isActive').lean()
+    ]);
+    const staff = users.map((u) => ({ ...u, name: displayNameOf(u) }));
+    const rep = startingRepFor({ staff, branch: location, branchReps: { [location]: branchSalesRepOf(loc) }, creator: creatorId ? { id: creatorId } : null });
+    return rep ? { salesRep: rep.name, salesRepEmail: rep.email || '' } : {};
+  } catch (err) {
+    console.error('⚠️ Could not work out a starting sales rep for a check-in:', err.message);
+    return {};
+  }
+};
 
 // Every phone field is stored the way formatPhoneInput renders it —
 // "(206) 555-1234" — but a search box that says "Search by name, phone..."
@@ -325,6 +345,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         fabricatorName,
         fabricatorPhone,
         location: kioskLocation,
+        ...(await startingRepForCheckIn(kioskLocation, req.user?.id)),
         loggedBy: {
           userId: req.user?.id,
           displayName: req.user?.displayName || '',
@@ -429,6 +450,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         fabricatorName,
         fabricatorPhone,
         location: realLocation.name,
+        ...(await startingRepForCheckIn(realLocation.name)),
         loggedBy: {
           displayName: 'Self Check-In (QR/NFC)',
           username: 'self-checkin'

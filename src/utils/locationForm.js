@@ -298,9 +298,12 @@ export const letterheadFor = (loc) => {
  * The parts of a location anyone signed in may read: what prints on sheets
  * and what the location filters need. Accounting contact, sales defaults and
  * cost overrides are for people who can manage locations only —
- * GET /api/admin/locations also answers customer logins.
+ * GET /api/admin/locations also answers customer logins. Staff (`staff`)
+ * also get the branch's sales person, which new customers and deliveries
+ * there start with (startingRepFor in src/utils/salesReps.js).
  */
-export const publicLocationFields = (loc = {}) => ({
+export const publicLocationFields = (loc = {}, { staff = false } = {}) => ({
+  ...(staff ? { defaultSalesRep: String(loc.salesDefaults?.salesRep || '') } : {}),
   _id: loc._id,
   name: loc.name,
   shortCode: loc.shortCode || '',

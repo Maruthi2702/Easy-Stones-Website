@@ -51,6 +51,42 @@ export const tidyPrice = (typed) => {
   return c === undefined ? str(typed) : centsToPlain(c);
 };
 
+// ── Slab size ──────────────────────────────────────────────────────────────
+// One way to write a slab's size everywhere (2026-10-10): width * height in
+// inches, "142 * 79". People type "142 79", paste "142x79" or "142" x 79"",
+// and tags read "142 x 79"; all of them become "142 * 79". Anything that
+// isn't clearly two numbers (a third number for thickness, cm / mm / ft, a
+// word) is left exactly as typed rather than guessed at.
+const SIZE_NUM = String.raw`\d+(?:\.\d+)?(?:[ -]\d+\/\d+)?|\d+\/\d+`;
+const SIZE_WITH_SEPARATOR = new RegExp(`^(${SIZE_NUM}) ?\\* ?(${SIZE_NUM})$`);
+// No x / * / by: two plain numbers apart by a space, or by , / - when both
+// have 2+ digits (so "1/2" is never read as 1 * 2).
+const SIZE_BARE = /^(\d+(?:\.\d+)?) (\d+(?:\.\d+)?)$|^(\d{2,}(?:\.\d+)?) ?[,/-] ?(\d{2,}(?:\.\d+)?)$/;
+
+// "126.50" → "126.5", "126.0" → "126", "063" → "63", "126-1/2" → "126 1/2".
+const tidySizeNumber = (n) => n
+  .replace(/^0+(?=\d)/, '')
+  .replace(/^(\d+)\.(\d*?)0+$/, (m, whole, frac) => (frac ? `${whole}.${frac}` : whole))
+  .replace(/-(\d+\/\d+)$/, ' $1');
+
+export const formatSlabSize = (typed) => {
+  const raw = str(typed).trim();
+  if (!raw) return '';
+  const s = raw.toLowerCase()
+    .replace(/[“”″"'’′]/g, ' ')                  // inch (and stray foot) marks
+    .replace(/(?:\b|(?<=\d))(?:inches|inch|in)\b\.?/g, ' ')  // "142in", "79 inches", "79in."
+    .replace(/\bby\b/g, '*')
+    .replace(/[×✕✖x*]/g, ' * ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (/[a-z]/.test(s)) return raw;
+  const m = s.match(SIZE_WITH_SEPARATOR);
+  if (m) return `${tidySizeNumber(m[1])} * ${tidySizeNumber(m[2])}`;
+  const bare = s.match(SIZE_BARE);
+  if (bare) return `${tidySizeNumber(bare[1] || bare[3])} * ${tidySizeNumber(bare[2] || bare[4])}`;
+  return raw;
+};
+
 /** A stored price → what the printed sheet and emails show: "$68.00" or "—". */
 export const formatSheetPrice = (cents) => (isPriceCents(cents) ? formatCents(cents) : '—');
 
@@ -76,7 +112,7 @@ export const sheetPriceSummary = (values) => {
 export const sheetValuesFromCheckIn = (checkIn = {}) => {
   const saved = (Array.isArray(checkIn.selections) ? checkIn.selections : [])
     .map((r) => ({
-      material: str(r?.material), lot: str(r?.lot), details: str(r?.details), size: str(r?.size),
+      material: str(r?.material), lot: str(r?.lot), details: str(r?.details), size: formatSlabSize(r?.size),
       price: isPriceCents(r?.priceCentsPerSf) ? centsToPlain(r.priceCentsPerSf) : ''
     }))
     .filter(rowHasData)
@@ -95,8 +131,9 @@ export const sheetValuesFromCheckIn = (checkIn = {}) => {
 };
 
 // What a save would send, normalized so two snapshots compare field by field
-// ("68" and "68.00" are the same price).
+// ("68" and "68.00" are the same price, "126 63" and "126 * 63" the same size).
 const comparableField = (r, k) => {
+  if (k === 'size') return formatSlabSize(r.size);
   if (k !== 'price') return str(r[k]).trim();
   const c = priceCentsOf(r.price);
   return c === undefined ? str(r.price).trim() : str(c);
@@ -136,7 +173,7 @@ export const sheetPayload = (values, expectedUpdatedAt) => ({
     material: str(r.material).trim().toUpperCase(),
     lot: str(r.lot).trim(),
     details: str(r.details).trim(),
-    size: str(r.size).trim(),
+    size: formatSlabSize(r.size),
     priceCentsPerSf: priceCentsOf(r.price) ?? null
   })),
   ...(expectedUpdatedAt ? { expectedUpdatedAt } : {})
@@ -158,7 +195,7 @@ export const cleanSelections = (selections) => {
       material: typeof sel?.material === 'string' ? sel.material.toUpperCase() : '',
       lot: str(sel?.lot),
       details: str(sel?.details),
-      size: str(sel?.size),
+      size: formatSlabSize(sel?.size),
       priceCentsPerSf: blank ? null : raw
     });
   }
@@ -171,48 +208,15 @@ export const cleanSelections = (selections) => {
  * edit (never in any email) doesn't.
  */
 export const repEmailSnapshot = (checkIn = {}) => JSON.stringify({
+  // Sizes compared tidied, so an older sheet's "126x63" re-saved as "126 * 63"
+  // isn't a change that re-emails the rep.
   selections: (checkIn.selections || []).map(({ material, details, size, lot, priceCentsPerSf }) => (
-    { material, details, size, lot, priceCentsPerSf: priceCentsPerSf ?? null }
+    { material, details, size: formatSlabSize(size), lot, priceCentsPerSf: priceCentsPerSf ?? null }
   )),
   specialNotes: checkIn.specialNotes || '',
   salesRep: checkIn.salesRep || '',
   salesRepEmail: checkIn.salesRepEmail || ''
 });
-
-const SELLING_ROLES = ['sales', 'manager', 'director', 'admin'];
-
-/**
- * Who can be picked as the sheet's sales rep: active staff in a selling role
- * who work at the check-in's branch (or every branch). Someone deactivated in
- * Users & Roles is never offered — the sheet emails its rep on every change —
- * but one already named on this sheet still shows, marked, so it doesn't
- * silently disappear.
- *
- * @returns {{ value, label, email }[]} sorted by name, value = the rep's name
- */
-export const salesRepOptions = (reps = [], branch = '', current = { name: '', email: '' }) => {
-  const list = (Array.isArray(reps) ? reps : [])
-    .filter((r) => r && r.isActive !== false && String(r.name || '').trim())
-    .filter((r) => {
-      const role = String(r.role || '').toLowerCase();
-      return !role || SELLING_ROLES.some((s) => role.includes(s));
-    })
-    .filter((r) => !branch || r.location === branch
-      || (r.assignedLocations || []).includes(branch) || (r.assignedLocations || []).includes('*'))
-    .map((r) => ({ value: String(r.name).trim(), label: String(r.name).trim(), email: str(r.email) }))
-    .sort((a, b) => a.label.localeCompare(b.label));
-  const unique = list.filter((o, i) => list.findIndex((x) => x.value === o.value) === i);
-  const name = str(current.name).trim();
-  if (name && !unique.some((o) => o.value === name)) {
-    const known = (Array.isArray(reps) ? reps : []).find((r) => String(r?.name || '').trim() === name);
-    unique.unshift({
-      value: name,
-      label: known?.isActive === false ? `${name} (inactive)` : name,
-      email: str(current.email)
-    });
-  }
-  return unique;
-};
 
 // Everything written into the print window is visitor- or staff-entered text
 // in our own origin, so every value is escaped (the kiosk name used to run as
@@ -246,7 +250,7 @@ export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, le
             <td style="padding: 10px; color: #222; font-weight: 500;">${escapeHtml(sel.material) || 'N/A'}</td>
             <td style="padding: 10px; color: #555;">${escapeHtml(sel.lot) || 'N/A'}</td>
             <td style="padding: 10px; color: #555;">${escapeHtml(sel.details) || 'N/A'}</td>
-            <td style="padding: 10px; color: #555;">${escapeHtml(sel.size) || 'N/A'}</td>
+            <td style="padding: 10px; color: #555;">${escapeHtml(formatSlabSize(sel.size)) || 'N/A'}</td>
             ${showPrices ? `<td style="padding: 10px; color: #222; font-weight: 600; text-align: right; white-space: nowrap;">${escapeHtml(formatSheetPrice(priceCentsOf(sel.price)))}</td>` : ''}
           </tr>
         `;

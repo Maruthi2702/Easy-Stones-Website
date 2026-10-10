@@ -174,5 +174,12 @@ describe('publicLocationFields', () => {
     expect(p).not.toHaveProperty('costOverrides');
     expect(p).not.toHaveProperty('salesDefaults');
     expect(p).not.toHaveProperty('accountingContact');
+    expect(p).not.toHaveProperty('defaultSalesRep');
+  });
+  it('gives staff (never customer logins) only the branch\'s sales person', () => {
+    const loc = { ...charlotte, salesDefaults: { salesRep: 'Krish', priceLevel: 2 } };
+    expect(publicLocationFields(loc, { staff: true }).defaultSalesRep).toBe('Krish');
+    expect(publicLocationFields(loc, { staff: true })).not.toHaveProperty('salesDefaults');
+    expect(publicLocationFields(loc)).not.toHaveProperty('defaultSalesRep');
   });
 });

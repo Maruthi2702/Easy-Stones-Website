@@ -20,6 +20,18 @@ describe('options', () => {
   });
 });
 
+describe('emptyCustomerValues — the branch\'s sales person', () => {
+  const reps = [{ _id: 'r1', name: 'Krish' }, { _id: 'r2', name: 'Jeremy' }, { _id: 'r3', name: 'Gone', inactive: true }];
+  it('starts with whoever repFor gives for the starting branch', () => {
+    const v = emptyCustomerValues({ salesReps: reps, locations: ['Seattle', 'Spokane'], currentUser: { id: 'csr', location: 'Spokane' }, repFor: (b) => (b === 'Spokane' ? { _id: 'r2' } : null) });
+    expect(v).toMatchObject({ location: 'Spokane', salesRep: 'r2' });
+  });
+  it('never someone the form doesn\'t offer, and Unassigned with no starting rep', () => {
+    expect(emptyCustomerValues({ salesReps: reps, locations: ['Seattle'], currentUser: { id: 'csr' }, repFor: () => ({ _id: 'r3' }) }).salesRep).toBe('');
+    expect(emptyCustomerValues({ salesReps: reps, locations: ['Seattle'], currentUser: { id: 'csr' }, repFor: () => null }).salesRep).toBe('');
+  });
+});
+
 describe('emptyCustomerValues', () => {
   const reps = [{ _id: 'u1', name: 'Krish' }];
   it('defaults the rep to the person entering it, and their branch', () => {

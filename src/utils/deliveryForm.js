@@ -87,7 +87,7 @@ const today = () => formatForDateInput(new Date());
  * What the form opens with. `delivery` is the saved ticket, or for a new one
  * the board's prefill (the driver column and day the + was in) with no id.
  */
-export function deliveryToFormValues(delivery, { currentUser = null, customerOptions = [], todayStr = today() } = {}) {
+export function deliveryToFormValues(delivery, { currentUser = null, customerOptions = [], todayStr = today(), startingRep = '' } = {}) {
   const d = delivery || {};
   const type = d.deliveryType || 'jobsite';
   const customerName = d.customerName || '';
@@ -116,7 +116,10 @@ export function deliveryToFormValues(delivery, { currentUser = null, customerOpt
     status: d.status || 'pending',
     customerName,
     selectedCustomerId: customerId || customerName,
-    salesRepName: d.salesRepName || currentUser?.name || 'Admin',
+    // A new ticket: who something new at its branch starts with (startingRepFor
+    // in src/utils/salesReps.js — you if you're a sales rep, else the branch's
+    // sales person); without one, you, as before.
+    salesRepName: d.salesRepName || startingRep || currentUser?.name || 'Admin',
     soNumber: d.soNumber || d.invoiceNumber || '',
     address: d.address || '',
     pickupInfo: d.pickupInfo || '',
@@ -338,33 +341,6 @@ export function deliveryLastChangedText(delivery) {
   const at = delivery?.updatedAt ? new Date(delivery.updatedAt) : null;
   if (!at || Number.isNaN(at.getTime())) return null;
   return `Last changed ${at.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
-}
-
-/** Keep the ticket's own rep in the list even if they've left the branch's list. */
-export function repOptions(names = [], current = '') {
-  return [...new Set([...names, current].filter(Boolean))].map((n) => ({ value: n, label: n }));
-}
-
-/**
- * Sales reps offered for the ticket: people on the user's branches (or
- * everyone, for an all-branch user) in a sales, manager, director or admin
- * role, plus "Admin".
- */
-export function salesRepNamesFor(list = [], currentUser = null) {
-  let users = Array.isArray(list) ? list : [];
-  const userAssigned = currentUser?.assignedLocations || [];
-  const filterLocs = userAssigned.length > 0 ? userAssigned : (currentUser?.location ? [currentUser.location] : []);
-  if (filterLocs.length > 0 && !filterLocs.includes('*')) {
-    users = users.filter((u) => {
-      const uLocs = u.assignedLocations || (u.location ? [u.location] : []);
-      return uLocs.includes('*') || uLocs.some((loc) => filterLocs.includes(loc));
-    });
-  }
-  users = users.filter((u) => {
-    const r = (u.role || '').toLowerCase();
-    return !u.role || r.includes('sales') || r.includes('manager') || r.includes('director') || r.includes('admin');
-  });
-  return [...new Set(['Admin', ...users.map((u) => u.name || u.username).filter(Boolean)])];
 }
 
 /**
