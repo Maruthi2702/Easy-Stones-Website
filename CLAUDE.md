@@ -184,7 +184,11 @@ their stored values, which fields each type uses, required fields, the
 change count, and the "Last changed by" note), and the Selection Sheet's
 rules (`src/utils/selectionSheet.js`: rows, the change count behind the
 unsaved-changes check, the save body with its stale-save
-`expectedUpdatedAt`, which active reps are offered, and the escaped print page),
+`expectedUpdatedAt`, which active reps are offered, the escaped print page,
+price per SF in cents and when it prints, internal vs printed notes, and
+what the server accepts and when it re-emails the rep) plus its save/email
+routes (`src/routes/checkIn.test.js`, in-memory MongoDB) and the email's
+contents (`src/services/emailService.test.js`),
 and Add / Edit customer's rules (`src/utils/customerForm.js`: stored option
 values, new-customer defaults, record ↔ form mapping, required fields, the
 email/marketing-email sync, the change count, and what a business-card scan

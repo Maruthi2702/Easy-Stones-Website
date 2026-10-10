@@ -6,6 +6,7 @@ import User from '../models/User.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail } from '../services/emailService.js';
 import { stripPhone, formatPhoneForDisplay, maskPhone } from '../utils/phoneUtils.js';
 import { letterheadFor } from '../utils/locationForm.js';
+import { cleanSelections, repEmailSnapshot } from '../utils/selectionSheet.js';
 import { homeLocationOf } from '../utils/locationFilter.js';
 import { byBranchClock } from '../utils/checkInClock.js';
 import { buildCheckInLogPdf } from '../utils/checkInLogPdf.js';
@@ -658,6 +659,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         builderPhone,
         selections,
         specialNotes,
+        internalNotes,
         salesRep,
         salesRepEmail,
         location,
@@ -695,14 +697,12 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       // branch the record is leaving, not just the one it lands on.
       const previousLocation = checkIn.location;
       // The sheet as it was before this save — the sales rep is only emailed
-      // when it actually changes, not on every save of the same sheet.
-      const sheetSnapshot = () => JSON.stringify({
-        selections: (checkIn.selections || []).map(({ material, details, size, lot }) => ({ material, details, size, lot })),
-        specialNotes: checkIn.specialNotes || '',
-        salesRep: checkIn.salesRep || '',
-        salesRepEmail: checkIn.salesRepEmail || '',
-      });
-      const sheetBefore = sheetSnapshot();
+      // when what their email shows actually changes (materials, prices,
+      // printed notes, the rep), not on every save of the same sheet. Internal
+      // notes are in no email, so editing only those records the edit below
+      // but doesn't re-send.
+      const repEmailBefore = repEmailSnapshot(checkIn);
+      const internalBefore = checkIn.internalNotes || '';
 
       if (name) checkIn.name = name;
       if (phone) checkIn.phone = phone;
@@ -723,19 +723,15 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       if (builderName !== undefined) checkIn.builderName = builderName;
       if (builderPhone !== undefined) checkIn.builderPhone = builderPhone;
       if (selections !== undefined) {
-        // Only reachable by calling the API directly (the edit modal always
-        // sends a well-formed array), but a malformed body used to throw here
-        // — selections.map on a non-array, or .toUpperCase() on a non-string
-        // material — and surface as an opaque 500 instead of a real error.
-        if (!Array.isArray(selections)) {
-          return res.status(400).json({ message: 'Selections must be a list' });
-        }
-        checkIn.selections = selections.map(sel => ({
-          ...sel,
-          material: typeof sel?.material === 'string' ? sel.material.toUpperCase() : ''
-        }));
+        // Only reachable by calling the API directly (the sheet always sends
+        // a well-formed array with whole-cent prices), but a malformed body
+        // used to throw here and surface as an opaque 500 instead of a 400.
+        const cleaned = cleanSelections(selections);
+        if (cleaned.error) return res.status(400).json({ message: cleaned.error });
+        checkIn.selections = cleaned.selections;
       }
       if (specialNotes !== undefined) checkIn.specialNotes = specialNotes;
+      if (internalNotes !== undefined) checkIn.internalNotes = String(internalNotes ?? '');
       if (salesRep !== undefined) checkIn.salesRep = salesRep;
       if (salesRepEmail !== undefined) {
         // The rep is picked from staff accounts (the Selection Sheet's list),
@@ -751,7 +747,8 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         checkIn.salesRepEmail = next;
       }
 
-      const sheetChanged = sheetSnapshot() !== sheetBefore;
+      const repEmailChanged = repEmailSnapshot(checkIn) !== repEmailBefore;
+      const sheetChanged = repEmailChanged || (checkIn.internalNotes || '') !== internalBefore;
       if (sheetChanged) {
         checkIn.sheetEditedBy = req.user?.username || '';
         checkIn.sheetEditedAt = new Date();
@@ -759,9 +756,10 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       await checkIn.save();
       console.log(`✅ Office check-in ${checkIn._id} updated by ${req.user?.displayName || req.user?.username}`);
 
-      // Background alert to the sales rep — only when the selections, notes or
-      // the rep themselves changed. It used to fire on every save, so re-saving
-      // an unchanged sheet emailed the rep again each time.
+      // Background alert to the sales rep — only when the selections, prices,
+      // printed notes or the rep themselves changed. It used to fire on every
+      // save, so re-saving an unchanged sheet emailed the rep again each time.
+      // The rep's copy always shows prices; it never shows internal notes.
       // …only to an active staff account (never someone deactivated in Users &
       // Roles, who may still be named on an old sheet, and never an outside
       // address), and only when the editor may send selection sheets at all —
@@ -770,11 +768,11 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       const repIsActiveStaff = checkIn.salesRepEmail
         ? await User.exists({ email: new RegExp(`^${escapeRegex(checkIn.salesRepEmail)}$`, 'i'), isActive: { $ne: false } })
         : null;
-      if (checkIn.salesRepEmail && repIsActiveStaff && canSendSheet && sheetChanged) {
+      if (checkIn.salesRepEmail && repIsActiveStaff && canSendSheet && repEmailChanged) {
         (async () => {
           try {
             console.log(`📡 Automatically sending selection sheet alert to sales rep: ${checkIn.salesRepEmail}`);
-            await sendSelectionSheetEmail(checkIn, checkIn.salesRepEmail, await letterheadForCheckIn(checkIn));
+            await sendSelectionSheetEmail(checkIn, checkIn.salesRepEmail, await letterheadForCheckIn(checkIn), { showPrices: true });
           } catch (err) {
             console.error('❌ Failed to auto-send selection sheet email to sales rep:', err.message);
           }
@@ -794,7 +792,9 @@ export default function createCheckInRouter({ authenticate, requirePermission })
   // Send selection sheet email
   router.post('/:id/send-email', authenticate, requirePermission('send_checkin_email'), async (req, res) => {
     try {
-      const { email } = req.body;
+      // withPrices: the "Send with prices" button. Off unless asked for, so a
+      // visitor's copy never carries prices by accident.
+      const { email, withPrices } = req.body;
       if (!email) {
         return res.status(400).json({ message: 'Recipient email is required' });
       }
@@ -812,7 +812,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
         return res.status(403).json({ message: 'Access denied to this check-in' });
       }
 
-      const emailResult = await sendSelectionSheetEmail(checkIn, email, await letterheadForCheckIn(checkIn));
+      const emailResult = await sendSelectionSheetEmail(checkIn, email, await letterheadForCheckIn(checkIn), { showPrices: withPrices === true });
 
       if (!emailResult.success) {
         return res.status(500).json({ message: `Failed to send selection sheet email. Details: ${emailResult.error || 'Unknown error'}` });

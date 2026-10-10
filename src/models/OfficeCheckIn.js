@@ -69,13 +69,22 @@ const officeCheckInSchema = new mongoose.Schema({
       material: { type: String, default: '', maxlength: [200, 'Material is too long'] },
       details: { type: String, default: '', maxlength: [2000, 'Details are too long'] },
       size: { type: String, default: '', maxlength: [200, 'Size is too long'] },
-      lot: { type: String, default: '', maxlength: [200, 'Lot/bundle number is too long'] }
+      lot: { type: String, default: '', maxlength: [200, 'Lot/bundle number is too long'] },
+      // Optional price per SF in whole cents (src/utils/selectionSheet.js).
+      priceCentsPerSf: { type: Number, default: null, min: [1, 'Price must be more than zero'] }
     }
   ],
+  // "Printed notes" on the sheet — on every printed and emailed copy.
   specialNotes: {
     type: String,
     default: '',
     maxlength: [5000, 'Special notes are too long']
+  },
+  // Staff-only notes on the sheet — never printed or emailed to anyone.
+  internalNotes: {
+    type: String,
+    default: '',
+    maxlength: [5000, 'Internal notes are too long']
   },
   salesRep: {
     type: String,
@@ -89,7 +98,7 @@ const officeCheckInSchema = new mongoose.Schema({
     default: '',
     maxlength: [254, 'Sales rep email is too long']
   },
-  // Who last changed the selection sheet (rep, materials or notes) and when.
+  // Who last changed the selection sheet (rep, materials, prices or notes) and when.
   // Kept for the record only — the sheet itself doesn't show it.
   sheetEditedBy: { type: String, default: '' },
   sheetEditedAt: { type: Date, default: null },
