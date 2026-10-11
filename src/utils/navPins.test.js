@@ -113,7 +113,7 @@ describe('admin nav order', () => {
     const order = { sections: ['operations', 'sales'], items: { sales: ['lost_sales'], operations: ['checkin', 'delivery_schedule'] } };
     expect(ids(orderedSections(order))).toEqual([
       ['operations', ['checkin', 'delivery_schedule', 'daily_report']],
-      ['sales', ['lost_sales', 'customers', 'route_planner', 'holds']],
+      ['sales', ['lost_sales', 'customers', 'route_planner', 'holds', 'permits']],
       ['home', ['dashboard']],
       ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet']],
       ['accounting', ['freight']],

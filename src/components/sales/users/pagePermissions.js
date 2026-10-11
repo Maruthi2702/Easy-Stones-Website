@@ -3,8 +3,9 @@
 import { summarizeRole } from '../../../utils/userForm';
 import { FREIGHT, CARRIERS } from '../../../accounting/permissions';
 import { CART, HOLDS } from '../../../holds/permissions';
+import { PERMITS } from '../../../permits/permissions';
 import {
-    ArrowLeftRight, Boxes, CheckCheck, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
+    ArrowLeftRight, Boxes, CheckCheck, Download, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
 } from 'lucide-react';
 
 // Granular per-page permission definitions.
@@ -201,6 +202,20 @@ export const PAGE_PERMISSIONS = [
             { key: HOLDS.RELEASE,     label: 'Release',       icon: Eraser,     desc: 'Free a hold’s slabs early' },
             { key: HOLDS.PRINT,       label: 'Print',         icon: Printer,    desc: 'Print or download the hold PDF' },
             { key: HOLDS.HISTORY,     label: 'View history',  icon: Clock,      desc: 'See who changed what on a hold, and when' }
+        ]
+    },
+    // Permits (src/permits/permissions.js, 2026-10-11): admin only to start;
+    // an admin decides here who else sees them.
+    {
+        id: 'permits',
+        page: 'Permits',
+        icon: HardHat,
+        description: 'Building permits issued in Whatcom County and Bellingham, pulled each morning as sales leads',
+        color: '#b45309',
+        actions: [
+            { key: PERMITS.VIEW,    label: 'View',        icon: Eye,       desc: 'See the permits with their contractor, owner and applicant contacts' },
+            { key: PERMITS.EXPORT,  label: 'Export',      icon: Download,  desc: 'Download permits as Excel' },
+            { key: PERMITS.REFRESH, label: 'Refresh now', icon: RefreshCw, desc: 'Run the morning pull on demand, and see each source’s run details' }
         ]
     },
     // Accounting (src/accounting/permissions.js, 2026-10-09). Nothing in
