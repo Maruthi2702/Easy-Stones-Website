@@ -375,6 +375,23 @@ describe('the API', () => {
     expect(r.body.items).toHaveLength(2);
   });
 
+  it('makes the list a PDF for the same filters, only with the Export permission', async () => {
+    const pdf = await api('get', '/export.pdf?source=whatcom').buffer(true).parse((res, cb) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+    });
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers['content-type']).toBe('application/pdf');
+    expect(pdf.headers['content-disposition']).toBe('inline; filename="permits-whatcom-start-to-today.pdf"');
+    expect(pdf.body.subarray(0, 5).toString()).toBe('%PDF-');
+    expect((await api('get', '/export.pdf?city=Ferndale&download=1')).headers['content-disposition']).toMatch(/^attachment; filename="permits-ferndale-/);
+    expect((await api('get', '/export.pdf', VIEWER)).status).toBe(403);
+    const bad = await api('get', '/export.pdf?from=yesterday');
+    expect(bad.status).toBe(400);
+    expect(bad.text).toBe('Dates must be YYYY-MM-DD.');
+  });
+
   it('shows each source’s last run, with the run details only for Refresh', async () => {
     const admin = (await api('get', '/meta')).body;
     expect(admin.sources.map((s) => s.id)).toEqual(['whatcom', 'bellingham']);

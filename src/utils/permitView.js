@@ -3,7 +3,7 @@
  * how each source's freshness and the county report check read, which
  * contact a row leads with, and the Excel rows. Pure, with tests beside it.
  */
-import { SOURCES, categoryLabel, formatPhone, isPlaceholderName, shiftDay, pacificNow } from '../permits/permitRules';
+import { SOURCES, categoryLabel, formatPhone, isPlaceholderName, shiftDay, pacificNow } from '../permits/permitRules.js';
 
 export const DATE_RANGES = Object.freeze([
   { id: '7', label: 'Last 7 days', days: 7 },
@@ -21,6 +21,27 @@ export const SORT_OPTIONS = Object.freeze([
   { id: 'value_asc', label: 'Lowest value' }
 ]);
 export const DEFAULT_SORT = 'issued_desc';
+
+/**
+ * The one "where" filter: who issued the permit (the county or the city of
+ * Bellingham) or the permit's city, as a single select value —
+ * '' (everything), 'source:<id>' or 'city:<name>'.
+ */
+export function placeGroups(cities = []) {
+  return [
+    { label: 'Issued by', options: Object.values(SOURCES).map((s) => ({ value: `source:${s.id}`, label: s.long })) },
+    { label: 'City', options: cities.map((c) => ({ value: `city:${c}`, label: c })) }
+  ].filter((g) => g.options.length);
+}
+
+/** A place value as the list's { source, city } query. */
+export function placeQuery(value = '') {
+  const [kind, ...rest] = String(value).split(':');
+  const id = rest.join(':');
+  if (kind === 'source' && SOURCES[id]) return { source: id, city: '' };
+  if (kind === 'city' && id) return { source: '', city: id };
+  return { source: '', city: '' };
+}
 
 /** Clicking a column: highest / newest first, then the other way on the next click. */
 export function nextSort(current, column) {
@@ -134,6 +155,30 @@ export function checkStatus(check) {
   return { tone: 'warn', text: `${month}: ${n} permit${n === 1 ? '' : 's'} differ from the county’s report` };
 }
 
+/**
+ * What the page still shows above the list now that the checks live under
+ * More → Detailed Checks: anything that isn't plainly fine — a source that
+ * failed, went stale, is pulling or hasn't run, new building types not
+ * sorted yet, or a check on top that didn't come out clean. Empty when all
+ * is well, so the page stays quiet.
+ */
+export function checksAttention(sources = [], checks = [], now = new Date()) {
+  const lines = [];
+  for (const source of sources) {
+    const s = sourceStatus(source, now);
+    if (s.tone !== 'ok') lines.push({ id: source.id, tone: s.tone, text: s.text });
+    const unsorted = source.lastRun?.unsortedTypes || [];
+    if (unsorted.length) {
+      lines.push({ id: `${source.id}-unsorted`, tone: 'warn', text: `${source.label}: new building types not sorted yet — ${unsorted.map((u) => `${u.type} (${u.count})`).join(', ')}` });
+    }
+  }
+  for (const c of splitChecks(checks, now).top) {
+    const s = checkStatus(c);
+    if (s.tone !== 'ok') lines.push({ id: `${c.source}-${c.month}-${c.method}`, tone: s.tone, text: s.text });
+  }
+  return lines;
+}
+
 /** The contact a row leads with: the contractor, unless it's TBD or the owner building it themselves. */
 export function leadContact(permit) {
   const contacts = permit.contacts || [];
@@ -189,4 +234,60 @@ export function permitExportRows(items) {
       Link: p.sourceUrl || ''
     };
   });
+}
+
+// ── PDF (More menu → View as PDF / Download as PDF, 2026-10-11) ──────────
+
+/** A PDF stops here (~50 pages); past it the heading says so and Excel has the rest. */
+export const PERMIT_PDF_MAX_ROWS = 1000;
+
+/** One PDF row per permit: two lines a column — the main value and a quieter one under it. */
+export function permitPdfRows(items) {
+  return items.map((p) => {
+    const { contact, note } = leadContact(p);
+    const phone = contact?.phone ? formatPhone(contact.phone) : '';
+    return {
+      issued: formatDay(p.issuedOn),
+      issuer: SOURCES[p.source]?.label || '',
+      number: p.permitNumber || '',
+      kind: categoryLabel(p.category),
+      address: p.address || '',
+      city: p.city || '',
+      work: p.description || p.type || '',
+      value: formatMoney(p.valuation),
+      lead: contactTitle(contact) || note,
+      leadSub: [contact && note ? note : '', contact?.company ? contactPerson(contact) : '', phone].filter(Boolean).join(' · ')
+    };
+  });
+}
+
+/** The PDF heading's filter line: "Whatcom County · New home · Sep 12 – Oct 11, 2026 · matching “kvf”". */
+export function permitPdfScope({ source, city, category, from, to, q } = {}) {
+  const where = SOURCES[source]?.long || city || 'Whatcom County and Bellingham';
+  const kind = categoryLabel(category) || 'All kinds of work';
+  const when = from && to ? `${formatDay(from)} – ${formatDay(to)}` : from ? `Since ${formatDay(from)}` : to ? `Through ${formatDay(to)}` : 'All dates';
+  const text = String(q || '').trim();
+  return [where, kind, when, text ? `matching “${text}”` : ''].filter(Boolean).join(' · ');
+}
+
+/**
+ * The PDF's address for the list's current filters. A plain link (the login
+ * cookie signs it in), so View opens a tab straight from the tap — an iPad
+ * blocks a tab opened after waiting on a fetch. `download` saves a file.
+ */
+export function permitPdfUrl(apiUrl, query = {}, { download = false } = {}) {
+  const params = new URLSearchParams();
+  for (const key of ['source', 'city', 'category', 'from', 'to', 'q', 'sort']) {
+    const v = String(query[key] ?? '').trim();
+    if (v) params.set(key, v);
+  }
+  if (download) params.set('download', '1');
+  const qs = params.toString();
+  return `${apiUrl || ''}/api/permits/export.pdf${qs ? `?${qs}` : ''}`;
+}
+
+/** "permits-whatcom-2026-09-12-to-2026-10-11.pdf" — the Excel file's name, as a PDF. */
+export function permitFileName({ source, city, from, to } = {}, ext = 'xlsx') {
+  const where = source || String(city || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'whatcom-bellingham';
+  return `permits-${where}-${from || 'start'}-to-${to || 'today'}.${ext}`;
 }

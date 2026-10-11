@@ -1,18 +1,38 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, AlertTriangle, Loader2, Download, RefreshCw, ChevronDown, CheckCircle2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Search, X, AlertTriangle, Loader2, RefreshCw, ChevronDown, CheckCircle2, Filter, MoreHorizontal, Eye, FileText, FileSpreadsheet, ListChecks } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Pagination from '../../shared/Pagination';
 import { usePagination } from '../../shared/paginationConfig';
+import { API_URL } from '../../../config/api';
 import { permitsMeta, listPermits, exportPermits, refreshPermits } from '../../../api/permits';
 import { SOURCES, CATEGORIES, categoryLabel, pacificNow } from '../../../permits/permitRules';
 import {
-  DATE_RANGES, DEFAULT_RANGE, rangeFrom, formatDay, formatMoney, sizeLine, sourceStatus, checkStatus, splitChecks,
-  permitExportRows, SORT_OPTIONS, DEFAULT_SORT
+  DATE_RANGES, DEFAULT_RANGE, rangeFrom, formatDay, formatMoney, sizeLine, sourceStatus, splitChecks, checksAttention,
+  permitExportRows, SORT_OPTIONS, DEFAULT_SORT, placeGroups, placeQuery,
+  permitPdfUrl, permitFileName
 } from '../../../utils/permitView';
 import { SortHeader, LeadCell, PermitDetail } from './PermitParts';
+import ChecksDialog from './ChecksDialog';
 import './Permits.css';
 
 const STATUS_ICON = { ok: CheckCircle2, warn: AlertTriangle, none: AlertTriangle, busy: Loader2 };
+
+/** Closes an open popover on a click/tap outside `ref` or Escape (focus goes back to its button). */
+function useDismiss(ref, open, close) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) close(); };
+    const onKey = (e) => { if (e.key === 'Escape') { close(); ref.current?.querySelector('button')?.focus(); } };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [ref, open, close]);
+}
 
 /**
  * Sales · Permits: building permits issued in Whatcom County (the county and
@@ -22,11 +42,10 @@ const STATUS_ICON = { ok: CheckCircle2, warn: AlertTriangle, none: AlertTriangle
  */
 export default function PermitsTab({ sidebarToggle = null }) {
   const [meta, setMeta] = useState(null);
-  const [source, setSource] = useState('');
+  const [place, setPlace] = useState('');
   const [category, setCategory] = useState('');
   const [range, setRange] = useState(DEFAULT_RANGE);
   const [sort, setSort] = useState(DEFAULT_SORT);
-  const [city, setCity] = useState('');
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
   const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
@@ -36,8 +55,20 @@ export default function PermitsTab({ sidebarToggle = null }) {
   const [openId, setOpenId] = useState('');
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
-  const [showChecks, setShowChecks] = useState(false);
   const seq = useRef(0);
+  const [popover, setPopover] = useState(''); // 'filter' | 'more' | ''
+  const filterRef = useRef(null);
+  const moreRef = useRef(null);
+  const closePopover = useCallback(() => setPopover(''), []);
+  useDismiss(filterRef, popover === 'filter', closePopover);
+  useDismiss(moreRef, popover === 'more', closePopover);
+  const togglePopover = (name) => setPopover((p) => (p === name ? '' : name));
+  const [checksOpen, setChecksOpen] = useState(false);
+  const openChecks = () => { setPopover(''); setChecksOpen(true); };
+  const closeChecks = useCallback(() => {
+    setChecksOpen(false);
+    moreRef.current?.querySelector('button')?.focus();
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search.trim()), 300);
@@ -45,8 +76,8 @@ export default function PermitsTab({ sidebarToggle = null }) {
   }, [search]);
 
   const query = useMemo(() => ({
-    source, category, city, q: debounced, from: rangeFrom(range), to: pacificNow().day, sort
-  }), [source, category, city, debounced, range, sort]);
+    ...placeQuery(place), category, q: debounced, from: rangeFrom(range), to: pacificNow().day, sort
+  }), [place, category, debounced, range, sort]);
 
   // A new view goes back to page 1.
   const filterKey = JSON.stringify(query);
@@ -77,6 +108,7 @@ export default function PermitsTab({ sidebarToggle = null }) {
   }, [query, currentPage, rowsPerPage, reloadKey]);
 
   const runNow = async () => {
+    setPopover('');
     setBusy('refresh');
     setNotice('');
     try {
@@ -91,6 +123,7 @@ export default function PermitsTab({ sidebarToggle = null }) {
   };
 
   const download = async () => {
+    setPopover('');
     setBusy('export');
     setNotice('');
     try {
@@ -98,7 +131,7 @@ export default function PermitsTab({ sidebarToggle = null }) {
       const ws = XLSX.utils.json_to_sheet(permitExportRows(r.items));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Permits');
-      XLSX.writeFile(wb, `permits-${source || 'whatcom-bellingham'}-${query.from}-to-${query.to}.xlsx`);
+      XLSX.writeFile(wb, permitFileName(query));
     } catch (err) {
       setNotice(err.message);
     } finally {
@@ -111,7 +144,11 @@ export default function PermitsTab({ sidebarToggle = null }) {
   const now = new Date();
   const statuses = (meta?.sources || []).map((s) => ({ ...sourceStatus(s, now), id: s.id, unsorted: s.lastRun?.unsortedTypes || [] }));
   const { top: topChecks, rest: olderChecks } = splitChecks(meta?.checks || [], now);
-  const filtered = Boolean(debounced || city || source);
+  const attention = checksAttention(meta?.sources, meta?.checks, now);
+  const needsLook = attention.some((a) => a.tone !== 'busy');
+  const filtered = Boolean(debounced || place);
+  const filtersSet = Boolean(place || range !== DEFAULT_RANGE || sort !== DEFAULT_SORT);
+  const clearFilters = () => { setPlace(''); setRange(DEFAULT_RANGE); setSort(DEFAULT_SORT); };
 
   return (
     <div className="pm">
@@ -120,90 +157,105 @@ export default function PermitsTab({ sidebarToggle = null }) {
           {sidebarToggle}
           <h1 className="pm-title">Permits</h1>
           <span className="pm-grow" />
-          <div className="pm-seg" role="group" aria-label="Who issued the permit">
-            <button type="button" className={!source ? 'on' : ''} aria-pressed={!source} onClick={() => setSource('')}>All</button>
-            {Object.values(SOURCES).map((s) => (
-              <button key={s.id} type="button" className={source === s.id ? 'on' : ''} aria-pressed={source === s.id} onClick={() => setSource(s.id)}>{s.label}</button>
-            ))}
-          </div>
           <label className="pm-search">
             <Search size={16} aria-hidden="true" />
             <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Address, permit #, contractor" aria-label="Search permits" />
             {search ? <button type="button" className="pm-x" onClick={() => setSearch('')} aria-label="Clear search"><X size={14} /></button> : null}
           </label>
-          <select className="pm-select" value={range} onChange={(e) => setRange(e.target.value)} aria-label="Issued">
-            {DATE_RANGES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-          </select>
-          <select className="pm-select pm-sort-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort">
-            {SORT_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-          </select>
-          <select className="pm-select" value={city} onChange={(e) => setCity(e.target.value)} aria-label="City">
-            <option value="">All cities</option>
-            {(meta?.cities || []).map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          {meta?.canExport ? (
-            <button type="button" className="pm-btn" onClick={download} disabled={busy === 'export' || !data?.total}>
-              {busy === 'export' ? <Loader2 size={16} className="pm-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
-              <span className="pm-btn-label">Export</span>
-            </button>
-          ) : null}
-          {meta?.canRefresh ? (
-            <button type="button" className="pm-btn" onClick={runNow} disabled={busy === 'refresh' || meta?.running} title="Run the morning pull now">
-              <RefreshCw size={16} className={meta?.running ? 'pm-spin' : ''} aria-hidden="true" />
-              <span className="pm-btn-label">{meta?.running ? 'Pulling…' : 'Refresh now'}</span>
-            </button>
-          ) : null}
-        </div>
-
-        {meta ? (
-          <div className="pm-status">
-            {statuses.map((s) => {
-              const Icon = STATUS_ICON[s.tone] || AlertTriangle;
-              return (
-                <div key={s.id} className={`pm-status-line ${s.tone}`}>
-                  <Icon size={15} className={s.tone === 'busy' ? 'pm-spin' : ''} aria-hidden="true" />
-                  <span>{s.text}{s.through || ''}</span>
-                  {s.unsorted.length ? (
-                    <span className="pm-unsorted">New building types not sorted yet: {s.unsorted.map((u) => `${u.type} (${u.count})`).join(', ')}.</span>
-                  ) : null}
+          <div className="pm-tools">
+            <div className="pm-pop-wrap" ref={filterRef}>
+              <button type="button" className={`pm-icon-btn${filtersSet ? ' on' : ''}`} aria-label={filtersSet ? 'Filters (some set)' : 'Filters'} title="Filters"
+                aria-haspopup="dialog" aria-expanded={popover === 'filter'} onClick={() => togglePopover('filter')}>
+                <Filter size={17} aria-hidden="true" />
+                {filtersSet ? <span className="pm-dot" aria-hidden="true" /> : null}
+              </button>
+              {popover === 'filter' ? (
+                <div className="pm-pop pm-filters" role="dialog" aria-label="Filters">
+                  <label className="pm-field">
+                    <span>Issued</span>
+                    <select className="pm-select" value={range} onChange={(e) => setRange(e.target.value)}>
+                      {DATE_RANGES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="pm-field">
+                    <span>City</span>
+                    <select className="pm-select" value={place} onChange={(e) => setPlace(e.target.value)}>
+                      <option value="">All cities</option>
+                      {placeGroups(meta?.cities).map((g) => (
+                        <optgroup key={g.label} label={g.label}>
+                          {g.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="pm-field pm-sort-field">
+                    <span>Sort</span>
+                    <select className="pm-select" value={sort} onChange={(e) => setSort(e.target.value)}>
+                      {SORT_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    </select>
+                  </label>
+                  <div className="pm-pop-foot">
+                    <button type="button" className="pm-btn sm" onClick={clearFilters} disabled={!filtersSet}>Clear</button>
+                    <button type="button" className="pm-btn sm pm-primary" onClick={closePopover}>Done</button>
+                  </div>
                 </div>
-              );
-            })}
-            {topChecks.map((c, i) => {
-              const s = checkStatus(c);
-              return (
-                <div key={`${c.source}-${c.month}-${c.method}`} className={`pm-status-line ${s.tone}`}>
-                  {s.tone === 'ok' ? <CheckCircle2 size={15} aria-hidden="true" /> : <AlertTriangle size={15} aria-hidden="true" />}
-                  <span>{s.text}</span>
-                  {i === topChecks.length - 1 ? (
-                    <button type="button" className="pm-link" onClick={() => setShowChecks((v) => !v)} aria-expanded={showChecks}>{showChecks ? 'Hide' : 'Details'}</button>
-                  ) : null}
-                </div>
-              );
-            })}
-            {showChecks ? (
-              <ul className="pm-checks">
-                {[...topChecks.filter((c) => !c.ok), ...olderChecks].map((c) => {
-                  const s = checkStatus(c);
-                  const search = c.method === 'search';
-                  return (
-                    <li key={`${c.source}-${c.month}-${c.method}`} className={s.tone}>
-                      <b>{s.text}</b>
-                      {c.missingFromApp?.length ? <span>{search ? 'Found by the separate search but not here' : 'In the county’s report but not here'}: {c.missingFromApp.join(', ')}</span> : null}
-                      {c.notFoundAgain?.length ? <span>Here but not found by the separate search: {c.notFoundAgain.join(', ')}</span> : null}
-                      {c.notInReport?.length ? <span>Here but not in the county’s report: {c.notInReport.join(', ')}</span> : null}
-                      {c.notInCountySearch?.length ? <span>In the report but missing from the county’s own search: {c.notInCountySearch.join(', ')}</span> : null}
-                      {c.datesMoved?.length ? <span className="pm-muted">Re-issued by the county after the report (shown here under the new date): {c.datesMoved.join(', ')}</span> : null}
-                      {c.notPublic?.length ? <span className="pm-muted">Not lead types, and hidden from the county’s public search: {c.notPublic.join(', ')}</span> : null}
-                      {c.reportUrl ? <a href={c.reportUrl} target="_blank" rel="noreferrer">{c.reportTitle || 'The county’s report'}</a> : null}
-                    </li>
-                  );
-                })}
-                <li className="pm-muted">The month so far is checked each morning by finding every lead permit a second, separate way. Once a month is over, the county’s own monthly report replaces that check for Whatcom County. Bellingham doesn’t publish one; besides the separate query, every pull must read as many permits as the city says it has, or it fails.</li>
-              </ul>
+              ) : null}
+            </div>
+            {meta ? (
+              <div className="pm-pop-wrap" ref={moreRef}>
+                <button type="button" className="pm-icon-btn" aria-label={needsLook ? 'More (a check needs a look)' : 'More'} title="More"
+                  aria-haspopup="menu" aria-expanded={popover === 'more'} onClick={() => togglePopover('more')}>
+                  {busy ? <Loader2 size={17} className="pm-spin" aria-hidden="true" /> : <MoreHorizontal size={18} aria-hidden="true" />}
+                  {needsLook ? <span className="pm-dot warn" aria-hidden="true" /> : null}
+                </button>
+                {popover === 'more' ? (
+                  <div className="pm-pop pm-menu" role="menu" aria-label="More">
+                    {meta?.canExport ? (<>
+                      <a role="menuitem" className="pm-menu-item" href={permitPdfUrl(API_URL, query)} target="_blank" rel="noopener noreferrer" onClick={closePopover}>
+                        <Eye size={16} aria-hidden="true" />View as PDF
+                      </a>
+                      <a role="menuitem" className="pm-menu-item" href={permitPdfUrl(API_URL, query, { download: true })} onClick={closePopover}>
+                        <FileText size={16} aria-hidden="true" />Download as PDF
+                      </a>
+                      <button type="button" role="menuitem" className="pm-menu-item" onClick={download} disabled={busy === 'export' || !data?.total}>
+                        <FileSpreadsheet size={16} aria-hidden="true" />{busy === 'export' ? 'Preparing Excel…' : 'Download as Excel'}
+                      </button>
+                    </>) : null}
+                    {meta?.canExport && meta?.canRefresh ? <div className="pm-menu-sep" role="separator" /> : null}
+                    {meta?.canRefresh ? (
+                      <button type="button" role="menuitem" className="pm-menu-item" onClick={runNow} disabled={busy === 'refresh' || meta?.running}>
+                        <RefreshCw size={16} className={meta?.running ? 'pm-spin' : ''} aria-hidden="true" />{meta?.running ? 'Pulling…' : 'Refresh now'}
+                      </button>
+                    ) : null}
+                    {meta?.canExport || meta?.canRefresh ? <div className="pm-menu-sep" role="separator" /> : null}
+                    <button type="button" role="menuitem" className="pm-menu-item" onClick={openChecks}>
+                      <ListChecks size={16} aria-hidden="true" />Detailed Checks
+                      {needsLook ? <span className="pm-menu-flag">Needs a look</span> : null}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </div>
+        </div>
+
+        {/* Everything fine → nothing here; the full picture is under More → Detailed Checks. */}
+        {attention.length ? (
+          <div className="pm-status">
+            {attention.map((a, i) => {
+              const Icon = STATUS_ICON[a.tone] || AlertTriangle;
+              return (
+                <div key={a.id} className={`pm-status-line ${a.tone}`}>
+                  <Icon size={15} className={a.tone === 'busy' ? 'pm-spin' : ''} aria-hidden="true" />
+                  <span>{a.text}</span>
+                  {i === attention.length - 1 ? <button type="button" className="pm-link" onClick={openChecks}>Detailed Checks</button> : null}
+                </div>
+              );
+            })}
+          </div>
         ) : null}
+
+        {checksOpen ? <ChecksDialog statuses={statuses} topChecks={topChecks} olderChecks={olderChecks} onClose={closeChecks} /> : null}
 
         {notice ? <div className="pm-notice" role="status">{notice}</div> : null}
 
