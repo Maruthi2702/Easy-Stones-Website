@@ -17,9 +17,10 @@ const PAGE_GAP = 10000;
 /**
  * `deadline` (a Date.now() timestamp): stop reading further pages after it,
  * so a slow PDF doesn't keep the server busy after the upload route has
- * stopped waiting for it.
+ * stopped waiting for it. `maxPages`: the county's monthly permit report
+ * (src/permits/countyReport.js) runs to a dozen pages or more.
  */
-export async function extractPdfTextItems(buffer, { deadline = Infinity } = {}) {
+export async function extractPdfTextItems(buffer, { deadline = Infinity, maxPages = MAX_PAGES } = {}) {
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const doc = await getDocument({
     data: new Uint8Array(buffer),
@@ -31,7 +32,7 @@ export async function extractPdfTextItems(buffer, { deadline = Infinity } = {}) 
 
   try {
     const items = [];
-    const pages = Math.min(doc.numPages, MAX_PAGES);
+    const pages = Math.min(doc.numPages, maxPages);
     for (let p = 1; p <= pages; p++) {
       if (Date.now() > deadline) break;
       const page = await doc.getPage(p);

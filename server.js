@@ -92,6 +92,12 @@ import { ALL_ACCOUNTING_PERMISSIONS } from './src/accounting/permissions.js';
 import createHoldsRouter from './src/holds/router.js';
 import { createHoldExpiry } from './src/holds/expiry.js';
 import { ALL_HOLD_PERMISSIONS } from './src/holds/permissions.js';
+import createPermitsRouter from './src/permits/router.js';
+import { createPermitSync } from './src/permits/sync.js';
+import { createWhatcomSource } from './src/permits/sources/whatcom.js';
+import { createBellinghamSource } from './src/permits/sources/bellingham.js';
+import { createCountyReports } from './src/permits/countyReport.js';
+import { ALL_PERMIT_PERMISSIONS } from './src/permits/permissions.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
@@ -602,7 +608,8 @@ async function startServer() {
             'add_visits', 'edit_own_visits', 'delete_own_visits',
             'view_all_visits', 'edit_all_visits', 'delete_all_visits',
             ...ALL_ACCOUNTING_PERMISSIONS,
-            ...ALL_HOLD_PERMISSIONS
+            ...ALL_HOLD_PERMISSIONS,
+            ...ALL_PERMIT_PERMISSIONS
           ],
           isSystem: true
         },
@@ -756,7 +763,10 @@ async function startServer() {
         { roles: ['admin'], permissions: [...ALL_ACCOUNTING_PERMISSIONS] },
         // Cart & Holds (src/holds/permissions.js, 2026-10-10): admin only to
         // start with; other roles get each switch under Users & Roles.
-        { roles: ['admin'], permissions: [...ALL_HOLD_PERMISSIONS] }
+        { roles: ['admin'], permissions: [...ALL_HOLD_PERMISSIONS] },
+        // Permits (src/permits/permissions.js, 2026-10-11): admin only to start
+        // with; an admin decides under Users & Roles who else sees them.
+        { roles: ['admin'], permissions: [...ALL_PERMIT_PERMISSIONS] }
       ];
 
       // Each grant reaches a role once. Its permissions are recorded in
@@ -864,6 +874,10 @@ async function startServer() {
       // A day nobody signed off is closed out at 11:59 PM on the branch's own
       // clock, so the figures stop being editable once the day is over.
       startAutoSubmitDailyReports();
+
+      // Permits: the first pull reads six months back straight away; then one
+      // pull a day from 5:00 AM Pacific (src/permits/sync.js).
+      permitSync.start();
 
       // Keep-Alive Mechanism for Render Free Tier
       const keepAliveInterval = 5 * 60 * 1000;
@@ -4653,6 +4667,16 @@ const runHoldExpiry = async () => {
   }
 };
 
+
+// Permits (src/permits/) — building permits issued by Whatcom County and the
+// City of Bellingham, pulled each morning for sales leads, and each month
+// checked against the county's own "Permits Issued" report.
+const permitSync = createPermitSync({
+  whatcom: createWhatcomSource(),
+  bellingham: createBellinghamSource(),
+  reports: createCountyReports()
+});
+app.use('/api/permits', createPermitsRouter({ authenticate, sync: permitSync }));
 
 // Toggle reaction on visit
 app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requirePermission('view_customers'), async (req, res) => {

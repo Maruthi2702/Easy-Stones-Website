@@ -14,6 +14,7 @@
  */
 
 import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions.js';
+import { PERMITS } from '../permits/permissions.js';
 
 const has = (user, perm) => !!user?.permissions?.includes(perm);
 const isAdmin = (user) => user?.role === 'admin';
@@ -36,6 +37,8 @@ export const NAV_ITEMS = [
   { id: 'route_planner', label: 'Route Planner', section: 'sales', canSee: (u) => has(u, 'view_route_planner') },
   // Holds (src/holds/): any of the three "whose holds" switches opens it.
   { id: 'holds', label: 'Holds', section: 'sales', canSee: (u) => HOLD_VIEW_PERMISSIONS.some((p) => has(u, p)) },
+  // Permits (src/permits/): building permits as sales leads; the permission is the only key.
+  { id: 'permits', label: 'Permits', section: 'sales', canSee: (u) => has(u, PERMITS.VIEW) },
   {
     id: 'lost_sales', label: 'Lost Sales', section: 'sales',
     canSee: (u) => has(u, 'view_lost_sales') || has(u, 'manage_lost_sales') || isAdmin(u) || !u

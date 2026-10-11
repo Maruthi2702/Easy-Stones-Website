@@ -59,6 +59,7 @@ import CartDrawer, { CartToast } from '../components/sales/holds/CartDrawer';
 import { cartActions } from '../components/sales/holds/cartStore';
 import { openHoldLink } from '../components/sales/holds/holdLink';
 import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions';
+import { PERMITS } from '../permits/permissions';
 
 // This page eagerly imported every tab it can show — Route Planner's Google
 // Maps code, Users & Roles, Price List, all of it — into one bundle loaded
@@ -80,6 +81,7 @@ const DeliveryScheduleTab = lazyRetry(() => import('../components/sales/Delivery
 const DailyReportTab = lazyRetry(() => import('../components/sales/dailyreport/DailyReportTab'));
 const FreightTab = lazyRetry(() => import('../components/sales/freight/FreightTab'));
 const HoldsTab = lazyRetry(() => import('../components/sales/holds/HoldsTab'));
+const PermitsTab = lazyRetry(() => import('../components/sales/permits/PermitsTab'));
 
 // One small, inline fallback rather than a full-page spinner — App.jsx's
 // <PageLoader/> is sized for a blank page, and using it here would flash the
@@ -3492,6 +3494,20 @@ const SalesPage = () => {
                         <ErrorBoundary key="holds-view">
                         <Suspense fallback={<TabLoader />}>
                             <HoldsTab currentUser={currentUser} sidebarToggle={sidebarToggle} />
+                        </Suspense>
+                        </ErrorBoundary>
+                    );
+                })()}
+
+                {!authLoading && currentUser?.permissions && crmTab === 'permits' && currentUser.permissions.includes(PERMITS.VIEW) && (() => {
+                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
+                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+                    ) : null;
+
+                    return (
+                        <ErrorBoundary key="permits-view">
+                        <Suspense fallback={<TabLoader />}>
+                            <PermitsTab sidebarToggle={sidebarToggle} />
                         </Suspense>
                         </ErrorBoundary>
                     );

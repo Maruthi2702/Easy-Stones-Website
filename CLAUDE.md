@@ -106,6 +106,24 @@ the screen did before. New customers and deliveries get it on the form
 (so the Selection Sheet opens with a rep). It never replaces a rep someone
 already set or picked.
 
+## Permits: sources and the accuracy rules (2026-10-11)
+
+Sales · Permits (`src/permits/`) pulls building permits each morning from
+Whatcom County (Tyler EnerGov self-service API, unincorporated areas only —
+contacts with phone/email) and the City of Bellingham (its ArcGIS permit
+layer; names only, eTRAKiT needs a login). Other Whatcom cities (Ferndale,
+Lynden, Blaine…) issue their own and aren't covered. The county search
+**ignores its date/type filters**, so the reader walks everything
+newest-issued-first and the lead types are decided by exact type names in
+`permitRules.js` — never trust a source-side filter there. Each month is
+checked against the county's own "Permits Issued" PDF (`PermitCheck`); a
+source that changes shape fails the run loudly rather than saving less.
+First pull reads 6 months (~4 min: county detail pages are ~2 s each, read
+4 at a time); then 5:00 AM Pacific daily, re-reading 30 days, plus a
+month-so-far check (each source's permits found a second, separate way)
+until the county's report replaces it. Admin-only permissions to
+start (`view_permits`, `export_permits`, `refresh_permits`).
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,
@@ -254,6 +272,11 @@ letter PDF and what its Hide boxes leave out — `holdLetter.js`), and
 the Holds screens' rules in `src/utils/holdView.js` (tabs, expiry wording,
 which buttons each permission shows, the price editor, Extend's picks, cart
 slabs offered to a hold, history wording, the Edit form's patch).
+Permits do too: `src/permits/*.test.js` (which permit types are leads for the
+county and Bellingham, exact copying of each source's fields, both readers'
+stop/short-answer rules, the morning pull, the county report check, and the
+API with an in-memory MongoDB) and the screen's rules in
+`src/utils/permitView.js`.
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 
