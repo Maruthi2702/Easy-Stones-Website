@@ -274,9 +274,10 @@ which buttons each permission shows, the price editor, Extend's picks, cart
 slabs offered to a hold, history wording, the Edit form's patch).
 Permits do too: `src/permits/*.test.js` (which permit types are leads for the
 county and Bellingham, exact copying of each source's fields, both readers'
-stop/short-answer rules, the morning pull, the county report check, and the
-API with an in-memory MongoDB) and the screen's rules in
-`src/utils/permitView.js`.
+stop/short-answer rules, the morning pull, the county report check, the
+API with an in-memory MongoDB, and the list's PDF) and the screen's rules in
+`src/utils/permitView.js` (including the place filter and the PDF's rows,
+heading and link).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

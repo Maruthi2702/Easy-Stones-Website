@@ -6,6 +6,7 @@
  *   GET  /meta     sources with their last run, the county report checks, cities
  *   GET  /         one page of permits (filters below), newest issued first
  *   GET  /export   every permit the filters match, for Excel (up to 5,000)
+ *   GET  /export.pdf  the same as a PDF (first 1,000), for View / Download as PDF
  *   POST /refresh  run the morning pull now
  *
  * Filters: source, category, from / to (issue date, YYYY-MM-DD), city,
@@ -18,6 +19,8 @@ import Customer from '../models/Customer.js';
 import { HttpError, handle, requireAll, actorOf, escapeRegex } from '../server/http.js';
 import { companyOf, realEmailsOf } from '../utils/customerList.js';
 import { PERMITS, can } from './permissions.js';
+import { buildPermitsPdf } from './permitsPdf.js';
+import { permitPdfScope, permitFileName, PERMIT_PDF_MAX_ROWS } from '../utils/permitView.js';
 import { Permit, PermitRun, PermitCheck } from './models.js';
 import {
   SOURCES, SOURCE_IDS, CATEGORIES, CATEGORY_IDS, isDay, phoneKey, emailKey, nameKey, isPlaceholderName
@@ -214,6 +217,37 @@ export default function createPermitsRouter({ authenticate, sync = null, custome
     const [items, index] = await Promise.all([sortedPermits(filter, req.query.sort), customerIndex()]);
     res.json({ items: items.map((p) => present(p, index)), total });
   }, { label: LABEL }));
+
+  // The list as a PDF for its current filters (More menu → View as PDF /
+  // Download as PDF). Opened by a plain link, so the login cookie signs it in
+  // and errors come back as a short readable page, not JSON. ?download=1
+  // saves it; otherwise it opens in the browser's PDF viewer.
+  router.get('/export.pdf', authenticate, requireAll(PERMITS.VIEW, PERMITS.EXPORT), async (req, res) => {
+    const fail = (status, message) => res.status(status).type('text/plain; charset=utf-8').send(message);
+    try {
+      const filter = permitFilter(req.query);
+      const [total, items, index] = await Promise.all([
+        Permit.countDocuments(filter),
+        sortedPermits(filter, req.query.sort, { limit: PERMIT_PDF_MAX_ROWS }),
+        customerIndex()
+      ]);
+      const actor = actorOf(req).name;
+      const generated = `Generated ${new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
+      }).format(new Date())}${actor ? ` by ${actor}` : ''}`;
+      const bytes = await buildPermitsPdf({
+        items: items.map((p) => present(p, index)), total, generated, scope: permitPdfScope(req.query)
+      });
+      res.set('Content-Type', 'application/pdf');
+      res.set('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${permitFileName(req.query, 'pdf')}"`);
+      res.set('Cache-Control', 'no-store');
+      res.send(Buffer.from(bytes));
+    } catch (err) {
+      if (err instanceof HttpError) return fail(err.status, err.message);
+      console.error(`[${LABEL}] PDF`, err);
+      return fail(500, 'Couldn’t make the PDF. Close this tab and try again.');
+    }
+  });
 
   router.post('/refresh', authenticate, requireAll(PERMITS.VIEW, PERMITS.REFRESH), handle(async (req, res) => {
     if (!sync) throw new HttpError(503, 'The permit pull isn’t running on this server.');

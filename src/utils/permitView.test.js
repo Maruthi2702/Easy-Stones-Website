@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  rangeFrom, splitChecks, nextSort, ariaSort, formatDay, formatMonth, formatMoney, sizeLine, whenLine, sourceStatus, checkStatus, leadContact, contactPerson,
-  customerOf, permitExportRows
+  rangeFrom, splitChecks, nextSort, ariaSort, formatDay, formatMonth, formatMoney, sizeLine, whenLine, sourceStatus, checkStatus, checksAttention, leadContact, contactPerson,
+  customerOf, permitExportRows, placeGroups, placeQuery, permitPdfRows, permitPdfScope, permitPdfUrl, permitFileName
 } from './permitView.js';
 
 const NOW = new Date('2026-10-11T19:00:00Z'); // 12:00 PM Pacific
@@ -108,6 +108,37 @@ describe('month so far', () => {
   });
 });
 
+describe('what stays on the page outside Detailed Checks', () => {
+  const search = (source, over = {}) => ({ source, month: '2026-10', method: 'search', ok: true, matched: 20, missingFromApp: [], notFoundAgain: [], ...over });
+  const fine = [
+    { id: 'whatcom', label: 'Whatcom County', lastRun: run(), lastOk: run() },
+    { id: 'bellingham', label: 'Bellingham', lastRun: run(), lastOk: run() }
+  ];
+
+  it('is empty when every pull and check is fine', () => {
+    expect(checksAttention(fine, [search('whatcom'), search('bellingham'), { source: 'whatcom', month: '2026-08', method: 'report', ok: true }], NOW)).toEqual([]);
+  });
+
+  it('keeps a failed, stale or running pull and new unsorted building types', () => {
+    const lines = checksAttention([
+      { ...fine[0], lastRun: run({ unsortedTypes: [{ type: 'Barn', count: 2 }] }) },
+      { ...fine[1], lastRun: run({ ok: false, error: 'timeout' }) },
+      { id: 'other', label: 'Other', lastRun: { finishedAt: null }, lastOk: null }
+    ], [], NOW);
+    expect(lines.map((l) => [l.id, l.tone])).toEqual([['whatcom-unsorted', 'warn'], ['bellingham', 'warn'], ['other', 'busy']]);
+    expect(lines[0].text).toBe('Whatcom County: new building types not sorted yet — Barn (2)');
+  });
+
+  it('keeps a check on top that differs, but not an older month already under it', () => {
+    const lines = checksAttention(fine, [
+      search('whatcom', { ok: false, missingFromApp: ['A'] }),
+      { source: 'whatcom', month: '2026-07', method: 'report', ok: false, missingFromApp: ['B'], notInReport: [] },
+      { source: 'whatcom', month: '2026-08', method: 'report', ok: true }
+    ], NOW);
+    expect(lines).toEqual([{ id: 'whatcom-2026-10-search', tone: 'warn', text: expect.stringMatching(/1 permit differ/) }]);
+  });
+});
+
 describe('contacts on a row', () => {
   const gc = { kind: 'contractor', company: 'KVF Construction', name: 'Vladimir Kolesnikov', phone: '3607397535' };
   const owner = { kind: 'owner', company: 'Ann Lee', name: '' };
@@ -152,5 +183,66 @@ describe('Excel export', () => {
       'Contractor email': 'kvf1616@gmail.com', Owner: '', Applicant: 'Larry Stoner', 'Applicant phone': '(360) 220-0552',
       'Existing customer': 'KVF', Link: 'https://example.com/p'
     });
+  });
+});
+
+describe('the place filter', () => {
+  it('offers who issued the permit first, then each city', () => {
+    const groups = placeGroups(['Bellingham', 'Ferndale']);
+    expect(groups.map((g) => g.label)).toEqual(['Issued by', 'City']);
+    expect(groups[0].options).toEqual([
+      { value: 'source:whatcom', label: 'Whatcom County (outside city limits)' },
+      { value: 'source:bellingham', label: 'City of Bellingham' }
+    ]);
+    expect(groups[1].options[1]).toEqual({ value: 'city:Ferndale', label: 'Ferndale' });
+    expect(placeGroups().map((g) => g.label)).toEqual(['Issued by']);
+  });
+
+  it('reads a pick as the list query — an issuer or a city, never both', () => {
+    expect(placeQuery('')).toEqual({ source: '', city: '' });
+    expect(placeQuery('source:bellingham')).toEqual({ source: 'bellingham', city: '' });
+    expect(placeQuery('city:Bellingham')).toEqual({ source: '', city: 'Bellingham' });
+    expect(placeQuery('city:Point Roberts: East')).toEqual({ source: '', city: 'Point Roberts: East' });
+    expect(placeQuery('source:nowhere')).toEqual({ source: '', city: '' });
+  });
+});
+
+describe('the PDF', () => {
+  const permit = {
+    source: 'whatcom', permitNumber: 'SFR2026-00212', category: 'new_home', issuedOn: '2026-10-06', address: '1 MAIN ST', city: 'Ferndale',
+    description: 'New single family home', valuation: 300000,
+    contacts: [{ kind: 'contractor', company: 'KVF Construction', name: 'Vlad K', phone: '3607397535' }]
+  };
+
+  it('shows each permit as main values with a quieter line under them', () => {
+    expect(permitPdfRows([permit])[0]).toEqual({
+      issued: 'Oct 6, 2026', issuer: 'Whatcom County', number: 'SFR2026-00212', kind: 'New home', address: '1 MAIN ST', city: 'Ferndale',
+      work: 'New single family home', value: formatMoney(300000), lead: 'KVF Construction', leadSub: 'Vlad K · (360) 739-7535'
+    });
+  });
+
+  it('says why there is no contractor, with the owner when there is one', () => {
+    const owner = { ...permit, contacts: [{ kind: 'contractor', company: 'OWNER AS CONTRACTOR' }, { kind: 'owner', name: 'Pat Lee' }] };
+    expect(permitPdfRows([owner])[0]).toMatchObject({ lead: 'Pat Lee', leadSub: 'Owner-builder' });
+    expect(permitPdfRows([{ ...permit, contacts: [] }])[0]).toMatchObject({ lead: 'No contractor listed', leadSub: '' });
+  });
+
+  it('heads the PDF with the filters in words', () => {
+    expect(permitPdfScope({ source: 'whatcom', category: 'new_home', from: '2026-09-12', to: '2026-10-11', q: ' kvf ' }))
+      .toBe('Whatcom County (outside city limits) · New home · Sep 12, 2026 – Oct 11, 2026 · matching “kvf”');
+    expect(permitPdfScope({ city: 'Ferndale' })).toBe('Ferndale · All kinds of work · All dates');
+    expect(permitPdfScope()).toBe('Whatcom County and Bellingham · All kinds of work · All dates');
+  });
+
+  it('links to the PDF for exactly the list’s filters', () => {
+    expect(permitPdfUrl('https://api.x', { source: '', city: 'Point Roberts', category: 'adu', from: '2026-09-12', to: '2026-10-11', q: ' ', sort: 'value_desc' }))
+      .toBe('https://api.x/api/permits/export.pdf?city=Point+Roberts&category=adu&from=2026-09-12&to=2026-10-11&sort=value_desc');
+    expect(permitPdfUrl('', {}, { download: true })).toBe('/api/permits/export.pdf?download=1');
+  });
+
+  it('names the files after the place and dates', () => {
+    expect(permitFileName({ source: 'bellingham', from: '2026-09-12', to: '2026-10-11' })).toBe('permits-bellingham-2026-09-12-to-2026-10-11.xlsx');
+    expect(permitFileName({ city: 'Point Roberts', from: '2026-09-12', to: '2026-10-11' }, 'pdf')).toBe('permits-point-roberts-2026-09-12-to-2026-10-11.pdf');
+    expect(permitFileName({})).toBe('permits-whatcom-bellingham-start-to-today.xlsx');
   });
 });
