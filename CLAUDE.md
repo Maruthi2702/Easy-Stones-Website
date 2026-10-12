@@ -226,7 +226,13 @@ username suggestion and format, required fields, temporary passwords, the
 Locations/home rule, role summaries), and the Selection Sheet's slab-tag
 scanner (`src/utils/stoneLabel.js`: reading lot/slab/size/material out of OCR
 text, rejecting wrong-rotation garbage, and when a lot may be matched to
-stock), and Add / Edit location's rules (`src/utils/locationForm.js`:
+stock or name the material; `src/utils/tagLine.js`: what one printed tag line
+says, how the tags in one photo combine — lot copies cross-checked, one row
+per lot with its slabs together — and which sheet rows they fill;
+`src/utils/tagPhoto.js`: a photo's tilt, the printed line in a strip cut
+beside a barcode, and the levelling score). The scan itself
+(`selectionSheet/readTagPhoto.js`: barcodes with zxing-wasm, then each
+tag's line with Tesseract) is checked by hand on real tag photos — and Add / Edit location's rules (`src/utils/locationForm.js`:
 required fields and formats, unique short name/code, which locations can be
 an RDC, the record ↔ form conversion the API also runs, what non-managers
 may read, and the selection-sheet letterhead with its Kent fallback), and

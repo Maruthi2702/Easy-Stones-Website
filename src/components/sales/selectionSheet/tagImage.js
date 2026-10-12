@@ -1,95 +1,96 @@
 /**
- * Browser-only image helpers for the Selection Sheet's tag scanner: crop the
- * photo to the box the person drew, then resize/rotate each pass for OCR.
- * (The text-reading rules are src/utils/stoneLabel.js.)
+ * Browser-only image helpers for the Selection Sheet's tag scanner: load a
+ * photo, draw it turned and cut, read its grey pixels. The maths — tilt,
+ * barcode, text band — is src/utils/tagPhoto.js; what the tag says is
+ * src/utils/tagLine.js and src/utils/stoneLabel.js.
  */
+import { estimateSkew, levelBy, rotatedSize, findTagBox } from '../../../utils/tagPhoto';
 
-export const preprocessImage = (file, degrees = 0) => {
+// Longest side the tilt and barcode-like area are measured at: enough to see
+// tag text and bars, small enough to stay quick on a phone.
+const MEASURE_DIM = 800;
+// A canvas bigger than this fails silently on iOS (16.7M px); stay under it.
+const MAX_CANVAS_PX = 12_000_000;
+const WHITE = '#ffffff';
+const FULL_BOX = Object.freeze({ x: 0, y: 0, width: 100, height: 100 });
+
+/** The photo as an <img>, turned upright by the browser from its camera orientation. */
+export function loadImage(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        // Resize: cap at 1600px for speed and phone memory. The crop starts on
-        // the whole photo, so a smaller cap shrinks tag text below what OCR reads.
-        const MAX_DIM = 1600;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width > height) {
-            height = Math.round((height * MAX_DIM) / width);
-            width = MAX_DIM;
-          } else {
-            width = Math.round((width * MAX_DIM) / height);
-            height = MAX_DIM;
-          }
-        }
-
-        // Adjust dimensions based on rotation angle
-        if (degrees === 90 || degrees === 270) {
-          canvas.width = height;
-          canvas.height = width;
-        } else {
-          canvas.width = width;
-          canvas.height = height;
-        }
-
-        // Apply rotation matrix
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((degrees * Math.PI) / 180);
-        ctx.drawImage(img, -width / 2, -height / 2, width, height);
-
-        canvas.toBlob((blob) => {
-          resolve(blob);
-        }, 'image/jpeg', 0.9);
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = (err) => { URL.revokeObjectURL(url); reject(err); };
+    img.src = url;
   });
+}
+
+export const toBlob = (canvas, quality = 0.92) => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+
+export const newCanvas = (width, height) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(width));
+  canvas.height = Math.max(1, Math.round(height));
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = WHITE; // corners white like the tag, not black edges for OCR to read
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  return { canvas, ctx };
 };
 
-export const getCroppedImageBlob = (file, cropXPercent, cropYPercent, cropWidthPercent, cropHeightPercent) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+/**
+ * Draws `img` scaled by `scale` and turned by `degrees` around its centre,
+ * onto a white canvas big enough for the corners — or, with `box` (percent of
+ * that turned picture), just that part of it.
+ */
+export function drawTurned(img, { degrees = 0, scale = 1, box = FULL_BOX } = {}) {
+  const w = img.width * scale;
+  const h = img.height * scale;
+  const turned = rotatedSize(w, h, degrees);
+  const left = (box.x / 100) * turned.width;
+  const top = (box.y / 100) * turned.height;
+  const { canvas, ctx } = newCanvas((box.width / 100) * turned.width, (box.height / 100) * turned.height);
+  ctx.translate(turned.width / 2 - left, turned.height / 2 - top);
+  ctx.rotate((degrees * Math.PI) / 180);
+  ctx.drawImage(img, -w / 2, -h / 2, w, h);
+  return canvas;
+}
 
-        const origWidth = img.width;
-        const origHeight = img.height;
+export function greyPixels(canvas) {
+  const { width, height } = canvas;
+  const { data } = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, width, height);
+  const gray = new Uint8Array(width * height);
+  for (let i = 0, p = 0; i < gray.length; i++, p += 4) gray[i] = (data[p] * 299 + data[p + 1] * 587 + data[p + 2] * 114) / 1000;
+  return gray;
+}
 
-        const left = Math.round((cropXPercent / 100) * origWidth);
-        const top = Math.round((cropYPercent / 100) * origHeight);
-        const width = Math.round((cropWidthPercent / 100) * origWidth);
-        const height = Math.round((cropHeightPercent / 100) * origHeight);
+export const fitScale = (w, h, max) => Math.min(1, max / Math.max(w, h));
 
-        const safeLeft = Math.max(0, Math.min(left, origWidth - 1));
-        const safeTop = Math.max(0, Math.min(top, origHeight - 1));
-        const safeWidth = Math.max(1, Math.min(width, origWidth - safeLeft));
-        const safeHeight = Math.max(1, Math.min(height, origHeight - safeTop));
+/**
+ * For a photo whose barcode couldn't be read: how far to turn it to level
+ * the tag, and the area around anything barcode-like (else the whole photo),
+ * cut from the full-resolution photo for the OCR fallback.
+ */
+export async function levelledTagArea(img) {
+  const small = drawTurned(img, { scale: fitScale(img.width, img.height, MEASURE_DIM) });
+  const turn = -levelBy(estimateSkew(greyPixels(small), small.width, small.height).angle);
+  const turnedSize = rotatedSize(img.width, img.height, turn);
+  const measure = drawTurned(img, { degrees: turn, scale: fitScale(turnedSize.width, turnedSize.height, MEASURE_DIM) });
+  const box = findTagBox(greyPixels(measure), measure.width, measure.height) || FULL_BOX;
+  const area = turnedSize.width * (box.width / 100) * turnedSize.height * (box.height / 100);
+  const scale = Math.min(1, Math.sqrt(MAX_CANVAS_PX / Math.max(1, area)));
+  return toBlob(drawTurned(img, { degrees: turn, scale, box }), 0.95);
+}
 
-        canvas.width = safeWidth;
-        canvas.height = safeHeight;
+// OCR pass size: a big crop is shrunk to this for speed and phone memory; a
+// small one (a tag shot from a distance) is enlarged toward it, up to 2× —
+// Tesseract misses small text it reads fine enlarged.
+const OCR_DIM = 1600;
+const MAX_UPSCALE = 2;
 
-        ctx.drawImage(img, safeLeft, safeTop, safeWidth, safeHeight, 0, 0, safeWidth, safeHeight);
-
-        canvas.toBlob((blob) => {
-          resolve(blob);
-        }, 'image/jpeg', 0.95);
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
+/** One OCR pass's image, sized for Tesseract and turned by `degrees`. */
+export async function preprocessImage(file, degrees = 0) {
+  const img = await loadImage(file);
+  const scale = Math.min(MAX_UPSCALE, OCR_DIM / Math.max(img.width, img.height));
+  return toBlob(drawTurned(img, { degrees, scale }), 0.9);
+}

@@ -14,9 +14,8 @@ import {
 } from '../../../utils/selectionSheet';
 import MaterialInput from './MaterialInput';
 import RepPicker from '../../shared/form/RepPicker';
-import { EmailDialog, PrintDialog, TagCropper } from './SheetDialogs';
-import { getCroppedImageBlob } from './tagImage';
-import { scanTag } from './scanTag';
+import { EmailDialog, PrintDialog } from './SheetDialogs';
+import { placeTagRows } from '../../../utils/tagLine';
 import './SelectionSheetForm.css';
 
 /*
@@ -42,12 +41,16 @@ import './SelectionSheetForm.css';
  */
 
 export const SHEET_DRAFT_KEY = 'active_selection_sheet';
+const UNREADABLE = 'Unable to read the tag. Try again a little closer, with the tag in focus.';
 
 export default function SelectionSheetForm({ checkIn, draft = null, owner, locations = [], canEdit, canEmail, onClose, onSaved }) {
     const isPhone = useIsPhone();
     const [record, setRecord] = useState(checkIn);
     const baseline = useMemo(() => sheetValuesFromCheckIn(record), [record]);
     const [values, setValues] = useState(() => draft?.values || sheetValuesFromCheckIn(checkIn));
+    // A tag scan takes seconds; it places its rows against the sheet as it is when it finishes.
+    const valuesRef = useRef(values);
+    valuesRef.current = values;
     const [loadedAt, setLoadedAt] = useState(() => draft?.loadedAt || checkIn.updatedAt || null);
 
     const [products, setProducts] = useState([]);
@@ -57,7 +60,6 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
     const [conflict, setConflict] = useState(null);
     const [notices, setNotices] = useState({});
     const [scanning, setScanning] = useState(null); // { idx, progress }
-    const [cropper, setCropper] = useState(null); // { idx, file, src }
     const [emailOpen, setEmailOpen] = useState(false);
     const [printOpen, setPrintOpen] = useState(false);
     const [sending, setSending] = useState(null); // null | 'plain' | 'priced'
@@ -253,35 +255,43 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         else printSheet(false);
     };
 
-    // ── Tag scanning: pick a photo → frame the tag → read it into the row ──
+    // ── Tag scanning: scan icon → camera → photo → rows filled ──
+    // The tags' barcodes find each printed line; one row per lot, its slabs
+    // together (readTagPhoto, src/utils/tagLine.js). Nothing to frame or confirm.
     const startScan = (i) => { scanIdx.current = i; fileRef.current?.click(); };
-    const onPhoto = (e) => {
+    const onPhoto = async (e) => {
         const file = e.target.files?.[0];
         e.target.value = '';
-        if (!file || scanIdx.current == null) return;
-        const reader = new FileReader();
-        reader.onload = () => setCropper({ idx: scanIdx.current, file, src: reader.result });
-        reader.readAsDataURL(file);
-    };
-    const runScan = async (box) => {
-        const { idx, file } = cropper;
-        setCropper(null);
+        const idx = scanIdx.current;
+        if (!file || idx == null) return;
         setScanning({ idx, progress: 0 });
         setNotices((n) => ({ ...n, [idx]: null }));
         try {
-            const blob = await getCroppedImageBlob(file, box.x, box.y, box.width, box.height);
-            const result = await scanTag(blob, products, (progress) => setScanning({ idx, progress }));
+            const { readTagPhoto } = await import('./readTagPhoto');
+            const result = await readTagPhoto(file, products, (progress) => setScanning({ idx, progress }));
             if (!result.ok) {
-                setNotices((n) => ({ ...n, [idx]: { tone: 'error', lines: [result.message] } }));
+                setNotices((n) => ({ ...n, [idx]: { tone: 'error', lines: [UNREADABLE] } }));
                 return;
             }
-            // Only what the tag gave; anything it didn't read stays as typed.
-            const read = Object.fromEntries(Object.entries(result.row).filter(([, v]) => String(v || '').trim()));
-            if (read.size) read.size = formatSlabSize(read.size);
-            setRow(idx, read);
-            setNotices((n) => ({ ...n, [idx]: { tone: result.notes.length ? 'warn' : 'ok', lines: ['Filled from the tag — check it before saving.', ...result.notes] } }));
-        } catch {
-            setNotices((n) => ({ ...n, [idx]: { tone: 'error', lines: ['Couldn’t read that photo. Try another.'] } }));
+            const scanned = result.rows.map((r) => ({ ...r, size: r.size ? formatSlabSize(r.size) : '' }));
+            const placed = placeTagRows(valuesRef.current.rows, idx, scanned, SHEET_ROWS, emptyRow);
+            touch();
+            setValues((v) => ({ ...v, rows: placed.rows }));
+            const extra = [
+                result.unread ? `${result.unread} tag${result.unread === 1 ? '' : 's'} in the photo couldn’t be read.` : '',
+                placed.dropped ? `${placed.dropped} more lot${placed.dropped === 1 ? '' : 's'} didn’t fit — the sheet holds ${SHEET_ROWS} items.` : '',
+            ].filter(Boolean);
+            setNotices((n) => {
+                const next = { ...n };
+                placed.filled.forEach((at, k) => {
+                    const lines = ['Filled from the tag — check it before saving.', ...scanned[k].notes, ...(k === 0 ? extra : [])];
+                    next[at] = { tone: lines.length > 1 ? 'warn' : 'ok', lines };
+                });
+                return next;
+            });
+        } catch (err) {
+            console.error('Tag scan failed:', err);
+            setNotices((n) => ({ ...n, [idx]: { tone: 'error', lines: [UNREADABLE] } }));
         } finally {
             setScanning(null);
         }
@@ -452,7 +462,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             headerActions={headerActions}
             hideFooterOnPhone
         >
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPhoto} />
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} />
 
             {conflict && (
                 <div className="ss-conflict" role="alert">
@@ -596,7 +606,6 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                     onClose={() => setPrintOpen(false)}
                 />
             )}
-            {cropper && <TagCropper src={cropper.src} onScan={runScan} onClose={() => setCropper(null)} />}
         </FormModal>
     );
 }

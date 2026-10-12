@@ -1,6 +1,6 @@
 /**
  * Read a cropped slab-tag photo into a Selection Sheet row: OCR every
- * rotation with one Tesseract worker, keep the best read, check it against
+ * rotation (two ways each) with one Tesseract worker, keep the best read, check it against
  * stock. The text rules are src/utils/stoneLabel.js (tested there); this is
  * the browser half — image passes and the worker.
  */
@@ -8,6 +8,9 @@ import {
   ORIENTATIONS, readStoneLabel, resolveLabelRead, scoreLabelRead, isUsableRead, isConfidentRead,
 } from '../../../utils/stoneLabel';
 import { preprocessImage } from './tagImage';
+
+// Tesseract page modes: 6 = one block of text, 3 = find the layout itself.
+const PAGE_MODES = ['6', '3'];
 
 /**
  * @param {Blob} croppedBlob  the area of the photo the person framed
@@ -24,7 +27,7 @@ export async function scanTag(croppedBlob, productList = [], onProgress) {
     worker = await createWorker('eng', undefined, {
       logger: (m) => {
         if (m.status === 'recognizing text') {
-          onProgress?.(Math.floor(((pass + m.progress) / ORIENTATIONS.length) * 100));
+          onProgress?.(Math.floor(((pass + m.progress) / (ORIENTATIONS.length * PAGE_MODES.length)) * 100));
         }
       },
     });
@@ -32,19 +35,27 @@ export async function scanTag(croppedBlob, productList = [], onProgress) {
     // Tags on standing slabs are usually photographed sideways, so every
     // rotation is tried and the best read kept; a confident, complete read
     // ends it early. readStoneLabel rejects garbage, so a wrong rotation
-    // can't win just by coming first.
+    // can't win just by coming first. (The photo was already turned level
+    // and cut around the tag — levelledTagArea — so one of these four is upright.)
+    // Each rotation is read as one block of text first (a tight tag crop),
+    // then with Tesseract's own layout finding: on an angled tag the latter
+    // found no text at all.
     let best = null;
-    for (pass = 0; pass < ORIENTATIONS.length; pass++) {
-      const processed = await preprocessImage(croppedBlob, ORIENTATIONS[pass]);
-      const { data } = await worker.recognize(processed);
-      const read = readStoneLabel(data.text, productList);
-      const score = scoreLabelRead(read, data.confidence);
-      if (!best || score > best.score) best = { read, score, confidence: data.confidence };
-      if (isConfidentRead(read, data.confidence)) break;
+    passes: for (let turn = 0; turn < ORIENTATIONS.length; turn++) {
+      const processed = await preprocessImage(croppedBlob, ORIENTATIONS[turn]);
+      for (const mode of PAGE_MODES) {
+        await worker.setParameters({ tessedit_pageseg_mode: mode });
+        const { data } = await worker.recognize(processed);
+        pass++;
+        const read = readStoneLabel(data.text, productList);
+        const score = scoreLabelRead(read, data.confidence);
+        if (!best || score > best.score) best = { read, score, confidence: data.confidence };
+        if (isConfidentRead(read, data.confidence)) break passes;
+      }
     }
 
     if (!best || !isUsableRead(best.read, best.confidence)) {
-      return { ok: false, message: "Couldn't read this tag. Try a closer, straight-on photo and fit the box around just the tag." };
+      return { ok: false, message: "Couldn't read this tag. Try a closer photo and fit the box around just one tag." };
     }
     const { material, lot, details, size, notes } = resolveLabelRead(best.read, productList);
     return { ok: true, row: { material, lot, details, size }, notes };

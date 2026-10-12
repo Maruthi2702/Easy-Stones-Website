@@ -2,7 +2,7 @@
  * Slab-tag scanning for the Selection Sheet: turns the raw text Tesseract
  * reads off a photographed slab tag into the sheet's Material / Lot / Slab
  * Numbers / Size fields. Pure functions only — the OCR itself (and the
- * rotation passes) run in CheckInLogPanel's executeTagOcrScan.
+ * rotation passes) run in selectionSheet/scanTag.js.
  *
  * A tag reads like "13845 - 7 (7/13845) 126 x 63 CALACATTA GOLD" — lot,
  * slab number, (slab/lot bundle), size, material — on one line or several.
@@ -80,7 +80,7 @@ export const matchProduct = (name, productList = []) => {
 };
 
 // Catalog product whose name OCR read with a typo or two ("CALACATA G0LD").
-const fuzzyMatchProduct = (lines, productList) => {
+export const fuzzyMatchProduct = (lines, productList) => {
   let best = null;
   for (const line of lines) {
     const words = normalizeName(line).split(' ').filter(Boolean);
@@ -215,9 +215,15 @@ export const scoreLabelRead = (read, confidence = 0) => {
 // testing; the right rotation scored 85–91.
 export const MIN_CONFIDENCE = 55;
 
+// The tag prints the lot twice ("14180 - 3 (1/14180)"). Both copies read the
+// same, plus a size, is a real tag even when Tesseract's confidence is low
+// (a small or glary tag at an angle): garbage doesn't repeat a 4-digit number.
+const lotReadTwice = (read) => Boolean(read.size && read.bundleLot && normalizeLot(read.lot).length >= 4
+  && normalizeLot(read.bundleLot) === normalizeLot(read.lot));
+
 /** Worth filling into the sheet at all. */
 export const isUsableRead = (read, confidence = 0) =>
-  Boolean(read && (read.product || confidence >= MIN_CONFIDENCE));
+  Boolean(read && (read.product || confidence >= MIN_CONFIDENCE || lotReadTwice(read)));
 
 /** Good enough to stop trying other rotations. */
 export const isConfidentRead = (read, confidence = 0) =>
@@ -230,14 +236,25 @@ export const isConfidentRead = (read, confidence = 0) =>
  */
 export const resolveLabelRead = (read, productList = []) => {
   const notes = [];
-  const product = read.product || matchProduct(read.material, productList);
+  const lotsOf = (p) => (p?.bundles || []).flatMap((b) => [b?.bundleNumber, b?.serial]).filter(Boolean).map(String);
+  const readLots = [...new Set([read.lot, read.bundleLot].filter(Boolean))];
+  let product = read.product || matchProduct(read.material, productList);
+  let material = read.material;
+  // The material name is the hardest part of a tag to read (small, stylised)
+  // and the lot the easiest: a lot in stock under exactly one product names
+  // it. Only when the tag's lot copies agree — two different lots is a guess.
+  if (!product && readLots.length === 1) {
+    const wanted = readLots.map(normalizeLot);
+    const owners = productList.filter((p) => lotsOf(p).some((l) => wanted.includes(normalizeLot(l))));
+    if (owners.length === 1) {
+      product = owners[0];
+      material = String(product.name).toUpperCase();
+      notes.push(`Material from stock: lot ${read.lot || read.bundleLot} is ${material}.`);
+    }
+  }
 
   let lot = read.lot;
-  const stockLots = (product?.bundles || [])
-    .flatMap((b) => [b?.bundleNumber, b?.serial])
-    .filter(Boolean)
-    .map(String);
-  const readLots = [...new Set([read.lot, read.bundleLot].filter(Boolean))];
+  const stockLots = lotsOf(product);
   if (stockLots.length && readLots.length) {
     const exact = readLots
       .map((l) => stockLots.find((s) => normalizeLot(s) === normalizeLot(l)))
@@ -279,5 +296,5 @@ export const resolveLabelRead = (read, productList = []) => {
     }
   }
 
-  return { material: read.material, lot, details: read.slab, size, notes };
+  return { material, lot, details: read.slab, size, notes };
 };

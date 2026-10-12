@@ -266,16 +266,6 @@ body.light-theme-active .ss-choice-warn { color: #92400e; }
 .ss-choice-primary .ss-choice-icon { background: rgba(0, 0, 0, 0.12); border-color: transparent; color: inherit; }
 .ss-choice-primary .ss-choice-sub { color: inherit; opacity: 0.75; }
 
-/* Tag cropper. */
-.fm-confirm.ss-cropper { max-width: 560px; }
-.ss-crop-stage { display: flex; justify-content: center; }
-.ss-crop-frame { position: relative; display: inline-block; max-width: 100%; }
-.ss-crop-img { display: block; max-width: 100%; max-height: 46vh; object-fit: contain; border-radius: 8px; }
-.ss-crop-box { position: absolute; border: 2px solid var(--fm-gold); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45); border-radius: 4px; pointer-events: none; }
-.ss-crop-frame { overflow: hidden; border-radius: 8px; }
-.ss-crop-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
-.ss-crop-control { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--fm-mut); }
-.ss-crop-control input { accent-color: var(--fm-gold); }
 
 /* ── Phones ─────────────────────────────────────────────────────────────── */
 .ss-cards { display: flex; flex-direction: column; gap: 10px; }
