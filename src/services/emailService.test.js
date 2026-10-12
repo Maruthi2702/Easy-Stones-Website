@@ -43,6 +43,15 @@ describe('sendSelectionSheetEmail', () => {
     expect(html).toContain('—');
   });
 
+  it('fits a phone: one card per material, no wide table, capped at 640px', async () => {
+    const html = await htmlOf({ showPrices: true });
+    expect(html).not.toContain('<th');
+    expect(html).toContain('max-width: 640px');
+    expect(html.match(/Price \/ SF/g)).toHaveLength(checkIn.selections.length);
+    expect(html).toContain('CALACATTA GOLD');
+    expect(html).toContain('126 * 63');
+  });
+
   it('always has the printed notes and never the internal ones', async () => {
     for (const opts of [undefined, { showPrices: true }]) {
       const html = await htmlOf(opts);
