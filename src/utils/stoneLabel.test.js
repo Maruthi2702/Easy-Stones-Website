@@ -107,6 +107,15 @@ describe('resolveLabelRead — checking against stock', () => {
     expect(r.notes).toEqual([]);
   });
 
+  it('names the material from stock when the misread name didn’t match but the lot is in stock once', () => {
+    const r = resolveLabelRead(read({ lot: '22001', bundleLot: '22001', material: 'ABS0LUTE BLAKK', size: '126 x 63' }), products);
+    expect(r).toMatchObject({ material: 'ABSOLUTE BLACK', lot: '22001', size: '126x63' });
+    expect(r.notes).toEqual(['Material from stock: lot 22001 is ABSOLUTE BLACK.']);
+    // The same lot under two products is a guess — keep what was read.
+    const shared = [...products, { name: 'Nero Marquina', bundles: [{ bundleNumber: '22001' }] }];
+    expect(resolveLabelRead(read({ lot: '22001', material: 'ABS0LUTE BLAKK' }), shared).material).toBe('ABS0LUTE BLAKK');
+  });
+
   it('corrects a single one-digit slip to the stock lot and says so', () => {
     const r = resolveLabelRead(read({ lot: '13945', material: 'CALACATTA GOLD', product: products[1] }), products);
     expect(r.lot).toBe('13845');
@@ -154,6 +163,16 @@ describe('choosing a rotation', () => {
     expect(isUsableRead(good, 40)).toBe(true);
     expect(isUsableRead(weak, 40)).toBe(false);
     expect(isUsableRead(weak, 80)).toBe(true);
+  });
+
+  it('…or when the tag’s lot read the same both times, with a size', () => {
+    // A real read of a tag shot at 45° (levelled, then OCR'd): confidence 49, material mangled.
+    const angled = readStoneLabel('BO [TTT\n14180 - 3/ (1/14180) / 142x79 / Enjgma SJ MABCM\n" Cd — UT', []);
+    expect(angled).toMatchObject({ lot: '14180', slab: '3', bundleLot: '14180', size: '142 x 79' });
+    expect(isUsableRead(angled, 49)).toBe(true);
+    expect(isUsableRead({ ...angled, bundleLot: '14108' }, 49)).toBe(false);
+    expect(isUsableRead({ ...angled, size: '' }, 49)).toBe(false);
+    expect(isUsableRead({ ...angled, lot: '418', bundleLot: '418' }, 49)).toBe(false);
   });
 
   it('stops early only on a confident, complete read', () => {
