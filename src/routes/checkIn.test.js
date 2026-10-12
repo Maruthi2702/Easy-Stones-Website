@@ -14,7 +14,7 @@ vi.mock('../services/emailService.js', () => ({
 }));
 
 const { sendSelectionSheetEmail } = await import('../services/emailService.js');
-const { default: createCheckInRouter } = await import('./checkIn.js');
+const { default: createCheckInRouter, NEW_VISITS_START_WITH_REP } = await import('./checkIn.js');
 const { default: OfficeCheckIn } = await import('../models/OfficeCheckIn.js');
 const { default: User } = await import('../models/User.js');
 const { default: Location } = await import('../models/Location.js');
@@ -137,7 +137,9 @@ describe('POST /api/checkin/:id/send-email', () => {
   });
 });
 
-describe('a new check-in\'s sales rep', () => {
+// The starting-rep rule is paused (NEW_VISITS_START_WITH_REP): new visits
+// start with None. These run again when it's turned back on.
+describe.runIf(NEW_VISITS_START_WITH_REP)('a new check-in\'s sales rep', () => {
   const visitor = { name: 'New Visitor', phone: '2065550100' };
   beforeEach(async () => {
     await User.collection.insertMany([
@@ -177,5 +179,29 @@ describe('a new check-in\'s sales rep', () => {
     const res = await request(app).post('/api/checkin/self')
       .send({ ...visitor, location: 'Spokane', formLoadTime: Date.now() - 5000 }).expect(201);
     expect(res.body.data).toMatchObject({ salesRep: 'Jeremy Earnest', salesRepEmail: 'jeremy@x.com' });
+  });
+});
+
+describe.runIf(!NEW_VISITS_START_WITH_REP)('a new check-in while starting reps are paused', () => {
+  const visitor = { name: 'New Visitor', phone: '2065550100' };
+  beforeEach(async () => {
+    await User.collection.insertMany([
+      { username: 'jeremy', displayName: 'Jeremy Earnest', email: 'jeremy@x.com', role: 'manager', isActive: true },
+    ]);
+    await Location.collection.insertMany([{ name: 'Spokane', salesDefaults: { salesRep: 'Jeremy Earnest' } }]);
+  });
+
+  it('starts with no rep, even logged by a manager at a branch with a sales person', async () => {
+    const id = String((await User.collection.findOne({ username: 'jeremy' }))._id);
+    const res = await request(app).post('/api/checkin').set('x-test-user', JSON.stringify({ ...STAFF, id, username: 'jeremy' }))
+      .send({ ...visitor, location: 'Spokane' }).expect(201);
+    expect(res.body.data.salesRep || '').toBe('');
+    expect(res.body.data.salesRepEmail || '').toBe('');
+  });
+
+  it('a self check-in at the kiosk too', async () => {
+    const res = await request(app).post('/api/checkin/self')
+      .send({ ...visitor, location: 'Spokane', formLoadTime: Date.now() - 5000 }).expect(201);
+    expect(res.body.data.salesRep || '').toBe('');
   });
 });
