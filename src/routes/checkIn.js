@@ -68,11 +68,17 @@ const emitCheckInUpdate = (req, location) => {
 // one-line pure function with no state to keep in sync.
 const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Whether a new visit starts with a sales rep. Off since 2026-10-12 at the
+// owner's request: new visits (and so their Selection Sheets) start with
+// None until it's turned back on. Visits already logged keep theirs.
+export const NEW_VISITS_START_WITH_REP = false;
+
 // A new visit's sales rep, so its Selection Sheet opens with one: whoever
 // logged it if they're a sales rep, else the branch's sales person (Users &
 // Roles → Locations → Sales defaults) — the same rule as a new customer or
 // delivery (startingRepFor). Nobody if neither applies; never blocks a check-in.
 const startingRepForCheckIn = async (location, creatorId = null) => {
+  if (!NEW_VISITS_START_WITH_REP) return {};
   try {
     const [loc, users] = await Promise.all([
       Location.findOne({ name: location }, 'salesDefaults.salesRep').lean(),

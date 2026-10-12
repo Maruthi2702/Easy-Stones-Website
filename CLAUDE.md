@@ -104,7 +104,10 @@ read it as `defaultSalesRep` from `GET /api/admin/locations`), else what
 the screen did before. New customers and deliveries get it on the form
 (`useStartingRep()`), new check-ins from the server when they're logged
 (so the Selection Sheet opens with a rep). It never replaces a rep someone
-already set or picked.
+already set or picked. **Paused for check-ins since 2026-10-12** (owner's
+request): `NEW_VISITS_START_WITH_REP = false` in `src/routes/checkIn.js`, so
+new visits and their Selection Sheets start with None until it's set back
+to `true`; customers and deliveries still use the rule.
 
 ## Permits: sources and the accuracy rules (2026-10-11)
 
