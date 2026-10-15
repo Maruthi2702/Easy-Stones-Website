@@ -161,10 +161,19 @@ export const permitPrefix = (n) => String(n || '').replace(/\d{4}-\d+$/, '');
  * (fine — including one whose issue date the county has since moved, listed
  * in `datesMoved`); a lead the app lacks (`missingFromApp`); or not in the
  * county's public search at all — the county hides some types, e.g. fire
- * gate permits — which counts as missing only if its code is a lead code
- * (`notInCountySearch`), else it's listed in `notPublic`. And every lead the
- * app filed under the month that the report doesn't list is `notInReport`.
+ * gate permits. A hidden one with a lead code is `notInCountySearch`, else
+ * it's `notPublic`; either way the app can't read it, so it's the county's
+ * difference, not the pull's, and doesn't fail the check (2026-10-15: two
+ * DET permits in September's report were hidden like this).
+ *
+ * Every lead the app filed under the month that the report doesn't list is
+ * `notInReport` — unless the county's search says it isn't issued yet (an
+ * issue date with a status like "Fees Due"): the report lists only issued
+ * permits, so that one is `notIssuedYet` and doesn't fail the check either.
  */
+/** Whether a county search status means issued: 'Issued', 'Final' (or none given, so it isn't excused). */
+const issuedStatus = (status) => !cleanText(status) || /^(issued|final)/i.test(cleanText(status));
+
 export function reconcileReport({ month, reportNumbers, searchRows, appInMonth, appHas, leadPrefixes }) {
   const [y, m] = month.split('-').map(Number);
   const from = `${month}-01`;
@@ -186,13 +195,14 @@ export function reconcileReport({ month, reportNumbers, searchRows, appInMonth, 
       out.leadsInReport += 1;
     } else if (codes.has(permitPrefix(n))) {
       out.leadsInReport += 1;
-      out.missingFromApp.push(n);
       out.notInCountySearch.push(n);
     } else {
       out.notPublic.push(n);
     }
   }
-  const notInReport = [...new Set(appInMonth)].filter((n) => !report.has(n)).sort();
-  const matched = out.leadsInReport - out.missingFromApp.length;
-  return { inReport: report.size, matched, ...out, notInReport, ok: !out.missingFromApp.length && !notInReport.length };
+  const unlisted = [...new Set(appInMonth)].filter((n) => !report.has(n)).sort();
+  const notIssuedYet = unlisted.filter((n) => !issuedStatus(search.get(n)?.CaseStatus));
+  const notInReport = unlisted.filter((n) => !notIssuedYet.includes(n));
+  const matched = out.leadsInReport - out.missingFromApp.length - out.notInCountySearch.length;
+  return { inReport: report.size, matched, ...out, notInReport, notIssuedYet, ok: !out.missingFromApp.length && !notInReport.length };
 }

@@ -244,7 +244,7 @@ describe('the county report check', () => {
     report.numbers = ['SFR2026-00100', 'SFR2026-00999'];
     await sync.run();
     const check = await PermitCheck.findOne({ month: '2026-08' }).lean();
-    expect(check).toMatchObject({ ok: false, missingFromApp: ['SFR2026-00999'], notInReport: ['SFR2026-00150'], notInCountySearch: ['SFR2026-00999'] });
+    expect(check).toMatchObject({ ok: false, missingFromApp: [], notInReport: ['SFR2026-00150'], notInCountySearch: ['SFR2026-00999'] });
   });
 
   it('doesn’t download the county’s archive once every month is checked', async () => {

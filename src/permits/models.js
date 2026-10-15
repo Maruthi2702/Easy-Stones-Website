@@ -115,8 +115,13 @@ const permitCheckSchema = new Schema({
   // Month so far ('search'): how many the second search found, and permits it didn't find again.
   inSearch: { type: Number, default: 0 },
   notFoundAgain: { type: [String], default: [] },
-  // Lead-type report permits the county's public search doesn't have at all.
+  // Lead-type report permits the county's public search doesn't have at all —
+  // the county's difference, not the pull's (since 2026-10-15; before, these
+  // were also in missingFromApp).
   notInCountySearch: { type: [String], default: [] },
+  // Leads the app has under the month that the report leaves out because the
+  // county's search says they aren't issued yet ("Fees Due").
+  notIssuedYet: { type: [String], default: [] },
   // Report permits whose issue date the county has changed since (the app has them under the new date).
   datesMoved: { type: [String], default: [] },
   // Report permits the public search hides that aren't lead types (fire gate permits, say).

@@ -261,13 +261,29 @@ describe('the county’s monthly report', () => {
     expect(r).toMatchObject({ ok: true, matched: 1, datesMoved: ['SFR2025-00382'], missingFromApp: [] });
   });
 
-  it('lists permits the public search hides, and counts them missing only when they’re lead codes', () => {
+  it('lists permits the public search hides as the county’s own, not the pull’s', () => {
     // FIRE-CON2026-00067: a gate permit in August's report that the county's public search doesn't show.
+    // DET2026-00108: a lead-code permit in September's report the search hides the same way (2026-10-15).
     const r = reconcileReport({
       month: '2026-08',
-      reportNumbers: ['FIRE-CON2026-00067', 'SFR2026-00777'],
-      searchRows: [], appInMonth: [], appHas: [], leadPrefixes: ['SFR', 'DET', 'COM']
+      reportNumbers: ['FIRE-CON2026-00067', 'DET2026-00108', 'SFR2026-00001'],
+      searchRows: [search('SFR2026-00001', '2026-08-04')],
+      appInMonth: ['SFR2026-00001'], appHas: ['SFR2026-00001'], leadPrefixes: ['SFR', 'DET', 'COM']
     });
-    expect(r).toMatchObject({ ok: false, notPublic: ['FIRE-CON2026-00067'], notInCountySearch: ['SFR2026-00777'], missingFromApp: ['SFR2026-00777'] });
+    expect(r).toMatchObject({ ok: true, matched: 1, notPublic: ['FIRE-CON2026-00067'], notInCountySearch: ['DET2026-00108'], missingFromApp: [] });
+  });
+
+  it('excuses a lead the report leaves out because the county hasn’t issued it yet', () => {
+    // COM2025-00127: issue date Sept 30 but "Fees Due", and not in September's report (2026-10-15).
+    const row = (n, status) => ({ ...search(n, '2026-09-30', 'Building (Commercial) - Alteration/Tenant Improvement'), CaseStatus: status });
+    const r = reconcileReport({
+      month: '2026-09',
+      reportNumbers: [],
+      searchRows: [row('COM2025-00127', 'Fees Due'), row('COM2026-00500', 'Issued'), row('COM2026-00501', 'Final ')],
+      appInMonth: ['COM2025-00127', 'COM2026-00500', 'COM2026-00501'], appHas: [], leadPrefixes: ['COM']
+    });
+    expect(r).toMatchObject({ ok: false, notIssuedYet: ['COM2025-00127'], notInReport: ['COM2026-00500', 'COM2026-00501'] });
+    const only = reconcileReport({ month: '2026-09', reportNumbers: [], searchRows: [row('COM2025-00127', 'Fees Due')], appInMonth: ['COM2025-00127'], appHas: [], leadPrefixes: ['COM'] });
+    expect(only).toMatchObject({ ok: true, notIssuedYet: ['COM2025-00127'], notInReport: [] });
   });
 });

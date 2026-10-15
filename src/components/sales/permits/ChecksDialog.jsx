@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
-import { checkStatus } from '../../../utils/permitView';
+import { checkStatus, reportDifferences } from '../../../utils/permitView';
 
 const STATUS_ICON = { ok: CheckCircle2, warn: AlertTriangle, none: AlertTriangle, busy: Loader2 };
 
@@ -9,17 +9,19 @@ const STATUS_ICON = { ok: CheckCircle2, warn: AlertTriangle, none: AlertTriangle
 function CheckItem({ check }) {
   const s = checkStatus(check);
   const search = check.method === 'search';
+  const missing = search ? check.missingFromApp || [] : reportDifferences(check).missing;
   const Icon = STATUS_ICON[s.tone] || AlertTriangle;
   return (
     <li className={`pm-dlg-item ${s.tone}`}>
       <Icon size={15} aria-hidden="true" />
       <div className="pm-dlg-body">
         <span className="pm-dlg-line">{s.text}</span>
-        {check.missingFromApp?.length ? <span>{search ? 'Found by the separate search but not here' : 'In the county’s report but not here'}: {check.missingFromApp.join(', ')}</span> : null}
+        {missing.length ? <span>{search ? 'Found by the separate search but not here' : 'In the county’s report but not here'}: {missing.join(', ')}</span> : null}
         {check.addedFromReport?.length ? <span className="pm-muted">Added to the list from the county’s report (MyBuildingPermit doesn’t have them): {check.addedFromReport.join(', ')}</span> : null}
         {check.notFoundAgain?.length ? <span>Here but not found by the separate search: {check.notFoundAgain.join(', ')}</span> : null}
         {check.notInReport?.length ? <span>Here but not in the county’s report: {check.notInReport.join(', ')}</span> : null}
-        {check.notInCountySearch?.length ? <span>In the report but missing from the county’s own search: {check.notInCountySearch.join(', ')}</span> : null}
+        {check.notInCountySearch?.length ? <span className="pm-muted">In the report, but the county hides them from its public search, so the app can’t read them: {check.notInCountySearch.join(', ')}</span> : null}
+        {check.notIssuedYet?.length ? <span className="pm-muted">Here, but the county’s search says they aren’t issued yet (e.g. Fees Due), so its report leaves them out: {check.notIssuedYet.join(', ')}</span> : null}
         {check.datesMoved?.length ? <span className="pm-muted">Re-issued by the county after the report (shown here under the new date): {check.datesMoved.join(', ')}</span> : null}
         {check.notPublic?.length ? <span className="pm-muted">Not lead types, and hidden from the county’s public search: {check.notPublic.join(', ')}</span> : null}
         {check.reportUrl ? <a href={check.reportUrl} target="_blank" rel="noreferrer">{check.reportTitle || 'The county’s report'}</a> : null}
