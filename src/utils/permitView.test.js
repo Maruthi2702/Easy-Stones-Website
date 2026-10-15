@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  rangeFrom, splitChecks, nextSort, ariaSort, formatDay, formatMonth, formatMoney, sizeLine, whenLine, sourceStatus, checkStatus, checksAttention, leadContact, contactPerson,
+  rangeFrom, splitChecks, nextSort, ariaSort, formatDay, formatMonth, formatMoney, sizeLine, whenLine, sourceStatus, checkStatus, reportDifferences, checksAttention, leadContact, contactPerson,
   customerOf, permitExportRows, placeGroups, placeQuery, permitPdfRows, permitPdfScope, permitPdfUrl, permitFileName,
   countyTree, toggleCounty, toggleState, countySummary, cleanCounties, placeOffered, contactPhone, contactTitle, registryLine,
   looksLikeLicense, licenseStanding, inForce, coverageLine, tradeLine, contactLicense, customerPrefillFor, tidyName, personName
@@ -87,6 +87,16 @@ describe('county report check', () => {
       .toEqual({ tone: 'warn', text: 'Accuracy check, August 2026: 2 permits differ from the county’s report' });
     expect(checkStatus({ month: '2026-08', error: 'No permit numbers found' }).tone).toBe('warn');
   });
+
+  it('counts each permit once, and passes a month whose only differences are the county’s own', () => {
+    // September 2026, Whatcom: two DET permits the county's search hides, one "Fees Due" permit the report leaves out.
+    const sep = { source: 'whatcom', month: '2026-09', ok: true, matched: 60, missingFromApp: [], notInReport: [], notInCountySearch: ['DET2026-00108', 'DET2026-00114'], notIssuedYet: ['COM2025-00127'] };
+    expect(checkStatus(sep)).toEqual({ tone: 'ok', text: 'Accuracy check, September 2026 (Whatcom County): matches the county’s report — all 60 lead permits accounted for; 3 more are the county’s own, explained below' });
+    // A check saved before 2026-10-15 listed hidden permits under missingFromApp too, so they counted twice.
+    const old = { ...sep, ok: false, missingFromApp: ['DET2026-00108', 'DET2026-00114'], notInReport: ['COM2025-00127'], notIssuedYet: undefined };
+    expect(checkStatus(old)).toEqual({ tone: 'warn', text: 'Accuracy check, September 2026 (Whatcom County): 1 permit differs from the county’s report' });
+    expect(reportDifferences(old)).toEqual({ missing: [], real: 1, explained: 2 });
+  });
 });
 
 describe('month so far', () => {
@@ -95,7 +105,7 @@ describe('month so far', () => {
   it('reads each source’s check for the month so far', () => {
     expect(checkStatus(search('whatcom')).text).toBe('Accuracy check, October 2026 so far (Whatcom County): all 20 lead permits found again by a separate county search by permit number');
     expect(checkStatus(search('bellingham', { matched: 7 })).text).toBe('Accuracy check, October 2026 so far (Bellingham): all 7 lead permits found again by a separate query of the city’s data');
-    expect(checkStatus(search('whatcom', { ok: false, missingFromApp: ['A'], notFoundAgain: [] }))).toEqual({ tone: 'warn', text: 'Accuracy check, October 2026 so far (Whatcom County): 1 permit differ from a separate county search by permit number' });
+    expect(checkStatus(search('whatcom', { ok: false, missingFromApp: ['A'], notFoundAgain: [] }))).toEqual({ tone: 'warn', text: 'Accuracy check, October 2026 so far (Whatcom County): 1 permit differs from a separate county search by permit number' });
   });
 
   it('puts this month’s checks and the newest report on top, the rest under Details', () => {

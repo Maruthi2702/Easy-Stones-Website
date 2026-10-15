@@ -298,6 +298,8 @@ describe('the cities on MyBuildingPermit', () => {
     expect(isUnsortedBuildingType('sammamish', 'ELECTRICAL - RESIDENTIAL ELECTRICAL')).toBe(false);
     expect(isUnsortedBuildingType('kirkland', 'BAC')).toBe(true);   // a new B… (building) code
     expect(isUnsortedBuildingType('kirkland', 'ESF')).toBe(false);  // electrical, single family
+    expect(isUnsortedBuildingType('kirkland', 'BNO')).toBe(false);  // Building Not Occupied: docks, gates, walls — skipped
+    expect(categoryFor('kirkland', 'BNO')).toBeNull();
   });
 
   it('puts every city permit in its city', () => {

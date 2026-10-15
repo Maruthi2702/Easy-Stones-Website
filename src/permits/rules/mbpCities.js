@@ -96,6 +96,8 @@ export const kirkland = city('Kirkland', {
   stampsTime: true,
   // B = building, then SF single family / MF multifamily / NR nonresidential.
   types: [['ADU', 'adu'], ['BSF', 'building_other'], ['BMF', 'building_other'], ['BNR', 'building_other']],
+  // Building Not Occupied: docks, gates, retaining walls, fuel tanks (checked 2026-10-15).
+  skipped: ['BNO'],
   building: /^(B[A-Z]{2}|ADU)$/i
 });
 

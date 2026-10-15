@@ -211,15 +211,32 @@ export function checkStatus(check) {
     if (check.error) return { tone: 'warn', text: `${label}: couldn’t run — ${check.error}` };
     if (check.ok) return { tone: 'ok', text: `${label}: all ${check.matched} lead permit${check.matched === 1 ? '' : 's'} found again by ${how}` };
     const n = (check.missingFromApp || []).length + (check.notFoundAgain || []).length;
-    return { tone: 'warn', text: `${label}: ${n} permit${n === 1 ? '' : 's'} differ from ${how}` };
+    return { tone: 'warn', text: `${label}: ${n} permit${n === 1 ? ' differs' : 's differ'} from ${how}` };
   }
   const who = SOURCES[check.source]?.label;
   const month = `Accuracy check, ${formatMonth(check.month)}${who ? ` (${who})` : ''}`;
   const filled = check.filled ? `; value and city filled in for ${check.filled}` : '';
   if (check.error) return { tone: 'warn', text: `${month}: couldn’t check against the county’s report — ${check.error}` };
-  if (check.ok) return { tone: 'ok', text: `${month}: matches the county’s report — all ${check.matched} lead permit${check.matched === 1 ? '' : 's'} accounted for${filled}` };
-  const n = check.missingFromApp.length + check.notInReport.length + (check.notInCountySearch || []).length;
-  return { tone: 'warn', text: `${month}: ${n} permit${n === 1 ? '' : 's'} differ from the county’s report` };
+  const { real, explained } = reportDifferences(check);
+  const more = explained ? `; ${explained} more ${explained === 1 ? 'is' : 'are'} the county’s own, explained below` : '';
+  if (check.ok || !real) return { tone: 'ok', text: `${month}: matches the county’s report — all ${check.matched} lead permit${check.matched === 1 ? '' : 's'} accounted for${filled}${more}` };
+  return { tone: 'warn', text: `${month}: ${real} permit${real === 1 ? ' differs' : 's differ'} from the county’s report` };
+}
+
+/**
+ * A report check's differences, each permit once: `real` ones the pull got
+ * wrong or missed, and `explained` ones that are the county's own — hidden
+ * from its public search, or not issued yet. (Checks saved before 2026-10-15
+ * also listed the hidden ones under missingFromApp, which counted them twice.)
+ */
+export function reportDifferences(check) {
+  const hidden = check.notInCountySearch || [];
+  const missing = (check.missingFromApp || []).filter((n) => !hidden.includes(n));
+  return {
+    missing,
+    real: missing.length + (check.notInReport || []).length,
+    explained: hidden.length + (check.notIssuedYet || []).length
+  };
 }
 
 /**

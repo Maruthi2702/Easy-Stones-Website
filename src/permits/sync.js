@@ -229,7 +229,7 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
         const r = reconcileReport({ month: report.month, reportNumbers: numbers, searchRows: rows, appInMonth, appHas, leadPrefixes: [...leadPrefixes] });
         fields = {
           ...base, method: 'report', inReport: r.inReport, matched: r.matched, missingFromApp: r.missingFromApp, notInReport: r.notInReport,
-          notInCountySearch: r.notInCountySearch, datesMoved: r.datesMoved, notPublic: r.notPublic, ok: r.ok, error: ''
+          notInCountySearch: r.notInCountySearch, notIssuedYet: r.notIssuedYet, datesMoved: r.datesMoved, notPublic: r.notPublic, ok: r.ok, error: ''
         };
       } catch (err) {
         fields = { ...base, method: 'report', ok: false, error: String(err?.message || err).slice(0, 500) };
