@@ -10,7 +10,8 @@ import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/deliverySchedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
-import { columnIdFor, isReturn, WILL_CALL_COLUMN_ID } from '../../../utils/deliveryTypes';
+import { orderBoardColumns, WILL_CALL_COLUMN } from '../../../utils/deliveryColumns';
+import { columnIdFor, isReturn } from '../../../utils/deliveryTypes';
 import { groupStops, applyStopMove, flattenGroups, sameStopOrder } from '../../../utils/stopGrouping';
 // Day names come from the dates themselves — the board renders whichever days
 // the week actually shows, which is Mon-Fri plus any weekend day in use.
@@ -24,25 +25,8 @@ const MIN_TRUCK_COL_WIDTH = 290;
 // The stylesheet's existing floor — never render narrower than the board does today.
 const MIN_TABLE_WIDTH = 1100;
 
-// A will call is collected by the customer, so it belongs to no driver and to no
-// truck's daily load. It gets a column of its own at the end of the board rather
-// than sitting under whoever happened to be selected when the ticket was made.
-// The ids themselves live in deliveryTypes.js — the board is not the only thing
-// that needs to name these columns, and re-exporting them from a component file
-// costs Fast Refresh.
-const WILL_CALL_COLUMN = {
-  id: WILL_CALL_COLUMN_ID,
-  driver: 'Will Call',
-  // Same as `driver` on purpose. The header renders `name` underneath as a
-  // subtitle only when the two differ, which is how a truck shows its driver —
-  // so matching them drops the second line here without the column having to be
-  // special-cased in the markup. It used to read "Customer Pickup", which said
-  // nothing "Will Call" doesn't already say, and now that customer-returned
-  // slabs share this column it was not even true of everything in it.
-  name: 'Will Call',
-  color: '#2dd4bf',
-  isWillCall: true
-};
+// The Will Call column (one driverless column for pickups) lives in
+// src/utils/deliveryColumns.js with the rest of the column order rules.
 
 // A column nobody drives. The daily truck load is meaningless for it, so it
 // shows a plain count rather than a count against MAX_TRUCK_CAPACITY.
@@ -77,6 +61,8 @@ const BoardGrid = ({
   // Bumped by the toolbar's Today button: bring today's day back into view.
   todayRequest = 0,
   searchQuery = '',
+  // This branch's saved column order (ids), or null for the default order.
+  columnOrder = null,
   editable = false,
   onAddDelivery,
   onEditDelivery,
@@ -478,16 +464,20 @@ const BoardGrid = ({
   const displayTrucks = (() => {
     // No "Unassigned" column: an order without a driver belongs to the Pending
     // list beneath the board, not to a column of its own. Will Call is the only
-    // driverless column, pinned last so the drivers still read left to right —
-    // it holds customer pickups and the occasional slab a customer brings back
-    // themselves, both being orders that move without one of our drivers.
+    // driverless column — it holds customer pickups and the occasional slab a
+    // customer brings back themselves, both being orders that move without one
+    // of our drivers.
+    //
+    // Left to right is the branch's saved order (an admin's Arrange columns),
+    // else our drivers A–Z, contract trucks, then Will Call — see
+    // src/utils/deliveryColumns.js.
     //
     // A deactivated driver (Users & Roles) keeps a column only on weeks they
     // have orders: their history stays where it happened, and anything still
     // on them can be dragged to someone else. Nothing can be added to them.
     const weekHasOrders = new Set(deliveries.map(d => d.truckId));
     const shown = trucks.filter(t => !t.inactive || weekHasOrders.has(t.id));
-    return [...shown, WILL_CALL_COLUMN];
+    return orderBoardColumns([...shown, WILL_CALL_COLUMN], columnOrder);
   })();
 
   /**

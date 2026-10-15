@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, RefreshCw, AlertTriangle, ArrowUpToLine, Link2, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, AlertTriangle, ArrowUpToLine, ArrowLeftRight, Link2, Search, X } from 'lucide-react';
 import BoardGrid from './delivery/BoardGrid';
 import { WILL_CALL_COLUMN_ID, defaultStatusFor } from '../../utils/deliveryTypes';
+import { WILL_CALL_COLUMN } from '../../utils/deliveryColumns';
 import DriverView from './delivery/DriverView';
 // The Add / Edit delivery form (shared form template). The old DeliveryModal.jsx
 // is no longer mounted anywhere.
 import DeliveryForm from './delivery/DeliveryForm';
+import ColumnOrderForm from './delivery/ColumnOrderForm';
 import PodModal from './delivery/PodModal';
 import PodViewer from './delivery/PodViewer';
 import PendingDeliveries from './delivery/PendingDeliveries';
@@ -31,7 +33,9 @@ import {
   getCachedWeekDeliveries,
   subscribeScheduleConnection,
   getScheduleConnection,
-  refreshScheduleNow
+  refreshScheduleNow,
+  getDeliveryColumnOrders,
+  subscribeDeliveryColumns
 } from '../../api/deliverySchedule';
 import {
   getWeekMonday,
@@ -286,6 +290,23 @@ const DeliveryScheduleTab = ({
       unsubscribeConnection();
     };
   }, [loadData, refreshScoped, locationFilter]);
+
+  // Each branch's column order ({ Seattle: [ids] }; src/utils/deliveryColumns.js).
+  // Read once, and again whenever an admin changes one anywhere. Admins
+  // (manage_users) arrange the branch on screen from Search & filters; the
+  // All Locations board always uses the default order.
+  const [columnOrders, setColumnOrders] = useState({});
+  const [arrangeOpen, setArrangeOpen] = useState(false);
+  const canArrangeColumns = role !== 'driver' && Boolean(currentUser?.permissions?.includes('manage_users'));
+  useEffect(() => {
+    if (role === 'driver') return undefined;
+    let alive = true;
+    const load = () => getDeliveryColumnOrders().then((orders) => { if (alive) setColumnOrders(orders); });
+    load();
+    const unsubscribe = subscribeDeliveryColumns(load);
+    return () => { alive = false; unsubscribe(); };
+  }, [role]);
+  const columnOrder = locationFilter ? (columnOrders[locationFilter] || null) : null;
 
   // Every save/move helper in deliverySchedule.js hands back the shared
   // cache's week — every branch's tickets, or nothing if that cache was never
@@ -606,19 +627,35 @@ const DeliveryScheduleTab = ({
               onClear={() => setSearchQuery('')}
             >
               {({ close }) => (
-                <div className="lf-group">
-                  <span className="lf-group-label">Search orders</span>
-                  <DeliveryOrderSearch
-                    inline
-                    autoFocus
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    onSelect={(result, info) => { close(); handleOrderSearchSelect(result, info); }}
-                    onViewPod={(delivery) => { close(); handleOpenPodViewer(delivery); }}
-                    trucks={trucks}
-                    viewerLocations={currentUser?.assignedLocations || []}
-                  />
-                </div>
+                <>
+                  <div className="lf-group">
+                    <span className="lf-group-label">Search orders</span>
+                    <DeliveryOrderSearch
+                      inline
+                      autoFocus
+                      value={searchQuery}
+                      onChange={setSearchQuery}
+                      onSelect={(result, info) => { close(); handleOrderSearchSelect(result, info); }}
+                      onViewPod={(delivery) => { close(); handleOpenPodViewer(delivery); }}
+                      trucks={trucks}
+                      viewerLocations={currentUser?.assignedLocations || []}
+                    />
+                  </div>
+                  {/* A branch's order, so only with one branch picked. */}
+                  {canArrangeColumns && locationFilter && (
+                    <div className="lf-group delivery-arrange-group">
+                      <span className="lf-group-label">Board columns</span>
+                      <button
+                        type="button"
+                        className="delivery-arrange-btn"
+                        onClick={() => { close(); setArrangeOpen(true); }}
+                      >
+                        <ArrowLeftRight size={14} aria-hidden="true" />
+                        Arrange columns for {locationFilter}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </LocationFilter>
           ) : (
@@ -687,6 +724,7 @@ const DeliveryScheduleTab = ({
               onUpdateTruck={handleUpdateTruck}
               onMoveDelivery={handleMoveDelivery}
               onReorderDeliveries={handleReorderDeliveries}
+              columnOrder={columnOrder}
               onViewPod={handleOpenPodViewer}
               // Pickups are signed for at the counter rather than at a jobsite,
               // so the office captures their ePOD. The board only offers it on
@@ -702,6 +740,7 @@ const DeliveryScheduleTab = ({
               weekDates={visibleDates}
               todayRequest={todayRequest}
               searchQuery={searchQuery}
+              columnOrder={columnOrder}
               editable={false}
               onEditDelivery={null}
               onViewPod={handleOpenPodViewer}
@@ -766,6 +805,19 @@ const DeliveryScheduleTab = ({
         <div className="manifest-readonly-footer">
           Read-only · contact office to schedule
         </div>
+      )}
+
+      {arrangeOpen && locationFilter && (
+        <ColumnOrderForm
+          location={locationFilter}
+          // This branch's current drivers and Will Call. A former driver
+          // (shown only on weeks with their orders) isn't offered; on those
+          // weeks their column goes where the default rule puts it.
+          columns={[...trucks.filter((t) => !t.inactive), WILL_CALL_COLUMN]}
+          savedOrder={columnOrders[locationFilter] || null}
+          onClose={() => setArrangeOpen(false)}
+          onSaved={(saved) => setColumnOrders((orders) => ({ ...orders, [locationFilter]: saved }))}
+        />
       )}
 
       <DeliveryForm

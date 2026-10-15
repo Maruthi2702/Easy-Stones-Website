@@ -3955,6 +3955,36 @@ body.light-theme-active .delivery-search-chip,
 body.light-theme-active .delivery-search-chip:hover,
 .light-theme-active .delivery-search-chip:hover { background: #efe3bf; }
 
+/* Search & filters → Board columns: an admin's way into Arrange columns
+   (ColumnOrderForm). Styled like the panel's own Done button. */
+.delivery-arrange-group { margin-top: 1rem; }
+
+.delivery-arrange-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0.5rem 0.8rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  font: 600 0.82rem var(--font-main);
+  cursor: pointer;
+}
+.delivery-arrange-btn:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.2); }
+.delivery-arrange-btn:focus-visible { outline: 2px solid #D4AF37; outline-offset: 2px; }
+
+body.light-theme-active .delivery-arrange-btn,
+.light-theme-active .delivery-arrange-btn {
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  color: #334155;
+}
+body.light-theme-active .delivery-arrange-btn:hover,
+.light-theme-active .delivery-arrange-btn:hover { background: #e2e8f0; color: #0f172a; }
+
 
 /* Phones: the header's actions share one row with the title, and the chip
    pushed over it. The filter button's dot still shows a search is on. */
