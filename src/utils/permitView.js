@@ -218,7 +218,7 @@ export function checkStatus(check) {
   const filled = check.filled ? `; value and city filled in for ${check.filled}` : '';
   if (check.error) return { tone: 'warn', text: `${month}: couldn’t check against the county’s report — ${check.error}` };
   const { real, explained } = reportDifferences(check);
-  const more = explained ? `; ${explained} more are the county’s own, explained below` : '';
+  const more = explained ? `; ${explained} more ${explained === 1 ? 'is' : 'are'} the county’s own, explained below` : '';
   if (check.ok || !real) return { tone: 'ok', text: `${month}: matches the county’s report — all ${check.matched} lead permit${check.matched === 1 ? '' : 's'} accounted for${filled}${more}` };
   return { tone: 'warn', text: `${month}: ${real} permit${real === 1 ? ' differs' : 's differ'} from the county’s report` };
 }
