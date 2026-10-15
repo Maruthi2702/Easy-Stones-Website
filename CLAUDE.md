@@ -300,7 +300,9 @@ As of 2026-08-28 that covers the pure, no-DOM business logic in
 recency bucketing, small formatting/localStorage helpers), plus the Daily
 Work Report's derive/save-payload rules (`src/routes/dailyReports.js`'s
 `applyDerived`, `src/components/sales/dailyreport/savePayload.js`) added
-after the incident above, and the customer list's rules
+after the incident above, and its payment methods and totals
+(`src/utils/dailyReportPayments.js`: ACH, Cash, Credit Card, Check; reports
+saved before ACH read it as unsaid), and the customer list's rules
 (`src/utils/customerList.js`: status labels, the ⚠ data-quality checks and
 the "Incomplete" query that must match them, saved views, A–Z, role-scoped
 filter options), the shared pagination sizes/range math

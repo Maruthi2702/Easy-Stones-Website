@@ -94,7 +94,10 @@ const dailyReportSchema = new mongoose.Schema({
   transfers: { type: [transferLineSchema], default: [] },
   containers: { type: [containerLineSchema], default: [] },
 
+  // Methods and their order: src/utils/dailyReportPayments.js. ACH added
+  // 2026-10-15 — older reports have no ach, which reads as unsaid.
   payments: {
+    ach: { count: { type: Number, default: null }, amount: { type: Number, default: null } },
     cash: { count: { type: Number, default: null }, amount: { type: Number, default: null } },
     card: { count: { type: Number, default: null }, amount: { type: Number, default: null } },
     check: { count: { type: Number, default: null }, amount: { type: Number, default: null } }

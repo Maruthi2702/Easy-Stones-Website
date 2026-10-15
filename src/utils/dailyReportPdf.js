@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { groupContainers } from './dailyReportContainers.js';
+import { PAYMENT_METHODS, paymentCount, paymentAmount } from './dailyReportPayments.js';
 
 /**
  * The Daily Work Report as paper.
@@ -248,8 +249,8 @@ export async function buildDayPdf(report) {
   const inboundTransferCount = inboundTransfers.reduce((s, t) => s + Number(t.count || 0), 0);
   const containerSlabs = containers.reduce((s, x) => s + Number(x.slabs || 0), 0);
   const pay = report.payments || {};
-  const payCount = ['cash', 'card', 'check'].reduce((s, k) => s + Number(pay[k]?.count || 0), 0);
-  const payAmount = ['cash', 'card', 'check'].reduce((s, k) => s + Number(pay[k]?.amount || 0), 0);
+  const payCount = paymentCount(pay);
+  const payAmount = paymentAmount(pay);
 
   let y = drawHeader(c, fonts, logo, {
     title: 'Daily Work Report',
@@ -311,9 +312,9 @@ export async function buildDayPdf(report) {
     head: ['Method', 'Trans.', 'Amount'],
     cols: [{ align: 'left', width: colW - 130 }, { align: 'right', width: 45 }, { align: 'right', width: 85 }],
     rows: [
-      { cells: ['Cash', int(pay.cash?.count), money(pay.cash?.amount)] },
-      { cells: ['Credit Card (CC)', int(pay.card?.count), money(pay.card?.amount)] },
-      { cells: ['Check', int(pay.check?.count), money(pay.check?.amount)] },
+      ...PAYMENT_METHODS.map(({ key, label }) => ({
+        cells: [label, int(pay[key]?.count), money(pay[key]?.amount)]
+      })),
       { cells: ['Total', int(payCount), money(payAmount)], total: true }
     ]
   });
