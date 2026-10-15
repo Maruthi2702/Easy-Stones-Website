@@ -12,6 +12,9 @@ import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
 import { money } from './summaryFigures';
 import { groupContainers, groupSlabs } from '../../../utils/dailyReportContainers';
+import {
+  PAYMENT_METHODS, withAllPaymentMethods, paymentCount, paymentAmount, paymentsSaid, noPayments
+} from '../../../utils/dailyReportPayments';
 import { buildSaveBody } from './savePayload';
 import MonthView from './MonthView';
 import AllBranchesDay from './AllBranchesDay';
@@ -119,7 +122,7 @@ const emptyReport = (date, location) => ({
   sinks: null,
   transfers: [],
   containers: [],
-  payments: { cash: { count: null, amount: null }, card: { count: null, amount: null }, check: { count: null, amount: null } },
+  payments: withAllPaymentMethods({}),
   notes: ''
 });
 
@@ -228,7 +231,13 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       // blanking them for the schedule to refill (handSetFigures on the server).
       touchedCapacity.current = new Set(data.handSet?.capacity || []);
       touchedTransferSlabs.current = new Set(data.handSet?.transferSlabs || []);
-      setReport({ ...emptyReport(date, location), ...data.report });
+      // A report saved before ACH existed has no payments.ach — fill the
+      // blank in so the row renders instead of throwing.
+      setReport({
+        ...emptyReport(date, location),
+        ...data.report,
+        payments: withAllPaymentMethods(data.report?.payments)
+      });
       setSlabRange(data.slabRange || null);
       setShippedEarlier(data.transfersShippedEarlier || []);
       setNoBranchTickets(data.derived?.noBranchTickets || 0);
@@ -385,15 +394,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
    * the day stays ambiguous forever.
    */
   const declareNoPayments = () => patch(r => {
-    for (const k of ['cash', 'card', 'check']) r.payments[k] = { count: 0, amount: 0 };
+    r.payments = noPayments();
     return r;
   });
 
-  const paymentsUnsaid = report && !said(
-    report.payments.cash.count, report.payments.cash.amount,
-    report.payments.card.count, report.payments.card.amount,
-    report.payments.check.count, report.payments.check.amount
-  );
+  const paymentsUnsaid = report && !paymentsSaid(report.payments);
 
   /**
    * A line starts empty, not at zero. Pushing 0 would have every new row assert
@@ -468,8 +473,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       transferCountIn: report.transfers.filter(t => t.direction === 'in').reduce((s, t) => s + n(t.count), 0),
       transferSlabsIn: report.transfers.filter(t => t.direction === 'in').reduce((s, t) => s + n(t.slabs), 0),
       containerSlabs: report.containers.reduce((s, c) => s + n(c.slabs), 0),
-      payCount: ['cash', 'card', 'check'].reduce((s, k) => s + n(report.payments[k].count), 0),
-      payAmount: ['cash', 'card', 'check'].reduce((s, k) => s + n(report.payments[k].amount), 0)
+      payCount: paymentCount(report.payments),
+      payAmount: paymentAmount(report.payments)
     };
   }, [report]);
 
@@ -1039,7 +1044,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                   <tr><th>Method</th><th className="dr-num">Transactions</th><th className="dr-num">Amount</th></tr>
                 </thead>
                 <tbody>
-                  {[['Cash', 'cash'], ['Credit Card (CC)', 'card'], ['Check', 'check']].map(([label, key]) => (
+                  {PAYMENT_METHODS.map(({ label, key }) => (
                     <tr key={key}>
                       <td>{label}</td>
                       <td className="dr-num">

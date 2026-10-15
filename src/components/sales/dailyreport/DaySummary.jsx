@@ -2,6 +2,7 @@ import React from 'react';
 import { Users, Truck, Package, ArrowLeftRight, Wallet, Check } from 'lucide-react';
 import { moneyShort } from './summaryFigures';
 import { groupContainers } from '../../../utils/dailyReportContainers';
+import { paymentsSaid } from '../../../utils/dailyReportPayments';
 
 /**
  * The day at a glance — the five figures anyone asks about, above the form
@@ -111,13 +112,12 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false })
   // Counting only figures above zero left a genuine nil day permanently
   // incomplete, which is exactly the day most likely to be forgotten.
   const said = spoken;
-  const p = report.payments;
   const sections = [
     { name: 'visitors', filled: said(v.fabricators, v.designers) || totals.visitors > 0 },
     { name: 'deliveries', filled: said(report.deliveries.capacity, report.pickups.capacity, report.returns, report.sinks) || totals.assigned > 0 },
     { name: 'transfers', filled: transferLines > 0 },
     { name: 'containers', filled: containerCount > 0 },
-    { name: 'payments', filled: said(p.cash.count, p.cash.amount, p.card.count, p.card.amount, p.check.count, p.check.amount) }
+    { name: 'payments', filled: paymentsSaid(report.payments) }
   ];
   const done = sections.filter(s => s.filled).length;
   const blank = sections.filter(s => !s.filled).map(s => s.name);

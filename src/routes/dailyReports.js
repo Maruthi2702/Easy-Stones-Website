@@ -8,6 +8,7 @@ import OfficeCheckIn from '../models/OfficeCheckIn.js';
 import Location from '../models/Location.js';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.js';
 import { groupContainers, groupSlabs } from '../utils/dailyReportContainers.js';
+import { PAYMENT_METHODS, paymentAmount } from '../utils/dailyReportPayments.js';
 import { groupTransferTickets, groupTicketSlabs, groupReceived, arrivalsShippedEarlier } from '../utils/dailyReportTransfers.js';
 
 /**
@@ -501,7 +502,7 @@ export const summarise = (r) => ({
   // the number of distinct containers, not the number of lines.
   containerCount: groupContainers(r.containers || []).length,
   containerSlabs: (r.containers || []).reduce((sum, c) => sum + (c.slabs || 0), 0),
-  payments: ['cash', 'card', 'check'].reduce((sum, k) => sum + (r.payments?.[k]?.amount || 0), 0),
+  payments: paymentAmount(r.payments),
   submittedBy: r.submittedBy || '',
   autoSubmitted: Boolean(r.autoSubmitted)
 });
@@ -759,11 +760,10 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           material: String(c.material || '').trim(),
           slabs: num(c.slabs)
         })).filter(c => c.poNumber || c.material || c.slabs),
-        payments: {
-          cash: { count: numOrNull(body.payments?.cash?.count), amount: moneyOrNull(body.payments?.cash?.amount) },
-          card: { count: numOrNull(body.payments?.card?.count), amount: moneyOrNull(body.payments?.card?.amount) },
-          check: { count: numOrNull(body.payments?.check?.count), amount: moneyOrNull(body.payments?.check?.amount) }
-        },
+        payments: Object.fromEntries(PAYMENT_METHODS.map(({ key }) => [key, {
+          count: numOrNull(body.payments?.[key]?.count),
+          amount: moneyOrNull(body.payments?.[key]?.amount)
+        }])),
         notes: String(body.notes || '').trim(),
         updatedBy: req.user?.displayName || req.user?.username || ''
       };
@@ -911,6 +911,8 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         'Transfer routes out', 'Transfer count out', 'Transfer slabs out',
         'Transfer routes in', 'Transfer count in', 'Transfer slabs in',
         'Container lines', 'Container slabs',
+        // ACH added 2026-10-15, first like on the sheet.
+        'ACH count', 'ACH amount',
         'Cash count', 'Cash amount', 'Card count', 'Card amount',
         'Check count', 'Check amount', 'Payments total',
         'Submitted by'
@@ -932,6 +934,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           outboundLines(r).map(t => t.fromTo).join(' / '), s.transferCount, s.transferSlabs,
           inboundLines(r).map(t => t.fromTo).join(' / '), s.transferCountIn, s.transferSlabsIn,
           (r.containers || []).length, s.containerSlabs,
+          r.payments?.ach?.count || 0, (r.payments?.ach?.amount || 0).toFixed(2),
           r.payments?.cash?.count || 0, (r.payments?.cash?.amount || 0).toFixed(2),
           r.payments?.card?.count || 0, (r.payments?.card?.amount || 0).toFixed(2),
           r.payments?.check?.count || 0, (r.payments?.check?.amount || 0).toFixed(2),
