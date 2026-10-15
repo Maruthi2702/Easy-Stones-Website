@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   rangeFrom, splitChecks, nextSort, ariaSort, formatDay, formatMonth, formatMoney, sizeLine, whenLine, sourceStatus, checkStatus, checksAttention, leadContact, contactPerson,
   customerOf, permitExportRows, placeGroups, placeQuery, permitPdfRows, permitPdfScope, permitPdfUrl, permitFileName,
-  countyTree, toggleCounty, toggleState, countySummary, cleanCounties, placeOffered, contactPhone, contactTitle, registryLine
+  countyTree, toggleCounty, toggleState, countySummary, cleanCounties, placeOffered, contactPhone, contactTitle, registryLine,
+  looksLikeLicense, licenseStanding, inForce, coverageLine, tradeLine, contactLicense, customerPrefillFor, tidyName, personName
 } from './permitView.js';
 
 const NOW = new Date('2026-10-11T19:00:00Z'); // 12:00 PM Pacific
@@ -13,6 +14,7 @@ describe('dates and numbers', () => {
     expect(rangeFrom('30', NOW)).toBe('2026-09-12');
     expect(rangeFrom('183', NOW)).toBe('2026-04-12');
     expect(rangeFrom('nonsense', NOW)).toBe('2026-09-12');
+    expect(rangeFrom('all', NOW)).toBe('');
   });
 
   it('formats days, months, money and size', () => {
@@ -330,5 +332,63 @@ describe('the WA contractor registry on screen', () => {
     const { top } = splitChecks(checks, NOW);
     expect(top.map((c) => `${c.source} ${c.month}`)).toEqual(['king_county 2026-09', 'whatcom 2026-08']);
     expect(checkStatus(checks[1]).text).toBe('Accuracy check, September 2026 (King County): matches the county’s report — all 60 lead permits accounted for; value and city filled in for 58');
+  });
+});
+
+describe('a contractor’s pop-up', () => {
+  const SIERRA = {
+    found: true, license: 'SIERRCC145N8', businessName: 'SIERRA CONSTRUCTION CO INC', phone: '4254875200',
+    address: '14800 NE North Woodinville Way', city: 'WOODINVILLE', state: 'WA', zip: '98072', licenseType: 'CONSTRUCTION CONTRACTOR',
+    specialty: 'GENERAL', status: 'ACTIVE', expiresOn: '2028-03-31', principal: 'ADLER, NANCY', ubi: '600634891', emails: []
+  };
+
+  it('tells a license number from a name, an address or a permit number', () => {
+    expect(looksLikeLicense(' sierrcc145n8 ')).toBe('SIERRCC145N8');
+    expect(looksLikeLicense('VIVIDDL801B4')).toBe('VIVIDDL801B4');
+    expect(looksLikeLicense('Sierra Construction')).toBe('');
+    expect(looksLikeLicense('12887 SE 43rd')).toBe('');
+    expect(looksLikeLicense('BLD26-2486')).toBe('');
+    expect(looksLikeLicense('7116062-CN')).toBe('');
+    expect(looksLikeLicense('26 123874 BT')).toBe('');
+  });
+
+  it('heads the card with the license’s standing', () => {
+    expect(licenseStanding(SIERRA, '2026-10-14')).toEqual({ tone: 'ok', text: 'Active · expires Mar 31, 2028' });
+    expect(licenseStanding({ ...SIERRA, expiresOn: '2026-03-31' }, '2026-10-14')).toEqual({ tone: 'warn', text: 'License expired Mar 31, 2026' });
+    expect(licenseStanding({ ...SIERRA, status: 'SUSPENDED' }, '2026-10-14').text).toBe('License suspended');
+    expect(licenseStanding({ found: false }).tone).toBe('warn');
+  });
+
+  it('splits insurance and bonds into in force and lapsed', () => {
+    const list = [
+      { company: 'Alaska National', amount: 1000000, expiresOn: '2027-03-31' },
+      { company: 'Old Co', amount: 500000, expiresOn: '2025-03-31' },
+      { company: 'Safeco', amount: 30000, untilCanceled: true }
+    ];
+    const { current, lapsed } = inForce(list, '2026-10-14');
+    expect(current.map((x) => x.company)).toEqual(['Alaska National', 'Safeco']);
+    expect(lapsed.map((x) => x.company)).toEqual(['Old Co']);
+    expect(coverageLine(list[0])).toBe('$1,000,000 · Alaska National · to Mar 31, 2027');
+    expect(coverageLine(list[2])).toBe('$30,000 · Safeco · until canceled');
+    expect(tradeLine(SIERRA)).toBe('Construction Contractor · General');
+  });
+
+  it('knows which contacts open it', () => {
+    expect(contactLicense({ kind: 'contractor', license: 'ABCHOHL123AB' })).toBe('ABCHOHL123AB');
+    expect(contactLicense({ kind: 'contractor', registry: { license: 'VNCONCL900AA' } })).toBe('VNCONCL900AA');
+    expect(contactLicense({ kind: 'owner', license: 'X' })).toBe('');
+  });
+
+  it('fills the Add customer form from the state’s record', () => {
+    expect(customerPrefillFor(SIERRA)).toEqual({
+      company: 'Sierra Construction Co Inc', customerName: 'Nancy Adler', phone: '(425) 487-5200', email: '', marketingEmail: '',
+      address: { street: '14800 NE North Woodinville Way', city: 'Woodinville', state: 'WA', zipCode: '98072' },
+      customerType: 'Contractor', status: 'New Lead',
+      notes: 'WA contractor license SIERRCC145N8 (active, expires Mar 31, 2028) · UBI 600634891 · Construction Contractor · General · Added from Permits'
+    });
+    expect(customerPrefillFor({ ...SIERRA, emails: ['office@sierra.example'] })).toMatchObject({ email: 'office@sierra.example', marketingEmail: 'office@sierra.example' });
+    expect(customerPrefillFor({ found: false })).toBeNull();
+    expect(tidyName('V N CONSTRUCTION LLC')).toBe('V N Construction LLC');
+    expect(personName('PLOETZ, BRYAN G')).toBe('Bryan G Ploetz');
   });
 });

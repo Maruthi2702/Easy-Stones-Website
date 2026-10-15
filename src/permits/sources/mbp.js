@@ -15,12 +15,17 @@
  * the reader asks a week at a time and halves any window that's refused, down
  * to a single day, then splits that day's statuses.
  *
- * The search's "to" date means midnight at the start of that day, so a permit
- * stamped 4:30 PM on the last day isn't found (checked 2026-10-14: Kirkland's
- * Oct 6 asked alone gave 18, Oct 6–7 gave 58 issued Oct 6). So each search
- * asks one day further and keeps only the rows inside the window. Any row
- * outside that stops the run: a date filter the server quietly ignored would
- * otherwise look like a quiet week.
+ * The search's "to" date means midnight at the start of that day. Most
+ * offices stamp every permit at midnight, so that's exact; Kirkland stamps
+ * the time of issue, so a permit issued 4:30 PM on the last day isn't found
+ * (checked 2026-10-14: its Oct 6 asked alone gave 18, Oct 6–7 gave 58 issued
+ * Oct 6). For an office that stamps times (`stampsTime`) each search asks one
+ * day further and keeps only the rows inside the window; a midnight office is
+ * asked for exactly its days — asking further would double what a busy day
+ * returns (Burien's Sept 22 + 23 was refused) — and a timed row from it stops
+ * the run, since it means the office changed. Any row outside the days asked
+ * stops the run too: a date filter the server quietly ignored would otherwise
+ * look like a quiet week.
  *
  * Gentle on purpose: one request at a time per office, with a pause.
  *
@@ -125,17 +130,26 @@ export function createMbpClient({ base = MBP_SITE, fetchImpl = globalThis.fetch,
  * One office's reader. `places` (King County's parcels, kingParcels.js) adds
  * the site's postal city and ZIP to the county's permits.
  */
-export function createMbpSource({ client, jurisId, office, label, places = null, today = () => pacificNow().day }) {
+/** Whether an ASP.NET date is midnight on the Pacific clock. */
+const atMidnight = (value) => {
+  const m = String(value ?? '').match(/\/Date\((-?\d+)/);
+  return !m || (Number(m[1]) % 60000 === 0 && pacificNow(new Date(Number(m[1]))).minutes === 0);
+};
+
+export function createMbpSource({ client, jurisId, office, label, places = null, stampsTime = false, today = () => pacificNow().day }) {
   /** Every row the office issued from `from` to `to`, refused windows split until they're answered. */
   async function readWindow(from, to, statusList, out, counter) {
     counter.pages += 1;
-    const asked = shiftDay(to, 1);
+    const asked = stampsTime ? shiftDay(to, 1) : to;
     const rows = await client.search(jurisId, from, asked, statusList);
     if (rows) {
       for (const row of rows) {
         const day = mbpDay(row.IssuedDate);
         if (!day || day < from || day > asked) {
           throw new Error(`MyBuildingPermit sent a ${label} permit issued ${day || 'on no date'} for ${from}–${to} — its date filter isn’t working, so the pull stopped`);
+        }
+        if (!stampsTime && !atMidnight(row.IssuedDate)) {
+          throw new Error(`${label} now stamps permits with the time they're issued, so a day's last permits would be missed — mark it stampsTime in src/permits/rules/ (the pull stopped)`);
         }
         // A permit stamped midnight the day after belongs to the next window.
         if (day <= to) out.set(cleanText(row.PermitNumber), row);

@@ -39,7 +39,7 @@ const ocr = (image, onProgress) =>
 
 export default function CustomerForm({
     onClose, onSave, isSaving = false, editingCustomer = null,
-    salesReps = [], locations = [], currentUser = null, onOpenExisting = null, onDelete = null
+    salesReps = [], locations = [], currentUser = null, onOpenExisting = null, onDelete = null, prefill = null
 }) {
     const isEdit = Boolean(editingCustomer);
     const isPhone = useIsPhone();
@@ -48,7 +48,11 @@ export default function CustomerForm({
     const { repFor, ready: repsReady } = useStartingRep(currentUser);
     const defaults = emptyCustomerValues({ salesReps, locations, currentUser, repFor: repsReady ? repFor : null });
     const [initial, setInitial] = useState(() => (isEdit ? customerToFormValues(editingCustomer) : defaults));
-    const [values, setValues] = useState(initial);
+    // A new customer may open filled in (Permits → a contractor's "Create customer"):
+    // those values count as changes, so closing asks before throwing them away.
+    const [values, setValues] = useState(() => (!isEdit && prefill
+        ? { ...initial, ...prefill, address: { ...initial.address, ...(prefill.address || {}) } }
+        : initial));
     const [touched, touchField] = useTouched();
     const [submitted, setSubmitted] = useState(false);
 

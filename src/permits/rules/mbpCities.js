@@ -92,6 +92,8 @@ export const kenmore = city('Kenmore', {
 export const kirkland = city('Kirkland', {
   id: 'kirkland',
   jurisId: 5,
+  // Permits carry the time of issue, not midnight (see sources/mbp.js).
+  stampsTime: true,
   // B = building, then SF single family / MF multifamily / NR nonresidential.
   types: [['ADU', 'adu'], ['BSF', 'building_other'], ['BMF', 'building_other'], ['BNR', 'building_other']],
   building: /^(B[A-Z]{2}|ADU)$/i

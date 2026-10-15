@@ -87,7 +87,12 @@ bellevue.categoryFor = (code, subtype = '') => bellevueCategory(code, subtype);
 bellevue.isUnsorted = (code) => /^B[A-Z]$/.test(key(code)) && !bellevueCategory(code) && !SKIPPED_SET.has(key(code));
 bellevue.toPermit = (row, detail) => {
   const p = mbpPermit(bellevue, row, detail);
-  if (!detail?.record) return p;
+  if (!detail?.record) {
+    // A big project's category comes from the city's record (apartments or
+    // not); without it, a saved permit keeps the one it has and only a new
+    // one starts as commercial.
+    return BY_SUBTYPE.has(key(row.PermitType)) ? { ...p, category: undefined, categoryIfNew: p.category } : p;
+  }
   const fill = bellevueFill(detail.record);
   return {
     ...p,

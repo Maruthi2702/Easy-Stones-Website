@@ -4673,13 +4673,14 @@ const runHoldExpiry = async () => {
 // counties (each county's office and its cities), pulled each morning for
 // sales leads, checked monthly against each county's own report, with
 // contractors' phones from the WA L&I registry.
+const contractorRegistry = createContractorRegistry();
 const permitSync = createPermitSync({
   readers: createPermitReaders(),
   reports: createCountyReports(),
   kingReports: createKingReports(),
-  contractors: createContractorRegistry()
+  contractors: contractorRegistry
 });
-app.use('/api/permits', createPermitsRouter({ authenticate, sync: permitSync }));
+app.use('/api/permits', createPermitsRouter({ authenticate, sync: permitSync, contractors: contractorRegistry }));
 
 // Toggle reaction on visit
 app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requirePermission('view_customers'), async (req, res) => {

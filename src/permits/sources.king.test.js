@@ -55,7 +55,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await Promise.all([Permit.deleteMany({}), PermitRun.deleteMany({}), PermitCheck.deleteMany({}), Contractor.deleteMany({}), ContractorName.deleteMany({})]);
+  await Promise.all([Permit.deleteMany({}), PermitRun.deleteMany({}), PermitCheck.deleteMany({}), Contractor.deleteMany({}), ContractorName.deleteMany({}), Customer.deleteMany({})]);
   clock = new Date('2026-10-11T12:30:00Z');
   detailCalls = [];
   kingRows = [
@@ -104,6 +104,25 @@ describe('any source, pulled the same way', () => {
     const out = await makeSync().run();
     expect(Object.keys(out).filter((k) => !['reports', 'kingReports', 'monthToDate', 'contractors'].includes(k))).toEqual(['king_county', 'burien']);
     expect(out.monthToDate.map((c) => c.source)).toEqual(['king_county', 'burien']);
+  });
+});
+
+describe('a category that needs the details', () => {
+  it('stays as the details set it when a later pull saves the permit without them', async () => {
+    let withRecord = true;
+    const bigRow = { PermitNumber: '25 120925 BB', PermitType: 'BB', IssuedDate: msDay('2026-10-05'), Address: '11040 Main St' };
+    const bellevueReader = {
+      issuedSince: async () => ({ rows: [bigRow], pages: 1, total: 1 }),
+      details: async () => ({ people: [], parcel: '', projectName: '', record: withRecord ? { PERMITTYPE: 'BB', SUBTYPE: 'Multifamily Residential' } : null })
+    };
+    const sync = createPermitSync({ readers: { bellevue: bellevueReader }, log: quiet, now: () => clock });
+    await sync.run();
+    expect((await Permit.findOne({ permitNumber: '25 120925 BB' }).lean()).category).toBe('multifamily');
+    // The next morning its details are fresh, so they aren't read again — the category must hold.
+    withRecord = false;
+    clock = new Date('2026-10-12T12:30:00Z');
+    await sync.run();
+    expect((await Permit.findOne({ permitNumber: '25 120925 BB' }).lean()).category).toBe('multifamily');
   });
 });
 
@@ -228,5 +247,78 @@ describe('the API’s counties', () => {
   it('names the PDF and its heading after the counties', async () => {
     const pdf = await get('/export.pdf?counties=king,whatcom');
     expect(pdf.headers['content-disposition']).toBe('inline; filename="permits-king-whatcom-start-to-today.pdf"');
+  });
+});
+
+describe('a contractor’s pop-up and their permits', () => {
+  const GENERAL = { businessname: 'ABC HOMES LLC', contractorlicensenumber: 'ABCHOHL123AB', phonenumber: '4255550100', statuscode: 'A', contractorlicensestatus: 'ACTIVE', licenseexpirationdate: '2028-03-31T00:00:00.000', primaryprincipalname: 'SMITH, PAT', ubi: '600111222', address1: '1 MAIN ST', city: 'KENT', state: 'WA', zip: '98030' };
+  const fakeRegistry = (tables) => async (url) => {
+    const u = new URL(url);
+    const key = u.pathname.includes('m8qx') ? 'general' : u.pathname.includes('ciwg') ? 'insurance' : u.pathname.includes('bzff') ? 'bonds' : u.pathname.includes('4xk5') ? 'principals' : 'none';
+    if (tables.down) return { ok: false, status: 503, text: async () => 'down' };
+    const lic = u.searchParams.get('contractorlicensenumber');
+    return { ok: true, status: 200, text: async () => JSON.stringify((tables[key] || []).filter((r) => !lic || r.contractorlicensenumber === lic)) };
+  };
+  const TABLES = {
+    general: [GENERAL],
+    insurance: [{ contractorlicensenumber: 'ABCHOHL123AB', insurancecompany: 'Alaska National', insuranceamt: '1000000.0000', expirationdate: '2027-03-31T00:00:00.000' }],
+    bonds: [{ contractorlicensenumber: 'ABCHOHL123AB', bondfirmname: 'Safeco', bondamt: '30000.0000', bondexpirationdate: 'Until Canceled' }],
+    principals: [{ contractorlicensenumber: 'ABCHOHL123AB', principalname: 'SMITH, PAT', startdate: '2009-04-27T00:00:00.000' }, { contractorlicensenumber: 'ABCHOHL123AB', principalname: 'OLD, ONE', startdate: '1990-01-01T00:00:00.000', enddate: '2009-04-27T00:00:00.000' }]
+  };
+  let app;
+  const setup = async (tables = TABLES) => {
+    const registry = createContractorRegistry({ fetchImpl: fakeRegistry(tables), sleep: async () => {}, now: () => clock, log: quiet });
+    const sync = createPermitSync({ readers: { king_county: fakeKing, burien: fakeBurien }, log: quiet, now: () => clock });
+    await sync.run();
+    // Burien's permit names "V N CONSTRUCTION LLC" without a license; the registry matched that name to a license.
+    await ContractorName.create({ name: 'V N CONSTRUCTION LLC', license: 'ABCHOHL123AB', candidates: 1, checkedAt: clock });
+    app = express();
+    app.use('/api/permits', createPermitsRouter({ sync, contractors: registry, customerIndexMs: 0, authenticate: (req, res, next) => { req.user = ADMIN; next(); } }));
+  };
+  const get = (url) => request(app).get(`/api/permits${url}`);
+
+  it('shows the state’s record, insurance, bonds, principals and their permits here', async () => {
+    await setup();
+    const r = await get('/contractor/abchohl123ab');
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({
+      found: true, license: 'ABCHOHL123AB', businessName: 'ABC HOMES LLC', phone: '4255550100', status: 'ACTIVE', expiresOn: '2028-03-31', principal: 'SMITH, PAT',
+      verifyUrl: 'https://secure.lni.wa.gov/verify/Detail.aspx?LIC=ABCHOHL123AB', customer: null
+    });
+    expect(r.body.insurance).toEqual([{ company: 'Alaska National', policy: '', amount: 1000000, effectiveOn: null, expiresOn: '2027-03-31', agency: '' }]);
+    expect(r.body.bonds[0]).toMatchObject({ company: 'Safeco', amount: 30000, untilCanceled: true });
+    expect(r.body.principals.map((p) => [p.name, p.until])).toEqual([['SMITH, PAT', null], ['OLD, ONE', '2009-04-27']]);
+    // Three King County permits by license, and Burien's by the matched name.
+    expect(r.body.permits.total).toBe(4);
+    expect(r.body.permits.recent[0]).toMatchObject({ permitNumber: 'BLD26-2486', source: 'burien' });
+    expect(await Contractor.findOne({ license: 'ABCHOHL123AB' }).lean()).toMatchObject({ businessName: 'ABC HOMES LLC' });
+  });
+
+  it('narrows the list to one contractor’s permits', async () => {
+    await setup();
+    expect((await get('/?license=ABCHOHL123AB')).body.total).toBe(4);
+    expect((await get('/?license=ABCHOHL123AB&counties=king&source=burien')).body.total).toBe(1);
+    expect((await get('/?license=NOBODYX999ZZ')).body.total).toBe(0);
+    expect((await get('/?license=not-a-license')).status).toBe(400);
+    expect((await get('/?q=abchohl123ab')).body.total).toBe(3);   // the search box matches the license printed on permits
+  });
+
+  it('says when the state has no such license, and finds an existing customer', async () => {
+    await setup();
+    expect((await get('/contractor/NOBODYX999ZZ')).body).toMatchObject({ found: false, permits: { total: 0 } });
+    await Customer.create({ contactName: 'Pat', email: 'pat@abc.com', phone: '(425) 555-0100', company: 'ABC Homes' });
+    expect((await get('/contractor/ABCHOHL123AB')).body.customer).toMatchObject({ name: 'ABC Homes' });
+    expect((await get('/contractor/x')).status).toBe(400);
+  });
+
+  it('falls back to the saved record when the state’s registry is down', async () => {
+    await setup();
+    await get('/contractor/ABCHOHL123AB');
+    const down = createContractorRegistry({ fetchImpl: fakeRegistry({ down: true }), sleep: async () => {}, now: () => clock, log: quiet });
+    const app2 = express();
+    app2.use('/api/permits', createPermitsRouter({ contractors: down, customerIndexMs: 0, authenticate: (req, res, next) => { req.user = ADMIN; next(); } }));
+    const r = await request(app2).get('/api/permits/contractor/ABCHOHL123AB');
+    expect(r.body).toMatchObject({ found: true, stale: true, businessName: 'ABC HOMES LLC', insurance: [] });
+    expect((await request(app2).get('/api/permits/contractor/NEVERSN111AA')).status).toBe(502);
   });
 });

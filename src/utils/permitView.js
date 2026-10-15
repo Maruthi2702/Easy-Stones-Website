@@ -10,7 +10,9 @@ export const DATE_RANGES = Object.freeze([
   { id: '7', label: 'Last 7 days', days: 7 },
   { id: '30', label: 'Last 30 days', days: 30 },
   { id: '90', label: 'Last 90 days', days: 90 },
-  { id: '183', label: 'Last 6 months', days: 183 }
+  { id: '183', label: 'Last 6 months', days: 183 },
+  // Everything the app holds — one contractor's permits, years on.
+  { id: 'all', label: 'All dates', days: null }
 ]);
 export const DEFAULT_RANGE = '30';
 
@@ -114,10 +116,10 @@ export function ariaSort(current, column) {
   return 'none';
 }
 
-/** The first issue date a range includes, on the Pacific calendar. */
+/** The first issue date a range includes, on the Pacific calendar ('' for All dates). */
 export function rangeFrom(rangeId, at = new Date()) {
   const r = DATE_RANGES.find((d) => d.id === rangeId) || DATE_RANGES.find((d) => d.id === DEFAULT_RANGE);
-  return shiftDay(pacificNow(at).day, -(r.days - 1));
+  return r.days ? shiftDay(pacificNow(at).day, -(r.days - 1)) : '';
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -272,6 +274,97 @@ export function contactPhone(c) {
   return { phone: '', fromRegistry: false };
 }
 
+// ── A contractor (the search box's pop-up, 2026-10-14) ──────────────────
+
+/**
+ * Whether search text is a WA contractor license number rather than a name,
+ * address or permit number: letters from the business name, three digits,
+ * two check characters — 'SIERRCC145N8', 'VIVIDDL801B4' — with no spaces or
+ * hyphens (permit numbers have one or the other).
+ */
+export function looksLikeLicense(text) {
+  const s = String(text ?? '').trim().toUpperCase();
+  return /^[A-Z*]{4,8}\d{3}[A-Z0-9]{2}$/.test(s) ? s : '';
+}
+
+const isPast = (day, today) => Boolean(day) && day < today;
+
+/**
+ * The license's standing for the pop-up's headline: 'ok' only when the state
+ * says ACTIVE and it hasn't passed its expiry date.
+ */
+export function licenseStanding(profile, today = pacificNow().day) {
+  if (!profile?.found) return { tone: 'warn', text: 'Not in the state’s contractor registry' };
+  const status = String(profile.status || '').toUpperCase();
+  if (status && status !== 'ACTIVE') return { tone: 'warn', text: `License ${status.toLowerCase()}` };
+  if (isPast(profile.expiresOn, today)) return { tone: 'warn', text: `License expired ${formatDay(profile.expiresOn)}` };
+  return { tone: 'ok', text: profile.expiresOn ? `Active · expires ${formatDay(profile.expiresOn)}` : 'Active' };
+}
+
+/** Insurance or bonds split into what's in force today and what has lapsed. */
+export function inForce(list = [], today = pacificNow().day) {
+  const current = list.filter((x) => x.untilCanceled || !x.expiresOn || x.expiresOn >= today);
+  return { current, lapsed: list.filter((x) => !current.includes(x)) };
+}
+
+/** '$1,000,000 · Alaska National Insurance Co · to Mar 31, 2027' */
+export function coverageLine(x) {
+  const until = x.untilCanceled ? 'until canceled' : x.expiresOn ? `to ${formatDay(x.expiresOn)}` : '';
+  return [formatMoney(x.amount), x.company, until].filter(Boolean).join(' · ');
+}
+
+/** 'Construction Contractor · General, Electrical' */
+export const tradeLine = (p) => [p?.licenseType, [p?.specialty, p?.specialty2].filter(Boolean).join(', ')]
+  .filter(Boolean).map((s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase())).join(' · ');
+
+const KEEP_UPPER = new Set(['LLC', 'LLP', 'PLLC', 'LP', 'PC', 'PS', 'DBA', 'NW', 'NE', 'SW', 'SE', 'II', 'III', 'USA', 'WA']);
+/** 'SIERRA CONSTRUCTION CO INC' → 'Sierra Construction Co Inc', with LLC-style suffixes and initials kept upper case. */
+export function tidyName(s) {
+  return String(s || '').trim().toLowerCase().replace(/[a-z0-9&']+/g, (w) => {
+    const up = w.toUpperCase();
+    if (KEEP_UPPER.has(up) || (w.length <= 2 && !/[aeiou]/.test(w))) return up;
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  });
+}
+
+/** The registry's 'ADLER, NANCY' as 'Nancy Adler'. */
+export const personName = (s) => {
+  const [last, first] = String(s || '').split(',').map((x) => x.trim());
+  return tidyName(first ? `${first} ${last}` : last);
+};
+
+/**
+ * What the Add customer form starts with for a contractor from the pop-up:
+ * the registry's business name, phone, address and primary principal, typed
+ * Contractor and a New lead, the license in the notes — and the email the
+ * contractor gave on a permit, when one did (the registry has none).
+ * Everything stays editable in the form.
+ */
+export function customerPrefillFor(profile) {
+  if (!profile?.found) return null;
+  const notes = [
+    `WA contractor license ${profile.license}${profile.status ? ` (${profile.status.toLowerCase()}${profile.expiresOn ? `, expires ${formatDay(profile.expiresOn)}` : ''})` : ''}`,
+    profile.ubi ? `UBI ${profile.ubi}` : '',
+    tradeLine(profile),
+    'Added from Permits'
+  ].filter(Boolean).join(' · ');
+  const email = (profile.emails || [])[0] || '';
+  return {
+    company: tidyName(profile.businessName),
+    customerName: personName(profile.principal),
+    phone: profile.phone ? formatPhone(profile.phone) : '',
+    email,
+    marketingEmail: email,
+    address: { street: tidyName(profile.address), city: tidyName(profile.city), state: String(profile.state || '').toUpperCase(), zipCode: String(profile.zip || '').slice(0, 5) },
+    customerType: 'Contractor',
+    status: 'New Lead',
+    notes
+  };
+}
+
+/** The license a contractor contact carries, its own or the one the registry matched. */
+export const contactLicense = (c) => (c?.kind === 'contractor' ? c.license || c.registry?.license || '' : '');
+
 /** 'Active · General · license BROCKSC921MJ' — the registry's line for a contractor. */
 export function registryLine(r) {
   if (!r) return '';
@@ -357,8 +450,8 @@ export function permitPdfRows(items) {
 const countyList = (counties) => (Array.isArray(counties) ? counties : String(counties || '').split(',')).map((c) => String(c).trim()).filter(Boolean);
 
 /** The PDF heading's filter line: "Whatcom County · New home · Sep 12 – Oct 11, 2026 · matching “kvf”". */
-export function permitPdfScope({ source, city, counties, category, from, to, q } = {}) {
-  const where = SOURCES[source]?.long || city || countySummary(countyList(counties));
+export function permitPdfScope({ source, city, counties, license, category, from, to, q } = {}) {
+  const where = [SOURCES[source]?.long || city || countySummary(countyList(counties)), license ? `Contractor ${String(license).toUpperCase()}` : ''].filter(Boolean).join(' · ');
   const kind = categoryLabel(category) || 'All kinds of work';
   const when = from && to ? `${formatDay(from)} – ${formatDay(to)}` : from ? `Since ${formatDay(from)}` : to ? `Through ${formatDay(to)}` : 'All dates';
   const text = String(q || '').trim();
@@ -372,7 +465,7 @@ export function permitPdfScope({ source, city, counties, category, from, to, q }
  */
 export function permitPdfUrl(apiUrl, query = {}, { download = false } = {}) {
   const params = new URLSearchParams();
-  for (const key of ['counties', 'source', 'city', 'category', 'from', 'to', 'q', 'sort']) {
+  for (const key of ['license', 'counties', 'source', 'city', 'category', 'from', 'to', 'q', 'sort']) {
     const v = String((Array.isArray(query[key]) ? query[key].join(',') : query[key]) ?? '').trim();
     if (v) params.set(key, v);
   }
@@ -382,8 +475,8 @@ export function permitPdfUrl(apiUrl, query = {}, { download = false } = {}) {
 }
 
 /** "permits-whatcom-2026-09-12-to-2026-10-11.pdf" — the Excel file's name, as a PDF. */
-export function permitFileName({ source, city, counties, from, to } = {}, ext = 'xlsx') {
+export function permitFileName({ source, city, counties, license, from, to } = {}, ext = 'xlsx') {
   const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const where = slug(source) || slug(city) || countyList(counties).map(slug).join('-') || 'all-counties';
+  const where = slug(license) || slug(source) || slug(city) || countyList(counties).map(slug).join('-') || 'all-counties';
   return `permits-${where}-${from || 'start'}-to-${to || 'today'}.${ext}`;
 }

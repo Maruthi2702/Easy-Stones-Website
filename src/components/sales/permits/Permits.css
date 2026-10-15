@@ -195,6 +195,34 @@ body.light-theme-active .pm-dlg-overlay { background: rgba(15, 23, 42, 0.4); }
 .pm-dlg-body a { color: var(--pm-gold-ink); font-weight: 600; text-decoration: none; }
 .pm-dlg-body a:hover { text-decoration: underline; }
 .pm-dlg-note { margin: 14px 0 0; font-size: 12.5px; color: var(--pm-muted); }
+
+/* ── A contractor (ContractorDialog.jsx) ── */
+.pm-ct { width: 560px; }
+.pm-ct-standing { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-weight: 600; font-size: 14px; }
+.pm-ct-standing.ok { background: var(--pm-ok-bg); color: var(--pm-ok-ink); }
+.pm-ct-standing.warn { background: var(--pm-warn-bg); color: var(--pm-warn-ink); }
+.pm-ct-lic { font-size: 12.5px; font-weight: 600; color: var(--pm-text-2); white-space: nowrap; }
+.pm-ct-main { display: flex; flex-direction: column; gap: 6px; padding: 12px 2px 4px; }
+.pm-ct-row { display: flex; align-items: center; gap: 8px; color: var(--pm-text); font-size: 14px; overflow-wrap: anywhere; }
+.pm-ct-row svg { flex: none; color: var(--pm-muted); }
+.pm-ct-link { color: var(--pm-gold-ink); font-weight: 600; text-decoration: none; }
+.pm-ct-link svg { color: var(--pm-gold-ink); }
+.pm-ct-link:hover { text-decoration: underline; }
+.pm-ct-sec h3 { display: flex; align-items: center; gap: 6px; }
+.pm-ct-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; }
+.pm-ct-actions .pm-customer { margin-top: 0; }
+.pm-ct-actions .pm-sub { margin-top: 0; }
+.pm-ct-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--pm-text); }
+.pm-ct-list .pm-sub { display: inline; }
+.pm-ct-when { display: inline-block; min-width: 92px; color: var(--pm-muted); font-size: 12.5px; }
+.pm-ct-warn { display: flex; align-items: center; gap: 6px; color: var(--pm-warn-ink); font-weight: 600; }
+.pm-ct-plain { margin: 0 0 8px; font-size: 13.5px; color: var(--pm-text-2); }
+.pm-ct-name { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--pm-line); text-underline-offset: 3px; }
+.pm-ct-name:hover { color: var(--pm-gold-ink); text-decoration-color: currentColor; }
+.pm-ct-name:focus-visible { outline: 2px solid var(--pm-gold); outline-offset: 2px; border-radius: 4px; }
+.pm-filter-chip { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 4px 6px 4px 12px; border-radius: 999px; background: var(--pm-gold-tint); color: var(--pm-gold-ink); font-size: 13px; font-weight: 600; }
+.pm-filter-chip button { display: inline-flex; align-items: center; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+.pm-filter-chip button:hover { background: var(--pm-hover); }
 @media (max-width: 639px) {
   .pm-dlg-overlay { align-items: flex-end; padding: 0; }
   .pm-dlg { width: 100%; max-height: 88vh; border-radius: 16px 16px 0 0; border-bottom: 0; }

@@ -9,11 +9,12 @@ import { SOURCES, CATEGORIES, categoryLabel, pacificNow } from '../../../permits
 import {
   DATE_RANGES, DEFAULT_RANGE, rangeFrom, formatDay, formatMoney, sizeLine, sourceStatus, splitChecks, checksAttention,
   permitExportRows, SORT_OPTIONS, DEFAULT_SORT, placeGroups, placeQuery, placeOffered, countySummary, cleanCounties,
-  permitPdfUrl, permitFileName
+  permitPdfUrl, permitFileName, looksLikeLicense
 } from '../../../utils/permitView';
 import { SortHeader, LeadCell, PermitDetail } from './PermitParts';
 import CountyFilter from './CountyFilter';
 import ChecksDialog from './ChecksDialog';
+import ContractorDialog from './ContractorDialog';
 import './Permits.css';
 
 const STATUS_ICON = { ok: CheckCircle2, warn: AlertTriangle, none: AlertTriangle, busy: Loader2 };
@@ -51,11 +52,15 @@ const saveCounties = (list) => {
  * src/permits/rules/) and src/utils/permitView.js; the server checks every
  * permission again.
  */
-export default function PermitsTab({ sidebarToggle = null }) {
+export default function PermitsTab({ sidebarToggle = null, onOpenCustomer = null, onCreateCustomer = null }) {
   const [meta, setMeta] = useState(null);
   const [counties, setCountiesState] = useState(readCounties);
   const setCounties = (list) => { setCountiesState(list); saveCounties(list); };
   const [place, setPlace] = useState('');
+  // One contractor's permits (a license number + Enter in the search box, or "Show all" in their pop-up).
+  const [contractor, setContractor] = useState({ license: '', name: '' });
+  const [contractorOpen, setContractorOpen] = useState('');
+  const closeContractor = useCallback(() => setContractorOpen(''), []);
   const [category, setCategory] = useState('');
   const [range, setRange] = useState(DEFAULT_RANGE);
   const [sort, setSort] = useState(DEFAULT_SORT);
@@ -96,8 +101,23 @@ export default function PermitsTab({ sidebarToggle = null }) {
   if (placeNow !== place) setPlace(placeNow);
 
   const query = useMemo(() => ({
-    counties: counties.join(','), ...placeQuery(placeNow), category, q: debounced, from: rangeFrom(range), to: pacificNow().day, sort
-  }), [counties, placeNow, category, debounced, range, sort]);
+    license: contractor.license, counties: counties.join(','), ...placeQuery(placeNow), category, q: debounced, from: rangeFrom(range), to: pacificNow().day, sort
+  }), [contractor.license, counties, placeNow, category, debounced, range, sort]);
+
+  /** Enter on a license number: the contractor's pop-up, and the list narrowed to their permits. */
+  const onSearchKey = (e) => {
+    if (e.key !== 'Enter') return;
+    const license = looksLikeLicense(search);
+    if (!license) return;
+    e.preventDefault();
+    setSearch('');
+    setDebounced('');
+    setContractor({ license, name: '' });
+    setRange('all');   // a contractor's permits, whenever they were issued
+    setContractorOpen(license);
+  };
+  const showContractorPermits = (license, name) => { setContractor({ license, name }); setRange('all'); setContractorOpen(''); };
+  const namedContractor = (license, name) => setContractor((c) => (c.license === license ? { license, name } : c));
 
   // A new view goes back to page 1.
   const filterKey = JSON.stringify(query);
@@ -166,7 +186,7 @@ export default function PermitsTab({ sidebarToggle = null }) {
   const { top: topChecks, rest: olderChecks } = splitChecks(meta?.checks || [], now);
   const attention = checksAttention(meta?.sources, meta?.checks, now);
   const needsLook = attention.some((a) => a.tone !== 'busy');
-  const filtered = Boolean(debounced || place || counties.length);
+  const filtered = Boolean(debounced || place || counties.length || contractor.license);
   const filtersSet = Boolean(counties.length || place || range !== DEFAULT_RANGE || sort !== DEFAULT_SORT);
   const clearFilters = () => { setCounties([]); setPlace(''); setRange(DEFAULT_RANGE); setSort(DEFAULT_SORT); };
 
@@ -179,7 +199,8 @@ export default function PermitsTab({ sidebarToggle = null }) {
           <span className="pm-grow" />
           <label className="pm-search">
             <Search size={16} aria-hidden="true" />
-            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Address, permit #, contractor" aria-label="Search permits" />
+            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={onSearchKey}
+              placeholder="Address, permit #, contractor or license #" aria-label="Search permits, or enter a contractor’s license number" />
             {search ? <button type="button" className="pm-x" onClick={() => setSearch('')} aria-label="Clear search"><X size={14} /></button> : null}
           </label>
           <div className="pm-tools">
@@ -280,6 +301,19 @@ export default function PermitsTab({ sidebarToggle = null }) {
         ) : null}
 
         {checksOpen ? <ChecksDialog statuses={statuses} topChecks={topChecks} olderChecks={olderChecks} onClose={closeChecks} /> : null}
+        {contractorOpen ? (
+          <ContractorDialog license={contractorOpen} onClose={closeContractor} onShowPermits={showContractorPermits} onLoaded={namedContractor}
+            onOpenCustomer={onOpenCustomer ? (id) => { setContractorOpen(''); onOpenCustomer(id); } : null}
+            onCreateCustomer={onCreateCustomer ? (values) => { setContractorOpen(''); onCreateCustomer(values); } : null} />
+        ) : null}
+
+        {contractor.license ? (
+          <div className="pm-filter-chip">
+            <span>Contractor: {contractor.name || contractor.license}</span>
+            <button type="button" onClick={() => setContractorOpen(contractor.license)}>Details</button>
+            <button type="button" onClick={() => setContractor({ license: '', name: '' })} aria-label="Show every contractor’s permits"><X size={14} /></button>
+          </div>
+        ) : null}
 
         {notice ? <div className="pm-notice" role="status">{notice}</div> : null}
 
@@ -347,11 +381,11 @@ export default function PermitsTab({ sidebarToggle = null }) {
                             </td>
                             <td className="r">{formatMoney(p.valuation) || <span className="pm-muted">—</span>}</td>
                             <td className="pm-lead">
-                              <LeadCell permit={p} />
+                              <LeadCell permit={p} onContractor={setContractorOpen} />
                               <ChevronDown size={16} className="pm-chev" aria-hidden="true" />
                             </td>
                           </tr>
-                          {open ? <tr className="pm-detail-row"><td colSpan={6}><PermitDetail permit={p} /></td></tr> : null}
+                          {open ? <tr className="pm-detail-row"><td colSpan={6}><PermitDetail permit={p} onContractor={setContractorOpen} /></td></tr> : null}
                         </React.Fragment>
                       );
                     })}
@@ -375,8 +409,8 @@ export default function PermitsTab({ sidebarToggle = null }) {
                         <span className={`pm-issuer ${SOURCES[p.source]?.kind || ''}`}>{SOURCES[p.source]?.issuer}</span>
                         <span className="pm-desc-clamp">{p.description || p.type}</span>
                       </button>
-                      <div className="pm-ccard-lead"><LeadCell permit={p} /></div>
-                      {open ? <PermitDetail permit={p} /> : null}
+                      <div className="pm-ccard-lead"><LeadCell permit={p} onContractor={setContractorOpen} /></div>
+                      {open ? <PermitDetail permit={p} onContractor={setContractorOpen} /> : null}
                     </div>
                   );
                 })}

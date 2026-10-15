@@ -59,8 +59,7 @@ describe('MyBuildingPermit reader', () => {
     const src = createMbpSource({ client, jurisId: 11, office: 'BURIEN', label: 'Burien', today: () => '2026-10-10' });
     const r = await src.issuedSince('2026-10-01');
     expect(r.rows.map((x) => x.PermitNumber).sort()).toEqual(['P0', 'P1', 'P2']);
-    // Each search asks a day further (its "to" means midnight) and keeps only its own days.
-    expect(mbp.calls.map((c) => [c.from, c.to])).toEqual([['2026-10-01', '2026-10-08'], ['2026-10-08', '2026-10-11']]);
+    expect(mbp.calls.map((c) => [c.from, c.to])).toEqual([['2026-10-01', '2026-10-07'], ['2026-10-08', '2026-10-10']]);
     expect(mbp.calls[0]).toMatchObject({ token: 'tok123', cookie: 'sess=abc', sts: ['Issued', 'Finaled'] });
   });
 
@@ -72,8 +71,7 @@ describe('MyBuildingPermit reader', () => {
     const src = createMbpSource({ client: createMbpClient({ fetchImpl: mbp.fetchImpl, sleep: noSleep }), jurisId: 1, office: 'BELLEVUE', label: 'Bellevue', today: () => '2026-10-07' });
     const r = await src.issuedSince('2026-10-01');
     expect(r.rows).toHaveLength(8);
-    // Oct 2 alone (asked as Oct 2–3), one status at a time.
-    expect(mbp.calls.some((c) => c.from === '2026-10-02' && c.to === '2026-10-03' && c.sts.length === 1)).toBe(true);
+    expect(mbp.calls.some((c) => c.from === '2026-10-02' && c.to === '2026-10-02' && c.sts.length === 1)).toBe(true);
   });
 
   it('keeps a permit issued late on a window’s last day, and leaves the next day’s to the next window', async () => {
@@ -81,9 +79,17 @@ describe('MyBuildingPermit reader', () => {
     const mbp = fakeMbp([]);
     const answered = [late('LATE', '2026-10-07', '16:30:00'), late('NEXT', '2026-10-08', '00:00:00')];
     const fetchImpl = async (url, init) => (url.endsWith('GetSearchResults') ? res(answered) : mbp.fetchImpl(url, init));
-    const src = createMbpSource({ client: createMbpClient({ fetchImpl, sleep: noSleep }), jurisId: 5, office: 'KIRKLAND', label: 'Kirkland', today: () => '2026-10-07' });
+    const src = createMbpSource({ client: createMbpClient({ fetchImpl, sleep: noSleep }), jurisId: 5, office: 'KIRKLAND', label: 'Kirkland', stampsTime: true, today: () => '2026-10-07' });
     const r = await src.issuedSince('2026-10-01');
     expect(r.rows.map((x) => x.PermitNumber)).toEqual(['LATE']);
+  });
+
+  it('stops when an office that stamps midnight starts stamping times', async () => {
+    const mbp = fakeMbp([]);
+    const timed = { PermitNumber: 'T1', PermitType: 'X', Address: '1', IssuedDate: `/Date(${Date.parse('2026-10-02T16:30:00-07:00')})/` };
+    const fetchImpl = async (url, init) => (url.endsWith('GetSearchResults') ? res([timed]) : mbp.fetchImpl(url, init));
+    const src = createMbpSource({ client: createMbpClient({ fetchImpl, sleep: noSleep }), jurisId: 11, office: 'BURIEN', label: 'Burien', today: () => '2026-10-03' });
+    await expect(src.issuedSince('2026-10-01')).rejects.toThrow(/now stamps permits with the time/);
   });
 
   it('stops when a row falls outside the days asked for — a date filter quietly ignored', async () => {

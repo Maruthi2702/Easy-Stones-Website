@@ -82,8 +82,11 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
     if (!permits.length) return { added: 0, updated: 0 };
     const at = now();
     const r = await Permit.bulkWrite(permits.map((p) => {
-      const { permitNumber, source: _source, ...fields } = withoutUndefined(p);
-      return { updateOne: { filter: { source, permitNumber }, update: { $set: fields, $setOnInsert: { firstSeenAt: at } }, upsert: true } };
+      // `categoryIfNew`: a category only for a permit the app doesn't hold yet
+      // (one that depends on details not read this time — rules/bellevue.js).
+      const { permitNumber, source: _source, categoryIfNew, ...fields } = withoutUndefined(p);
+      const onInsert = { firstSeenAt: at, ...(categoryIfNew && !fields.category && { category: categoryIfNew }) };
+      return { updateOne: { filter: { source, permitNumber }, update: { $set: fields, $setOnInsert: onInsert }, upsert: true } };
     }), { ordered: false });
     await Permit.updateMany(
       { source, permitNumber: { $in: permits.map((p) => p.permitNumber) } },

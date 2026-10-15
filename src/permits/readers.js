@@ -19,7 +19,7 @@ import { MBP_CITIES } from './rules/mbpCities.js';
 export function createPermitReaders() {
   // One MyBuildingPermit session for every office it serves.
   const mbp = createMbpClient();
-  const mbpOffice = (rule, extra = {}) => createMbpSource({ client: mbp, jurisId: rule.jurisId, office: rule.office, label: rule.label, ...extra });
+  const mbpOffice = (rule, extra = {}) => createMbpSource({ client: mbp, jurisId: rule.jurisId, office: rule.office, label: rule.label, stampsTime: Boolean(rule.stampsTime), ...extra });
   return {
     king_county: mbpOffice(kingCounty, { places: createKingParcels() }),
     ...Object.fromEntries(MBP_CITIES.map((rule) => [rule.id, mbpOffice(rule)])),

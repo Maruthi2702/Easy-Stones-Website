@@ -806,7 +806,8 @@ const AddCustomerModal = (props) => {
     // Add and Edit: the template form. Keyed by customer so opening another
     // one starts fresh instead of keeping the last one's typing.
     if (props.show && !props.viewingCustomer) {
-        return <CustomerForm key={props.editingCustomer?._id || 'new'} {...props} />;
+        // A pre-filled new customer (Permits → a contractor's "Create customer") is its own form.
+        return <CustomerForm key={props.editingCustomer?._id || (props.prefill ? `prefill-${props.prefill.company}-${props.prefill.notes}` : 'new')} {...props} />;
     }
     return <LegacyCustomerModal {...props} show={Boolean(props.show && props.viewingCustomer)} />;
 };

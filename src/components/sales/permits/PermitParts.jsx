@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ExternalLink, Phone, Mail, UserCheck, ArrowDown, ArrowUp, ArrowUpDown, Copy, Check, BadgeCheck } from 'lucide-react';
 import { SOURCES, formatPhone } from '../../../permits/permitRules';
 import {
-  formatDay, formatMoney, sizeLine, leadContact, contactTitle, contactPerson, contactPhone, registryLine, customerOf, nextSort, ariaSort
+  formatDay, formatMoney, sizeLine, leadContact, contactTitle, contactPerson, contactPhone, registryLine, customerOf, nextSort, ariaSort, contactLicense
 } from '../../../utils/permitView';
 
 /*
@@ -38,7 +38,19 @@ function ContactLinks({ contact }) {
   );
 }
 
-export function LeadCell({ permit }) {
+/** A contact's name — for a licensed contractor, a button that opens their pop-up. */
+function ContactName({ contact, onContractor }) {
+  const license = contactLicense(contact);
+  if (!license || !onContractor) return contactTitle(contact);
+  return (
+    <button type="button" className="pm-ct-name" title="Show the contractor’s license, insurance and permits"
+      onClick={(e) => { e.stopPropagation(); onContractor(license); }} onKeyDown={(e) => e.stopPropagation()}>
+      {contactTitle(contact)}
+    </button>
+  );
+}
+
+export function LeadCell({ permit, onContractor = null }) {
   const { contact, note } = leadContact(permit);
   const customer = customerOf(permit);
   return (
@@ -46,7 +58,7 @@ export function LeadCell({ permit }) {
       {note ? <span className="pm-note-chip">{note}</span> : null}
       {contact ? (
         <>
-          <span className="pm-name">{contactTitle(contact)}{note && contact.kind === 'owner' ? <span className="pm-role"> · owner</span> : null}</span>
+          <span className="pm-name"><ContactName contact={contact} onContractor={onContractor} />{note && contact.kind === 'owner' ? <span className="pm-role"> · owner</span> : null}</span>
           {contactPerson(contact) ? <span className="pm-sub">{contactPerson(contact)}</span> : null}
           <ContactLinks contact={contact} />
         </>
@@ -90,7 +102,7 @@ function RegistryNote({ contact }) {
   );
 }
 
-export function PermitDetail({ permit }) {
+export function PermitDetail({ permit, onContractor = null }) {
   const source = SOURCES[permit.source];
   return (
     <div className="pm-detail">
@@ -123,7 +135,7 @@ export function PermitDetail({ permit }) {
         {(permit.contacts || []).length ? permit.contacts.map((c, i) => (
           <div key={i} className="pm-contact">
             <span className="pm-role-label">{c.role}</span>
-            <span className="pm-name">{contactTitle(c)}</span>
+            <span className="pm-name"><ContactName contact={c} onContractor={onContractor} /></span>
             {contactPerson(c) ? <span className="pm-sub">{contactPerson(c)}</span> : null}
             <ContactLinks contact={c} />
             {c.address ? <span className="pm-sub">{c.address}</span> : null}

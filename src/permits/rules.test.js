@@ -346,6 +346,12 @@ describe('Bellevue', () => {
     const p = bellevue.toPermit(ROW, { people: [], parcel: '', projectName: '', record: null });
     expect(p).toMatchObject({ type: 'BS', category: 'new_home', valuation: undefined });
   });
+
+  it('never overwrites a big project’s category without the city’s record', () => {
+    const big = { ...ROW, PermitNumber: '25 120925 BB', PermitType: 'BB' };
+    expect(bellevue.toPermit(big, null)).toMatchObject({ category: undefined, categoryIfNew: 'commercial_new' });
+    expect(bellevue.toPermit(big, { people: [], record: { ...RECORD, PERMITTYPE: 'BB', SUBTYPE: 'Multifamily Residential' } }).category).toBe('multifamily');
+  });
 });
 
 describe('Renton and Shoreline', () => {

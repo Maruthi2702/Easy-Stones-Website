@@ -20,10 +20,18 @@
  * Server-only. `fetchImpl` and `now` are injectable for tests.
  */
 import { Contractor, ContractorName } from './models.js';
-import { cleanText, dayOf, licenseKey, isPlaceholderName } from './common.js';
+import { cleanText, dayOf, licenseKey, isPlaceholderName, money } from './common.js';
 import { fetchJson } from './sources/http.js';
 
 export const LNI_DATASET = 'https://data.wa.gov/resource/m8qx-ubtq.json';
+/** The registry's other tables, by license number: insurance, bonds, principals. */
+export const LNI_TABLES = Object.freeze({
+  insurance: 'https://data.wa.gov/resource/ciwg-agsx.json',
+  bonds: 'https://data.wa.gov/resource/bzff-4fmt.json',
+  principals: 'https://data.wa.gov/resource/4xk5-x9j6.json'
+});
+/** The state's own page for a license ("Verify a Contractor"). */
+export const lniVerifyUrl = (license) => `https://secure.lni.wa.gov/verify/Detail.aspx?LIC=${encodeURIComponent(license)}`;
 const FIELDS = [
   'businessname', 'contractorlicensenumber', 'contractorlicensetypecodedesc', 'address1', 'city', 'state', 'zip', 'phonenumber',
   'licenseexpirationdate', 'specialtycode1desc', 'specialtycode2desc', 'contractorlicensestatus', 'statuscode', 'primaryprincipalname', 'ubi'
@@ -165,7 +173,90 @@ export function createContractorRegistry({ dataset = LNI_DATASET, fetchImpl = gl
     return { licensesRead, namesLookedUp: dueNames.length, namesMatched };
   }
 
-  return { refreshFor };
+  /**
+   * Everything the registry has on one license, read live (Permits search
+   * box → the contractor pop-up): the license record, insurance policies,
+   * bonds and principals. The license record is saved, so the permit list
+   * shows it too. When the registry can't be reached, the last saved record
+   * comes back with `stale: true` and no insurance/bond/principal lists.
+   */
+  async function profile(license) {
+    const lic = licenseKey(license);
+    if (!lic) return { license: cleanText(license).toUpperCase(), found: false };
+    const byLicense = (url) => fetchJson(`${url}?${new URLSearchParams({ contractorlicensenumber: lic, $limit: '200' })}`, {
+      fetchImpl, sleep, pauseMs, name: 'The WA contractor registry', errorOf: (d) => (!Array.isArray(d) ? d?.message || 'error' : null)
+    });
+    let rows;
+    try {
+      const [general, insurance, bonds, principals] = await Promise.all([
+        byLicense(dataset), byLicense(LNI_TABLES.insurance), byLicense(LNI_TABLES.bonds), byLicense(LNI_TABLES.principals)
+      ]);
+      rows = { general, insurance, bonds, principals };
+    } catch (err) {
+      const saved = await Contractor.findOne({ license: lic, notFound: { $ne: true } }).lean();
+      if (!saved) throw err;
+      return { ...contractorView(saved), found: true, stale: true, insurance: [], bonds: [], principals: [], verifyUrl: lniVerifyUrl(lic) };
+    }
+    const at = now();
+    if (!rows.general.length) {
+      await Contractor.updateOne({ license: lic }, { $set: { license: lic, notFound: true, refreshedAt: at } }, { upsert: true });
+      return { license: lic, found: false, verifyUrl: lniVerifyUrl(lic) };
+    }
+    const record = contractorRecord(rows.general[0], at);
+    await Contractor.updateOne({ license: lic }, { $set: record }, { upsert: true });
+    return {
+      ...contractorView(record),
+      found: true,
+      stale: false,
+      insurance: rows.insurance.map((r) => ({
+        company: cleanText(r.insurancecompany), policy: cleanText(r.insurancepolicyno), amount: money(r.insuranceamt),
+        effectiveOn: dayOf(r.effectivedate), expiresOn: dayOf(r.expirationdate), agency: cleanText(r.insuranceagencyname)
+      })).sort((a, b) => String(b.expiresOn).localeCompare(String(a.expiresOn))),
+      bonds: rows.bonds.map((r) => {
+        const until = cleanText(r.bondexpirationdate);
+        return {
+          company: cleanText(r.bondfirmname), account: cleanText(r.bondaccountid), amount: money(r.bondamt),
+          effectiveOn: dayOf(r.bondeffectivedate), expiresOn: dayOf(until), untilCanceled: /until\s+cancel/i.test(until)
+        };
+      }).sort((a, b) => Number(b.untilCanceled) - Number(a.untilCanceled) || String(b.expiresOn).localeCompare(String(a.expiresOn))),
+      principals: rows.principals.map((r) => ({ name: cleanText(r.principalname), since: dayOf(r.startdate), until: dayOf(r.enddate) }))
+        .sort((a, b) => Number(Boolean(a.until)) - Number(Boolean(b.until)) || String(b.since).localeCompare(String(a.since))),
+      verifyUrl: lniVerifyUrl(lic)
+    };
+  }
+
+  return { refreshFor, profile };
+}
+
+/** A saved Contractor record as the pop-up shows it. */
+export function contractorView(r) {
+  return {
+    license: r.license,
+    businessName: r.businessName,
+    phone: r.phone,
+    address: r.address,
+    city: r.city,
+    state: r.state,
+    zip: r.zip,
+    licenseType: r.licenseType,
+    specialty: r.specialty,
+    specialty2: r.specialty2,
+    status: r.status,
+    expiresOn: r.expiresOn,
+    principal: r.principal,
+    ubi: r.ubi,
+    refreshedAt: r.refreshedAt
+  };
+}
+
+/**
+ * The names a license goes by on permits that don't print license numbers:
+ * every exact business name the registry matched to it (ContractorName).
+ */
+export async function namesForLicense(license) {
+  const lic = licenseKey(license);
+  if (!lic) return [];
+  return ContractorName.distinct('name', { license: lic });
 }
 
 /**

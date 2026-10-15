@@ -128,7 +128,10 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   Kenmore, Kirkland, Mercer Island, Sammamish, Snoqualmie through
   **MyBuildingPermit**'s public search (no published API — the calls its page
   makes; it refuses big searches, so a week at a time, split down to a day,
-  then by status; a row outside the asked days stops the run); Seattle (open
+  then by status; a row outside the asked days stops the run; its "to" date
+  is midnight, so only offices that stamp a time of issue — Kirkland,
+  `stampsTime` — are asked a day further, and a timed row from a midnight
+  office stops the run); Seattle (open
   data + each permit's portal page for the contractor's license); Renton
   (EnerGov, same reader as Whatcom); Shoreline (eTRAKiT's CSV export, a day
   at a time, 100-row cap → fails loudly). Bellevue's own ArcGIS layer lags
@@ -150,6 +153,16 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   `contractors.js`) — by license number (MyBuildingPermit, Seattle) or by
   exact business name with exactly one active license. Kept in its own
   collections and shown beside the source's contact, never written into it.
+- **Contractor pop-up**: a license number + Enter in the Permits search box
+  (or a contractor's name on a permit) opens `ContractorDialog` — the
+  registry's license, insurance, bonds and principals read live
+  (`GET /api/permits/contractor/:license`), their permits here (the
+  `license` list filter, which also covers names the registry matched), and
+  "Open customer profile" if they're a customer, else "Create customer",
+  which opens the Add customer form pre-filled (`customerPrefillFor`,
+  CustomerForm's `prefill`; the registry has no email — one from a permit is
+  used when there is one). A save without details never overwrites a
+  details-derived field (Bellevue's BB/BM category: `categoryIfNew`).
 - First pull per source reads 6 months; then 5:00 AM Pacific daily, re-reading
   30 days (details re-read once a week where `detailsFreshDays` is set).
   Admin-only permissions to start (`view_permits`, `export_permits`,
