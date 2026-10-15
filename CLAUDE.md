@@ -185,6 +185,12 @@ CustomSelect incident below.
 so it would stop clipping inside a scrolling sidebar (`RoutePlannerTab`). That
 fix was correct for the sidebar, but had an unintended side effect nobody
 checked for: once the popover is a DOM sibling of `document.body`'s other
+  The pop-up's design lives in the claude.ai artifact **Contractor pop-up
+  canvas** (https://claude.ai/artifact/4PJbcGViAbRqCCb6iqKUkC — desktop,
+  tablet, phone, and the customer / expired / saved-copy / not-found /
+  loading / error states). It's built on `FormModal`; **any change to
+  `ContractorDialog.jsx` or its `.pm-ct-*` CSS also updates that artifact**
+  (owner's rule, 2026-10-14).
 children instead of a descendant of the trigger's container, its stacking
 order versus modals is decided purely by comparing `z-index` numbers — it no
 longer inherits "on top of my modal" for free just by being nested inside it.

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Loader2, AlertTriangle, CheckCircle2, Phone, MapPin, ExternalLink, UserCheck, UserPlus, ShieldCheck, Landmark, Users, FileText, Mail } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Copy, Check, ExternalLink, UserCheck, ArrowRight, RefreshCw } from 'lucide-react';
+import FormModal from '../../shared/form/FormModal';
 import { permitContractor } from '../../../api/permits';
 import { SOURCES, formatPhone, categoryLabel } from '../../../permits/permitRules';
 import { formatDay, formatMoney, licenseStanding, inForce, coverageLine, tradeLine, customerPrefillFor, personName, tidyName } from '../../../utils/permitView';
@@ -10,28 +10,64 @@ import { formatDay, formatMoney, licenseStanding, inForce, coverageLine, tradeLi
  * says — license, trade, phone, insurance, bonds, principals — their permits
  * in the app, and whether they're already a customer. Opened from the
  * Permits search box (a license number + Enter) or a contractor's name on a
- * permit. Portaled to document.body like ChecksDialog, for the same reason.
+ * permit.
+ *
+ * Laid out as the approved Contractor pop-up design (the "Contractor pop-up
+ * canvas" artifact — keep it in step with this file): on FormModal, the app's
+ * form window, so it has the template's sizes, phone sheet, ✕ and footer.
+ * Contact first, then their permits, then the state's record (insurance,
+ * bond, principals), the license standing last. The footer holds the
+ * "Verify on L&I" link and the one main button — Create customer, or Open
+ * customer profile when they already are one. Looking up, not found and
+ * failed each have their own screen.
  */
 
-function Section({ icon, title, children }) {
-  const Icon = icon;
+const L_AND_I = 'https://secure.lni.wa.gov/verify/';
+
+function Field({ label, children, wide = false }) {
   return (
-    <section className="pm-ct-sec">
-      <h3><Icon size={14} aria-hidden="true" />{title}</h3>
+    <div className={`pm-ct-field${wide ? ' wide' : ''}`}>
+      <span className="pm-ct-label">{label}</span>
       {children}
-    </section>
+    </div>
   );
 }
 
 function Coverage({ list, none }) {
   const { current, lapsed } = inForce(list);
-  if (!list.length) return <p className="pm-muted">{none}</p>;
+  if (!list.length) return <span className="pm-ct-none">{none}</span>;
   return (
-    <ul className="pm-ct-list">
-      {current.map((x, i) => <li key={`c${i}`}>{coverageLine(x)}{x.policy || x.account ? <span className="pm-sub"> · {x.policy || x.account}</span> : null}</li>)}
-      {!current.length ? <li className="pm-ct-warn"><AlertTriangle size={13} aria-hidden="true" />Nothing in force today</li> : null}
-      {lapsed.slice(0, 2).map((x, i) => <li key={`l${i}`} className="pm-muted">Lapsed: {coverageLine(x)}</li>)}
-    </ul>
+    <div className="pm-ct-cov">
+      {current.map((x, i) => (
+        <div key={`c${i}`} className="pm-ct-cov-item">
+          <span>{coverageLine(x)}</span>
+          {x.policy || x.account ? <span className="pm-ct-sub">{x.policy || x.account}</span> : null}
+        </div>
+      ))}
+      {!current.length ? <div className="pm-ct-cov-warn"><AlertTriangle size={15} aria-hidden="true" />Nothing in force today</div> : null}
+      {lapsed.slice(0, 2).map((x, i) => <span key={`l${i}`} className="pm-ct-sub">Lapsed: {coverageLine(x)}</span>)}
+    </div>
+  );
+}
+
+function CopyLicense({ license }) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef(0);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(license);
+      setCopied(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1800);
+    } catch { /* clipboard blocked: the number is on screen to select */ }
+  };
+  return (
+    <button type="button" className="pm-ct-copy" onClick={copy} aria-label={`Copy license ${license}`}>
+      {license}
+      {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+      <span className="pm-ct-copied" role="status">{copied ? 'Copied' : ''}</span>
+    </button>
   );
 }
 
@@ -41,20 +77,17 @@ function Coverage({ list, none }) {
  * registry (onCreateCustomer(values) — absent for people who can't add one).
  */
 export default function ContractorDialog({ license, onClose, onShowPermits = null, onLoaded = null, onOpenCustomer = null, onCreateCustomer = null }) {
-  const dialogRef = useRef(null);
   const [state, setState] = useState({ loading: true, data: null, error: '' });
-
-  useEffect(() => {
-    dialogRef.current?.focus();
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // What's looked up: starts as the license opened with; the not-found screen
+  // lets a typo be fixed without closing. `attempt` re-runs the same lookup.
+  const [lookup, setLookup] = useState(license);
+  const [typed, setTyped] = useState(license);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let live = true;
     setState({ loading: true, data: null, error: '' });
-    permitContractor(license)
+    permitContractor(lookup)
       .then((data) => {
         if (!live) return;
         setState({ loading: false, data, error: '' });
@@ -64,97 +97,172 @@ export default function ContractorDialog({ license, onClose, onShowPermits = nul
     return () => { live = false; };
     // onLoaded is a fresh closure each render; the lookup follows the license only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [license]);
+  }, [lookup, attempt]);
 
-  const d = state.data;
+  const { loading, data: d, error } = state;
   const standing = d ? licenseStanding(d) : null;
   const current = d ? (d.principals || []).filter((p) => !p.until) : [];
+  const retry = () => setAttempt((n) => n + 1);
+  const lookUpTyped = () => {
+    const next = typed.trim().toUpperCase();
+    if (!next) return;
+    if (next === lookup) retry(); else setLookup(next);
+  };
 
-  return createPortal(
-    <div className="pm-dlg-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div ref={dialogRef} tabIndex={-1} className="pm-dlg pm-ct" role="dialog" aria-modal="true" aria-labelledby="pm-ct-title">
-        <div className="pm-dlg-head">
-          <h2 id="pm-ct-title">{d?.found ? d.businessName : `License ${license}`}</h2>
-          <button type="button" className="pm-dlg-x" onClick={onClose} aria-label="Close"><X size={18} /></button>
-        </div>
-        <div className="pm-dlg-scroll">
-          {state.loading ? <div className="pm-loading"><Loader2 size={26} className="pm-spin" aria-label="Looking up the license" /></div> : null}
-          {state.error ? <div className="pm-error" role="alert"><AlertTriangle size={18} aria-hidden="true" /><span>{state.error}</span></div> : null}
+  // The one main button, by what the screen is.
+  let primary = null;
+  if (d?.found) {
+    if (d.customer && onOpenCustomer) primary = { label: 'Open customer profile', run: () => onOpenCustomer(d.customer.id) };
+    else if (!d.customer && onCreateCustomer) primary = { label: 'Create customer', run: () => onCreateCustomer(customerPrefillFor(d)) };
+  }
+  const onSubmit = () => {
+    if (primary) primary.run();
+    else if (d && !d.found) lookUpTyped();
+  };
 
-          {d ? (
-            <>
-              <div className={`pm-ct-standing ${standing.tone}`}>
-                {standing.tone === 'ok' ? <CheckCircle2 size={16} aria-hidden="true" /> : <AlertTriangle size={16} aria-hidden="true" />}
-                <span>{standing.text}</span>
-                <span className="pm-grow" />
-                <span className="pm-ct-lic">WA license {d.license}</span>
+  const title = d?.found ? d.businessName : `License ${lookup}`;
+  const verifyLabel = error ? 'Look it up on L&I’s site' : d && !d.found ? 'Search on L&I’s site' : 'Verify on L&I';
+  const footerStart = (
+    <a className="pm-ct-verify" href={d?.verifyUrl || L_AND_I} target="_blank" rel="noreferrer">
+      <ExternalLink size={14} aria-hidden="true" />{verifyLabel}
+    </a>
+  );
+
+  return (
+    <FormModal
+      title={title}
+      size="m"
+      onClose={onClose}
+      onSubmit={onSubmit}
+      submitLabel={primary?.label || ''}
+      hideSubmit={!primary}
+      footerStart={loading ? null : footerStart}
+      footerNote={loading ? 'Checking the WA L&I registry…' : null}
+    >
+      <div className="pm-ct" aria-busy={loading ? 'true' : undefined}>
+        {loading ? (
+          <div className="pm-ct-skel" aria-hidden="true">
+            <div className="b h42" /><div className="b w45" /><div className="b w80" /><hr />
+            <div className="b w35 h12" /><div className="b h54" /><div className="b h54" />
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="pm-ct-banner err" role="alert">
+            <AlertTriangle size={18} aria-hidden="true" />
+            <span><b>Couldn’t look up this license</b><span>{error}</span></span>
+            <button type="button" className="pm-ct-btn" onClick={retry}><RefreshCw size={15} aria-hidden="true" />Try again</button>
+          </div>
+        ) : null}
+
+        {d && !d.found ? (
+          <>
+            <div className="pm-ct-banner warn" role="status">
+              <AlertTriangle size={18} aria-hidden="true" /><span><b>Not in the state’s contractor registry</b></span>
+            </div>
+            <p className="pm-ct-plain">No contractor has this license number. Check it for a typo, or search by name on the state’s site.</p>
+            <label className="pm-ct-field wide">
+              <span className="pm-ct-label">License number</span>
+              <span className="pm-ct-lookup">
+                <input className="fm-input" value={typed} onChange={(e) => setTyped(e.target.value)} autoCapitalize="characters" autoComplete="off" spellCheck={false} />
+                <button type="button" className="pm-ct-btn" onClick={lookUpTyped}>Look up</button>
+              </span>
+            </label>
+          </>
+        ) : null}
+
+        {d?.found ? (
+          <>
+            {d.stale ? (
+              <div className="pm-ct-banner info" role="status">
+                <Clock size={16} aria-hidden="true" />
+                <span>The state’s registry didn’t answer. This is the copy saved {formatDay(String(d.refreshedAt || '').slice(0, 10))}; insurance and bonds aren’t shown.</span>
+                <button type="button" className="pm-ct-btn sm" onClick={retry}>Retry</button>
               </div>
-              {d.stale ? <p className="pm-muted pm-small">The state’s registry didn’t answer just now — this is the copy saved {formatDay(String(d.refreshedAt || '').slice(0, 10))}.</p> : null}
+            ) : null}
 
-              {d.found ? (
-                <div className="pm-ct-main">
-                  {tradeLine(d) ? <div className="pm-ct-row">{tradeLine(d)}</div> : null}
-                  {d.phone ? <a className="pm-ct-row pm-ct-link" href={`tel:${d.phone.replace(/[^\d+]/g, '')}`}><Phone size={14} aria-hidden="true" />{formatPhone(d.phone)}</a> : null}
-                  {d.address ? <div className="pm-ct-row"><MapPin size={14} aria-hidden="true" />{[tidyName(d.address), tidyName(d.city), [d.state, d.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</div> : null}
-                  {d.emails?.length ? <a className="pm-ct-row pm-ct-link" href={`mailto:${d.emails[0]}`}><Mail size={14} aria-hidden="true" />{d.emails[0]}<span className="pm-sub">&nbsp;(from a permit)</span></a> : null}
-                  {d.ubi ? <div className="pm-ct-row pm-sub">State business ID (UBI) {d.ubi}</div> : null}
-                  {d.customer ? (
-                    <div className="pm-ct-actions">
-                      <span className="pm-customer"><UserCheck size={13} aria-hidden="true" />Already a customer: {d.customer.name}</span>
-                      {onOpenCustomer ? <button type="button" className="pm-btn sm" onClick={() => onOpenCustomer(d.customer.id)}>Open customer profile</button> : null}
-                    </div>
-                  ) : onCreateCustomer ? (
-                    <div className="pm-ct-actions">
-                      <button type="button" className="pm-btn sm pm-primary" onClick={() => onCreateCustomer(customerPrefillFor(d))}>
-                        <UserPlus size={15} aria-hidden="true" />Create customer
-                      </button>
-                      <span className="pm-sub">Opens the Add customer form filled in from the state’s record{d.emails?.length ? '' : ' — add their email there; the state doesn’t list one'}.</span>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="pm-muted">The state has no contractor under this license number. Check it for a typo, or look it up on the state’s site below.</p>
-              )}
+            {d.customer ? (
+              <div className="pm-ct-customer">
+                <UserCheck size={20} aria-hidden="true" />
+                <span><b>Already a customer</b><span>{d.customer.name}</span></span>
+              </div>
+            ) : null}
 
-              {d.found && !d.stale ? (
-                <>
-                  <Section icon={ShieldCheck} title="Insurance"><Coverage list={d.insurance || []} none="No insurance on file with the state." /></Section>
-                  <Section icon={Landmark} title="Bond"><Coverage list={d.bonds || []} none="No bond on file with the state." /></Section>
-                  <Section icon={Users} title="Principals">
-                    {current.length ? <p className="pm-ct-plain">{current.map((p) => personName(p.name)).join(' · ')}</p> : <p className="pm-muted">None listed.</p>}
-                  </Section>
-                </>
+            <section className="pm-ct-grid" aria-label="Contact">
+              <Field label="Phone">
+                {d.phone ? <a className="pm-ct-phone" href={`tel:${d.phone.replace(/[^\d+]/g, '')}`}>{formatPhone(d.phone)}</a> : <span className="pm-ct-none">None on file</span>}
+              </Field>
+              <Field label="Email">
+                {d.emails?.length
+                  ? <a className="pm-ct-mail" href={`mailto:${d.emails[0]}`}>{d.emails[0]}<span className="pm-ct-sub"> (from a permit)</span></a>
+                  : <span className="pm-ct-none">None on file</span>}
+              </Field>
+              {d.address ? (
+                <Field label="Address" wide>
+                  <a className="pm-ct-addr" target="_blank" rel="noreferrer"
+                    href={`https://maps.google.com/?q=${encodeURIComponent([d.address, d.city, d.state, d.zip].filter(Boolean).join(' '))}`}>
+                    {[tidyName(d.address), tidyName(d.city), [d.state, d.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')}
+                  </a>
+                </Field>
               ) : null}
+              {tradeLine(d) ? <Field label="License type"><span>{tradeLine(d)}</span></Field> : null}
+              {d.ubi ? <Field label="State business ID (UBI)"><span>{d.ubi}</span></Field> : null}
+            </section>
+          </>
+        ) : null}
 
-              <Section icon={FileText} title={`Their permits here (${d.permits.total})`}>
-                {d.permits.total ? (
-                  <>
-                    <p className="pm-ct-plain">{d.permits.byCategory.map((c) => `${c.label || categoryLabel(c.category)} ${c.count}`).join(' · ')}</p>
-                    <ul className="pm-ct-list">
-                      {d.permits.recent.map((p) => (
-                        <li key={p._id}>
-                          <span className="pm-ct-when">{formatDay(p.issuedOn)}</span>
-                          <span>{[p.address, p.city].filter(Boolean).join(', ')}</span>
-                          <span className="pm-sub"> · {categoryLabel(p.category)}{p.valuation ? ` · ${formatMoney(p.valuation)}` : ''} · {SOURCES[p.source]?.label}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {onShowPermits ? (
-                      <button type="button" className="pm-btn sm" onClick={() => onShowPermits(d.license, d.businessName)}>
-                        Show all {d.permits.total} in the list
-                      </button>
-                    ) : null}
-                  </>
-                ) : <p className="pm-muted">None in the permits the app pulls (King and Whatcom counties).</p>}
-              </Section>
+        {d ? (
+          <section className="pm-ct-block" aria-label="Their permits here">
+            <div className="pm-ct-block-head">
+              <span className="pm-ct-label">Permits here ({d.permits.total})</span>
+              {d.permits.total && onShowPermits ? (
+                <button type="button" className="pm-ct-btn sm" onClick={() => onShowPermits(d.license, d.businessName)}>
+                  Show all {d.permits.total} in the list<ArrowRight size={14} aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+            {d.permits.total ? (
+              <>
+                <div className="pm-ct-chips">
+                  {d.permits.byCategory.map((c) => <span key={c.category} className="pm-ct-chip">{c.label || categoryLabel(c.category)} <b>{c.count}</b></span>)}
+                </div>
+                <ul className="pm-ct-permits">
+                  {d.permits.recent.map((p) => (
+                    <li key={p._id}>
+                      <span className="pm-ct-when">{formatDay(p.issuedOn)}</span>
+                      <span className="pm-ct-what">
+                        <span className="pm-ct-addr-line">{[p.address, p.city].filter(Boolean).join(', ')}</span>
+                        <span className="pm-ct-sub">{categoryLabel(p.category)} · {SOURCES[p.source]?.label}</span>
+                      </span>
+                      <span className="pm-ct-value">{p.valuation ? formatMoney(p.valuation) : ''}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : <p className="pm-ct-none">None in the permits the app pulls (King and Whatcom counties).</p>}
+          </section>
+        ) : null}
 
-              <a className="pm-source-link" href={d.verifyUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" />Open on the state’s “Verify a Contractor” site</a>
-              <p className="pm-dlg-note">From the WA Department of Labor &amp; Industries’ contractor registry, updated daily.</p>
-            </>
-          ) : null}
-        </div>
+        {d?.found && !d.stale ? (
+          <section className="pm-ct-block pm-ct-grid" aria-label="Standing with the state">
+            <Field label="Insurance"><Coverage list={d.insurance || []} none="No insurance on file with the state." /></Field>
+            <Field label="Bond"><Coverage list={d.bonds || []} none="No bond on file with the state." /></Field>
+            <Field label="Principals" wide>
+              {current.length ? <span>{current.map((p) => personName(p.name)).join(' · ')}</span> : <span className="pm-ct-none">None listed.</span>}
+            </Field>
+          </section>
+        ) : null}
+
+        {d?.found ? (
+          <div className={`pm-ct-standing ${standing.tone}`}>
+            {standing.tone === 'ok' ? <CheckCircle2 size={18} aria-hidden="true" /> : <AlertTriangle size={18} aria-hidden="true" />}
+            <span className="pm-ct-standing-text">{standing.text}</span>
+            <span className="pm-ct-standing-lic"><span>WA license</span><CopyLicense license={d.license} /></span>
+          </div>
+        ) : null}
+
+        {d ? <p className="pm-ct-note">From the WA Department of Labor &amp; Industries’ contractor registry, updated daily.</p> : null}
       </div>
-    </div>,
-    document.body
+    </FormModal>
   );
 }

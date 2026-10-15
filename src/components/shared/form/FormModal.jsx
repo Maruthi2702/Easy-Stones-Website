@@ -74,6 +74,10 @@ export default function FormModal({
     // main button at the end of the body instead.
     headerActions = null,
     hideFooterOnPhone = false,
+    // hideSubmit — a window that only sometimes has a main button (the
+    // Contractor pop-up while it looks the license up): Enter and the footer
+    // note still work, there's just no button.
+    hideSubmit = false,
     children
 }) {
     const isPhone = useIsPhone();
@@ -310,9 +314,11 @@ export default function FormModal({
                     <span className="fm-footer-note">{footerNote}</span>
                     {/* No Cancel: the ✕ in the header does the same, unsaved-changes
                         check included (owner's call, 2026-10-05). */}
-                    <button type="submit" className="fm-btn fm-btn-primary" disabled={saving || submitDisabled} aria-busy={saving ? 'true' : undefined}>
-                        {saving ? <><span className="fm-spinner" aria-hidden="true" />{savingLabel}</> : submitLabel}
-                    </button>
+                    {!hideSubmit && (
+                        <button type="submit" className="fm-btn fm-btn-primary" disabled={saving || submitDisabled} aria-busy={saving ? 'true' : undefined}>
+                            {saving ? <><span className="fm-spinner" aria-hidden="true" />{savingLabel}</> : submitLabel}
+                        </button>
+                    )}
                 </footer>
             </form>
 
