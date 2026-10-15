@@ -1364,6 +1364,8 @@ const SalesPage = () => {
 
     const [showDashboardUploadModal, setShowDashboardUploadModal] = useState(false);
     const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+    // Values a new customer opens with (Permits → a contractor's "Create customer"); null for a blank form.
+    const [customerPrefill, setCustomerPrefill] = useState(null);
     const [loadingVisitId, setLoadingVisitId] = useState(null);
     const [loadingResourceId, setLoadingResourceId] = useState(null);
 
@@ -3507,7 +3509,11 @@ const SalesPage = () => {
                     return (
                         <ErrorBoundary key="permits-view">
                         <Suspense fallback={<TabLoader />}>
-                            <PermitsTab sidebarToggle={sidebarToggle} />
+                            <PermitsTab
+                                sidebarToggle={sidebarToggle}
+                                onOpenCustomer={(id) => handleSelectCustomer({ _id: id }, 'permits')}
+                                onCreateCustomer={openNewCustomer ? (values) => { setCustomerPrefill(values); setShowAddCustomerModal(true); } : null}
+                            />
                         </Suspense>
                         </ErrorBoundary>
                     );
@@ -5086,7 +5092,8 @@ const SalesPage = () => {
 
                 <AddCustomerModal
                     show={showAddCustomerModal}
-                    onClose={() => setShowAddCustomerModal(false)}
+                    onClose={() => { setShowAddCustomerModal(false); setCustomerPrefill(null); }}
+                    prefill={customerPrefill}
                     onSave={handleCreateCustomer}
                     isSaving={isSaving}
                     salesReps={salesReps}

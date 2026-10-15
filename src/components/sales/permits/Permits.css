@@ -110,11 +110,31 @@ body.light-theme-active .pm-dlg-overlay {
 .pm-dot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--pm-gold); }
 .pm-dot.warn { background: var(--pm-warn-ink); }
 .pm-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; background: var(--pm-surface); border: 1px solid var(--pm-line); border-radius: 12px; box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); }
-.pm-filters { width: 300px; max-width: calc(100vw - 28px); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.pm-filters { width: 320px; max-width: calc(100vw - 28px); max-height: calc(100vh - 140px); overflow-y: auto; scrollbar-width: none; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.pm-filters::-webkit-scrollbar { display: none; }
 .pm-field { display: flex; flex-direction: column; gap: 6px; }
 .pm-field > span { font-size: 12.5px; font-weight: 600; color: var(--pm-muted); }
 .pm-field .pm-select { width: 100%; }
 .pm-pop-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+
+/* ── Counties (CountyFilter.jsx): a state row, then its counties indented ── */
+.pm-cf { border: 1px solid var(--pm-line); border-radius: 10px; overflow: hidden; }
+.pm-cf-row { display: flex; align-items: center; gap: 12px; min-height: 42px; border-bottom: 1px solid var(--pm-line); }
+.pm-cf-head { padding: 0 6px 0 12px; background: var(--pm-surface); }
+.pm-cf-name { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; padding: 0 4px; border: 0; background: none; color: var(--pm-text); font: inherit; font-size: 14.5px; cursor: pointer; text-align: left; }
+.pm-cf-name svg { color: var(--pm-muted); flex: none; }
+.pm-cf-name:focus-visible { outline: 2px solid var(--pm-gold); outline-offset: -2px; border-radius: 6px; }
+.pm-cf-list { list-style: none; margin: 0; padding: 0 0 0 26px; max-height: 280px; overflow-y: auto; scrollbar-width: none; background: var(--pm-surface); }
+.pm-cf-list::-webkit-scrollbar { display: none; }
+.pm-cf-county { background: var(--pm-surface-2); }
+.pm-cf-county label { flex: 1; display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 12px; cursor: pointer; font-size: 14px; color: var(--pm-text-2); }
+.pm-cf-county.off label { cursor: default; color: var(--pm-muted); }
+.pm-cf-label { flex: 1; }
+.pm-cf-note { font-size: 11.5px; color: var(--pm-muted); white-space: nowrap; }
+.pm-cf-box { width: 17px; height: 17px; margin: 0; flex: none; accent-color: var(--pm-gold); cursor: pointer; }
+.pm-cf-box:disabled { cursor: default; opacity: 0.45; }
+.pm-cf-state:last-child > .pm-cf-row:last-child, .pm-cf-state:last-child .pm-cf-county:last-child { border-bottom: 0; }
+.pm-cf-sum { font-weight: 500; color: var(--pm-text-2); }
 .pm-btn.pm-primary { background: var(--pm-gold); border-color: var(--pm-gold); color: #111; }
 .pm-btn.pm-primary:hover:not(:disabled) { background: var(--pm-gold-ink); }
 .pm-menu { min-width: 210px; padding: 6px; display: flex; flex-direction: column; }
@@ -175,6 +195,34 @@ body.light-theme-active .pm-dlg-overlay { background: rgba(15, 23, 42, 0.4); }
 .pm-dlg-body a { color: var(--pm-gold-ink); font-weight: 600; text-decoration: none; }
 .pm-dlg-body a:hover { text-decoration: underline; }
 .pm-dlg-note { margin: 14px 0 0; font-size: 12.5px; color: var(--pm-muted); }
+
+/* ── A contractor (ContractorDialog.jsx) ── */
+.pm-ct { width: 560px; }
+.pm-ct-standing { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-weight: 600; font-size: 14px; }
+.pm-ct-standing.ok { background: var(--pm-ok-bg); color: var(--pm-ok-ink); }
+.pm-ct-standing.warn { background: var(--pm-warn-bg); color: var(--pm-warn-ink); }
+.pm-ct-lic { font-size: 12.5px; font-weight: 600; color: var(--pm-text-2); white-space: nowrap; }
+.pm-ct-main { display: flex; flex-direction: column; gap: 6px; padding: 12px 2px 4px; }
+.pm-ct-row { display: flex; align-items: center; gap: 8px; color: var(--pm-text); font-size: 14px; overflow-wrap: anywhere; }
+.pm-ct-row svg { flex: none; color: var(--pm-muted); }
+.pm-ct-link { color: var(--pm-gold-ink); font-weight: 600; text-decoration: none; }
+.pm-ct-link svg { color: var(--pm-gold-ink); }
+.pm-ct-link:hover { text-decoration: underline; }
+.pm-ct-sec h3 { display: flex; align-items: center; gap: 6px; }
+.pm-ct-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; }
+.pm-ct-actions .pm-customer { margin-top: 0; }
+.pm-ct-actions .pm-sub { margin-top: 0; }
+.pm-ct-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--pm-text); }
+.pm-ct-list .pm-sub { display: inline; }
+.pm-ct-when { display: inline-block; min-width: 92px; color: var(--pm-muted); font-size: 12.5px; }
+.pm-ct-warn { display: flex; align-items: center; gap: 6px; color: var(--pm-warn-ink); font-weight: 600; }
+.pm-ct-plain { margin: 0 0 8px; font-size: 13.5px; color: var(--pm-text-2); }
+.pm-ct-name { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--pm-line); text-underline-offset: 3px; }
+.pm-ct-name:hover { color: var(--pm-gold-ink); text-decoration-color: currentColor; }
+.pm-ct-name:focus-visible { outline: 2px solid var(--pm-gold); outline-offset: 2px; border-radius: 4px; }
+.pm-filter-chip { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 4px 6px 4px 12px; border-radius: 999px; background: var(--pm-gold-tint); color: var(--pm-gold-ink); font-size: 13px; font-weight: 600; }
+.pm-filter-chip button { display: inline-flex; align-items: center; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+.pm-filter-chip button:hover { background: var(--pm-hover); }
 @media (max-width: 639px) {
   .pm-dlg-overlay { align-items: flex-end; padding: 0; }
   .pm-dlg { width: 100%; max-height: 88vh; border-radius: 16px 16px 0 0; border-bottom: 0; }
@@ -223,13 +271,17 @@ body.light-theme-active .pm-dlg-overlay { background: rgba(15, 23, 42, 0.4); }
 .pm-cat.multifamily { background: var(--pm-violet-bg); color: var(--pm-violet-ink); }
 .pm-cat.commercial_new, .pm-cat.commercial_remodel { background: var(--pm-blue-bg); color: var(--pm-blue-ink); }
 .pm-issuer { display: inline-block; margin-top: 4px; padding: 1px 7px; border-radius: 6px; font-size: 11.5px; font-weight: 600; background: var(--pm-grey-bg); color: var(--pm-grey-ink); }
-.pm-issuer.bellingham { background: var(--pm-teal-bg); color: var(--pm-teal-ink); }
+.pm-issuer.city { background: var(--pm-teal-bg); color: var(--pm-teal-ink); }
 .pm-ccard-btn .pm-issuer { align-self: flex-start; }
 .pm-note-chip { display: inline-block; margin: 2px 0 4px; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; background: var(--pm-grey-bg); color: var(--pm-grey-ink); }
 
 .pm-links { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 3px; }
 .pm-links a { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--pm-gold-ink); text-decoration: none; font-weight: 600; overflow-wrap: anywhere; }
 .pm-links a:hover { text-decoration: underline; }
+.pm-reg-tag { margin-left: 4px; padding: 0 5px; border-radius: 5px; font-size: 10.5px; font-weight: 700; background: var(--pm-grey-bg); color: var(--pm-grey-ink); }
+.pm-registry { display: flex; align-items: flex-start; gap: 5px; margin-top: 5px; font-size: 12.5px; color: var(--pm-muted); overflow-wrap: anywhere; }
+.pm-registry svg { flex: none; margin-top: 2px; color: var(--pm-ok-ink); }
+.pm-registry strong { color: var(--pm-text-2); font-weight: 600; }
 .pm-customer { display: inline-flex; align-items: center; gap: 5px; margin-top: 5px; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; background: var(--pm-ok-bg); color: var(--pm-ok-ink); }
 
 /* ── An opened permit ── */

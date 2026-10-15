@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   rangeFrom, splitChecks, nextSort, ariaSort, formatDay, formatMonth, formatMoney, sizeLine, whenLine, sourceStatus, checkStatus, checksAttention, leadContact, contactPerson,
-  customerOf, permitExportRows, placeGroups, placeQuery, permitPdfRows, permitPdfScope, permitPdfUrl, permitFileName
+  customerOf, permitExportRows, placeGroups, placeQuery, permitPdfRows, permitPdfScope, permitPdfUrl, permitFileName,
+  countyTree, toggleCounty, toggleState, countySummary, cleanCounties, placeOffered, contactPhone, contactTitle, registryLine,
+  looksLikeLicense, licenseStanding, inForce, coverageLine, tradeLine, contactLicense, customerPrefillFor, tidyName, personName
 } from './permitView.js';
 
 const NOW = new Date('2026-10-11T19:00:00Z'); // 12:00 PM Pacific
@@ -12,6 +14,7 @@ describe('dates and numbers', () => {
     expect(rangeFrom('30', NOW)).toBe('2026-09-12');
     expect(rangeFrom('183', NOW)).toBe('2026-04-12');
     expect(rangeFrom('nonsense', NOW)).toBe('2026-09-12');
+    expect(rangeFrom('all', NOW)).toBe('');
   });
 
   it('formats days, months, money and size', () => {
@@ -186,9 +189,49 @@ describe('Excel export', () => {
   });
 });
 
+describe('the county filter', () => {
+  it('lists every Washington county, the covered ones tickable', () => {
+    const [wa] = countyTree([]);
+    expect(wa).toMatchObject({ id: 'wa', name: 'Washington', state: 'none' });
+    expect(wa.counties).toHaveLength(39);
+    expect(wa.counties.find((c) => c.id === 'king')).toMatchObject({ name: 'King', covered: true, checked: false });
+    expect(wa.counties.find((c) => c.id === 'adams')).toMatchObject({ covered: false });
+    expect(countyTree(['king'])[0].state).toBe('some');
+    expect(countyTree(['king', 'whatcom'])[0].state).toBe('all');
+  });
+
+  it('ticks a county on and off, and the state ticks every covered county or none', () => {
+    expect(toggleCounty([], 'whatcom')).toEqual(['whatcom']);
+    expect(toggleCounty(['whatcom'], 'king')).toEqual(['king', 'whatcom']);
+    expect(toggleCounty(['king', 'whatcom'], 'king')).toEqual(['whatcom']);
+    expect(toggleState([], 'wa')).toEqual(['king', 'whatcom']);
+    expect(toggleState(['king'], 'wa')).toEqual(['king', 'whatcom']);
+    expect(toggleState(['king', 'whatcom'], 'wa')).toEqual([]);
+  });
+
+  it('says what’s picked in words, and forgets counties that no longer exist', () => {
+    expect(countySummary([])).toBe('All counties');
+    expect(countySummary(['king'])).toBe('King County');
+    expect(countySummary(['king', 'whatcom'])).toBe('King and Whatcom counties');
+    expect(countySummary(['king', 'pierce', 'whatcom'])).toBe('King, Pierce and Whatcom counties');
+    expect(cleanCounties(['king', 'atlantis', 7])).toEqual(['king']);
+    expect(cleanCounties('king')).toEqual([]);
+  });
+});
+
 describe('the place filter', () => {
+  it('offers the issuers and cities in the ticked counties', () => {
+    const cityCounties = { Bellingham: ['whatcom'], Ferndale: ['whatcom'], Seattle: ['king'] };
+    const king = placeGroups(['Bellingham', 'Ferndale', 'Seattle'], { counties: ['king'], cityCounties, sourceIds: ['seattle', 'whatcom', 'bellingham'] });
+    expect(king[0].options).toEqual([{ value: 'source:seattle', label: 'City of Seattle' }]);
+    expect(king[1].options).toEqual([{ value: 'city:Seattle', label: 'Seattle' }]);
+    expect(placeOffered('city:Ferndale', king)).toBe(false);
+    expect(placeOffered('city:Seattle', king)).toBe(true);
+    expect(placeOffered('', king)).toBe(true);
+  });
+
   it('offers who issued the permit first, then each city', () => {
-    const groups = placeGroups(['Bellingham', 'Ferndale']);
+    const groups = placeGroups(['Bellingham', 'Ferndale'], { sourceIds: ['whatcom', 'bellingham'] });
     expect(groups.map((g) => g.label)).toEqual(['Issued by', 'City']);
     expect(groups[0].options).toEqual([
       { value: 'source:whatcom', label: 'Whatcom County (outside city limits)' },
@@ -196,6 +239,7 @@ describe('the place filter', () => {
     ]);
     expect(groups[1].options[1]).toEqual({ value: 'city:Ferndale', label: 'Ferndale' });
     expect(placeGroups().map((g) => g.label)).toEqual(['Issued by']);
+    expect(placeGroups()[0].options).toHaveLength(15);
   });
 
   it('reads a pick as the list query — an issuer or a city, never both', () => {
@@ -231,18 +275,120 @@ describe('the PDF', () => {
     expect(permitPdfScope({ source: 'whatcom', category: 'new_home', from: '2026-09-12', to: '2026-10-11', q: ' kvf ' }))
       .toBe('Whatcom County (outside city limits) · New home · Sep 12, 2026 – Oct 11, 2026 · matching “kvf”');
     expect(permitPdfScope({ city: 'Ferndale' })).toBe('Ferndale · All kinds of work · All dates');
-    expect(permitPdfScope()).toBe('Whatcom County and Bellingham · All kinds of work · All dates');
+    expect(permitPdfScope()).toBe('All counties · All kinds of work · All dates');
+    expect(permitPdfScope({ counties: 'king' })).toBe('King County · All kinds of work · All dates');
   });
 
   it('links to the PDF for exactly the list’s filters', () => {
     expect(permitPdfUrl('https://api.x', { source: '', city: 'Point Roberts', category: 'adu', from: '2026-09-12', to: '2026-10-11', q: ' ', sort: 'value_desc' }))
       .toBe('https://api.x/api/permits/export.pdf?city=Point+Roberts&category=adu&from=2026-09-12&to=2026-10-11&sort=value_desc');
+    expect(permitPdfUrl('', { counties: 'king,whatcom' })).toBe('/api/permits/export.pdf?counties=king%2Cwhatcom');
     expect(permitPdfUrl('', {}, { download: true })).toBe('/api/permits/export.pdf?download=1');
   });
 
   it('names the files after the place and dates', () => {
     expect(permitFileName({ source: 'bellingham', from: '2026-09-12', to: '2026-10-11' })).toBe('permits-bellingham-2026-09-12-to-2026-10-11.xlsx');
     expect(permitFileName({ city: 'Point Roberts', from: '2026-09-12', to: '2026-10-11' }, 'pdf')).toBe('permits-point-roberts-2026-09-12-to-2026-10-11.pdf');
-    expect(permitFileName({})).toBe('permits-whatcom-bellingham-start-to-today.xlsx');
+    expect(permitFileName({})).toBe('permits-all-counties-start-to-today.xlsx');
+    expect(permitFileName({ counties: 'king,whatcom', from: '2026-09-12' })).toBe('permits-king-whatcom-2026-09-12-to-today.xlsx');
+    expect(permitFileName({ source: 'mercer_island' })).toBe('permits-mercer-island-start-to-today.xlsx');
+  });
+});
+
+describe('the WA contractor registry on screen', () => {
+  const reg = { matchedBy: 'license', license: 'BROCKSC921MJ', businessName: 'BROCK SMITH CUSTOM HOMES LLC', phone: '4258308529', status: 'ACTIVE', specialty: 'GENERAL' };
+
+  it('calls the source’s own number first, the registry’s when there’s none', () => {
+    expect(contactPhone({ phone: '3607397535', registry: reg })).toEqual({ phone: '3607397535', fromRegistry: false });
+    expect(contactPhone({ phone: '', registry: reg })).toEqual({ phone: '4258308529', fromRegistry: true });
+    expect(contactPhone(null)).toEqual({ phone: '', fromRegistry: false });
+  });
+
+  it('names a contractor known only by license from the registry', () => {
+    expect(contactTitle({ kind: 'contractor', company: '', license: 'BROCKSC921MJ', registry: reg })).toBe('BROCK SMITH CUSTOM HOMES LLC');
+    expect(contactTitle({ kind: 'contractor', company: '', license: 'BROCKSC921MJ' })).toBe('License BROCKSC921MJ');
+    expect(leadContact({ contacts: [{ kind: 'contractor', company: '', license: 'BROCKSC921MJ', registry: reg }] }).note).toBe('');
+    expect(registryLine(reg)).toBe('Active · General · license BROCKSC921MJ');
+    expect(registryLine(null)).toBe('');
+  });
+
+  it('puts the registry’s phone and license in the Excel and PDF rows', () => {
+    const p = { source: 'seattle', permitNumber: '7116062-CN', category: 'new_home', type: 'Single Family/Duplex', issuedOn: '2026-10-12', contacts: [{ kind: 'contractor', company: 'Vivid', phone: '', license: 'VIVIDDL801B4', registry: { ...reg, license: 'VIVIDDL801B4' } }] };
+    expect(permitExportRows([p])[0]).toMatchObject({ County: 'King County', 'Contractor phone': '(425) 830-8529', 'Contractor license': 'VIVIDDL801B4', 'License status': 'ACTIVE' });
+    expect(permitPdfRows([p])[0].leadSub).toBe('(425) 830-8529');
+  });
+
+  it('puts first pulls still to come on one line', () => {
+    const lines = checksAttention([{ id: 'seattle', label: 'Seattle', lastRun: null }, { id: 'burien', label: 'Burien', lastRun: null }], [], NOW);
+    expect(lines).toEqual([{ id: 'first-pull', tone: 'none', text: 'First pull hasn’t run yet: Seattle, Burien' }]);
+  });
+
+  it('shows the newest report check of each county', () => {
+    const checks = [
+      { source: 'whatcom', month: '2026-08', method: 'report', ok: true },
+      { source: 'king_county', month: '2026-09', method: 'report', ok: true, matched: 60, filled: 58 },
+      { source: 'king_county', month: '2026-08', method: 'report', ok: true }
+    ];
+    const { top } = splitChecks(checks, NOW);
+    expect(top.map((c) => `${c.source} ${c.month}`)).toEqual(['king_county 2026-09', 'whatcom 2026-08']);
+    expect(checkStatus(checks[1]).text).toBe('Accuracy check, September 2026 (King County): matches the county’s report — all 60 lead permits accounted for; value and city filled in for 58');
+  });
+});
+
+describe('a contractor’s pop-up', () => {
+  const SIERRA = {
+    found: true, license: 'SIERRCC145N8', businessName: 'SIERRA CONSTRUCTION CO INC', phone: '4254875200',
+    address: '14800 NE North Woodinville Way', city: 'WOODINVILLE', state: 'WA', zip: '98072', licenseType: 'CONSTRUCTION CONTRACTOR',
+    specialty: 'GENERAL', status: 'ACTIVE', expiresOn: '2028-03-31', principal: 'ADLER, NANCY', ubi: '600634891', emails: []
+  };
+
+  it('tells a license number from a name, an address or a permit number', () => {
+    expect(looksLikeLicense(' sierrcc145n8 ')).toBe('SIERRCC145N8');
+    expect(looksLikeLicense('VIVIDDL801B4')).toBe('VIVIDDL801B4');
+    expect(looksLikeLicense('Sierra Construction')).toBe('');
+    expect(looksLikeLicense('12887 SE 43rd')).toBe('');
+    expect(looksLikeLicense('BLD26-2486')).toBe('');
+    expect(looksLikeLicense('7116062-CN')).toBe('');
+    expect(looksLikeLicense('26 123874 BT')).toBe('');
+  });
+
+  it('heads the card with the license’s standing', () => {
+    expect(licenseStanding(SIERRA, '2026-10-14')).toEqual({ tone: 'ok', text: 'Active · expires Mar 31, 2028' });
+    expect(licenseStanding({ ...SIERRA, expiresOn: '2026-03-31' }, '2026-10-14')).toEqual({ tone: 'warn', text: 'License expired Mar 31, 2026' });
+    expect(licenseStanding({ ...SIERRA, status: 'SUSPENDED' }, '2026-10-14').text).toBe('License suspended');
+    expect(licenseStanding({ found: false }).tone).toBe('warn');
+  });
+
+  it('splits insurance and bonds into in force and lapsed', () => {
+    const list = [
+      { company: 'Alaska National', amount: 1000000, expiresOn: '2027-03-31' },
+      { company: 'Old Co', amount: 500000, expiresOn: '2025-03-31' },
+      { company: 'Safeco', amount: 30000, untilCanceled: true }
+    ];
+    const { current, lapsed } = inForce(list, '2026-10-14');
+    expect(current.map((x) => x.company)).toEqual(['Alaska National', 'Safeco']);
+    expect(lapsed.map((x) => x.company)).toEqual(['Old Co']);
+    expect(coverageLine(list[0])).toBe('$1,000,000 · Alaska National · to Mar 31, 2027');
+    expect(coverageLine(list[2])).toBe('$30,000 · Safeco · until canceled');
+    expect(tradeLine(SIERRA)).toBe('Construction Contractor · General');
+  });
+
+  it('knows which contacts open it', () => {
+    expect(contactLicense({ kind: 'contractor', license: 'ABCHOHL123AB' })).toBe('ABCHOHL123AB');
+    expect(contactLicense({ kind: 'contractor', registry: { license: 'VNCONCL900AA' } })).toBe('VNCONCL900AA');
+    expect(contactLicense({ kind: 'owner', license: 'X' })).toBe('');
+  });
+
+  it('fills the Add customer form from the state’s record', () => {
+    expect(customerPrefillFor(SIERRA)).toEqual({
+      company: 'Sierra Construction Co Inc', customerName: 'Nancy Adler', phone: '(425) 487-5200', email: '', marketingEmail: '',
+      address: { street: '14800 NE North Woodinville Way', city: 'Woodinville', state: 'WA', zipCode: '98072' },
+      customerType: 'Contractor', status: 'New Lead',
+      notes: 'WA contractor license SIERRCC145N8 (active, expires Mar 31, 2028) · UBI 600634891 · Construction Contractor · General · Added from Permits'
+    });
+    expect(customerPrefillFor({ ...SIERRA, emails: ['office@sierra.example'] })).toMatchObject({ email: 'office@sierra.example', marketingEmail: 'office@sierra.example' });
+    expect(customerPrefillFor({ found: false })).toBeNull();
+    expect(tidyName('V N CONSTRUCTION LLC')).toBe('V N Construction LLC');
+    expect(personName('PLOETZ, BRYAN G')).toBe('Bryan G Ploetz');
   });
 });

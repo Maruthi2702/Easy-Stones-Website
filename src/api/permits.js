@@ -22,3 +22,4 @@ export const permitsMeta = () => call('/meta');
 export const listPermits = (query) => call('', { query });
 export const exportPermits = (query) => call('/export', { query });
 export const refreshPermits = () => call('/refresh', { method: 'POST' });
+export const permitContractor = (license) => call(`/contractor/${encodeURIComponent(license)}`);

@@ -16,6 +16,7 @@ function CheckItem({ check }) {
       <div className="pm-dlg-body">
         <span className="pm-dlg-line">{s.text}</span>
         {check.missingFromApp?.length ? <span>{search ? 'Found by the separate search but not here' : 'In the county’s report but not here'}: {check.missingFromApp.join(', ')}</span> : null}
+        {check.addedFromReport?.length ? <span className="pm-muted">Added to the list from the county’s report (MyBuildingPermit doesn’t have them): {check.addedFromReport.join(', ')}</span> : null}
         {check.notFoundAgain?.length ? <span>Here but not found by the separate search: {check.notFoundAgain.join(', ')}</span> : null}
         {check.notInReport?.length ? <span>Here but not in the county’s report: {check.notInReport.join(', ')}</span> : null}
         {check.notInCountySearch?.length ? <span>In the report but missing from the county’s own search: {check.notInCountySearch.join(', ')}</span> : null}
@@ -83,7 +84,7 @@ export default function ChecksDialog({ statuses, topChecks, olderChecks, onClose
               <ul className="pm-dlg-list">{olderChecks.map((c) => <CheckItem key={key(c)} check={c} />)}</ul>
             </section>
           ) : null}
-          <p className="pm-dlg-note">The month so far is checked each morning by finding every lead permit a second, separate way. Once a month is over, the county’s own monthly report replaces that check for Whatcom County. Bellingham doesn’t publish one; besides the separate query, every pull must read as many permits as the city says it has, or it fails.</p>
+          <p className="pm-dlg-note">The month so far is checked each morning by finding every lead permit a second, separate way. Once a month is over, the county’s own monthly report replaces that check for Whatcom County and King County (whose report also fills in each permit’s value and city). The cities don’t publish one; besides the separate read, a pull from a city’s data feed must read as many permits as the city says it has, or it fails.</p>
         </div>
       </div>
     </div>,

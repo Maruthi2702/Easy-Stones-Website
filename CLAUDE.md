@@ -109,23 +109,64 @@ request): `NEW_VISITS_START_WITH_REP = false` in `src/routes/checkIn.js`, so
 new visits and their Selection Sheets start with None until it's set back
 to `true`; customers and deliveries still use the rule.
 
-## Permits: sources and the accuracy rules (2026-10-11)
+## Permits: sources and the accuracy rules (2026-10-11; King County 2026-10-14)
 
-Sales · Permits (`src/permits/`) pulls building permits each morning from
-Whatcom County (Tyler EnerGov self-service API, unincorporated areas only —
-contacts with phone/email) and the City of Bellingham (its ArcGIS permit
-layer; names only, eTRAKiT needs a login). Other Whatcom cities (Ferndale,
-Lynden, Blaine…) issue their own and aren't covered. The county search
-**ignores its date/type filters**, so the reader walks everything
-newest-issued-first and the lead types are decided by exact type names in
-`permitRules.js` — never trust a source-side filter there. Each month is
-checked against the county's own "Permits Issued" PDF (`PermitCheck`); a
-source that changes shape fails the run loudly rather than saving less.
-First pull reads 6 months (~4 min: county detail pages are ~2 s each, read
-4 at a time); then 5:00 AM Pacific daily, re-reading 30 days, plus a
-month-so-far check (each source's permits found a second, separate way)
-until the county's report replaces it. Admin-only permissions to
-start (`view_permits`, `export_permits`, `refresh_permits`).
+Sales · Permits (`src/permits/`) pulls building permits each morning from 15
+offices in King and Whatcom counties. **One file per source** in
+`src/permits/rules/` (who it is, its county, its exact lead type names, how a
+record copies) plus a reader in `src/permits/sources/`, listed in `RULES`
+(`permitRules.js`) and `readers.js` under the same id. `sync.js`, the API and
+the screen are generic over them — adding an office is a rules file, a
+reader and tests (`rules.test.js` checks every source keeps the contract).
+The county filter lists all 39 WA counties (`places.js`); a county is
+"covered" once a source names it.
+
+- **Whatcom**: the county (Tyler EnerGov, contacts with phone/email) and
+  Bellingham (ArcGIS layer, names only). The EnerGov search **ignores its
+  date/type filters**, so the reader walks newest-issued-first.
+- **King**: the county outside cities and Auburn, Bellevue, Burien, Issaquah,
+  Kenmore, Kirkland, Mercer Island, Sammamish, Snoqualmie through
+  **MyBuildingPermit**'s public search (no published API — the calls its page
+  makes; it refuses big searches, so a week at a time, split down to a day,
+  then by status; a row outside the asked days stops the run; its "to" date
+  is midnight, so only offices that stamp a time of issue — Kirkland,
+  `stampsTime` — are asked a day further, and a timed row from a midnight
+  office stops the run); Seattle (open
+  data + each permit's portal page for the contractor's license); Renton
+  (EnerGov, same reader as Whatcom); Shoreline (eTRAKiT's CSV export, a day
+  at a time, 100-row cap → fails loudly). Bellevue's own ArcGIS layer lags
+  on status (new homes "Pending" for days after issue), so its list comes
+  from MyBuildingPermit and the layer only adds value/owner/units per permit.
+- **Not covered** (no public data, checked 2026-10-14): Kent (login-only
+  portal), Redmond (no public search), Federal Way and Bothell (nothing on
+  MyBuildingPermit), the smaller cities, and every other WA county.
+- **Lead types** are decided by each source's exact type names, never a
+  source-side filter. An office that only publishes a broad type
+  ("BUILDING", "Building - Residential", Bellevue's BT) files it as **Other
+  building** (`building_other`) — never guessed from the description. A
+  building type nobody has sorted is reported on the page.
+- **Accuracy checks**: Whatcom against the county's monthly PDF; King County
+  against its monthly "Issued Permits" spreadsheet (`kingCountyReport.js`,
+  which also fills value/city/units, never over the pull's values); every
+  source's month so far found a second way (`recheck`, or a second read).
+- **Contractor phones**: the WA L&I registry (data.wa.gov `m8qx-ubtq`,
+  `contractors.js`) — by license number (MyBuildingPermit, Seattle) or by
+  exact business name with exactly one active license. Kept in its own
+  collections and shown beside the source's contact, never written into it.
+- **Contractor pop-up**: a license number + Enter in the Permits search box
+  (or a contractor's name on a permit) opens `ContractorDialog` — the
+  registry's license, insurance, bonds and principals read live
+  (`GET /api/permits/contractor/:license`), their permits here (the
+  `license` list filter, which also covers names the registry matched), and
+  "Open customer profile" if they're a customer, else "Create customer",
+  which opens the Add customer form pre-filled (`customerPrefillFor`,
+  CustomerForm's `prefill`; the registry has no email — one from a permit is
+  used when there is one). A save without details never overwrites a
+  details-derived field (Bellevue's BB/BM category: `categoryIfNew`).
+- First pull per source reads 6 months; then 5:00 AM Pacific daily, re-reading
+  30 days (details re-read once a week where `detailsFreshDays` is set).
+  Admin-only permissions to start (`view_permits`, `export_permits`,
+  `refresh_permits`).
 
 ## Forms: one template, everywhere
 
@@ -281,12 +322,13 @@ letter PDF and what its Hide boxes leave out — `holdLetter.js`), and
 the Holds screens' rules in `src/utils/holdView.js` (tabs, expiry wording,
 which buttons each permission shows, the price editor, Extend's picks, cart
 slabs offered to a hold, history wording, the Edit form's patch).
-Permits do too: `src/permits/*.test.js` (which permit types are leads for the
-county and Bellingham, exact copying of each source's fields, both readers'
-stop/short-answer rules, the morning pull, the county report check, the
-API with an in-memory MongoDB, and the list's PDF) and the screen's rules in
-`src/utils/permitView.js` (including the place filter and the PDF's rows,
-heading and link).
+Permits do too: `src/permits/*.test.js` (every source's lead types and the
+contract each source keeps, exact copying of each source's fields, every
+reader's stop/short-answer rules against fake servers, the morning pull, both
+counties' report checks, the WA contractor registry, the API and its county
+filter with an in-memory MongoDB, and the list's PDF) and the screen's rules
+in `src/utils/permitView.js` (the county tree, the place filter, registry
+phones, and the PDF's rows, heading and link).
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 
