@@ -536,11 +536,12 @@ body.light-theme-active .board-grid-scroll-container,
 /* The week scrolls inside this box (2026-10-09) so the board can open on
    today's row (BoardGrid) with the drivers' names and the Day column pinned —
    scrolled to Friday you still see whose column is whose. Sized to the screen
-   under the toolbar; never shorter than a couple of days. */
+   under the toolbar; never shorter than a couple of days. No
+   overscroll-behavior: contain — scrolling past Friday has to carry on to
+   Pending and Cancelled below; with contain it stopped dead (2026-10-14). */
 .board-grid-scroll-container {
   overflow: auto;
   max-height: max(420px, calc(100dvh - 190px));
-  overscroll-behavior: contain;
 }
 
 .manifest-dispatch-table thead th {
