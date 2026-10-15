@@ -40,6 +40,9 @@ import { accessibleLocations } from '../../utils/locationFilter';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config/api';
 import { checkInPdfUrl } from '../../utils/checkInExport';
+import {
+  canCheckIn, canSeeCheckInQr, canEditCheckInDetails, canDeleteCheckIn, canEditSelectionSheet, canEmailSelectionSheet
+} from '../../utils/checkInAccess';
 import SelectionSheetForm, { SHEET_DRAFT_KEY } from './selectionSheet/SelectionSheetForm';
 import './CheckInLogPanel.css';
 
@@ -126,9 +129,12 @@ const CheckInLogPanel = ({
   locations = [],
 }) => {
   const { user } = useAuth();
-  const hasEditPermission = !user || user.permissions?.includes('manage_checkins');
-  const hasDeletePermission = !user || user.permissions?.includes('delete_checkins');
-  const hasSendEmailPermission = !user || user.permissions?.includes('send_checkin_email');
+  // Users & Roles → Check In (src/utils/checkInAccess.js), the same rules the API checks.
+  const hasEditPermission = canEditCheckInDetails(user);
+  const hasDeletePermission = canDeleteCheckIn(user);
+  const canEditSheet = canEditSelectionSheet(user);
+  const hasSendEmailPermission = canEmailSelectionSheet(user);
+  const showCheckInButton = canCheckIn(user);
   const hasMultipleLocations = user && (user.assignedLocations?.includes('*') || user.assignedLocations?.length > 1);
   // What the location filter offers: the branches this person is assigned
   // (every branch for '*') — the same set the check-in API scopes them to.
@@ -138,8 +144,9 @@ const CheckInLogPanel = ({
   // lock to their first assigned branch, which isn't always where they work.
   const checkInPageHref = filterLocation ? `/checkin?location=${encodeURIComponent(filterLocation)}` : '/checkin';
   const isAdmin = !user || user.role === 'admin' || user.role === 'Admin' || user.permissions?.includes('*') || user.permissions?.includes('admin');
-  // The QR / NFC self check-in codes: a Users & Roles permission (2026-10-08).
-  const canSeeQrCodes = isAdmin || !!user?.permissions?.includes('view_checkin_qr');
+  // The QR / NFC self check-in codes: a Users & Roles permission (2026-10-08),
+  // and nothing else — the admin role holds it like any other switch.
+  const canSeeQrCodes = canSeeCheckInQr(user);
 
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
@@ -263,6 +270,7 @@ const CheckInLogPanel = ({
             </div>
           </div>
 
+          {showCheckInButton && (
           <a
             href={
               checkInPageHref
@@ -274,6 +282,7 @@ const CheckInLogPanel = ({
             <Plus size={14} />
             <span>Check-In</span>
           </a>
+          )}
         </div>
 
         <div className="clp-header-actions">
@@ -406,6 +415,7 @@ const CheckInLogPanel = ({
             </div>
           )}
 
+          {showCheckInButton && (
           <a
             href={
               checkInPageHref
@@ -417,6 +427,7 @@ const CheckInLogPanel = ({
             <Plus size={14} />
             <span>Check-In</span>
           </a>
+          )}
 
           {(onExport || canSeeQrCodes) && (
             <div className="clp-filter-container clp-more" ref={moreRef}>
@@ -814,7 +825,7 @@ const CheckInLogPanel = ({
           draft={sheet.draft}
           owner={draftOwner}
           locations={locations}
-          canEdit={hasEditPermission}
+          canEdit={canEditSheet}
           canEmail={hasSendEmailPermission}
           onClose={closeSheet}
           onSaved={() => onRefresh?.()}

@@ -23,7 +23,7 @@ let mongo;
 let app;
 let id;
 
-const STAFF = { username: 'krish', permissions: ['manage_checkins', 'view_checkins', 'send_checkin_email'], assignedLocations: ['*'] };
+const STAFF = { username: 'krish', permissions: ['create_checkins', 'view_checkins', 'manage_checkins', 'edit_selection_sheets', 'send_checkin_email'], assignedLocations: ['*'] };
 const put = (body, user = STAFF) => request(app).put(`/api/checkin/${id}`).set('x-test-user', JSON.stringify(user)).send(body);
 // The rep's email is sent in the background after the response.
 const settle = () => new Promise((r) => setTimeout(r, 30));
@@ -203,5 +203,44 @@ describe.runIf(!NEW_VISITS_START_WITH_REP)('a new check-in while starting reps a
     const res = await request(app).post('/api/checkin/self')
       .send({ ...visitor, location: 'Spokane', formLoadTime: Date.now() - 5000 }).expect(201);
     expect(res.body.data.salesRep || '').toBe('');
+  });
+});
+
+// Users & Roles → Check In (src/utils/checkInAccess.js, 2026-10-14): checking
+// a visitor in, editing their details and editing the sheet are three switches.
+describe('Check In permissions on the routes', () => {
+  const only = (...permissions) => ({ username: 'pat', permissions, assignedLocations: ['*'] });
+  const visitor = { name: 'New Visitor', phone: '2065550100', location: 'Seattle' };
+  const checkInAs = (user) => request(app).post('/api/checkin').set('x-test-user', JSON.stringify(user)).send(visitor);
+  const lookupAs = (user) => request(app).get('/api/checkin/lookup?phone=2065550142').set('x-test-user', JSON.stringify(user));
+
+  it('checking a visitor in needs "Check in", not Edit details', async () => {
+    await checkInAs(only('manage_checkins', 'edit_selection_sheets', 'view_checkins')).expect(403);
+    await checkInAs(only('create_checkins')).expect(201);
+  });
+
+  it('so does the check-in page\'s phone autofill', async () => {
+    await lookupAs(only('view_checkins', 'manage_checkins')).expect(403);
+    const res = await lookupAs(only('create_checkins')).expect(200);
+    expect(res.body).toMatchObject({ found: true, name: 'Pat Visitor' });
+  });
+
+  it('editing the sheet needs "Edit sheets"; Edit details alone is refused and saves nothing', async () => {
+    await put({ specialNotes: 'Changed' }, only('manage_checkins')).expect(403);
+    expect((await OfficeCheckIn.findById(id).lean()).specialNotes).toBe('Old notes');
+    await put({ specialNotes: 'Changed' }, only('edit_selection_sheets')).expect(200);
+    expect((await OfficeCheckIn.findById(id).lean()).specialNotes).toBe('Changed');
+  });
+
+  it('editing visitor details needs "Edit details"; Edit sheets alone is refused', async () => {
+    await put({ name: 'Renamed' }, only('edit_selection_sheets')).expect(403);
+    expect((await OfficeCheckIn.findById(id).lean()).name).toBe('Pat Visitor');
+    await put({ name: 'Renamed' }, only('manage_checkins')).expect(200);
+    expect((await OfficeCheckIn.findById(id).lean()).name).toBe('Renamed');
+  });
+
+  it('View alone edits nothing', async () => {
+    await put({ name: 'Renamed' }, only('view_checkins')).expect(403);
+    await put({ specialNotes: 'Changed' }, only('view_checkins')).expect(403);
   });
 });

@@ -109,6 +109,43 @@ request): `NEW_VISITS_START_WITH_REP = false` in `src/routes/checkIn.js`, so
 new visits and their Selection Sheets start with None until it's set back
 to `true`; customers and deliveries still use the rule.
 
+## Check In permissions: one card, one file (2026-10-14)
+
+Check In, the Check-In Log and the Selection Sheet share one Users & Roles
+card, **Check In**, with three sections: Check In (`create_checkins` — the
+Check-In button, the staff `/checkin` page, saving a check-in and its phone
+autofill; `view_checkin_qr`), Check-In Log (`view_checkins`,
+`manage_checkins` = edit visitor details, `delete_checkins`) and Selection
+Sheet (`edit_selection_sheets`, `send_checkin_email`). Every key, its section
+and the rules live in `src/utils/checkInAccess.js`; the routes, the screens,
+the side nav and the card all read it, never a hand-typed string. A save to
+`PUT /api/checkin/:id` needs the switch for what it changes
+(`missingEditPermission`: details vs. sheet fields). **A new permission for
+any of these screens goes in that file, under its section** — the card is
+built from it, and `checkInAccess.test.js` fails if a key has no switch or
+lands on another card. Kept the old key names (stored on every role);
+`CHECKIN_MIGRATION` gave both new keys once to every role holding
+`manage_checkins` (owner's call: everyone keeps what they had). The
+**Kiosk** role (seeded if missing, not a system role) holds only
+`create_checkins`: a front-desk tablet's login. Anyone who can check in but
+open no Sales page (`isCheckInOnly` in `navPins.js`) is sent from `/sales`
+and `/` to `/checkin`, and the header hides its Sales link.
+
+## No route answers "any login" (2026-10-14)
+
+`authenticate` also accepts **website customer** logins (permissions `[]`)
+and check-in-only ones (Kiosk), so a route with only `authenticate` /
+`verifyAnyAuth` / `verifyToken` is open to them. Every Sales route needs a
+permission check. A list many screens share (customer dropdown,
+`/api/salesreps`, product admin and uploads, the ZIP lookup) uses
+`requireSalesPage` — staff with at least one side-nav page (`hasSalesPage`
+in `navPins.js`). Lost Sales uses `lostSaleAccess.js` (the screen's own
+rules, shared with the server), the Dashboard's team resources need
+`view_dashboard`, and a customer's quick note `view_customers`. Left open on
+purpose: `/api/admin/locations` (already trimmed for non-managers; the
+check-in page needs it), `/api/user/me`, change-password, the pinned-tabs
+and route-planner-filter routers (the user's own data).
+
 ## Permits: sources and the accuracy rules (2026-10-11; King County 2026-10-14)
 
 Sales · Permits (`src/permits/`) pulls building permits each morning from 15
@@ -163,6 +200,12 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   CustomerForm's `prefill`; the registry has no email — one from a permit is
   used when there is one). A save without details never overwrites a
   details-derived field (Bellevue's BB/BM category: `categoryIfNew`).
+  The pop-up's design lives in the claude.ai artifact **Contractor pop-up
+  canvas** (https://claude.ai/artifact/4PJbcGViAbRqCCb6iqKUkC — desktop,
+  tablet, phone, and the customer / expired / saved-copy / not-found /
+  loading / error states). It's built on `FormModal`; **any change to
+  `ContractorDialog.jsx` or its `.pm-ct-*` CSS also updates that artifact**
+  (owner's rule, 2026-10-14).
 - First pull per source reads 6 months; then 5:00 AM Pacific daily, re-reading
   30 days (details re-read once a week where `detailsFreshDays` is set).
   Admin-only permissions to start (`view_permits`, `export_permits`,
@@ -185,12 +228,6 @@ CustomSelect incident below.
 so it would stop clipping inside a scrolling sidebar (`RoutePlannerTab`). That
 fix was correct for the sidebar, but had an unintended side effect nobody
 checked for: once the popover is a DOM sibling of `document.body`'s other
-  The pop-up's design lives in the claude.ai artifact **Contractor pop-up
-  canvas** (https://claude.ai/artifact/4PJbcGViAbRqCCb6iqKUkC — desktop,
-  tablet, phone, and the customer / expired / saved-copy / not-found /
-  loading / error states). It's built on `FormModal`; **any change to
-  `ContractorDialog.jsx` or its `.pm-ct-*` CSS also updates that artifact**
-  (owner's rule, 2026-10-14).
 children instead of a descendant of the trigger's container, its stacking
 order versus modals is decided purely by comparing `z-index` numbers — it no
 longer inherits "on top of my modal" for free just by being nested inside it.
@@ -294,7 +331,11 @@ unsaved-changes check, the save body with its stale-save
 `expectedUpdatedAt`, the escaped print page,
 price per SF in cents and when it prints, internal vs printed notes, and
 what the server accepts and when it re-emails the rep) plus its save/email
-routes (`src/routes/checkIn.test.js`, in-memory MongoDB) and the email's
+routes (`src/routes/checkIn.test.js`, in-memory MongoDB, including which
+Check In switch each route needs), and the Check In permissions
+(`src/utils/checkInAccess.js`: the sections, the Users & Roles card built
+from them, what a check-in save needs, the migration) and Lost Sales access
+(`src/utils/lostSaleAccess.js`), and the email's
 contents (`src/services/emailService.test.js`),
 and Add / Edit customer's rules (`src/utils/customerForm.js`: stored option
 values, new-customer defaults, record ↔ form mapping, required fields, the

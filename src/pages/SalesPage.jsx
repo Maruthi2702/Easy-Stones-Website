@@ -29,6 +29,7 @@ import CustomerSidebar from '../components/sales/CustomerSidebar';
 import usePinnedTabs from '../components/sales/usePinnedTabs';
 import useNavOrder from '../components/sales/useNavOrder';
 import { pinnedDefaultTab } from '../utils/navPins';
+import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
@@ -205,7 +206,7 @@ const SalesPage = () => {
 
         const perms = currentUser?.permissions || [];
         if (perms.includes('view_dashboard')) return 'dashboard';
-        if (perms.includes('view_checkins')) return 'checkin';
+        if (perms.includes(CHECKIN_PERMISSIONS.VIEW_LOG)) return 'checkin';
         if (perms.includes('view_pricelist')) return 'pricelist';
         if (perms.includes('view_customers')) return 'customers';
         if (perms.includes('view_lost_sales')) return 'lost_sales';
@@ -1672,7 +1673,7 @@ const SalesPage = () => {
             const tabPermMap = {
                 dashboard: 'view_dashboard',
                 customers: 'view_customers',
-                checkin: 'view_checkins',
+                checkin: CHECKIN_PERMISSIONS.VIEW_LOG,
                 pricelist: 'view_pricelist',
                 users: 'manage_users'
             };
@@ -3356,7 +3357,7 @@ const SalesPage = () => {
                     </div>
                 )}
 
-                {!authLoading && currentUser?.permissions && crmTab === 'checkin' && currentUser.permissions.includes('view_checkins') && (
+                {!authLoading && currentUser?.permissions && crmTab === 'checkin' && canViewCheckInLog(currentUser) && (
                     <ErrorBoundary key="checkin-log-view">
                         {renderCheckInLogView()}
                     </ErrorBoundary>

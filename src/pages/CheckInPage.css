@@ -1290,6 +1290,11 @@ body.light-theme-active .checkin-container .waiver-text {
   margin-bottom: 1rem;
 }
 
+/* No "Check in" permission (checkInAccess.js): same card, a warning icon. */
+.success-icon.checkin-no-access-icon {
+  color: #f59e0b;
+}
+
 .success-message h2 {
   font-size: 2rem;
   font-weight: 900;

@@ -15,6 +15,7 @@ import LocationFilter from '../shared/LocationFilter';
 import { useLocationFilter } from '../shared/useLocationFilter';
 import { accessibleLocations } from '../../utils/locationFilter';
 import { formatDate } from '../../utils/dateUtils';
+import { canEditLostSales, canDeleteLostSales } from '../../utils/lostSaleAccess';
 import './LostSalesTab.css';
 
 const LostSalesTab = ({
@@ -47,11 +48,9 @@ const LostSalesTab = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
-  // Permission Checks: View, Edit, Delete
-  const userPermissions = currentUser?.permissions || [];
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'director' || !currentUser;
-  const canEdit = isAdmin || userPermissions.includes('edit_lost_sales') || userPermissions.includes('manage_lost_sales');
-  const canDelete = isAdmin || userPermissions.includes('delete_lost_sales') || userPermissions.includes('manage_lost_sales');
+  // Permission Checks: Edit, Delete — the same rules the API checks (lostSaleAccess.js).
+  const canEdit = !currentUser || canEditLostSales(currentUser);
+  const canDelete = !currentUser || canDeleteLostSales(currentUser);
 
   // Sync with Backend API
   const fetchLostSalesFromApi = async () => {

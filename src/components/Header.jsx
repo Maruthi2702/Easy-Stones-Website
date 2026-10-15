@@ -1,6 +1,7 @@
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, LogOut, X, Package, Warehouse, TrendingUp, ShieldCheck, PhoneCall } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { isCheckInOnly } from '../utils/navPins';
 import { useState, useEffect } from 'react';
 import './Header.css';
 
@@ -8,6 +9,8 @@ const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  // Not for a check-in-only account (the Kiosk role): /sales has nothing for it.
+  const showSalesLink = !!user && user.type === 'internal' && !isCheckInOnly(user);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   // A gold Login button pointing at the page you are already on.
   const onLoginPage = ['/login', '/customer/login', '/admin/login'].includes(location.pathname);
@@ -73,7 +76,7 @@ const Header = () => {
             <Warehouse size={16} />
             <span>Live Inventory</span>
           </a>
-          {user && user.type === 'internal' && (
+          {showSalesLink && (
             <NavLink to="/sales" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <TrendingUp size={16} />
               <span>Sales</span>
@@ -138,7 +141,7 @@ const Header = () => {
             <Warehouse size={18} />
             <span>Live Inventory</span>
           </a>
-          {user && user.type === 'internal' && (
+          {showSalesLink && (
             <NavLink
               to="/sales"
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}

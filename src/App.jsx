@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProductProvider } from './context/ProductContext';
 import { API_URL } from './config/api';
 import { lazyRetry } from './utils/lazyRetry';
+import { isCheckInOnly } from './utils/navPins';
 import './App.css';
 
 // Lazy load pages
@@ -47,8 +48,18 @@ const HomeRedirect = () => {
   if (isAdminUser) {
     return <Navigate to="/sales" replace />;
   }
+  if (isCheckInOnly(user)) {
+    return <Navigate to="/checkin" replace />;
+  }
 
   return <HomePage />;
+};
+
+// A check-in-only account (the Kiosk role) has nothing on /sales, so wherever
+// it was sent from — login, a bookmark, the header — it opens the check-in page.
+const SalesHome = () => {
+  const { user } = useAuth();
+  return isCheckInOnly(user) ? <Navigate to="/checkin" replace /> : <SalesPage />;
 };
 
 // Protected Route component
@@ -140,7 +151,7 @@ function App() {
                     path="/sales"
                     element={
                       <ProtectedRoute>
-                        <SalesPage />
+                        <SalesHome />
                       </ProtectedRoute>
                     }
                   />

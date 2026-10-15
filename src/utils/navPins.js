@@ -15,6 +15,8 @@
 
 import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions.js';
 import { PERMITS } from '../permits/permissions.js';
+import { canCheckIn, canViewCheckInLog } from './checkInAccess.js';
+import { canViewLostSales } from './lostSaleAccess.js';
 
 const has = (user, perm) => !!user?.permissions?.includes(perm);
 const isAdmin = (user) => user?.role === 'admin';
@@ -41,7 +43,7 @@ export const NAV_ITEMS = [
   { id: 'permits', label: 'Permits', section: 'sales', canSee: (u) => has(u, PERMITS.VIEW) },
   {
     id: 'lost_sales', label: 'Lost Sales', section: 'sales',
-    canSee: (u) => has(u, 'view_lost_sales') || has(u, 'manage_lost_sales') || isAdmin(u) || !u
+    canSee: (u) => canViewLostSales(u) || !u
   },
   {
     id: 'delivery_schedule', label: 'Delivery Schedule', section: 'operations',
@@ -51,7 +53,7 @@ export const NAV_ITEMS = [
     id: 'daily_report', label: 'Daily Report', section: 'operations',
     canSee: (u) => has(u, 'view_daily_report') || isAdmin(u) || !u
   },
-  { id: 'checkin', label: 'Check-In Log', section: 'operations', canSee: (u) => has(u, 'view_checkins') },
+  { id: 'checkin', label: 'Check-In Log', section: 'operations', canSee: (u) => canViewCheckInLog(u) },
   { id: 'pricelist', label: 'Price List', section: 'products', canSee: (u) => has(u, 'view_pricelist') },
   {
     id: 'inventory_analysis', label: 'Inventory Analysis', section: 'products',
@@ -139,6 +141,20 @@ export const visibleSections = (user, order = null) =>
   orderedSections(order)
     .map((section) => ({ ...section, items: section.items.filter((item) => item.canSee(user)) }))
     .filter((section) => section.items.length > 0);
+
+/**
+ * Whether `user` can open at least one Sales page. The server's shared lists
+ * (customers dropdown, staff list, product admin…) answer only these accounts
+ * — never a customer's login or a check-in-only one (requireSalesPage).
+ */
+export const hasSalesPage = (user) => !!user && visibleSections(user).length > 0;
+
+/**
+ * Someone whose only job here is checking visitors in — Users & Roles → Check
+ * In → "Check in" and no Sales page at all, like the Kiosk role (2026-10-14).
+ * /sales has nothing to show them, so they're sent to the check-in page.
+ */
+export const isCheckInOnly = (user) => !!user && canCheckIn(user) && !hasSalesPage(user);
 
 /**
  * The rail's sections: visibleSections, except Home is always there — it's

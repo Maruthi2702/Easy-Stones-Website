@@ -4,9 +4,23 @@ import { summarizeRole } from '../../../utils/userForm';
 import { FREIGHT, CARRIERS } from '../../../accounting/permissions';
 import { CART, HOLDS } from '../../../holds/permissions';
 import { PERMITS } from '../../../permits/permissions';
+import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import {
     ArrowLeftRight, Boxes, CheckCheck, Download, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
 } from 'lucide-react';
+
+// The Check In card's switches, by key. Which section each sits in, and the
+// order, is CHECKIN_SECTIONS'.
+const C = CHECKIN_PERMISSIONS;
+const CHECKIN_ACTIONS = {
+    [C.CHECK_IN]:     { label: 'Check in',     icon: Plus,     desc: 'Check visitors in: the Check-In button and the staff check-in page' },
+    [C.QR]:           { label: 'QR / NFC',     icon: QrCode,   desc: 'See the QR / NFC self check-in codes (in the log’s More menu)' },
+    [C.VIEW_LOG]:     { label: 'View',         icon: Eye,      desc: 'View and export check-in log records, and open selection sheets read-only' },
+    [C.EDIT_DETAILS]: { label: 'Edit details', icon: Pencil,   desc: 'Edit a check-in’s visitor details and branch' },
+    [C.DELETE]:       { label: 'Delete',       icon: Trash2,   desc: 'Delete check-in records' },
+    [C.EDIT_SHEET]:   { label: 'Edit sheets',  icon: FileCog,  desc: 'Edit selection sheets: materials, prices, notes and sales rep' },
+    [C.EMAIL_SHEET]:  { label: 'Email sheets', icon: MailIcon, desc: 'Email selection sheets to customers, and send the sales rep their copy' }
+};
 
 // Granular per-page permission definitions.
 // Each page has a set of "actions" that map to backend permission keys.
@@ -55,19 +69,15 @@ export const PAGE_PERMISSIONS = [
         ]
     },
     {
+        // Check In, the Check-In Log and Selection Sheets share this one card
+        // (2026-10-14): its sections and keys come from src/utils/checkInAccess.js,
+        // and a new permission for any of those screens goes there.
         id: 'checkins',
-        page: 'Check-In Log',
+        page: 'Check In',
         icon: Clock,
-        description: 'Office check-ins and selection sheets',
+        description: 'Checking visitors in, the Check-In Log and selection sheets',
         color: '#d79b00',
-        actions: [
-            { key: 'view_checkins',     label: 'View',             icon: Eye,      desc: 'View check-in log records (read-only without Edit)' },
-            // The QR / NFC self check-in codes, in the log's More menu (2026-10-08).
-            { key: 'view_checkin_qr',   label: 'QR / NFC',         icon: QrCode,   desc: 'See the QR / NFC self check-in codes in the More menu' },
-            { key: 'send_checkin_email',label: 'Selection Sheet',  icon: MailIcon, desc: 'Send selection sheet emails to customers' },
-            { key: 'manage_checkins',   label: 'Edit',             icon: Pencil,   desc: 'Edit check-in details and selection sheets' },
-            { key: 'delete_checkins',   label: 'Delete',           icon: Trash2,   desc: 'Delete check-in records' }
-        ]
+        actions: CHECKIN_SECTIONS.flatMap((section) => section.keys.map((key) => ({ key, section: section.title, ...CHECKIN_ACTIONS[key] })))
     },
     {
         id: 'pricelist',
