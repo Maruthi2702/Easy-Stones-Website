@@ -8,10 +8,11 @@ import { permitsMeta, listPermits, exportPermits, refreshPermits } from '../../.
 import { SOURCES, CATEGORIES, categoryLabel, pacificNow } from '../../../permits/permitRules';
 import {
   DATE_RANGES, DEFAULT_RANGE, rangeFrom, formatDay, formatMoney, sizeLine, sourceStatus, splitChecks, checksAttention,
-  permitExportRows, SORT_OPTIONS, DEFAULT_SORT, placeGroups, placeQuery,
+  permitExportRows, SORT_OPTIONS, DEFAULT_SORT, placeGroups, placeQuery, placeOffered, countySummary, cleanCounties,
   permitPdfUrl, permitFileName
 } from '../../../utils/permitView';
 import { SortHeader, LeadCell, PermitDetail } from './PermitParts';
+import CountyFilter from './CountyFilter';
 import ChecksDialog from './ChecksDialog';
 import './Permits.css';
 
@@ -34,14 +35,26 @@ function useDismiss(ref, open, close) {
   }, [ref, open, close]);
 }
 
+// The county filter is remembered per browser (a convenience — it works without it).
+const COUNTIES_KEY = 'permits.counties';
+const readCounties = () => {
+  try { return cleanCounties(JSON.parse(window.localStorage.getItem(COUNTIES_KEY) || '[]')); } catch { return []; }
+};
+const saveCounties = (list) => {
+  try { window.localStorage.setItem(COUNTIES_KEY, JSON.stringify(list)); } catch { /* private window: not remembered */ }
+};
+
 /**
- * Sales · Permits: building permits issued in Whatcom County (the county and
- * the City of Bellingham), pulled each morning, newest first. Rules in
- * src/permits/permitRules.js and src/utils/permitView.js; the server checks
- * every permission again.
+ * Sales · Permits: building permits issued in King and Whatcom counties (each
+ * county's own office and its cities), pulled each morning, newest first.
+ * Rules in src/permits/permitRules.js (one file per source under
+ * src/permits/rules/) and src/utils/permitView.js; the server checks every
+ * permission again.
  */
 export default function PermitsTab({ sidebarToggle = null }) {
   const [meta, setMeta] = useState(null);
+  const [counties, setCountiesState] = useState(readCounties);
+  const setCounties = (list) => { setCountiesState(list); saveCounties(list); };
   const [place, setPlace] = useState('');
   const [category, setCategory] = useState('');
   const [range, setRange] = useState(DEFAULT_RANGE);
@@ -75,9 +88,16 @@ export default function PermitsTab({ sidebarToggle = null }) {
     return () => clearTimeout(t);
   }, [search]);
 
+  const groups = useMemo(() => placeGroups(meta?.cities, {
+    counties, cityCounties: meta?.cityCounties, ...(meta?.sources && { sourceIds: meta.sources.map((s) => s.id) })
+  }), [meta, counties]);
+  // A city or issuer outside the ticked counties is no longer offered — drop it.
+  const placeNow = meta && !placeOffered(place, groups) ? '' : place;
+  if (placeNow !== place) setPlace(placeNow);
+
   const query = useMemo(() => ({
-    ...placeQuery(place), category, q: debounced, from: rangeFrom(range), to: pacificNow().day, sort
-  }), [place, category, debounced, range, sort]);
+    counties: counties.join(','), ...placeQuery(placeNow), category, q: debounced, from: rangeFrom(range), to: pacificNow().day, sort
+  }), [counties, placeNow, category, debounced, range, sort]);
 
   // A new view goes back to page 1.
   const filterKey = JSON.stringify(query);
@@ -146,9 +166,9 @@ export default function PermitsTab({ sidebarToggle = null }) {
   const { top: topChecks, rest: olderChecks } = splitChecks(meta?.checks || [], now);
   const attention = checksAttention(meta?.sources, meta?.checks, now);
   const needsLook = attention.some((a) => a.tone !== 'busy');
-  const filtered = Boolean(debounced || place);
-  const filtersSet = Boolean(place || range !== DEFAULT_RANGE || sort !== DEFAULT_SORT);
-  const clearFilters = () => { setPlace(''); setRange(DEFAULT_RANGE); setSort(DEFAULT_SORT); };
+  const filtered = Boolean(debounced || place || counties.length);
+  const filtersSet = Boolean(counties.length || place || range !== DEFAULT_RANGE || sort !== DEFAULT_SORT);
+  const clearFilters = () => { setCounties([]); setPlace(''); setRange(DEFAULT_RANGE); setSort(DEFAULT_SORT); };
 
   return (
     <div className="pm">
@@ -171,6 +191,10 @@ export default function PermitsTab({ sidebarToggle = null }) {
               </button>
               {popover === 'filter' ? (
                 <div className="pm-pop pm-filters" role="dialog" aria-label="Filters">
+                  <div className="pm-field">
+                    <span>County · <span className="pm-cf-sum">{countySummary(counties)}</span></span>
+                    <CountyFilter selected={counties} onChange={setCounties} />
+                  </div>
                   <label className="pm-field">
                     <span>Issued</span>
                     <select className="pm-select" value={range} onChange={(e) => setRange(e.target.value)}>
@@ -179,9 +203,9 @@ export default function PermitsTab({ sidebarToggle = null }) {
                   </label>
                   <label className="pm-field">
                     <span>City</span>
-                    <select className="pm-select" value={place} onChange={(e) => setPlace(e.target.value)}>
+                    <select className="pm-select" value={placeNow} onChange={(e) => setPlace(e.target.value)}>
                       <option value="">All cities</option>
-                      {placeGroups(meta?.cities).map((g) => (
+                      {groups.map((g) => (
                         <optgroup key={g.label} label={g.label}>
                           {g.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </optgroup>
@@ -283,7 +307,7 @@ export default function PermitsTab({ sidebarToggle = null }) {
           {data && !items.length ? (
             <div className="pm-empty">
               <h3>{filtered || category ? 'No permits match' : 'No permits yet'}</h3>
-              {filtered || category ? 'Try another search, city or date range.' : 'The first pull reads six months back — check again in a few minutes.'}
+              {filtered || category ? 'Try another search, county, city or date range.' : 'The first pull reads six months back — check again in a few minutes.'}
             </div>
           ) : null}
           {items.length ? (
@@ -314,7 +338,7 @@ export default function PermitsTab({ sidebarToggle = null }) {
                             <td className="pm-addr">
                               <span className="pm-name">{p.address}</span>
                               <span className="pm-sub">{p.city}</span>
-                              <span className={`pm-issuer ${p.source}`}>{SOURCES[p.source]?.issuer}</span>
+                              <span className={`pm-issuer ${SOURCES[p.source]?.kind || ''}`}>{SOURCES[p.source]?.issuer}</span>
                             </td>
                             <td className="pm-work">
                               <span className="pm-desc-clamp">{p.description || p.type}</span>
@@ -348,7 +372,7 @@ export default function PermitsTab({ sidebarToggle = null }) {
                         </span>
                         <span className="pm-name">{p.address}</span>
                         <span className="pm-sub">{[p.city, p.permitNumber, formatMoney(p.valuation)].filter(Boolean).join(' · ')}</span>
-                        <span className={`pm-issuer ${p.source}`}>{SOURCES[p.source]?.issuer}</span>
+                        <span className={`pm-issuer ${SOURCES[p.source]?.kind || ''}`}>{SOURCES[p.source]?.issuer}</span>
                         <span className="pm-desc-clamp">{p.description || p.type}</span>
                       </button>
                       <div className="pm-ccard-lead"><LeadCell permit={p} /></div>

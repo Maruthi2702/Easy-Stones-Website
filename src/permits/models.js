@@ -7,9 +7,15 @@
  *   PermitRun    one pull from one source: when, how far back, what it saw,
  *                and the error if it failed. The page's "last updated" line.
  *   PermitCheck  one month of one source's permits checked permit by permit:
- *                against the county's own "Permits Issued" report once it's
- *                out, and until then (the month so far) against a second,
- *                separate search of the source.
+ *                against the county's own monthly report once it's out
+ *                (Whatcom, King County), and until then (the month so far)
+ *                against a second, separate search of the source.
+ *   Contractor   one Washington contractor license, copied from the state's
+ *                L&I registry (2026-10-14): business name, phone, address,
+ *                trade, active or not. Keyed by license number.
+ *   ContractorName  an exact business name looked up in that registry, and
+ *                the one active license it belongs to ('' when none, or more
+ *                than one) — for sources that publish names, not licenses.
  */
 import mongoose from 'mongoose';
 import { SOURCE_IDS, CATEGORY_IDS } from './permitRules.js';
@@ -23,7 +29,9 @@ const contactSchema = new Schema({
   name: { type: String, default: '' },
   phone: { type: String, default: '' },
   email: { type: String, default: '' },
-  address: { type: String, default: '' }
+  address: { type: String, default: '' },
+  // The contractor's WA L&I license number, when the source gives it (MyBuildingPermit).
+  license: { type: String, default: undefined }
 }, { _id: false });
 
 const permitSchema = new Schema({
@@ -93,6 +101,10 @@ const permitCheckSchema = new Schema({
   // 'search': the month so far, against a second, separate search of the
   // source — replaced by the report check once the county posts the report.
   method: { type: String, enum: ['report', 'search'], default: 'report' },
+  // Report permits whose value / city / units the report filled in (King County).
+  filled: { type: Number, default: 0 },
+  // Report leads the pull didn't have, saved from the report itself (King County).
+  addedFromReport: { type: [String], default: [] },
   reportTitle: { type: String, default: '' },
   reportUrl: { type: String, default: '' },
   checkedAt: { type: Date, required: true },
@@ -115,6 +127,39 @@ const permitCheckSchema = new Schema({
 
 permitCheckSchema.index({ source: 1, month: 1 }, { unique: true });
 
+const contractorSchema = new Schema({
+  license: { type: String, required: true },
+  businessName: { type: String, default: '' },
+  phone: { type: String, default: '' },
+  address: { type: String, default: '' },
+  city: { type: String, default: '' },
+  state: { type: String, default: '' },
+  zip: { type: String, default: '' },
+  licenseType: { type: String, default: '' },
+  specialty: { type: String, default: '' },
+  specialty2: { type: String, default: '' },
+  status: { type: String, default: '' },          // ACTIVE, EXPIRED, SUSPENDED… as the state writes it
+  expiresOn: { type: String, default: null },
+  principal: { type: String, default: '' },
+  ubi: { type: String, default: '' },
+  // Not in the registry when last asked (a typo on the permit, or a license since removed).
+  notFound: { type: Boolean, default: false },
+  refreshedAt: { type: Date, required: true }
+}, { collection: 'permit_contractors' });
+
+contractorSchema.index({ license: 1 }, { unique: true });
+
+const contractorNameSchema = new Schema({
+  name: { type: String, required: true },          // the exact business name, upper case
+  license: { type: String, default: '' },          // '' — no active license by that exact name, or several
+  candidates: { type: Number, default: 0 },        // active licenses found under the name
+  checkedAt: { type: Date, required: true }
+}, { collection: 'permit_contractor_names' });
+
+contractorNameSchema.index({ name: 1 }, { unique: true });
+
 export const Permit = mongoose.models.Permit || mongoose.model('Permit', permitSchema);
 export const PermitRun = mongoose.models.PermitRun || mongoose.model('PermitRun', permitRunSchema);
 export const PermitCheck = mongoose.models.PermitCheck || mongoose.model('PermitCheck', permitCheckSchema);
+export const Contractor = mongoose.models.PermitContractor || mongoose.model('PermitContractor', contractorSchema);
+export const ContractorName = mongoose.models.PermitContractorName || mongoose.model('PermitContractorName', contractorNameSchema);

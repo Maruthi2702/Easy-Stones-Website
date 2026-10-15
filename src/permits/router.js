@@ -3,16 +3,21 @@
  *
  *   app.use('/api/permits', createPermitsRouter({ authenticate, sync }));
  *
- *   GET  /meta     sources with their last run, the county report checks, cities
+ *   GET  /meta     sources with their last run, the report checks, cities (with their county)
  *   GET  /         one page of permits (filters below), newest issued first
  *   GET  /export   every permit the filters match, for Excel (up to 5,000)
  *   GET  /export.pdf  the same as a PDF (first 1,000), for View / Download as PDF
  *   POST /refresh  run the morning pull now
  *
- * Filters: source, category, from / to (issue date, YYYY-MM-DD), city,
- * minValue, q (permit #, address, description, contact names). Order:
+ * Filters: counties (comma-separated county ids, src/permits/places.js),
+ * source, category, from / to (issue date, YYYY-MM-DD), city, minValue, q
+ * (permit #, address, description, contact names). Order:
  * sort = issued_desc (default) | issued_asc | value_desc | value_asc. Every route
  * checks its own Users & Roles permission.
+ *
+ * Each contractor contact the WA L&I registry knows comes back with a
+ * `registry` record beside it (src/permits/contractors.js) — the source's own
+ * contact is never changed.
  */
 import express from 'express';
 import Customer from '../models/Customer.js';
@@ -23,8 +28,10 @@ import { buildPermitsPdf } from './permitsPdf.js';
 import { permitPdfScope, permitFileName, PERMIT_PDF_MAX_ROWS } from '../utils/permitView.js';
 import { Permit, PermitRun, PermitCheck } from './models.js';
 import {
-  SOURCES, SOURCE_IDS, CATEGORIES, CATEGORY_IDS, isDay, phoneKey, emailKey, nameKey, isPlaceholderName
+  SOURCES, SOURCE_IDS, CATEGORIES, CATEGORY_IDS, isDay, phoneKey, emailKey, nameKey, isPlaceholderName, sourcesInCounties
 } from './permitRules.js';
+import { COUNTY_IDS } from './places.js';
+import { registryLookup } from './contractors.js';
 
 const LABEL = 'permits';
 const MAX_LIMIT = 100;
@@ -33,13 +40,25 @@ const CUSTOMER_INDEX_MS = 10 * 60 * 1000;
 // A company name this short ("ABC") matches too much to be called the same business.
 const MIN_NAME_KEY = 5;
 
+/** 'king,whatcom' (or an array) as county ids; an unknown one is a 400. */
+export function countiesOf(value) {
+  const list = (Array.isArray(value) ? value : String(value ?? '').split(','))
+    .map((c) => String(c).trim().toLowerCase()).filter(Boolean);
+  for (const c of list) if (!COUNTY_IDS.includes(c)) throw new HttpError(400, 'Unknown county.');
+  return [...new Set(list)];
+}
+
 /** The Mongo filter for the list's filters; `except` leaves one out (for the per-category counts). */
 export function permitFilter(query = {}, { except = null } = {}) {
   const f = {};
   const { source, category, from, to, city, minValue, q } = query;
+  const counties = countiesOf(query.counties);
   if (source) {
     if (!SOURCE_IDS.includes(source)) throw new HttpError(400, 'Unknown source.');
-    f.source = source;
+    if (counties.length && !counties.includes(SOURCES[source].county)) f.source = { $in: [] };
+    else f.source = source;
+  } else if (counties.length) {
+    f.source = { $in: sourcesInCounties(counties) };
   }
   if (category && except !== 'category') {
     if (!CATEGORY_IDS.includes(category)) throw new HttpError(400, 'Unknown permit category.');
@@ -109,7 +128,7 @@ export function matchContacts(contacts, { byEmail, byPhone, byName }) {
   });
 }
 
-const present = (p, index) => ({
+const present = (p, index, registry) => ({
   _id: String(p._id),
   source: p.source,
   permitNumber: p.permitNumber,
@@ -129,12 +148,31 @@ const present = (p, index) => ({
   valuation: p.valuation,
   sqft: p.sqft,
   units: p.units,
-  contacts: index ? matchContacts(p.contacts, index) : p.contacts,
+  contacts: withRegistry(index ? matchContacts(p.contacts, index) : p.contacts, registry),
   detailsAt: p.detailsAt,
   sourceUrl: p.sourceUrl,
   finalOnly: p.finalOnly,
   firstSeenAt: p.firstSeenAt
 });
+
+/** Each contractor contact with what the WA registry says about it, when it knows. */
+function withRegistry(contacts, registry) {
+  if (!registry) return contacts;
+  return (contacts || []).map((c) => {
+    const r = registry(c);
+    return r ? { ...c, registry: r } : c;
+  });
+}
+
+/** The registry's records for a page of permits, as a per-contact lookup. Missing registry → no records. */
+async function registryFor(items) {
+  try {
+    return await registryLookup(items.flatMap((p) => p.contacts || []));
+  } catch (err) {
+    console.error(`[${LABEL}] contractor registry`, err);
+    return null;
+  }
+}
 
 /**
  * The list's orders. A permit with no value always sorts after the ones with
@@ -168,7 +206,8 @@ export default function createPermitsRouter({ authenticate, sync = null, custome
   router.get('/meta', authenticate, requireAll(PERMITS.VIEW), handle(async (req, res) => {
     const canRefresh = can(req.user, PERMITS.REFRESH);
     const sources = [];
-    for (const id of SOURCE_IDS) {
+    // The sources this server pulls (every source when it isn't pulling at all).
+    for (const id of sync?.sourceIds?.() || SOURCE_IDS) {
       const [last, lastOk, first] = await Promise.all([
         PermitRun.findOne({ source: id }).sort({ startedAt: -1 }).lean(),
         PermitRun.findOne({ source: id, ok: true }).sort({ startedAt: -1 }).lean(),
@@ -181,10 +220,21 @@ export default function createPermitsRouter({ authenticate, sync = null, custome
       };
       sources.push({ ...SOURCES[id], lastRun: run(last), lastOk: run(lastOk), coverageSince: first?.since || null });
     }
-    const checks = await PermitCheck.find({}).sort({ month: -1, source: -1 }).limit(12).lean();
+    // About four months of every source's checks: this month's, and the reports behind it.
+    const checks = await PermitCheck.find({}).sort({ month: -1, source: -1 }).limit(SOURCE_IDS.length * 4).lean();
     const cities = (await Permit.distinct('city')).filter(Boolean).sort((a, b) => a.localeCompare(b));
+    // Each city with the counties its permits come from, so the city list follows the county filter.
+    const bySource = await Permit.aggregate([{ $match: { city: { $nin: ['', null] } } }, { $group: { _id: { city: '$city', source: '$source' } } }]);
+    const placeCounties = new Map();
+    for (const { _id } of bySource) {
+      const county = SOURCES[_id.source]?.county;
+      if (!county) continue;
+      if (!placeCounties.has(_id.city)) placeCounties.set(_id.city, new Set());
+      placeCounties.get(_id.city).add(county);
+    }
     res.json({
       sources,
+      cityCounties: Object.fromEntries([...placeCounties].map(([city, set]) => [city, [...set].sort()])),
       checks: checks.map(({ _id, __v, ...c }) => c),
       categories: CATEGORIES,
       cities,
@@ -207,7 +257,8 @@ export default function createPermitsRouter({ authenticate, sync = null, custome
     const counts = Object.fromEntries(CATEGORY_IDS.map((id) => [id, 0]));
     for (const { _id, n } of byCategory) counts[_id] = n;
     counts.all = Object.values(counts).reduce((a, b) => a + b, 0);
-    res.json({ items: items.map((p) => present(p, index)), total, page, limit, counts });
+    const registry = await registryFor(items);
+    res.json({ items: items.map((p) => present(p, index, registry)), total, page, limit, counts });
   }, { label: LABEL }));
 
   router.get('/export', authenticate, requireAll(PERMITS.VIEW, PERMITS.EXPORT), handle(async (req, res) => {
@@ -215,7 +266,8 @@ export default function createPermitsRouter({ authenticate, sync = null, custome
     const total = await Permit.countDocuments(filter);
     if (total > MAX_EXPORT) throw new HttpError(400, `That’s ${total.toLocaleString('en-US')} permits — narrow the filters to ${MAX_EXPORT.toLocaleString('en-US')} or fewer.`);
     const [items, index] = await Promise.all([sortedPermits(filter, req.query.sort), customerIndex()]);
-    res.json({ items: items.map((p) => present(p, index)), total });
+    const registry = await registryFor(items);
+    res.json({ items: items.map((p) => present(p, index, registry)), total });
   }, { label: LABEL }));
 
   // The list as a PDF for its current filters (More menu → View as PDF /
@@ -231,12 +283,13 @@ export default function createPermitsRouter({ authenticate, sync = null, custome
         sortedPermits(filter, req.query.sort, { limit: PERMIT_PDF_MAX_ROWS }),
         customerIndex()
       ]);
+      const registry = await registryFor(items);
       const actor = actorOf(req).name;
       const generated = `Generated ${new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
       }).format(new Date())}${actor ? ` by ${actor}` : ''}`;
       const bytes = await buildPermitsPdf({
-        items: items.map((p) => present(p, index)), total, generated, scope: permitPdfScope(req.query)
+        items: items.map((p) => present(p, index, registry)), total, generated, scope: permitPdfScope(req.query)
       });
       res.set('Content-Type', 'application/pdf');
       res.set('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${permitFileName(req.query, 'pdf')}"`);

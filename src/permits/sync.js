@@ -1,54 +1,75 @@
 /**
- * The morning permit pull (2026-10-11).
+ * The morning permit pull (2026-10-11; every source the same way since
+ * 2026-10-14).
  *
  *   run()               each source in turn: read every permit issued since
  *                       the start of the window, keep the lead types, save
  *                       them by permit number (new ones added, known ones
- *                       updated), then check any new county monthly report.
- *   checkCountyReport() a month of county permits against the county's own
- *                       "Permits Issued" PDF, permit number by number.
- *   start()             the timer: the first run ever reads six months back,
- *                       straight away; after that one run a day from 5:00 AM
- *                       Pacific, re-reading the last 30 days. A server asleep
- *                       at 5 runs when it wakes; a failed run tries again 30
- *                       minutes later.
+ *                       updated); then the counties' monthly reports, each
+ *                       source's month so far, and the contractor registry.
+ *   checkCountyReport() a month of Whatcom County permits against the
+ *                       county's own "Permits Issued" PDF, number by number.
+ *   checkKingReport()   a month of King County permits against the county's
+ *                       "Issued Permits" spreadsheet, which also fills in each
+ *                       permit's value and city.
+ *   start()             the timer: a source's first run reads six months
+ *                       back, straight away; after that one run a day from
+ *                       5:00 AM Pacific, re-reading the last 30 days. A server
+ *                       asleep at 5 runs when it wakes; a failed run tries
+ *                       again 30 minutes later.
+ *
+ * A source is its rules (src/permits/rules/<id>.js, via RULES) plus a reader
+ * passed in here by the same id: `issuedSince(since)` → { rows, pages,
+ * total }, and optionally `details(id)` (one permit's contacts etc., read for
+ * leads only) and `recheck(from)` (the month-so-far check's second, separate
+ * way in; without it the check reads the source a second time). Sources with
+ * no reader aren't pulled.
  *
  * A source that fails leaves what's already saved untouched and records the
  * error, which the Permits page shows. Nothing is ever deleted.
  */
 import { Permit, PermitRun, PermitCheck } from './models.js';
 import {
-  SOURCE_IDS, categoryFor, isUnsortedBuildingType, typeLabel, whatcomPermit, bellinghamPermit, dayOf,
-  pacificNow, isDailyRunDue, runSince, reconcileReport, compareMonthToDate, permitPrefix, monthBounds, fullMonthsBetween
+  RULES, SOURCE_IDS, categoryFor, isUnsortedBuildingType, pacificNow, isDailyRunDue, runSince,
+  reconcileReport, compareMonthToDate, permitPrefix, monthBounds, fullMonthsBetween
 } from './permitRules.js';
+import { reconcileKingReport, kingReportFill, kingReportPermit } from './rules/kingCounty.js';
 
 const TICK_MS = 5 * 60 * 1000;
 const RETRY_GAP_MS = 30 * 60 * 1000;
 // A run still "going" after this long died with its server; the next one may start.
 const STALE_RUN_MS = 45 * 60 * 1000;
-// Reports checked per run, so one morning never turns into an hour of PDFs.
+// Reports checked per run, so one morning never turns into an hour of downloads.
 const REPORTS_PER_RUN = 2;
-// The county's permit-number codes for lead types, even before the app holds one of each.
+// Whatcom County's permit-number codes for lead types, even before the app holds one of each.
 const LEAD_PREFIXES = ['SFR', 'DET', 'COM'];
-// County permit pages opened at once. Each takes ~2 s on the county's server;
-// four at a time keeps the six-month pull to a few minutes without hammering it.
-const DETAIL_CONCURRENCY = 4;
+// Detail pages opened at once, unless the source says otherwise.
+const DETAIL_CONCURRENCY = 2;
 
 const withoutUndefined = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 
-function tallyUnsorted(rows, source, typeOf) {
+function tallyUnsorted(rows, id) {
+  const rule = RULES[id];
   const counts = new Map();
   for (const row of rows) {
-    const [type, sub] = typeOf(row);
-    if (isUnsortedBuildingType(source, type, sub)) {
-      const label = typeLabel(source, type, sub);
+    const [type, sub] = rule.typeOf(row);
+    if (isUnsortedBuildingType(id, type, sub)) {
+      const label = rule.labelOf ? rule.labelOf(row) : rule.typeLabel(type, sub);
       counts.set(label, (counts.get(label) || 0) + 1);
     }
   }
   return [...counts].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count);
 }
 
-export function createPermitSync({ whatcom, bellingham, reports = null, log = console, now = () => new Date() }) {
+/**
+ * `readers` maps a source id to its reader; readers may also be passed by
+ * name (`whatcom`, `bellingham`, …). `reports` is Whatcom County's report
+ * archive (countyReport.js), `kingReports` King County's (kingCountyReport.js),
+ * `contractors` the WA registry (contractors.js).
+ */
+export function createPermitSync({ readers: given = {}, reports = null, kingReports = null, contractors = null, log = console, now = () => new Date(), ...named }) {
+  const readers = { ...named, ...given };
+  const ids = SOURCE_IDS.filter((id) => readers[id]);
   let running = null;
 
   /**
@@ -71,55 +92,63 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
     return { added: r.upsertedCount, updated: r.modifiedCount };
   }
 
-  async function pullWhatcom(since) {
-    const { rows, pages, total } = await whatcom.issuedSince(since);
-    // The county issues permits every working day; an empty window means the
-    // search answered wrongly, not that nothing happened.
-    if (!rows.length) throw new Error(`Whatcom County returned no permits issued since ${since} (it reported ${total ?? 'no'} records in all)`);
-    const leads = rows.filter((row) => categoryFor('whatcom', row.CaseType));
-    // Each permit is saved as soon as its details are read, so the page fills
-    // in while a long pull runs. Ones whose details didn't load wait to the
-    // end: if none loaded at all, something is wrong and nothing is saved.
+  async function pull(id, since) {
+    const rule = RULES[id];
+    const reader = readers[id];
+    const { rows, pages, total } = await reader.issuedSince(since);
+    // Offices issue permits every working day; an empty window means the
+    // source answered wrongly, not that nothing happened.
+    if (!rows.length && !rule.mayBeEmpty) throw new Error(rule.emptyError(since, total));
+    const leads = rows.filter((row) => categoryFor(id, ...rule.typeOf(row)));
     const totals = { added: 0, updated: 0 };
-    const withoutDetails = [];
-    let next = 0;
-    const worker = async () => {
-      while (next < leads.length) {
-        const row = leads[next++];
-        let detail = null;
-        try {
-          detail = await whatcom.details(row.CaseId);
-        } catch (err) {
-          log.warn?.(`[permits] Whatcom ${row.CaseNumber}: details failed — ${err.message}`);
-        }
-        const p = whatcomPermit(row, detail);
-        if (!detail) { withoutDetails.push(p); continue; }
-        const r = await save('whatcom', [p], { detailsRead: true });
-        totals.added += r.added;
-        totals.updated += r.updated;
+    const add = (r) => { totals.added += r.added; totals.updated += r.updated; };
+    let detailErrors = 0;
+    if (reader.details) {
+      // Leads whose details were read lately are saved from the list alone
+      // (their contacts are left as they are), so a morning doesn't re-open
+      // a month of permit pages.
+      let toRead = leads;
+      let skipped = 0;
+      if (rule.detailsFreshDays) {
+        const fresh = new Date(now().getTime() - rule.detailsFreshDays * 24 * 3600 * 1000);
+        const recent = new Set(await Permit.distinct('permitNumber', { source: id, permitNumber: { $in: leads.map((r) => rule.numberOf(r)) }, detailsAt: { $gte: fresh } }));
+        const known = leads.filter((r) => recent.has(rule.numberOf(r)));
+        if (known.length) add(await save(id, known.map((row) => rule.toPermit(row, null))));
+        toRead = leads.filter((r) => !recent.has(rule.numberOf(r)));
+        skipped = known.length;
       }
-    };
-    await Promise.all(Array.from({ length: Math.min(DETAIL_CONCURRENCY, leads.length) }, worker));
-    if (leads.length && withoutDetails.length === leads.length) {
-      throw new Error(`Whatcom County wouldn’t open any of the ${leads.length} permits’ details`);
+      // Each permit is saved as soon as its details are read, so the page fills
+      // in while a long pull runs. Ones whose details didn't load wait to the
+      // end: if none loaded at all, something is wrong and nothing is saved
+      // (one new permit failing among many already read is just counted).
+      const withoutDetails = [];
+      let next = 0;
+      const worker = async () => {
+        while (next < toRead.length) {
+          const row = toRead[next++];
+          let detail = null;
+          try {
+            detail = await reader.details(rule.detailIdOf(row));
+          } catch (err) {
+            log.warn?.(`[permits] ${rule.label} ${rule.numberOf(row)}: details failed — ${err.message}`);
+          }
+          const p = rule.toPermit(row, detail);
+          if (!detail) { withoutDetails.push(p); continue; }
+          add(await save(id, [p], { detailsRead: true }));
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(rule.detailConcurrency || DETAIL_CONCURRENCY, toRead.length) }, worker));
+      if (toRead.length && withoutDetails.length === toRead.length && (toRead.length > 1 || !skipped)) throw new Error(rule.detailsError(toRead.length));
+      add(await save(id, withoutDetails));
+      detailErrors = withoutDetails.length;
+    } else {
+      add(await save(id, leads.map((row) => rule.toPermit(row))));
     }
-    const rest = await save('whatcom', withoutDetails);
+    const leadCount = leads.length;
     return {
-      saved: { added: totals.added + rest.added, updated: totals.updated + rest.updated },
-      leads: leads.length, pages, seen: rows.length, detailErrors: withoutDetails.length,
-      unsortedTypes: tallyUnsorted(rows, 'whatcom', (r) => [r.CaseType]),
-      latestIssuedOn: rows.map((r) => dayOf(r.IssueDate)).filter(Boolean).sort().pop() || null
-    };
-  }
-
-  async function pullBellingham(since) {
-    const { rows, pages } = await bellingham.issuedSince(since);
-    if (!rows.length) throw new Error(`Bellingham’s permit data has no building permits issued since ${since} — the city’s copy may have stopped updating`);
-    const permits = rows.filter((r) => categoryFor('bellingham', r.PermitType, r.PermitSubType)).map(bellinghamPermit);
-    return {
-      saved: await save('bellingham', permits), leads: permits.length, pages, seen: rows.length, detailErrors: 0,
-      unsortedTypes: tallyUnsorted(rows, 'bellingham', (r) => [r.PermitType, r.PermitSubType]),
-      latestIssuedOn: rows.map((r) => dayOf(r.ISSUED)).filter(Boolean).sort().pop() || null
+      saved: totals, leads: leadCount, pages, seen: rows.length, detailErrors,
+      unsortedTypes: tallyUnsorted(rows, id),
+      latestIssuedOn: rows.map((r) => rule.issuedDayOf(r)).filter(Boolean).sort().pop() || null
     };
   }
 
@@ -132,7 +161,7 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
     const actualKind = backfilled ? kind : 'backfill';
     const run = await PermitRun.create({ source, kind: actualKind, since, startedAt: now(), by });
     try {
-      const pulled = source === 'whatcom' ? await pullWhatcom(since) : await pullBellingham(since);
+      const pulled = await pull(source, since);
       const { added, updated } = pulled.saved;
       Object.assign(run, {
         ok: true, finishedAt: now(), pages: pulled.pages, seen: pulled.seen, leads: pulled.leads,
@@ -151,24 +180,25 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
   }
 
   /**
-   * The months to check, newest first: ones the app has whole (on or after
-   * the first backfill's start), before this month, with no clean report
-   * check yet. A month with differences is checked again on later mornings,
-   * since the county sometimes enters a permit late.
+   * A source's months to check against its county's report, newest first:
+   * ones the app has whole (on or after the first backfill's start), before
+   * this month, with no clean report check yet. A month with differences is
+   * checked again on later mornings, since a county sometimes enters a
+   * permit late.
    */
-  async function monthsToCheck() {
-    const first = await PermitRun.findOne({ source: 'whatcom', ok: true, kind: 'backfill' }).sort({ startedAt: 1 }).lean();
+  async function monthsToCheck(source) {
+    const first = await PermitRun.findOne({ source, ok: true, kind: 'backfill' }).sort({ startedAt: 1 }).lean();
     if (!first) return [];
     const thisMonth = pacificNow(now()).day.slice(0, 7);
     // A month-so-far check ('search') doesn't count: only the report is final.
-    const done = new Set((await PermitCheck.find({ source: 'whatcom', ok: true, method: { $ne: 'search' } }, 'month').lean()).map((c) => c.month));
+    const done = new Set((await PermitCheck.find({ source, ok: true, method: { $ne: 'search' } }, 'month').lean()).map((c) => c.month));
     return fullMonthsBetween(first.since, thisMonth).filter((m) => !done.has(m)).reverse();
   }
 
   async function checkCountyReport() {
-    if (!reports) return [];
+    if (!reports || !readers.whatcom) return [];
     // Every month already checked against its report: nothing to download.
-    const wanted = await monthsToCheck();
+    const wanted = await monthsToCheck('whatcom');
     if (!wanted.length) return [];
     let available;
     try {
@@ -185,7 +215,7 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
       let fields;
       try {
         const numbers = await reports.permitNumbers(report.url);
-        const { rows } = await whatcom.issuedSince(from);
+        const { rows } = await readers.whatcom.issuedSince(from);
         const [appInMonth, appHas, appNumbers] = await Promise.all([
           Permit.distinct('permitNumber', { source: 'whatcom', issuedOn: { $gte: from, $lte: to } }),
           Permit.distinct('permitNumber', { source: 'whatcom', permitNumber: { $in: numbers } }),
@@ -208,6 +238,56 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
     return results;
   }
 
+  async function checkKingReport() {
+    const source = 'king_county';
+    if (!kingReports || !readers[source]) return [];
+    const wanted = await monthsToCheck(source);
+    if (!wanted.length) return [];
+    let available;
+    try {
+      available = await kingReports.list();
+    } catch (err) {
+      log.warn?.(`[permits] King County reports: ${err.message}`);
+      return [{ source, error: err.message }];
+    }
+    const results = [];
+    for (const report of available.filter((r) => wanted.includes(r.month)).slice(0, REPORTS_PER_RUN)) {
+      const { from, to } = monthBounds(report.month);
+      const base = { source, month: report.month, reportTitle: report.title, reportUrl: report.url, checkedAt: now() };
+      let fields;
+      try {
+        const rows = await kingReports.rows(report.url);
+        const numbers = rows.map((r) => r.number);
+        const [appInMonth, held] = await Promise.all([
+          Permit.distinct('permitNumber', { source, issuedOn: { $gte: from, $lte: to } }),
+          Permit.find({ source, permitNumber: { $in: numbers } }, 'permitNumber valuation units projectName city zip parcel').lean()
+        ]);
+        const r = reconcileKingReport({ month: report.month, rows, appInMonth, appHas: held.map((p) => p.permitNumber) });
+        // What the report adds to permits the app holds (value, units, city…), never over what the pull read.
+        const byNumber = new Map(rows.map((row) => [row.number, row]));
+        const fills = held.map((p) => ({ p, fill: kingReportFill(byNumber.get(p.permitNumber), p) })).filter((x) => Object.keys(x.fill).length);
+        if (fills.length) {
+          await Permit.bulkWrite(fills.map(({ p, fill }) => ({ updateOne: { filter: { _id: p._id }, update: { $set: fill } } })), { ordered: false });
+        }
+        // Leads only the report has (MyBuildingPermit lacks a few) are saved from
+        // the report, so they're on the list — a month late, but not missed. The
+        // check still says the pull missed them; the next morning's finds them all.
+        const added = r.missingFromApp.map((n) => byNumber.get(n)).filter(Boolean).map(kingReportPermit);
+        if (added.length) await save(source, added);
+        fields = {
+          ...base, method: 'report', inReport: r.inReport, matched: r.matched, missingFromApp: r.missingFromApp, notInReport: r.notInReport,
+          datesMoved: r.datesMoved, notInCountySearch: [], notPublic: [], filled: fills.length, addedFromReport: added.map((p) => p.permitNumber), ok: r.ok, error: ''
+        };
+      } catch (err) {
+        fields = { ...base, method: 'report', ok: false, error: String(err?.message || err).slice(0, 500) };
+      }
+      await PermitCheck.findOneAndUpdate({ source, month: report.month }, { $set: fields }, { upsert: true });
+      log.log?.(`[permits] King County report ${report.month}: ${fields.ok ? 'matches' : fields.error || 'differs'}`);
+      results.push(fields);
+    }
+    return results;
+  }
+
   /**
    * The month so far, before any report exists: each source's lead permits
    * for this month found a second, separate way, against what the app saved.
@@ -216,10 +296,12 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
    *     (SFR2026, DET2026, COM2026…, and last year's codes, since a permit
    *     numbered last year can be issued now), instead of the newest-first
    *     walk the pull uses.
-   *   Bellingham — its own query of the city's layer for this month.
+   *   A source with `recheck` — its own second way in (Seattle: a second
+   *     query in permit-number order; Bellevue: MyBuildingPermit's copy).
+   *   Every other source — a second read of the month.
    *
-   * Written as the month's 'search' check; the county's report replaces it
-   * for Whatcom once the month is over and the report is posted.
+   * Written as the month's 'search' check; a county's report replaces it once
+   * the month is over and the report is posted.
    */
   async function checkMonthToDate() {
     const today = pacificNow(now()).day;
@@ -228,7 +310,9 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
     const year = Number(month.slice(0, 4));
     const inMonth = (day) => day && day >= from && day <= today;
     const results = [];
-    for (const source of SOURCE_IDS) {
+    for (const source of ids) {
+      const rule = RULES[source];
+      const reader = readers[source];
       const base = { source, month, method: 'search', checkedAt: now(), reportTitle: '', reportUrl: '' };
       let fields;
       try {
@@ -239,17 +323,22 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
           for (const prefix of prefixes) {
             for (const y of [year, year - 1]) {
               const code = `${prefix}${y}`;
-              const { rows } = await whatcom.issuedSince(from, { keyword: code });
+              const { rows } = await reader.issuedSince(from, { keyword: code });
               for (const r of rows) {
                 const n = String(r.CaseNumber || '').trim();
-                if (n.startsWith(`${code}-`) && inMonth(dayOf(r.IssueDate)) && categoryFor('whatcom', r.CaseType)) found.add(n);
+                if (n.startsWith(`${code}-`) && inMonth(rule.issuedDayOf(r)) && categoryFor('whatcom', r.CaseType)) found.add(n);
               }
             }
           }
         } else {
-          const { rows } = await bellingham.issuedSince(from);
+          const rows = reader.recheck
+            ? await reader.recheck(from)
+            : (await reader.issuedSince(from)).rows.map((r) => {
+              const [type, subtype] = rule.typeOf(r);
+              return { number: rule.numberOf(r), type, subtype, issuedOn: rule.issuedDayOf(r) };
+            });
           for (const r of rows) {
-            if (inMonth(dayOf(r.ISSUED)) && categoryFor('bellingham', r.PermitType, r.PermitSubType)) found.add(String(r.PERMIT_NO || '').trim());
+            if (inMonth(r.issuedOn) && categoryFor(source, r.type, r.subtype)) found.add(String(r.number || '').trim());
           }
         }
         const app = await Permit.distinct('permitNumber', { source, issuedOn: { $gte: from, $lte: today } });
@@ -268,12 +357,25 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
     return results;
   }
 
-  /** Every source, then the county report. One at a time; a second call waits for the first. */
+  /** The registry's records for the contractors on permits this run saw. Never fails the run. */
+  async function refreshContractors(since) {
+    if (!contractors) return null;
+    try {
+      const seen = await Permit.find({ lastSeenAt: { $gte: since } }, 'contacts').lean();
+      return await contractors.refreshFor(seen.flatMap((p) => p.contacts || []));
+    } catch (err) {
+      log.warn?.(`[permits] contractor registry: ${err.message}`);
+      return { error: err.message };
+    }
+  }
+
+  /** Every source, then the reports, the month so far and the registry. One at a time; a second call waits for the first. */
   function run({ kind = 'daily', by = '' } = {}) {
     if (running) return running;
     running = (async () => {
+      const startedAt = now();
       const out = {};
-      for (const source of SOURCE_IDS) {
+      for (const source of ids) {
         const stale = new Date(now().getTime() - STALE_RUN_MS);
         if (await PermitRun.exists({ source, finishedAt: null, startedAt: { $gt: stale } })) {
           out[source] = { skipped: 'another run is going' };
@@ -282,7 +384,9 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
         out[source] = await runSource(source, { kind, by });
       }
       out.reports = await checkCountyReport();
+      out.kingReports = await checkKingReport();
       out.monthToDate = await checkMonthToDate();
+      out.contractors = await refreshContractors(startedAt);
       return out;
     })().finally(() => { running = null; });
     return running;
@@ -293,7 +397,7 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
   /** Whether the timer should start a run now. */
   async function isDue() {
     const at = now();
-    for (const source of SOURCE_IDS) {
+    for (const source of ids) {
       if (!(await hasBackfill(source))) {
         const last = await PermitRun.findOne({ source }).sort({ startedAt: -1 }).lean();
         if (!last || at - new Date(last.startedAt) >= RETRY_GAP_MS) return true;
@@ -342,6 +446,8 @@ export function createPermitSync({ whatcom, bellingham, reports = null, log = co
     setInterval(tick, TICK_MS).unref?.();
   }
 
-  return { run, runSource, checkCountyReport, checkMonthToDate, isDue, isRunning, closeInterrupted, start };
-}
+  /** The sources this server pulls, in list order. */
+  const sourceIds = () => [...ids];
 
+  return { run, runSource, checkCountyReport, checkKingReport, checkMonthToDate, isDue, isRunning, closeInterrupted, start, sourceIds };
+}

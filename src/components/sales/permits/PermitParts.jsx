@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ExternalLink, Phone, Mail, UserCheck, ArrowDown, ArrowUp, ArrowUpDown, Copy, Check } from 'lucide-react';
-import { SOURCES, formatPhone, BELLINGHAM_PERMIT_SEARCH } from '../../../permits/permitRules';
-import { formatDay, formatMoney, sizeLine, leadContact, contactTitle, contactPerson, customerOf, nextSort, ariaSort } from '../../../utils/permitView';
+import { ExternalLink, Phone, Mail, UserCheck, ArrowDown, ArrowUp, ArrowUpDown, Copy, Check, BadgeCheck } from 'lucide-react';
+import { SOURCES, formatPhone } from '../../../permits/permitRules';
+import {
+  formatDay, formatMoney, sizeLine, leadContact, contactTitle, contactPerson, contactPhone, registryLine, customerOf, nextSort, ariaSort
+} from '../../../utils/permitView';
 
 /*
  * The Permits screen's pieces (PermitsTab.jsx): sortable column headers, a
@@ -23,9 +25,14 @@ export function SortHeader({ column, label, sort, onSort, className = '' }) {
 
 function ContactLinks({ contact }) {
   if (!contact) return null;
+  const { phone, fromRegistry } = contactPhone(contact);
   return (
     <span className="pm-links">
-      {contact.phone ? <a href={`tel:${contact.phone.replace(/[^\d+]/g, '')}`} onClick={(e) => e.stopPropagation()}><Phone size={13} aria-hidden="true" />{formatPhone(contact.phone)}</a> : null}
+      {phone ? (
+        <a href={`tel:${phone.replace(/[^\d+]/g, '')}`} onClick={(e) => e.stopPropagation()} title={fromRegistry ? 'From the WA contractor registry' : undefined}>
+          <Phone size={13} aria-hidden="true" />{formatPhone(phone)}{fromRegistry ? <span className="pm-reg-tag">WA L&amp;I</span> : null}
+        </a>
+      ) : null}
       {contact.email ? <a href={`mailto:${contact.email}`} onClick={(e) => e.stopPropagation()}><Mail size={13} aria-hidden="true" />{contact.email}</a> : null}
     </span>
   );
@@ -67,6 +74,22 @@ function CopyNumber({ number }) {
   );
 }
 
+/** What the WA L&I contractor registry says about a contractor (matched by license, or by exact name). */
+function RegistryNote({ contact }) {
+  const r = contact.registry;
+  const named = r.businessName && r.businessName.toUpperCase() !== String(contact.company || contact.name || '').toUpperCase();
+  return (
+    <span className="pm-registry">
+      <BadgeCheck size={13} aria-hidden="true" />
+      <span>
+        WA L&amp;I registry{named ? <>: <strong>{r.businessName}</strong></> : null}
+        {registryLine(r) ? ` · ${registryLine(r)}` : ''}
+        {r.matchedBy === 'name' ? ' · matched by exact name' : ''}
+      </span>
+    </span>
+  );
+}
+
 export function PermitDetail({ permit }) {
   const source = SOURCES[permit.source];
   return (
@@ -86,13 +109,13 @@ export function PermitDetail({ permit }) {
           <dt>From</dt><dd>{source?.long}</dd>
         </dl>
         {permit.sourceUrl ? (
-          <a className="pm-source-link" href={permit.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" />Open on the county’s permit site</a>
+          <a className="pm-source-link" href={permit.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" />{source?.siteLabel || 'Open on the permit site'}</a>
         ) : null}
-        {permit.source === 'bellingham' ? (
+        {!permit.sourceUrl && source?.lookup ? (
           <div className="pm-city-link">
-            <a className="pm-source-link" href={BELLINGHAM_PERMIT_SEARCH} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" />Look it up on the City of Bellingham’s permit site</a>
+            <a className="pm-source-link" href={source.lookup.url} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden="true" />{source.lookup.label}</a>
             <CopyNumber number={permit.permitNumber} />
-            <span className="pm-sub">Bellingham permits aren’t on the county’s site. The city’s site needs a free login (anyone can register); then search for this permit number.</span>
+            <span className="pm-sub">{source.lookup.note}</span>
           </div>
         ) : null}
       </div>
@@ -104,12 +127,13 @@ export function PermitDetail({ permit }) {
             {contactPerson(c) ? <span className="pm-sub">{contactPerson(c)}</span> : null}
             <ContactLinks contact={c} />
             {c.address ? <span className="pm-sub">{c.address}</span> : null}
+            {c.registry ? <RegistryNote contact={c} /> : c.license ? <span className="pm-sub">WA license {c.license}</span> : null}
             {c.customer ? <span className="pm-customer"><UserCheck size={13} aria-hidden="true" />Customer: {c.customer.name}</span> : null}
           </div>
         )) : (
-          <p className="pm-muted">{permit.source === 'whatcom' && !permit.detailsAt ? 'Contacts not loaded yet — the next morning pull reads them.' : 'No contacts listed.'}</p>
+          <p className="pm-muted">{source?.readsDetails && !permit.detailsAt ? 'Contacts not loaded yet — the next morning pull reads them.' : 'No contacts listed.'}</p>
         )}
-        {permit.source === 'bellingham' ? <p className="pm-muted pm-small">{SOURCES.bellingham.contactsNote}.</p> : null}
+        {source?.contactsNote && !source.phones ? <p className="pm-muted pm-small">{source.contactsNote}.</p> : null}
       </div>
     </div>
   );

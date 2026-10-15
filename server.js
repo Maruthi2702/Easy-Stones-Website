@@ -94,9 +94,10 @@ import { createHoldExpiry } from './src/holds/expiry.js';
 import { ALL_HOLD_PERMISSIONS } from './src/holds/permissions.js';
 import createPermitsRouter from './src/permits/router.js';
 import { createPermitSync } from './src/permits/sync.js';
-import { createWhatcomSource } from './src/permits/sources/whatcom.js';
-import { createBellinghamSource } from './src/permits/sources/bellingham.js';
+import { createPermitReaders } from './src/permits/readers.js';
 import { createCountyReports } from './src/permits/countyReport.js';
+import { createKingReports } from './src/permits/kingCountyReport.js';
+import { createContractorRegistry } from './src/permits/contractors.js';
 import { ALL_PERMIT_PERMISSIONS } from './src/permits/permissions.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
@@ -4668,13 +4669,15 @@ const runHoldExpiry = async () => {
 };
 
 
-// Permits (src/permits/) — building permits issued by Whatcom County and the
-// City of Bellingham, pulled each morning for sales leads, and each month
-// checked against the county's own "Permits Issued" report.
+// Permits (src/permits/) — building permits issued in King and Whatcom
+// counties (each county's office and its cities), pulled each morning for
+// sales leads, checked monthly against each county's own report, with
+// contractors' phones from the WA L&I registry.
 const permitSync = createPermitSync({
-  whatcom: createWhatcomSource(),
-  bellingham: createBellinghamSource(),
-  reports: createCountyReports()
+  readers: createPermitReaders(),
+  reports: createCountyReports(),
+  kingReports: createKingReports(),
+  contractors: createContractorRegistry()
 });
 app.use('/api/permits', createPermitsRouter({ authenticate, sync: permitSync }));
 
