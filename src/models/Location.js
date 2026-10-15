@@ -83,6 +83,12 @@ const locationSchema = new mongoose.Schema({
     unitOverheadPct: { type: Number, min: 0, max: 100, default: null }
   },
 
+  // The delivery board's column order for this branch, left to right, as
+  // column ids (`drv_<username>`, '__will_call__'). Empty = the default order.
+  // Set from the board's Arrange columns window, not the location form —
+  // src/utils/deliveryColumns.js has the rules.
+  deliveryColumns: { type: [String], default: [] },
+
   // "Last changed by X · date" in the edit form's footer.
   editedBy: { type: String, default: '' },
   editedAt: { type: Date, default: null }

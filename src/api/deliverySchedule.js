@@ -410,6 +410,42 @@ export function subscribeScheduleCache(callback) {
   };
 }
 
+// ── COLUMN ORDER PER BRANCH (src/utils/deliveryColumns.js) ──
+// `{ Seattle: ['drv_angel', …], … }`; a branch missing or empty uses the
+// default order. A failed read is `{}` — the board still draws, just in the
+// default order.
+export async function getDeliveryColumnOrders() {
+  try {
+    const res = await authFetch(`${API_URL}/api/delivery-columns`);
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data && typeof data === 'object' ? data : {};
+  } catch (err) {
+    console.warn('[schedule] getDeliveryColumnOrders error:', err);
+    return {};
+  }
+}
+
+/** Save a branch's order (an empty list = back to the default). Throws with the server's message. */
+export async function saveDeliveryColumnOrder(location, columns) {
+  const res = await authFetch(`${API_URL}/api/delivery-columns/${encodeURIComponent(location)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ columns })
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Couldn’t save the column order.');
+  return body.columns || [];
+}
+
+/** Hear that an admin changed a branch's column order. Returns an unsubscribe function. */
+export function subscribeDeliveryColumns(callback) {
+  initScheduleSocket();
+  const socket = scheduleCache.socket;
+  if (!socket) return () => {};
+  socket.on('delivery_columns_update', callback);
+  return () => socket.off('delivery_columns_update', callback);
+}
+
 export function getScheduleCacheSync() {
   return {
     deliveries: getActiveWeekDeliveries(),

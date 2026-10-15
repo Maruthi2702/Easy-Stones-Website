@@ -7,6 +7,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import Delivery from '../models/Delivery.js';
 import Truck from '../models/Truck.js';
 import User from '../models/User.js';
+import Location from '../models/Location.js';
 import ActivityLog from '../models/ActivityLog.js';
 
 import { stampSignaturesOnPdfBytes } from '../utils/pdfSigner.js';
@@ -23,6 +24,7 @@ import {
   SEARCH_RESULT_LIMIT, SEARCH_SCAN_LIMIT
 } from '../utils/deliverySearch.js';
 import { isDeliveryDriver } from '../utils/deliveryAccess.js';
+import { cleanColumnOrder } from '../utils/deliveryColumns.js';
 // Accounting hears which deliveries changed, so a completed 3rd-party delivery
 // gets its freight charge. Fire-and-forget: never slows or fails a save here.
 import { deliveriesChanged } from '../accounting/hooks.js';
@@ -425,6 +427,38 @@ export default function createDeliveriesRouter({
       res.json(updated);
     } catch {
       res.status(500).json({ error: 'Failed to save trucks' });
+    }
+  });
+
+  // ── Column order per branch (src/utils/deliveryColumns.js) ──────────────
+  // Everyone who sees the board reads every branch's order ({ Seattle: [...] });
+  // only admins (manage_users, the switch that edits locations) set one. An
+  // empty list puts the branch back on the default order. Open boards hear
+  // `delivery_columns_update` and read the list again — the event carries only
+  // the branch name, so it says nothing to a socket that can't read the board.
+  router.get('/delivery-columns', authenticate, canViewDeliveries, async (req, res) => {
+    try {
+      const locations = await Location.find({}, { name: 1, deliveryColumns: 1 }).lean();
+      res.json(Object.fromEntries(locations.map((l) => [l.name, l.deliveryColumns || []])));
+    } catch {
+      res.status(500).json({ error: 'Failed to load the column order' });
+    }
+  });
+
+  router.put('/delivery-columns/:location', authenticate, canViewDeliveries, requirePermission('manage_users'), async (req, res) => {
+    try {
+      const columns = cleanColumnOrder(req.body?.columns);
+      if (!columns) return res.status(400).json({ error: 'columns must be a list of column ids' });
+      const location = await Location.findOneAndUpdate(
+        { name: req.params.location },
+        { $set: { deliveryColumns: columns } },
+        { new: true, projection: { name: 1, deliveryColumns: 1 } }
+      ).lean();
+      if (!location) return res.status(404).json({ error: 'Location not found' });
+      req.app.get('io')?.emit('delivery_columns_update', { location: location.name });
+      res.json({ location: location.name, columns: location.deliveryColumns });
+    } catch {
+      res.status(500).json({ error: 'Failed to save the column order' });
     }
   });
 
