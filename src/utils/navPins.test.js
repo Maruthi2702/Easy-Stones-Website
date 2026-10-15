@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   NAV_ITEMS, MAX_PINNED_TABS, visibleSections, railSections, sectionOf, isOnePageSection,
   sanitizeNavOrder, orderedSections, navOrderOf, isDefaultNavOrder, moveInList, sanitizePinnedTabs, visiblePinnedTabs,
-  pinnedDefaultTab, togglePinnedTab, makeDefaultTab
+  pinnedDefaultTab, togglePinnedTab, makeDefaultTab, isCheckInOnly, hasSalesPage
 } from './navPins.js';
 
 const rep = { role: 'sales_rep', permissions: ['view_customers', 'view_route_planner', 'view_daily_report'] };
@@ -140,5 +140,38 @@ describe('admin nav order', () => {
     expect(moveInList(['a', 'b', 'c'], 0, 1)).toEqual(['b', 'a', 'c']);
     expect(moveInList(['a', 'b'], 0, -1)).toEqual(['a', 'b']);
     expect(moveInList(['a', 'b'], 1, 1)).toEqual(['a', 'b']);
+  });
+});
+
+describe('isCheckInOnly — the Kiosk role', () => {
+  it('is someone who can check visitors in and open no Sales page', () => {
+    expect(isCheckInOnly({ role: 'kiosk', permissions: ['create_checkins'] })).toBe(true);
+    expect(isCheckInOnly({ role: 'kiosk', permissions: ['create_checkins', 'view_checkin_qr'] })).toBe(true);
+  });
+
+  it('is not anyone with a page to open, the Check-In Log included', () => {
+    expect(isCheckInOnly({ role: 'csr', permissions: ['create_checkins', 'view_checkins'] })).toBe(false);
+    expect(isCheckInOnly({ role: 'admin', permissions: ['create_checkins'] })).toBe(false); // Lost Sales etc. open for admin
+    expect(isCheckInOnly({ role: 'x', permissions: ['create_checkins', 'view_customers'] })).toBe(false);
+  });
+
+  it('is not someone who cannot check in, or nobody', () => {
+    expect(isCheckInOnly({ role: 'driver', permissions: [] })).toBe(false);
+    expect(isCheckInOnly(null)).toBe(false);
+  });
+});
+
+describe('hasSalesPage — who the shared server lists answer', () => {
+  it('is anyone with a page in the side nav, a driver included', () => {
+    expect(hasSalesPage({ role: 'driver', permissions: ['view_delivery_schedule', 'delivery_driver_view'] })).toBe(true);
+    expect(hasSalesPage({ role: 'csr', permissions: ['view_checkins'] })).toBe(true);
+    expect(hasSalesPage({ role: 'admin', permissions: [] })).toBe(true);
+  });
+
+  it('is not a kiosk, a website customer, a role with nothing, or nobody', () => {
+    expect(hasSalesPage({ role: 'kiosk', permissions: ['create_checkins'] })).toBe(false);
+    expect(hasSalesPage({ role: 'customer', type: 'customer', permissions: [] })).toBe(false);
+    expect(hasSalesPage({ role: 'x', permissions: [] })).toBe(false);
+    expect(hasSalesPage(null)).toBe(false);
   });
 });

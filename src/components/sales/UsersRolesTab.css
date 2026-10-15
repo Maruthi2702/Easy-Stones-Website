@@ -1334,6 +1334,20 @@ body.light-theme-active .user-inactive-badge,
     padding: 0.75rem 0;
 }
 
+/* A section heading inside a card with sections (Check In). */
+.perm-action-section {
+    padding: 0.9rem 1.5rem 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.perm-action-section:first-child {
+    padding-top: 0.25rem;
+}
+
 .perm-action-row {
     display: flex;
     align-items: center;

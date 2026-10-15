@@ -7,6 +7,7 @@ import { sendCheckInAlertEmail, sendSelectionSheetEmail } from '../services/emai
 import { stripPhone, formatPhoneForDisplay, maskPhone } from '../utils/phoneUtils.js';
 import { letterheadFor } from '../utils/locationForm.js';
 import { cleanSelections, repEmailSnapshot } from '../utils/selectionSheet.js';
+import { CHECKIN_PERMISSIONS as P, missingEditPermission, canEmailSelectionSheet } from '../utils/checkInAccess.js';
 import { startingRepFor, branchSalesRepOf, displayNameOf } from '../utils/salesReps.js';
 import { homeLocationOf } from '../utils/locationFilter.js';
 import { byBranchClock } from '../utils/checkInClock.js';
@@ -284,12 +285,11 @@ export default function createCheckInRouter({ authenticate, requirePermission })
   const router = express.Router();
 
   // Submit check-in (requires authenticated kiosk/staff session)
-  // Gated on manage_checkins — every role that can view the check-in log and
-  // actually work the front desk (csr, sales_rep, manager, director, admin)
-  // holds it, but a role with no check-in permissions at all (e.g. driver)
-  // used to be able to create records here with just a login, since this was
-  // the one check-in route with no requirePermission check.
-  router.post('/', authenticate, requirePermission('manage_checkins'), async (req, res) => {
+  // Gated on Check In → "Check in" (create_checkins, checkInAccess.js). A role
+  // with no check-in permissions (e.g. driver) used to be able to create
+  // records here with just a login; then it rode on manage_checkins (editing)
+  // until Check In got its own switch (2026-10-14).
+  router.post('/', authenticate, requirePermission(P.CHECK_IN), async (req, res) => {
     try {
       const {
         name,
@@ -490,11 +490,11 @@ export default function createCheckInRouter({ authenticate, requirePermission })
   // GET /lookup?phone=... — has this phone number checked in before?
   // Powers the staff form's autofill: type a returning visitor's number and
   // their name/fabricator info comes back instead of being retyped. Open to
-  // anyone who can submit a check-in (same `authenticate`-only gate as the POST
-  // above) rather than gated behind view_checkins, since this is part of
-  // filling the form out, not the check-in log/report those permissions guard.
+  // anyone who can submit a check-in (the same gate as the POST above) rather
+  // than gated behind view_checkins, since this is part of filling the form
+  // out, not the check-in log/report those permissions guard.
   // Registered ahead of GET /:id so 'lookup' is never read as an id.
-  router.get('/lookup', authenticate, async (req, res) => {
+  router.get('/lookup', authenticate, requirePermission(P.CHECK_IN), async (req, res) => {
     try {
       const digits = stripPhone(req.query.phone);
       if (digits.length < 10) {
@@ -533,7 +533,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
     }
   });
 
-  router.get('/', authenticate, requirePermission('view_checkins'), async (req, res) => {
+  router.get('/', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
     try {
       const { page, limit, search, month, year, location } = req.query;
 
@@ -581,7 +581,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
   // signs it in and errors come back as a short readable page, not JSON.
   // ?download=1 saves it; otherwise it opens in the browser's PDF viewer.
   // Registered before GET /:id, which would otherwise take "export.pdf".
-  router.get('/export.pdf', authenticate, requirePermission('view_checkins'), async (req, res) => {
+  router.get('/export.pdf', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
     const fail = (status, message) => res.status(status).type('text/plain; charset=utf-8').send(message);
     try {
       const { search, month, year, location, download, tz } = req.query;
@@ -613,7 +613,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
   });
 
   // Check-in stats: today count + this month count (viewer-timezone aware)
-  router.get('/stats', authenticate, requirePermission('view_checkins'), async (req, res) => {
+  router.get('/stats', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
     try {
       const now = new Date();
 
@@ -649,7 +649,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
   });
 
   // Get specific check-in
-  router.get('/:id', authenticate, requirePermission('view_checkins'), async (req, res) => {
+  router.get('/:id', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
     try {
       const checkIn = await OfficeCheckIn.findById(req.params.id);
       if (!checkIn) {
@@ -669,12 +669,18 @@ export default function createCheckInRouter({ authenticate, requirePermission })
   // Update specific check-in
   // Previously unauthenticated — allowing anyone to tamper with visitor records and,
   // via salesRepEmail, use the endpoint as an open relay for our email provider.
-  // Gated on manage_checkins alone (not view_checkins) so "View" in Users & Roles
-  // is actually read-only, matching its label — view_checkins used to also be
-  // accepted here, which meant granting "View" silently granted edit too. CSRs
-  // and sales reps edit selections as part of their normal workflow, so they
-  // hold manage_checkins by default alongside view_checkins.
-  router.put('/:id', authenticate, requirePermission('manage_checkins'), async (req, res) => {
+  // Never on view_checkins, so "View" in Users & Roles is actually read-only
+  // (it used to be accepted here, silently granting edit too). Since
+  // 2026-10-14 what a save needs depends on what it changes: visitor details
+  // and branch need "Edit details" (manage_checkins), the Selection Sheet's
+  // fields need "Edit sheets" (edit_selection_sheets) — missingEditPermission.
+  router.put('/:id', authenticate, async (req, res) => {
+    const missing = missingEditPermission(req.user, req.body);
+    if (missing) {
+      return res.status(403).json({
+        error: `Access denied. Your role ("${req.user?.role}") does not have the "${missing}" permission.`
+      });
+    }
     try {
       const {
         name,
@@ -792,7 +798,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
       // Roles, who may still be named on an old sheet, and never an outside
       // address), and only when the editor may send selection sheets at all —
       // the same permission POST /:id/send-email requires.
-      const canSendSheet = (req.user?.permissions || []).includes('send_checkin_email');
+      const canSendSheet = canEmailSelectionSheet(req.user);
       const repIsActiveStaff = checkIn.salesRepEmail
         ? await User.exists({ email: new RegExp(`^${escapeRegex(checkIn.salesRepEmail)}$`, 'i'), isActive: { $ne: false } })
         : null;
@@ -818,7 +824,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
   });
 
   // Send selection sheet email
-  router.post('/:id/send-email', authenticate, requirePermission('send_checkin_email'), async (req, res) => {
+  router.post('/:id/send-email', authenticate, requirePermission(P.EMAIL_SHEET), async (req, res) => {
     try {
       // withPrices: the "Send with prices" button. Off unless asked for, so a
       // visitor's copy never carries prices by accident.
@@ -854,7 +860,7 @@ export default function createCheckInRouter({ authenticate, requirePermission })
   });
 
   // Delete specific check-in
-  router.delete('/:id', authenticate, requirePermission('delete_checkins'), async (req, res) => {
+  router.delete('/:id', authenticate, requirePermission(P.DELETE), async (req, res) => {
     try {
       const checkIn = await OfficeCheckIn.findById(req.params.id);
       if (!checkIn) {

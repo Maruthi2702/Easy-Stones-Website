@@ -99,6 +99,9 @@ import { createCountyReports } from './src/permits/countyReport.js';
 import { createKingReports } from './src/permits/kingCountyReport.js';
 import { createContractorRegistry } from './src/permits/contractors.js';
 import { ALL_PERMIT_PERMISSIONS } from './src/permits/permissions.js';
+import { CHECKIN_MIGRATION } from './src/utils/checkInAccess.js';
+import { hasSalesPage } from './src/utils/navPins.js';
+import { canViewLostSales, canEditLostSales, canDeleteLostSales } from './src/utils/lostSaleAccess.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
@@ -433,6 +436,12 @@ if (!process.env.JWT_SECRET) {
   );
 }
 const JWT_SECRET = process.env.JWT_SECRET;
+// How long a sign-in lasts, for staff and customers alike: the token and its
+// cookie expire together. 10 hours (was 6, 2026-10-14) so a front-desk
+// Kiosk tablet logged in at opening lasts the working day; it matches the
+// 10-hour inactivity sign-out in AuthContext.jsx.
+const SESSION_HOURS = 10;
+const SESSION_MS = SESSION_HOURS * 60 * 60 * 1000;
 
 // Neutralise regex metacharacters before interpolating user input into a RegExp.
 // Without this a search for "(" throws, and a crafted pattern can pin the CPU.
@@ -598,7 +607,7 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
             'manage_customer_accounts',
-            'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email', 'view_checkin_qr',
+            'create_checkins', 'view_checkins', 'manage_checkins', 'edit_selection_sheets', 'delete_checkins', 'send_checkin_email', 'view_checkin_qr',
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
             'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report',
@@ -620,7 +629,7 @@ async function startServer() {
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers', 'delete_customers',
             'manage_customer_accounts',
-            'view_checkins', 'manage_checkins', 'delete_checkins', 'send_checkin_email', 'view_checkin_qr',
+            'create_checkins', 'view_checkins', 'manage_checkins', 'edit_selection_sheets', 'delete_checkins', 'send_checkin_email', 'view_checkin_qr',
             'view_pricelist', 'manage_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
             'view_daily_report', 'edit_daily_report', 'submit_daily_report', 'reopen_daily_report',
@@ -638,7 +647,7 @@ async function startServer() {
           displayName: 'Manager',
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers',
-            'view_checkins', 'manage_checkins', 'send_checkin_email', 'delete_checkins',
+            'create_checkins', 'view_checkins', 'manage_checkins', 'edit_selection_sheets', 'send_checkin_email', 'delete_checkins',
             'view_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales', 'delete_lost_sales',
             'view_daily_report', 'edit_daily_report', 'submit_daily_report',
@@ -655,7 +664,7 @@ async function startServer() {
           displayName: 'Sales Representative',
           permissions: [
             'view_dashboard', 'view_customers', 'manage_customers',
-            'view_checkins', 'manage_checkins', 'send_checkin_email',
+            'create_checkins', 'view_checkins', 'manage_checkins', 'edit_selection_sheets', 'send_checkin_email',
             'view_pricelist', 'manage_users', 'view_product_prices',
             'view_lost_sales', 'edit_lost_sales',
             'view_crossover_sheet', 'add_crossover_sheet', 'edit_crossover_sheet',
@@ -669,7 +678,7 @@ async function startServer() {
           name: 'csr',
           displayName: 'CSR',
           permissions: [
-            'view_checkins', 'manage_checkins', 'send_checkin_email', 'view_pricelist',
+            'create_checkins', 'view_checkins', 'manage_checkins', 'edit_selection_sheets', 'send_checkin_email', 'view_pricelist',
             'view_lost_sales', 'view_crossover_sheet', 'view_inventory_analysis',
             'view_delivery_schedule', 'edit_delivery_schedule'
           ],
@@ -682,6 +691,16 @@ async function startServer() {
             'view_delivery_schedule', 'delivery_driver_view'
           ],
           isSystem: true
+        },
+        {
+          // A front-desk tablet's login (2026-10-14): checks visitors in and
+          // nothing else. With no Sales page, /sales sends it straight to
+          // /checkin (navPins.js isCheckInOnly). Not a system role, so it can
+          // be edited or deleted under Users & Roles like any custom one.
+          name: 'kiosk',
+          displayName: 'Kiosk',
+          permissions: ['create_checkins'],
+          isSystem: false
         }
       ];
 
@@ -801,21 +820,30 @@ async function startServer() {
       // already allowed, once (recorded in seededPermissions like the grants
       // above), so nobody loses access on the day it ships and switching one off
       // afterwards sticks.
-      const VISIT_ACTION_MIGRATION = [
+      // Check In (2026-10-14) split the same way: saving a check-in and editing
+      // a Selection Sheet both rode on manage_checkins, so every role holding
+      // it gets "Check in" and "Edit sheets" once (CHECKIN_MIGRATION) — kiosk
+      // accounts' custom roles included.
+      const ACTION_MIGRATIONS = [
         { from: 'manage_customers', grant: ['add_visits', 'edit_own_visits', 'delete_own_visits'] },
-        { from: 'delete_customers', grant: ['delete_own_visits'] }
+        { from: 'delete_customers', grant: ['delete_own_visits'] },
+        ...CHECKIN_MIGRATION
       ];
-      const migratedPerms = [...new Set(VISIT_ACTION_MIGRATION.flatMap(m => m.grant))];
+      const migratedPerms = [...new Set(ACTION_MIGRATIONS.flatMap(m => m.grant))];
       for (const role of await Role.find({})) {
         const seeded = new Set(role.seededPermissions || []);
         const pending = migratedPerms.filter(p => !seeded.has(p));
         if (pending.length === 0) continue;
-        const earned = new Set(VISIT_ACTION_MIGRATION.filter(m => role.permissions.includes(m.from)).flatMap(m => m.grant));
+        const sources = ACTION_MIGRATIONS.filter(m => role.permissions.includes(m.from));
+        const earned = new Set(sources.flatMap(m => m.grant));
         const missing = pending.filter(p => earned.has(p) && !role.permissions.includes(p));
         role.permissions.push(...missing);
         role.seededPermissions = [...seeded, ...pending];
         await role.save();
-        if (missing.length) console.log(`🔑 Granted ${role.name}: ${missing.join(', ')} (from its Customers permissions)`);
+        if (missing.length) {
+          const from = [...new Set(sources.filter(m => m.grant.some(p => missing.includes(p))).map(m => m.from))];
+          console.log(`🔑 Granted ${role.name}: ${missing.join(', ')} (from ${from.join(', ')})`);
+        }
       }
 
       // manage_delivery_schedule was an orphaned permission: seeded onto the
@@ -1291,6 +1319,20 @@ const requireAnyPermission = (...permissions) => (req, res, next) => {
   next();
 };
 
+// Lists many Sales screens share (the customer dropdown, the staff list, the
+// product admin…) used to answer any login — a website customer's or a
+// check-in-only kiosk's included. They now answer staff who can open at least
+// one Sales page (hasSalesPage in src/utils/navPins.js, the side nav's rules).
+const requireSalesPage = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Not authenticated. Please log in.' });
+  }
+  if (req.user.type === 'customer' || !hasSalesPage(req.user)) {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
+  next();
+};
+
 // Legacy aliases — kept so any remaining code using old names still works
 // during the transition. These will be removed in a future cleanup.
 const verifyToken    = authenticate;
@@ -1420,7 +1462,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
         // role intentionally omitted — DB is the source of truth
       },
       JWT_SECRET,
-      { expiresIn: '6h' }
+      { expiresIn: `${SESSION_HOURS}h` }
     );
 
     // Set HTTP-only cookie
@@ -1428,7 +1470,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 6 * 60 * 60 * 1000 // 6 hours
+      maxAge: SESSION_MS
     });
 
     const dbRole = await Role.findOne({ name: user.role });
@@ -2212,7 +2254,8 @@ app.use('/api/user/me/route-planner-filters', createRoutePlannerFiltersRouter({ 
 app.use('/api/user/me/pinned-tabs', createPinnedTabsRouter({ authenticate }));
 // The side nav's admin-set order, for everyone (src/routes/navOrder.js).
 app.use('/api/nav-order', createNavOrderRouter({ authenticate, requirePermission }));
-app.use('/api/geocode', createGeocodeRouter({ authenticate }));
+// The ZIP lookup calls Google (billed): staff with a Sales page only.
+app.use('/api/geocode', createGeocodeRouter({ authenticate: [authenticate, requireSalesPage] }));
 
 // Contact form endpoint
 app.post('/api/contact', async (req, res) => {
@@ -2288,7 +2331,7 @@ app.post('/api/customer/register', async (req, res) => {
     const token = jwt.sign(
       { id: customer._id, type: 'customer' },
       JWT_SECRET,
-      { expiresIn: '6h' }
+      { expiresIn: `${SESSION_HOURS}h` }
     );
 
     // Set cookie
@@ -2296,7 +2339,7 @@ app.post('/api/customer/register', async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 6 * 60 * 60 * 1000 // 6 hours
+      maxAge: SESSION_MS
     });
 
     res.status(201).json({
@@ -2448,7 +2491,7 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
         // role intentionally omitted — DB is the source of truth
       },
       JWT_SECRET,
-      { expiresIn: '6h' }
+      { expiresIn: `${SESSION_HOURS}h` }
     );
 
     // Set cookie
@@ -2456,7 +2499,7 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 6 * 60 * 60 * 1000 // 6 hours
+      maxAge: SESSION_MS
     });
 
     console.log(`✅ Login successful for ${email} as ${accountType}`);
@@ -2625,8 +2668,9 @@ app.get('/api/customers', authenticate, requirePermission('view_customers'), asy
 });
 
 // Get ALL customers for dropdown selection (minimal fields)
-// Accessible by ALL authenticated users regardless of specific role permissions
-app.get('/api/customers/dropdown', authenticate, async (req, res) => {
+// Every customer dropdown reads this (useCustomerOptions), on many screens, so
+// it answers anyone with a Sales page — not a website customer or a kiosk.
+app.get('/api/customers/dropdown', authenticate, requireSalesPage, async (req, res) => {
   try {
     const cached = cacheHit('customerDropdown');
     if (cached) return res.json(cached);
@@ -3324,7 +3368,7 @@ app.post('/api/customers/:customerId/contacts', authenticate, requirePermission(
 // The staff directory (names, usernames, emails, roles) — for staff screens
 // only. authenticate also admits customer logins, which used to be handed
 // the whole list.
-app.get('/api/salesreps', authenticate, async (req, res) => {
+app.get('/api/salesreps', authenticate, requireSalesPage, async (req, res) => {
   if (req.user?.type === 'customer') {
     return res.status(403).json({ error: 'Access denied.' });
   }
@@ -3423,7 +3467,9 @@ app.post('/api/auth/change-password', verifyToken, async (req, res) => {
 // ============================================
 
 // Get all dashboard resources (Support folder navigation)
-app.get('/api/sales-dashboard/resources', verifyAnyAuth, async (req, res) => {
+// The Dashboard's team resources: open to whoever can open the Dashboard
+// (view_dashboard), which is where they're listed, uploaded and changed.
+app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view_dashboard'), async (req, res) => {
   try {
     const { parentId } = req.query;
     const query = parentId ? { parentId } : { parentId: null };
@@ -3443,7 +3489,7 @@ app.get('/api/sales-dashboard/resources', verifyAnyAuth, async (req, res) => {
 });
 
 // Get single resource (with full content)
-app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res) => {
+app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), async (req, res) => {
   try {
     const resource = await SalesDashboardResource.findById(req.params.id).populate('uploadedBy', 'username');
     if (!resource) {
@@ -3456,7 +3502,7 @@ app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res) =>
 });
 
 // Upload a new resource (File, Link, or Folder)
-app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('file'), async (req, res) => {
+app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_dashboard'), uploadResources.single('file'), async (req, res) => {
   try {
     const { name, type, content: linkContent, isFolder, parentId, thumbnail } = req.body;
 
@@ -3528,7 +3574,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, uploadResources.single('f
 });
 
 // Update dashboard resource
-app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, uploadResources.single('file'), async (req, res) => {
+app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), uploadResources.single('file'), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, type, content: linkContent, parentId, thumbnail } = req.body;
@@ -3594,7 +3640,7 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, uploadResources.sin
 });
 
 // Delete dashboard resource (Recursive for folders)
-app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, async (req, res) => {
+app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), async (req, res) => {
   try {
     const resourceId = req.params.id;
     const resource = await SalesDashboardResource.findById(resourceId);
@@ -5565,7 +5611,7 @@ app.use('/api/inventory-analysis', createInventoryAnalysisRouter({
 // ============================================
 
 // Admin: Get lightweight product list (names only)
-app.get('/api/admin/products/list', verifyToken, async (req, res) => {
+app.get('/api/admin/products/list', verifyToken, requireSalesPage, async (req, res) => {
   try {
     const products = await Product.find()
       .select('id name category collection availability image') // Include image for sidebar thumbnails
@@ -5579,7 +5625,7 @@ app.get('/api/admin/products/list', verifyToken, async (req, res) => {
 });
 
 // Admin: Get full product details by ID
-app.get('/api/admin/products/:id', verifyToken, async (req, res) => {
+app.get('/api/admin/products/:id', verifyToken, requireSalesPage, async (req, res) => {
   try {
     const product = await Product.findOne({ id: parseInt(req.params.id) });
     if (!product) {
@@ -5626,8 +5672,9 @@ app.put(['/api/customers/:id/password', '/api/admin/customers/:id'], verifyToken
   }
 });
 
-// Update customer quick note
-app.patch('/api/customers/:id/quick-note', verifyAnyAuth, async (req, res) => {
+// Update customer quick note — the box on the customer's details, which
+// opens for view_customers (GET /api/customers/:id), so saving needs the same.
+app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('view_customers'), async (req, res) => {
   try {
     const { quickNote } = req.body;
 
@@ -5668,8 +5715,14 @@ const canAccessLostSaleLocation = (user, location) => {
   return assigned.includes('*') || !location || assigned.includes(location);
 };
 
+// Users & Roles → Lost Sales, by the screen's own rules (lostSaleAccess.js).
+// These routes used to answer any login, a customer's or a kiosk's included.
+const allowLostSales = (may) => (req, res, next) => (
+  req.user?.type !== 'customer' && may(req.user) ? next() : res.status(403).json({ error: 'Access denied.' })
+);
+
 // GET /api/lost-sales: Fetch the lost sales for the branches this person may see
-app.get('/api/lost-sales', verifyAnyAuth, async (req, res) => {
+app.get('/api/lost-sales', verifyAnyAuth, allowLostSales(canViewLostSales), async (req, res) => {
   try {
     const list = await LostSale.find(lostSaleLocationQuery(req.user)).sort({ date: -1, createdAt: -1 }).lean();
     res.json(list);
@@ -5680,7 +5733,7 @@ app.get('/api/lost-sales', verifyAnyAuth, async (req, res) => {
 });
 
 // POST /api/lost-sales: Create a lost sale entry
-app.post('/api/lost-sales', verifyAnyAuth, async (req, res) => {
+app.post('/api/lost-sales', verifyAnyAuth, allowLostSales(canEditLostSales), async (req, res) => {
   try {
     const data = req.body;
     const slabsCount = Number(data.slabsCount) || 1;
@@ -5726,7 +5779,7 @@ app.post('/api/lost-sales', verifyAnyAuth, async (req, res) => {
 });
 
 // PUT /api/lost-sales/:id: Update a lost sale entry
-app.put('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
+app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), async (req, res) => {
   try {
     const data = req.body;
     const slabsCount = Number(data.slabsCount) || 1;
@@ -5779,7 +5832,7 @@ app.put('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
 });
 
 // DELETE /api/lost-sales/:id: Delete a lost sale entry
-app.delete('/api/lost-sales/:id', verifyAnyAuth, async (req, res) => {
+app.delete('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canDeleteLostSales), async (req, res) => {
   try {
     const deleted = await LostSale.findOneAndDelete({ _id: req.params.id, ...lostSaleLocationQuery(req.user) });
     if (!deleted) {
@@ -6168,7 +6221,7 @@ const processBase64Images = async (imagesArray, folder) => {
 // request never gets this far into parsing/buffering a file at all, not just
 // rejected after the work is already done. Was reachable with no auth
 // whatsoever, letting anyone push files to this app's Cloudinary account.
-app.post('/api/upload', verifyToken, upload.single('image'), async (req, res) => {
+app.post('/api/upload', verifyToken, requireSalesPage, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -6219,7 +6272,7 @@ app.post('/api/upload', verifyToken, upload.single('image'), async (req, res) =>
 // API endpoint to delete image from Cloudinary
 // Was reachable with no auth at all — anyone who knew or guessed a Cloudinary
 // URL on this account could delete it, no ownership check, nothing.
-app.post('/api/upload/delete', verifyToken, async (req, res) => {
+app.post('/api/upload/delete', verifyToken, requireSalesPage, async (req, res) => {
   try {
     const { imageUrl } = req.body;
 
@@ -6280,7 +6333,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME) {
 // Was reachable with no auth at all: a single unauthenticated POST could
 // upsert the entire live product catalog — every price, every description —
 // since this does a bulk upsert on whatever array the request body sends.
-app.post('/api/products/save', verifyToken, async (req, res) => {
+app.post('/api/products/save', verifyToken, requireSalesPage, async (req, res) => {
   try {
     const { products } = req.body;
 

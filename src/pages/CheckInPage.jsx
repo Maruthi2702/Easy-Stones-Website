@@ -10,6 +10,7 @@ import { formatPhoneInput } from '../utils/phoneUtils';
 import { formatTitleCase } from '../utils/textUtils';
 import { useAuth } from '../context/AuthContext';
 import { homeLocationOf } from '../utils/locationFilter';
+import { canCheckIn } from '../utils/checkInAccess';
 import { useNavigate } from 'react-router-dom';
 import './CheckInPage.css';
 
@@ -189,7 +190,9 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
     loadLocations();
   }, [user, isSelf]);
 
-  useEffect(() => { authFetch(`${API_URL}/api/salesreps`).catch(() => {}); }, []);
+  // Wakes a cold server before the first check-in. The health check, not the
+  // staff list: a Kiosk login may not read that (requireSalesPage).
+  useEffect(() => { fetch(`${API_URL}/api/health`).catch(() => {}); }, []);
 
   // Auto-reset for success
   const [resetTimer, setResetTimer] = useState(6);
@@ -574,6 +577,25 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
             )}
           </div>
         )}
+      </div>
+    );
+  }
+
+  // Users & Roles → Check In → "Check in" (checkInAccess.js). Without it the
+  // save is refused, so say so up front rather than after the form is filled.
+  if (!canCheckIn(user)) {
+    return (
+      <div className={`checkin-container ${theme}-theme`}>
+        <div className="checkin-simple-header">
+          <h1 className="checkin-title-text">Visitor Check-In</h1>
+        </div>
+        <div className="checkin-card">
+          <div className="success-message">
+            <AlertTriangle size={64} className="success-icon checkin-no-access-icon" />
+            <h2>You can’t check visitors in</h2>
+            <p>Ask an admin to turn on Check In → “Check in” for your role under Users &amp; Roles.</p>
+          </div>
+        </div>
       </div>
     );
   }

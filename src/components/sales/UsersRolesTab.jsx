@@ -633,12 +633,15 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                 </div>
 
                                                 <div className="perm-popup-actions">
-                                                    {pagePopup.actions.map(action => {
+                                                    {pagePopup.actions.map((action, i) => {
                                                         const ActionIcon = action.icon;
                                                         const isEnabled = editedPermissions.includes(action.key);
+                                                        // A card with sections (Check In) heads each one.
+                                                        const startsSection = action.section && action.section !== pagePopup.actions[i - 1]?.section;
                                                         return (
+                                                            <React.Fragment key={action.key}>
+                                                            {startsSection && <div className="perm-action-section">{action.section}</div>}
                                                             <div
-                                                                key={action.key}
                                                                 className={`perm-action-row ${isEnabled ? 'enabled' : ''}`}
                                                                 onClick={() => handlePermissionToggle(action.key)}
                                                             >
@@ -653,6 +656,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                                     <div className="perm-toggle-knob" />
                                                                 </div>
                                                             </div>
+                                                            </React.Fragment>
                                                         );
                                                     })}
                                                 </div>
