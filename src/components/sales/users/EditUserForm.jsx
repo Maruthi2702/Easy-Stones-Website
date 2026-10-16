@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Mail, AlertCircle, UserX, UserCheck } from 'lucide-react';
+import { Mail, AlertCircle, UserX, UserCheck, Lock, LockOpen } from 'lucide-react';
 import FormModal from '../../shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, PasswordInput, SegmentedToggle } from '../../shared/form/FormControls';
 import { goToField, describedBy } from '../../shared/form/formFocus';
@@ -14,7 +14,7 @@ import { locationNames } from '../../../utils/locationFilter';
 import { prettifyUsername } from '../../../utils/textUtils';
 import {
     generateTempPassword, validateUserEdit, userEditFields, userToFormValues, lastChangedText,
-    countChangedFields, FIELD_LABELS
+    countChangedFields, FIELD_LABELS, lockedUntilTime
 } from '../../../utils/userForm';
 import './AddUserForm.css';
 
@@ -30,6 +30,9 @@ import './AddUserForm.css';
  *
  * Sign-in: keep the current password, set a temporary one they must replace
  * at next sign-in, or email a link to choose a new one (PUT signInReset).
+ * An account locked by too many wrong passwords shows when it lifts and an
+ * "Unlock now" button (POST …/unlock) — saved straight away, not with the
+ * form. Saving a reset unlocks it too.
  */
 
 const SIGN_IN_OPTIONS = [
@@ -48,6 +51,9 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
     const [serverErrors, setServerErrors] = useState({});
     const [formError, setFormError] = useState('');
     const [handover, setHandover] = useState(null);
+    // 'idle' | 'busy' | 'done' — Unlock now, which saves on its own.
+    const [unlockState, setUnlockState] = useState('idle');
+    const lockTime = useMemo(() => lockedUntilTime(user), [user]);
 
     const name = String(user.displayName || '').trim() || prettifyUsername(user.username);
 
@@ -127,6 +133,25 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
             setFormError('Couldn’t reach the server. Check your connection and try again.');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const unlock = async () => {
+        setUnlockState('busy');
+        setFormError('');
+        try {
+            const res = await authFetch(`${API_URL}/api/admin/users/${user._id}/unlock`, { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setUnlockState('idle');
+                setFormError(data.message || 'Could not unlock this account. Try again.');
+                return;
+            }
+            setUnlockState('done');
+            onSaved?.(data.user);
+        } catch {
+            setUnlockState('idle');
+            setFormError('Couldn’t reach the server. Check your connection and try again.');
         }
     };
 
@@ -254,6 +279,22 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
             </FormSection>
 
             <FormSection number={4} title="Sign-in">
+                {lockTime && unlockState !== 'done' && (
+                    <div className="fm-note-box" role="status" style={{ flexWrap: 'wrap', borderColor: 'var(--fm-err-bd)' }}>
+                        <Lock size={16} aria-hidden="true" style={{ flex: 'none', color: 'var(--fm-err-bd)' }} />
+                        <span style={{ flex: '1 1 200px' }}>Locked after too many wrong passwords — unlocks by itself at {lockTime}.</span>
+                        <button type="button" className="fm-btn fm-btn-small" onClick={unlock} disabled={unlockState === 'busy'} aria-busy={unlockState === 'busy'}>
+                            <LockOpen size={14} aria-hidden="true" />
+                            {unlockState === 'busy' ? 'Unlocking…' : 'Unlock now'}
+                        </button>
+                    </div>
+                )}
+                {unlockState === 'done' && (
+                    <div className="fm-note-box" role="status">
+                        <LockOpen size={16} aria-hidden="true" style={{ flex: 'none', color: 'var(--fm-ok)' }} />
+                        <span>Unlocked — they can sign in now.</span>
+                    </div>
+                )}
                 <SegmentedToggle label="Sign-in" value={values.signInMethod} onChange={chooseSignIn} options={SIGN_IN_OPTIONS} />
                 {values.signInMethod === 'password' && (
                     <FormField name="password" id="eu-password" label="Temporary password" required error={shown('password')}>

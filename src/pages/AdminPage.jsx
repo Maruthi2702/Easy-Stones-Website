@@ -11,6 +11,7 @@ import AddUserForm from '../components/sales/users/AddUserForm';
 import EditUserForm from '../components/sales/users/EditUserForm';
 import { describeRole, isDriverRole } from '../components/sales/users/pagePermissions';
 import { changeUserAccess } from '../components/sales/users/userAccess';
+import { lockedUntilTime } from '../utils/userForm';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -773,7 +774,17 @@ const AdminPage = () => {
                       <tbody>
                         {filteredUsers.map(user => (
                           <tr key={user._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                            <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.username}</td>
+                            <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>
+                              {user.username}
+                              {lockedUntilTime(user) && (
+                                <span
+                                  title={`Locked after too many wrong passwords — unlocks by itself at ${lockedUntilTime(user)}. Edit to unlock now.`}
+                                  style={{ marginLeft: '0.45rem', padding: '1px 7px', borderRadius: 6, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#b45309', background: 'rgba(251, 191, 36, 0.16)' }}
+                                >
+                                  Locked
+                                </span>
+                              )}
+                            </td>
                             <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.email || '-'}</td>
                             <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>{user.location || '-'}</td>
                             <td style={{ padding: '1rem' }}>

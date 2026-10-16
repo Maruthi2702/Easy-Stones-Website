@@ -534,6 +534,11 @@ body.light-theme-active .user-action-pill.reactivate,
 }
 body.light-theme-active .user-inactive-badge,
 .light-theme-active .user-inactive-badge { color: #991b1b; background: #fee2e2; }
+/* Locked by too many wrong passwords — lifts by itself after 15 minutes, or
+   Edit user → Unlock now. Amber: a pause, not switched off. */
+.user-locked-badge { color: #fcd34d; background: rgba(251, 191, 36, 0.14); }
+body.light-theme-active .user-locked-badge,
+.light-theme-active .user-locked-badge { color: #92400e; background: #fef3c7; }
 
 /* ── ROLES PANEL & SIDEBAR ── */
 .roles-panel-layout {

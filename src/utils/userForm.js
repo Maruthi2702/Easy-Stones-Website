@@ -181,6 +181,23 @@ export const lastChangedText = (user = {}, now = new Date()) => {
     return '';
 };
 
+/**
+ * When this account's sign-in lock lifts, or null when it isn't locked. Five
+ * wrong passwords in a row lock it for 15 minutes (User.incLoginAttempts); a
+ * lock whose time has passed no longer counts — it lifts by itself.
+ */
+export const lockedUntil = (user = {}, now = Date.now()) => {
+    if (!user?.lockUntil) return null;
+    const until = new Date(user.lockUntil);
+    return !Number.isNaN(until.getTime()) && until.getTime() > Number(now) ? until : null;
+};
+
+/** "3:42 PM" — when the lock lifts, for the list badge and Edit user. */
+export const lockedUntilTime = (user, now = Date.now()) => {
+    const until = lockedUntil(user, now);
+    return until ? until.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+};
+
 /** Field labels for the error banner ("2 fields need attention — Full name, Joining date"). */
 export const FIELD_LABELS = {
     displayName: 'Full name',

@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import {
   sessionIsCurrent, sessionVersionOf, tempPasswordExpired, temporaryPasswordFields,
   applyOwnPassword, signSetupToken, readSetupToken, signStaffSession, setupKey,
-  temporaryPasswordAnswer, startStaffSession, TEMP_PASSWORD_TTL_MS, SETUP_COOKIE,
+  temporaryPasswordAnswer, startStaffSession, clearSignInLock, TEMP_PASSWORD_TTL_MS, SETUP_COOKIE,
   SETUP_COOKIE_PATH, SESSION_COOKIE, LEGACY_SESSION_COOKIE
 } from './staffSession.js';
 
@@ -66,6 +66,16 @@ describe('temporary passwords', () => {
     applyOwnPassword(u, 'mine-now');
     expect(u).toMatchObject({ password: 'mine-now', mustChangePassword: false, tempPasswordExpiresAt: null, loginAttempts: 0, sessionVersion: 2 });
     expect(u.lockUntil).toBeUndefined();
+  });
+});
+
+describe('clearing a sign-in lock', () => {
+  it('lifts the lock and the count towards the next one, and touches nothing else', () => {
+    const u = user({ loginAttempts: 5, lockUntil: new Date(Date.now() + 60000), mustChangePassword: true, sessionVersion: 2 });
+    clearSignInLock(u);
+    expect(u.loginAttempts).toBe(0);
+    expect(u.lockUntil).toBeUndefined();
+    expect(u).toMatchObject({ mustChangePassword: true, sessionVersion: 2 });
   });
 });
 
