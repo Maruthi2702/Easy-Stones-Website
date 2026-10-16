@@ -3,7 +3,7 @@ import {
     Users, ShieldAlert, Plus, Edit2, Trash2, Search, UserX, Check,
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
-    FileCog, Mail as MailIcon, TrendingDown, Truck, IdCard, Eraser,
+    FileCog, Mail as MailIcon, TrendingDown, IdCard, Eraser,
     ClipboardList, CheckCheck, RotateCcw, Map, Route, ArrowLeftRight, Boxes, Upload, DollarSign, Palette
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
@@ -475,14 +475,6 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                             >
                                                                 <Edit2 size={13} />
                                                                 Edit
-                                                            </button>
-                                                            <button
-                                                                className="user-action-pill driver"
-                                                                title="Driver access"
-                                                                onClick={() => alert(`Driver access for ${u.username}: role = ${u.role}`)}
-                                                            >
-                                                                <Truck size={13} />
-                                                                Driver Access
                                                             </button>
                                                             {u.isActive === false ? (
                                                                 <button
