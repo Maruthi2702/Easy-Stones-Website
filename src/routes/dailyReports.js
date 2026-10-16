@@ -10,6 +10,7 @@ import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail
 import { groupContainers, groupSlabs } from '../utils/dailyReportContainers.js';
 import { PAYMENT_METHODS, paymentAmount } from '../utils/dailyReportPayments.js';
 import { groupTransferTickets, groupTicketSlabs, groupReceived, arrivalsShippedEarlier } from '../utils/dailyReportTransfers.js';
+import { manualTransferDirection } from '../utils/transferDirection.js';
 
 /**
  * Daily Work Report API.
@@ -748,7 +749,12 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           count: num(t.count),
           slabs: num(t.slabs),
           auto: Boolean(t.auto),
-          direction: t.direction === 'in' ? 'in' : 'out',
+          // A hand-added line's direction is its route's (the same rule the
+          // sheet applies), so an older app that only ever sent 'out' still
+          // files "SPO — SEA" on Seattle's report as incoming.
+          direction: t.auto
+            ? (t.direction === 'in' ? 'in' : 'out')
+            : manualTransferDirection(String(t.fromTo || '').trim(), branchCode(location)),
           // Mirrored back from what the last load derived — this endpoint
           // never sets receipt itself, that's PATCH /api/deliveries/:id/receive.
           received: Boolean(t.received),

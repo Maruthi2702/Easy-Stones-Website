@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Users, Truck, ArrowLeftRight, ArrowDownToLine, ArrowUpFromLine, Package, Wallet, ClipboardList,
   ChevronLeft, ChevronRight, Plus, X, Check, Lock, Unlock,
-  MapPin, AlertCircle, Loader2, FileText, Mail, FileSpreadsheet, Eye
+  MapPin, AlertCircle, AlertTriangle, Loader2, FileText, Mail, FileSpreadsheet, Eye
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import NoBranchNote from './NoBranchNote';
 import { authFetch } from '../../../api/authFetch';
 import { branchCode } from '../../../config/branches.js';
+import { manualTransferDirection, manualTransferWarning, transferWarningText } from '../../../utils/transferDirection.js';
 import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
 import { money } from './summaryFigures';
@@ -906,22 +907,33 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                   )}
                   {report.transfers.map((t, i) => {
                     const [fromCode, toCode] = splitFromTo(t.fromTo);
+                    // A line added by hand takes its direction from its route
+                    // (manualTransferDirection): ending at this branch is
+                    // Incoming, anything else Outgoing. Ticket lines keep theirs.
+                    const setRoute = (from, to) => patch(r => {
+                      const line = r.transfers[i];
+                      line.fromTo = composeFromTo(from, to);
+                      if (!line.auto) line.direction = manualTransferDirection(line.fromTo, location === ALL ? '' : branchCode(location));
+                      return r;
+                    });
+                    const warning = manualTransferWarning(t, location === ALL ? '' : branchCode(location), report.transfers);
                     return (
-                    <tr key={i}>
+                    <React.Fragment key={i}>
+                    <tr className={warning ? 'has-line-note' : undefined}>
                       <td className="dr-route-cell">
                         <span className="dr-direction" title={t.direction === 'in' ? 'Incoming' : 'Outgoing'}>
                           {t.direction === 'in' ? <ArrowDownToLine size={12} /> : <ArrowUpFromLine size={12} />}
                         </span>
                         <select className={`dr-cell dr-select ${t.auto ? 'is-derived' : ''}`}
                           value={fromCode} disabled={locked || t.auto} aria-label="Transfer from"
-                          onChange={(e) => patch(r => { r.transfers[i].fromTo = composeFromTo(e.target.value, toCode); return r; })}>
+                          onChange={(e) => setRoute(e.target.value, toCode)}>
                           <option value="">From</option>
                           {allLocations.map(l => <option key={l} value={branchCode(l)}>{l}</option>)}
                         </select>
                         <span className="dr-route-sep" aria-hidden="true">—</span>
                         <select className={`dr-cell dr-select ${t.auto ? 'is-derived' : ''}`}
                           value={toCode} disabled={locked || t.auto} aria-label="Transfer to"
-                          onChange={(e) => patch(r => { r.transfers[i].fromTo = composeFromTo(fromCode, e.target.value); return r; })}>
+                          onChange={(e) => setRoute(fromCode, e.target.value)}>
                           <option value="">To</option>
                           {allLocations.map(l => <option key={l} value={branchCode(l)}>{l}</option>)}
                         </select>
@@ -954,6 +966,15 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                         )}
                       </td>
                     </tr>
+                    {warning && (
+                      <tr className="dr-line-note">
+                        <td colSpan={4}>
+                          <AlertTriangle size={12} aria-hidden="true" />
+                          {transferWarningText(warning, location)}
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                     );
                   })}
                   <tr className="dr-total">

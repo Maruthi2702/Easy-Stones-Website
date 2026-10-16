@@ -679,6 +679,22 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   color: var(--dr-text-3);
 }
 
+/* A hand-added transfer line worth a second look (manualTransferWarning in
+   src/utils/transferDirection.js): asks, never blocks, like an odd slab count. */
+.dr-table tr.has-line-note > td { border-bottom: 0; }
+
+.dr-table tr.dr-line-note > td {
+  padding-top: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--dr-warn);
+}
+
+.dr-table tr.dr-line-note svg {
+  vertical-align: -2px;
+  margin-right: 0.3rem;
+}
+
 /* From/To as two branch pickers rather than one freeform field — see
    splitFromTo/composeFromTo in DailyReportTab.jsx for why a typed route
    ("sea slc", no separator) couldn't be trusted to match the auto rows'
