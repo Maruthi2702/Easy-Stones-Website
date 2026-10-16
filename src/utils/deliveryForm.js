@@ -14,7 +14,8 @@
  * name | BOL # | Agreed price (optional), then Packing list and Notes.
  */
 import { formatForDateInput } from './dateUtils.js';
-import { defaultStatusFor, transferArrivalFor } from './deliveryTypes.js';
+import { defaultStatusFor, transferArrivalFor, columnIdFor } from './deliveryTypes.js';
+import { nextStopNumber } from './stopGrouping.js';
 import { isThirdPartyTruck } from './deliveryPickup.js';
 import { formatAmount, parseAmount } from './money.js';
 
@@ -87,7 +88,7 @@ const today = () => formatForDateInput(new Date());
  * What the form opens with. `delivery` is the saved ticket, or for a new one
  * the board's prefill (the driver column and day the + was in) with no id.
  */
-export function deliveryToFormValues(delivery, { currentUser = null, customerOptions = [], todayStr = today(), startingRep = '' } = {}) {
+export function deliveryToFormValues(delivery, { currentUser = null, customerOptions = [], todayStr = today(), startingRep = '', deliveries = [] } = {}) {
   const d = delivery || {};
   const type = d.deliveryType || 'jobsite';
   const customerName = d.customerName || '';
@@ -109,7 +110,11 @@ export function deliveryToFormValues(delivery, { currentUser = null, customerOpt
     time: d.time || '09:00 AM',
     truckId: d.truckId || '',
     customerDropOff: Boolean(d.customerDropOff),
-    routeNumber: String(Number(d.routeNumber) || 1),
+    // A new ticket starts at the end of the run it was added to, not as a
+    // second Stop #1.
+    routeNumber: String(!d.id && d.truckId && !d.routeNumber
+      ? stopForRun(deliveries, d.truckId, date)
+      : Number(d.routeNumber) || 1),
     numberOfSlabs: d.numberOfSlabs === null || d.numberOfSlabs === undefined ? '0' : String(d.numberOfSlabs),
     // Shown exactly as stored: re-deriving it here would quietly turn a
     // ticket someone left as Pending into Scheduled on the next save.
@@ -173,6 +178,26 @@ export function bookedOn(deliveries = [], truckId, date, exceptId) {
 }
 
 /**
+ * The stop a ticket takes joining a driver's run that day: after its last
+ * stop, as the server places a dragged one. The picker only goes to `max`.
+ */
+export function stopForRun(deliveries = [], truckId, date, exceptId, max = 12) {
+  const run = deliveries.filter((d) => d.truckId === truckId && d.date === date && d.id !== exceptId && columnIdFor(d) === truckId);
+  return Math.min(nextStopNumber(run), max);
+}
+
+/**
+ * The Stop field after the driver or day changes: back to the saved stop on
+ * the ticket's own run, else the end of the new one.
+ */
+const withRunStop = (v, savedTicket, deliveries) => {
+  if (!v.truckId || !deliveries) return v;
+  const ownRun = savedTicket?.id && savedTicket.truckId === v.truckId && formatForDateInput(savedTicket.date) === v.date;
+  const stop = ownRun ? Number(savedTicket.routeNumber) || 1 : stopForRun(deliveries, v.truckId, v.date, savedTicket?.id);
+  return { ...v, routeNumber: String(stop) };
+};
+
+/**
  * The Driver picker: our drivers first (with how full their truck is that
  * day — a full one can't be picked), contract freight after them, then for a
  * return "Customer drop-off", and "Pending" last — "who is taking this",
@@ -209,11 +234,11 @@ export const driverPickerValue = (v) => (isReturnType(v) && !v.truckId && v.cust
  * Pending. Unlike opening a ticket, this is a decision about it, and the new
  * status is on screen to be changed before anything is saved.
  */
-export function applyDriverPick(v, picked, savedTicket = null) {
+export function applyDriverPick(v, picked, savedTicket = null, deliveries = null) {
   const dropOff = picked === CUSTOMER_DROPOFF_VALUE;
   const truckId = dropOff ? '' : picked;
   const status = defaultStatusFor({ ...(savedTicket || {}), deliveryType: v.deliveryType, date: v.date, truckId, status: v.status, customerDropOff: dropOff });
-  return { ...v, truckId, customerDropOff: dropOff, status };
+  return withRunStop({ ...v, truckId, customerDropOff: dropOff, status }, savedTicket, deliveries);
 }
 
 /**
@@ -229,13 +254,16 @@ export function applyTypeChange(v, nextType, { isNew = false, thirdPartyTruckId 
   return out;
 }
 
-/** A transfer's arrival follows the ship date forward, as the server does. */
-export function applyDateChange(v, date) {
-  return {
+/**
+ * A transfer's arrival follows the ship date forward, as the server does.
+ * The Stop moves to the end of that day's run (see withRunStop).
+ */
+export function applyDateChange(v, date, { savedTicket = null, deliveries = null } = {}) {
+  return withRunStop({
     ...v,
     date,
     expectedArrivalDate: isTransfer(v) ? transferArrivalFor({ date, expectedArrivalDate: v.expectedArrivalDate }) : v.expectedArrivalDate
-  };
+  }, savedTicket, deliveries);
 }
 
 const pickedAddress = (option) => {

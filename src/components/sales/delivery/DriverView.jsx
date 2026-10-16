@@ -344,11 +344,12 @@ const DriverView = ({
           </div>
         ) : (
           <ol className="dv-stops">
-            {dayStops.map((del, idx) => {
-              // Sequential position, not the raw routeNumber. The office leaves
-              // that at its default of 1 more often than not, which rendered a
-              // whole day of stops all numbered "Stop #1".
-              const stopNum = idx + 1;
+            {dayStops.map((del) => {
+              // The saved stop number, the same one the board and the office's
+              // form show: the server keeps each run numbered 1, 2, 3 (see
+              // renumberRuns in src/routes/deliveries.js), and two invoices
+              // sharing a number are one stop.
+              const stopNum = Number(del.routeNumber) || 1;
               const soVal = cleanField(del.soNumber) || cleanField(del.invoiceNumber);
               const isTransfer = del.deliveryType === 'transfer';
               const address = cleanField(del.address) || cleanField(del.city);

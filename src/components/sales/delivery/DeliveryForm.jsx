@@ -67,7 +67,7 @@ function DeliveryFormBody({
     const { repFor, ready: repsReady } = useStartingRep(currentUser);
     const branch = initialData?.location || currentUser?.location || '';
     const startingRep = repsReady && !isEdit ? (repFor(branch)?.name || '') : '';
-    const [initial, setInitial] = useState(() => deliveryToFormValues(initialData, { currentUser, customerOptions: customers, startingRep }));
+    const [initial, setInitial] = useState(() => deliveryToFormValues(initialData, { currentUser, customerOptions: customers, startingRep, deliveries }));
     // A session that expired mid-edit left this ticket's values behind.
     const [restored] = useState(() => loadDraft(draftKey));
     const [values, setValues] = useState(() => (restored ? { ...initial, ...pickKnown(restored, initial) } : initial));
@@ -305,7 +305,7 @@ function DeliveryFormBody({
         status: isWeekendDate(values.date) ? (
             <><AlertTriangle size={12} aria-hidden="true" />{`${dayLabel(values.date).name} — weekend ${isTransfer ? 'transfer' : type === 'jobsite' ? 'delivery' : 'pickup'}`}</>
         ) : null,
-        onChange: (e) => setValues((v) => applyDateChange(v, e.target.value)),
+        onChange: (e) => setValues((v) => applyDateChange(v, e.target.value, { savedTicket: initialData, deliveries })),
         onBlur: () => touch('date')
     });
 
@@ -322,7 +322,7 @@ function DeliveryFormBody({
 
     const driverField = picker('truckId', 'Driver', drivers, {
         value: driverPickerValue(values),
-        onChange: (picked) => setValues((v) => applyDriverPick(v, picked, initialData)),
+        onChange: (picked) => setValues((v) => applyDriverPick(v, picked, initialData, deliveries)),
         status: pending
             ? <><Clock size={12} aria-hidden="true" />Waits in Pending Delivery until a driver is picked</>
             : dropOff ? <><Clock size={12} aria-hidden="true" />Shows in the Will Call column on that date</> : null

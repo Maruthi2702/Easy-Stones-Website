@@ -83,7 +83,7 @@ import {
 // of on this process's own thread. See runWorkbookParse.js for why.
 import { runWorkbookParse } from './src/utils/runWorkbookParse.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
-import createDeliveriesRouter, { deliveryRoomFor, DELIVERY_ROOM_ALL } from './src/routes/deliveries.js';
+import createDeliveriesRouter, { deliveryRoomFor, DELIVERY_ROOM_ALL, renumberAllRuns } from './src/routes/deliveries.js';
 import createCheckInRouter, { checkinRoomFor, CHECKIN_ROOM_ALL } from './src/routes/checkIn.js';
 import createAccountingRouter from './src/accounting/router.js';
 import { createFreightSync } from './src/accounting/sync.js';
@@ -551,6 +551,16 @@ async function startServer() {
       }
     } catch (migError) {
       console.error('Error copying Seattle\'s daily report list:', migError);
+    }
+
+    // Close up stop numbers saved with gaps (1, 3) before every write started
+    // doing it — see renumberRuns in src/routes/deliveries.js. Finds nothing
+    // once they're closed.
+    try {
+      const renumbered = await renumberAllRuns();
+      if (renumbered > 0) console.log(`🔄 Closed up stop numbers on ${renumbered} deliveries`);
+    } catch (migError) {
+      console.error('Error closing up delivery stop numbers:', migError);
     }
 
     // Database migration: assign every pre-existing customer to Seattle.

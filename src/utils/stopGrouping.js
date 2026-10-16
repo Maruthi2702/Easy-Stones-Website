@@ -92,3 +92,28 @@ export function sameStopOrder(a, b) {
   if (a.length !== b.length) return false;
   return a.every((x, i) => x.id === b[i].id && x.routeNumber === b[i].routeNumber);
 }
+
+/**
+ * Closing up one run's stop numbers: 1, 2, 3… with no gaps, in the same
+ * order, tickets that shared a number still sharing one. The saved number is
+ * what the board, the Edit delivery form and the driver's phone all show, so
+ * the server runs this after anything joins, leaves or is deleted from a run
+ * — otherwise a removed Stop #2 left the board reading 1, 3.
+ *
+ * `stops`: [{ id, routeNumber }] for every ticket in one driver's run on one
+ * day (a transfer on that truck takes its place in the order like any other).
+ * Returns: [{ id, routeNumber }] for just the tickets whose number changes.
+ */
+export function compactStopNumbers(stops) {
+  const numberOf = (s) => Number(s.routeNumber) || 1;
+  const distinct = [...new Set(stops.map(numberOf))].sort((a, b) => a - b);
+  const closed = new Map(distinct.map((n, i) => [n, i + 1]));
+  return stops
+    .filter(s => closed.get(numberOf(s)) !== s.routeNumber)
+    .map(s => ({ id: s.id, routeNumber: closed.get(numberOf(s)) }));
+}
+
+/** The number a ticket joining the end of a run takes: one past its last stop. */
+export function nextStopNumber(stops) {
+  return stops.reduce((max, s) => Math.max(max, Number(s.routeNumber) || 1), 0) + 1;
+}

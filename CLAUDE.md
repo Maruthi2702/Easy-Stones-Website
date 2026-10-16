@@ -366,7 +366,12 @@ Approve & pay, Mark paid — and why not, payment wording and the Excel rows),
 and the Delivery Schedule's column order per branch
 (`src/utils/deliveryColumns.js`: the default — our drivers A–Z, 3rd-party
 trucks, Will Call — a branch's saved order, where a new driver lands; its
-admin-only routes in `src/routes/deliveryColumns.test.js`).
+admin-only routes in `src/routes/deliveryColumns.test.js`), and its stop
+numbers (`src/utils/stopGrouping.js`'s `compactStopNumbers`: every driver's
+run saved as 1, 2, 3… with no gaps, which the board, the Edit delivery form
+and the driver's phone all show; the routes that keep it so after a delete,
+cancel, move, edit or reorder, and the startup pass, in
+`src/routes/deliveryStops.test.js`).
 Accounting's server rules and API have their own tests in
 `src/accounting/*.test.js` (an in-memory MongoDB replica set, transactions
 included). Cart & Holds do too: `src/holds/*.test.js` (expiry and totals

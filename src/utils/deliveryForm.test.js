@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DELIVERY_TYPE_OPTIONS, STATUS_OPTIONS, CUSTOMER_DROPOFF_VALUE, isPendingOrder, dateLabelFor,
   needsFreightDetails, deliveryToFormValues, validateDeliveryValues, countDeliveryChanges, bookedOn,
-  driverOptions, driverPickerValue, applyDriverPick, applyTypeChange, applyDateChange, applyCustomerPick,
+  stopForRun, driverOptions, driverPickerValue, applyDriverPick, applyTypeChange, applyDateChange, applyCustomerPick,
   applyCustomName, buildDeliveryPayload, formWording, deliveryLastChangedText,
   customerOptionFromRecord, fieldLabelsFor, reportDaysFor, reportDaysTouched, submittedDayLabel, ticketReportValues, reportDaysForMove
 } from './deliveryForm.js';
@@ -311,5 +311,46 @@ describe('a new ticket\'s sales rep', () => {
     expect(deliveryToFormValues({}, { currentUser: me, startingRep: 'Jeremy' }).salesRepName).toBe('Jeremy');
     expect(deliveryToFormValues({}, { currentUser: me }).salesRepName).toBe('Cara CSR');
     expect(deliveryToFormValues({ salesRepName: 'Stephen' }, { currentUser: me, startingRep: 'Jeremy' }).salesRepName).toBe('Stephen');
+  });
+});
+
+describe('the Stop field follows the run', () => {
+  const week = [
+    { id: 'a', truckId: 'mike', date: '2026-10-06', routeNumber: 1, deliveryType: 'jobsite' },
+    { id: 'b', truckId: 'mike', date: '2026-10-06', routeNumber: 2, deliveryType: 'jobsite' },
+    { id: 'c', truckId: 'mike', date: '2026-10-07', routeNumber: 1, deliveryType: 'jobsite' },
+    // An older will call still pointing at the truck sits in Will Call, not the run.
+    { id: 'w', truckId: 'mike', date: '2026-10-06', routeNumber: 9, deliveryType: 'will_call' }
+  ];
+
+  it('is one past the run\'s last stop, never past the picker', () => {
+    expect(stopForRun(week, 'mike', '2026-10-06')).toBe(3);
+    expect(stopForRun(week, 'mike', '2026-10-08')).toBe(1);
+    expect(stopForRun(week, 'mike', '2026-10-06', 'b')).toBe(2);
+    expect(stopForRun([{ id: 'x', truckId: 'mike', date: '2026-10-06', routeNumber: 12 }], 'mike', '2026-10-06')).toBe(12);
+  });
+
+  it('starts a new ticket at the end of the run it was added to', () => {
+    const v = deliveryToFormValues({ truckId: 'mike', date: '2026-10-06' }, { deliveries: week, todayStr: '2026-10-05' });
+    expect(v.routeNumber).toBe('3');
+  });
+
+  it('opens a saved ticket on its saved stop', () => {
+    expect(deliveryToFormValues({ id: 'a', truckId: 'mike', date: '2026-10-06', routeNumber: 1 }, { deliveries: week }).routeNumber).toBe('1');
+  });
+
+  it('moves to the end of the new run when the driver or day changes, and back when it returns', () => {
+    const saved = week[0];
+    const v = deliveryToFormValues(saved, { deliveries: week });
+    const moved = applyDateChange(v, '2026-10-07', { savedTicket: saved, deliveries: week });
+    expect(moved.routeNumber).toBe('2');
+    expect(applyDateChange(moved, '2026-10-06', { savedTicket: saved, deliveries: week }).routeNumber).toBe('1');
+    expect(applyDriverPick(v, 'tom', saved, week).routeNumber).toBe('1');
+  });
+
+  it('leaves the Stop alone with no driver, or when the week isn\'t given', () => {
+    const v = form({ truckId: 'mike', routeNumber: '4' });
+    expect(applyDriverPick(v, '', null, week).routeNumber).toBe('4');
+    expect(applyDateChange(v, '2026-10-07').routeNumber).toBe('4');
   });
 });
