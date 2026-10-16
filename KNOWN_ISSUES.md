@@ -130,6 +130,7 @@ Decided to leave as they are (owner, 2026-10-15): the status pill size on board 
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-15 | Daily Report transfers: every line now has a Transfer # (ticket lines from their tickets), so the same transfer added twice is flagged; the typed Count is gone (the month view, its PDF and the CSV count the transfers from the numbers); one row per line on phones, where Slabs used to run off the edge. | `60afdc2` |
 | 2026-10-15 | Transfers #6: a transfer line added by hand on the Daily Report always counted as Outgoing. Its route now decides (ending at the report's branch is Incoming), with a note when the route skips the branch or repeats a ticket line. | `a75e9b3` |
 | 2026-10-15 | Delivery board: stop numbers skipped (Stop #1, #3) after a delete, cancel or move, and the board, the Edit delivery form and the driver's phone could disagree. Each driver's day is now kept 1, 2, 3, and old gaps closed at startup. | `3691007` |
 | 2026-10-15 | Delivery board: the Day column took a quarter of a wide screen and pushed Will Call off the edge with no sign more was there (now a fixed width, with arrows and fades); today's whole row is tinted; finished stops are faded; "No ePOD" on a completed delivery is amber; counts read "3/12 stops". | `43294d2` |
