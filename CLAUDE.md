@@ -163,7 +163,11 @@ staff token carries as `sv` and `authenticate` checks, so older sessions end.
 `authenticate` also refuses any account still on a temporary password. The
 rules live in `src/services/staffSession.js`, the routes in
 `src/routes/userOnboarding.js`; a new way to sign in or set a password goes
-through them.
+through them. Five wrong passwords lock an account for 15 minutes
+(`User.incLoginAttempts`); Users & Roles and `/admin` badge it "Locked"
+(`lockedUntil` in `src/utils/userForm.js`), Edit user → Sign-in has **Unlock
+now** (`POST /api/admin/users/:id/unlock`, `manage_users`), and any password
+reset or chosen password also lifts it (`clearSignInLock`).
 
 ## Permits: sources and the accuracy rules (2026-10-11; King County 2026-10-14)
 

@@ -43,15 +43,22 @@ const authenticate = async (req, res, next) => {
   const user = await User.findById(id).lean();
   if (!user || user.isActive === false) return res.status(401).json({ error: 'gone' });
   if (user.mustChangePassword || !sessionIsCurrent(decoded, user)) return res.status(401).json({ error: 'stale' });
-  req.user = { id: user._id, username: user.username, permissions: [] };
+  // Stand-in for the role lookup: admins can manage users, nobody else.
+  req.user = { id: user._id, username: user.username, permissions: user.role === 'admin' ? ['manage_users'] : [] };
   req.userId = user._id;
   next();
 };
 
-// What /api/customer/login does for a staff account once the password matched.
+// What /api/customer/login does for a staff account: locked → refused before
+// the password is checked; a wrong one is counted towards the lock.
 const signIn = async (req, res) => {
   const user = await User.findOne({ username: req.body.username });
-  if (!user || !(await user.comparePassword(req.body.password))) return res.status(401).json({ message: 'Invalid' });
+  if (!user) return res.status(401).json({ message: 'Invalid' });
+  if (user.isLocked()) return res.status(423).json({ message: 'Locked' });
+  if (!(await user.comparePassword(req.body.password))) {
+    await user.incLoginAttempts();
+    return res.status(401).json({ message: 'Invalid' });
+  }
   if (user.isActive === false) return res.status(403).json({ message: 'Deactivated' });
   const temporary = temporaryPasswordAnswer(res, user, SECRET);
   if (temporary) return res.status(403).json(temporary.body);
@@ -86,7 +93,8 @@ beforeAll(async () => {
   const pass = (req, res, next) => next();
   app.post('/api/test-login', signIn);
   app.get('/api/protected', authenticate, (req, res) => res.json({ ok: true, username: req.user.username }));
-  app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission: () => pass, loginLimiter: pass, jwtSecret: SECRET }));
+  const requirePermission = (p) => (req, res, next) => (req.user?.permissions.includes(p) ? next() : res.status(403).json({ message: 'No' }));
+  app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter: pass, jwtSecret: SECRET }));
 }, 180000);
 
 afterAll(async () => {
@@ -373,5 +381,69 @@ describe('an admin reset to a temporary password', () => {
     await protectedWith(`${SESSION_COOKIE}=${legacy}`).expect(200);
     const legacyAdmin = jwt.sign({ userId: String(user._id), username: 'rita' }, SECRET);
     await protectedWith(`adminToken=${legacyAdmin}`).expect(200);
+  });
+});
+
+describe('POST /api/admin/users/:id/unlock — Edit user → Unlock now', () => {
+  const adminSession = async () => {
+    await new User({ username: 'boss', displayName: 'Boss', role: 'admin', password: 'boss-pass-1' }).save();
+    return cookieFrom(await login('boss', 'boss-pass-1'), SESSION_COOKIE);
+  };
+  const lockedRita = async () => {
+    const rita = await makeUser({ mustChangePassword: false, tempPasswordExpiresAt: null, password: 'own-pass-1' });
+    for (let i = 0; i < 5; i += 1) await login('rita', 'wrong-pass');
+    return rita;
+  };
+  const unlock = (cookie, id) => request(app).post(`/api/admin/users/${id}/unlock`).set('Cookie', cookie);
+
+  it('five wrong passwords lock the account, even against the right one', async () => {
+    await lockedRita();
+    await login('rita', 'own-pass-1').expect(423);
+  });
+
+  it('an admin unlocks it and they can sign in straight away', async () => {
+    const admin = await adminSession();
+    const rita = await lockedRita();
+    const res = await unlock(admin, rita._id).expect(200);
+    expect(res.body.user).toMatchObject({ loginAttempts: 0, lockUntil: null, editedBy: 'boss' });
+    const saved = await User.findById(rita._id);
+    expect(saved.loginAttempts).toBe(0);
+    expect(saved.lockUntil).toBeUndefined();
+    expect(saved.editedBy).toBe('boss');
+    await login('rita', 'own-pass-1').expect(200);
+  });
+
+  it('doesn\'t change their password or end their sessions', async () => {
+    const admin = await adminSession();
+    await makeUser({ mustChangePassword: false, tempPasswordExpiresAt: null, password: 'own-pass-1' });
+    const ritaSession = cookieFrom(await login('rita', 'own-pass-1'), SESSION_COOKIE);
+    const rita = await User.findOne({ username: 'rita' });
+    for (let i = 0; i < 5; i += 1) await login('rita', 'wrong-pass');
+    await unlock(admin, rita._id).expect(200);
+    await protectedWith(ritaSession).expect(200);
+    expect(sessionVersionOf(await User.findById(rita._id))).toBe(0);
+  });
+
+  it('needs Manage users', async () => {
+    const rita = await lockedRita();
+    await new User({ username: 'sam', role: 'sales_rep', password: 'sam-pass-1' }).save();
+    const sam = cookieFrom(await login('sam', 'sam-pass-1'), SESSION_COOKIE);
+    await unlock(sam, rita._id).expect(403);
+    await request(app).post(`/api/admin/users/${rita._id}/unlock`).expect(401);
+    await login('rita', 'own-pass-1').expect(423);
+  });
+
+  it('an unknown or malformed id is a 404', async () => {
+    const admin = await adminSession();
+    await unlock(admin, new mongoose.Types.ObjectId()).expect(404);
+    await unlock(admin, 'not-an-id').expect(404);
+  });
+
+  it('choosing their own password (here, an invite) also lifts a lock', async () => {
+    const rita = await lockedRita();
+    const invite = newInvite();
+    await User.updateOne({ _id: rita._id }, { $set: { inviteTokenHash: invite.fields.inviteTokenHash, inviteExpiresAt: invite.fields.inviteExpiresAt } });
+    await request(app).post('/api/auth/accept-invite').send({ token: invite.token, newPassword: 'fresh-pass-1' }).expect(200);
+    await login('rita', 'fresh-pass-1').expect(200);
   });
 });

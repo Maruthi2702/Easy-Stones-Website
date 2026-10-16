@@ -121,7 +121,7 @@ import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.js';
 import createUserOnboardingRouter, { newInvite, inviteLinkFor, sendInviteEmail } from './src/routes/userOnboarding.js';
 import {
   sessionIsCurrent, sessionVersionOf, temporaryPasswordFields, temporaryPasswordAnswer,
-  startStaffSession, clearPasswordSetup, readSetupToken
+  startStaffSession, clearPasswordSetup, readSetupToken, clearSignInLock
 } from './src/services/staffSession.js';
 import { usernameProblem, isValidEmail, isValidDateInput, PASSWORD_MIN } from './src/utils/userForm.js';
 import Delivery from './src/models/Delivery.js';
@@ -1764,7 +1764,9 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
     // A bare `password` (the older /admin screen) still just sets it.
     let invite = null;
     // A password the admin set — temporary or not — ends every session they
-    // already had (sessionVersion).
+    // already had (sessionVersion). Any reset also lifts a lock from too many
+    // wrong passwords: its whole point is to let them back in.
+    if (signInReset || password) clearSignInLock(user);
     if (signInReset === 'password') {
       user.password = password; // hashed by the pre-save hook
       Object.assign(user, temporaryPasswordFields());
@@ -1839,6 +1841,8 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
         assignedLocations: user.assignedLocations,
         joiningDate: user.joiningDate,
         mustChangePassword: user.mustChangePassword,
+        loginAttempts: user.loginAttempts,
+        lockUntil: user.lockUntil || null,
         editedBy: user.editedBy,
         editedAt: user.editedAt
       }

@@ -8,6 +8,7 @@
  *   GET  /api/auth/invite/:token              is this invite link still good?
  *   POST /api/auth/accept-invite              invite link → their own, signed in
  *   POST /api/auth/change-password            Profile → Change password
+ *   POST /api/admin/users/:id/unlock          Edit user → Unlock now
  *
  * plus the helpers POST /api/admin/users (server.js) uses to issue an invite.
  *
@@ -30,7 +31,7 @@ import { sendEmail } from '../services/emailService.js';
 import { usernameProblem, PASSWORD_MIN } from '../utils/userForm.js';
 import { displayNameOf } from '../utils/salesReps.js';
 import {
-  applyOwnPassword, clearPasswordSetup, readSetupToken, sessionVersionOf,
+  applyOwnPassword, clearPasswordSetup, clearSignInLock, readSetupToken, sessionVersionOf,
   startStaffSession, tempPasswordExpired
 } from '../services/staffSession.js';
 
@@ -266,6 +267,28 @@ export default function createUserOnboardingRouter({ authenticate, requirePermis
     } catch (err) {
       console.error('change-password error:', err);
       res.status(500).json({ success: false, message: 'Server error' });
+    }
+  });
+
+  // Edit user → Unlock now: lifts a lock from too many wrong passwords
+  // without waiting out its 15 minutes. Their password doesn't change and
+  // they stay signed in wherever they already are.
+  router.post('/admin/users/:id/unlock', authenticate, requirePermission('manage_users'), async (req, res) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'User not found' });
+      const user = await User.findById(req.params.id);
+      if (!user) return res.status(404).json({ message: 'User not found' });
+      clearSignInLock(user);
+      user.editedBy = req.user?.username || '';
+      user.editedAt = new Date();
+      await user.save();
+      res.json({
+        success: true,
+        user: { _id: user._id, loginAttempts: 0, lockUntil: null, editedBy: user.editedBy, editedAt: user.editedAt }
+      });
+    } catch (err) {
+      console.error('unlock error:', err);
+      res.status(500).json({ message: 'Could not unlock this account' });
     }
   });
 

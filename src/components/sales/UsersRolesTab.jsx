@@ -13,6 +13,7 @@ import { prettifyUsername } from '../../utils/textUtils';
 import { clearDriversCache } from '../../api/deliverySchedule';
 import { homeLocationOf } from '../../utils/locationFilter';
 import { addressLines, hasPrintableAddress } from '../../utils/locationForm';
+import { lockedUntilTime } from '../../utils/userForm';
 import LocationForm from './locations/LocationForm';
 import AddUserForm from './users/AddUserForm';
 import EditUserForm from './users/EditUserForm';
@@ -445,6 +446,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                             <span>
                                                                 {u.displayName || prettifyUsername(u.username)}
                                                                 {u.isActive === false && <span className="user-inactive-badge" title={u.deactivatedAt ? `Deactivated ${new Date(u.deactivatedAt).toLocaleDateString()}` : 'Deactivated'}>Inactive</span>}
+                                                                {lockedUntilTime(u) && <span className="user-inactive-badge user-locked-badge" title={`Locked after too many wrong passwords — unlocks by itself at ${lockedUntilTime(u)}. Edit to unlock now.`}>Locked</span>}
                                                             </span>
                                                             <small>{u.username}</small>
                                                         </div>

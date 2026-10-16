@@ -66,10 +66,19 @@ export const applyOwnPassword = (user, password) => {
   user.password = password; // hashed by the model's pre-save hook
   user.mustChangePassword = false;
   user.tempPasswordExpiresAt = null;
-  user.loginAttempts = 0;
-  user.lockUntil = undefined;
+  clearSignInLock(user);
   user.sessionVersion = sessionVersionOf(user) + 1;
 };
+
+/**
+ * Lifts a lock from too many wrong passwords (and the count towards the next
+ * one): Edit user → Unlock now, and any password reset, since its whole point
+ * is to let them back in. Doesn't save.
+ */
+export function clearSignInLock(user) {
+  user.loginAttempts = 0;
+  user.lockUntil = undefined;
+}
 
 // ── Full sessions ────────────────────────────────────────────────────────────
 

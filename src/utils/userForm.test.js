@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
     suggestUsername, usernameProblem, isValidEmail, isValidDateInput,
     generateTempPassword, validateNewUser, countChangedFields, toggleLocation,
-    summarizeRole, homeAfterChange, validateUserEdit, userEditFields, userToFormValues, lastChangedText, PASSWORD_MIN
+    summarizeRole, homeAfterChange, validateUserEdit, userEditFields, userToFormValues, lastChangedText, PASSWORD_MIN,
+    lockedUntil, lockedUntilTime
 } from './userForm';
 
 describe('suggestUsername', () => {
@@ -234,5 +235,32 @@ describe('lastChangedText', () => {
     it('shows the year when it isn’t this year, and nothing when there’s nothing to say', () => {
         expect(lastChangedText({ createdAt: '2024-09-12T15:00:00Z' }, now)).toBe('Added Sep 12, 2024');
         expect(lastChangedText({}, now)).toBe('');
+    });
+});
+
+describe('the sign-in lock', () => {
+    const now = new Date('2026-10-16T22:30:00Z').getTime();
+
+    it('is on until its time passes, then lifts by itself', () => {
+        const until = new Date(now + 10 * 60 * 1000);
+        expect(lockedUntil({ lockUntil: until.toISOString() }, now)).toEqual(until);
+        expect(lockedUntil({ lockUntil: until }, until.getTime())).toBe(null);
+        expect(lockedUntil({ lockUntil: new Date(now - 1000) }, now)).toBe(null);
+    });
+
+    it('an account never locked, or with a bad date, is not locked', () => {
+        expect(lockedUntil({}, now)).toBe(null);
+        expect(lockedUntil({ lockUntil: null }, now)).toBe(null);
+        expect(lockedUntil({ lockUntil: 'not a date' }, now)).toBe(null);
+        expect(lockedUntil(undefined, now)).toBe(null);
+    });
+
+    it('wrong passwords that haven\'t reached the lock don\'t count as locked', () => {
+        expect(lockedUntil({ loginAttempts: 4 }, now)).toBe(null);
+    });
+
+    it('says when it lifts as a time of day, and nothing when unlocked', () => {
+        expect(lockedUntilTime({ lockUntil: new Date(now + 60000) }, now)).toMatch(/^\d{1,2}:\d{2}\s?[AP]M$/);
+        expect(lockedUntilTime({}, now)).toBe('');
     });
 });
