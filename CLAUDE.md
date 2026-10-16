@@ -376,7 +376,8 @@ cancel, move, edit or reorder, and the startup pass, in
 rules (`src/routes/deliveryAccess.test.js`: a view-only login can't write, a
 driver writes only an ePOD, a packing-list upload can't take another branch's
 ticket id, reorders ignore tickets the board doesn't show, and a ticket with
-no branch reaches every open branch room).
+no branch reaches every open branch room, and the ePOD save that writes the
+ePOD and nothing else).
 Accounting's server rules and API have their own tests in
 `src/accounting/*.test.js` (an in-memory MongoDB replica set, transactions
 included). Cart & Holds do too: `src/holds/*.test.js` (expiry and totals

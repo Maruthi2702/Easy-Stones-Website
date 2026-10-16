@@ -45,23 +45,43 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   const [custSignedAt, setCustSignedAt] = useState(delivery?.pod?.customerSignedAt || null);
   const [driverSignedAt, setDriverSignedAt] = useState(delivery?.pod?.driverSignedAt || null);
 
+  // Which ticket the form was last filled in for (null while closed), and
+  // whether anyone has typed, drawn or added a photo since. The board opens
+  // this with its list copy of the ticket and swaps in the full record a moment
+  // later (the list omits the signature images). That swap used to reset the
+  // form — on a slow signal, wiping a signature already half drawn. Now it
+  // only fills the form in while nothing has been entered; once someone has
+  // started, the same ticket arriving again leaves their work alone.
+  const filledFor = useRef(null);
+  const touched = useRef(false);
+  const markTouched = () => { touched.current = true; };
+
   // Initialize canvas drawings if existing signature exists
   useEffect(() => {
-    if (isOpen) {
-      setSigneeName(delivery?.pod?.signeeName || '');
-      setPodNotes(delivery?.pod?.notes || '');
-      setPhotos(delivery?.pod?.photos || []);
-      setHasCustSignature(Boolean(delivery?.pod?.customerSignature));
-      setHasDriverSignature(Boolean(delivery?.pod?.driverSignature));
-      setCustSignedAt(delivery?.pod?.customerSignedAt || null);
-      setDriverSignedAt(delivery?.pod?.driverSignedAt || null);
-      setError(null);
-
-      setTimeout(() => {
-        initCanvas(custCanvasRef, delivery?.pod?.customerSignature);
-        initCanvas(driverCanvasRef, delivery?.pod?.driverSignature);
-      }, 100);
+    if (!isOpen) {
+      filledFor.current = null;
+      touched.current = false;
+      return;
     }
+    const id = delivery?.id ?? '';
+    if (filledFor.current === id && touched.current) return;
+    filledFor.current = id;
+    touched.current = false;
+
+    setSigneeName(delivery?.pod?.signeeName || '');
+    setPodNotes(delivery?.pod?.notes || '');
+    setPhotos(delivery?.pod?.photos || []);
+    setHasCustSignature(Boolean(delivery?.pod?.customerSignature));
+    setHasDriverSignature(Boolean(delivery?.pod?.driverSignature));
+    setCustSignedAt(delivery?.pod?.customerSignedAt || null);
+    setDriverSignedAt(delivery?.pod?.driverSignedAt || null);
+    setError(null);
+
+    const timer = setTimeout(() => {
+      initCanvas(custCanvasRef, delivery?.pod?.customerSignature, () => setHasCustSignature(false));
+      initCanvas(driverCanvasRef, delivery?.pod?.driverSignature, () => setHasDriverSignature(false));
+    }, 100);
+    return () => clearTimeout(timer);
   }, [isOpen, delivery]);
 
   // Rotating a phone changes the pad's width, which would leave the backing
@@ -88,7 +108,11 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     return `${d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })} · ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
   };
 
-  const initCanvas = (ref, sigDataUrl) => {
+  // `onUnreadable` runs when an earlier signature can't be loaded into the pad
+  // (its image didn't load, or the host wouldn't allow it to be read back): the
+  // pad is left blank and the caller marks it unsigned, so the person signs
+  // again instead of "saving" a signature that isn't there.
+  const initCanvas = (ref, sigDataUrl, onUnreadable) => {
     const canvas = ref.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -112,6 +136,12 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
 
     if (sigDataUrl) {
       const img = new Image();
+      // A signature saved online comes back as a hosted URL. Drawn without
+      // this, it taints the canvas and toDataURL() throws on Save — which left
+      // the button on "Saving…" for good. (Pads that start from a data: URL
+      // don't need it.)
+      if (!String(sigDataUrl).startsWith('data:')) img.crossOrigin = 'anonymous';
+      img.onerror = () => { if (onUnreadable) onUnreadable(); };
       img.onload = () => {
         ctx.clearRect(0, 0, rect.width, rect.height);
         // Fit a stored signature to the pad rather than drawing it 1:1, since
@@ -125,6 +155,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
 
   // Generic Touch / Mouse Handlers for Canvas Drawing
   const startDrawing = (e, ref, setDrawing) => {
+    markTouched();
     setDrawing(true);
     draw(e, ref);
   };
@@ -163,6 +194,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   };
 
   const clearCanvas = (ref, setHasSig, setSignedAt) => {
+    markTouched();
     const canvas = ref.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -180,6 +212,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   const handlePhotoUpload = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
+    markTouched();
 
     setUploadingPhoto(true);
     // Convert to base64 preview or upload
@@ -194,6 +227,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   };
 
   const removePhoto = (idx) => {
+    markTouched();
     setPhotos(prev => prev.filter((_, i) => i !== idx));
   };
 
@@ -215,8 +249,6 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     setIsStampingPdf(Boolean(delivery.packingListUrl));
     setError(null);
 
-    const custSigDataUrl = custCanvasRef.current ? custCanvasRef.current.toDataURL() : '';
-    const driverSigDataUrl = driverCanvasRef.current ? driverCanvasRef.current.toDataURL() : '';
     const signedAt = new Date();
 
     // On a pickup this is the staff member releasing the material, which is the
@@ -236,19 +268,28 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     // driver on cellular no longer downloads and re-uploads a multi-MB PDF, and
     // there is no half-finished state where the upload succeeded but the save
     // didn't.
-    const podData = {
-      signeeName: signeeName.trim(),
-      driverName: resolvedDriverName,
-      customerSignature: custSigDataUrl,
-      driverSignature: driverSigDataUrl,
-      customerSignedAt: custSignedAt || signedAt.toISOString(),
-      driverSignedAt: driverSignedAt || signedAt.toISOString(),
-      signedAt,
-      photos,
-      notes: podNotes
-    };
-
     try {
+      // Inside the try: reading a pad back throws if a hosted signature tainted
+      // it, and out here that left the button on "Saving…" with no message.
+      let custSigDataUrl = '';
+      let driverSigDataUrl = '';
+      try {
+        custSigDataUrl = custCanvasRef.current ? custCanvasRef.current.toDataURL() : '';
+        driverSigDataUrl = driverCanvasRef.current ? driverCanvasRef.current.toDataURL() : '';
+      } catch {
+        throw new Error('An earlier signature on this form couldn\'t be read. Press Clear on each signature and sign again.');
+      }
+      const podData = {
+        signeeName: signeeName.trim(),
+        driverName: resolvedDriverName,
+        customerSignature: custSigDataUrl,
+        driverSignature: driverSigDataUrl,
+        customerSignedAt: custSignedAt || signedAt.toISOString(),
+        driverSignedAt: driverSignedAt || signedAt.toISOString(),
+        signedAt,
+        photos,
+        notes: podNotes
+      };
       if (onSavePod) {
         await onSavePod(podData);
       }
@@ -337,7 +378,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
             <input
               type="text"
               value={signeeName}
-              onChange={(e) => setSigneeName(formatTitleCase(e.target.value))}
+              onChange={(e) => { markTouched(); setSigneeName(formatTitleCase(e.target.value)); }}
               placeholder={words.signeePlaceholder}
               className="pod-input-field"
             />
@@ -423,7 +464,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
             <label className="pod-label">{words.notesLabel}</label>
             <textarea
               value={podNotes}
-              onChange={(e) => setPodNotes(e.target.value)}
+              onChange={(e) => { markTouched(); setPodNotes(e.target.value); }}
               placeholder="Add any delivery details, such as slab orientation, site access instructions, or damage notes."
               /* no-capitalize opts out of the global title-casing in index.css,
                  which was turning "chipped edge on two slabs" into Title Case. */

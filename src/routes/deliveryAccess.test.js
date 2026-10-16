@@ -114,6 +114,45 @@ describe('O4 — who may write a ticket', () => {
   });
 });
 
+describe('O2 — saving an ePOD writes the ePOD and nothing else', () => {
+  const sign = (id, body, user = OFFICE) => request(app).patch(`/api/deliveries/${id}/pod`).set(as(user)).send(body);
+
+  it('keeps edits made to the ticket while someone was signing', async () => {
+    // The office edited the address and driver after the signer's copy was loaded.
+    await Delivery.collection.updateOne({ id: 'a' }, { $set: { address: '9 New Rd', truckId: 'drv_brock', routeNumber: 4 } });
+    const res = await sign('a', {
+      pod: { signeeName: 'Pat' },
+      // whatever else a stale copy carries is ignored
+      address: '1 Main St', truckId: 'drv_angel', customerName: 'Hacked'
+    }).expect(200);
+    expect(res.body.status).toBe('completed');
+    const a = await Delivery.findOne({ id: 'a' }).lean();
+    expect(a).toMatchObject({ status: 'completed', address: '9 New Rd', truckId: 'drv_brock', customerName: 'a' });
+    expect(a.pod.signeeName).toBe('Pat');
+  });
+
+  it('leaves a transfer\'s ship date alone', async () => {
+    await Delivery.collection.insertOne(ticket('tr', 'drv_3rd', 1, {
+      deliveryType: 'transfer', transferDestination: 'Spokane', date: '2026-10-14', expectedArrivalDate: '2026-10-16'
+    }));
+    await sign('tr', { pod: { signeeName: 'Pat' }, date: '2026-10-16' }).expect(200);
+    expect((await Delivery.findOne({ id: 'tr' }).lean()).date).toBe('2026-10-14');
+  });
+
+  it('refuses a ticket that doesn\'t exist, a body with no ePOD, and a view-only login', async () => {
+    await sign('nope', { pod: { signeeName: 'Pat' } }).expect(404);
+    expect(await Delivery.countDocuments({ id: 'nope' })).toBe(0);
+    await sign('a', {}).expect(400);
+    await sign('a', { pod: { signeeName: 'Pat' } }, VIEW_ONLY).expect(403);
+    expect((await Delivery.findOne({ id: 'a' }).lean()).status).toBe('scheduled');
+  });
+
+  it('is open to a driver, for any ticket they can reach', async () => {
+    await sign('a', { pod: { signeeName: 'Pat' } }, DRIVER).expect(200);
+    await sign('spokane', { pod: { signeeName: 'Pat' } }, DRIVER).expect(403);
+  });
+});
+
 describe('O8 — packing-list upload', () => {
   const pdf = Buffer.from('%PDF-1.4\n%fake\n');
   const upload = (deliveryId, user = OFFICE) => request(app).post('/api/deliveries/upload-packing-list')

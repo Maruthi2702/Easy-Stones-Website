@@ -18,6 +18,7 @@ import { useLocationFilter } from '../shared/useLocationFilter';
 import { accessibleLocations } from '../../utils/locationFilter';
 import {
   saveDelivery,
+  saveDeliveryPod,
   deleteDelivery,
   updateDeliveryStatus,
   updateDeliveryAssignment,
@@ -129,16 +130,16 @@ const DeliveryScheduleTab = ({
 
   const handleSavePod = async (podData) => {
     if (!selectedPodDelivery) return;
-    // packingListUrl deliberately untouched. It used to be overwritten with the
-    // signed copy, which destroyed the only clean source — re-signing then
-    // stamped a second certificate onto an already-signed page. The signed
-    // version lives at pod.signedPdfUrl instead.
-    const updated = {
-      ...selectedPodDelivery,
-      status: 'completed',
-      pod: podData
-    };
-    await handleSaveDelivery(updated);
+    // Only the ePOD travels (PATCH /deliveries/:id/pod), never the board's copy
+    // of the ticket: sending that back undid whatever the office had edited
+    // while the driver was signing, and when the full-record fetch had failed
+    // it wrote a transfer's arrival date over its ship date.
+    // packingListUrl is untouched for the same reason it always was: it used to
+    // be overwritten with the signed copy, which destroyed the only clean
+    // source — re-signing then stamped a second certificate onto an
+    // already-signed page. The signed version lives at pod.signedPdfUrl.
+    const updatedList = await saveDeliveryPod(selectedPodDelivery.id, podData);
+    await applyUpdatedList(updatedList);
     setIsPodOpen(false);
   };
 
