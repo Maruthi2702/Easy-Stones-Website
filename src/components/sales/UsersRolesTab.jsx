@@ -819,6 +819,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                 <LocationForm
                     location={locationForm === 'new' ? null : locationForm}
                     locations={locations}
+                    users={users}
                     onClose={() => setLocationForm(null)}
                     onSaved={(saved) => handleLocationSaved(saved, locationForm === 'new')}
                     onDelete={handleDeleteLocation}

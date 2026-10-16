@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { AlertCircle, Trash2 } from 'lucide-react';
+import { AlertCircle, Trash2, X } from 'lucide-react';
 import FormModal from '../../shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker } from '../../shared/form/FormControls';
+import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '../../shared/form/FormControls';
 import { goToField, describedBy } from '../../shared/form/formFocus';
 import useTouched from '../../shared/form/useTouched';
 import { API_URL } from '../../../config/api';
@@ -16,6 +16,7 @@ import {
     emptyLocationValues, locationToFormValues, locationRecordFromValues,
     validateLocationValues, countLocationChanges
 } from '../../../utils/locationForm';
+import { isEmail, userRecipientProblem } from '../../../utils/dailyReportRecipients';
 import './LocationForm.css';
 
 /*
@@ -45,7 +46,7 @@ const CLEAN = {
     unitOverheadPct: (v) => v.replace(/[^\d.]/g, '')
 };
 
-export default function LocationForm({ location = null, locations = [], onClose, onSaved, onDelete }) {
+export default function LocationForm({ location = null, locations = [], users = [], onClose, onSaved, onDelete }) {
     const isEdit = Boolean(location);
     const initial = useMemo(() => (isEdit ? locationToFormValues(location) : emptyLocationValues()), [isEdit, location]);
     const [values, setValues] = useState(initial);
@@ -88,6 +89,14 @@ export default function LocationForm({ location = null, locations = [], onClose,
     // any branch, nobody deactivated; one already saved here still shows.
     const repList = useSalesRepOptions({ current: { name: values.salesRep } });
     const { user } = useAuth();
+    // Daily Report email: anyone active with an email who isn't listed yet.
+    const userById = useMemo(() => new Map((Array.isArray(users) ? users : []).map((u) => [String(u._id), u])), [users]);
+    const personOptions = useMemo(() => [...userById.values()]
+        .filter((u) => u.isActive !== false && isEmail(u.email) && !values.reportUserIds.includes(String(u._id)))
+        .map((u) => ({ value: String(u._id), label: u.displayName || u.username, description: u.email, keywords: u.username }))
+        .sort((a, b) => a.label.localeCompare(b.label)), [userById, values.reportUserIds]);
+    const addPerson = (id) => { if (id) set({ reportUserIds: [...values.reportUserIds, id] }); };
+    const removePerson = (id) => set({ reportUserIds: values.reportUserIds.filter((x) => x !== id) });
     const priceOptions = [{ value: '', label: 'None' }, ...PRICE_LEVELS.map((l) => ({ value: String(l), label: priceLevelLabel(l) }))];
     const termsOptions = [{ value: '', label: 'None' }, ...PAYMENT_TERMS.map((t) => ({ value: t, label: t }))];
 
@@ -326,6 +335,43 @@ export default function LocationForm({ location = null, locations = [], onClose,
                     {text('avgUnitFreight', { inputMode: 'decimal', placeholder: '0.00', prefix: '$', asTyped: true })}
                     {text('unitOverheadPct', { inputMode: 'decimal', placeholder: '0.00', suffix: '%', asTyped: true })}
                 </FormRow>
+            </FormSection>
+
+            <FormSection number={6} title="Who gets the Daily Report PDF every day">
+                <FormRow>
+                    <FormField name="reportUserIds" id="loc-reportUserIds" label={FIELD_LABELS.reportUserIds} error={shown('reportUserIds')}>
+                        <FormSearchPicker
+                            id="loc-reportUserIds"
+                            value=""
+                            onChange={addPerson}
+                            options={personOptions}
+                            placeholder="Add a person"
+                            searchPlaceholder="Type a name or email"
+                            sheetTitle="Add a person"
+                        />
+                    </FormField>
+                    {text('reportEmails', { placeholder: 'name@example.com, name2@example.com', inputMode: 'email', autoCapitalize: 'off', asTyped: true })}
+                </FormRow>
+                {values.reportUserIds.length > 0 && (
+                    <ul className="loc-people" aria-label="People who get the Daily Report">
+                        {values.reportUserIds.map((id) => {
+                            const u = userById.get(id);
+                            const name = u ? (u.displayName || u.username) : (users.length ? 'Removed user' : 'Loading…');
+                            const problem = users.length ? userRecipientProblem(u) : '';
+                            return (
+                                <li key={id} className={`loc-person${problem ? ' is-off' : ''}`}>
+                                    <span className="loc-person-text">
+                                        <span className="loc-person-name">{name}</span>
+                                        <span className="loc-person-sub">{problem || u?.email || ''}</span>
+                                    </span>
+                                    <button type="button" className="loc-person-x" aria-label={`Remove ${name}`} title="Remove" onClick={() => removePerson(id)}>
+                                        <X size={15} aria-hidden="true" />
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
             </FormSection>
         </FormModal>
     );

@@ -827,7 +827,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
 
       // Not awaited — the person submitting shouldn't wait on an email round
       // trip, and a failed send shouldn't turn a successful submit into an
-      // error. notifyDailyReportSubmission no-ops for every branch but Seattle.
+      // error. notifyDailyReportSubmission no-ops for a branch with no list.
       notifyDailyReportSubmission(claimed.toObject());
 
       res.json({ report: claimed.toObject() });
