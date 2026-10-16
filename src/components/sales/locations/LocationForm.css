@@ -49,10 +49,54 @@
     cursor: pointer;
 }
 
+/* Daily Report email: the people listed, each removable. */
+.loc-people {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+}
+.loc-person {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 6px 6px 12px;
+    border: 1px solid var(--fm-bd);
+    border-radius: 10px;
+    background: var(--fm-gold-soft);
+}
+.loc-person.is-off { background: transparent; border-style: dashed; }
+.loc-person-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.loc-person-name,
+.loc-person-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loc-person-name { font-size: 14px; font-weight: 600; color: var(--fm-tx); }
+.loc-person-sub { font-size: 12px; color: var(--fm-mut); }
+.loc-person.is-off .loc-person-sub { color: var(--fm-err); }
+.loc-person-x {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--fm-mut);
+    cursor: pointer;
+}
+.loc-person-x:hover { background: var(--fm-hover); color: var(--fm-x); }
+.loc-person-x:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 1px; }
+
 @media (max-width: 639px) {
     /* City on its own line, State and ZIP side by side under it. */
     .loc-csz { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .loc-csz > .fm-field:first-child { grid-column: 1 / -1; }
     .loc-adorn-prefix, .loc-adorn-suffix { font-size: 16px; }
     .loc-check { font-size: 16px; }
+    .loc-people { grid-template-columns: minmax(0, 1fr); }
+    .loc-person-x { width: 44px; height: 44px; }
 }

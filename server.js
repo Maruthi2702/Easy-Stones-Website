@@ -100,6 +100,7 @@ import { createKingReports } from './src/permits/kingCountyReport.js';
 import { createContractorRegistry } from './src/permits/contractors.js';
 import { ALL_PERMIT_PERMISSIONS } from './src/permits/permissions.js';
 import { CHECKIN_MIGRATION } from './src/utils/checkInAccess.js';
+import { seedSeattleRecipients } from './src/utils/dailyReportSubmissionEmail.js';
 import { hasSalesPage } from './src/utils/navPins.js';
 import { canViewLostSales, canEditLostSales, canDeleteLostSales } from './src/utils/lostSaleAccess.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
@@ -539,6 +540,17 @@ async function startServer() {
       }
     } catch (migError) {
       console.error('Error running user locations migration:', migError);
+    }
+
+    // Database migration (once): Seattle's Daily Report email list was typed
+    // into the code until 2026-10-15; copy it onto Seattle's location.
+    try {
+      const seeded = await seedSeattleRecipients();
+      if (seeded) {
+        console.log(`🔄 Seattle daily report list: ${seeded.userIds.length} users, ${seeded.extraEmails.length} typed addresses`);
+      }
+    } catch (migError) {
+      console.error('Error copying Seattle\'s daily report list:', migError);
     }
 
     // Database migration: assign every pre-existing customer to Seattle.

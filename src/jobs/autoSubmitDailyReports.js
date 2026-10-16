@@ -171,9 +171,8 @@ export async function autoSubmitDueDays(now = new Date()) {
       if (!claimed) continue;
 
       count++;
-      // Every branch gets its day closed out; only Seattle's office reads the
-      // evening summary email, same as before this derived its own figures.
-      if (location === 'Seattle') notifyDailyReportSubmission(claimed.toObject());
+      // Emailed to the branch's Daily Report list, if it has one.
+      notifyDailyReportSubmission(claimed.toObject());
     }
 
     // Days that are over with no report at all — nobody opened the sheet.
@@ -184,7 +183,7 @@ export async function autoSubmitDueDays(now = new Date()) {
       const created = await fileUnopenedDay(day, location, now);
       if (!created) continue;
       count++;
-      if (location === 'Seattle') notifyDailyReportSubmission(created.toObject());
+      notifyDailyReportSubmission(created.toObject());
     }
 
     if (count > 0) submitted.push({ location, count });
