@@ -749,7 +749,7 @@ export default function createDeliveriesRouter({
     }
   });
 
-  router.post('/deliveries', authenticate, canWriteDeliveries, async (req, res) => {
+  const saveDeliveryRoute = async (req, res) => {
     try {
       let delivery = req.body;
       if (!delivery || !delivery.id) return res.status(400).json({ error: 'Invalid delivery data' });
@@ -770,10 +770,18 @@ export default function createDeliveriesRouter({
       // tickets, and of an existing one only the proof and "completed" are
       // written, however much of the ticket the phone sent back. (The office,
       // holding edit_delivery_schedule, gets the whole upsert as before.)
-      if (!(req.user?.permissions || []).includes(DELIVERY_PERMISSIONS.EDIT)) {
-        if (!existing) return res.status(403).json({ error: 'Drivers can only sign for an existing delivery.' });
+      const isEditor = (req.user?.permissions || []).includes(DELIVERY_PERMISSIONS.EDIT);
+      // PATCH /deliveries/:id/pod (below) is the same narrow write for anyone:
+      // the office's ePOD save used to send the board's cached copy of the
+      // whole ticket through this upsert, undoing edits made meanwhile.
+      if (req.podOnly || !isEditor) {
+        if (!existing) {
+          return req.podOnly
+            ? res.status(404).json({ error: 'Delivery not found' })
+            : res.status(403).json({ error: 'Drivers can only sign for an existing delivery.' });
+        }
         if (!delivery.pod || typeof delivery.pod !== 'object') {
-          return res.status(403).json({ error: 'Drivers can only save a delivery\'s ePOD.' });
+          return res.status(req.podOnly ? 400 : 403).json({ error: 'Drivers can only save a delivery\'s ePOD.' });
         }
         delivery = { id: delivery.id, pod: delivery.pod, status: 'completed' };
       }
@@ -971,6 +979,15 @@ export default function createDeliveriesRouter({
       console.error('[server] save delivery error:', err);
       res.status(500).json({ error: 'Server error saving delivery' });
     }
+  };
+
+  router.post('/deliveries', authenticate, canWriteDeliveries, saveDeliveryRoute);
+  // Saves one delivery's ePOD and marks it completed, and writes nothing else —
+  // the same narrowing a driver's save gets on POST, for the office too.
+  router.patch('/deliveries/:id/pod', authenticate, canWriteDeliveries, (req, res) => {
+    req.podOnly = true;
+    req.body = { id: req.params.id, pod: req.body?.pod };
+    return saveDeliveryRoute(req, res);
   });
 
   // PATCH /api/deliveries/:id/status — the driver app's only write besides an ePOD.

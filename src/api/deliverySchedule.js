@@ -849,6 +849,27 @@ export async function getCancelledDeliveries(location = null) {
 // Deliberately rethrown rather than swallowed to stale cache — the delivery
 // modal awaits this and only closes once it resolves, so a save that fails
 // silently here used to look like a success and discard what was typed.
+/**
+ * Save one delivery's ePOD (and mark it completed) — nothing else of the
+ * ticket is sent or written, so edits made to it while someone was signing
+ * survive, and a stale or partly loaded copy can't overwrite them.
+ */
+export async function saveDeliveryPod(id, pod) {
+  const res = await authFetch(`${API_URL}/api/deliveries/${encodeURIComponent(id)}/pod`, {
+    method: 'PATCH',
+    body: JSON.stringify({ pod })
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || body.message || `Could not save the proof of delivery (${res.status}).`);
+  }
+  const updated = await res.json();
+  if (!updated || !updated.id) throw new Error('Malformed delivery save response');
+  upsertDeliveryIntoCache(updated);
+  notifyScheduleListeners();
+  return getActiveWeekDeliveries();
+}
+
 export async function saveDelivery(delivery) {
   const res = await authFetch(`${API_URL}/api/deliveries`, {
     method: 'POST',
