@@ -5,7 +5,7 @@
 // src/components/sales/delivery/README.md for how this fits with the rest
 // of the feature (deliverySchedule.js's cache, the backend router, the socket).
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Plus, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText, ArrowUpToLine, ArrowDownToLine, Link2 } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText, ArrowUpToLine, ArrowDownToLine, Link2 } from 'lucide-react';
 import TicketChip from './TicketChip';
 import { MAX_TRUCK_CAPACITY } from '../../../api/deliverySchedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
@@ -20,7 +20,10 @@ import { dayLabel } from '../../../utils/deliveryWeek';
 // Widths the dispatch table is laid out from. A driver column needs roughly this
 // much to keep stop, reference number and status pill on one line; below it the
 // three start colliding, so the table scrolls sideways rather than going narrower.
-const DAY_COL_WIDTH = 170;
+// The Day column is held at its width (a <col>, not a share of the spare room —
+// it used to take ~25% of a wide screen and push Will Call off the edge); the
+// driver columns split everything else.
+const DAY_COL_WIDTH = 132;
 const MIN_TRUCK_COL_WIDTH = 290;
 // The stylesheet's existing floor — never render narrower than the board does today.
 const MIN_TABLE_WIDTH = 1100;
@@ -35,6 +38,12 @@ const isCounterColumn = (trk) => Boolean(trk?.isWillCall);
 // What one ticket in this column is called, so the empty state and the add
 // button read naturally.
 const columnNoun = (trk) => (trk?.isWillCall ? 'pickup' : 'stop');
+
+// The cell's count, saying what it counts: "3/12 stops" on a truck (its day's
+// load), "2 pickups" in Will Call (no cap).
+const countLabel = (trk, count) => (isCounterColumn(trk)
+  ? `${count} ${columnNoun(trk)}${count === 1 ? '' : 's'}`
+  : `${count}/${MAX_TRUCK_CAPACITY} stops`);
 
 // The order a cell reads in: explicit stop number first, then time as the
 // tie-break for everything still sitting on the default of 1. Shared by the
@@ -163,6 +172,43 @@ const BoardGrid = ({
       events.forEach((ev) => box.removeEventListener(ev, stop));
     };
   }, [viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ── More columns to the side (2026-10-15) ──
+  // Scrollbars are hidden on most machines, so a board wider than the screen
+  // gave no sign that Will Call (or a driver) was off to the right. Each side
+  // that has more gets a fade and an arrow that scrolls one column over.
+  const [moreSide, setMoreSide] = useState({ left: false, right: false });
+  useEffect(() => {
+    const box = tableScrollRef.current;
+    if (!box) return undefined;
+    const update = () => {
+      const left = box.scrollLeft > 2;
+      const right = box.scrollLeft + box.clientWidth < box.scrollWidth - 2;
+      setMoreSide(prev => (prev.left === left && prev.right === right ? prev : { left, right }));
+    };
+    update();
+    box.addEventListener('scroll', update, { passive: true });
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    ro?.observe(box);
+    const table = box.querySelector('table');
+    if (table) ro?.observe(table);
+    return () => {
+      box.removeEventListener('scroll', update);
+      ro?.disconnect();
+    };
+  }, [viewMode]);
+  const scrollColumns = (dir) => {
+    const box = tableScrollRef.current;
+    if (!box) return;
+    const col = box.querySelector('th.truck-col-header')?.getBoundingClientRect().width || MIN_TRUCK_COL_WIDTH;
+    const end = box.scrollWidth - box.clientWidth;
+    let left = box.scrollLeft + dir * col;
+    // Less than half a column left over: go all the way, rather than leave a
+    // sliver of Will Call needing a second click.
+    if (end - left < col / 2) left = end;
+    if (left < col / 2) left = 0;
+    box.scrollTo({ left, behavior: 'smooth' });
+  };
+
   // Today on phones/iPads (day pills): select today's pill, during render.
   const [seenTodayRequest, setSeenTodayRequest] = useState(todayRequest);
   if (todayRequest !== seenTodayRequest) {
@@ -605,7 +651,7 @@ const BoardGrid = ({
                           the daily truck load does not apply — count them,
                           don't cap them. */}
                       <span className={`ux-capacity-badge ${capCount > 0 ? 'has-stops' : 'empty'}`}>
-                        {isCounterColumn(trk) ? capCount : `${capCount}/${MAX_TRUCK_CAPACITY}`}
+                        {countLabel(trk, capCount)}
                       </span>
                       {editable && !trk.inactive && (
                         <button
@@ -637,6 +683,10 @@ const BoardGrid = ({
         </div>
       ) : (
         /* ── DISPATCH TABLE MATRIX ── */
+        <div
+          className={`board-scroll-frame${moreSide.left ? ' more-left' : ''}${moreSide.right ? ' more-right' : ''}`}
+          style={{ '--day-col-width': `${DAY_COL_WIDTH}px` }}
+        >
         <div className="board-grid-scroll-container" ref={tableScrollRef}>
           {/* table-layout is fixed, so without a width that grows per driver the
               columns just divide the same 1100px and every extra driver squeezes
@@ -646,6 +696,10 @@ const BoardGrid = ({
             className="manifest-dispatch-table"
             style={{ minWidth: `${Math.max(MIN_TABLE_WIDTH, DAY_COL_WIDTH + displayTrucks.length * MIN_TRUCK_COL_WIDTH)}px` }}
           >
+            <colgroup>
+              <col style={{ width: `${DAY_COL_WIDTH}px` }} />
+              {displayTrucks.map(trk => <col key={trk.id || 'unassigned'} />)}
+            </colgroup>
             <thead>
               <tr>
                 <th className="day-col-header-row">
@@ -714,9 +768,9 @@ const BoardGrid = ({
                               className={`cell-capacity-pill ${isCounterColumn(trk) ? 'capacity-ok-green' : capClass}`}
                               title={isCounterColumn(trk)
                                 ? `${rawCount} customer ${columnNoun(trk)}${rawCount === 1 ? '' : 's'} booked`
-                                : `${rawCount} of ${MAX_TRUCK_CAPACITY} deliveries booked`}
+                                : `${rawCount} of ${MAX_TRUCK_CAPACITY} stops booked on this truck`}
                             >
-                              {isCounterColumn(trk) ? rawCount : `${rawCount}/${MAX_TRUCK_CAPACITY}`}
+                              {countLabel(trk, rawCount)}
                             </span>
                             {editable && !trk.inactive && (
                               <button
@@ -741,6 +795,17 @@ const BoardGrid = ({
               })}
             </tbody>
           </table>
+        </div>
+          {moreSide.left && (
+            <button type="button" className="board-more-btn is-left" onClick={() => scrollColumns(-1)} aria-label="Show the columns to the left" title="More columns to the left">
+              <ChevronLeft size={18} />
+            </button>
+          )}
+          {moreSide.right && (
+            <button type="button" className="board-more-btn is-right" onClick={() => scrollColumns(1)} aria-label="Show the columns to the right" title="More columns to the right">
+              <ChevronRight size={18} />
+            </button>
+          )}
         </div>
       )}
     </div>

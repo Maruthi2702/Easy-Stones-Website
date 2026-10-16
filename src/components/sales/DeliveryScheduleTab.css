@@ -558,6 +558,11 @@ body.light-theme-active .board-grid-scroll-container,
 }
 
 .manifest-dispatch-table thead .day-col-header-row { z-index: 4; }
+/* No left border on the pinned Day column: the board's box already draws that
+   edge, and the collapsed one stayed put while the cell moved, leaving a 1px
+   slit cards showed through. */
+.manifest-dispatch-table .day-col-header-row,
+.manifest-dispatch-table .day-info-cell { border-left-width: 0 !important; }
 
 /* A pinned cell's collapsed border stays behind when it moves, so it draws
    its own dividing line. Solid fill so cards slide under it, not through. */
@@ -600,8 +605,8 @@ body.light-theme-active .manifest-dispatch-table td,
 }
 
 .day-col-header-row {
-  width: 170px;
-  padding: 1rem 1.1rem;
+  /* Width comes from the table's <col> (DAY_COL_WIDTH in BoardGrid.jsx). */
+  padding: 1rem 0.9rem;
   background: #1c1c1e;
   text-align: left;
 }
@@ -616,7 +621,9 @@ body.light-theme-active .manifest-dispatch-table td,
 }
 
 .truck-col-header {
-  width: 190px;
+  /* No width: driver columns share whatever the Day column leaves. A width
+     here made table-layout: fixed hand the Day column a share of the spare
+     room too. */
   padding: 0.9rem 1.1rem;
   background: #1c1c1e;
   text-align: left;
@@ -635,14 +642,25 @@ tr.today-row {
 }
 
 .day-info-cell {
-  padding: 1.1rem;
+  padding: 1.1rem 0.9rem;
   background: rgba(255, 255, 255, 0.02);
   vertical-align: middle;
 }
 
 .day-info-cell.today-cell {
   background: #271c08 !important;
-  border-left: 4px solid #d4af37;
+}
+
+/* Today's gold edge is drawn inside the cell, not as a border: the Day column
+   is pinned, and a collapsed border stays behind when it moves, which left a
+   4px gap that cards showed through as the board scrolled sideways. */
+.manifest-dispatch-table .day-info-cell.today-cell {
+  box-shadow: inset 4px 0 0 #d4af37, inset -1px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+body.light-theme-active .manifest-dispatch-table .day-info-cell.today-cell,
+.light-theme-active .manifest-dispatch-table .day-info-cell.today-cell {
+  box-shadow: inset 4px 0 0 #d4af37, inset -1px 0 0 #cbd5e1;
 }
 
 body.light-theme-active .day-info-cell,
@@ -949,7 +967,8 @@ body.light-theme-active .reorder-hint,
 .cell-capacity-pill {
   font-size: 0.72rem;
   font-weight: 800;
-  font-family: monospace, monospace;
+  /* Words now ("3/12 stops"), so the app's font; figures stay lined up. */
+  font-variant-numeric: tabular-nums;
   padding: 0.2rem 0.5rem;
   border-radius: 6px;
 }
@@ -1029,6 +1048,31 @@ body.light-theme-active .manifest-ticket-chip,
 
 .manifest-ticket-chip.clickable {
   cursor: pointer;
+}
+
+/* A finished stop steps back so what's still to do stands out — except a
+   missing or cleared ePOD, which is the one thing on it still to chase.
+   Hovering brings it back to full strength. */
+.manifest-ticket-chip.status-border-completed {
+  background: rgba(30, 36, 52, 0.5);
+  box-shadow: none;
+}
+
+.manifest-ticket-chip.status-border-completed > :not(.ticket-footer),
+.manifest-ticket-chip.status-border-completed .ticket-footer > :not(.epod-chip-none):not(.epod-chip-cleared) {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.manifest-ticket-chip.status-border-completed:hover > :not(.ticket-footer),
+.manifest-ticket-chip.status-border-completed:hover .ticket-footer > * {
+  opacity: 1;
+}
+
+body.light-theme-active .manifest-ticket-chip.status-border-completed,
+.light-theme-active .manifest-ticket-chip.status-border-completed {
+  background: #f8fafc !important;
+  box-shadow: none !important;
 }
 
 .manifest-ticket-chip.clickable:hover {
@@ -2000,20 +2044,92 @@ body.light-theme-active .visit-modal-overlay .modal-header,
   font-weight: 700;
 }
 
-/* ── Mobile horizontal scroll hint ── */
-@media (max-width: 900px) {
-  .board-grid-scroll-container::after {
-    content: '';
-    position: sticky;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 32px;
-    background: linear-gradient(to left, rgba(18, 20, 29, 0.9), transparent);
-    pointer-events: none;
-    flex-shrink: 0;
-  }
+/* ── More columns to the side ──
+   Scrollbars are hidden on most machines, so when the board is wider than the
+   screen each side with more gets a fade and an arrow (BoardGrid's moreSide).
+   The left one starts after the pinned Day column, which covers what's
+   scrolled under it. */
+.board-scroll-frame {
+  position: relative;
+  --board-fade: rgba(28, 28, 30, 0.96);
+}
 
+body.light-theme-active .board-scroll-frame,
+.light-theme-active .board-scroll-frame {
+  --board-fade: rgba(255, 255, 255, 0.96);
+}
+
+.board-scroll-frame::before,
+.board-scroll-frame::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 56px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 5;
+}
+
+.board-scroll-frame::before {
+  left: calc(var(--day-col-width) + 1px);
+  background: linear-gradient(to right, var(--board-fade), transparent);
+}
+
+.board-scroll-frame::after {
+  right: 1px;
+  border-radius: 0 13px 13px 0;
+  background: linear-gradient(to left, var(--board-fade), transparent);
+}
+
+.board-scroll-frame.more-left::before,
+.board-scroll-frame.more-right::after {
+  opacity: 1;
+}
+
+.board-more-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 6;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  color: #d4af37;
+  background: #26262a;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.board-more-btn:hover {
+  background: #313136;
+  transform: translateY(-50%) scale(1.06);
+}
+
+.board-more-btn.is-right { right: 10px; }
+.board-more-btn.is-left { left: calc(var(--day-col-width) + 10px); }
+
+body.light-theme-active .board-more-btn,
+.light-theme-active .board-more-btn {
+  color: #a07c12;
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+
+body.light-theme-active .board-more-btn:hover,
+.light-theme-active .board-more-btn:hover {
+  background: #fefce8;
+}
+
+@media (max-width: 900px) {
   .manifest-dispatch-table {
     min-width: 650px;
   }
@@ -2911,6 +3027,14 @@ body.light-theme-active .manifest-dispatch-table td,
 .light-theme-active .manifest-dispatch-table td {
   border-color: #e2e8f0 !important;
   background: #ffffff !important;
+}
+
+/* Today's whole row, not just its Day cell: scrolled across to Will Call you
+   still see which row is today. (The white above used to cover the row's own
+   tint in the light theme; the dark theme's cells are clear, so it shows.) */
+body.light-theme-active .manifest-dispatch-table tr.today-row td.dispatch-cell,
+.light-theme-active .manifest-dispatch-table tr.today-row td.dispatch-cell {
+  background: #fefce8 !important;
 }
 
 body.light-theme-active .truck-col-header,
