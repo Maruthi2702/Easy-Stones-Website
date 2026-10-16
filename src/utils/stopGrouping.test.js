@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupStops, applyStopMove, flattenGroups, sameStopOrder } from './stopGrouping.js';
+import { groupStops, applyStopMove, flattenGroups, sameStopOrder, compactStopNumbers, nextStopNumber } from './stopGrouping.js';
 
 const stops = (...pairs) => pairs.map(([id, routeNumber]) => ({ id, routeNumber }));
 
@@ -130,5 +130,46 @@ describe('a full round-trip matches how staff already use shared stops', () => {
       { id: 'd', routeNumber: 2 },
       { id: 'new', routeNumber: 3 }
     ]);
+  });
+});
+
+describe('compactStopNumbers', () => {
+  it('closes the gap a deleted or moved stop leaves (1, 3 → 1, 2)', () => {
+    expect(compactStopNumbers(stops(['a', 1], ['b', 3]))).toEqual([{ id: 'b', routeNumber: 2 }]);
+  });
+
+  it('starts at 1 when stop 1 has gone', () => {
+    expect(compactStopNumbers(stops(['a', 2], ['b', 5], ['c', 9]))).toEqual(stops(['a', 1], ['b', 2], ['c', 3]));
+  });
+
+  it('keeps tickets that shared a stop sharing one', () => {
+    expect(compactStopNumbers(stops(['a', 1], ['b', 4], ['c', 4], ['d', 7])))
+      .toEqual(stops(['b', 2], ['c', 2], ['d', 3]));
+  });
+
+  it('keeps the order whatever order the tickets come in', () => {
+    expect(compactStopNumbers(stops(['c', 9], ['a', 2], ['b', 5]))).toEqual(stops(['c', 3], ['a', 1], ['b', 2]));
+  });
+
+  it('changes nothing on a run already numbered 1, 2, 3', () => {
+    expect(compactStopNumbers(stops(['a', 1], ['b', 2], ['c', 3]))).toEqual([]);
+  });
+
+  it('writes a missing number as the 1 it is read as', () => {
+    expect(compactStopNumbers(stops(['a', null], ['b', 2]))).toEqual([{ id: 'a', routeNumber: 1 }]);
+  });
+
+  it('has nothing to do on an empty run', () => {
+    expect(compactStopNumbers([])).toEqual([]);
+  });
+});
+
+describe('nextStopNumber', () => {
+  it('is one past the last stop', () => {
+    expect(nextStopNumber(stops(['a', 1], ['b', 2], ['c', 2]))).toBe(3);
+  });
+
+  it('is 1 on an empty run', () => {
+    expect(nextStopNumber([])).toBe(1);
   });
 });

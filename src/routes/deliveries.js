@@ -18,7 +18,8 @@ import {
   isWillCall, THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME,
   PICKUP_WORDING, DELIVERY_WORDING, RETURN_WORDING
 } from '../utils/deliveryPickup.js';
-import { DELIVERY_TYPES, isReturn, defaultStatusFor, isPendingDelivery, showOnArrivalDay, transferArrivalFor } from '../utils/deliveryTypes.js';
+import { DELIVERY_TYPES, isReturn, defaultStatusFor, isPendingDelivery, showOnArrivalDay, transferArrivalFor, columnIdFor } from '../utils/deliveryTypes.js';
+import { compactStopNumbers, nextStopNumber } from '../utils/stopGrouping.js';
 import {
   buildDeliverySearchFilter, sortSearchResults,
   SEARCH_RESULT_LIMIT, SEARCH_SCAN_LIMIT
@@ -332,6 +333,65 @@ const DELIVERY_LIST_PROJECTION = {
   'pod.photos': 0
 };
 
+// ── Stop numbers ──
+// A run is one driver's tickets on one day: a cell of the board. Its saved
+// routeNumbers are what the board, the Edit delivery form and the driver's
+// phone all show, so every write that adds a ticket to a run, takes one out
+// or deletes one closes the numbers back up to 1, 2, 3… (compactStopNumbers
+// in src/utils/stopGrouping.js) — a deleted Stop #2 used to leave 1, 3.
+const RUN_FIELDS = 'id truckId date routeNumber deliveryType customerDropOff status';
+
+/** The run a ticket was or is saved in, judged by its truck and day alone. */
+const runOf = (d) => (d?.truckId && d?.date ? { truckId: d.truckId, date: d.date } : null);
+
+/** What's on the board in a run: not cancelled, not a will call left pointing at the truck. */
+const ticketsInRun = async ({ truckId, date }) =>
+  (await Delivery.find({ truckId, date, status: { $ne: 'cancelled' } }, RUN_FIELDS).lean())
+    .filter(d => columnIdFor(d) === truckId);
+
+const writeStopNumbers = (changes) => Delivery.bulkWrite(
+  changes.map(c => ({ updateOne: { filter: { id: c.id }, update: { $set: { routeNumber: c.routeNumber } } } })),
+  { ordered: false }
+);
+
+/** Closes up each run given (nulls and repeats skipped); returns the tickets it renumbered. */
+async function renumberRuns(runs) {
+  const seen = new Set();
+  const changes = [];
+  for (const run of runs) {
+    if (!run?.truckId || !run?.date) continue;
+    const key = `${run.truckId}||${run.date}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    changes.push(...compactStopNumbers(await ticketsInRun(run)));
+  }
+  if (!changes.length) return [];
+  await writeStopNumbers(changes);
+  return Delivery.find({ id: { $in: changes.map(c => c.id) } }, DELIVERY_LIST_PROJECTION).lean();
+}
+
+/**
+ * Every run at once. Run at startup so numbers saved before the rule above
+ * (gaps from old deletes and moves) are closed up too; once they are, it
+ * finds nothing to change. Returns how many tickets it renumbered.
+ */
+export async function renumberAllRuns() {
+  const tickets = await Delivery.find(
+    { truckId: { $nin: ['', null] }, date: { $nin: ['', null] }, status: { $ne: 'cancelled' } },
+    RUN_FIELDS
+  ).lean();
+  const runs = new Map();
+  for (const d of tickets) {
+    if (columnIdFor(d) !== d.truckId) continue;
+    const key = `${d.truckId}||${d.date}`;
+    if (!runs.has(key)) runs.set(key, []);
+    runs.get(key).push(d);
+  }
+  const changes = [...runs.values()].flatMap(compactStopNumbers);
+  if (changes.length) await writeStopNumbers(changes);
+  return changes.length;
+}
+
 // Order search only needs enough to say when/where an order is and to open
 // it — the full ticket is fetched by id once someone actually picks one.
 const SEARCH_RESULT_PROJECTION = {
@@ -402,6 +462,27 @@ export default function createDeliveriesRouter({
   // job may still need to void a proof the wrong customer signed, and the reverse
   // holds too.
   const canClearPod = requirePermission('clear_pod_signatures');
+
+  // Renumbers the runs a write touched (see renumberRuns) and tells open
+  // boards about every ticket that moved, except `selfId`: the caller sends
+  // that one itself, with the number this returns. A failure here is logged,
+  // not returned — the save it follows has already happened.
+  const renumberAfter = async (req, runs, selfId) => {
+    try {
+      const moved = await renumberRuns(runs);
+      for (const delivery of moved) {
+        if (delivery.id !== selfId) emitDeliveryUpdate(req, { type: 'upsert', delivery }, delivery);
+      }
+      return moved;
+    } catch (err) {
+      console.error('[server] renumber stops error:', err);
+      return [];
+    }
+  };
+  const withNumberFrom = (record, moved) => {
+    const fixed = moved.find(d => d.id === record.id);
+    return fixed ? { ...record, routeNumber: fixed.routeNumber } : record;
+  };
 
   router.get('/trucks', authenticate, canViewDeliveries, async (req, res) => {
     try {
@@ -662,7 +743,7 @@ export default function createDeliveriesRouter({
       // edit goes through.
       const existing = await Delivery.findOne(
         { id: delivery.id },
-        'location deliveryType transferDestination pod packingListUrl packingListFilename truckId date expectedArrivalDate'
+        'location deliveryType transferDestination pod packingListUrl packingListFilename truckId date expectedArrivalDate customerDropOff status routeNumber'
       ).lean();
 
       // Editing a record that already exists: its CURRENT location has to be
@@ -847,11 +928,13 @@ export default function createDeliveriesRouter({
         }
       }
 
-      const updated = await Delivery.findOneAndUpdate(
+      const saved = await Delivery.findOneAndUpdate(
         { id: delivery.id },
         { $set: updateData },
         { upsert: true, new: true }
       ).lean();
+      // The run it left (if it moved) and the one it's in now.
+      const updated = withNumberFrom(saved, await renumberAfter(req, [runOf(existing), runOf(saved)], saved.id));
 
       // Broadcast just the single changed record — not the whole collection. Clients
       // merge it into whichever cached week(s) it belongs to.
@@ -884,13 +967,15 @@ export default function createDeliveriesRouter({
         return res.status(400).json({ error: `Status must be one of: ${DELIVERY_STATUSES.join(', ')}` });
       }
 
-      const updated = await Delivery.findOneAndUpdate(
+      const saved = await Delivery.findOneAndUpdate(
         scopeDeliveryQueryToLocations({ id }, req),
         { $set: { status } },
         { new: true, projection: DELIVERY_LIST_PROJECTION }
       ).lean();
 
-      if (!updated) return res.status(404).json({ error: 'Delivery not found' });
+      if (!saved) return res.status(404).json({ error: 'Delivery not found' });
+      // Cancelling takes it out of its run, so the stops after it move up.
+      const updated = withNumberFrom(saved, await renumberAfter(req, [runOf(saved)], saved.id));
 
       // Completion is not proof. Marking a stop delivered says the material got
       // there; pod.verified stays whatever the signatures make it, so a card can
@@ -969,7 +1054,7 @@ export default function createDeliveriesRouter({
       // starting status is left exactly as this endpoint has always left it.
       const existing = await Delivery.findOne(
         scopeDeliveryQueryToLocations({ id }, req),
-        { status: 1, expectedArrivalDate: 1 }
+        { status: 1, expectedArrivalDate: 1, truckId: 1, date: 1 }
       ).lean();
       if (!existing) return res.status(404).json({ error: 'Delivery not found' });
       const statusUpdate = existing.status === 'cancelled'
@@ -982,13 +1067,26 @@ export default function createDeliveriesRouter({
         ? { expectedArrivalDate: transferArrivalFor({ date, expectedArrivalDate: existing.expectedArrivalDate }) }
         : {};
 
-      const updated = await Delivery.findOneAndUpdate(
+      // Landing on a different driver or day: it joins the end of that run
+      // rather than keeping the number it had (a Stop #1 arriving would share
+      // the stop already called #1). A drop onto a card then sends the exact
+      // place as a reorder.
+      // A cancelled ticket was out of its run, so restoring it is joining one.
+      const oldRun = existing.status === 'cancelled' ? null : runOf(existing);
+      const newRun = deliveryType === 'will_call' ? null : runOf({ truckId, date });
+      const movedRuns = newRun && (!oldRun || oldRun.truckId !== newRun.truckId || oldRun.date !== newRun.date);
+      const stopUpdate = movedRuns
+        ? { routeNumber: nextStopNumber((await ticketsInRun(newRun)).filter(d => d.id !== id)) }
+        : {};
+
+      const saved = await Delivery.findOneAndUpdate(
         scopeDeliveryQueryToLocations({ id }, req),
-        { $set: { truckId, deliveryType, date, customerDropOff, ...statusUpdate, ...arrivalUpdate } },
+        { $set: { truckId, deliveryType, date, customerDropOff, ...statusUpdate, ...arrivalUpdate, ...stopUpdate } },
         { new: true, projection: DELIVERY_LIST_PROJECTION }
       ).lean();
 
-      if (!updated) return res.status(404).json({ error: 'Delivery not found' });
+      if (!saved) return res.status(404).json({ error: 'Delivery not found' });
+      const updated = withNumberFrom(saved, await renumberAfter(req, [oldRun, runOf(saved)], saved.id));
 
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
       deliveriesChanged([updated.id]);
@@ -1088,9 +1186,20 @@ export default function createDeliveriesRouter({
         updateOne: { filter: { id: u.id }, update: { $set: { routeNumber: u.routeNumber } } }
       })));
 
-      const updated = await Delivery.find(
+      // A reorder sent from a searched board covers only the cards on show,
+      // which can leave a gap among the rest.
+      const reordered = await Delivery.find(
         { id: { $in: applicable.map(u => u.id) } }, DELIVERY_LIST_PROJECTION
       ).lean();
+      const reorderedIds = new Set(reordered.map(d => d.id));
+      const moved = await renumberRuns(cellFilters).catch((err) => {
+        console.error('[server] renumber stops error:', err);
+        return [];
+      });
+      const updated = [
+        ...reordered.map(d => withNumberFrom(d, moved)),
+        ...moved.filter(d => !reorderedIds.has(d.id))
+      ];
 
       for (const delivery of updated) {
         emitDeliveryUpdate(req, { type: 'upsert', delivery }, delivery);
@@ -1152,6 +1261,7 @@ export default function createDeliveriesRouter({
       }
       emitDeliveryUpdate(req, { type: 'delete', id }, deleted);
       deliveriesChanged([id]);
+      await renumberAfter(req, [runOf(deleted)]);
       res.json({ success: true, id });
     } catch (err) {
       console.error('[server] delete delivery error:', err);
