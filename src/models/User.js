@@ -70,6 +70,22 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // When that temporary password stops working (7 days after it was set —
+  // src/services/staffSession.js). Null on accounts given one before expiry
+  // existed: theirs doesn't expire.
+  tempPasswordExpiresAt: {
+    type: Date,
+    default: null
+  },
+  // Stamped into every staff session token as `sv`. Bumped whenever the
+  // password changes (their own change, a first password, an invite link,
+  // an admin reset), which ends every session signed in before it. Missing =
+  // 0, the same as a token from before this existed, so nobody was signed out
+  // by adding it.
+  sessionVersion: {
+    type: Number,
+    default: 0
+  },
   // Emailed invite (Add User → "Email an invite"): only a SHA-256 of the link's
   // token is kept, never the token itself, and it's cleared once used.
   inviteTokenHash: {

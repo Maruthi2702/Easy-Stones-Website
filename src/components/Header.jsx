@@ -8,12 +8,13 @@ import './Header.css';
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, passwordSetup } = useAuth();
   // Not for a check-in-only account (the Kiosk role): /sales has nothing for it.
   const showSalesLink = !!user && user.type === 'internal' && !isCheckInOnly(user);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  // A gold Login button pointing at the page you are already on.
-  const onLoginPage = ['/login', '/customer/login', '/admin/login'].includes(location.pathname);
+  // A gold Login button pointing at the page you are already on — or, while
+  // choosing a first password (ChoosePasswordPage), at the sign-in just done.
+  const onLoginPage = !!passwordSetup || ['/login', '/customer/login', '/admin/login', '/set-password', '/admin/set-password'].includes(location.pathname);
   const [theme, setTheme] = useState(() => {
     try {
       const saved = localStorage.getItem('checkin_theme');

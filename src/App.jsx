@@ -20,6 +20,7 @@ const CustomerLoginPage = lazyRetry(() => import('./pages/CustomerLoginPage'));
 const SalesPage = lazyRetry(() => import('./pages/SalesPage'));
 const AdminPage = lazyRetry(() => import('./pages/AdminPage'));
 const LoginPage = lazyRetry(() => import('./pages/LoginPage'));
+const ChoosePasswordPage = lazyRetry(() => import('./pages/ChoosePasswordPage'));
 const SetPasswordPage = lazyRetry(() => import('./pages/SetPasswordPage'));
 const CheckInPage = lazyRetry(() => import('./pages/CheckInPage'));
 const CheckInLogPage = lazyRetry(() => import('./pages/CheckInLogPage'));
@@ -64,12 +65,16 @@ const SalesHome = () => {
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, passwordSetup } = useAuth();
   const location = useLocation();
 
   if (loading) {
     return <PageLoader />;
   }
+
+  // Signed in with a temporary password: choosing their own comes first, on
+  // whichever page they were headed to, which then opens as them.
+  if (passwordSetup) return <ChoosePasswordPage />;
 
   // Check if we have a user and they are from the admin database
   const isAuthorized = user && (user.type === 'internal' || ['admin', 'director', 'manager', 'sales_rep', 'csr', 'kiosk'].includes(user.role));
@@ -93,7 +98,7 @@ function App() {
   const isSelfCheckInPage = location.pathname.startsWith('/self-checkin') || location.search.includes('mode=qr') || location.search.includes('mode=nfc') || location.search.includes('mode=self');
   // The login screen is a task, not a page to browse from — the full marketing
   // footer under a two-field form is twenty-odd links competing with one button.
-  const isLoginPage = ['/login', '/customer/login', '/admin/login'].includes(location.pathname);
+  const isLoginPage = ['/login', '/customer/login', '/admin/login', '/set-password'].includes(location.pathname);
 
   // Custom Alert Modal State
   const [customAlert, setCustomAlert] = useState(null);
@@ -166,6 +171,8 @@ function App() {
                   <Route path="/customer/login" element={<CustomerLoginPage />} />
 
                   <Route path="/admin/login" element={<LoginPage />} />
+                  <Route path="/set-password" element={<SetPasswordPage />} />
+                  {/* Where invite links pointed before 2026-10-15 — some are still in inboxes. */}
                   <Route path="/admin/set-password" element={<SetPasswordPage />} />
                   <Route
                     path="/admin"

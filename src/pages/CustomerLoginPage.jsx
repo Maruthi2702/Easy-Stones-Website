@@ -13,7 +13,7 @@ import './CustomerLoginPage.css';
  */
 const CustomerLoginPage = () => {
     const navigate = useNavigate();
-    const { completeLogin, user } = useAuth();
+    const { completeLogin, user, passwordSetup, startPasswordSetup } = useAuth();
     const [formData, setFormData] = useState({
         email: '',
         password: ''
@@ -49,14 +49,16 @@ const CustomerLoginPage = () => {
     // on this screen has nothing else watching that state, so it would
     // otherwise just stay on the login form forever. Follow it in, the same
     // way a successful submit on this tab would.
+    // A temporary password's sign-in (passwordSetup) goes on to the same place
+    // as staff: "Choose your password" opens there first (ProtectedRoute).
     useEffect(() => {
-        if (!user) return;
+        if (!user && !passwordSetup) return;
         const urlParams = new URLSearchParams(window.location.search);
         const redirectUrl = urlParams.get('redirect');
         if (redirectUrl) navigate(redirectUrl, { replace: true });
-        else if (user.type === 'internal') navigate('/sales', { replace: true });
+        else if (passwordSetup || user.type === 'internal') navigate('/sales', { replace: true });
         else navigate('/', { replace: true });
-    }, [user, navigate]);
+    }, [user, passwordSetup, navigate]);
 
     const readCapsLock = (e) => {
         // getModifierState is unavailable on some synthetic/mobile events.
@@ -143,6 +145,12 @@ const CustomerLoginPage = () => {
                 // completeLogin in AuthContext for why it isn't login() then
                 // checkAuth() any more: that loaded /sales twice.
                 await completeLogin(data.user);
+            } else if (data.setup) {
+                // A staff account's temporary password: signed in only to
+                // choose their own, which the effect above then takes them to.
+                if (!(await startPasswordSetup())) {
+                    fail(null, 'Couldn’t finish signing in. Please try again.');
+                }
             } else {
                 // The server returns one message for both a bad account and a bad
                 // password on purpose — don't guess which, but do say what to do next.

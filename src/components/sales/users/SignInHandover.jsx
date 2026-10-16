@@ -14,9 +14,20 @@ import CopyButton from './CopyButton';
  *   password the temporary password that was set (method 'password')
  *   reset    true after Edit user (wording), false after Add user
  */
+// Where they sign in: this site's own /login, the one door for staff and
+// customers (a temporary password opens "Choose your password" there).
+const signInAddress = () => {
+    try {
+        return `${window.location.origin}/login`;
+    } catch {
+        return '/login';
+    }
+};
+
 export default function SignInHandover({ method, result, password, reset = false, onClose }) {
     const name = result.user?.name || result.user?.username;
     const invited = method === 'invite';
+    const signInAt = signInAddress();
     return (
         <FormModal title={reset ? 'Sign-in reset' : 'User created'} size="s" onClose={onClose} onSubmit={onClose} submitLabel="Done">
             <div className="up-done">
@@ -27,7 +38,7 @@ export default function SignInHandover({ method, result, password, reset = false
                         ? (result.inviteSent
                             ? <>We emailed a link to <strong>{result.user?.email}</strong>. {reset ? 'Their current password works until they use it.' : 'They’ll choose their password from the link.'}</>
                             : null)
-                        : `Give them this temporary password — they’ll choose their own the ${reset ? 'next' : 'first'} time they sign in.`}
+                        : `Give them this temporary password — they’ll choose their own the ${reset ? 'next' : 'first'} time they sign in. It works for 7 days.`}
                 </p>
                 {invited && !result.inviteSent && (
                     <div className="up-warn" role="alert">
@@ -41,7 +52,9 @@ export default function SignInHandover({ method, result, password, reset = false
                     {!invited && (
                         <>
                             <dt>Temporary password</dt>
-                            <dd><div className="fm-inline"><span className="fm-input-mono" style={{ flex: 1 }}>{password}</span><CopyButton text={`Username: ${result.user?.username}\nTemporary password: ${password}`} /></div></dd>
+                            <dd><div className="fm-inline"><span className="fm-input-mono" style={{ flex: 1 }}>{password}</span><CopyButton text={`Sign in at: ${signInAt}\nUsername: ${result.user?.username}\nTemporary password: ${password}`} /></div></dd>
+                            <dt>Sign in at</dt>
+                            <dd style={{ fontSize: 12.5, fontWeight: 500 }}>{signInAt}</dd>
                         </>
                     )}
                     {invited && result.inviteLink && (

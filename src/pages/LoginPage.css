@@ -7,6 +7,19 @@
   background: var(--bg-primary);
 }
 
+/* "Choose your password" shown in place of a staff page (ChoosePasswordPage).
+   /sales and /admin use the dashboard layout, which leaves the fixed header's
+   height to the page itself; /checkin's layout already clears it. */
+main.main-dashboard .login-container--gate {
+  padding-top: calc(82px + 2rem);
+}
+
+@media (max-width: 1024px) {
+  main.main-dashboard .login-container--gate {
+    padding-top: calc(74px + 2rem);
+  }
+}
+
 .login-card {
   width: 100%;
   max-width: 450px;

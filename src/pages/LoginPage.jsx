@@ -8,27 +8,11 @@ import './LoginPage.css';
 
 const LoginPage = () => {
     const navigate = useNavigate();
-    const { completeLogin, user } = useAuth();
+    const { completeLogin, user, passwordSetup, startPasswordSetup } = useAuth();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    // 'choose': the account was created with a temporary password, and the
-    // server won't start a session until they pick their own
-    // (src/routes/userOnboarding.js). The temporary one stays in `password`
-    // so /api/auth/first-password can re-check it.
-    const [stage, setStage] = useState('login');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    // Shown after an invite link's password was set (SetPasswordPage sends
-    // them here with ?invited=1&u=<username>).
-    const [notice, setNotice] = useState(() => {
-        try {
-            return new URLSearchParams(window.location.search).get('invited') ? 'Password set — sign in with your new password.' : '';
-        } catch {
-            return '';
-        }
-    });
 
     // Set by authFetch right before it forces a sign-out on a 401 — tells the
     // user why they landed back here instead of leaving them to guess.
@@ -47,12 +31,14 @@ const LoginPage = () => {
     // listener re-runs checkAuth() for every open tab — but a tab left sitting
     // on this screen has nothing else watching that state, so it would
     // otherwise just stay on the login form forever. Follow it in.
+    // A temporary password's sign-in (passwordSetup) goes on too: "Choose
+    // your password" opens there first (ProtectedRoute).
     useEffect(() => {
-        if (!user) return;
+        if (!user && !passwordSetup) return;
         const urlParams = new URLSearchParams(window.location.search);
         const redirectUrl = urlParams.get('redirect') || '/admin';
         navigate(redirectUrl, { replace: true });
-    }, [user, navigate]);
+    }, [user, passwordSetup, navigate]);
 
     const [theme, setTheme] = useState(() => {
         try {
@@ -104,9 +90,10 @@ const LoginPage = () => {
 
             const data = await response.json();
 
-            if (data.code === 'must-change-password') {
-                setNotice('');
-                setStage('choose');
+            // Temporary password: signed in only to choose their own, which the
+            // effect above takes them to (src/services/staffSession.js).
+            if (data.code === 'must-change-password' && data.setup) {
+                if (!(await startPasswordSetup())) setError('Couldn’t finish signing in. Please try again.');
                 return;
             }
 
@@ -148,34 +135,6 @@ const LoginPage = () => {
         }
     };
 
-    const handleChoosePassword = async (e) => {
-        e.preventDefault();
-        setError('');
-        if (newPassword.length < 6) return setError('Choose at least 6 characters.');
-        if (newPassword !== confirmPassword) return setError('The two passwords don’t match.');
-        if (newPassword === password) return setError('Choose a different password from the temporary one.');
-        setLoading(true);
-        try {
-            const res = await fetch(`${API_URL}/api/auth/first-password`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ username, currentPassword: password, newPassword })
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok || !data.success) {
-                setError(data.message || 'Could not save your password. Please try again.');
-                return;
-            }
-            setPassword(newPassword);
-            await signIn(username, newPassword);
-        } catch {
-            setError('Could not save your password. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     return (
         <div className="login-container">
             <button 
@@ -204,54 +163,6 @@ const LoginPage = () => {
                 {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <div className="login-card">
-                {stage === 'choose' ? (
-                    <>
-                        <div className="login-header">
-                            <h1>Choose your password</h1>
-                            <p>You signed in with a temporary password. Pick your own to finish.</p>
-                        </div>
-                        <form onSubmit={handleChoosePassword} className="login-form">
-                            <input type="text" value={username} autoComplete="username" readOnly hidden />
-                            <div className="form-group">
-                                <label htmlFor="new-password"><Lock size={18} />New password</label>
-                                <input
-                                    type="password"
-                                    id="new-password"
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    placeholder="At least 6 characters"
-                                    required
-                                    minLength={6}
-                                    autoComplete="new-password"
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="confirm-password"><Lock size={18} />Type it again</label>
-                                <input
-                                    type="password"
-                                    id="confirm-password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    required
-                                    autoComplete="new-password"
-                                />
-                            </div>
-                            {error && <div className="error-message">{error}</div>}
-                            <button type="submit" className="login-submit-btn" disabled={loading}>
-                                {loading ? 'Saving…' : 'Save and sign in'}
-                            </button>
-                            <button
-                                type="button"
-                                className="login-back-btn"
-                                onClick={() => { setStage('login'); setPassword(''); setNewPassword(''); setConfirmPassword(''); setError(''); }}
-                            >
-                                Back to sign in
-                            </button>
-                        </form>
-                    </>
-                ) : (
-                <>
                 <div className="login-header">
                     <h1>User Login</h1>
                     <p>Enter your credentials to access the admin panel</p>
@@ -290,8 +201,6 @@ const LoginPage = () => {
                         />
                     </div>
 
-                    {notice && !error && <div className="login-notice" role="status">{notice}</div>}
-
                     {error && (
                         <div className="error-message">
                             {error}
@@ -302,8 +211,6 @@ const LoginPage = () => {
                         {loading ? 'Logging in...' : 'Login'}
                     </button>
                 </form>
-                </>
-                )}
             </div>
         </div>
     );

@@ -29,6 +29,22 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    // { username, name } while this browser is signed in with a temporary
+    // password and has to choose its own before anything else — a setup
+    // session, not a real one (src/services/staffSession.js). Every
+    // ProtectedRoute shows ChoosePasswordPage instead of its page meanwhile.
+    const [passwordSetup, setPasswordSetup] = useState(null);
+
+    // Who the setup session is for — null when there isn't one (or it ran out).
+    const readPasswordSetup = async () => {
+        try {
+            const res = await fetch(`${API_URL}/api/auth/setup`, { credentials: 'include' });
+            const data = res.ok ? await res.json() : null;
+            return data?.pending ? { username: data.username, name: data.name } : null;
+        } catch {
+            return null;
+        }
+    };
 
     // Check if user is logged in on mount
     useEffect(() => {
@@ -66,18 +82,22 @@ export const AuthProvider = ({ children }) => {
 
             if (!verifyRes.ok) {
                 setUser(null);
+                setPasswordSetup(null);
                 setLoading(false);
-                return;
+                return null;
             }
 
             const authData = await verifyRes.json();
 
-            // Server returns { valid: false } when no token is present
+            // Server returns { valid: false } when no token is present —
+            // with `setup` when this browser is mid first password.
             if (!authData.valid) {
+                setPasswordSetup(authData.setup ? await readPasswordSetup() : null);
                 setUser(null);
                 setLoading(false);
-                return;
+                return null;
             }
+            setPasswordSetup(null);
 
             // A fresh page load starts with no in-memory token (see authToken.js)
             // even for this now-confirmed-valid session — the httpOnly cookie
@@ -179,6 +199,7 @@ export const AuthProvider = ({ children }) => {
             if (e.key === 'auth_logout_event') {
                 console.log('Cross-tab logout event received');
                 forgetSessionData();
+                setPasswordSetup(null);
                 setUser(null);
             } else if (e.key === 'auth_login_event') {
                 console.log('Cross-tab login event received');
@@ -250,13 +271,31 @@ export const AuthProvider = ({ children }) => {
             clearAuthToken();
             forgetSessionData();
             localStorage.setItem('auth_logout_event', Date.now().toString());
+            setPasswordSetup(null);
             setUser(null);
         }
+    };
+
+    /**
+     * Signed in with a temporary password (the login answered `setup`): drop
+     * any token this tab still holds from before — /api/auth/verify reads it
+     * too and would bring that session back — and pick up the setup session.
+     * Resolves to it, or null if it couldn't be read.
+     */
+    const startPasswordSetup = async () => {
+        clearAuthToken();
+        forgetSessionData();
+        const setup = await readPasswordSetup();
+        setUser(null);
+        setPasswordSetup(setup);
+        return setup;
     };
 
     const value = {
         user,
         loading,
+        passwordSetup,
+        startPasswordSetup,
         login,
         completeLogin,
         logout,
