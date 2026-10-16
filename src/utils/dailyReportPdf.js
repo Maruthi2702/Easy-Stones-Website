@@ -246,7 +246,6 @@ export async function buildDayPdf(report) {
   const transferSlabs = outboundTransfers.reduce((s, t) => s + Number(t.slabs || 0), 0);
   const transferCount = outboundTransfers.reduce((s, t) => s + Number(t.count || 0), 0);
   const inboundTransferSlabs = inboundTransfers.reduce((s, t) => s + Number(t.slabs || 0), 0);
-  const inboundTransferCount = inboundTransfers.reduce((s, t) => s + Number(t.count || 0), 0);
   const containerSlabs = containers.reduce((s, x) => s + Number(x.slabs || 0), 0);
   const pay = report.payments || {};
   const payCount = paymentCount(pay);
@@ -289,19 +288,21 @@ export async function buildDayPdf(report) {
   ly -= 8;
   ly = drawSectionTitle(c, fonts, leftX, ly, colW, 'Transfers');
   ly = drawTable(c, fonts, leftX, ly, colW, {
-    head: ['From — To', 'Count', 'Slabs'],
-    cols: [{ align: 'left', width: colW - 110 }, { align: 'right', width: 55 }, { align: 'right', width: 55 }],
+    // Transfer # instead of a count (2026-10-15): the day sheet names the
+    // transfers; the month view and its PDF are where they're counted.
+    head: ['From — To', 'Transfer #', 'Slabs'],
+    cols: [{ align: 'left', width: colW - 160 }, { align: 'left', width: 105 }, { align: 'right', width: 55 }],
     rows: transfers.length
       ? [
-          ...outboundTransfers.map(t => ({ cells: [`OUT  ${t.fromTo || '—'}`, int(t.count), int(t.slabs)] })),
-          { cells: ['Outgoing total', int(transferCount), int(transferSlabs)], total: true },
+          ...outboundTransfers.map(t => ({ cells: [`OUT  ${t.fromTo || '—'}`, t.transferNumber || '—', int(t.slabs)] })),
+          { cells: ['Outgoing total', '', int(transferSlabs)], total: true },
           ...inboundTransfers.map(t => ({
-            cells: [`IN  ${t.fromTo || '—'}${t.received ? ' (received)' : ''}`, int(t.count), int(t.slabs)]
+            cells: [`IN  ${t.fromTo || '—'}${t.received ? ' (received)' : ''}`, t.transferNumber || '—', int(t.slabs)]
           })),
-          { cells: ['Incoming total', int(inboundTransferCount), int(inboundTransferSlabs)], total: true }
+          { cells: ['Incoming total', '', int(inboundTransferSlabs)], total: true }
         ]
       : [{ cells: ['No transfers recorded'], span: true },
-         { cells: ['Total', '0', '0'], total: true }]
+         { cells: ['Total', '', '0'], total: true }]
   });
 
   ly -= 8;
