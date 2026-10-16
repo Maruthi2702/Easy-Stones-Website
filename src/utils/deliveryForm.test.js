@@ -183,6 +183,13 @@ describe('changes', () => {
     expect(applyCustomName(form(), 'new co', (s) => s.toUpperCase())).toMatchObject({ customerName: 'NEW CO', selectedCustomerId: 'NEW CO' });
   });
 
+  it('fills the customer\'s full address, not just their city', () => {
+    const full = { value: 'c4', label: 'Great Floors', city: 'Lacey', address: '1 Main St', fullAddress: '1 Main St, Lacey, WA' };
+    expect(applyCustomerPick(form({ address: '' }), full).address).toBe('1 Main St, Lacey, WA');
+    // swapping to another customer replaces the one the previous pick filled in
+    expect(applyCustomerPick(form({ address: '1 Main St, Lacey, WA' }), { value: 'c5', label: 'Y', fullAddress: '9 Oak Ave, Kent, WA' }, full).address).toBe('9 Oak Ave, Kent, WA');
+  });
+
   it('keeps an address someone typed or the packing list filled in', () => {
     const nw = { value: 'c2', label: 'NW Granite', city: 'Seattle' };
     const kent = { value: 'c1', label: 'Cascade', city: 'Kent' };

@@ -371,7 +371,12 @@ numbers (`src/utils/stopGrouping.js`'s `compactStopNumbers`: every driver's
 run saved as 1, 2, 3… with no gaps, which the board, the Edit delivery form
 and the driver's phone all show; the routes that keep it so after a delete,
 cancel, move, edit or reorder, and the startup pass, in
-`src/routes/deliveryStops.test.js`).
+`src/routes/deliveryStops.test.js`), the card's edge colour by ticket kind
+(`ticketAccentFor` in `src/utils/deliveryTypes.js`), and the delivery write
+rules (`src/routes/deliveryAccess.test.js`: a view-only login can't write, a
+driver writes only an ePOD, a packing-list upload can't take another branch's
+ticket id, reorders ignore tickets the board doesn't show, and a ticket with
+no branch reaches every open branch room).
 Accounting's server rules and API have their own tests in
 `src/accounting/*.test.js` (an in-memory MongoDB replica set, transactions
 included). Cart & Holds do too: `src/holds/*.test.js` (expiry and totals

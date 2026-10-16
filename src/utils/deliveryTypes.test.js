@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   DELIVERY_TYPES,
+  ticketAccentFor,
+  TICKET_ACCENTS,
   pendingDeliveryDateLabel,
   sortPendingByDate,
   isWillCall,
@@ -415,5 +417,22 @@ describe('sortPendingByDate', () => {
     const list = [{ id: 'x', date: '2026-10-09' }, { id: 'y', date: '2026-10-01' }];
     sortPendingByDate(list);
     expect(ids(list)).toEqual(['x', 'y']);
+  });
+});
+
+describe('ticketAccentFor', () => {
+  it('colours a card by its kind only, one colour each', () => {
+    expect(ticketAccentFor({ deliveryType: 'jobsite' })).toBe(TICKET_ACCENTS.jobsite);
+    expect(ticketAccentFor({ deliveryType: 'return', truckId: 'drv_brock' })).toBe(TICKET_ACCENTS.return);
+    expect(ticketAccentFor({ deliveryType: 'transfer' })).toBe(TICKET_ACCENTS.transfer);
+    expect(ticketAccentFor({ deliveryType: 'will_call' })).toBe(TICKET_ACCENTS.will_call);
+    expect(new Set(['jobsite', 'return', 'transfer', 'will_call'].map((t) => ticketAccentFor({ deliveryType: t }))).size).toBe(4);
+  });
+
+  it('is the same whichever driver has it, grey when cancelled, gold when the type is missing', () => {
+    expect(ticketAccentFor({ deliveryType: 'jobsite', truckId: 'drv_a' })).toBe(ticketAccentFor({ deliveryType: 'jobsite', truckId: 'drv_b' }));
+    expect(ticketAccentFor({ deliveryType: 'return', status: 'cancelled' })).toBe(TICKET_ACCENTS.cancelled);
+    expect(ticketAccentFor({})).toBe(TICKET_ACCENTS.jobsite);
+    expect(ticketAccentFor(null)).toBe(TICKET_ACCENTS.jobsite);
   });
 });

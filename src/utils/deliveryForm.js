@@ -266,8 +266,11 @@ export function applyDateChange(v, date, { savedTicket = null, deliveries = null
   }, savedTicket, deliveries);
 }
 
+// The customer's full address (street, city, state), the same line every other
+// card shows. It used to prefer the bare city, so a ticket's card read just
+// "Lacey" while the rest showed "6913 RD D NE, Moses Lake, WA 98837".
 const pickedAddress = (option) => {
-  const addr = option ? (option.city || option.fullAddress || option.address || '') : '';
+  const addr = option ? (option.fullAddress || option.address || option.city || '') : '';
   return addr === '[object Object]' ? '' : addr;
 };
 

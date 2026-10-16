@@ -35,6 +35,16 @@ const setRecords = (next) => {
     publish();
 };
 
+/** Forget the list (a logout): the next login loads its own, never the last one's. */
+export function clearCustomers() {
+    inflight = null;
+    loading = false;
+    loaded = false;
+    records = [];
+    options = [];
+    for (const fn of listeners) fn();
+}
+
 /** Fetch the list (once, unless force). Resolves when it's in. */
 export function loadCustomers({ force = false } = {}) {
     if (inflight && !force) return inflight;

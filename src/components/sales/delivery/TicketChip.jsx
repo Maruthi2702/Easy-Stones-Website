@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { MapPin, User, Clock, FileText, Hash, Navigation, Copy, Check, Repeat, PackageCheck, Truck, PenLine, Undo2, Layers, CalendarDays } from 'lucide-react';
 import StatusPill from './StatusPill';
 import EpodChip from './EpodChip';
-import { isCounterReturn, transferShipNote, pendingDeliveryDateLabel } from '../../../utils/deliveryTypes';
+import { isCounterReturn, transferShipNote, pendingDeliveryDateLabel, ticketAccentFor } from '../../../utils/deliveryTypes';
 import { formatForDateInput } from '../../../utils/dateUtils';
 
 /**
@@ -38,17 +38,8 @@ function Highlight({ text = '', query = '' }) {
 const SPS_SEARCH_URL = 'https://easystones.stoneprofits.com/vSalesHome.aspx';
 const SPS_TAB_NAME = 'easystones_sps';
 
-// Returns are the one ticket on the board where material comes back to us
-// instead of going out, and the cost of missing that is a driver loading a
-// truck for a stop they were meant to collect from. Red because it has to be
-// readable as "not a normal delivery" from across the room, before anyone
-// reads a word of the card. Matches the red used for Hold in Inventory
-// Analysis, so the two screens mean the same thing by it.
-const RETURN_ACCENT = '#ef4444';
-
 const TicketChip = ({
   delivery,
-  truckColor = '#D4AF37',
   onClick,
   editable = false,
   searchQuery = '',
@@ -143,11 +134,11 @@ const TicketChip = ({
   return (
     <div
       className={`manifest-ticket-chip ${editable ? 'clickable' : ''} ${isDragging ? 'dragging' : ''} ${isReturnTicket ? 'return-chip' : ''} status-border-${delivery.status || 'scheduled'}`}
-      // The accent has to be set here rather than left to .return-chip in CSS:
-      // this inline colour is what paints the truck's colour on every other
-      // ticket, and an inline style beats any stylesheet rule, so a CSS-only
-      // version would simply never show.
-      style={{ borderLeftColor: isReturnTicket ? RETURN_ACCENT : truckColor }}
+      // The left edge says what kind of ticket this is (ticketAccentFor): gold
+      // delivery, red return — material coming back to us, which has to read
+      // as "not a normal delivery" from across the room — blue transfer, teal
+      // will call. Set inline, which beats any stylesheet rule here.
+      style={{ borderLeftColor: ticketAccentFor(delivery) }}
       onClick={() => onClick && onClick(delivery)}
       title={editable ? 'Click to edit delivery' : delivery.customerName}
       draggable={canDrag}

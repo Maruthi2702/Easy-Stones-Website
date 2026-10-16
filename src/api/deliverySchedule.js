@@ -61,6 +61,29 @@ const scheduleCache = {
   lastSyncedAt: null
 };
 
+/**
+ * Forget everything the board has loaded: the weeks, Pending, Cancelled, the
+ * driver columns (this tab's memory and the browser's saved copy) and the
+ * remembered branch-weeks. Called when someone logs out or a different login
+ * takes over the tab, so on a shared PC the next person never sees, even
+ * briefly, the branches the last one could reach.
+ */
+export function clearScheduleCache() {
+  scheduleCache.weeks.clear();
+  scheduleCache.pending = [];
+  scheduleCache.pendingLoaded = false;
+  scheduleCache.cancelled = [];
+  scheduleCache.cancelledLoaded = false;
+  scheduleCache.activeWeekStart = null;
+  scheduleCache.activeWeekEnd = null;
+  scheduleCache.trucks = null;
+  scheduleCache.viewerLocations = [];
+  scheduleCache.lastSyncedAt = null;
+  scopedWeeks.clear();
+  scopedTrucks.clear();
+  clearDriversCache();
+}
+
 function setConnectionStatus(status) {
   if (scheduleCache.connection === status) return;
   scheduleCache.connection = status;

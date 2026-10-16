@@ -95,7 +95,6 @@ const CancelledOrders = ({
             <TicketChip
               key={d.id}
               delivery={d}
-              truckColor="#94a3b8"
               editable={editable}
               searchQuery={searchQuery}
               onClick={editable ? onEditDelivery : undefined}
