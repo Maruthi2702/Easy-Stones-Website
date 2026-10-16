@@ -366,7 +366,8 @@ Approve & pay, Mark paid — and why not, payment wording and the Excel rows),
 and the Delivery Schedule's column order per branch
 (`src/utils/deliveryColumns.js`: the default — our drivers A–Z, 3rd-party
 trucks, Will Call — a branch's saved order, where a new driver lands; its
-admin-only routes in `src/routes/deliveryColumns.test.js`).
+routes in `src/routes/deliveryColumns.test.js`: the Arrange Driver Columns
+permission, own locations only).
 Accounting's server rules and API have their own tests in
 `src/accounting/*.test.js` (an in-memory MongoDB replica set, transactions
 included). Cart & Holds do too: `src/holds/*.test.js` (expiry and totals

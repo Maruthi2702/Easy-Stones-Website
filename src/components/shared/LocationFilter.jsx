@@ -27,7 +27,10 @@ import './LocationFilter.css';
  * field, the button shows even when there's only one location to offer (the
  * extra field still needs a home), `active` lights the button's dot for it,
  * `onClear` runs alongside the location reset, and `wide` gives the panel
- * room for them. Without these props the filter is exactly as before.
+ * room for them. `after` (same shape as `children`) renders below the
+ * Location field instead — for something that acts on the location picked
+ * (the Delivery Schedule's Arrange Driver Columns). Without these props the
+ * filter is exactly as before.
  * The field is a native <select>, not CustomSelect: CustomSelect portals its
  * menu to <body>, so picking from it inside a panel reads as a click outside
  * and closes the panel mid-choice.
@@ -98,6 +101,7 @@ const LocationFilter = ({
   allLabel = 'All locations',
   className = '',
   children = null,
+  after = null,
   active = false,
   onClear,
   wide = false,
@@ -128,8 +132,9 @@ const LocationFilter = ({
 
   const names = locationNames(options);
   const hasExtra = children != null;
+  const hasAfter = after != null;
   const showLocation = names.length >= 2;
-  if (!showLocation && !hasExtra) return null;
+  if (!showLocation && !hasExtra && !hasAfter) return null;
 
   const picked = multiple ? (Array.isArray(value) ? value : []) : (typeof value === 'string' ? value : ALL_LOCATIONS);
   const isAll = multiple ? picked.length === 0 : !picked;
@@ -185,6 +190,11 @@ const LocationFilter = ({
               multiple={multiple}
               allLabel={allLabel}
             />
+          )}
+          {hasAfter && (
+            <div className="lf-after">
+              {typeof after === 'function' ? after({ close }) : after}
+            </div>
           )}
           <div className="lf-pop-foot">
             <button

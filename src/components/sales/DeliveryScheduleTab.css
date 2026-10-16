@@ -3955,15 +3955,13 @@ body.light-theme-active .delivery-search-chip,
 body.light-theme-active .delivery-search-chip:hover,
 .light-theme-active .delivery-search-chip:hover { background: #efe3bf; }
 
-/* Search & filters → Board columns: an admin's way into Arrange columns
+/* Search & filters, below Location: the way into Arrange Driver Columns
    (ColumnOrderForm). Styled like the panel's own Done button. */
-.delivery-arrange-group { margin-top: 1rem; }
 
 .delivery-arrange-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  align-self: flex-start;
   max-width: 100%;
   padding: 0.5rem 0.8rem;
   background: rgba(255, 255, 255, 0.06);

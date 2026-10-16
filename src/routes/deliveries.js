@@ -23,7 +23,7 @@ import {
   buildDeliverySearchFilter, sortSearchResults,
   SEARCH_RESULT_LIMIT, SEARCH_SCAN_LIMIT
 } from '../utils/deliverySearch.js';
-import { isDeliveryDriver } from '../utils/deliveryAccess.js';
+import { isDeliveryDriver, DELIVERY_PERMISSIONS } from '../utils/deliveryAccess.js';
 import { cleanColumnOrder } from '../utils/deliveryColumns.js';
 // Accounting hears which deliveries changed, so a completed 3rd-party delivery
 // gets its freight charge. Fire-and-forget: never slows or fails a save here.
@@ -432,7 +432,8 @@ export default function createDeliveriesRouter({
 
   // ── Column order per branch (src/utils/deliveryColumns.js) ──────────────
   // Everyone who sees the board reads every branch's order ({ Seattle: [...] });
-  // only admins (manage_users, the switch that edits locations) set one. An
+  // setting one needs Arrange Driver Columns (arrange_delivery_columns, Users &
+  // Roles → Delivery Schedule) and the branch among the person's own locations. An
   // empty list puts the branch back on the default order. Open boards hear
   // `delivery_columns_update` and read the list again — the event carries only
   // the branch name, so it says nothing to a socket that can't read the board.
@@ -445,8 +446,11 @@ export default function createDeliveriesRouter({
     }
   });
 
-  router.put('/delivery-columns/:location', authenticate, canViewDeliveries, requirePermission('manage_users'), async (req, res) => {
+  router.put('/delivery-columns/:location', authenticate, canViewDeliveries, requirePermission(DELIVERY_PERMISSIONS.ARRANGE_COLUMNS), async (req, res) => {
     try {
+      if (!userCanRequestLocation(req, req.params.location)) {
+        return res.status(403).json({ error: 'You can only arrange the columns for your own locations.' });
+      }
       const columns = cleanColumnOrder(req.body?.columns);
       if (!columns) return res.status(400).json({ error: 'columns must be a list of column ids' });
       const location = await Location.findOneAndUpdate(

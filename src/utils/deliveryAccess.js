@@ -20,12 +20,18 @@
 export const DELIVERY_PERMISSIONS = Object.freeze({
   VIEW: 'view_delivery_schedule',
   EDIT: 'edit_delivery_schedule',
-  DRIVER_VIEW: 'delivery_driver_view'
+  DRIVER_VIEW: 'delivery_driver_view',
+  // "Arrange Driver Columns": the left-to-right order of a branch's driver
+  // columns (Search & filters, below Location; src/utils/deliveryColumns.js).
+  // Admin only to start with (2026-10-15); an admin gives it to other roles.
+  ARRANGE_COLUMNS: 'arrange_delivery_columns'
 });
 
 const permsOf = (user) => (Array.isArray(user?.permissions) ? user.permissions : []);
 
 export const isDeliveryDriver = (user) => permsOf(user).includes(DELIVERY_PERMISSIONS.DRIVER_VIEW);
+
+export const canArrangeDeliveryColumns = (user) => permsOf(user).includes(DELIVERY_PERMISSIONS.ARRANGE_COLUMNS);
 
 export const deliveryViewMode = (user) => {
   if (isDeliveryDriver(user)) return 'driver';

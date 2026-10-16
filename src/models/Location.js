@@ -85,7 +85,7 @@ const locationSchema = new mongoose.Schema({
 
   // The delivery board's column order for this branch, left to right, as
   // column ids (`drv_<username>`, '__will_call__'). Empty = the default order.
-  // Set from the board's Arrange columns window, not the location form —
+  // Set from the board's Arrange Driver Columns window, not the location form —
   // src/utils/deliveryColumns.js has the rules.
   deliveryColumns: { type: [String], default: [] },
 

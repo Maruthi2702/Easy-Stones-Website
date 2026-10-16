@@ -7,8 +7,9 @@ import { columnLabel, defaultColumnOrder, isDefaultOrder, moveItem, orderBoardCo
 import './ColumnOrderForm.css';
 
 /*
- * Arrange columns — an admin sets the left-to-right order of one branch's
- * delivery board (Delivery Schedule → Search & filters). Drag a row, or use
+ * Arrange Driver Columns — someone with that permission (Users & Roles →
+ * Delivery Schedule) sets the left-to-right order of one branch's delivery
+ * board, from Search & filters below Location. Drag a row, or use
  * its arrows (the only way on a phone, where rows don't drag). Saving the
  * default order stores nothing, so drivers added later keep following the
  * default rule; any other order is stored on the branch for everyone.
@@ -73,7 +74,7 @@ export default function ColumnOrderForm({ location, columns, savedOrder, onClose
 
     return (
         <FormModal
-            title={<>Arrange columns <span className="fm-title-sub">· {location}</span></>}
+            title={<>Arrange Driver Columns <span className="fm-title-sub">· {location}</span></>}
             size="s"
             onClose={onClose}
             onSubmit={submit}
