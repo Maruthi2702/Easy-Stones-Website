@@ -24,7 +24,7 @@ import {
   buildDeliverySearchFilter, sortSearchResults,
   SEARCH_RESULT_LIMIT, SEARCH_SCAN_LIMIT
 } from '../utils/deliverySearch.js';
-import { isDeliveryDriver } from '../utils/deliveryAccess.js';
+import { isDeliveryDriver, DELIVERY_PERMISSIONS } from '../utils/deliveryAccess.js';
 import { cleanColumnOrder } from '../utils/deliveryColumns.js';
 // Accounting hears which deliveries changed, so a completed 3rd-party delivery
 // gets its freight charge. Fire-and-forget: never slows or fails a save here.
@@ -297,9 +297,20 @@ const DELIVERY_ROOM_ALL = 'delivery-location:*';
 // Which room(s) an update to this delivery needs to reach — mirrors
 // scopeDeliveryQueryToLocations's read-side rule: a transfer belongs to both
 // the shipping branch and the destination branch.
-const deliveryRoomsFor = (record) => {
+//
+// A ticket with no branch (''/'*'/missing — many older ones) is readable by
+// every branch (scopeDeliveryQueryToLocations lets '' and '*' through), so its
+// updates go to every branch room currently open. `io` supplies that list:
+// the server never has to know the full set of branches, only which rooms
+// someone has joined.
+const BRANCH_ROOM_PREFIX = 'delivery-location:';
+const deliveryRoomsFor = (record, io = null) => {
   const rooms = [DELIVERY_ROOM_ALL];
-  if (record?.location) rooms.push(deliveryRoomFor(record.location));
+  if (!record?.location || record.location === '*') {
+    const open = io?.sockets?.adapter?.rooms;
+    if (open) for (const name of open.keys()) if (name.startsWith(BRANCH_ROOM_PREFIX)) rooms.push(name);
+  }
+  if (record?.location && record.location !== '*') rooms.push(deliveryRoomFor(record.location));
   if (record?.deliveryType === 'transfer' && record?.transferDestination) {
     rooms.push(deliveryRoomFor(record.transferDestination));
   }
@@ -316,7 +327,7 @@ const deliveryRoomsFor = (record) => {
 const emitDeliveryUpdate = (req, payload, record) => {
   const io = req.app.get('io');
   if (!io) return;
-  for (const room of deliveryRoomsFor(record)) {
+  for (const room of new Set(deliveryRoomsFor(record, io))) {
     io.to(room).emit('delivery_update', payload);
   }
 };
@@ -441,21 +452,25 @@ export default function createDeliveriesRouter({
   //   edit_delivery_schedule   — all staff EXCEPT driver
   //   delete_delivery_schedule — admin / director / manager only
   //
-  // Drivers legitimately POST (ePOD capture, via the same upsert endpoint as
-  // a full edit) and PATCH their own status despite lacking
-  // edit_delivery_schedule, so those two routes accept view_delivery_schedule
-  // as well (canWriteDeliveries). Reassignment, reordering and uploading a
-  // packing list are dispatcher/office actions a driver's app never calls —
-  // those require edit_delivery_schedule outright (canManageDeliverySchedule),
-  // so a role an admin deliberately configures as view-only in Users & Roles
-  // can no longer mutate/reassign/reorder the board via a direct API call
-  // just because the UI happens to hide the buttons for it.
+  // Drivers (delivery_driver_view) lack edit_delivery_schedule but legitimately
+  // capture an ePOD (via the same upsert endpoint as a full edit) and PATCH a
+  // stop's status, so those two routes accept either (canWriteDeliveries).
+  // view_delivery_schedule alone is NOT enough (it was until 2026-10-15, so any
+  // read-only login could create or rewrite tickets by calling the API): and on
+  // the upsert a driver may only write the ePOD and completion of a ticket that
+  // exists — everything else in the body is dropped (see POST /deliveries).
+  // Reassignment, reordering and uploading a packing list are dispatcher/office
+  // actions a driver's app never calls — those require edit_delivery_schedule
+  // outright (canManageDeliverySchedule), so a role an admin deliberately
+  // configures as view-only in Users & Roles can no longer mutate/reassign/
+  // reorder the board via a direct API call just because the UI happens to
+  // hide the buttons for it.
   //
   // Deletion is the exception: it requires delete_delivery_schedule outright,
   // so who can remove a delivery is controlled purely by role config in
   // Users & Roles → Delivery Schedule → Delete.
   const canViewDeliveries = requirePermission('view_delivery_schedule');
-  const canWriteDeliveries = requireAnyPermission('edit_delivery_schedule', 'view_delivery_schedule');
+  const canWriteDeliveries = requireAnyPermission(DELIVERY_PERMISSIONS.EDIT, DELIVERY_PERMISSIONS.DRIVER_VIEW);
   const canManageDeliverySchedule = requirePermission('edit_delivery_schedule');
   const canDeleteDeliveries = requirePermission('delete_delivery_schedule');
   // Deliberately separate from deletion: a dispatcher who should never remove a
@@ -736,7 +751,7 @@ export default function createDeliveriesRouter({
 
   router.post('/deliveries', authenticate, canWriteDeliveries, async (req, res) => {
     try {
-      const delivery = req.body;
+      let delivery = req.body;
       if (!delivery || !delivery.id) return res.status(400).json({ error: 'Invalid delivery data' });
 
       // This route upserts by id, so it's the one write path every create AND
@@ -750,6 +765,17 @@ export default function createDeliveriesRouter({
       // one this user can reach.
       if (existing && !userCanAccessDeliveryLocation(req, existing)) {
         return res.status(403).json({ error: 'You do not have access to this delivery' });
+      }
+      // A driver's login gets the ePOD capture and nothing else: no new
+      // tickets, and of an existing one only the proof and "completed" are
+      // written, however much of the ticket the phone sent back. (The office,
+      // holding edit_delivery_schedule, gets the whole upsert as before.)
+      if (!(req.user?.permissions || []).includes(DELIVERY_PERMISSIONS.EDIT)) {
+        if (!existing) return res.status(403).json({ error: 'Drivers can only sign for an existing delivery.' });
+        if (!delivery.pod || typeof delivery.pod !== 'object') {
+          return res.status(403).json({ error: 'Drivers can only save a delivery\'s ePOD.' });
+        }
+        delivery = { id: delivery.id, pod: delivery.pod, status: 'completed' };
       }
       // Whatever location this write would leave the record at — a brand-new
       // delivery, or an edit reassigning location/transferDestination — also
@@ -1141,41 +1167,49 @@ export default function createDeliveriesRouter({
       // dispatcher from fixing the run in front of them.
       const ids = clean.map(u => u.id);
       const writable = await Delivery.find(
-        scopeDeliveryQueryToLocations({ id: { $in: ids } }, req), 'id truckId date'
+        scopeDeliveryQueryToLocations({ id: { $in: ids } }, req), 'id truckId date deliveryType customerDropOff status'
       ).lean();
       const writableById = new Map(writable.map(d => [d.id, d]));
       const applicable = clean.filter(u => writableById.has(u.id));
       if (!applicable.length) return res.status(404).json({ error: 'None of those deliveries were found' });
 
       // Conflict check: a reorder resubmits a whole cell's order at once (see
-      // comment above), so if some OTHER delivery already sitting in one of
-      // these same (truckId, date) cells — one this request doesn't even
-      // know about — already holds one of the route numbers being assigned,
-      // the client's view of that cell was stale (someone else changed it
-      // after this board loaded, or a second reorder of the same cell is
-      // racing this one). Applying it anyway would silently create two
-      // stops both numbered the same. This isn't full optimistic-concurrency
-      // (no version field on the model), but it catches the actual failure
-      // mode — duplicate route numbers from a race — cheaply.
-      const cellRouteNumbers = new Map(); // "truckId||date" -> Set(routeNumber)
+      // comment above), so if some OTHER ticket on the same board cell — one
+      // this request doesn't even know about — already holds one of the route
+      // numbers being assigned, the client's view of that cell was stale
+      // (someone else changed it after this board loaded, or a second reorder
+      // of the same cell is racing this one). Applying it anyway would
+      // silently create two stops both numbered the same. This isn't full
+      // optimistic-concurrency (no version field on the model), but it catches
+      // the actual failure mode — duplicate route numbers from a race — cheaply.
+      //
+      // Only tickets the board draws in that cell count (isOnBoardCell): not
+      // cancelled ones, not a will call left pointing at the truck or a dated
+      // Pending order sharing the '' key, and not other branches' tickets this
+      // user can't see. Counting those made some cells refuse every reorder.
+      const cellKeyOf = (d) => `${columnIdFor(d)}||${d.date || ''}`;
+      const cellRouteNumbers = new Map(); // "columnId||date" -> Set(routeNumber)
       for (const u of applicable) {
         const rec = writableById.get(u.id);
-        const cellKey = `${rec.truckId || ''}||${rec.date || ''}`;
+        const cellKey = cellKeyOf(rec);
         if (!cellRouteNumbers.has(cellKey)) cellRouteNumbers.set(cellKey, new Set());
         cellRouteNumbers.get(cellKey).add(u.routeNumber);
       }
       const applicableIds = new Set(applicable.map(u => u.id));
-      const cellFilters = [...cellRouteNumbers.keys()].map(key => {
+      const cellFilters = [...new Set(applicable.map(u => {
+        const rec = writableById.get(u.id);
+        return `${rec.truckId || ''}||${rec.date || ''}`;
+      }))].map(key => {
         const [truckId, date] = key.split('||');
         return { truckId, date };
       });
-      const siblings = await Delivery.find(
-        { $or: cellFilters, id: { $nin: [...applicableIds] } },
-        'id truckId date routeNumber'
-      ).lean();
+      const siblings = (await Delivery.find(
+        // $and: the location scoping owns the top-level $or.
+        scopeDeliveryQueryToLocations({ $and: [{ $or: cellFilters }], id: { $nin: [...applicableIds] }, status: { $ne: 'cancelled' } }, req),
+        'id truckId date routeNumber deliveryType customerDropOff status'
+      ).lean()).filter(d => cellRouteNumbers.has(cellKeyOf(d)));
       for (const sibling of siblings) {
-        const cellKey = `${sibling.truckId || ''}||${sibling.date || ''}`;
-        if (cellRouteNumbers.get(cellKey)?.has(sibling.routeNumber)) {
+        if (cellRouteNumbers.get(cellKeyOf(sibling))?.has(Number(sibling.routeNumber) || 1)) {
           return res.status(409).json({
             error: "This run changed since you loaded it — refresh and try reordering again."
           });
@@ -1221,7 +1255,7 @@ export default function createDeliveriesRouter({
   // `location`, the origin branch, which is the wrong side of this ticket for
   // this action. Only someone assigned to transferDestination (or an admin
   // with '*') may confirm receipt.
-  router.patch('/deliveries/:id/receive', authenticate, canWriteDeliveries, async (req, res) => {
+  router.patch('/deliveries/:id/receive', authenticate, canManageDeliverySchedule, async (req, res) => {
     try {
       const { id } = req.params;
       const delivery = await Delivery.findOne({ id, deliveryType: 'transfer' });
@@ -1363,7 +1397,19 @@ export default function createDeliveriesRouter({
 
         // Keyed on the delivery when the caller names one, so re-uploading a
         // corrected packing list replaces the old asset instead of orphaning it.
-        const deliveryId = req.body?.deliveryId;
+        const deliveryId = req.body?.deliveryId ? String(req.body.deliveryId) : '';
+        // The stored file is keyed on the delivery id and overwritten, so an
+        // id belonging to a ticket at a branch this user can't reach must not
+        // be accepted — it would replace that branch's packing list. A ticket
+        // that doesn't exist yet (the form's own new id) is fine.
+        if (deliveryId) {
+          const owner = await Delivery.findOne(
+            { id: deliveryId }, 'location deliveryType transferDestination'
+          ).lean();
+          if (owner && !userCanAccessDeliveryLocation(req, owner)) {
+            return res.status(403).json({ error: 'You do not have access to that delivery.' });
+          }
+        }
         const key = deliveryId
           ? podAssetIds(deliveryId).packingList
           : `deliveries/packing_lists/tmp_${Date.now()}_${Math.round(Math.random() * 1e4)}`;
@@ -1419,4 +1465,4 @@ export default function createDeliveriesRouter({
 // Exported for the socket-room join handler in server.js, which needs the
 // same room-naming scheme this router's emitDeliveryUpdate uses — see the
 // comment on deliveryRoomFor above for why they have to stay in sync.
-export { deliveryRoomFor, DELIVERY_ROOM_ALL };
+export { deliveryRoomFor, deliveryRoomsFor, DELIVERY_ROOM_ALL };

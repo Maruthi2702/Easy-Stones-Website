@@ -106,7 +106,6 @@ const PendingDeliveries = ({
             <TicketChip
               key={d.id}
               delivery={d}
-              truckColor="#94a3b8"
               showDeliveryDate
               editable={editable}
               searchQuery={searchQuery}

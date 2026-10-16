@@ -2,6 +2,19 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { API_URL } from '../config/api';
 import { resetSessionExpiredGuard } from '../api/authFetch';
 import { getAuthToken, setAuthToken, clearAuthToken } from '../api/authToken';
+import { clearScheduleCache } from '../api/deliverySchedule';
+import { clearCustomers } from '../api/customerOptions';
+import { clearAllCache } from '../utils/dataCache';
+
+// What the screens remember between visits (the delivery board's weeks and
+// drivers, the check-in log and customer pages, the customer dropdown) belongs
+// to whoever loaded it. Dropped whenever that person goes, so the next login on
+// the same tab starts empty instead of briefly showing their branches.
+const forgetSessionData = () => {
+    for (const clear of [clearScheduleCache, clearCustomers, clearAllCache]) {
+        try { clear(); } catch (error) { console.error('Clearing session data:', error); }
+    }
+};
 
 const AuthContext = createContext(null);
 
@@ -165,9 +178,12 @@ export const AuthProvider = ({ children }) => {
             // the other half of this OR, so cross-tab sync is unaffected.
             if (e.key === 'auth_logout_event') {
                 console.log('Cross-tab logout event received');
+                forgetSessionData();
                 setUser(null);
             } else if (e.key === 'auth_login_event') {
                 console.log('Cross-tab login event received');
+                // A different person may have just signed in on the other tab.
+                forgetSessionData();
                 // Silent: a tab already open on a page keeps it mounted.
                 checkAuth({ silent: true });
             }
@@ -232,6 +248,7 @@ export const AuthProvider = ({ children }) => {
             console.error('Logout error:', error);
         } finally {
             clearAuthToken();
+            forgetSessionData();
             localStorage.setItem('auth_logout_event', Date.now().toString());
             setUser(null);
         }

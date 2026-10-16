@@ -365,7 +365,7 @@ const BoardGrid = ({
     // Plain {id, routeNumber} pairs, not the delivery objects — see the note on
     // handleDropOnStop above for why the handler needs data rather than a
     // reference into `deliveries`/`cellDeliveries`.
-    const cellStops = cellDeliveries.map(d => ({ id: d.id, routeNumber: Number(d.routeNumber) || 1 }));
+    const cellStops = (fullCellMap.get(cellKey) || cellDeliveries).map(d => ({ id: d.id, routeNumber: Number(d.routeNumber) || 1 }));
     const groupOf = new Map();
     groupStops(cellStops).forEach((ids, gi) => ids.forEach(id => groupOf.set(id, { gi, size: ids.length })));
 
@@ -414,7 +414,6 @@ const BoardGrid = ({
               })()}
               <TicketChip
                 delivery={del}
-                truckColor={trk.color}
                 onClick={onEditDelivery}
                 editable={editable}
                 searchQuery={activeSearch}
@@ -444,7 +443,7 @@ const BoardGrid = ({
     if (!delivery) return;
 
     const assignment = assignmentFor(trk, delivery, dateStr);
-    const existing = getDeliveriesForCell(trk.id, dateStr).filter(d => d.id !== deliveryId);
+    const existing = (fullCellMap.get(`${trk.id || ''}_${dateStr}`) || []).filter(d => d.id !== deliveryId);
 
     // Dropped back on the cell it started in with nothing else to land on —
     // nothing to change. (A drop onto a specific card is handled by
@@ -504,6 +503,22 @@ const BoardGrid = ({
     for (const list of map.values()) list.sort(compareStops);
     return map;
   }, [filteredDeliveries]);
+
+  // The same cells before the search: a drop is worked out against every
+  // ticket in the cell, not just the ones a search left on screen. Renumbering
+  // only the visible cards left the hidden ones holding numbers the drop now
+  // claimed, and the server refused it ("This run changed since you loaded
+  // it") on every try while a search was active.
+  const fullCellMap = React.useMemo(() => {
+    const map = new Map();
+    for (const d of deliveries) {
+      const key = `${columnIdFor(d)}_${d.date}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(d);
+    }
+    for (const list of map.values()) list.sort(compareStops);
+    return map;
+  }, [deliveries]);
 
   // Recomputed each render — a few drivers, cheaper than a memo the compiler
   // can't keep (see the cellMap note above).

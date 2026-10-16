@@ -83,7 +83,7 @@ import {
 // of on this process's own thread. See runWorkbookParse.js for why.
 import { runWorkbookParse } from './src/utils/runWorkbookParse.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
-import createDeliveriesRouter, { deliveryRoomFor, DELIVERY_ROOM_ALL, renumberAllRuns } from './src/routes/deliveries.js';
+import createDeliveriesRouter, { deliveryRoomFor, deliveryRoomsFor, DELIVERY_ROOM_ALL, renumberAllRuns } from './src/routes/deliveries.js';
 import createCheckInRouter, { checkinRoomFor, CHECKIN_ROOM_ALL } from './src/routes/checkIn.js';
 import createAccountingRouter from './src/accounting/router.js';
 import { createFreightSync } from './src/accounting/sync.js';
@@ -1856,10 +1856,7 @@ const moveOrdersToPending = async (req, orders) => {
   const updated = await Delivery.find({ _id: { $in: ids } }, DRIVER_ORDER_PROJECTION).lean();
   const io = req.app.get('io');
   for (const delivery of updated) {
-    const rooms = new Set([DELIVERY_ROOM_ALL]);
-    if (delivery.location) rooms.add(deliveryRoomFor(delivery.location));
-    if (delivery.deliveryType === 'transfer' && delivery.transferDestination) rooms.add(deliveryRoomFor(delivery.transferDestination));
-    for (const room of rooms) io?.to(room).emit('delivery_update', { type: 'upsert', delivery });
+    for (const room of new Set(deliveryRoomsFor(delivery, io))) io?.to(room).emit('delivery_update', { type: 'upsert', delivery });
   }
 };
 

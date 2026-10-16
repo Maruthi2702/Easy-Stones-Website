@@ -52,6 +52,25 @@ export const isWillCall = (delivery) => delivery?.deliveryType === 'will_call';
 export const isReturn = (delivery) => delivery?.deliveryType === 'return';
 
 /**
+ * The colour of a ticket card's left edge: what KIND of ticket it is, and only
+ * that (2026-10-15). It used to be the driver's colour, except red for a
+ * return — two meanings on one edge, and a driver whose colour sat near red
+ * made a normal stop look like a return. The driver is already named by the
+ * column. Red stays "material coming back to us"; a cancelled order is grey.
+ */
+export const TICKET_ACCENTS = Object.freeze({
+  jobsite: '#d4af37',
+  return: '#ef4444',
+  transfer: '#3b82f6',
+  will_call: '#14b8a6',
+  cancelled: '#94a3b8'
+});
+
+export const ticketAccentFor = (delivery) => (delivery?.status === 'cancelled'
+  ? TICKET_ACCENTS.cancelled
+  : TICKET_ACCENTS[delivery?.deliveryType] || TICKET_ACCENTS.jobsite);
+
+/**
  * A return the customer brings back themselves: no driver of ours goes out
  * for it, but it still happens on a known day, so it belongs on the board
  * rather than in Pending. It keeps its own type rather than becoming a will
