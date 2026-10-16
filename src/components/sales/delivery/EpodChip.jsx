@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, RotateCcw } from 'lucide-react';
+import { ShieldCheck, RotateCcw, AlertTriangle } from 'lucide-react';
 
 /**
  * Proof-of-delivery badge for a delivery card.
@@ -9,11 +9,21 @@ import { ShieldCheck, RotateCcw } from 'lucide-react';
  * so the two are shown separately from the status pill.
  *
  * "No ePOD" renders as plain text rather than a button: a card with no proof
- * shouldn't offer a control implying there is a document to open.
+ * shouldn't offer a control implying there is a document to open. It is
+ * amber, though (2026-10-15): it only shows on a completed delivery, and
+ * delivered with nothing signed is the loose end on the board someone has to
+ * chase. A signature that was cleared is red — the stronger claim, as on the
+ * Sign ePOD button.
  */
+const NoEpod = () => (
+  <span className="epod-chip epod-chip-none" title="Completed, but nobody has signed for it yet">
+    <AlertTriangle size={11} aria-hidden="true" /> No ePOD
+  </span>
+);
+
 const EpodChip = ({ delivery, onViewPod }) => {
   const pod = delivery?.pod;
-  if (!pod) return <span className="epod-chip epod-chip-none">No ePOD</span>;
+  if (!pod) return <NoEpod />;
 
   if (pod.verified) {
     return (
@@ -43,7 +53,7 @@ const EpodChip = ({ delivery, onViewPod }) => {
     );
   }
 
-  return <span className="epod-chip epod-chip-none">No ePOD</span>;
+  return <NoEpod />;
 };
 
 export default EpodChip;

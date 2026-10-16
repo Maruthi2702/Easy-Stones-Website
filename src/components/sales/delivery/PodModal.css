@@ -1133,14 +1133,14 @@ body.light-theme-active .pod-danger-zone,
 }
 
 .epod-chip-cleared {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.28);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
   cursor: pointer;
 }
 
 .epod-chip-cleared:hover {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(239, 68, 68, 0.2);
 }
 
 /* Sign ePOD, on pickup tickets the office signs for at the counter. It sits at
@@ -1212,17 +1212,19 @@ body.light-theme-active .ticket-sign-btn.is-cleared,
 }
 
 
-/* Not a button: there is no document behind it to open. */
+/* Not a button: there is no document behind it to open. Amber like the Sign
+   ePOD button: a completed delivery nobody signed for is a loose end. */
 .epod-chip-none {
-  color: #64748b;
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.1);
-  font-weight: 600;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.32);
 }
 
 body.light-theme-active .epod-chip-none,
 .light-theme-active .epod-chip-none {
-  border-color: #e2e8f0;
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(180, 83, 9, 0.32);
 }
 
 body.light-theme-active .epod-chip-verified,
@@ -1234,9 +1236,9 @@ body.light-theme-active .epod-chip-verified,
 
 body.light-theme-active .epod-chip-cleared,
 .light-theme-active .epod-chip-cleared {
-  color: #b45309;
-  background: rgba(180, 83, 9, 0.08);
-  border-color: rgba(180, 83, 9, 0.25);
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(185, 28, 28, 0.32);
 }
 
 /* Light theme overrides for viewer */
