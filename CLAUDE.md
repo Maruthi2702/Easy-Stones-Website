@@ -303,13 +303,14 @@ Work Report's derive/save-payload rules (`src/routes/dailyReports.js`'s
 after the incident above, and its payment methods and totals
 (`src/utils/dailyReportPayments.js`: ACH, Cash, Credit Card, Check; reports
 saved before ACH read it as unsaid), its transfer lines
-(`src/utils/transferDirection.js`: a hand-added line's direction comes from
-its route — ending at the report's branch is Incoming; each line carries a
-Transfer # (ticket lines from their tickets), the count the month view, its
-PDF and the CSV total is worked out from those, never typed; and the notes
+(`src/utils/transferDirection.js`: one line per transfer with its one
+Transfer # — a ticket line per ticket — so the count the month view, its
+PDF and the CSV total is the number of lines, never typed; a hand-added
+line's direction comes from its route (ending at the report's branch is
+Incoming); `transferLineKey`, the per-transfer key a typed slab figure is
+kept against, and how a draft saved per route carries over; and the notes
 for a repeated transfer number, a route that skips the branch or repeats a
-ticket line; the save route applies the same rules, in
-`src/routes/dailyReportManualTransfers.test.js`), and the customer list's rules
+ticket line; the routes, in `src/routes/dailyReportManualTransfers.test.js`), and the customer list's rules
 (`src/utils/customerList.js`: status labels, the ⚠ data-quality checks and
 the "Incomplete" query that must match them, saved views, A–Z, role-scoped
 filter options), the shared pagination sizes/range math

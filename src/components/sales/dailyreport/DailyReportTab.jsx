@@ -8,7 +8,7 @@ import { API_URL } from '../../../config/api';
 import NoBranchNote from './NoBranchNote';
 import { authFetch } from '../../../api/authFetch';
 import { branchCode } from '../../../config/branches.js';
-import { manualTransferDirection, manualTransferWarning, transferWarningText, transferCountOf } from '../../../utils/transferDirection.js';
+import { manualTransferDirection, manualTransferWarning, transferWarningText, transferCountOf, transferLineKey, cleanTransferNumber } from '../../../utils/transferDirection.js';
 import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
 import { money } from './summaryFigures';
@@ -201,7 +201,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   // whatever they happened to be at that moment, so a delivery added later in
   // the day would never make it into the total. See buildSavePayload below.
   const touchedCapacity = useRef(new Set());   // 'deliveries' | 'pickups'
-  const touchedTransferSlabs = useRef(new Set()); // `${direction}:${fromTo}`
+  const touchedTransferSlabs = useRef(new Set()); // transferLineKey(line): direction, route and which transfer
 
   // ── which branches this person may report on ──────────────────────────────
   useEffect(() => {
@@ -943,8 +943,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                             A ticket line shows its tickets' numbers — fix the
                             ticket, not the report. One added by hand types it. */}
                         {t.auto ? (
-                          // Text, not a box, so a line rolling up two or three
-                          // tickets wraps instead of being cut off.
+                          // The ticket's own number, as text: fix the ticket,
+                          // not the report.
                           <span className="dr-cell is-readonly is-left dr-transfer-no-text"
                             title="From the transfer tickets; change the ticket to change this">
                             {t.transferNumber || '—'}
@@ -953,7 +953,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                           <ReportCell value={t.transferNumber || ''} type="text" align="left"
                             disabled={locked} placeholder="Transfer #" ariaLabel="Transfer number"
                             className={warning?.code === 'number-on-report' ? 'is-odd' : ''}
-                            onChange={(v) => patch(r => { r.transfers[i].transferNumber = v; return r; })} />
+                            onChange={(v) => patch(r => { r.transfers[i].transferNumber = cleanTransferNumber(v); return r; })} />
                         )}
                       </td>
                       <td className="dr-route-cell">
@@ -979,7 +979,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                           className={outOfBand(t.slabs) ? 'is-odd' : ''}
                           onKeyDown={rowKeys('transfers', i, addTransfer, !t.fromTo && !t.transferNumber && !n(t.slabs))}
                           onChange={(v) => patch(r => {
-                            touchedTransferSlabs.current.add(`${t.direction || 'out'}:${t.fromTo}`);
+                            touchedTransferSlabs.current.add(transferLineKey(t));
                             r.transfers[i].slabs = v;
                             return r;
                           })} />

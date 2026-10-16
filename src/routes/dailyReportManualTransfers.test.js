@@ -63,15 +63,24 @@ describe('hand-added transfer lines on save', () => {
   });
 });
 
-describe('transfer numbers instead of a typed count', () => {
-  it('stores a typed line\'s transfer number and counts the transfers from it', async () => {
+describe('one transfer per line, each with its number', () => {
+  const get = () => request(app).get('/api/daily-reports/2026-10-15?location=Seattle')
+    .set('x-test-user', JSON.stringify(EDITOR)).expect(200);
+  const transferTicket = (id, soNumber, slabs) => ({
+    id, deliveryType: 'transfer', location: 'Seattle', transferDestination: 'Spokane', truckId: 'drv_3rd',
+    date: '2026-10-15', status: 'scheduled', soNumber, numberOfSlabs: slabs
+  });
+
+  it('stores one number per typed line (spaces and commas dropped) and counts it as one transfer', async () => {
     const res = await save([
-      { fromTo: 'DAL — SEA', transferNumber: '19002, 19003', slabs: 30, auto: false, count: 99 },
-      { fromTo: 'SEA — SLC', transferNumber: '', slabs: 12, auto: false },
+      { fromTo: 'DAL — SEA', transferNumber: '14956', slabs: 30, auto: false, count: 99 },
+      { fromTo: 'SEA — SLC', transferNumber: ' 149 567 ', slabs: 12, auto: false },
+      { fromTo: 'SEA — SLC', transferNumber: '', slabs: 3, auto: false },
       { fromTo: '', transferNumber: '', slabs: null, auto: false }
     ]).expect(200);
     expect(res.body.report.transfers.map(t => [t.fromTo, t.transferNumber, t.count])).toEqual([
-      ['DAL — SEA', '19002, 19003', 2],
+      ['DAL — SEA', '14956', 1],
+      ['SEA — SLC', '149567', 1],
       ['SEA — SLC', '', 1]
     ]);
   });
@@ -79,17 +88,38 @@ describe('transfer numbers instead of a typed count', () => {
   it('keeps a line that has only a transfer number so far', async () => {
     const res = await save([{ fromTo: '', transferNumber: '19010', slabs: null, auto: false }]).expect(200);
     expect(res.body.report.transfers).toHaveLength(1);
-    expect(res.body.report.transfers[0].count).toBe(1);
   });
 
-  it('fills a ticket line with its tickets\' transfer numbers', async () => {
-    await Delivery.collection.insertMany([
-      { id: 't1', deliveryType: 'transfer', location: 'Seattle', transferDestination: 'Spokane', truckId: 'drv_3rd', date: '2026-10-15', status: 'scheduled', soNumber: '18936', numberOfSlabs: 10 },
-      { id: 't2', deliveryType: 'transfer', location: 'Seattle', transferDestination: 'Spokane', truckId: 'drv_3rd', date: '2026-10-15', status: 'scheduled', soNumber: '18940', numberOfSlabs: 5 }
+  it('gives each ticket its own line with its own number', async () => {
+    await Delivery.collection.insertMany([transferTicket('t1', '149567', 5), transferTicket('t2', '14956', 10)]);
+    const lines = (await get()).body.report.transfers.filter(t => t.auto && t.direction === 'out');
+    expect(lines.map(t => [t.fromTo, t.transferNumber, t.count, t.slabs])).toEqual([
+      ['SEA — SPO', '14956', 1, 10],
+      ['SEA — SPO', '149567', 1, 5]
     ]);
-    const res = await request(app).get('/api/daily-reports/2026-10-15?location=Seattle')
-      .set('x-test-user', JSON.stringify(EDITOR)).expect(200);
-    const line = res.body.report.transfers.find(t => t.auto && t.direction === 'out');
-    expect(line).toMatchObject({ fromTo: 'SEA — SPO', transferNumber: '18936, 18940', count: 2, slabs: 15 });
+  });
+
+  it('keeps a slab figure typed on one ticket line on that line only, across a reload', async () => {
+    await Delivery.collection.insertMany([transferTicket('t1', '14956', 10), transferTicket('t2', '149567', 5)]);
+    const lines = (await get()).body.report.transfers;
+    // someone corrects 14956 to 12 and saves
+    await save(lines.map(t => (t.transferNumber === '14956' ? { ...t, slabs: 12 } : t))).expect(200);
+    const again = await get();
+    const byNo = Object.fromEntries(again.body.report.transfers.map(t => [t.transferNumber, t.slabs]));
+    expect(byNo).toEqual({ 14956: 12, 149567: 5 });
+    expect(again.body.handSet.transferSlabs).toEqual(expect.arrayContaining(['out:SEA — SPO#14956']));
+  });
+
+  it('carries a correction from a draft saved per route onto that route\'s one ticket, and keeps it counted as typed', async () => {
+    await Delivery.collection.insertOne(transferTicket('t1', '14956', 10));
+    // As drafts were stored before: one line per route, its slabs corrected to 40.
+    await DailyReport.collection.insertOne({
+      date: '2026-10-15', location: 'Seattle', status: 'draft',
+      transfers: [{ fromTo: 'SEA — SPO', count: 1, slabs: 40, auto: true, direction: 'out' }]
+    });
+    const res = await get();
+    const line = res.body.report.transfers.find(t => t.auto);
+    expect(line).toMatchObject({ transferNumber: '14956', slabs: 40 });
+    expect(res.body.handSet.transferSlabs).toEqual(['out:SEA — SPO#14956']);
   });
 });

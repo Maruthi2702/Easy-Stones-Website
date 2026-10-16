@@ -651,7 +651,7 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
    inputs — their columns are already flush with each other. */
 .dr-table:not(.dr-table--month) th.dr-num,
 .dr-table:not(.dr-table--month) .dr-total td.dr-num {
-  padding-right: calc(var(--dr-cellpad) + 0.5rem + 1px);
+  padding-right: calc(var(--dr-cellpad) + var(--dr-cell-padx, 0.5rem) + 1px);
 }
 
 /* Same reasoning as the numeric inset above, mirrored on the left: the
@@ -662,7 +662,7 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
    sat 31px left of the From box's text. Icon (12px) + its margin and the
    cell's gap (0.3rem each) + the select's border and padding. */
 .dr-table th.dr-route-th {
-  padding-left: calc(var(--dr-cellpad) + 12px + 2 * var(--dr-route-gap, 0.3rem) + 0.5rem + 1px);
+  padding-left: calc(var(--dr-cellpad) + 12px + 2 * var(--dr-route-gap, 0.3rem) + var(--dr-cell-padx, 0.5rem) + 1px);
 }
 
 .dr-none {
@@ -708,19 +708,21 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
   gap: var(--dr-route-gap, 0.3rem);
 }
 
-/* Transfer # (it replaced the Count column, 2026-10-15). A ticket line shows
-   its numbers as text that wraps, so two or three never get cut off; the
-   header lines up with the text inside the box. */
+/* Transfer # (it replaced the Count column, 2026-10-15). One transfer per
+   line, so one number: a ticket line shows its ticket's as text on one line,
+   and the header lines up with the text inside the box. */
 .dr-table .dr-transfer-no { width: 7rem; }
 .dr-table .dr-transfer-no .dr-cell { width: 100%; }
 .dr-table th.dr-transfer-no-th {
   width: 7rem;
-  padding-left: calc(var(--dr-cellpad) + 0.5rem + 1px);
+  padding-left: calc(var(--dr-cellpad) + var(--dr-cell-padx, 0.5rem) + 1px);
 }
 .dr-transfer-no-text {
   display: block;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.35;
 }
 
@@ -737,11 +739,12 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
    the narrow-screen block further down sets .dr-table's own cell padding, and
    would otherwise win on order. */
 @media (max-width: 639px) {
+  /* Less padding inside each box buys Transfer # room for a 6–7 digit number. */
   .dr-table.dr-table--transfers,
-  .dr-table.dr-table--transfers.is-compact { --dr-cellpad: 0.25rem; --dr-route-gap: 0.15rem; }
+  .dr-table.dr-table--transfers.is-compact { --dr-cellpad: 0.25rem; --dr-route-gap: 0.15rem; --dr-cell-padx: 0.3rem; }
   .dr-table.dr-table--transfers td.dr-transfer-no,
-  .dr-table.dr-table--transfers th.dr-transfer-no-th { width: 4.1rem; }
-  .dr-table.dr-table--transfers .dr-cell.dr-select { width: 3.4rem; }
+  .dr-table.dr-table--transfers th.dr-transfer-no-th { width: 5rem; }
+  .dr-table.dr-table--transfers .dr-cell.dr-select { width: 3.1rem; }
   .dr-table.dr-table--transfers td.dr-num .dr-cell { width: 2.9rem; }
 }
 
@@ -804,7 +807,8 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 /* ── Cells ───────────────────────────────────────────────────────────────── */
 .dr-cell {
   width: 72px;
-  padding: 0.3rem 0.5rem;
+  /* --dr-cell-padx: the headings' alignment insets read it too. */
+  padding: 0.3rem var(--dr-cell-padx, 0.5rem);
   text-align: right;
   font: inherit;
   font-size: 0.82rem;

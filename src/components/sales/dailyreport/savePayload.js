@@ -1,3 +1,5 @@
+import { transferLineKey } from '../../../utils/transferDirection.js';
+
 /**
  * What actually gets PUT to the server for a Daily Work Report save.
  *
@@ -34,7 +36,7 @@ export const buildDraftPayload = (report, touchedCapacity, touchedTransferSlabs)
   if (!touchedCapacity.has('pickups')) body.pickups.capacity = null;
   body.transfers = body.transfers.filter(t => {
     if (!t.auto) return true;
-    return touchedTransferSlabs.has(`${t.direction || 'out'}:${t.fromTo}`);
+    return touchedTransferSlabs.has(transferLineKey(t));
   });
   return body;
 };

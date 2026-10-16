@@ -13,10 +13,10 @@ import mongoose from 'mongoose';
 
 const transferLineSchema = new mongoose.Schema({
   fromTo: { type: String, default: '' },   // 'SEA — SLC', origin first regardless of direction
-  // The transfer number(s) the line stands for ('18936', or '18936, 18940' on
-  // a ticket line rolling up two tickets). Filled from the tickets on a ticket
-  // line, typed on one added by hand — so the same transfer added twice shows
-  // up (src/utils/transferDirection.js). Added 2026-10-15.
+  // The transfer's number ('14956'). A line is one transfer: filled from its
+  // ticket on a ticket line, typed on one added by hand — so the same
+  // transfer added twice shows up (src/utils/transferDirection.js). Added
+  // 2026-10-15, when ticket lines went from one per route to one per ticket.
   transferNumber: { type: String, default: '' },
   count: { type: Number, default: 0 },
   slabs: { type: Number, default: 0 },
@@ -33,9 +33,10 @@ const transferLineSchema = new mongoose.Schema({
   received: { type: Boolean, default: false },
   receivedAt: { type: Date, default: null },
   receivedBy: { type: String, default: '' },
-  // Which Delivery ticket(s) an 'in' line rolls up, so "mark received" in the
-  // UI has something to act on. Must be declared here even though it's really
-  // transient (freshly recomputed on every load, never hand-typed) — Mongoose
+  // The Delivery ticket a ticket line is, so "mark received" in the UI has
+  // something to act on, and so its typed slabs stay matched to it when it has
+  // no transfer number (transferLineKey). Saved with the line since
+  // 2026-10-15; recomputed on every load. Must be declared here — Mongoose
   // silently drops any field assigned to a subdocument that isn't in its
   // schema, so without this the derived array would arrive at the client with
   // ticketIds stripped and the button would have nothing to call.
