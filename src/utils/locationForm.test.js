@@ -183,3 +183,48 @@ describe('publicLocationFields', () => {
     expect(publicLocationFields(loc)).not.toHaveProperty('defaultSalesRep');
   });
 });
+
+describe('Daily Report email list', () => {
+  const uid = 'a'.repeat(24);
+  const withList = { ...charlotte, dailyReportEmail: { userIds: [uid], extraEmails: ['owner@example.com', 'acct@example.com'] } };
+
+  it('round-trips the people and typed addresses', () => {
+    const v = locationToFormValues(withList);
+    expect(v.reportUserIds).toEqual([uid]);
+    expect(v.reportEmails).toBe('owner@example.com, acct@example.com');
+    expect(locationRecordFromValues(v).dailyReportEmail).toEqual(withList.dailyReportEmail);
+  });
+
+  it('starts empty on a new location and on one saved before the list existed', () => {
+    expect(emptyLocationValues().reportUserIds).toEqual([]);
+    expect(locationToFormValues(charlotte).reportEmails).toBe('');
+    expect(locationRecordFromValues(locationToFormValues(charlotte)).dailyReportEmail).toEqual({ userIds: [], extraEmails: [] });
+  });
+
+  it('flags a typed address that isn’t an email', () => {
+    const e = validateLocationValues({ ...valid(), reportEmails: 'owner@example.com, bob' }, { others });
+    expect(Object.keys(e)).toEqual(['reportEmails']);
+    expect(e.reportEmails).toMatch(/bob/);
+  });
+
+  it('allows a long list of addresses, but not more than 25 people', () => {
+    const many = (n) => Array.from({ length: n }, (_, i) => `person${i}@easystones.com`).join(', ');
+    expect(validateLocationValues({ ...valid(), reportEmails: many(25) }, { others })).toEqual({});
+    expect(validateLocationValues({ ...valid(), reportEmails: many(26) }, { others }).reportEmails).toMatch(/25/);
+  });
+
+  it('counts adding or removing someone as a change', () => {
+    const initial = locationToFormValues(withList);
+    expect(countLocationChanges({ ...initial, reportUserIds: [] }, initial)).toBe(1);
+    expect(countLocationChanges({ ...initial }, initial)).toBe(0);
+  });
+
+  it('a save from an app without the list leaves the stored list alone', () => {
+    const { dailyReportEmail, ...oldAppBody } = locationRecordFromValues(locationToFormValues(withList));
+    expect(dailyReportEmail).toBeTruthy();
+    const { record } = parseLocationBody(oldAppBody, { isEdit: true, current: withList, others });
+    expect(record).not.toHaveProperty('dailyReportEmail');
+    const { record: fromNewApp } = parseLocationBody({ ...oldAppBody, dailyReportEmail: { userIds: [], extraEmails: [] } }, { isEdit: true, current: withList, others });
+    expect(fromNewApp.dailyReportEmail).toEqual({ userIds: [], extraEmails: [] });
+  });
+});

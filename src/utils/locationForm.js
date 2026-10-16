@@ -18,6 +18,7 @@
  */
 import { normalizeLocationCode } from './locationCode.js';
 import { formatPhoneForDisplay, stripPhone } from './phoneUtils.js';
+import { cleanUserIds, parseEmailList, MAX_REPORT_RECIPIENTS } from './dailyReportRecipients.js';
 
 export const PRICE_LEVELS = [1, 2, 3, 4];
 export const priceLevelLabel = (level) => (level ? `Price ${level}` : '');
@@ -59,7 +60,9 @@ export const FIELD_LABELS = {
   salesTaxArea: 'Sales tax area',
   salesTaxRate: 'Sales tax rate',
   avgUnitFreight: 'Avg unit freight',
-  unitOverheadPct: 'Unit overhead cost'
+  unitOverheadPct: 'Unit overhead cost',
+  reportUserIds: 'People',
+  reportEmails: 'Other email addresses'
 };
 
 const BOOLEAN_FIELDS = ['profitCenter', 'warehouse', 'acctSameAsPrimary'];
@@ -77,7 +80,9 @@ export const emptyLocationValues = () => ({
   acctSameAsPrimary: true,
   acctName: '', acctEmail: '', acctStreet: '', acctSuite: '', acctCity: '', acctState: '', acctZip: '', acctPhone: '',
   salesRep: '', priceLevel: '', paymentTerms: DEFAULT_PAYMENT_TERMS, salesTaxArea: '', salesTaxRate: '',
-  avgUnitFreight: '', unitOverheadPct: ''
+  avgUnitFreight: '', unitOverheadPct: '',
+  // Who gets the Daily Report PDF every day (src/utils/dailyReportRecipients.js).
+  reportUserIds: [], reportEmails: ''
 });
 
 /** A Location record (or a request body in the same shape) → form values. */
@@ -121,7 +126,9 @@ export const locationToFormValues = (loc = {}) => {
     salesTaxArea: str(sd.salesTaxArea),
     salesTaxRate: numText(sd.salesTaxRate),
     avgUnitFreight: numText(co.avgUnitFreight),
-    unitOverheadPct: numText(co.unitOverheadPct)
+    unitOverheadPct: numText(co.unitOverheadPct),
+    reportUserIds: cleanUserIds(loc.dailyReportEmail?.userIds),
+    reportEmails: (Array.isArray(loc.dailyReportEmail?.extraEmails) ? loc.dailyReportEmail.extraEmails : []).join(', ')
   };
 };
 
@@ -169,6 +176,10 @@ export const locationRecordFromValues = (v) => {
     costOverrides: {
       avgUnitFreight: toNumber(v.avgUnitFreight),
       unitOverheadPct: toNumber(v.unitOverheadPct)
+    },
+    dailyReportEmail: {
+      userIds: cleanUserIds(v.reportUserIds),
+      extraEmails: parseEmailList(v.reportEmails).emails
     }
   };
 };
@@ -230,10 +241,18 @@ export const validateLocationValues = (v, { isEdit = false, selfId = null, other
   if (trim(v.avgUnitFreight) && !(NUM_RE.test(trim(v.avgUnitFreight)) && Number(v.avgUnitFreight) <= 10000)) e.avgUnitFreight = 'Enter an amount, like 1.50';
   if (trim(v.unitOverheadPct) && !(NUM_RE.test(trim(v.unitOverheadPct)) && Number(v.unitOverheadPct) <= 100)) e.unitOverheadPct = 'Enter a percent between 0 and 100';
 
+  const { emails: reportEmails, bad: badReportEmails } = parseEmailList(v.reportEmails);
+  if (badReportEmails.length) {
+    e.reportEmails = `“${badReportEmails[0]}” isn’t a full email, like name@easystones.com`;
+  } else if (cleanUserIds(v.reportUserIds).length + reportEmails.length > MAX_REPORT_RECIPIENTS) {
+    e.reportEmails = `${MAX_REPORT_RECIPIENTS} people at most`;
+  }
+
   // Every string field has a ceiling, so the API can't be used to stuff a
   // record with megabytes of text.
   for (const [k, val] of Object.entries(v)) {
-    if (!BOOLEAN_FIELDS.includes(k) && !e[k] && str(val).length > 300) e[k] = 'Too long';
+    if (BOOLEAN_FIELDS.includes(k) || Array.isArray(val) || e[k]) continue;
+    if (str(val).length > (k === 'reportEmails' ? 3000 : 300)) e[k] = 'Too long';
   }
   return e;
 };
@@ -254,7 +273,11 @@ export const parseLocationBody = (body, { isEdit = false, current = null, others
   if (isEdit && current) values.name = str(current.name);
   const errors = validateLocationValues(values, { isEdit, selfId: current?._id, others });
   if (Object.keys(errors).length) return { errors };
-  return { record: locationRecordFromValues(values) };
+  const record = locationRecordFromValues(values);
+  // An app opened before the Daily Report email list existed doesn't send
+  // one; its save must leave the list as it was, not empty it.
+  if (body?.dailyReportEmail === undefined) delete record.dailyReportEmail;
+  return { record };
 };
 
 /** "City, ST 12345" — or as much of it as is there. */

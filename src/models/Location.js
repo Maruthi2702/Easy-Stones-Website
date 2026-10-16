@@ -83,6 +83,14 @@ const locationSchema = new mongoose.Schema({
     unitOverheadPct: { type: Number, min: 0, max: 100, default: null }
   },
 
+  // Who gets this location's Daily Report PDF every day it's submitted — users
+  // by id (their email on file) plus typed addresses. Empty = no email.
+  // Rules: src/utils/dailyReportRecipients.js.
+  dailyReportEmail: {
+    userIds: { type: [String], default: [] },
+    extraEmails: { type: [String], default: [] }
+  },
+
   // The delivery board's column order for this branch, left to right, as
   // column ids (`drv_<username>`, '__will_call__'). Empty = the default order.
   // Set from the board's Arrange Driver Columns window, not the location form —
