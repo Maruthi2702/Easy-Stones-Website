@@ -11,6 +11,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 
 const { default: createDailyReportsRouter } = await import('./dailyReports.js');
 const { default: DailyReport } = await import('../models/DailyReport.js');
+const { default: Delivery } = await import('../models/Delivery.js');
 
 let mongo;
 let app;
@@ -33,7 +34,10 @@ afterAll(async () => {
   await mongo?.stop();
 });
 
-beforeEach(async () => { await DailyReport.collection.deleteMany({}); });
+beforeEach(async () => {
+  await DailyReport.collection.deleteMany({});
+  await Delivery.collection.deleteMany({});
+});
 
 const save = (transfers) => request(app).put('/api/daily-reports/2026-10-15')
   .set('x-test-user', JSON.stringify(EDITOR))
@@ -56,5 +60,36 @@ describe('hand-added transfer lines on save', () => {
   it('leaves a ticket line\'s direction as it was', async () => {
     const res = await save([{ fromTo: 'SEA — SPO', count: 1, slabs: 10, auto: true, direction: 'in' }]).expect(200);
     expect(res.body.report.transfers[0].direction).toBe('in');
+  });
+});
+
+describe('transfer numbers instead of a typed count', () => {
+  it('stores a typed line\'s transfer number and counts the transfers from it', async () => {
+    const res = await save([
+      { fromTo: 'DAL — SEA', transferNumber: '19002, 19003', slabs: 30, auto: false, count: 99 },
+      { fromTo: 'SEA — SLC', transferNumber: '', slabs: 12, auto: false },
+      { fromTo: '', transferNumber: '', slabs: null, auto: false }
+    ]).expect(200);
+    expect(res.body.report.transfers.map(t => [t.fromTo, t.transferNumber, t.count])).toEqual([
+      ['DAL — SEA', '19002, 19003', 2],
+      ['SEA — SLC', '', 1]
+    ]);
+  });
+
+  it('keeps a line that has only a transfer number so far', async () => {
+    const res = await save([{ fromTo: '', transferNumber: '19010', slabs: null, auto: false }]).expect(200);
+    expect(res.body.report.transfers).toHaveLength(1);
+    expect(res.body.report.transfers[0].count).toBe(1);
+  });
+
+  it('fills a ticket line with its tickets\' transfer numbers', async () => {
+    await Delivery.collection.insertMany([
+      { id: 't1', deliveryType: 'transfer', location: 'Seattle', transferDestination: 'Spokane', truckId: 'drv_3rd', date: '2026-10-15', status: 'scheduled', soNumber: '18936', numberOfSlabs: 10 },
+      { id: 't2', deliveryType: 'transfer', location: 'Seattle', transferDestination: 'Spokane', truckId: 'drv_3rd', date: '2026-10-15', status: 'scheduled', soNumber: '18940', numberOfSlabs: 5 }
+    ]);
+    const res = await request(app).get('/api/daily-reports/2026-10-15?location=Seattle')
+      .set('x-test-user', JSON.stringify(EDITOR)).expect(200);
+    const line = res.body.report.transfers.find(t => t.auto && t.direction === 'out');
+    expect(line).toMatchObject({ fromTo: 'SEA — SPO', transferNumber: '18936, 18940', count: 2, slabs: 15 });
   });
 });

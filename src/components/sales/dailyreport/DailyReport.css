@@ -658,8 +658,11 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
    Transfers row leads with a direction icon (12px + 0.3rem gap) before the
    From select's own border and padding even start, so 'From — To' sat
    noticeably left of where 'Seattle' actually begins inside its box. */
-.dr-route-th {
-  padding-left: calc(var(--dr-cellpad) + 12px + 0.3rem + 0.5rem + 1px);
+/* th-qualified: a bare .dr-route-th lost to `.dr-table th`'s own padding and
+   sat 31px left of the From box's text. Icon (12px) + its margin and the
+   cell's gap (0.3rem each) + the select's border and padding. */
+.dr-table th.dr-route-th {
+  padding-left: calc(var(--dr-cellpad) + 12px + 2 * var(--dr-route-gap, 0.3rem) + 0.5rem + 1px);
 }
 
 .dr-none {
@@ -675,7 +678,7 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 .dr-direction {
   display: inline-flex;
   vertical-align: middle;
-  margin-right: 0.3rem;
+  margin-right: var(--dr-route-gap, 0.3rem);
   color: var(--dr-text-3);
 }
 
@@ -702,7 +705,44 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
 .dr-route-cell {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: var(--dr-route-gap, 0.3rem);
+}
+
+/* Transfer # (it replaced the Count column, 2026-10-15). A ticket line shows
+   its numbers as text that wraps, so two or three never get cut off; the
+   header lines up with the text inside the box. */
+.dr-table .dr-transfer-no { width: 7rem; }
+.dr-table .dr-transfer-no .dr-cell { width: 100%; }
+.dr-table th.dr-transfer-no-th {
+  width: 7rem;
+  padding-left: calc(var(--dr-cellpad) + 0.5rem + 1px);
+}
+.dr-transfer-no-text {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+/* Still one row per transfer when the panel is narrow (is-compact, set by
+   DailyReportTab when it's under ~570px — a phone, or the half-width panel
+   on a laptop): the From/To boxes show branch codes and the cells tighten.
+   Slabs used to run off the edge there, even with the old Count column. */
+.dr-table.dr-table--transfers.is-compact { --dr-cellpad: 0.5rem; }
+.dr-table--transfers.is-compact .dr-cell.dr-select { width: 4rem; }
+.dr-table--transfers.is-compact td.dr-transfer-no,
+.dr-table--transfers.is-compact th.dr-transfer-no-th { width: 6rem; }
+
+/* Phones go tighter still, to fit a 360px screen. .dr-table.dr-table--transfers:
+   the narrow-screen block further down sets .dr-table's own cell padding, and
+   would otherwise win on order. */
+@media (max-width: 639px) {
+  .dr-table.dr-table--transfers,
+  .dr-table.dr-table--transfers.is-compact { --dr-cellpad: 0.25rem; --dr-route-gap: 0.15rem; }
+  .dr-table.dr-table--transfers td.dr-transfer-no,
+  .dr-table.dr-table--transfers th.dr-transfer-no-th { width: 4.1rem; }
+  .dr-table.dr-table--transfers .dr-cell.dr-select { width: 3.4rem; }
+  .dr-table.dr-table--transfers td.dr-num .dr-cell { width: 2.9rem; }
 }
 
 /* .dr-cell.dr-select (not just .dr-select) so this beats the base .dr-cell
@@ -720,7 +760,7 @@ body.light-theme-active .dr-datepick input::-webkit-calendar-picker-indicator {
    the same way .dr-locpick select is, rather than patched one property at
    a time. */
 .dr-cell.dr-select {
-  width: 128px;
+  width: 116px; /* 'Salt Lake City' with room to spare; 128 overflowed once Transfer # joined the row */
   text-align: left;
   cursor: pointer;
   appearance: none;

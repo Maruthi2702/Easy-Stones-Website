@@ -13,6 +13,11 @@ import mongoose from 'mongoose';
 
 const transferLineSchema = new mongoose.Schema({
   fromTo: { type: String, default: '' },   // 'SEA — SLC', origin first regardless of direction
+  // The transfer number(s) the line stands for ('18936', or '18936, 18940' on
+  // a ticket line rolling up two tickets). Filled from the tickets on a ticket
+  // line, typed on one added by hand — so the same transfer added twice shows
+  // up (src/utils/transferDirection.js). Added 2026-10-15.
+  transferNumber: { type: String, default: '' },
   count: { type: Number, default: 0 },
   slabs: { type: Number, default: 0 },
   // Set when the line was built from transfer tickets rather than typed, so the

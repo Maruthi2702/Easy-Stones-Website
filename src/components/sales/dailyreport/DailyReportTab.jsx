@@ -8,7 +8,7 @@ import { API_URL } from '../../../config/api';
 import NoBranchNote from './NoBranchNote';
 import { authFetch } from '../../../api/authFetch';
 import { branchCode } from '../../../config/branches.js';
-import { manualTransferDirection, manualTransferWarning, transferWarningText } from '../../../utils/transferDirection.js';
+import { manualTransferDirection, manualTransferWarning, transferWarningText, transferCountOf } from '../../../utils/transferDirection.js';
 import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
 import { money } from './summaryFigures';
@@ -128,6 +128,11 @@ const emptyReport = (date, location) => ({
 });
 
 const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
+  // One row per transfer at any width: when the Transfers panel is too narrow
+  // for full branch names (a phone, or the half-width panel on a laptop), the
+  // From/To boxes show codes ('SEA') and the cells tighten (is-compact).
+  const transferTableRef = useRef(null);
+  const [compactRoutes, setCompactRoutes] = useState(false);
   const perms = currentUser?.permissions || [];
   const canEdit = perms.includes('edit_daily_report');
   const canSubmit = perms.includes('submit_daily_report');
@@ -151,6 +156,16 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const [canExportAll, setCanExportAll] = useState(false);
 
   const [report, setReport] = useState(null);
+  // Full branch names need about 570px for the Transfers row; under that the
+  // route boxes switch to codes. Measured on the panel, not the screen.
+  const hasReport = Boolean(report);
+  useEffect(() => {
+    const box = transferTableRef.current?.parentElement;
+    if (!box || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([entry]) => setCompactRoutes(entry.contentRect.width < 570));
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [hasReport, view]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -406,7 +421,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
    * "no slabs" the moment it appears, which is the same blank-reads-as-answered
    * confusion the dashes exist to remove. Wholly empty lines are dropped on save.
    */
-  const addTransfer = () => patch(r => { r.transfers.push({ fromTo: '', count: null, slabs: null, auto: false }); return r; });
+  const addTransfer = () => patch(r => { r.transfers.push({ fromTo: '', transferNumber: '', slabs: null, auto: false }); return r; });
   const addContainer = () => patch(r => { r.containers.push({ poNumber: '', material: '', slabs: null }); return r; });
 
   /**
@@ -469,9 +484,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       // day-glance tile's number doesn't quietly start including material
       // coming the other way. Incoming has its own subtotal in the section
       // below instead of being folded into this one.
-      transferCount: report.transfers.filter(t => t.direction !== 'in').reduce((s, t) => s + n(t.count), 0),
+      // How many transfers, for the tiles: a ticket line's tickets, a typed
+      // line's transfer numbers (transferCountOf). Nobody types a count.
+      transferCount: report.transfers.filter(t => t.direction !== 'in').reduce((s, t) => s + transferCountOf(t), 0),
       transferSlabs: report.transfers.filter(t => t.direction !== 'in').reduce((s, t) => s + n(t.slabs), 0),
-      transferCountIn: report.transfers.filter(t => t.direction === 'in').reduce((s, t) => s + n(t.count), 0),
+      transferCountIn: report.transfers.filter(t => t.direction === 'in').reduce((s, t) => s + transferCountOf(t), 0),
       transferSlabsIn: report.transfers.filter(t => t.direction === 'in').reduce((s, t) => s + n(t.slabs), 0),
       containerSlabs: report.containers.reduce((s, c) => s + n(c.slabs), 0),
       payCount: paymentCount(report.payments),
@@ -897,9 +914,9 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                 <button className="dr-addrow-btn" onClick={addTransfer}><Plus size={12} /> Add</button>
               )}
             >
-              <table className="dr-table">
+              <table ref={transferTableRef} className={`dr-table dr-table--transfers${compactRoutes ? ' is-compact' : ''}`}>
                 <thead>
-                  <tr><th className="dr-route-th">From — To</th><th className="dr-num">Count</th><th className="dr-num">Slabs</th><th className="dr-x" /></tr>
+                  <tr><th className="dr-transfer-no-th">Transfer #</th><th className="dr-route-th">From — To</th><th className="dr-num">Slabs</th><th className="dr-x" /></tr>
                 </thead>
                 <tbody>
                   {report.transfers.length === 0 && (
@@ -920,6 +937,25 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                     return (
                     <React.Fragment key={i}>
                     <tr className={warning ? 'has-line-note' : undefined}>
+                      <td className="dr-transfer-no">
+                        {/* Which transfer(s) the line is, so the same one isn't
+                            added twice (2026-10-15; it replaced the Count).
+                            A ticket line shows its tickets' numbers — fix the
+                            ticket, not the report. One added by hand types it. */}
+                        {t.auto ? (
+                          // Text, not a box, so a line rolling up two or three
+                          // tickets wraps instead of being cut off.
+                          <span className="dr-cell is-readonly is-left dr-transfer-no-text"
+                            title="From the transfer tickets; change the ticket to change this">
+                            {t.transferNumber || '—'}
+                          </span>
+                        ) : (
+                          <ReportCell value={t.transferNumber || ''} type="text" align="left"
+                            disabled={locked} placeholder="Transfer #" ariaLabel="Transfer number"
+                            className={warning?.code === 'number-on-report' ? 'is-odd' : ''}
+                            onChange={(v) => patch(r => { r.transfers[i].transferNumber = v; return r; })} />
+                        )}
+                      </td>
                       <td className="dr-route-cell">
                         <span className="dr-direction" title={t.direction === 'in' ? 'Incoming' : 'Outgoing'}>
                           {t.direction === 'in' ? <ArrowDownToLine size={12} /> : <ArrowUpFromLine size={12} />}
@@ -928,28 +964,20 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                           value={fromCode} disabled={locked || t.auto} aria-label="Transfer from"
                           onChange={(e) => setRoute(e.target.value, toCode)}>
                           <option value="">From</option>
-                          {allLocations.map(l => <option key={l} value={branchCode(l)}>{l}</option>)}
+                          {allLocations.map(l => <option key={l} value={branchCode(l)}>{compactRoutes ? branchCode(l) : l}</option>)}
                         </select>
                         <span className="dr-route-sep" aria-hidden="true">—</span>
                         <select className={`dr-cell dr-select ${t.auto ? 'is-derived' : ''}`}
                           value={toCode} disabled={locked || t.auto} aria-label="Transfer to"
                           onChange={(e) => setRoute(fromCode, e.target.value)}>
                           <option value="">To</option>
-                          {allLocations.map(l => <option key={l} value={branchCode(l)}>{l}</option>)}
+                          {allLocations.map(l => <option key={l} value={branchCode(l)}>{compactRoutes ? branchCode(l) : l}</option>)}
                         </select>
-                      </td>
-                      <td className="dr-num">
-                        {/* An auto line's count is its tickets, rebuilt on every
-                            load — fix the ticket, not the report. A line added
-                            by hand is the report's own and stays editable. */}
-                        <ReportCell value={t.count} derived={t.auto} readOnly={t.auto} disabled={locked} ariaLabel="Transfer count"
-                          title={t.auto ? 'From the transfer tickets; change the ticket to change this' : undefined}
-                          onChange={(v) => patch(r => { r.transfers[i].count = v; return r; })} />
                       </td>
                       <td className="dr-num">
                         <ReportCell value={t.slabs} disabled={locked} ariaLabel="Transfer slabs"
                           className={outOfBand(t.slabs) ? 'is-odd' : ''}
-                          onKeyDown={rowKeys('transfers', i, addTransfer, !t.fromTo && !n(t.count) && !n(t.slabs))}
+                          onKeyDown={rowKeys('transfers', i, addTransfer, !t.fromTo && !t.transferNumber && !n(t.slabs))}
                           onChange={(v) => patch(r => {
                             touchedTransferSlabs.current.add(`${t.direction || 'out'}:${t.fromTo}`);
                             r.transfers[i].slabs = v;
@@ -979,13 +1007,13 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                   })}
                   <tr className="dr-total">
                     <td>Outgoing</td>
-                    <td className="dr-num">{totals.transferCount}</td>
+                    <td />
                     <td className="dr-num">{totals.transferSlabs}</td>
                     <td className="dr-x" />
                   </tr>
                   <tr className="dr-total">
                     <td>Incoming</td>
-                    <td className="dr-num">{totals.transferCountIn}</td>
+                    <td />
                     <td className="dr-num">{totals.transferSlabsIn}</td>
                     <td className="dr-x" />
                   </tr>

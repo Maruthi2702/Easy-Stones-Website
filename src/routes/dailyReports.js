@@ -10,7 +10,7 @@ import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail
 import { groupContainers, groupSlabs } from '../utils/dailyReportContainers.js';
 import { PAYMENT_METHODS, paymentAmount } from '../utils/dailyReportPayments.js';
 import { groupTransferTickets, groupTicketSlabs, groupReceived, arrivalsShippedEarlier } from '../utils/dailyReportTransfers.js';
-import { manualTransferDirection } from '../utils/transferDirection.js';
+import { manualTransferDirection, transferCountOf } from '../utils/transferDirection.js';
 
 /**
  * Daily Work Report API.
@@ -135,7 +135,7 @@ export const deliveriesOnDate = (date) => Delivery.find(
       { deliveryType: 'return' }
     ]
   },
-  'deliveryType transferDestination location numberOfSlabs'
+  'deliveryType transferDestination location numberOfSlabs soNumber invoiceNumber'
 ).lean();
 
 /**
@@ -168,6 +168,11 @@ export async function withDraftsDerived(docs = []) {
  * `deliveryRows`: deliveriesOnDate(date) already fetched (or in flight) by a
  * caller deriving several branches for the same date.
  */
+/** A ticket line's transfer numbers ('18936, 18940'): each ticket's own, as the board shows it. */
+const ticketTransferNumbers = (group) => [...new Set(group.tickets
+  .map(t => String(t.soNumber || t.invoiceNumber || '').trim())
+  .filter(Boolean))].join(', ');
+
 export async function deriveFromSystem(date, location, { deliveryRows } = {}) {
   // Check-ins are counted in the branch's own calendar day — its midnight to
   // midnight on that date's offset — wherever the person looking is and
@@ -185,7 +190,7 @@ export async function deriveFromSystem(date, location, { deliveryRows } = {}) {
     deliveryRows || deliveriesOnDate(date),
     Delivery.find(
       incomingTransferQuery(date, location),
-      'id location numberOfSlabs receivedAt receivedBy'
+      'id location numberOfSlabs receivedAt receivedBy soNumber invoiceNumber'
     ).lean()
   ]);
 
@@ -218,6 +223,7 @@ export async function deriveFromSystem(date, location, { deliveryRows } = {}) {
     (d) => d.transferDestination
   ).map(g => ({
     fromTo: `${branchCode(location)} — ${branchCode(g.key)}`,
+    transferNumber: ticketTransferNumbers(g),
     count: g.tickets.length,
     slabs: groupTicketSlabs(g),
     auto: true,
@@ -233,6 +239,7 @@ export async function deriveFromSystem(date, location, { deliveryRows } = {}) {
     }, null);
     return {
       fromTo: `${branchCode(g.key)} — ${branchCode(location)}`,
+      transferNumber: ticketTransferNumbers(g),
       count: g.tickets.length,
       slabs: groupTicketSlabs(g),
       auto: true,
@@ -746,7 +753,11 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         sinks: numOrNull(body.sinks),
         transfers: (body.transfers || []).map(t => ({
           fromTo: String(t.fromTo || '').trim(),
-          count: num(t.count),
+          transferNumber: String(t.transferNumber || '').trim(),
+          // Nobody types a count any more: a ticket line keeps its tickets'
+          // count, a line added by hand counts its transfer numbers (or one).
+          // The month view, its PDF and the CSV total these.
+          count: t.auto ? num(t.count) : transferCountOf(t),
           slabs: num(t.slabs),
           auto: Boolean(t.auto),
           // A hand-added line's direction is its route's (the same rule the
@@ -760,7 +771,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           received: Boolean(t.received),
           receivedAt: t.receivedAt ? new Date(t.receivedAt) : null,
           receivedBy: String(t.receivedBy || '').trim()
-        })).filter(t => t.fromTo || t.count || t.slabs),
+        })).filter(t => t.fromTo || t.transferNumber || t.slabs),
         containers: (body.containers || []).map(c => ({
           poNumber: String(c.poNumber || '').trim(),
           material: String(c.material || '').trim(),

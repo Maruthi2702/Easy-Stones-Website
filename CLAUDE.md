@@ -302,10 +302,13 @@ Work Report's derive/save-payload rules (`src/routes/dailyReports.js`'s
 `applyDerived`, `src/components/sales/dailyreport/savePayload.js`) added
 after the incident above, and its payment methods and totals
 (`src/utils/dailyReportPayments.js`: ACH, Cash, Credit Card, Check; reports
-saved before ACH read it as unsaid), which way a transfer line added by hand goes
-(`src/utils/transferDirection.js`: its route decides — ending at the
-report's branch is Incoming — and the notes for a route that skips the
-branch or repeats a ticket line; the save route applies the same rule, in
+saved before ACH read it as unsaid), its transfer lines
+(`src/utils/transferDirection.js`: a hand-added line's direction comes from
+its route — ending at the report's branch is Incoming; each line carries a
+Transfer # (ticket lines from their tickets), the count the month view, its
+PDF and the CSV total is worked out from those, never typed; and the notes
+for a repeated transfer number, a route that skips the branch or repeats a
+ticket line; the save route applies the same rules, in
 `src/routes/dailyReportManualTransfers.test.js`), and the customer list's rules
 (`src/utils/customerList.js`: status labels, the ⚠ data-quality checks and
 the "Incomplete" query that must match them, saved views, A–Z, role-scoped
