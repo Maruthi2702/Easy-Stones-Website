@@ -88,6 +88,8 @@ permission holes (O4, O19).
 | O9 | Re-signing an ePOD whose earlier signatures were saved online can get stuck on "Saving…" (hosted image drawn without `crossOrigin` taints the canvas; `toDataURL` throws outside the try). | `initCanvas` / save in `PodModal.jsx` | Set `crossOrigin`, and catch around `toDataURL` | Fixed `d81862f` |
 | O10 | Cached board and check-in data survives log-out, so on a shared PC the next person briefly sees the previous user's branches. | `scheduleCache` in `src/api/deliverySchedule.js`, `dataCache.js` | Clear both caches on logout | Fixed `3009b52` |
 
+Decided to leave as they are (owner, 2026-10-15): the status pill size on board cards (a bigger pill would squeeze the SO# on the narrow columns) and the sales rep's own footer line (moving it adds a row to cards). Revisit only if the owner asks.
+
 ### Daily Report
 
 | # | Issue | Where | Suggested fix | Status |
@@ -128,6 +130,8 @@ permission holes (O4, O19).
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-15 | Delivery board: stop numbers skipped (Stop #1, #3) after a delete, cancel or move, and the board, the Edit delivery form and the driver's phone could disagree. Each driver's day is now kept 1, 2, 3, and old gaps closed at startup. | `3691007` |
+| 2026-10-15 | Delivery board: the Day column took a quarter of a wide screen and pushed Will Call off the edge with no sign more was there (now a fixed width, with arrows and fades); today's whole row is tinted; finished stops are faded; "No ePOD" on a completed delivery is amber; counts read "3/12 stops". | `43294d2` |
 | 2026-10-15 | Delivery Schedule O2: Saving an ePOD sends the whole cached ticket through POST /deliveries, undoing office edits made while the driver was signing; if the full-record fetch failed it also saves the arrival date as the ship date. | `d81862f` |
 | 2026-10-15 | Delivery Schedule O3: ePOD signatures get wiped on slow signal: the modal's reset effect reruns when the full record replaces the list copy, clearing the pads and fields mid-signature. | `d81862f` |
 | 2026-10-15 | Delivery Schedule O9: Re-signing an ePOD whose earlier signatures were saved online can get stuck on "Saving…" (hosted image drawn without `crossOrigin` taints the canvas; `toDataURL` throws outside the try). | `d81862f` |
