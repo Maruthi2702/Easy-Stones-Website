@@ -146,6 +146,25 @@ purpose: `/api/admin/locations` (already trimmed for non-managers; the
 check-in page needs it), `/api/user/me`, change-password, the pinned-tabs
 and route-planner-filter routers (the user's own data).
 
+## Staff sign-in: temporary passwords and invites (2026-10-15)
+
+Staff sign in on `/login` (the one door; `/admin/login` still works). A
+**temporary password** (Add / Edit user) gets only a **setup session**: a
+30-minute token signed with a key *derived* from `JWT_SECRET` and a cookie
+scoped to `/api/auth`, so no other route or token check can accept it — keep
+it that way rather than adding "refuse setup tokens" checks elsewhere. The
+app opens on "Choose your password" (`ChoosePasswordPage`, shown by
+`ProtectedRoute`), and saving it signs them in for real. Temporary passwords
+expire after 7 days. An **invite link** (`/set-password?token=…`; old links say
+`/admin/set-password`) works once, and saving it signs them straight in. Both
+use `ChoosePasswordCard`. Every password change — their own, a first
+password, an invite, an admin reset — bumps `sessionVersion`, which every
+staff token carries as `sv` and `authenticate` checks, so older sessions end.
+`authenticate` also refuses any account still on a temporary password. The
+rules live in `src/services/staffSession.js`, the routes in
+`src/routes/userOnboarding.js`; a new way to sign in or set a password goes
+through them.
+
 ## Permits: sources and the accuracy rules (2026-10-11; King County 2026-10-14)
 
 Sales · Permits (`src/permits/`) pulls building permits each morning from 15
@@ -385,7 +404,13 @@ rules (`src/routes/deliveryAccess.test.js`: a view-only login can't write, a
 driver writes only an ePOD, a packing-list upload can't take another branch's
 ticket id, reorders ignore tickets the board doesn't show, and a ticket with
 no branch reaches every open branch room, and the ePOD save that writes the
-ePOD and nothing else).
+ePOD and nothing else), and staff sign-in
+(`src/services/staffSession.test.js`: the setup token failing every ordinary
+check, temporary-password expiry, session versions;
+`src/routes/userOnboarding.test.js`, in-memory MongoDB: a temporary password
+→ setup session → own password → signed in, invite links once and racing,
+change-password and admin resets ending older sessions — its `signIn` and
+`authenticate` are stand-ins for server.js's, keep them in step).
 Accounting's server rules and API have their own tests in
 `src/accounting/*.test.js` (an in-memory MongoDB replica set, transactions
 included). Cart & Holds do too: `src/holds/*.test.js` (expiry and totals

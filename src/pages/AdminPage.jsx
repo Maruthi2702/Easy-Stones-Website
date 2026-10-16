@@ -6,6 +6,7 @@ import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import './AdminPage.css';
 import { authFetch } from '../api/authFetch';
+import { setAuthToken } from '../api/authToken';
 import AddUserForm from '../components/sales/users/AddUserForm';
 import EditUserForm from '../components/sales/users/EditUserForm';
 import { describeRole, isDriverRole } from '../components/sales/users/pagePermissions';
@@ -493,6 +494,8 @@ const AdminPage = () => {
       const data = await response.json();
 
       if (response.ok) {
+        // Changing it ends every other session; this one gets a fresh token.
+        if (data.token) setAuthToken(data.token);
         setPasswordStatus({ type: 'success', message: 'Password changed successfully!' });
         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
         setTimeout(() => setPasswordStatus(null), 3000);

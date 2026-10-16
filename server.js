@@ -119,6 +119,10 @@ import {
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.js';
 import createUserOnboardingRouter, { newInvite, inviteLinkFor, sendInviteEmail } from './src/routes/userOnboarding.js';
+import {
+  sessionIsCurrent, sessionVersionOf, temporaryPasswordFields, temporaryPasswordAnswer,
+  startStaffSession, clearPasswordSetup, readSetupToken
+} from './src/services/staffSession.js';
 import { usernameProblem, isValidEmail, isValidDateInput, PASSWORD_MIN } from './src/utils/userForm.js';
 import Delivery from './src/models/Delivery.js';
 import { insertInBatches, withDbRetry, hasRowErrorsOnly } from './src/utils/dbRetry.js';
@@ -350,8 +354,8 @@ async function resolveSocketAssignedLocations(token) {
   const decoded = jwt.verify(token, process.env.JWT_SECRET);
   const userId = decoded.userId || decoded.id || decoded.sub;
   if (!userId || decoded.type === 'customer' || !mongoose.isValidObjectId(userId)) return null;
-  const user = await User.findById(userId, 'assignedLocations isActive').lean();
-  if (!user || user.isActive === false) return null;
+  const user = await User.findById(userId, 'assignedLocations isActive mustChangePassword sessionVersion').lean();
+  if (!user || user.isActive === false || user.mustChangePassword || !sessionIsCurrent(decoded, user)) return null;
   return user.assignedLocations || [];
 }
 
@@ -1251,6 +1255,8 @@ const authenticate = async (req, res, next) => {
           routePlannerFilters: 1,
           pinnedTabs: 1,
           isActive: 1,
+          mustChangePassword: 1,
+          sessionVersion: 1,
           permissions: { $ifNull: [{ $arrayElemAt: ['$_role.permissions', 0] }, []] }
         }
       }
@@ -1264,6 +1270,12 @@ const authenticate = async (req, res, next) => {
     // account created before the switch existed).
     if (dbUser.isActive === false) {
       return res.status(401).json({ error: 'This account has been deactivated. Contact an administrator.' });
+    }
+    // Signed in before their password last changed (their own change, or an
+    // admin reset) — that session ends here. An account on a temporary
+    // password never has a full session at all (src/services/staffSession.js).
+    if (dbUser.mustChangePassword || !sessionIsCurrent(decoded, dbUser)) {
+      return res.status(401).json({ error: 'Your password was changed. Please sign in again.' });
     }
 
     // Populate req.user with fresh data
@@ -1465,22 +1477,19 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       await user.resetLoginAttempts();
     }
 
-    // Created with a temporary password: no session until they choose their
-    // own. The login page asks for one and calls /api/auth/first-password.
-    if (user.mustChangePassword) {
-      return res.json({
-        success: false,
-        code: 'must-change-password',
-        message: 'Choose your own password to finish signing in.'
-      });
-    }
+    // On a temporary password: a setup session only, and the app opens on
+    // "Choose your password" (src/services/staffSession.js). 200 as before,
+    // so a page cached from before still goes to its own choose step.
+    const temporary = temporaryPasswordAnswer(res, user, JWT_SECRET);
+    if (temporary) return res.status(temporary.expired ? 403 : 200).json(temporary.body);
 
     // Generate JWT — identity only, NO role stored in token
     // Role is always fetched live from DB by the authenticate middleware
     const token = jwt.sign(
       {
         userId: user._id,
-        username: user.username
+        username: user.username,
+        sv: sessionVersionOf(user)
         // role intentionally omitted — DB is the source of truth
       },
       JWT_SECRET,
@@ -1566,7 +1575,7 @@ const resolveHomeLocation = async ({ requested, current, assignedLocations }) =>
 };
 
 // Username check, first-sign-in password, emailed invites — see the module.
-app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter }));
+app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter, jwtSecret: JWT_SECRET }));
 
 // Get all users (manage_users permission needed)
 app.get('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
@@ -1620,8 +1629,7 @@ app.post('/api/admin/users', authenticate, requirePermission('manage_users'), as
       location: home.location,
       assignedLocations,
       joiningDate: new Date(`${joiningDate}T00:00:00Z`),
-      mustChangePassword: !invite,
-      ...(invite ? invite.fields : {}),
+      ...(invite ? invite.fields : temporaryPasswordFields()),
       editedBy: req.user?.username || '',
       editedAt: new Date()
     });
@@ -1755,17 +1763,21 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
     //                keeps working until they use it).
     // A bare `password` (the older /admin screen) still just sets it.
     let invite = null;
+    // A password the admin set — temporary or not — ends every session they
+    // already had (sessionVersion).
     if (signInReset === 'password') {
       user.password = password; // hashed by the pre-save hook
-      user.mustChangePassword = true;
+      Object.assign(user, temporaryPasswordFields());
       user.inviteTokenHash = null;
       user.inviteExpiresAt = null;
+      user.sessionVersion = sessionVersionOf(user) + 1;
     } else if (signInReset === 'invite') {
       invite = newInvite();
       user.inviteTokenHash = invite.fields.inviteTokenHash;
       user.inviteExpiresAt = invite.fields.inviteExpiresAt;
     } else if (password) {
       user.password = password; // Will be hashed by pre-save hook
+      user.sessionVersion = sessionVersionOf(user) + 1;
     }
 
     user.editedBy = req.user?.username || '';
@@ -2134,42 +2146,10 @@ app.delete('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_us
   }
 });
 
-// Change Password Route
-app.post('/api/auth/change-password', verifyToken, async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
-    }
-
-    // Get adminId from JWT token (set by verifyToken middleware)
-    const adminId = req.userId;
-    const admin = await User.findById(adminId);
-    if (!admin) {
-      return res.status(404).json({ success: false, message: 'Admin not found' });
-    }
-
-    // Verify current password
-    const isMatch = await admin.comparePassword(currentPassword);
-    if (!isMatch) {
-      console.log('Current password incorrect');
-      return res.status(401).json({ success: false, message: 'Current password is incorrect' });
-    }
-
-    // Update password (pre-save hook in User model will hash it)
-    admin.password = newPassword;
-    await admin.save();
-
-    res.json({ success: true, message: 'Password changed successfully' });
-  } catch (error) {
-    console.error('❌ Password change error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
 
 // Logout endpoint
 app.post('/api/auth/logout', (req, res) => {
+  clearPasswordSetup(res);
   res.clearCookie('adminToken', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -2224,8 +2204,10 @@ app.get('/api/auth/verify', (req, res) => {
     }
   }
 
-  // No valid token — return 200 with valid:false instead of 401
-  return res.json({ valid: false });
+  // No valid token — return 200 with valid:false instead of 401. `setup`: this
+  // browser signed in with a temporary password and is choosing its own
+  // (GET /api/auth/setup says for whom).
+  return res.json(readSetupToken(req, JWT_SECRET) ? { valid: false, setup: true } : { valid: false });
 });
 
 // Get current user info (for admin/internal users)
@@ -2459,13 +2441,13 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
       if (account.isActive === false) {
         return res.status(403).json({ message: 'This account has been deactivated. Contact Easy Stones for help.' });
       }
-      // A staff account still on its temporary password finishes on the staff
-      // sign-in page, which is where choosing their own password happens.
-      if (accountType === 'internal' && account.mustChangePassword) {
-        return res.status(403).json({
-          code: 'must-change-password',
-          message: 'Finish setting up your account on the staff sign-in page (/admin/login), where you’ll choose your own password.'
-        });
+      // A staff account on its temporary password gets a setup session, not a
+      // real one, and the app opens on "Choose your password"
+      // (src/services/staffSession.js). 403 keeps a page cached from before
+      // this from treating it as signed in.
+      if (accountType === 'internal') {
+        const temporary = temporaryPasswordAnswer(res, account, JWT_SECRET);
+        if (temporary) return res.status(403).json(temporary.body);
       }
     } catch (dbError) {
       console.error(`[${new Date().toISOString()}] ❌ DB ERROR during account lookup:`, dbError);
@@ -2501,25 +2483,31 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     }
 
     // Generate JWT token — identity only, NO role stored in token
-    // Role is always fetched live from DB by the authenticate middleware
+    // Role is always fetched live from DB by the authenticate middleware.
+    // Staff get theirs from startStaffSession: it carries their session
+    // version, and clears a leftover legacy adminToken that authenticate would
+    // otherwise read first.
     console.log(`🔑 Generating JWT for ${email} (Type: ${accountType})`);
-    const token = jwt.sign(
-      {
-        id: account._id,
-        type: accountType
-        // role intentionally omitted — DB is the source of truth
-      },
-      JWT_SECRET,
-      { expiresIn: `${SESSION_HOURS}h` }
-    );
+    if (accountType === 'internal') {
+      startStaffSession(res, account, JWT_SECRET);
+    } else {
+      const token = jwt.sign(
+        {
+          id: account._id,
+          type: accountType
+          // role intentionally omitted — DB is the source of truth
+        },
+        JWT_SECRET,
+        { expiresIn: `${SESSION_HOURS}h` }
+      );
 
-    // Set cookie
-    res.cookie('customerToken', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: SESSION_MS
-    });
+      res.cookie('customerToken', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: SESSION_MS
+      });
+    }
 
     console.log(`✅ Login successful for ${email} as ${accountType}`);
     res.json({
@@ -2557,6 +2545,7 @@ const verifyCustomer = (req, res, next) => {
     }
     req.customerId = decoded.id;
     req.accountType = decoded.type;
+    req.tokenClaims = decoded;
     next();
   } catch {
     res.status(401).json({ message: 'Invalid token.' });
@@ -2569,6 +2558,10 @@ app.get('/api/customer/me', verifyCustomer, async (req, res) => {
     let account;
     if (req.accountType === 'internal') {
       account = await User.findById(req.customerId).select('-password');
+      // The same session rules authenticate applies to staff.
+      if (account && (account.isActive === false || account.mustChangePassword || !sessionIsCurrent(req.tokenClaims, account))) {
+        return res.status(401).json({ message: 'Please sign in again.' });
+      }
     } else {
       account = await Customer.findById(req.customerId).select('-password -visits -resources');
     }
@@ -3456,30 +3449,6 @@ app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requireP
   }
 });
 
-// Change Password Route
-app.post('/api/auth/change-password', verifyToken, async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-    const user = await User.findById(req.userId);
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    const isMatch = await user.comparePassword(currentPassword);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Incorrect current password' });
-    }
-
-    user.password = newPassword;
-    await user.save();
-
-    res.json({ success: true, message: 'Password updated successfully' });
-  } catch (error) {
-    console.error('Password change error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
 
 // ============================================
 // SALES DASHBOARD RESOURCE ENDPOINTS
