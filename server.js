@@ -6,6 +6,7 @@ import dns from 'dns';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { createPresence, deviceFromUserAgent } from './src/services/presence.js';
 import cors from 'cors';
 import mongoose from 'mongoose';
 
@@ -359,6 +360,59 @@ async function resolveSocketAssignedLocations(token) {
   return user.assignedLocations || [];
 }
 
+// ── Who is online ────────────────────────────────────────────────────────────
+const presence = createPresence();
+const PRESENCE_VIEWERS_ROOM = 'presence-viewers';
+
+// Like resolveSocketAssignedLocations: a customer token, a deactivated account,
+// a temporary password or an ended session is "nobody". Also says whether this
+// person may see the list (Users & Roles' own permission, manage_users).
+async function resolveSocketStaff(token) {
+  if (!token) return null;
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const userId = decoded.userId || decoded.id || decoded.sub;
+  if (!userId || decoded.type === 'customer' || !mongoose.isValidObjectId(userId)) return null;
+  const user = await User.findById(userId, 'role isActive mustChangePassword sessionVersion').lean();
+  if (!user || user.isActive === false || user.mustChangePassword || !sessionIsCurrent(decoded, user)) return null;
+  const role = await Role.findOne({ name: String(user.role || '').trim().toLowerCase() }, 'permissions').lean();
+  return { userId: String(user._id), canSeePresence: !!role?.permissions?.includes('manage_users') };
+}
+
+const writeLastSeen = (userId, at) =>
+  User.updateOne({ _id: userId }, { $set: { lastSeenAt: at } }).catch(() => {});
+
+// While online, at most every few minutes (presence.dueToSave).
+const savePresenceLastSeen = (userId) => {
+  if (userId && presence.dueToSave(userId)) writeLastSeen(userId, new Date());
+};
+
+// The list changes on every tab opened, closed or used, and by itself as
+// people go idle; one push per second at most, and only to viewers.
+let presenceTimer = null;
+let lastPresenceSent = '';
+function announcePresence() {
+  if (presenceTimer) return;
+  presenceTimer = setTimeout(() => {
+    presenceTimer = null;
+    const list = presence.snapshot();
+    const sent = JSON.stringify(list.map(({ userId, status, device, tabs }) => [userId, status, device, tabs]));
+    if (sent === lastPresenceSent) return;
+    lastPresenceSent = sent;
+    io.to(PRESENCE_VIEWERS_ROOM).emit('presence_update', list);
+  }, 1000);
+}
+setInterval(announcePresence, 60 * 1000).unref();
+
+// A tab closed (or signed in as someone else). When it was their last one the
+// moment they last used the app is their "last seen".
+function forgetPresenceTab(socket) {
+  const gone = presence.disconnect(socket.id);
+  socket.data.presenceUserId = null;
+  if (!gone) return;
+  if (gone.offline) writeLastSeen(gone.userId, new Date(gone.lastActiveAt));
+  announcePresence();
+}
+
 io.on('connection', (socket) => {
   if (process.env.NODE_ENV === 'development') {
     console.log(`🔌 WebSockets: Client connected (${socket.id})`);
@@ -416,7 +470,37 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Who is online (Users & Roles). A tab says who it is once per connection
+  // (and again whenever its session changes); staff only — customer tokens are
+  // refused. Anyone who can open Users & Roles also joins the room the live
+  // list is pushed to. See src/services/presence.js.
+  socket.on('presence_hello', async (payload, ack) => {
+    const reply = typeof ack === 'function' ? ack : () => {};
+    try {
+      forgetPresenceTab(socket);
+      socket.leave(PRESENCE_VIEWERS_ROOM);
+      const who = await resolveSocketStaff(payload?.token);
+      if (!who) return reply({ ok: false });
+      presence.connect(socket.id, who.userId, deviceFromUserAgent(socket.handshake.headers['user-agent']));
+      socket.data.presenceUserId = who.userId;
+      if (who.canSeePresence) socket.join(PRESENCE_VIEWERS_ROOM);
+      savePresenceLastSeen(who.userId);
+      announcePresence();
+      reply({ ok: true });
+    } catch {
+      reply({ ok: false });
+    }
+  });
+
+  // Sent by the tab (about once a minute at most) while someone is using it.
+  socket.on('presence_active', () => {
+    if (!presence.activity(socket.id)) return;
+    savePresenceLastSeen(socket.data.presenceUserId);
+    announcePresence();
+  });
+
   socket.on('disconnect', () => {
+    forgetPresenceTab(socket);
     if (process.env.NODE_ENV === 'development') {
       console.log(`🔌 WebSockets: Client disconnected (${socket.id})`);
     }
@@ -1577,6 +1661,12 @@ const resolveHomeLocation = async ({ requested, current, assignedLocations }) =>
 // Username check, first-sign-in password, emailed invites — see the module.
 app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter, jwtSecret: JWT_SECRET }));
 
+// Who is online right now — the first load of Users & Roles' Online badges;
+// after that the list is pushed over the socket (presence_update).
+app.get('/api/admin/users/presence', authenticate, requirePermission('manage_users'), (req, res) => {
+  res.json(presence.snapshot());
+});
+
 // Get all users (manage_users permission needed)
 app.get('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
   try {
@@ -2460,8 +2550,8 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
 
     // Clear failed attempts, and record a customer's sign-in IP — one write
     // at most. This used to be a resetLoginAttempts() write followed by a
-    // second update setting the same fields again, run on every sign-in; a
-    // staff account with nothing to clear now writes nothing at all.
+    // second update setting the same fields again, run on every sign-in. A
+    // staff sign-in also stamps lastLoginAt (Users & Roles' "Last seen").
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
     if (accountType === 'customer') {
@@ -2479,9 +2569,9 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
           }
         }
       });
-    } else if (account.loginAttempts > 0 || account.lockUntil) {
+    } else {
       await User.updateOne({ _id: account._id }, {
-        $set: { loginAttempts: 0 },
+        $set: { loginAttempts: 0, lastLoginAt: new Date() },
         $unset: { lockUntil: 1 }
       });
     }

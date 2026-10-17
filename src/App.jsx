@@ -2,6 +2,7 @@ import React, { Suspense, useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, Info } from 'lucide-react';
 import Header from './components/Header';
+import PresenceReporter from './components/PresenceReporter';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -143,6 +144,7 @@ function App() {
     <AuthProvider>
       <ProductProvider>
         <div className="app">
+          <PresenceReporter />
           <ScrollToTop />
           <div className="bg-gradient"></div>
           {!isSelfCheckInPage && <Header />}

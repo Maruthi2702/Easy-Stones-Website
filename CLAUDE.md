@@ -169,6 +169,23 @@ through them. Five wrong passwords lock an account for 15 minutes
 now** (`POST /api/admin/users/:id/unlock`, `manage_users`), and any password
 reset or chosen password also lifts it (`clearSignInLock`).
 
+## Who is online (2026-10-16)
+
+Users & Roles → Users list has an **Online** column, a live "Online now (N)"
+filter and "Last seen …" for people who are away. Every signed-in tab opens a
+socket (`PresenceReporter` → `src/api/presence.js`) that says who it is
+(`presence_hello`, a staff token only — customers are refused) and, at most
+once a minute while the mouse/keys/touch are used in a visible tab,
+`presence_active`. The server keeps the list **in memory**
+(`src/services/presence.js`: one entry per tab, **Active** until 10 minutes
+without activity, then **Idle**; device from the browser's User-Agent) and
+pushes it (`presence_update`) only to sockets whose user has `manage_users`;
+`GET /api/admin/users/presence` is the first load. `lastSeenAt` (written at
+most every 5 min while online and on the last tab closing) and `lastLoginAt`
+are on the User record. One server instance only — two would each hold half
+the list. A phone's background tab disconnects, so it shows "Last seen". The
+display rules are `src/utils/userPresence.js`.
+
 ## Permits: sources and the accuracy rules (2026-10-11; King County 2026-10-14)
 
 Sales · Permits (`src/permits/`) pulls building permits each morning from 15

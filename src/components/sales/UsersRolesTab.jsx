@@ -4,7 +4,7 @@ import {
     Save, Key, Mail, MapPin, UserCheck, ShieldCheck, Info,
     LayoutDashboard, User, Clock, Tag, X, Eye, Pencil,
     FileCog, Mail as MailIcon, TrendingDown, IdCard, Eraser,
-    ClipboardList, CheckCheck, RotateCcw, Map, Route, ArrowLeftRight, Boxes, Upload, DollarSign, Palette
+    ClipboardList, CheckCheck, RotateCcw, Map, Route, ArrowLeftRight, Boxes, Upload, DollarSign, Palette, Smartphone, Tablet, Monitor
 } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
@@ -14,6 +14,8 @@ import { clearDriversCache } from '../../api/deliverySchedule';
 import { homeLocationOf } from '../../utils/locationFilter';
 import { addressLines, hasPrintableAddress } from '../../utils/locationForm';
 import { lockedUntilTime } from '../../utils/userForm';
+import { subscribePresence } from '../../api/presence';
+import { presenceById, onlineStatusOf, countOnline } from '../../utils/userPresence';
 import LocationForm from './locations/LocationForm';
 import AddUserForm from './users/AddUserForm';
 import EditUserForm from './users/EditUserForm';
@@ -23,6 +25,8 @@ import './UsersRolesTab.css';
 
 // Flat lookup for all permission keys (used for labels elsewhere)
 const ALL_PERMISSION_KEYS = PAGE_PERMISSIONS.flatMap(p => p.actions.map(a => a.key));
+
+const DEVICE_ICONS = { phone: Smartphone, tablet: Tablet, desktop: Monitor };
 
 const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     const [subTab, setSubTab] = useState('users'); // 'users', 'roles', 'locations'
@@ -115,6 +119,23 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
 
     // Filter states
     const [userSearch, setUserSearch] = useState('');
+    const [onlineOnly, setOnlineOnly] = useState(false);
+
+    // Who is online: the list once on open, then pushed by the server as tabs
+    // open, close and go idle (src/services/presence.js). `clock` re-renders
+    // the "Last seen 5 min ago" wording once a minute.
+    const [live, setLive] = useState(() => new Map());
+    const [, setClock] = useState(0);
+    useEffect(() => {
+        let cancelled = false;
+        const unsubscribe = subscribePresence(list => { if (!cancelled) setLive(presenceById(list)); });
+        authFetch(`${API_URL}/api/admin/users/presence`)
+            .then(res => (res.ok ? res.json() : null))
+            .then(list => { if (list && !cancelled) setLive(prev => (prev.size ? prev : presenceById(list))); })
+            .catch(() => {});
+        const timer = setInterval(() => setClock(n => n + 1), 60 * 1000);
+        return () => { cancelled = true; unsubscribe(); clearInterval(timer); };
+    }, []);
 
     // Selected role for permissions editing
     const [selectedRole, setSelectedRole] = useState(null);
@@ -338,8 +359,9 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     // Filtered users
     const filteredUsers = useMemo(() => {
         const query = (userSearch || '').trim().toLowerCase();
-        if (!query) return users;
-        return users.filter(user => {
+        const pool = onlineOnly ? users.filter(u => live.has(String(u._id))) : users;
+        if (!query) return pool;
+        return pool.filter(user => {
             return (
                 user.username.toLowerCase().includes(query) ||
                 (user.displayName && user.displayName.toLowerCase().includes(query)) ||
@@ -348,7 +370,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                 (user.location && user.location.toLowerCase().includes(query))
             );
         });
-    }, [users, userSearch]);
+    }, [users, userSearch, onlineOnly, live]);
 
     const getRoleDisplayName = (roleName) => {
         const role = roles.find(r => r.name === roleName);
@@ -411,6 +433,15 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                         onChange={(e) => setUserSearch(e.target.value)}
                                     />
                                 </div>
+                                <button
+                                    type="button"
+                                    className={`online-filter-btn ${onlineOnly ? 'active' : ''}`}
+                                    aria-pressed={onlineOnly}
+                                    onClick={() => setOnlineOnly(v => !v)}
+                                >
+                                    <span className="online-dot active" />
+                                    Online now ({countOnline(users, live)})
+                                </button>
                                 <button className="add-user-btn" onClick={openAddUserModal}>
                                     <Plus size={18} />
                                     Add User
@@ -425,13 +456,14 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                             <th>Email</th>
                                             <th>Role</th>
                                             <th>Home Location</th>
+                                            <th>Online</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filteredUsers.length === 0 ? (
                                             <tr>
-                                                <td colSpan="5" className="empty-table-row">No users found.</td>
+                                                <td colSpan="6" className="empty-table-row">{onlineOnly ? 'Nobody is online right now.' : 'No users found.'}</td>
                                             </tr>
                                         ) : (
                                             filteredUsers.map(u => (
@@ -458,6 +490,19 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                         </span>
                                                     </td>
                                                     <td data-label="Home Location">{homeLocationOf(u) || '-'}</td>
+                                                    <td data-label="Online">
+                                                        {(() => {
+                                                            const st = onlineStatusOf(u, live);
+                                                            const DeviceIcon = DEVICE_ICONS[st.device];
+                                                            return (
+                                                                <span className={`online-status ${st.kind}`} title={st.detail}>
+                                                                    <span className={`online-dot ${st.kind}`} />
+                                                                    {st.label}
+                                                                    {DeviceIcon && <DeviceIcon size={14} aria-label={st.detail} />}
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </td>
                                                     <td data-label="Actions">
                                                         <div className="action-pill-row">
                                                             <button
