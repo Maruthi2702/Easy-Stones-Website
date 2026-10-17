@@ -238,6 +238,15 @@ body.light-theme-active .cl-bulk { background: #0f172a; border-color: #0f172a; }
 .cl-bb:hover { background: rgba(255, 255, 255, 0.12); }
 .cl-bb.gold { background: var(--cl-gold); color: #1a1400; }
 .cl-bulk .cl-pop { top: auto; bottom: calc(100% + 8px); color: var(--cl-text); }
+/* Bulk Delete (BulkBar / BulkDeleteDialog): red text on the dark bar, and the
+   names in the confirmation. */
+.cl-bb.danger { color: #fca5a5; }
+.cl-bb.danger:hover { background: rgba(239, 68, 68, 0.22); color: #ffffff; }
+.cl-bb.undo { color: var(--cl-gold); font-weight: 700; }
+.cl-bb:disabled { opacity: 0.55; cursor: progress; }
+.cl-del-names { margin: 0 0 12px; padding: 0 0 0 18px; color: var(--fm-tx); font-size: 14px; font-weight: 600; line-height: 1.7; }
+.cl-del-more { list-style: none; margin-left: -18px; color: var(--fm-mut); font-weight: 500; }
+.cl-del-note { margin: 0 0 14px; color: var(--fm-mut); font-size: 13.5px; line-height: 1.45; }
 
 /* ── Phone / iPad-portrait list ─────────────────────────────────────────── */
 .cl-list { background: var(--cl-surface); border: 1px solid var(--cl-line); border-radius: 12px; overflow: hidden; flex: 1; min-width: 0; }

@@ -78,6 +78,9 @@ export default function FormModal({
     // Contractor pop-up while it looks the license up): Enter and the footer
     // note still work, there's just no button.
     hideSubmit = false,
+    // submitTone="danger" — a red main button, for a window whose action
+    // removes something (the Customer List's bulk Delete). Same place and size.
+    submitTone = 'primary',
     children
 }) {
     const isPhone = useIsPhone();
@@ -315,7 +318,7 @@ export default function FormModal({
                     {/* No Cancel: the ✕ in the header does the same, unsaved-changes
                         check included (owner's call, 2026-10-05). */}
                     {!hideSubmit && (
-                        <button type="submit" className="fm-btn fm-btn-primary" disabled={saving || submitDisabled} aria-busy={saving ? 'true' : undefined}>
+                        <button type="submit" className={`fm-btn fm-btn-primary${submitTone === 'danger' ? ' fm-btn-danger' : ''}`} disabled={saving || submitDisabled} aria-busy={saving ? 'true' : undefined}>
                             {saving ? <><span className="fm-spinner" aria-hidden="true" />{savingLabel}</> : submitLabel}
                         </button>
                     )}

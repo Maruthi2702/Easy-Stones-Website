@@ -64,7 +64,12 @@ answer as aliases until cached apps update — see KNOWN_ISSUES.md's Cleanup
 due. Don't add a customer route anywhere else: the cache-busting middleware
 in server.js matches on the path, and a create living at
 `/api/sales/customers` is why new customers didn't show in the dropdown for
-ten minutes. What a create/edit may write is `src/utils/customerRecord.js`
+ten minutes. **Bulk delete** (2026-10-17, the Customer List's selection bar,
+Delete switch only) is `POST /bulk-delete` + `/bulk-delete/undo`
+(`src/routes/customerBulkDelete.js`, tested): every customer is saved whole to
+`customerdeletebackups` before it's removed, and Undo restores it under the
+same id so what points at it by id finds it again. Above 10 the confirmation
+asks for the count to be typed (`src/utils/customerBulkDelete.js`). What a create/edit may write is `src/utils/customerRecord.js`
 (never password, login state, the map point or the rep's name).
 
 Every customer dropdown reads the one shared list,

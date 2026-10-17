@@ -43,6 +43,7 @@ import SalesResource from '../models/SalesResource.js';
 import SalesDashboardResource from '../models/SalesDashboardResource.js';
 import ImportMemory from '../models/ImportMemory.js';
 import CustomerMergeBackup from '../models/CustomerMergeBackup.js';
+import CustomerDeleteBackup from '../models/CustomerDeleteBackup.js';
 
 export const INDEXED_MODELS = [
   ['Customer', Customer],
@@ -65,5 +66,6 @@ export const INDEXED_MODELS = [
   ['SalesResource', SalesResource],
   ['SalesDashboardResource', SalesDashboardResource],
   ['ImportMemory', ImportMemory],
-  ['CustomerMergeBackup', CustomerMergeBackup]
+  ['CustomerMergeBackup', CustomerMergeBackup],
+  ['CustomerDeleteBackup', CustomerDeleteBackup]
 ];

@@ -24,7 +24,9 @@ import CustomerTable from './customerList/CustomerTable';
 import CustomerRowList from './customerList/CustomerRowList';
 import CustomerDrawer from './customerList/CustomerDrawer';
 import BulkBar from './customerList/BulkBar';
+import BulkDeleteDialog from './customerList/BulkDeleteDialog';
 import LogCallSheet from './customerList/LogCallSheet';
+import { deletedMessage, restoredMessage } from '../../utils/customerBulkDelete';
 import { canAddVisit } from '../../utils/visitAccess';
 import { useLocationsFilter } from '../shared/useLocationFilter';
 import { FilterDropdown } from './customerList/parts';
@@ -170,6 +172,11 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const selectedIds = useMemo(() => new Set(selected.keys()), [selected]);
     const [bulkBusy, setBulkBusy] = useState(false);
     const [bulkMessage, setBulkMessage] = useState('');
+    // Bulk Delete: the confirmation (its rows while open), and the last delete's Undo.
+    const [bulkDelete, setBulkDelete] = useState(null);
+    const [bulkDeleteSaving, setBulkDeleteSaving] = useState(false);
+    const [bulkDeleteError, setBulkDeleteError] = useState('');
+    const [lastDelete, setLastDelete] = useState(null);
     const [notice, setNotice] = useState('');
 
     const [openCustomer, setOpenCustomer] = useState(null);
@@ -572,6 +579,48 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         setBulkMessage(`Copied ${list.split('; ').length} emails`);
     };
 
+    // Bulk Delete: confirm (BulkDeleteDialog), one request for the whole
+    // selection, then the bar stays up with Undo (src/routes/customerBulkDelete.js
+    // saves every customer whole before removing it).
+    const confirmBulkDelete = async () => {
+        const ids = bulkDelete.rows.map(r => r._id);
+        setBulkDeleteSaving(true);
+        setBulkDeleteError('');
+        try {
+            const res = await authFetch(`${API_URL}/api/customers/bulk-delete`, { method: 'POST', body: JSON.stringify({ ids }) });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { setBulkDeleteError(data.message || 'Could not delete the customers.'); return; }
+            setBulkDelete(null);
+            setSelected(new Map());
+            if (openCustomer && ids.includes(openCustomer._id)) setOpenCustomer(null);
+            setLastDelete({ batchId: data.batchId, message: deletedMessage(data.deleted), busy: false });
+            refreshAll();
+        } catch {
+            setBulkDeleteError('Couldn’t reach the server. Refresh the list to see whether they were deleted before trying again.');
+        } finally {
+            setBulkDeleteSaving(false);
+        }
+    };
+
+    const undoBulkDelete = async () => {
+        const { batchId } = lastDelete;
+        setLastDelete(d => ({ ...d, busy: true }));
+        try {
+            const res = await authFetch(`${API_URL}/api/customers/bulk-delete/undo`, { method: 'POST', body: JSON.stringify({ batchId }) });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                // 409: already undone (another tab) — nothing left to offer.
+                setLastDelete({ batchId: res.status === 409 ? null : batchId, message: data.message || 'Undo failed — try again.', busy: false });
+                return;
+            }
+            // Any that couldn't come back stay saved, so Undo stays offered.
+            setLastDelete({ batchId: data.failed?.length ? batchId : null, message: restoredMessage(data), busy: false });
+            refreshAll();
+        } catch {
+            setLastDelete({ batchId, message: 'Couldn’t reach the server — try Undo again.', busy: false });
+        }
+    };
+
     // ── Opening customers ────────────────────────────────────────────────────
     // Without Full profile there is no profile to open: the basic card (the drawer) is the most there is.
     const openProfile = (row) => {
@@ -590,7 +639,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     useEffect(() => {
         const onKey = (e) => {
             if (!rootRef.current || rootRef.current.offsetParent === null) return;
-            if (showAddModal || showImportModal || showFilterSheet) return;
+            if (showAddModal || showImportModal || showFilterSheet || bulkDelete) return;
             const tag = (e.target.tagName || '').toLowerCase();
             const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
             if (e.key === 'Escape') {
@@ -614,7 +663,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-    }, [partners, focusIndex, openIndex, openCustomer, narrow, showAddModal, showImportModal, showFilterSheet]);
+    }, [partners, focusIndex, openIndex, openCustomer, narrow, showAddModal, showImportModal, showFilterSheet, bulkDelete]);
 
     const isFabTab = activeTab === 'fabricators';
     const showType = !isFabTab || !!debouncedSearch || filterTypes.length > 0;
@@ -889,7 +938,24 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                     onAssignRep={(repId) => bulkPatch({ salesRep: repId }, (n) => `${n} reassigned`)}
                     onSetStatus={(status) => bulkPatch({ status }, (n) => `${n} set to ${status}`)}
                     onExport={canExport ? () => exportRows(selectedRows, 'Selected_Customers') : null}
+                    onDelete={canDelete ? () => { setBulkDeleteError(''); setBulkDelete({ rows: selectedRows }); } : null}
                     onClear={() => setSelected(new Map())}
+                    undo={lastDelete ? {
+                        message: lastDelete.message,
+                        busy: lastDelete.busy,
+                        onUndo: lastDelete.batchId ? undoBulkDelete : null,
+                        onDismiss: () => setLastDelete(null)
+                    } : null}
+                />
+            )}
+
+            {bulkDelete && (
+                <BulkDeleteDialog
+                    rows={bulkDelete.rows}
+                    saving={bulkDeleteSaving}
+                    error={bulkDeleteError}
+                    onConfirm={confirmBulkDelete}
+                    onClose={() => setBulkDelete(null)}
                 />
             )}
 

@@ -114,6 +114,7 @@ import { canViewLostSales, canEditLostSales, canDeleteLostSales } from './src/ut
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
+import createCustomerBulkDeleteRouter from './src/routes/customerBulkDelete.js';
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import { linkVisitToSchedule, unlinkVisitFromSchedule, moveVisitOnSchedule } from './src/services/visitSchedule.js';
@@ -4156,6 +4157,10 @@ app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticat
     res.status(500).json({ message: 'Failed to count customer views' });
   }
 });
+
+// Bulk Delete from the customer list's selection bar, with Undo — every
+// customer saved whole first (src/routes/customerBulkDelete.js).
+app.use('/api/customers', createCustomerBulkDeleteRouter({ authenticate }));
 
 // Bulk "Assign rep" / "Set status" from the customer list's selection bar.
 // Only these two fields, so a selection can't be used to rewrite anything else.
