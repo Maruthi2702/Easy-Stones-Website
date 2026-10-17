@@ -11,6 +11,7 @@ import CustomerImportModal from '../admin/CustomerImportModal';
 import { canAddCustomer, canImportCustomers, canEditCustomers, canDeleteCustomers, canViewCustomerProfile, canExportCustomers } from '../../utils/customerAccess';
 import { useAuth } from '../../context/AuthContext';
 import { toSalesRepList } from '../../utils/salesReps';
+import { orderLocations, homeLocationOf } from '../../utils/locationFilter';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import * as XLSX from 'xlsx';
@@ -644,7 +645,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
             {scoped.locations.length > 0 && (
                 <FilterDropdown
                     label="Location"
-                    options={scoped.locations.map(l => ({ value: l, label: l }))}
+                    options={orderLocations(scoped.locations, homeLocationOf(user)).map(l => ({ value: l, label: l === homeLocationOf(user) ? `${l} · Home` : l }))}
                     selected={filterLocations}
                     onChange={withReset(setFilterLocations)}
                     note={locationNote}

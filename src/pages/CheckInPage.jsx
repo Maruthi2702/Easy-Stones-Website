@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Phone, Building, CheckCircle2, ShieldCheck,
   Sun, Moon, ChevronRight, ChevronLeft, Home, Hammer, Palette, HardHat, Wrench, Store,
-  Send, Loader2, AlertTriangle, ChevronDown, UserCheck, RotateCcw
+  Send, Loader2, AlertTriangle, UserCheck, RotateCcw
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
@@ -11,6 +11,7 @@ import { formatTitleCase } from '../utils/textUtils';
 import { useAuth } from '../context/AuthContext';
 import { homeLocationOf } from '../utils/locationFilter';
 import { canCheckIn } from '../utils/checkInAccess';
+import LocationPicker from '../components/shared/form/LocationPicker';
 import { useNavigate } from 'react-router-dom';
 import './CheckInPage.css';
 
@@ -608,14 +609,15 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
       <div className="checkin-simple-header">
         <h1 className="checkin-title-text">Visitor Check-In</h1>
         {hasMultipleLocations ? (
-          <div className="checkin-select-container">
-            <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} className="checkin-branch-select-input">
-              {allowedLocations.map(loc => (
-                <option key={loc} value={loc} style={{ background: '#0f172a', color: '#ffffff' }}>📍 {loc} Office</option>
-              ))}
-            </select>
-            <div className="checkin-select-arrow"><ChevronDown size={16} /></div>
-          </div>
+          <LocationPicker
+            id="checkin-branch"
+            className="checkin-loc-picker"
+            value={selectedLocation}
+            onChange={setSelectedLocation}
+            options={allowedLocations}
+            user={user}
+            sheetTitle="Branch"
+          />
         ) : (
           <span className="checkin-branch-pill-badge">📍 {locationDisplay}</span>
         )}

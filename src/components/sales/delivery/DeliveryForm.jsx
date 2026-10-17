@@ -9,6 +9,7 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { useSalesRepOptions, useStartingRep } from '../../../api/salesRepOptions';
 import RepPicker from '../../shared/form/RepPicker';
+import LocationPicker from '../../shared/form/LocationPicker';
 import { branchesOf } from '../../../utils/salesReps';
 import { formatTitleCase } from '../../../utils/textUtils';
 import { formatAmount, sanitizeAmountInput } from '../../../utils/money';
@@ -246,14 +247,7 @@ function DeliveryFormBody({
     // Built only when what they depend on changes, not on every keystroke: the
     // customer list can be thousands long, and each driver's load is counted
     // across the week's deliveries.
-    const { transferOrigin, transferDestination, truckId, date, deliveryType, customerDropOff } = values;
-    const branchOptions = useMemo(() => {
-        const names = (locationsList || [])
-            .map((loc) => (typeof loc === 'object' && loc ? (loc.name || loc.locationName || '') : String(loc || '')))
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b));
-        return [...new Set([...names, transferOrigin, transferDestination].filter(Boolean))].map((n) => ({ value: n, label: n }));
-    }, [locationsList, transferOrigin, transferDestination]);
+    const { truckId, date, deliveryType, customerDropOff } = values;
     // Already shaped by the shared rules: city under the name, contact searchable.
     const customerPickerOptions = customers;
     const drivers = useMemo(
@@ -292,6 +286,22 @@ function DeliveryFormBody({
                 placeholder={placeholder}
                 sheetTitle={label}
                 error={error}
+            />
+        </FormField>
+    );
+    // A transfer's From / To: the shared location dropdown (home first, then
+    // A–Z); a branch already saved on the ticket stays listed.
+    const branchPicker = (name, label) => (
+        <FormField name={name} id={`df-${name}`} label={label} required error={shown(name)}>
+            <LocationPicker
+                id={`df-${name}`}
+                value={values[name] || ''}
+                onChange={(v) => set({ [name]: v })}
+                options={locationsList || []}
+                user={currentUser}
+                placeholder="Pick a branch"
+                sheetTitle={label}
+                error={shown(name)}
             />
         </FormField>
     );
@@ -370,8 +380,8 @@ function DeliveryFormBody({
                 {isTransfer ? (
                     <>
                         <div className="df-pair">
-                            {picker('transferOrigin', 'From', branchOptions, { required: true, placeholder: 'Pick a branch', error: shown('transferOrigin') })}
-                            {picker('transferDestination', 'To', branchOptions, { required: true, placeholder: 'Pick a branch', error: shown('transferDestination') })}
+                            {branchPicker('transferOrigin', 'From')}
+                            {branchPicker('transferDestination', 'To')}
                         </div>
                         <FormRow>
                             {text('expectedArrivalDate', 'Expected arrival', {

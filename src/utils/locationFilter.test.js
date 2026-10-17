@@ -2,8 +2,44 @@ import { describe, it, expect } from 'vitest';
 import {
   ALL_LOCATIONS, locationNames, accessibleLocations, homeLocationOf,
   defaultLocationFor, defaultLocationsFor, resolveStoredLocation, resolveStoredLocations,
-  homeLocationProblem, fallbackHomeLocation
+  homeLocationProblem, fallbackHomeLocation, orderLocations, matchLocations, LOCATION_SEARCH_FROM
 } from './locationFilter.js';
+
+describe('orderLocations (every location dropdown)', () => {
+  it('puts home first, then the rest A–Z', () => {
+    expect(orderLocations(['Seattle', 'Spokane', 'Salt Lake City', 'Dallas'], 'Spokane'))
+      .toEqual(['Spokane', 'Dallas', 'Salt Lake City', 'Seattle']);
+  });
+
+  it('sorts A–Z ignoring case, with no home or a home that is not offered', () => {
+    expect(orderLocations(['Seattle', 'New york', 'Atlanta', 'FWB'])).toEqual(['Atlanta', 'FWB', 'New york', 'Seattle']);
+    expect(orderLocations(['Seattle', 'Atlanta'], 'Dallas')).toEqual(['Atlanta', 'Seattle']);
+  });
+
+  it('reads Location documents and drops blanks, repeats and *, like locationNames', () => {
+    expect(orderLocations([{ name: 'Seattle' }, 'Atlanta', '', '*', 'Seattle'], ' Seattle ')).toEqual(['Seattle', 'Atlanta']);
+  });
+
+  it('leaves the list it was given alone', () => {
+    const list = ['Seattle', 'Atlanta'];
+    orderLocations(list, 'Seattle');
+    expect(list).toEqual(['Seattle', 'Atlanta']);
+  });
+});
+
+describe('matchLocations', () => {
+  const names = ['Spokane', 'Salt Lake City', 'Seattle'];
+  it('keeps names containing the typed text, case ignored, in the order given', () => {
+    expect(matchLocations(names, 'LA')).toEqual(['Salt Lake City']);
+    expect(matchLocations(names, 's')).toEqual(names);
+  });
+  it('returns everything for a blank search', () => {
+    expect(matchLocations(names, '  ')).toEqual(names);
+  });
+  it('shows the search box from 8 choices', () => {
+    expect(LOCATION_SEARCH_FROM).toBe(8);
+  });
+});
 
 const BRANCHES = ['Seattle', 'Spokane', 'Salt Lake City', 'Dallas'];
 const manager = { location: 'Spokane', assignedLocations: ['Seattle', 'Spokane'] };

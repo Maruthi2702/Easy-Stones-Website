@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Filter, X } from 'lucide-react';
-import { ALL_LOCATIONS, locationNames, homeLocationOf } from '../../utils/locationFilter';
+import { ALL_LOCATIONS, locationNames, homeLocationOf, orderLocations } from '../../utils/locationFilter';
+import LocationPicker from './form/LocationPicker';
 import './LocationFilter.css';
 
 /**
@@ -28,9 +29,11 @@ import './LocationFilter.css';
  * extra field still needs a home), `active` lights the button's dot for it,
  * `onClear` runs alongside the location reset, and `wide` gives the panel
  * room for them. Without these props the filter is exactly as before.
- * The field is a native <select>, not CustomSelect: CustomSelect portals its
- * menu to <body>, so picking from it inside a panel reads as a click outside
- * and closes the panel mid-choice.
+ * The single-choice field is the shared LocationPicker (home first, then
+ * A–Z, search from 8). Not CustomSelect: CustomSelect portals its menu to
+ * <body>, so picking from it inside a panel reads as a click outside and
+ * closes the panel mid-choice; LocationPicker's list stays inside the panel.
+ * The checkboxes (`multiple`) follow the same order.
  */
 
 const PANEL_WIDTH = 300;
@@ -47,8 +50,8 @@ export const LocationField = ({
   allLabel = 'All locations'
 }) => {
   const id = useId();
-  const names = locationNames(options);
   const home = homeLocationOf(user);
+  const names = orderLocations(options, home);
   const labelOf = (n) => (n === home ? `${n} · Home` : n);
 
   if (multiple) {
@@ -76,15 +79,15 @@ export const LocationField = ({
   return (
     <div className="lf-group">
       <label className="lf-group-label" htmlFor={id}>Location</label>
-      <select
+      <LocationPicker
         id={id}
-        className="lf-select"
         value={typeof value === 'string' ? value : ALL_LOCATIONS}
-        onChange={(e) => onChange?.(e.target.value)}
-      >
-        <option value={ALL_LOCATIONS}>{allLabel}</option>
-        {names.map(n => <option key={n} value={n}>{labelOf(n)}</option>)}
-      </select>
+        onChange={(v) => onChange?.(v)}
+        options={names}
+        home={home}
+        allLabel={allLabel}
+        sheetTitle="Location"
+      />
     </div>
   );
 };

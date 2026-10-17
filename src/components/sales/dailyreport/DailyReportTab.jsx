@@ -8,6 +8,7 @@ import { API_URL } from '../../../config/api';
 import NoBranchNote from './NoBranchNote';
 import { authFetch } from '../../../api/authFetch';
 import { branchCode } from '../../../config/branches.js';
+import { orderLocations } from '../../../utils/locationFilter';
 import { manualTransferDirection, manualTransferWarning, transferWarningText, transferCountOf, transferLineKey, cleanTransferNumber } from '../../../utils/transferDirection.js';
 import ReportSection from './ReportSection';
 import { ReportCell, MoneyCell } from './ReportCell';
@@ -153,6 +154,9 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const [locationPick, setLocationPick] = useLocationFilter('dailyReport', currentUser, locations);
   const location = locations.length > 1 ? (locationPick || ALL) : (locations[0] || '');
   const setLocation = (loc) => setLocationPick(loc === ALL ? '' : loc);
+  // The Transfer row's From / To cells: this report's branch first (every
+  // route starts or ends there), then the rest A–Z — the shared location order.
+  const routeLocations = useMemo(() => orderLocations(allLocations, location), [allLocations, location]);
   const [canExportAll, setCanExportAll] = useState(false);
 
   const [report, setReport] = useState(null);
@@ -964,14 +968,14 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                           value={fromCode} disabled={locked || t.auto} aria-label="Transfer from"
                           onChange={(e) => setRoute(e.target.value, toCode)}>
                           <option value="">From</option>
-                          {allLocations.map(l => <option key={l} value={branchCode(l)}>{compactRoutes ? branchCode(l) : l}</option>)}
+                          {routeLocations.map(l => <option key={l} value={branchCode(l)}>{compactRoutes ? branchCode(l) : l}</option>)}
                         </select>
                         <span className="dr-route-sep" aria-hidden="true">—</span>
                         <select className={`dr-cell dr-select ${t.auto ? 'is-derived' : ''}`}
                           value={toCode} disabled={locked || t.auto} aria-label="Transfer to"
                           onChange={(e) => setRoute(fromCode, e.target.value)}>
                           <option value="">To</option>
-                          {allLocations.map(l => <option key={l} value={branchCode(l)}>{compactRoutes ? branchCode(l) : l}</option>)}
+                          {routeLocations.map(l => <option key={l} value={branchCode(l)}>{compactRoutes ? branchCode(l) : l}</option>)}
                         </select>
                       </td>
                       <td className="dr-num">

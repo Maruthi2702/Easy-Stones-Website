@@ -12,6 +12,7 @@ import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { useStartingRep } from '../../api/salesRepOptions';
 import RepPicker from '../shared/form/RepPicker';
+import LocationPicker from '../shared/form/LocationPicker';
 import {
     STATUS_OPTIONS, LEVEL_OPTIONS, TYPE_OPTIONS, MODA_DISPLAY_OPTIONS, FIELD_LABELS, withCurrent,
     emptyCustomerValues, customerToFormValues, validateCustomerValues, withEmail, countCustomerChanges,
@@ -295,7 +296,6 @@ export default function CustomerForm({
         }
         return list;
     })();
-    const locationOptions = withCurrent(locations.map((l) => ({ value: l, label: l })), values.location);
 
     const text = (name, label, { required = false, type = 'text', placeholder, inputMode, autoComplete = 'off', asTyped = false, onBlur, status, error, value, onChange } = {}) => {
         const id = `cf-${name}`;
@@ -461,7 +461,9 @@ export default function CustomerForm({
                     </FormField>
                 </FormRow>
                 <FormRow>
-                    {picker('location', 'Location', locationOptions, setLocation)}
+                    <FormField name="location" id="cf-location" label="Location">
+                        <LocationPicker id="cf-location" value={values.location || ''} onChange={setLocation} options={locations} user={currentUser} />
+                    </FormField>
                     {picker('modaDisplay', 'Moda display', withCurrent(MODA_DISPLAY_OPTIONS, values.modaDisplay))}
                 </FormRow>
                 <FormRow>

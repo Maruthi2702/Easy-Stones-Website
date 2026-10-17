@@ -3,6 +3,7 @@ import { Info, AlertCircle, PauseCircle, PlayCircle } from 'lucide-react';
 import FormModal from '../../shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, SegmentedToggle } from '../../shared/form/FormControls';
 import { goToField } from '../../shared/form/formFocus';
+import LocationPicker from '../../shared/form/LocationPicker';
 import useTouched from '../../shared/form/useTouched';
 import { PAYMENT_METHODS, PAYMENT_TERMS } from '../../../accounting/freightRules';
 import { toCents, centsToPlain, formatCents } from '../../../accounting/money';
@@ -163,7 +164,7 @@ const chargeValues = (c = {}, defaults = {}) => ({
  * changed; on a schedule-made charge, a field corrected here stops following
  * the delivery.
  */
-export function ChargeForm({ charge = null, carriers = [], branches = [], defaultBranch = '', onSave, onClose }) {
+export function ChargeForm({ charge = null, carriers = [], branches = [], defaultBranch = '', user = null, onSave, onClose }) {
   const isEdit = Boolean(charge);
   const initial = useMemo(() => chargeValues(charge || {}, { location: defaultBranch }), [charge, defaultBranch]);
   const [values, setValues] = useState(initial);
@@ -190,7 +191,6 @@ export function ChargeForm({ charge = null, carriers = [], branches = [], defaul
   const carrierOptions = carriers
     .filter((c) => c.active !== false || String(c._id) === initial.carrierId)
     .map((c) => ({ value: String(c._id), label: c.name, description: c.paymentTerms === PAYMENT_TERMS.PER_INVOICE ? 'Paid per invoice' : 'Paid per delivery' }));
-  const branchOptions = branches.map((b) => ({ value: b, label: b }));
 
   const submit = async () => {
     setSubmitted(true);
@@ -248,8 +248,8 @@ export function ChargeForm({ charge = null, carriers = [], branches = [], defaul
         {!isEdit ? (
           <FormRow>
             <FormField name="location" id="fr-location" label="Branch" required error={shown('location')}>
-              <FormPicker id="fr-location" value={values.location} options={branchOptions} sheetTitle="Branch" disabled={saving}
-                error={shown('location')} onChange={(location) => set({ location })} />
+              <LocationPicker id="fr-location" value={values.location || ''} options={branches} user={user} sheetTitle="Branch"
+                placeholder="Choose a branch" disabled={saving} error={shown('location')} onChange={(location) => set({ location })} />
             </FormField>
             <FormField name="deliveryDate" id="fr-deliveryDate" label="Date" required error={shown('deliveryDate')}>
               <input id="fr-deliveryDate" className="fm-input" type="date" value={values.deliveryDate} disabled={saving}

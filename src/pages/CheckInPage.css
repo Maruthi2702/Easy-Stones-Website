@@ -974,51 +974,41 @@ body.light-theme-active .checkin-container .checkin-title-text {
   color: #0f172a;
 }
 
-.checkin-select-container {
-  position: relative;
-  display: inline-block;
+/* The branch choice: the shared LocationPicker, its trigger kept as the
+   header's gold pill. The list under it is the standard one. */
+.checkin-loc-picker {
+  width: 230px;
+  max-width: 55vw;
+  flex: none;
 }
 
-.checkin-branch-select-input {
-  background: rgba(212, 175, 55, 0.12);
-  color: #d4af37;
+.checkin-loc-picker .fm-picker-trigger {
+  min-height: 0;
+  padding: 0.55rem 0.8rem 0.55rem 1rem;
   border: 1.5px solid rgba(212, 175, 55, 0.4);
-  padding: 0.55rem 2.2rem 0.55rem 1rem;
   border-radius: 14px;
-  font-size: 0.92rem;
-  font-weight: 800;
-  cursor: pointer;
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
-  transition: all 0.2s ease;
+  background: rgba(212, 175, 55, 0.12);
 }
 
-.checkin-branch-select-input:hover {
+.checkin-loc-picker .fm-picker-trigger:hover {
   background: rgba(212, 175, 55, 0.2);
   border-color: #d4af37;
 }
 
-.checkin-container.light-theme .checkin-branch-select-input,
-body.light-theme-active .checkin-container .checkin-branch-select-input {
+.checkin-loc-picker .fm-picker-trigger .fm-opt-label,
+.checkin-loc-picker .fm-picker-trigger svg {
+  color: #d4af37;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+body.light-theme-active .checkin-container .checkin-loc-picker .fm-picker-trigger {
   background: #fef3c7;
-  color: #b48a1c;
   border-color: #fde68a;
 }
 
-.checkin-select-arrow {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-  color: #d4af37;
-  display: flex;
-  align-items: center;
-}
-
-.checkin-container.light-theme .checkin-select-arrow,
-body.light-theme-active .checkin-container .checkin-select-arrow {
+body.light-theme-active .checkin-container .checkin-loc-picker .fm-picker-trigger .fm-opt-label,
+body.light-theme-active .checkin-container .checkin-loc-picker .fm-picker-trigger svg {
   color: #b48a1c;
 }
 

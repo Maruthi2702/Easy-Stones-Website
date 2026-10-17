@@ -55,12 +55,13 @@ export const describedBy = (id, error, status) => ({
 /**
  * Where a desktop dropdown (.fm-menu) opens: below its field, or above it
  * when the form body has more room there, with its height capped to that
- * room. Measured when the list opens, against the form body it scrolls in.
+ * room. Measured when the list opens, against the form body it scrolls in —
+ * or `scroller`, for a dropdown used outside a form (LocationPicker passes
+ * the nearest box that would clip it; null measures against the window).
  */
-export function menuPlacement(anchor, wanted = 440) {
+export function menuPlacement(anchor, wanted = 440, scroller = anchor?.closest('.fm-body, .fm-sheet-body')) {
     if (!anchor) return { placement: 'down', maxHeight: wanted };
     const a = anchor.getBoundingClientRect();
-    const scroller = anchor.closest('.fm-body, .fm-sheet-body');
     const b = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
     const below = b.bottom - a.bottom - 12;
     const above = a.top - b.top - 12;

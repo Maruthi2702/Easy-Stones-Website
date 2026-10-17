@@ -36,6 +36,7 @@ import { checkInMoment } from '../../utils/checkInClock';
 import Pagination from '../shared/Pagination';
 import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import { LocationField } from '../shared/LocationFilter';
+import LocationPicker from '../shared/form/LocationPicker';
 import { accessibleLocations } from '../../utils/locationFilter';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config/api';
@@ -850,26 +851,17 @@ const CheckInLogPanel = ({
               {/* Branch Office Location & Domain Selector */}
               <div className="clp-qr-fields">
                 <div className="clp-qr-location-selector">
-                  <label className="clp-qr-label">
+                  <label className="clp-qr-label" htmlFor="clp-qr-location">
                     Showroom Branch Location:
                   </label>
-                  <select
-                    value={qrLocation}
-                    onChange={(e) => setQrLocation(e.target.value)}
-                    className="clp-qr-select"
-                  >
-                    {locations.length > 0 ? (
-                      locations.map(loc => (
-                        <option key={loc._id || loc.name} value={loc.name}>📍 {loc.name} Office</option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="Seattle">📍 Seattle Office</option>
-                        <option value="Spokane">📍 Spokane Office</option>
-                        <option value="Salt Lake City">📍 Salt Lake City Office</option>
-                      </>
-                    )}
-                  </select>
+                  <LocationPicker
+                    id="clp-qr-location"
+                    value={qrLocation || ''}
+                    onChange={setQrLocation}
+                    options={locations.length > 0 ? locations : ['Seattle', 'Spokane', 'Salt Lake City']}
+                    user={user}
+                    sheetTitle="Showroom branch"
+                  />
                 </div>
 
                 <div className="clp-qr-location-selector">

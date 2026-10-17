@@ -668,6 +668,12 @@ body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
 .fm-opt-branch { font-weight: 600; color: var(--fm-mut); }
 .fm-opt-new { color: var(--fm-gold-tx); border-top: 1px solid var(--fm-bd2); border-radius: 0 0 9px 9px; margin-top: 4px; }
 .fm-opt-new .fm-opt-label { color: var(--fm-gold-tx); }
+/* LocationPicker (every location dropdown): the home location, then a line,
+   then the rest A–Z. Used outside forms too, so it sets its own font and
+   text colour rather than inheriting a filter panel's or old modal's. */
+.fm-loc { font-family: var(--font-main, 'Inter', system-ui, sans-serif); color: var(--fm-tx); text-align: left; }
+.fm-loc-list { display: flex; flex-direction: column; gap: 2px; outline: none; }
+.fm-loc-divider { height: 1px; margin: 4px 8px; background: var(--fm-bd2); flex: none; }
 
 textarea.fm-input,
 .fm-textarea {

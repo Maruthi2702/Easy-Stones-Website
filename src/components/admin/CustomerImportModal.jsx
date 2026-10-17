@@ -16,6 +16,7 @@ import React, { useState, useRef } from 'react';
 import { X, Upload, AlertTriangle, Check, Loader, Download, Users } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
+import { orderLocations } from '../../utils/locationFilter';
 import './CustomerImportModal.css';
 
 const FIELD_LABELS = {
@@ -479,7 +480,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                                             >
                                                 <option value="">— decide later —</option>
                                                 <option value={DEFAULT_BRANCH}>Use the default branch</option>
-                                                {plan.branches?.map(b => <option key={b} value={b}>{b}</option>)}
+                                                {orderLocations(plan.branches || []).map(b => <option key={b} value={b}>{b}</option>)}
                                             </select>
                                         </div>
                                     ))}

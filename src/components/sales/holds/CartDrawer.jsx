@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom';
 import {
   X, Maximize2, Minimize2, MoreHorizontal, ScanBarcode, Check, AlertTriangle, Lock, ArrowLeft, Trash2
 } from 'lucide-react';
-import { FormField, FormPicker, FormSearchPicker } from '../../shared/form/FormControls';
+import { FormField, FormSearchPicker } from '../../shared/form/FormControls';
 import useIsPhone from '../../shared/form/useIsPhone';
+import LocationPicker from '../../shared/form/LocationPicker';
 import { FormLayerContext } from '../../shared/form/formLayer';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { holdsMeta, createHold } from '../../../api/holds';
@@ -316,7 +317,7 @@ function CheckoutView({ user, cart, chosen, customers, customersLoading, onBack,
 
         {meta && meta.branches.length > 1 && (
           <FormField name="branch" id="co-branch" label="Branch" required error={shown('branch')}>
-            <FormPicker id="co-branch" value={branch} onChange={setBranch} options={meta.branches.map((b) => ({ value: b, label: b }))} sheetTitle="Branch" />
+            <LocationPicker id="co-branch" value={branch || ''} onChange={setBranch} options={meta.branches} user={user} sheetTitle="Branch" placeholder="Choose a branch" error={shown('branch')} />
           </FormField>
         )}
 

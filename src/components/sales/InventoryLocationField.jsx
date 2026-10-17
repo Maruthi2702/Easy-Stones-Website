@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { Search } from 'lucide-react';
-import { homeLocationOf } from '../../utils/locationFilter';
+import { homeLocationOf, orderLocations } from '../../utils/locationFilter';
 
 // Past this many consignment sites the list gets a search box.
 const SEARCH_FROM = 8;
@@ -47,7 +47,7 @@ const InventoryLocationField = ({ company = [], consignment = [], value = [], on
         <div className="invan-loc-section">
           <span className="invan-loc-heading">Easy Stones locations</span>
           <div className="lf-checks">
-            {company.map(n => box(n, n === home ? `${n} · Home` : n))}
+            {orderLocations(company, home).map(n => box(n, n === home ? `${n} · Home` : n))}
           </div>
         </div>
       )}

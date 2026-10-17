@@ -8,6 +8,7 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { useSalesRepOptions } from '../../../api/salesRepOptions';
 import RepPicker from '../../shared/form/RepPicker';
+import LocationPicker from '../../shared/form/LocationPicker';
 import { useAuth } from '../../../context/AuthContext';
 import { formatPhoneInput } from '../../../utils/phoneUtils';
 import { lastChangedText } from '../../../utils/userForm';
@@ -80,12 +81,12 @@ export default function LocationForm({ location = null, locations = [], users = 
     const dirtyCount = countLocationChanges(values, initial);
     const addressChanged = ADDRESS_FIELDS.some((k) => String(values[k]).trim() !== String(initial[k]).trim());
 
-    const rdcOptions = useMemo(() => [
-        { value: '', label: 'None' },
-        ...others
-            .filter((l) => l.name !== values.name.trim())
-            .map((l) => ({ value: l.name, label: l.fullName || l.name, description: l.fullName ? l.name : undefined }))
-    ], [others, values.name]);
+    // Any other location can be this one's RDC; the shared location dropdown
+    // lists them A–Z after None.
+    const rdcOptions = useMemo(
+        () => others.map((l) => l.name).filter((n) => n && n !== values.name.trim()),
+        [others, values.name]
+    );
     // The shared sales rep list (src/api/salesRepOptions.js): sales roles at
     // any branch, nobody deactivated; one already saved here still shows.
     const repList = useSalesRepOptions({ current: { name: values.salesRep } });
@@ -253,7 +254,18 @@ export default function LocationForm({ location = null, locations = [], users = 
                         : { required: true, placeholder: 'Portland' })}
                     {text('shortCode', { placeholder: 'PDX', autoCapitalize: 'characters', asTyped: true })}
                     {text('region')}
-                    {picker('rdc', rdcOptions, 'None')}
+                    <FormField name="rdc" id="loc-rdc" label={FIELD_LABELS.rdc} error={shown('rdc')}>
+                        <LocationPicker
+                            id="loc-rdc"
+                            value={values.rdc || ''}
+                            onChange={(v) => { set({ rdc: v }); markTouched('rdc'); }}
+                            options={rdcOptions}
+                            home=""
+                            noneLabel="None"
+                            sheetTitle={FIELD_LABELS.rdc}
+                            error={shown('rdc')}
+                        />
+                    </FormField>
                 </FormRow>
                 <fieldset className="loc-checks">
                     <legend className="fm-label">This location is a</legend>

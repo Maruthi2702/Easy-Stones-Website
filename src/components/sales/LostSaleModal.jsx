@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, DollarSign, Calculator, AlertCircle, Save, Calendar, Building, FileText } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
 import CustomSelect from '../shared/CustomSelect';
+import LocationPicker from '../shared/form/LocationPicker';
 import { formatForDateInput } from '../../utils/dateUtils';
 import { REASON_OPTIONS, getCustomerName } from '../../utils/lostSale';
 import { toCustomerOptions } from '../../utils/customerOptions';
@@ -286,13 +287,16 @@ const LostSaleModal = ({
             </div>
 
             <div className="form-group-field">
-              <label>
+              <label htmlFor="ls-location">
                 <Building size={14} /> Showroom Location
               </label>
-              <CustomSelect
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                options={locationOptions.map(locName => ({ value: locName, label: locName }))}
+              <LocationPicker
+                id="ls-location"
+                value={location || ''}
+                onChange={setLocation}
+                options={locationOptions}
+                user={currentUser}
+                sheetTitle="Showroom location"
               />
             </div>
           </div>

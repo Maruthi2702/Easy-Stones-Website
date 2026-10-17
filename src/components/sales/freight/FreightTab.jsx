@@ -482,6 +482,7 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
         <ChargeForm
           charge={form.charge}
           carriers={carriers}
+          user={user}
           branches={locationNames(branchOptions).length ? locationNames(branchOptions) : (user?.assignedLocations || []).filter((l) => l !== '*')}
           defaultBranch={location || homeLocationOf(user)}
           onClose={closeForm}

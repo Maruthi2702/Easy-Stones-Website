@@ -4,6 +4,7 @@ import useIsPhone from '../../shared/form/useIsPhone';
 import { FormSheet } from '../../shared/form/FormControls';
 import { describedBy, menuPlacement } from '../../shared/form/formFocus';
 import { toggleLocation, homeAfterChange } from '../../../utils/userForm';
+import { orderLocations } from '../../../utils/locationFilter';
 
 /**
  * Which branches someone works at, and which one is home (★ — where their
@@ -33,8 +34,8 @@ export default function LocationsPicker({ id, locations, value, home, onChange, 
         return () => document.removeEventListener('mousedown', onDown);
     }, [open, isPhone]);
 
-    // Home first, then the rest in branch order.
-    const picked = allOn ? [] : locations.filter((n) => value.includes(n));
+    // Home first, then the rest A–Z (the list below is A–Z too: orderLocations).
+    const picked = allOn ? [] : orderLocations(locations).filter((n) => value.includes(n));
     const ordered = [...picked.filter((n) => n === home), ...picked.filter((n) => n !== home)];
     const count = allOn ? locations.length : picked.length;
 
@@ -46,7 +47,7 @@ export default function LocationsPicker({ id, locations, value, home, onChange, 
             </button>
             <div className="up-loc-divider" aria-hidden="true" />
             <ul className="up-loc-grid">
-                {locations.map((name) => {
+                {orderLocations(locations).map((name) => {
                     const on = allOn || value.includes(name);
                     const isHome = name === home;
                     return (

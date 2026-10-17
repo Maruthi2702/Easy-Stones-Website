@@ -45,6 +45,7 @@ import { formatPhoneInput } from '../utils/phoneUtils';
 import { isPdfSource } from '../utils/attachments';
 import VisitsListDetail from '../components/sales/VisitsListDetail';
 import LocationFilter from '../components/shared/LocationFilter';
+import LocationPicker from '../components/shared/form/LocationPicker';
 import { useLocationFilter } from '../components/shared/useLocationFilter';
 import { accessibleLocations } from '../utils/locationFilter';
 import CustomerProfileHeader from '../components/sales/customerList/CustomerProfileHeader';
@@ -5318,23 +5319,14 @@ const SalesPage = () => {
                                                 style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', outline: 'none' }}
                                             />
                                         ) : (
-                                            <select
-                                                value={checkInForm.location}
-                                                onChange={(e) => setCheckInForm({ ...checkInForm, location: e.target.value })}
-                                                style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.9rem', outline: 'none' }}
-                                            >
-                                                {locations.length > 0 ? (
-                                                    locations.map(loc => (
-                                                        <option key={loc._id || loc.name} value={loc.name}>{loc.name}</option>
-                                                    ))
-                                                ) : (
-                                                    <>
-                                                        <option value="Seattle">Seattle</option>
-                                                        <option value="Spokane">Spokane</option>
-                                                        <option value="Salt Lake City">Salt Lake City</option>
-                                                    </>
-                                                )}
-                                            </select>
+                                            <LocationPicker
+                                                id="sp-checkin-location"
+                                                value={checkInForm.location || ''}
+                                                onChange={(location) => setCheckInForm({ ...checkInForm, location })}
+                                                options={locations.length > 0 ? locations : ['Seattle', 'Spokane', 'Salt Lake City']}
+                                                user={currentUser}
+                                                sheetTitle="Branch location"
+                                            />
                                         )}
                                     </div>
                                     <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

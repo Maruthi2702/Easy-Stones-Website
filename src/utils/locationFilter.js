@@ -116,3 +116,29 @@ export const homeLocationProblem = (location, assignedLocations = [], knownLocat
 /** The home location to fall back to when the current one stops being valid: the first assigned branch. */
 export const fallbackHomeLocation = (assignedLocations = []) =>
   (Array.isArray(assignedLocations) ? assignedLocations : []).map(clean).find(l => l && l !== '*') || '';
+
+/*
+ * How every location dropdown lists its branches (owner's call, 2026-10-17):
+ * the home location first, then every other one A–Z, with a search box once
+ * there are LOCATION_SEARCH_FROM or more to choose from. The dropdown itself
+ * is src/components/shared/form/LocationPicker.jsx; the checkbox lists
+ * (Inventory, Users' Locations, the Customer List filter) use the same order.
+ */
+
+/** From this many choices a location dropdown gets a search box. */
+export const LOCATION_SEARCH_FROM = 8;
+
+const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+
+/** Branch names A–Z (case ignored), with `home` moved to the front when it's one of them. */
+export const orderLocations = (list = [], home = '') => {
+  const names = locationNames(list).sort(byName);
+  const h = clean(home);
+  return h && names.includes(h) ? [h, ...names.filter(n => n !== h)] : names;
+};
+
+/** The names containing what was typed (case ignored), in the order given; all of them for a blank search. */
+export const matchLocations = (names = [], query = '') => {
+  const q = clean(query).toLowerCase();
+  return q ? names.filter(n => n.toLowerCase().includes(q)) : names;
+};

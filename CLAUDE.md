@@ -109,6 +109,25 @@ request): `NEW_VISITS_START_WITH_REP = false` in `src/routes/checkIn.js`, so
 new visits and their Selection Sheets start with None until it's set back
 to `true`; customers and deliveries still use the rule.
 
+## Locations: one dropdown, one order (2026-10-17)
+
+Every single-choice location field and filter is
+`src/components/shared/form/LocationPicker.jsx` (the user's call): the
+blank choice ("All locations" on a filter, None where a form allows it), the
+home location marked "· Home", then every other location A–Z, with a search
+box from 8 choices — `orderLocations` / `matchLocations` in
+`src/utils/locationFilter.js`. It's in every Filters panel (LocationFilter's
+`LocationField`, the Check-In Log's own panel), the customer, delivery
+transfer From/To, freight, cart checkout, Location RDC and lost-sale forms,
+the staff check-in page and the QR modal. Checkbox lists (Inventory, Users'
+Locations, the Customer List filter, the import's branch mapping) and the
+Daily Report's route cells keep their own controls but use `orderLocations`
+(the route cells put the report's own branch first). A new location dropdown
+uses LocationPicker; don't build a location `<select>` or FormPicker again.
+Its list floats inside its field (never portaled), and it scrolls only
+itself to keep the highlighted row in view — `scrollIntoView` scrolls `body`
+too (it's a scroll box, index.css), which jumped the page when it opened.
+
 ## Check In permissions: one card, one file (2026-10-14)
 
 Check In, the Check-In Log and the Selection Sheet share one Users & Roles
