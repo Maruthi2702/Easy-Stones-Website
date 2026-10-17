@@ -31,12 +31,12 @@ import { bulkDeleteIds } from '../utils/customerBulkDelete.js';
  * the single Delete route in server.js, so every way of deleting leaves the
  * record the SPS import reads ("deleted by … on …").
  */
-export async function backupAndDeleteCustomer(id, deletedBy = '') {
+export async function backupAndDeleteCustomer(id, deletedBy = '', source = 'single') {
   if (!mongoose.Types.ObjectId.isValid(id)) return null;
   const raw = await Customer.collection.findOne({ _id: new mongoose.Types.ObjectId(id) });
   if (!raw) return null;
   const batchId = new mongoose.Types.ObjectId().toString();
-  await CustomerDeleteBackup.create({ batchId, customerId: raw._id, customer: raw, source: 'single', deletedBy });
+  await CustomerDeleteBackup.create({ batchId, customerId: raw._id, customer: raw, source, deletedBy });
   await Customer.collection.deleteOne({ _id: raw._id });
   return batchId;
 }

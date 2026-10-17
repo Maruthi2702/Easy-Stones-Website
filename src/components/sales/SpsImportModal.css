@@ -1,0 +1,62 @@
+/* The five-step SPS import. Colours come from FormModal's --fm-* tokens; the
+   shared bits (banners, bar, cards, options) are in SpsConnectModal.css. */
+.spsi-steps { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; overflow-x: auto; }
+.spsi-steps li { font-size: 12px; font-weight: 600; color: var(--fm-mut); white-space: nowrap; padding: 4px 10px; border-radius: 999px; }
+.spsi-steps li.done { color: var(--fm-ok); }
+.spsi-steps li.on { background: var(--fm-gold-tint); color: var(--fm-gold-tx); }
+.sect-title { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--fm-mut); margin-bottom: 6px; }
+.spsi-checks { display: grid; gap: 8px; }
+.spsi-check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+.spsi-dot { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; flex: none; background: var(--fm-bd2); }
+.spsi-dot.ok { color: var(--fm-ok); background: rgba(74, 222, 128, .14); }
+.spsi-dot.bad { color: var(--fm-err); background: var(--fm-err-bg); }
+.spsi-dot.warn { color: #f59e0b; background: rgba(245, 158, 11, .14); }
+.spsi-link { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--fm-gold-tx); cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+.spsi-link:hover { text-decoration: underline; }
+.spsi-link.danger { color: var(--fm-err); }
+.spsi-link:disabled { opacity: .5; cursor: default; }
+.spsi-grow { flex: 1; }
+.spsi-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 14px; }
+.spsi-map-row { display: grid; gap: 4px; font-size: 12px; color: var(--fm-mut); }
+.spsi-map-row select { height: 34px; border-radius: 9px; border: 1px solid var(--fm-bd); background: var(--fm-in); color: var(--fm-tx); padding: 0 8px; font: inherit; }
+.spsi-ask { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--fm-bd2); }
+@media (max-width: 600px) { .spsi-ask { grid-template-columns: 1fr; } }
+.spsi-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--fm-bd2); overflow-x: auto; }
+.spsi-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 10px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--fm-mut); white-space: nowrap; cursor: pointer; }
+.spsi-tabs button.on { color: var(--fm-tx); border-bottom-color: var(--fm-gold); }
+.spsi-bulk { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 13px; }
+.spsi-compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.spsi-side { border: 1px solid var(--fm-bd2); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+.spsi-side .k { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fm-mut); }
+.spsi-rows { display: grid; }
+.spsi-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--fm-bd2); }
+.spsi-row-main { display: grid; gap: 2px; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.spsi-chg { font-size: 12px; color: var(--fm-mut); }
+.spsi-chg s { opacity: .7; }
+.spsi-warn { font-size: 12px; color: #f59e0b; }
+.spsi-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; background: var(--fm-bd2); color: var(--fm-mut); flex: none; }
+.spsi-pill.new { background: rgba(96, 165, 250, .16); color: #60a5fa; }
+.spsi-pill.upd, .spsi-pill.warn { background: var(--fm-gold-tint); color: var(--fm-gold-tx); }
+.spsi-pill.ok { background: rgba(74, 222, 128, .14); color: var(--fm-ok); }
+.spsi-pill.bad { background: var(--fm-err-bg); color: var(--fm-err); }
+.spsc-bar .s-new { background: #60a5fa; }
+.spsc-bar .s-del { background: var(--fm-err); }
+.spsi-btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+.spsi-btn { display: inline-flex; gap: 6px; align-items: center; height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--fm-bd); background: transparent; color: var(--fm-tx); font: 600 13px inherit; cursor: pointer; }
+.spsi-btn.gold { background: var(--fm-gold); border-color: var(--fm-gold-bd); color: var(--fm-on-gold); }
+.spsi-btn.danger { background: var(--fm-err-bg); border-color: transparent; color: var(--fm-err); }
+.spsi-btn:disabled { opacity: .5; cursor: default; }
+.spsi-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.spsi-counts div { border: 1px solid var(--fm-bd2); border-radius: 10px; padding: 9px 10px; display: grid; }
+.spsi-counts b, .spsi-num { font-variant-numeric: tabular-nums; }
+.spsi-counts b { font-size: 18px; }
+.spsi-counts span { font-size: 12px; color: var(--fm-mut); }
+.spsi-verify { border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; }
+.spsi-verify.ok { background: rgba(74, 222, 128, .12); }
+.spsi-verify.bad { background: var(--fm-err-bg); }
+.spsi-verify h5 { margin: 0; font-size: 16px; font-weight: 800; }
+.spsi-verify.ok h5 { color: var(--fm-ok); }
+.spsi-verify.bad h5 { color: var(--fm-err); }
+.spsi-missing { margin: 4px 0; padding-left: 18px; font-size: 13px; display: grid; gap: 3px; }
+.spsi-hist { gap: 4px; }
+.spsi-hist-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }

@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
     Search, Plus, Download, Upload, Mail, X, Wrench, Users, MoreHorizontal, SlidersHorizontal,
-    ChevronDown, AlertTriangle, LayoutList
+    ChevronDown, AlertTriangle, LayoutList, Link2
 } from 'lucide-react';
 import SidebarToggleButton from '../shared/SidebarToggleButton';
 import Pagination from '../shared/Pagination';
 import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import AddCustomerModal from './AddCustomerModal';
 import CustomerImportModal from '../admin/CustomerImportModal';
+import SpsConnectModal from './SpsConnectModal';
+import SpsImportModal from './SpsImportModal';
 import { canAddCustomer, canImportCustomers, canEditCustomers, canDeleteCustomers, canViewCustomerProfile, canExportCustomers } from '../../utils/customerAccess';
 import { useAuth } from '../../context/AuthContext';
 import { toSalesRepList } from '../../utils/salesReps';
@@ -135,6 +137,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
+    const [showSpsConnect, setShowSpsConnect] = useState(false);
+    const [showSpsImport, setShowSpsImport] = useState(false);
     const [editingPartner, setEditingPartner] = useState(null);
     const [viewingPartner, setViewingPartner] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -639,7 +643,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     useEffect(() => {
         const onKey = (e) => {
             if (!rootRef.current || rootRef.current.offsetParent === null) return;
-            if (showAddModal || showImportModal || showFilterSheet || bulkDelete) return;
+            if (showAddModal || showImportModal || showSpsConnect || showSpsImport || showFilterSheet || bulkDelete) return;
             const tag = (e.target.tagName || '').toLowerCase();
             const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
             if (e.key === 'Escape') {
@@ -663,7 +667,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-    }, [partners, focusIndex, openIndex, openCustomer, narrow, showAddModal, showImportModal, showFilterSheet, bulkDelete]);
+    }, [partners, focusIndex, openIndex, openCustomer, narrow, showAddModal, showImportModal, showSpsConnect, showSpsImport, showFilterSheet, bulkDelete]);
 
     const isFabTab = activeTab === 'fabricators';
     const showType = !isFabTab || !!debouncedSearch || filterTypes.length > 0;
@@ -816,6 +820,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                                 )}
                                 {canImport && (
                                     <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); setShowImportModal(true); }}><Upload size={16} aria-hidden="true" />Import from Excel</button>
+                                )}
+                                {canImport && (
+                                    <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); setShowSpsImport(true); }}><Upload size={16} aria-hidden="true" />Import from SPS</button>
+                                )}
+                                {canImport && canEdit && (
+                                    <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); setShowSpsConnect(true); }}><Link2 size={16} aria-hidden="true" />Connect customers to SPS</button>
                                 )}
                             </div>
                         )}
@@ -1027,6 +1037,20 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                 onOpenExisting={(c) => setOpenCustomer(c)}
                 onDelete={canDelete ? (c) => handleDeletePartner(c._id) : null}
             />
+
+            {showSpsImport && (
+                <SpsImportModal
+                    onClose={() => setShowSpsImport(false)}
+                    onChanged={refreshAll}
+                    salesReps={salesReps}
+                    locations={locations}
+                    user={user}
+                    canEdit={canEdit}
+                    canAdd={canAdd}
+                    canDelete={canDelete}
+                />
+            )}
+            {showSpsConnect && <SpsConnectModal onClose={() => setShowSpsConnect(false)} onChanged={refreshAll} />}
 
             <CustomerImportModal
                 show={showImportModal}
