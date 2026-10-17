@@ -147,7 +147,8 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
     // Who is online: the list once on open, then pushed by the server as tabs
     // open, close and go idle (src/services/presence.js). `clock` re-renders
     // the "Last seen 5 min ago" wording once a minute.
-    const [live, setLive] = useState(() => new Map());
+    // presenceById builds a Map; `Map` here is the lucide icon, so don't use `new Map` in this file.
+    const [live, setLive] = useState(() => presenceById([]));
     const [, setClock] = useState(0);
     useEffect(() => {
         let cancelled = false;
