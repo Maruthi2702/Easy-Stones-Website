@@ -14,6 +14,8 @@ const customerDeleteBackupSchema = new mongoose.Schema({
   batchId: { type: String, required: true, index: true },
   customerId: { type: mongoose.Schema.Types.ObjectId, required: true },
   customer: { type: mongoose.Schema.Types.Mixed, required: true },
+  // 'bulk' (the list's selection bar) or 'single' (one customer's Delete)
+  source: { type: String, default: 'bulk' },
   deletedBy: { type: String, default: '' },
   undoneAt: { type: Date, default: null },
   undoneBy: { type: String, default: '' }

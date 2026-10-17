@@ -25,6 +25,22 @@ import { bulkDeleteIds } from '../utils/customerBulkDelete.js';
  *   import createCustomerBulkDeleteRouter from './src/routes/customerBulkDelete.js';
  *   app.use('/api/customers', createCustomerBulkDeleteRouter({ authenticate }));
  */
+/**
+ * Delete one customer, saving it whole first (source 'single'). Returns the
+ * saved copy's batch id, or null when there was no such customer. Shared by
+ * the single Delete route in server.js, so every way of deleting leaves the
+ * record the SPS import reads ("deleted by … on …").
+ */
+export async function backupAndDeleteCustomer(id, deletedBy = '') {
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
+  const raw = await Customer.collection.findOne({ _id: new mongoose.Types.ObjectId(id) });
+  if (!raw) return null;
+  const batchId = new mongoose.Types.ObjectId().toString();
+  await CustomerDeleteBackup.create({ batchId, customerId: raw._id, customer: raw, source: 'single', deletedBy });
+  await Customer.collection.deleteOne({ _id: raw._id });
+  return batchId;
+}
+
 export default function createCustomerBulkDeleteRouter({ authenticate }) {
   const router = express.Router();
 
@@ -48,7 +64,7 @@ export default function createCustomerBulkDeleteRouter({ authenticate }) {
       const batchId = new mongoose.Types.ObjectId().toString();
       const deletedBy = who(req);
       await CustomerDeleteBackup.insertMany(
-        docs.map((customer) => ({ batchId, customerId: customer._id, customer, deletedBy }))
+        docs.map((customer) => ({ batchId, customerId: customer._id, customer, source: 'bulk', deletedBy }))
       );
       const { deletedCount } = await Customer.collection.deleteMany({ _id: { $in: docs.map((d) => d._id) } });
 

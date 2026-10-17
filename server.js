@@ -114,7 +114,7 @@ import { canViewLostSales, canEditLostSales, canDeleteLostSales } from './src/ut
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
-import createCustomerBulkDeleteRouter from './src/routes/customerBulkDelete.js';
+import createCustomerBulkDeleteRouter, { backupAndDeleteCustomer } from './src/routes/customerBulkDelete.js';
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import { linkVisitToSchedule, unlinkVisitFromSchedule, moveVisitOnSchedule } from './src/services/visitSchedule.js';
@@ -4354,9 +4354,10 @@ app.delete(['/api/customers/:id', '/api/partners/:id'], authenticate, (req, res,
   canDeleteCustomers(req.user) ? next() : res.status(403).json({ error: 'Access denied. Your role cannot delete customers.' })
 ), async (req, res) => {
   try {
-    const customer = await Customer.findByIdAndDelete(req.params.id);
-
-    if (!customer) {
+    // Saved whole before it goes (customerdeletebackups), so the SPS import
+    // can say who deleted it and when and offer to bring it back.
+    const saved = await backupAndDeleteCustomer(req.params.id, req.user?.username || req.user?.name || '');
+    if (!saved) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 

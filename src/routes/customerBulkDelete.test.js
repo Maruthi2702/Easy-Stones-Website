@@ -9,7 +9,7 @@ import request from 'supertest';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
-const { default: createCustomerBulkDeleteRouter } = await import('./customerBulkDelete.js');
+const { default: createCustomerBulkDeleteRouter, backupAndDeleteCustomer } = await import('./customerBulkDelete.js');
 const { default: Customer } = await import('../models/Customer.js');
 const { default: CustomerDeleteBackup } = await import('../models/CustomerDeleteBackup.js');
 
@@ -139,5 +139,25 @@ describe('POST /api/customers/bulk-delete/undo', () => {
     const { body } = await del([String(A)]);
     await undo(body.batchId, EDITOR).expect(403);
     await undo('nonsense').expect(400);
+  });
+});
+
+describe('backupAndDeleteCustomer (the single Delete)', () => {
+  it('saves the customer whole, then removes it, naming who did it', async () => {
+    const batchId = await backupAndDeleteCustomer(String(A), 'krish');
+    expect(batchId).toMatch(/^[a-f0-9]{24}$/);
+    expect(await Customer.collection.findOne({ _id: A })).toBeNull();
+    const saved = await CustomerDeleteBackup.findOne({ customerId: A }).lean();
+    expect(saved).toMatchObject({ source: 'single', deletedBy: 'krish', batchId });
+    expect(saved.customer.visits[0].notes).toBe('Looked at quartz');
+    // …and the same Undo brings it back.
+    await undo(batchId).expect(200);
+    expect(await Customer.collection.findOne({ _id: A })).toBeTruthy();
+  });
+
+  it('answers null for an unknown or malformed id and deletes nothing', async () => {
+    expect(await backupAndDeleteCustomer(String(new mongoose.Types.ObjectId()), 'krish')).toBeNull();
+    expect(await backupAndDeleteCustomer('nope', 'krish')).toBeNull();
+    expect(await Customer.collection.countDocuments()).toBe(3);
   });
 });
