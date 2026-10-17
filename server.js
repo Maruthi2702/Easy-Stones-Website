@@ -116,6 +116,8 @@ import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
 import { checkSheet, spsCoverage } from './src/utils/spsSheet.js';
 import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.js';
+import createCustomerSpsImportRouter from './src/routes/customerSpsImport.js';
+import { resumeRunningImports } from './src/services/spsImportRunner.js';
 import createCustomerBulkDeleteRouter, { backupAndDeleteCustomer } from './src/routes/customerBulkDelete.js';
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
@@ -1041,6 +1043,12 @@ async function startServer() {
       // Permits: the first pull reads six months back straight away; then one
       // pull a day from 5:00 AM Pacific (src/permits/sync.js).
       permitSync.start();
+
+      // An SPS import that was writing when the server stopped carries on
+      // from where it left off (src/services/spsImportRunner.js).
+      resumeRunningImports()
+        .then((n) => { if (n) console.log(`↻ Resuming ${n} SPS import${n === 1 ? '' : 's'}`); })
+        .catch((err) => console.error('Could not resume SPS imports:', err));
 
       // Keep-Alive Mechanism for Render Free Tier
       const keepAliveInterval = 5 * 60 * 1000;
@@ -4173,6 +4181,16 @@ app.use('/api/customers', createCustomerSpsConnectRouter({
   readSheet: (buffer) => runWorkbookParse('customer', buffer),
   resolveMapping: resolveImportMapping
 }));
+// The new SPS customer import (src/routes/customerSpsImport.js).
+app.use('/api/customers', createCustomerSpsImportRouter({
+  authenticate,
+  uploadMemory,
+  readSheet: (buffer) => runWorkbookParse('customer', buffer),
+  resolveMapping: resolveImportMapping,
+  buildReference: (overrides) => buildImportReference(overrides),
+  rememberAliases: (answers) => rememberImportAliases(answers),
+  fields: IMPORT_FIELDS
+}));
 
 // Bulk "Assign rep" / "Set status" from the customer list's selection bar.
 // Only these two fields, so a selection can't be used to rewrite anything else.
@@ -5292,20 +5310,11 @@ const loadImportReferenceData = async () => {
 };
 
 /**
- * Plan an import from an uploaded file.
- *
- * Both the preview and the apply call this. Apply re-reads the same file and
- * rebuilds the plan against the database as it stands at that moment, rather
- * than trusting a plan the browser hands back — so a customer added between the
- * two calls is still matched, and nothing the client edits can decide which
- * record gets written.
+ * The reference data an import is judged against, with remembered answers and
+ * this upload's own answers folded in (see planCustomerImport's comments, which
+ * this was lifted from so the SPS import reads names the very same way).
  */
-const planCustomerImport = async (req) => {
-  // An absent field parses to {}, which every consumer reads as "nothing was
-  // overridden" — the same answer as not asking.
-  const parse = (field) => (req.body[field] ? JSON.parse(req.body[field]) : {});
-  const { headers, rows, parse: parsed } = await runWorkbookParse('customer', req.file.buffer);
-  const mapping = resolveImportMapping(headers, parse('mapping'));
+const buildImportReference = async ({ repAliases = {}, branchAliases = {} } = {}) => {
   const reference = await loadImportReferenceData();
   const memory = await ImportMemory.findOne({ kind: 'customer' }).lean();
   // A lean() Map field can come back as either, depending on the driver.
@@ -5335,7 +5344,7 @@ const planCustomerImport = async (req) => {
     const rep = resolveRep(userId);
     if (rep !== undefined) reference.repByKey.set(key, rep);
   }
-  for (const [given, userId] of Object.entries(parse('repAliases'))) {
+  for (const [given, userId] of Object.entries(repAliases)) {
     const rep = resolveRep(userId);
     if (rep !== undefined) reference.repByKey.set(importNormalize(given), rep);
   }
@@ -5347,10 +5356,31 @@ const planCustomerImport = async (req) => {
     const resolved = resolveBranch(branch);
     if (resolved !== undefined) reference.branchByKey.set(key, resolved);
   }
-  for (const [given, branch] of Object.entries(parse('branchAliases'))) {
+  for (const [given, branch] of Object.entries(branchAliases)) {
     const resolved = resolveBranch(branch);
     if (resolved !== undefined) reference.branchByKey.set(importNormalize(given), resolved);
   }
+
+  return { reference, memory, asObject, savedReps, savedBranches, realRepKeys, realBranchKeys, repById, branches };
+};
+
+/**
+ * Plan an import from an uploaded file.
+ *
+ * Both the preview and the apply call this. Apply re-reads the same file and
+ * rebuilds the plan against the database as it stands at that moment, rather
+ * than trusting a plan the browser hands back — so a customer added between the
+ * two calls is still matched, and nothing the client edits can decide which
+ * record gets written.
+ */
+const planCustomerImport = async (req) => {
+  // An absent field parses to {}, which every consumer reads as "nothing was
+  // overridden" — the same answer as not asking.
+  const parse = (field) => (req.body[field] ? JSON.parse(req.body[field]) : {});
+  const { headers, rows, parse: parsed } = await runWorkbookParse('customer', req.file.buffer);
+  const mapping = resolveImportMapping(headers, parse('mapping'));
+  const { reference, memory, asObject, savedReps, savedBranches, realRepKeys, realBranchKeys, repById, branches } =
+    await buildImportReference({ repAliases: parse('repAliases'), branchAliases: parse('branchAliases') });
 
   const plan = buildImportPlan({
     headers, rows, mapping, ...reference,
@@ -5430,6 +5460,29 @@ const saveImportMemory = async (req, plan, createdByRow) => {
     { $set: { ...set, updatedBy: req.user?.username || '' } },
     { upsert: true }
   );
+};
+
+/**
+ * The SPS import's answers to "who is this rep / what is this branch", filed
+ * the way saveImportMemory files the old import's, so the next upload (of
+ * either import) doesn't ask again.
+ */
+const rememberImportAliases = async ({ repAliases = {}, branchAliases = {}, repIds, branches, by = '' }) => {
+  const set = {};
+  for (const [given, userId] of Object.entries(repAliases)) {
+    const key = importNormalize(given);
+    if (!key) continue;
+    if (userId === IMPORT_UNASSIGNED) set[`repAliases.${key}`] = '';
+    else if (repIds.has(String(userId))) set[`repAliases.${key}`] = String(userId);
+  }
+  for (const [given, branch] of Object.entries(branchAliases)) {
+    const key = importNormalize(given);
+    if (!key) continue;
+    if (branch === IMPORT_DEFAULT_BRANCH) set[`branchAliases.${key}`] = '';
+    else if (branches.includes(branch)) set[`branchAliases.${key}`] = branch;
+  }
+  if (!Object.keys(set).length) return;
+  await ImportMemory.updateOne({ kind: 'customer' }, { $set: { ...set, updatedBy: by } }, { upsert: true });
 };
 
 /**

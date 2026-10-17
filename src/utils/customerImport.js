@@ -211,13 +211,13 @@ const parseHtmlWorkbook = (text) => {
 };
 
 /** "Yes", "y", "true" or "1". */
-const YES = /^(yes|y|true|1)$/i;
+export const YES = /^(yes|y|true|1)$/i;
 
 /** A value the schema treats as not filled in: empty, or the "N/A" placeholder. */
-const isBlankValue = (v) => !String(v ?? '').trim() || String(v).trim().toUpperCase() === 'N/A';
+export const isBlankValue = (v) => !String(v ?? '').trim() || String(v).trim().toUpperCase() === 'N/A';
 
 /** A weak match whose only evidence is a shared email domain (see buildImportPlan). */
-const isDomainOnly = (m) => m.signals.length === 1 && m.signals[0] === 'email domain';
+export const isDomainOnly = (m) => m.signals.length === 1 && m.signals[0] === 'email domain';
 
 /** Real xlsx (zip) starts with 'PK'; real binary xls (OLE) starts with D0CF11E0. */
 const isBinaryWorkbook = (buffer) =>
@@ -250,7 +250,7 @@ export const readCustomerSheet = (buffer) => {
   return { headers, rows, parse: { format: 'workbook', malformed: [] } };
 };
 
-const parseLevel = (value) => {
+export const parseLevel = (value) => {
   const s = String(value ?? '').trim();
   for (const n of [1, 2, 3, 4]) {
     if (s.includes(String(n))) return { level: `Level - ${n}`, priceLevel: n };
@@ -267,7 +267,7 @@ const parseLevel = (value) => {
  * have, lost the whole record rather than the one field. A sheet is allowed to
  * contain words we have no column for; it is not allowed to cost us a customer.
  */
-const parseType = (value) => {
+export const parseType = (value) => {
   const s = String(value ?? '').trim().toLowerCase();
   if (!s) return 'Fabricator';
   if (s.includes('contractor')) return 'Contractor';
@@ -283,7 +283,7 @@ const parseType = (value) => {
   return null;
 };
 
-const parseStatus = (value) => {
+export const parseStatus = (value) => {
   const s = String(value ?? '').trim().toLowerCase();
   if (!s) return 'Onboarded';
   if (s.includes('new') || s.includes('lead')) return 'New Lead';

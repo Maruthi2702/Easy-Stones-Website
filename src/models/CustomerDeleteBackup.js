@@ -17,6 +17,10 @@ const customerDeleteBackupSchema = new mongoose.Schema({
   // 'bulk' (the list's selection bar) or 'single' (one customer's Delete)
   source: { type: String, default: 'bulk' },
   deletedBy: { type: String, default: '' },
+  // SPS import: someone chose "Keep deleted" for this customer, so the next
+  // import doesn't ask again (src/services/spsImportRunner.js).
+  spsKeepDeleted: { type: Boolean, default: false },
+  spsKeepRun: { type: String, default: '' },
   undoneAt: { type: Date, default: null },
   undoneBy: { type: String, default: '' }
 }, {

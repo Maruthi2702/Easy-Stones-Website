@@ -199,7 +199,9 @@ const customerSchema = new mongoose.Schema({
     // person's answer 'none' = SPS has no such customer.
     connectedAt: { type: Date },
     connectedBy: { type: String },
-    reviewedAs: { type: String }
+    reviewedAs: { type: String },
+    // The SPS import run that added this customer (src/models/SpsImportRun.js).
+    runId: { type: String }
   }
 }, {
   timestamps: true,
