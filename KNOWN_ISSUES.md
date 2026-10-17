@@ -112,6 +112,23 @@ Decided to leave as they are (owner, 2026-10-15): the status pill size on board 
 | O20 | Fast filter or page changes can show another filter's rows (no request sequencing). | `fetchCheckIns` in `src/pages/CheckInLogPage.jsx` | Ignore stale responses | Fixed `c0a0205` |
 | O21 | The export is silently cut short if a page fails or past 50 pages, and has no Location column for all-branch exports. | export loop in `src/pages/CheckInLogPage.jsx` (~line 247) | Fail loudly / warn on truncation; add Location | Fixed `c0a0205` |
 
+## Customer import (SPS redesign)
+
+The plan is the claude.ai artifact **SPS Import Redesign**
+(https://claude.ai/artifact/BcFNBYMJE9fQz6bxjmMCte). Build order: 1 deletions
+recorded (done), 2 file check + SPS key (done), 3 connect existing customers
+(on `feat/sps-connect`, not on `main`), 4 account groups, 5 the new import,
+6 switch over.
+
+- [ ] **Account groups (build step 4) postponed by the owner, 2026-10-17.**
+      Groups, the suggestion screen, the Customer List's "Group locations" and
+      Group filter, and the group panel on a customer are not built. The
+      import (step 5) is built without them: it shows no "possible groups"
+      note and no new store joins a group. When groups ship, add both.
+- [ ] **Step 3 hasn't been run on real data.** Do a dry run with the real SPS
+      file and check the report before it goes to `main`; the new import
+      (step 5) needs customers connected first.
+
 ## Cleanup due
 
 - [ ] **On or after 2026-10-19:** delete
