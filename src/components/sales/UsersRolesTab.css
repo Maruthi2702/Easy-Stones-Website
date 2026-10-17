@@ -2030,3 +2030,46 @@ body.light-theme-active .location-missing-banner { background: #fffbeb; border-c
 .team-roles-panel h4 { margin: 0 0 0.25rem; }
 .team-roles-list { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-top: 0.75rem; }
 .team-role-option { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+
+
+/* ── Permission card popup, on the form template (FormModal) ── */
+.perm-form-tools {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: -0.25rem 0 0.25rem;
+    font-size: 0.8rem;
+    color: var(--fm-mut);
+}
+.perm-form-tools button {
+    background: none;
+    border: 0;
+    padding: 0.4rem 0;
+    font: inherit;
+    font-weight: 600;
+    color: var(--fm-gold-tx);
+    cursor: pointer;
+}
+.perm-form-list { display: flex; flex-direction: column; }
+.perm-form-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.6rem 0.25rem;
+    border: 0;
+    border-bottom: 1px solid var(--fm-bd);
+    background: transparent;
+    color: var(--fm-tx);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.perm-form-row:last-child { border-bottom: 0; }
+.perm-form-row:hover:not(:disabled) { background: var(--fm-hover); }
+.perm-form-row:disabled { cursor: default; }
+.perm-form-row .fm-check { margin-top: 0.15rem; }
+.perm-form-text { display: flex; flex-direction: column; gap: 0.15rem; }
+.perm-form-label { font-weight: 600; font-size: 0.92rem; }
+.perm-form-desc { font-size: 0.8rem; color: var(--fm-mut); }
