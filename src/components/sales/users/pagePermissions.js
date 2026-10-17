@@ -33,7 +33,7 @@ const CUSTOMER_ACTIONS = {
     [CU.PROFILE]: { label: 'Full profile', icon: UserCheck, desc: 'Open a customer’s full profile: visits, resources, contacts, network and details' },
     [CU.EXPORT]:  { label: 'Export',       icon: Download, desc: 'Download the customer list to Excel' },
     [CU.ADD]:     { label: 'Add',          icon: Plus,     desc: 'Add a customer (at the user’s own locations)' },
-    [CU.IMPORT]:  { label: 'Import',       icon: Upload,   desc: 'Import new customers from Excel (adds only, never changes existing ones)' },
+    [CU.IMPORT]:  { label: 'Import',       icon: Upload,   desc: 'Import customers from Excel: adds new ones and updates the ones it matches' },
     [CU.EDIT]:    { label: 'Edit',         icon: Pencil,   desc: 'Edit customers and contacts (visits are under Visits)' },
     [CU.DELETE]:  { label: 'Delete',       icon: Trash2,   desc: 'Delete customer records (visits are under Visits)' }
 };
