@@ -1,0 +1,52 @@
+.row-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.row-menu-btn:hover,
+.row-menu-btn.open { background: rgba(148, 163, 184, 0.16); }
+
+.row-menu-popover {
+  position: fixed;
+  /* Same as .custom-select-popover: it is a child of <body>, so only the
+     number decides whether it paints over a modal. */
+  z-index: 2147483647;
+  padding: 0.35rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: #1e293b;
+  color: #e2e8f0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.row-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+.row-menu-item:hover,
+.row-menu-item:focus-visible { background: rgba(148, 163, 184, 0.18); outline: none; }
+.row-menu-item.danger { color: #f87171; }
+.row-menu-item.danger:hover { background: rgba(239, 68, 68, 0.14); }
+.row-menu-divider { height: 1px; margin: 0.3rem 0; background: rgba(148, 163, 184, 0.25); }
+
+body.light-theme-active .row-menu-popover,
+.light-theme-active .row-menu-popover { background: #fff; color: #1e293b; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18); }
+body.light-theme-active .row-menu-item.danger,
+.light-theme-active .row-menu-item.danger { color: #b91c1c; }

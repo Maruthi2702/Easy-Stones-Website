@@ -16,6 +16,7 @@ import { addressLines, hasPrintableAddress } from '../../utils/locationForm';
 import { lockedUntilTime } from '../../utils/userForm';
 import { subscribePresence } from '../../api/presence';
 import { presenceById, onlineStatusOf, countOnline } from '../../utils/userPresence';
+import RowMenu from '../shared/RowMenu';
 import LocationForm from './locations/LocationForm';
 import AddUserForm from './users/AddUserForm';
 import EditUserForm from './users/EditUserForm';
@@ -504,51 +505,17 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                         })()}
                                                     </td>
                                                     <td data-label="Actions">
-                                                        <div className="action-pill-row">
-                                                            <button
-                                                                className="user-action-pill view"
-                                                                onClick={() => openEditUserModal(u)}
-                                                                title="View user details"
-                                                            >
-                                                                <Eye size={13} />
-                                                                View
-                                                            </button>
-                                                            <button
-                                                                className="user-action-pill edit"
-                                                                onClick={() => openEditUserModal(u)}
-                                                                title="Edit user profile"
-                                                            >
-                                                                <Edit2 size={13} />
-                                                                Edit
-                                                            </button>
-                                                            {u.isActive === false ? (
-                                                                <button
-                                                                    className="user-action-pill reactivate"
-                                                                    onClick={() => changeUserAccess(u, 'reactivate')}
-                                                                    title="Let this person sign in again"
-                                                                >
-                                                                    <UserCheck size={13} />
-                                                                    Reactivate
-                                                                </button>
-                                                            ) : (
-                                                                <button
-                                                                    className="user-action-pill deactivate"
-                                                                    onClick={() => changeUserAccess(u, 'deactivate')}
-                                                                    title="Stop this person signing in, keep their history"
-                                                                >
-                                                                    <UserX size={13} />
-                                                                    Deactivate
-                                                                </button>
-                                                            )}
-                                                            <button
-                                                                className="user-action-pill delete"
-                                                                onClick={() => handleDeleteUser(u)}
-                                                                title="Delete user"
-                                                            >
-                                                                <Trash2 size={13} />
-                                                                Delete
-                                                            </button>
-                                                        </div>
+                                                        <RowMenu
+                                                            label={`Actions for ${u.displayName || u.username}`}
+                                                            items={[
+                                                                { key: 'view', label: 'View details', icon: Eye, title: 'View user details', onClick: () => openEditUserModal(u) },
+                                                                { key: 'edit', label: 'Edit', icon: Edit2, title: 'Edit user profile', onClick: () => openEditUserModal(u) },
+                                                                u.isActive === false
+                                                                    ? { key: 'reactivate', label: 'Reactivate', icon: UserCheck, title: 'Let this person sign in again', onClick: () => changeUserAccess(u, 'reactivate') }
+                                                                    : { key: 'deactivate', label: 'Deactivate', icon: UserX, title: 'Stop this person signing in, keep their history', onClick: () => changeUserAccess(u, 'deactivate') },
+                                                                { key: 'delete', label: 'Delete', icon: Trash2, danger: true, divider: true, title: 'Delete user', onClick: () => handleDeleteUser(u) }
+                                                            ]}
+                                                        />
                                                     </td>
                                                 </tr>
                                             ))
