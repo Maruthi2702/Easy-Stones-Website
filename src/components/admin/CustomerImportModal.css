@@ -535,3 +535,7 @@
         min-width: 0;
     }
 }
+
+/* The file check at the top of the preview (spsSheet.js): rows read, coverage. */
+.import-file-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; font-size: 14px; }
+.import-file-line svg { color: #16a34a; }

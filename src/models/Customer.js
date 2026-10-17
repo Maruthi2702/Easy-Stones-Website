@@ -184,7 +184,18 @@ const customerSchema = new mongoose.Schema({
   notDuplicateOf: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Customer'
-  }]
+  }],
+  // The SPS customer this one is (src/utils/spsSheet.js). `key` is the SPS
+  // Name, trimmed and lowercased; the partial unique index below means two
+  // customers can never hold the same one. Set only by the SPS import and its
+  // connect step — never from a request body (PROTECTED_CUSTOMER_FIELDS).
+  sps: {
+    key: { type: String },
+    name: { type: String },
+    code: { type: String },
+    firstImportedAt: { type: Date },
+    lastSeenAt: { type: Date }
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -193,6 +204,9 @@ const customerSchema = new mongoose.Schema({
 });
 
 // ── MONGOOSE INDEXES FOR HIGH PERFORMANCE & SCALABILITY ──
+// One customer per SPS customer. Partial, so the thousands of customers with
+// no SPS key (and any that never get one) don't collide on "missing".
+customerSchema.index({ 'sps.key': 1 }, { unique: true, partialFilterExpression: { 'sps.key': { $type: 'string' } } });
 customerSchema.index({ company: 1, contactName: 1 }); // Pre-sorted dropdowns & selection API
 customerSchema.index({ status: 1, createdBy: 1 }); // Status & rep ownership filter
 customerSchema.index({ customerType: 1, level: 1 }); // Type & Level filter

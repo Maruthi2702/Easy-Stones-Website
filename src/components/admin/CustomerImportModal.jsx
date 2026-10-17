@@ -488,6 +488,35 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                             )}
 
                             <section className="import-section">
+                                <h3>The file</h3>
+                                <p className="import-file-line">
+                                    <Check size={14} /> <strong>{plan.fileCheck.rowsRead.toLocaleString()}</strong> customers read from the file
+                                    {plan.coverage && (
+                                        <> · <strong>{plan.coverage.present.toLocaleString()}</strong> of {plan.coverage.total.toLocaleString()} are
+                                        already in Easy Stones{plan.coverage.absent > 0 && <>, <strong>{plan.coverage.absent.toLocaleString()}</strong> are not</>}</>
+                                    )}
+                                </p>
+                                {plan.fileCheck.blocking.map(b => (
+                                    <div key={b.code} className="import-error">
+                                        <AlertTriangle size={16} /> {b.message}
+                                        {b.rows.length > 0 && <> Rows: {b.rows.join(', ')}{b.rows.length >= 50 ? '…' : ''}.</>}
+                                    </div>
+                                ))}
+                                {plan.fileCheck.warnings.map(w => (
+                                    <p key={w.code} className="import-row-warning">
+                                        <AlertTriangle size={12} /> {w.message}
+                                        {w.rows.length > 0 && <> Rows: {w.rows.slice(0, 12).join(', ')}{w.rows.length > 12 ? '…' : ''}.</>}
+                                    </p>
+                                ))}
+                                {plan.coverage?.absent > 0 && (
+                                    <p className="import-hint">
+                                        &ldquo;Not in Easy Stones&rdquo; counts names with no customer of that exact name. They may still
+                                        be matched to a customer under a different spelling below.
+                                    </p>
+                                )}
+                            </section>
+
+                            <section className="import-section">
                                 <h3>What this will do</h3>
                                 <div className="import-counts">
                                     <div className="import-count import-count-create">
@@ -736,7 +765,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                         <button
                             className="import-btn-primary"
                             onClick={apply}
-                            disabled={busy !== '' || (counts.create + counts.update) === 0}
+                            disabled={busy !== '' || !plan.fileCheck.ok || (counts.create + counts.update) === 0}
                         >
                             {busy === 'apply'
                                 ? <><Loader size={16} className="spin" /> Importing…</>

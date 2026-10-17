@@ -21,7 +21,7 @@ export const PROTECTED_CUSTOMER_FIELDS = Object.freeze([
     '_id', '__v', 'createdAt', 'updatedAt', 'createdBy',
     'password', 'isVerified', 'isActive', 'loginAttempts', 'lockUntil', 'loginIps',
     'coordinates', 'geocode', 'salesRepName',
-    'contacts', 'visits', 'resources', 'associatedCustomers', 'notDuplicateOf'
+    'contacts', 'visits', 'resources', 'associatedCustomers', 'notDuplicateOf', 'sps'
 ]);
 
 const str = (v) => (v === undefined || v === null ? '' : String(v).trim());

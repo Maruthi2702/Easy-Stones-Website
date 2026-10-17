@@ -184,12 +184,21 @@ const parseHtmlWorkbook = (text) => {
 
   const rawHeaders = headerRow.cells;
   const headerRowIndex = rows.indexOf(headerRow);
-  const dataRows = rows.slice(headerRowIndex + 1)
-    .filter(r => r.type === 'data' && r.cells.length === rawHeaders.length)
+  const after = rows.slice(headerRowIndex + 1);
+  const isCustomer = r => r.type === 'data' && r.cells.length === rawHeaders.length;
+  const dataRows = after
+    .filter(isCustomer)
     .map(r => Object.fromEntries(rawHeaders.map((h, i) => [h, r.cells[i] ?? ''])));
+  // A data row whose cells don't line up with the headings used to vanish here
+  // without a word. It's reported now, so the import can refuse the file
+  // instead of quietly importing fewer customers (src/utils/spsSheet.js).
+  const malformed = after
+    .map((r, i) => ({ r, position: i + 1 }))
+    .filter(({ r }) => r.type === 'data' && r.cells.length !== rawHeaders.length)
+    .map(({ r, position }) => ({ position, cells: r.cells.length, expected: rawHeaders.length }));
 
   const headers = [...new Set(rawHeaders.map(h => h.trim()).filter(Boolean))];
-  return { headers, rows: dataRows };
+  return { headers, rows: dataRows, parse: { format: 'html', malformed } };
 };
 
 /** Real xlsx (zip) starts with 'PK'; real binary xls (OLE) starts with D0CF11E0. */
@@ -220,7 +229,7 @@ export const readCustomerSheet = (buffer) => {
   const rows = utils.sheet_to_json(sheet, { defval: '' });
   if (!rows.length) throw new Error('The sheet has no data rows');
 
-  return { headers, rows };
+  return { headers, rows, parse: { format: 'workbook', malformed: [] } };
 };
 
 const parseLevel = (value) => {

@@ -114,6 +114,7 @@ import { canViewLostSales, canEditLostSales, canDeleteLostSales } from './src/ut
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
+import { checkSheet, spsCoverage } from './src/utils/spsSheet.js';
 import createCustomerBulkDeleteRouter, { backupAndDeleteCustomer } from './src/routes/customerBulkDelete.js';
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
@@ -5277,7 +5278,7 @@ const loadImportReferenceData = async () => {
   // planUpdate), which has to see what the record already holds.
   const existing = await Customer.find(
     {},
-    'company contactName email phone address quickNote salesRep salesRepName location isActive createdAt notDuplicateOf'
+    'company contactName email phone address quickNote salesRep salesRepName location isActive createdAt notDuplicateOf sps.key'
   ).lean();
 
   return { branchByKey, repByKey, existing };
@@ -5296,7 +5297,7 @@ const planCustomerImport = async (req) => {
   // An absent field parses to {}, which every consumer reads as "nothing was
   // overridden" — the same answer as not asking.
   const parse = (field) => (req.body[field] ? JSON.parse(req.body[field]) : {});
-  const { headers, rows } = await runWorkbookParse('customer', req.file.buffer);
+  const { headers, rows, parse: parsed } = await runWorkbookParse('customer', req.file.buffer);
   const mapping = resolveImportMapping(headers, parse('mapping'));
   const reference = await loadImportReferenceData();
   const memory = await ImportMemory.findOne({ kind: 'customer' }).lean();
@@ -5356,8 +5357,15 @@ const planCustomerImport = async (req) => {
   const countRemembered = (field, realKeys, saved) =>
     [...sheetKeys(field)].filter(k => !realKeys.has(k) && Object.prototype.hasOwnProperty.call(saved, k)).length;
 
+  // Step 2 of the SPS import redesign: is the file readable in full, and how
+  // many of its customers are already here? (src/utils/spsSheet.js)
+  const fileCheck = checkSheet({ rows, mapping, parse: parsed });
+  const coverage = spsCoverage({ rows, mapping, existing: reference.existing });
+
   return {
     ...plan,
+    fileCheck,
+    coverage,
     existing: reference.existing,
     branches,
     reps: [...repById]
@@ -5576,6 +5584,8 @@ app.post(['/api/customers/import/preview', '/api/admin/customers/import/preview'
       mapping: plan.mapping,
       counts: plan.counts,
       totalRows: plan.totalRows,
+      fileCheck: plan.fileCheck,
+      coverage: plan.coverage,
       rows: importRowsForClient(plan.planned),
       unresolvedReps: plan.unresolvedReps,
       unresolvedBranches: plan.unresolvedBranches,
@@ -5616,6 +5626,11 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
     const plan = await planCustomerImport(req);
+    // A file with rows that couldn't be read would import fewer customers than
+    // it holds, with no one told. Refuse it; the preview already said why.
+    if (!plan.fileCheck.ok) {
+      return res.status(422).json({ message: plan.fileCheck.blocking.map(b => b.message).join(' ') });
+    }
     const results = { created: 0, updated: 0, skipped: 0, errors: [] };
     // rowNumber → new customer id, so a "create it" review decision can be
     // remembered as the record it made (see saveImportMemory).
