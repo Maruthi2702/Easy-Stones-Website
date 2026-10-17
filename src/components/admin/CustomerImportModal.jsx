@@ -52,6 +52,42 @@ const ACTION_LABELS = {
 
 const csvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** A copy of `map` with `key` set to `value`, or dropped when `value` is blank. */
+const withEntry = (map, key, value) => {
+    const next = { ...map };
+    if (value) next[key] = value; else delete next[key];
+    return next;
+};
+
+/**
+ * The upload both the preview and the apply send: the file, plus each answer
+ * the person has given (only the ones they have, so an untouched import posts
+ * nothing but the file). The server re-plans from exactly this.
+ */
+const importForm = (file, answers) => {
+    const body = new FormData();
+    body.append('file', file);
+    for (const [name, value] of Object.entries(answers)) {
+        if (Object.keys(value).length) body.append(name, JSON.stringify(value));
+    }
+    return body;
+};
+
+/** One "who is this name?" row: the name from the sheet, how many rows use it, and the picker. */
+const AliasRow = ({ given, rowCount, value, disabled, onChange, children }) => (
+    <div className="import-alias-row">
+        <span className="import-alias-given">
+            {given} <em>({plural(rowCount, 'row')})</em>
+        </span>
+        <select value={value ?? ''} disabled={disabled} onChange={e => onChange(e.target.value)}>
+            <option value="">— decide later —</option>
+            {children}
+        </select>
+    </div>
+);
+
 // "Decided: nobody", as opposed to '' ("not decided yet, ask again"). Same
 // strings as IMPORT_UNASSIGNED / IMPORT_DEFAULT_BRANCH in
 // src/utils/customerImport.js — not imported from there so this modal
@@ -100,6 +136,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
     // The last merge/delete, for its Undo button.
     const [dupResult, setDupResult] = useState(null);
     const fileRef = useRef(null);
+    const previewSeq = useRef(0);
 
     const reset = () => {
         setFile(null); setPlan(null); setMapping({}); setRepAliases({});
@@ -197,35 +234,38 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
      * or an alias changes, because every one of those changes what it would do.
      */
     const runPreview = async (theFile, overrides = {}) => {
+        // Only the newest request may show its answer: two quick changes (a
+        // mapping, then an alias) used to let the slower, older response land
+        // last and show a plan that no longer matched the choices on screen.
+        const mine = ++previewSeq.current;
         setBusy('preview');
         setError('');
         try {
-            const body = new FormData();
-            body.append('file', theFile);
             const nextMapping = overrides.mapping ?? mapping;
-            const nextReps = overrides.repAliases ?? repAliases;
-            const nextBranches = overrides.branchAliases ?? branchAliases;
-            const nextDecisions = overrides.decisions ?? decisions;
-            if (Object.keys(nextMapping).length) body.append('mapping', JSON.stringify(nextMapping));
-            if (Object.keys(nextReps).length) body.append('repAliases', JSON.stringify(nextReps));
-            if (Object.keys(nextBranches).length) body.append('branchAliases', JSON.stringify(nextBranches));
-            if (Object.keys(nextDecisions).length) body.append('decisions', JSON.stringify(nextDecisions));
+            const body = importForm(theFile, {
+                mapping: nextMapping,
+                repAliases: overrides.repAliases ?? repAliases,
+                branchAliases: overrides.branchAliases ?? branchAliases,
+                decisions: overrides.decisions ?? decisions
+            });
 
             const res = await authFetch(`${API_URL}/api/customers/import/preview`, {
                 method: 'POST', body
             });
             if (!res.ok) throw new Error(await describeFailure(res));
             const data = await res.json();
+            if (mine !== previewSeq.current) return;
 
             setPlan(data);
             // Adopt what the server detected, so the dropdowns show the mapping
             // actually in force rather than sitting empty until touched.
             if (!Object.keys(nextMapping).length) setMapping(data.mapping);
         } catch (err) {
+            if (mine !== previewSeq.current) return;
             setError(err.message);
             setPlan(null);
         } finally {
-            setBusy('');
+            if (mine === previewSeq.current) setBusy('');
         }
     };
 
@@ -245,15 +285,13 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
     };
 
     const changeRepAlias = (given, userId) => {
-        const next = { ...repAliases };
-        if (userId) next[given] = userId; else delete next[given];
+        const next = withEntry(repAliases, given, userId);
         setRepAliases(next);
         runPreview(file, { repAliases: next });
     };
 
     const changeBranchAlias = (given, branch) => {
-        const next = { ...branchAliases };
-        if (branch) next[given] = branch; else delete next[given];
+        const next = withEntry(branchAliases, given, branch);
         setBranchAliases(next);
         runPreview(file, { branchAliases: next });
     };
@@ -264,8 +302,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
      * the review list and into the create or update list with its changes shown.
      */
     const decide = (rowNumber, choice) => {
-        const next = { ...decisions };
-        if (choice) next[rowNumber] = choice; else delete next[rowNumber];
+        const next = withEntry(decisions, rowNumber, choice);
         setDecisions(next);
         runPreview(file, { decisions: next });
     };
@@ -312,20 +349,15 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
     const apply = async () => {
         const { create, update } = plan.counts;
         if (!window.confirm(
-            `Create ${create} customer${create === 1 ? '' : 's'} and update ${update}?\n\n` +
-            `${plan.counts.review} row${plan.counts.review === 1 ? '' : 's'} flagged for review will not be touched.\n\n` +
+            `Create ${plural(create, 'customer')} and update ${update}?\n\n` +
+            `${plural(plan.counts.review, 'row')} flagged for review will not be touched.\n\n` +
             'The sales-rep mappings and review decisions you made here will be remembered for the next upload.'
         )) return;
 
         setBusy('apply');
         setError('');
         try {
-            const body = new FormData();
-            body.append('file', file);
-            if (Object.keys(mapping).length) body.append('mapping', JSON.stringify(mapping));
-            if (Object.keys(repAliases).length) body.append('repAliases', JSON.stringify(repAliases));
-            if (Object.keys(branchAliases).length) body.append('branchAliases', JSON.stringify(branchAliases));
-            if (Object.keys(decisions).length) body.append('decisions', JSON.stringify(decisions));
+            const body = importForm(file, { mapping, repAliases, branchAliases, decisions });
 
             const res = await authFetch(`${API_URL}/api/customers/import/apply`, {
                 method: 'POST', body
@@ -368,7 +400,10 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
     if (!show) return null;
 
     const counts = plan?.counts;
-    const rowsFor = (action) => (plan?.rows || []).filter(r => r.action === action);
+    // The preview's rows, grouped once for the four tabs.
+    const rowsByAction = {};
+    for (const r of plan?.rows || []) (rowsByAction[r.action] ||= []).push(r);
+    const rowsFor = (action) => rowsByAction[action] || [];
     const working = busy === 'preview';
 
     return (
@@ -431,9 +466,9 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                                 <p className="import-hint import-remembered">
                                     Using choices saved from earlier uploads:{' '}
                                     {[
-                                        plan.remembered.reps > 0 && `${plan.remembered.reps} sales-rep name${plan.remembered.reps === 1 ? '' : 's'}`,
-                                        plan.remembered.branches > 0 && `${plan.remembered.branches} branch name${plan.remembered.branches === 1 ? '' : 's'}`,
-                                        plan.remembered.decisions > 0 && `${plan.remembered.decisions} review decision${plan.remembered.decisions === 1 ? '' : 's'}`
+                                        plan.remembered.reps > 0 && plural(plan.remembered.reps, 'sales-rep name'),
+                                        plan.remembered.branches > 0 && plural(plan.remembered.branches, 'branch name'),
+                                        plan.remembered.decisions > 0 && plural(plan.remembered.decisions, 'review decision')
                                     ].filter(Boolean).join(', ')}.{' '}
                                     <button className="import-link" onClick={forgetSaved} disabled={working}>
                                         Forget saved choices
@@ -449,40 +484,26 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                                         you pick is remembered, so the next upload won&apos;t ask again.
                                     </p>
                                     {plan.unresolvedReps?.map(u => (
-                                        <div key={u.given} className="import-alias-row">
-                                            <span className="import-alias-given">
-                                                {u.given} <em>({u.rowCount} row{u.rowCount === 1 ? '' : 's'})</em>
-                                            </span>
-                                            <select
-                                                value={repAliases[u.given] ?? ''}
-                                                disabled={working}
-                                                onChange={e => changeRepAlias(u.given, e.target.value)}
-                                            >
-                                                <option value="">— decide later —</option>
-                                                <option value={UNASSIGNED}>Leave unassigned</option>
-                                                {plan.reps?.map(r => (
-                                                    <option key={r._id} value={r._id}>
-                                                        {r.name}{r.name === u.suggestion ? ' (likely)' : ''}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
+                                        <AliasRow
+                                            key={u.given} given={u.given} rowCount={u.rowCount} disabled={working}
+                                            value={repAliases[u.given]} onChange={id => changeRepAlias(u.given, id)}
+                                        >
+                                            <option value={UNASSIGNED}>Leave unassigned</option>
+                                            {plan.reps?.map(r => (
+                                                <option key={r._id} value={r._id}>
+                                                    {r.name}{r.name === u.suggestion ? ' (likely)' : ''}
+                                                </option>
+                                            ))}
+                                        </AliasRow>
                                     ))}
                                     {plan.unresolvedBranches?.map(u => (
-                                        <div key={u.given} className="import-alias-row">
-                                            <span className="import-alias-given">
-                                                {u.given} <em>({u.rowCount} row{u.rowCount === 1 ? '' : 's'})</em>
-                                            </span>
-                                            <select
-                                                value={branchAliases[u.given] ?? ''}
-                                                disabled={working}
-                                                onChange={e => changeBranchAlias(u.given, e.target.value)}
-                                            >
-                                                <option value="">— decide later —</option>
-                                                <option value={DEFAULT_BRANCH}>Use the default branch</option>
-                                                {orderLocations(plan.branches || []).map(b => <option key={b} value={b}>{b}</option>)}
-                                            </select>
-                                        </div>
+                                        <AliasRow
+                                            key={u.given} given={u.given} rowCount={u.rowCount} disabled={working}
+                                            value={branchAliases[u.given]} onChange={branch => changeBranchAlias(u.given, branch)}
+                                        >
+                                            <option value={DEFAULT_BRANCH}>Use the default branch</option>
+                                            {orderLocations(plan.branches || []).map(b => <option key={b} value={b}>{b}</option>)}
+                                        </AliasRow>
                                     ))}
                                 </section>
                             )}

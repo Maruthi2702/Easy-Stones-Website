@@ -135,6 +135,30 @@ export const resolveImportMapping = (headers, override = {}) => {
   return mapping;
 };
 
+// Built once, not once per row: a 4,500-row export asked for two fresh
+// RegExps per row before.
+const TH_CELLS = /<th[^>]*>([\s\S]*?)<\/th>/gi;
+const TD_CELLS = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+const ENTITIES = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+
+/**
+ * Text inside a cell. Entities are decoded in one pass, so "&amp;lt;" reads
+ * "&lt;" — decoding &amp; first, as this used to, turned it into "<". Numeric
+ * entities (&#39;, &#x27;) are read too.
+ */
+const stripTags = (s) => s
+  .replace(/<br\s*\/?>/gi, ' ')
+  .replace(/<[^>]*>/g, '')
+  .replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (whole, dec, hex, name) => {
+    if (name) return ENTITIES[name.toLowerCase()] ?? whole;
+    const code = dec ? parseInt(dec, 10) : parseInt(hex, 16);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  })
+  .trim();
+
+const cellsOf = (rowHtml, cells) =>
+  [...rowHtml.matchAll(cells)].map(c => stripTags(c[1]));
+
 /**
  * SPS's own export, downloaded straight from its web CRM rather than
  * re-saved through Excel, is not a real workbook: it's an HTML document
@@ -152,25 +176,10 @@ export const resolveImportMapping = (headers, override = {}) => {
  * column headers with this many fields.
  */
 const parseHtmlWorkbook = (text) => {
-  const stripTags = (s) => s
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .trim();
-
-  const cellsOf = (rowHtml, tag) =>
-    [...rowHtml.matchAll(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi'))]
-      .map(c => stripTags(c[1]));
-
   const rows = [...text.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)]
     .map(m => {
-      const th = cellsOf(m[1], 'th');
-      const td = cellsOf(m[1], 'td');
+      const th = cellsOf(m[1], TH_CELLS);
+      const td = cellsOf(m[1], TD_CELLS);
       return th.length && !td.length
         ? { type: 'header', cells: th }
         : td.length ? { type: 'data', cells: td } : null;
@@ -200,6 +209,15 @@ const parseHtmlWorkbook = (text) => {
   const headers = [...new Set(rawHeaders.map(h => h.trim()).filter(Boolean))];
   return { headers, rows: dataRows, parse: { format: 'html', malformed } };
 };
+
+/** "Yes", "y", "true" or "1". */
+const YES = /^(yes|y|true|1)$/i;
+
+/** A value the schema treats as not filled in: empty, or the "N/A" placeholder. */
+const isBlankValue = (v) => !String(v ?? '').trim() || String(v).trim().toUpperCase() === 'N/A';
+
+/** A weak match whose only evidence is a shared email domain (see buildImportPlan). */
+const isDomainOnly = (m) => m.signals.length === 1 && m.signals[0] === 'email domain';
 
 /** Real xlsx (zip) starts with 'PK'; real binary xls (OLE) starts with D0CF11E0. */
 const isBinaryWorkbook = (buffer) =>
@@ -475,10 +493,10 @@ export const buildImportPlan = ({
         ...parseLevel(cell(row, 'level')),
         customerType: type ?? 'Fabricator',
         status: status ?? 'Onboarded',
-        modaDisplay: /^(yes|y|true|1)$/i.test(cell(row, 'modaDisplay')) ? 'Yes' : 'No',
+        modaDisplay: YES.test(cell(row, 'modaDisplay')) ? 'Yes' : 'No',
         modaBinder: cell(row, 'modaBinder') || '0',
         marketingEmail: cell(row, 'marketingEmail').toLowerCase(),
-        receiveMarketing: receiveMarketingCell ? /^(yes|y|true|1)$/i.test(receiveMarketingCell) : true,
+        receiveMarketing: receiveMarketingCell ? YES.test(receiveMarketingCell) : true,
         quickNote
       };
 
@@ -509,7 +527,6 @@ export const buildImportPlan = ({
       // routine re-export from the same source CRM sent nearly every
       // returning customer to manual review, since most share a domain with
       // somebody.
-      const isDomainOnly = (m) => m.signals.length === 1 && m.signals[0] === 'email domain';
       const weak = matches.filter(m => m.score < STRONG);
       const meaningfulWeak = weak.filter(m => !isDomainOnly(m));
       const describe = (list) => list.map(m => ({
@@ -556,9 +573,8 @@ export const buildImportPlan = ({
         // Type, level, status and MODA aren't here: the schema defaults every
         // one of them, so a stored 'Fabricator' can't be told apart from one
         // nobody ever chose, and "fill if blank" would never fire.
-        const isBlank = (v) => !String(v ?? '').trim() || String(v).trim().toUpperCase() === 'N/A';
         const fill = (field, path, from, to) => {
-          if (!isBlank(from) || isBlank(to)) return;
+          if (!isBlankValue(from) || isBlankValue(to)) return;
           changes.push({ field, from: String(from ?? '').trim(), to });
           apply[path] = to;
         };

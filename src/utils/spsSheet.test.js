@@ -38,6 +38,23 @@ describe('readCustomerSheet reports what it could not read', () => {
   });
 });
 
+describe('readCustomerSheet reads cell text', () => {
+  const nameOf = (cell) => readCustomerSheet(html(`<tr><td>${cell}</td><td>a@a.com</td><td>1</td></tr>`)).rows[0].Name;
+
+  it('decodes the common entities', () => {
+    expect(nameOf('Tom&nbsp;&amp;&nbsp;Jerry &quot;Stone&quot; &lt;Co&gt;')).toBe('Tom & Jerry "Stone" <Co>');
+  });
+  it('decodes each entity once: "&amp;lt;" is the text "&lt;", not "<"', () => {
+    expect(nameOf('A &amp;lt; B')).toBe('A &lt; B');
+  });
+  it('decodes numeric entities and leaves unknown ones as written', () => {
+    expect(nameOf('Joe&#39;s &#x41;rt &eacute;')).toBe("Joe's Art &eacute;");
+  });
+  it('turns <br> into a space and drops other tags', () => {
+    expect(nameOf('Line one<br/>line <b>two</b>')).toBe('Line one line two');
+  });
+});
+
 describe('checkSheet', () => {
   it('passes a clean file and counts it', () => {
     const r = checkSheet({ rows: rowsOf('A', 'B', 'C'), mapping, parse: { malformed: [] } });
