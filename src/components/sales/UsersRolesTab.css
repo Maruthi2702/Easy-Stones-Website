@@ -1958,3 +1958,25 @@ body.light-theme-active .location-missing-banner { background: #fffbeb; border-c
     align-items: center;
     gap: 0.4rem;
 }
+
+
+/* ── Page title (each of Users / Roles & Permissions / Locations is its own page) ── */
+.users-roles-title {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+/* ── Team access: which roles a role's people can manage ── */
+.team-roles-panel {
+    margin-top: 1.5rem;
+    padding: 1.1rem 1.25rem;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+.team-roles-panel h4 { margin: 0 0 0.25rem; }
+.team-roles-list { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-top: 0.75rem; }
+.team-role-option { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }

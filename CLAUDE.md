@@ -169,6 +169,22 @@ through them. Five wrong passwords lock an account for 15 minutes
 now** (`POST /api/admin/users/:id/unlock`, `manage_users`), and any password
 reset or chosen password also lifts it (`clearSignInLock`).
 
+## Users, Roles & Permissions, Locations; team access (2026-10-16)
+
+Users & Roles is three Admin-rail pages (`users`, `roles`, `locations` in
+`navPins.js`; one screen, `UsersRolesTab`, with a `section`). Users also opens
+for **team access**: the `manage_team_users` permission (Users & Roles card →
+Team) lets a manager/director see the people at their own locations, who is
+online, and **deactivate / reactivate / unlock** them — nothing else (no add,
+edit, delete, passwords, Roles, Locations; those stay `manage_users`). Which
+people: the role's `manageableRoles` (Roles & Permissions → "People … can
+manage", chosen per role by an admin), only those whose locations are **all**
+the manager's, never themselves or an admin. Rules in `src/utils/teamAccess.js`
+(shared), the guard in `src/services/teamAccess.js`; the Users list, presence,
+active and unlock routes use `usersAccess` / `memberAllowed`. A new Users
+action for managers must go through them. Nobody holds the permission until
+an admin turns it on.
+
 ## Who is online (2026-10-16)
 
 Users & Roles → Users list has an **Online** column, a live "Online now (N)"

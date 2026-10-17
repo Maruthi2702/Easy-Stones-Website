@@ -24,6 +24,13 @@ const roleSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  // Team access (src/utils/teamAccess.js): the roles whose people this role's
+  // holders may deactivate, reactivate and unlock at their own locations, when
+  // the role has manage_team_users. Set per role in Roles & Permissions.
+  manageableRoles: {
+    type: [String],
+    default: []
+  },
   isSystem: {
     type: Boolean,
     default: false

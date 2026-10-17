@@ -8,6 +8,7 @@ import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAcc
 import {
     ArrowLeftRight, Boxes, CheckCheck, Download, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
 } from 'lucide-react';
+import { TEAM_PERMISSION } from '../../../utils/teamAccess';
 
 // The Check In card's switches, by key. Which section each sits in, and the
 // order, is CHECKIN_SECTIONS'.
@@ -268,7 +269,8 @@ export const PAGE_PERMISSIONS = [
         description: 'User accounts, roles, permissions',
         color: '#ae4132',
         actions: [
-            { key: 'manage_users', label: 'Manage', icon: ShieldCheck, desc: 'Add/edit users and customize role permissions' }
+            { key: 'manage_users', label: 'Manage', icon: ShieldCheck, desc: 'Everything: add/edit/delete users, locations, and role permissions' },
+            { key: TEAM_PERMISSION, label: 'Team', icon: UserCheck, desc: 'See the people at their own locations (roles you pick below), who is online, and deactivate, reactivate or unlock them. Nothing else.' }
         ]
     }
 ];

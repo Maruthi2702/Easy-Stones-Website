@@ -7,6 +7,8 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createPresence, deviceFromUserAgent } from './src/services/presence.js';
+import { createTeamAccess } from './src/services/teamAccess.js';
+import { TEAM_PERMISSION, cleanManageableRoles } from './src/utils/teamAccess.js';
 import cors from 'cors';
 import mongoose from 'mongoose';
 
@@ -375,7 +377,10 @@ async function resolveSocketStaff(token) {
   const user = await User.findById(userId, 'role isActive mustChangePassword sessionVersion').lean();
   if (!user || user.isActive === false || user.mustChangePassword || !sessionIsCurrent(decoded, user)) return null;
   const role = await Role.findOne({ name: String(user.role || '').trim().toLowerCase() }, 'permissions').lean();
-  return { userId: String(user._id), canSeePresence: !!role?.permissions?.includes('manage_users') };
+  return {
+    userId: String(user._id),
+    canSeePresence: !!(role?.permissions?.includes('manage_users') || role?.permissions?.includes(TEAM_PERMISSION))
+  };
 }
 
 const writeLastSeen = (userId, at) =>
@@ -1659,17 +1664,21 @@ const resolveHomeLocation = async ({ requested, current, assignedLocations }) =>
 };
 
 // Username check, first-sign-in password, emailed invites — see the module.
-app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter, jwtSecret: JWT_SECRET }));
+const { usersAccess, memberAllowed, teamUsers } = createTeamAccess({ Role, User });
+app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter, jwtSecret: JWT_SECRET, usersAccess, memberAllowed }));
 
 // Who is online right now — the first load of Users & Roles' Online badges;
 // after that the list is pushed over the socket (presence_update).
-app.get('/api/admin/users/presence', authenticate, requirePermission('manage_users'), (req, res) => {
+app.get('/api/admin/users/presence', authenticate, usersAccess, (req, res) => {
   res.json(presence.snapshot());
 });
 
 // Get all users (manage_users permission needed)
-app.get('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
+app.get('/api/admin/users', authenticate, usersAccess, async (req, res) => {
   try {
+    if (req.teamScope) {
+      return res.json(await teamUsers(req));
+    }
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     res.json(users);
   } catch {
@@ -1991,15 +2000,16 @@ const clearDriverHandover = async (req, res, user, verb) => {
 // open session ends on its next request, their calendar feed stops, and a
 // driver drops off the board's columns except on weeks they delivered. Kept,
 // not deleted, so their name stays on the history they made.
-app.patch('/api/admin/users/:id/active', authenticate, requirePermission('manage_users'), async (req, res) => {
+app.patch('/api/admin/users/:id/active', authenticate, usersAccess, async (req, res) => {
   try {
     const active = req.body?.active !== false;
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'User not found' });
     if (!active && String(req.params.id) === String(req.user.id)) {
       return res.status(400).json({ message: "You can't deactivate your own account." });
     }
-    const user = await User.findById(req.params.id).select('username displayName isActive').lean();
+    const user = await User.findById(req.params.id).select('username displayName isActive role assignedLocations').lean();
     if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!memberAllowed(req, user)) return res.status(403).json({ message: "You can't change this person's account." });
 
     if (!active && !(await clearDriverHandover(req, res, user, 'deactivate'))) return;
 
@@ -2079,7 +2089,7 @@ app.post('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), asy
 // Update role permissions (manage_users permission needed)
 app.put('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
   try {
-    const { permissions, displayName } = req.body;
+    const { permissions, displayName, manageableRoles } = req.body;
     const roleId = req.params.id;
 
     const role = await Role.findById(roleId);
@@ -2089,6 +2099,7 @@ app.put('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), 
 
     if (permissions !== undefined) role.permissions = permissions;
     if (displayName !== undefined) role.displayName = displayName;
+    if (manageableRoles !== undefined) role.manageableRoles = cleanManageableRoles(manageableRoles, role.name);
 
     await role.save();
     // A role's permissions decide who counts as a delivery driver in the

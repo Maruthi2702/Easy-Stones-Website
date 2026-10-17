@@ -15,6 +15,8 @@ import { homeLocationOf } from '../../utils/locationFilter';
 import { addressLines, hasPrintableAddress } from '../../utils/locationForm';
 import { lockedUntilTime } from '../../utils/userForm';
 import { subscribePresence } from '../../api/presence';
+import { useAuth } from '../../context/AuthContext';
+import { TEAM_PERMISSION, hasTeamUserAccess } from '../../utils/teamAccess';
 import { presenceById, onlineStatusOf, countOnline } from '../../utils/userPresence';
 import RowMenu from '../shared/RowMenu';
 import LocationForm from './locations/LocationForm';
@@ -29,8 +31,20 @@ const ALL_PERMISSION_KEYS = PAGE_PERMISSIONS.flatMap(p => p.actions.map(a => a.k
 
 const DEVICE_ICONS = { phone: Smartphone, tablet: Tablet, desktop: Monitor };
 
-const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
-    const [subTab, setSubTab] = useState('users'); // 'users', 'roles', 'locations'
+// One of three admin-rail pages: section is 'users', 'roles' or 'locations'
+// (SalesPage picks it from the side nav).
+const SECTION_TITLES = {
+    users: { title: 'Users', icon: Users },
+    roles: { title: 'Roles & Permissions', icon: ShieldAlert },
+    locations: { title: 'Locations', icon: MapPin }
+};
+
+const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetchLocations }) => {
+    const subTab = section;
+    const { user: me } = useAuth();
+    // A manager with team access: sees their own people and can only
+    // deactivate, reactivate and unlock them (src/utils/teamAccess.js).
+    const teamMode = hasTeamUserAccess(me);
     // Add / Edit location form: null (closed), 'new', or the location being edited.
     const [locationForm, setLocationForm] = useState(null);
     const [locationError, setLocationError] = useState('');
@@ -141,6 +155,8 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     // Selected role for permissions editing
     const [selectedRole, setSelectedRole] = useState(null);
     const [editedPermissions, setEditedPermissions] = useState([]);
+    // Team access: the roles whose people this role may manage.
+    const [editedManageable, setEditedManageable] = useState([]);
     const [savingPermissions, setSavingPermissions] = useState(false);
 
     // Page permission popup state
@@ -165,6 +181,18 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             // Ensure we have a token for Authorization header (supports existing sessions)
             await ensureToken();
 
+            // Team access reads only its own people; it can't read roles.
+            if (teamMode) {
+                const teamRes = await fetchWithAuth(`${API_URL}/api/admin/users`);
+                if (!teamRes.ok) {
+                    const errBody = await teamRes.json().catch(() => ({}));
+                    throw new Error(errBody.error || errBody.message || 'Failed to fetch users. Check your access permissions.');
+                }
+                setUsers(await teamRes.json());
+                setRoles([]);
+                return;
+            }
+
             const [usersRes, rolesRes] = await Promise.all([
                 fetchWithAuth(`${API_URL}/api/admin/users`),
                 fetchWithAuth(`${API_URL}/api/admin/roles`)
@@ -187,6 +215,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                 const defaultRole = rolesData.find(r => r.name === 'sales_rep') || rolesData[0];
                 setSelectedRole(defaultRole);
                 setEditedPermissions(defaultRole.permissions || []);
+                setEditedManageable(defaultRole.manageableRoles || []);
             }
         } catch (err) {
             setError(err.message);
@@ -203,6 +232,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
     const handleRoleSelect = (role) => {
         setSelectedRole(role);
         setEditedPermissions(role.permissions || []);
+        setEditedManageable(role.manageableRoles || []);
     };
 
     // Toggle permission checkbox
@@ -226,7 +256,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ permissions: editedPermissions })
+                body: JSON.stringify({ permissions: editedPermissions, manageableRoles: editedPermissions.includes(TEAM_PERMISSION) ? editedManageable : [] })
             });
 
             if (!res.ok) {
@@ -235,10 +265,12 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
             }
 
             // Update local state
-            setRoles(prev => prev.map(r => r._id === selectedRole._id ? { ...r, permissions: editedPermissions } : r));
+            const manageableRoles = editedPermissions.includes(TEAM_PERMISSION) ? editedManageable : [];
+            setRoles(prev => prev.map(r => r._id === selectedRole._id ? { ...r, permissions: editedPermissions, manageableRoles } : r));
             // Driver view decides who's a truck column on the delivery board.
             clearDriversCache();
-            setSelectedRole(prev => ({ ...prev, permissions: editedPermissions }));
+            setSelectedRole(prev => ({ ...prev, permissions: editedPermissions, manageableRoles }));
+            setEditedManageable(manageableRoles);
             alert('Permissions updated successfully!');
         } catch (err) {
             alert(err.message);
@@ -373,6 +405,40 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
         });
     }, [users, userSearch, onlineOnly, live]);
 
+    // Unlock now, from the list (the same call as Edit user → Sign-in).
+    const unlockUser = async (user) => {
+        try {
+            const res = await fetchWithAuth(`${API_URL}/api/admin/users/${user._id}/unlock`, { method: 'POST' });
+            if (!res.ok) {
+                const info = await res.json().catch(() => ({}));
+                throw new Error(info.message || 'Could not unlock this account');
+            }
+            setUsers(prev => prev.map(x => (x._id === user._id ? { ...x, loginAttempts: 0, lockUntil: null } : x)));
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+    // What a row's ⋯ menu offers. Team access: only the three it may do.
+    const rowMenuItems = (u) => {
+        const access = [
+            u.isActive === false
+                ? { key: 'reactivate', label: 'Reactivate', icon: UserCheck, title: 'Let this person sign in again', onClick: () => changeUserAccess(u, 'reactivate') }
+                : { key: 'deactivate', label: 'Deactivate', icon: UserX, title: 'Stop this person signing in, keep their history', onClick: () => changeUserAccess(u, 'deactivate') }
+        ];
+        const unlock = lockedUntilTime(u)
+            ? [{ key: 'unlock', label: 'Unlock account', icon: Key, title: 'Let them try again now', onClick: () => unlockUser(u) }]
+            : [];
+        if (teamMode) return [...unlock, ...access];
+        return [
+            { key: 'view', label: 'View details', icon: Eye, title: 'View user details', onClick: () => openEditUserModal(u) },
+            { key: 'edit', label: 'Edit', icon: Edit2, title: 'Edit user profile', onClick: () => openEditUserModal(u) },
+            ...unlock,
+            ...access,
+            { key: 'delete', label: 'Delete', icon: Trash2, danger: true, divider: true, title: 'Delete user', onClick: () => handleDeleteUser(u) }
+        ];
+    };
+
     const getRoleDisplayName = (roleName) => {
         const role = roles.find(r => r.name === roleName);
         return role ? role.displayName : roleName.toUpperCase().replace('_', ' ');
@@ -380,32 +446,12 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
 
     return (
         <div className="users-roles-container">
-            {/* Header tab switcher */}
             <div className="users-roles-header" style={{ gap: '1.25rem' }}>
                 {sidebarToggle}
-                <div className="tabs-capsule">
-                    <button 
-                        className={`sub-tab-btn ${subTab === 'users' ? 'active' : ''}`}
-                        onClick={() => setSubTab('users')}
-                    >
-                        <Users size={16} />
-                        Users List
-                    </button>
-                    <button 
-                        className={`sub-tab-btn ${subTab === 'roles' ? 'active' : ''}`}
-                        onClick={() => setSubTab('roles')}
-                    >
-                        <ShieldAlert size={16} />
-                        Roles & Permissions
-                    </button>
-                    <button 
-                        className={`sub-tab-btn ${subTab === 'locations' ? 'active' : ''}`}
-                        onClick={() => setSubTab('locations')}
-                    >
-                        <MapPin size={16} />
-                        Locations
-                    </button>
-                </div>
+                <h2 className="users-roles-title">
+                    {React.createElement(SECTION_TITLES[section]?.icon || Users, { size: 20 })}
+                    {SECTION_TITLES[section]?.title || 'Users'}
+                </h2>
             </div>
 
             {loading ? (
@@ -443,10 +489,12 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                     <span className="online-dot active" />
                                     Online now ({countOnline(users, live)})
                                 </button>
-                                <button className="add-user-btn" onClick={openAddUserModal}>
-                                    <Plus size={18} />
-                                    Add User
-                                </button>
+                                {!teamMode && (
+                                    <button className="add-user-btn" onClick={openAddUserModal}>
+                                        <Plus size={18} />
+                                        Add User
+                                    </button>
+                                )}
                             </div>
 
                             <div className="users-table-wrapper">
@@ -507,14 +555,7 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                     <td data-label="Actions">
                                                         <RowMenu
                                                             label={`Actions for ${u.displayName || u.username}`}
-                                                            items={[
-                                                                { key: 'view', label: 'View details', icon: Eye, title: 'View user details', onClick: () => openEditUserModal(u) },
-                                                                { key: 'edit', label: 'Edit', icon: Edit2, title: 'Edit user profile', onClick: () => openEditUserModal(u) },
-                                                                u.isActive === false
-                                                                    ? { key: 'reactivate', label: 'Reactivate', icon: UserCheck, title: 'Let this person sign in again', onClick: () => changeUserAccess(u, 'reactivate') }
-                                                                    : { key: 'deactivate', label: 'Deactivate', icon: UserX, title: 'Stop this person signing in, keep their history', onClick: () => changeUserAccess(u, 'deactivate') },
-                                                                { key: 'delete', label: 'Delete', icon: Trash2, danger: true, divider: true, title: 'Delete user', onClick: () => handleDeleteUser(u) }
-                                                            ]}
+                                                            items={rowMenuItems(u)}
                                                         />
                                                     </td>
                                                 </tr>
@@ -616,6 +657,28 @@ const UsersRolesTab = ({ sidebarToggle, locations = [], fetchLocations }) => {
                                                     );
                                                 })}
                                             </div>
+
+                                            {editedPermissions.includes(TEAM_PERMISSION) && !editedPermissions.includes('manage_users') && (
+                                                <div className="team-roles-panel">
+                                                    <h4>People {selectedRole.displayName} can manage</h4>
+                                                    <p className="subtitle">
+                                                        They see these roles at their own locations, who is online, and can deactivate,
+                                                        reactivate and unlock them. Nobody in a role you leave unticked is reachable.
+                                                    </p>
+                                                    <div className="team-roles-list">
+                                                        {roles.filter(x => x._id !== selectedRole._id && x.name !== 'admin').map(x => (
+                                                            <label key={x._id} className="team-role-option">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={editedManageable.includes(x.name)}
+                                                                    onChange={() => setEditedManageable(prev => (prev.includes(x.name) ? prev.filter(n => n !== x.name) : [...prev, x.name]))}
+                                                                />
+                                                                {x.displayName}
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 

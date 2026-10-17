@@ -101,7 +101,13 @@ export const sendInviteEmail = async ({ to, name, username, link, invitedBy, res
   }
 };
 
-export default function createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter, jwtSecret }) {
+// `usersAccess` / `memberAllowed` (src/services/teamAccess.js) let a manager with
+// team access unlock the people in their scope; without them, unlock stays
+// with manage_users alone.
+export default function createUserOnboardingRouter({
+  authenticate, requirePermission, loginLimiter, jwtSecret,
+  usersAccess = requirePermission('manage_users'), memberAllowed = () => true
+}) {
   const router = express.Router();
 
   router.get('/admin/users/username-available', authenticate, requirePermission('manage_users'), async (req, res) => {
@@ -273,11 +279,12 @@ export default function createUserOnboardingRouter({ authenticate, requirePermis
   // Edit user → Unlock now: lifts a lock from too many wrong passwords
   // without waiting out its 15 minutes. Their password doesn't change and
   // they stay signed in wherever they already are.
-  router.post('/admin/users/:id/unlock', authenticate, requirePermission('manage_users'), async (req, res) => {
+  router.post('/admin/users/:id/unlock', authenticate, usersAccess, async (req, res) => {
     try {
       if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'User not found' });
       const user = await User.findById(req.params.id);
       if (!user) return res.status(404).json({ message: 'User not found' });
+      if (!memberAllowed(req, user)) return res.status(403).json({ message: "You can't change this person's account." });
       clearSignInLock(user);
       user.editedBy = req.user?.username || '';
       user.editedAt = new Date();

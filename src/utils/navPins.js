@@ -17,6 +17,7 @@ import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions.js';
 import { PERMITS } from '../permits/permissions.js';
 import { canCheckIn, canViewCheckInLog } from './checkInAccess.js';
 import { canViewLostSales } from './lostSaleAccess.js';
+import { canOpenUsersPage, hasFullUserAccess } from './teamAccess.js';
 
 const has = (user, perm) => !!user?.permissions?.includes(perm);
 const isAdmin = (user) => user?.role === 'admin';
@@ -66,7 +67,11 @@ export const NAV_ITEMS = [
   // Accounting (src/accounting/): the permission is the only key, as with
   // every Accounting action.
   { id: 'freight', label: '3rd-Party Freight', section: 'accounting', canSee: (u) => has(u, 'view_freight_charges') },
-  { id: 'users', label: 'Users & Roles', section: 'admin', canSee: (u) => has(u, 'manage_users') },
+  // Users & Roles is three pages (2026-10-16). Users also opens for a manager
+  // with team access (src/utils/teamAccess.js); the other two are admin-only.
+  { id: 'users', label: 'Users', section: 'admin', canSee: (u) => canOpenUsersPage(u) },
+  { id: 'roles', label: 'Roles & Permissions', section: 'admin', canSee: (u) => hasFullUserAccess(u) },
+  { id: 'locations', label: 'Locations', section: 'admin', canSee: (u) => hasFullUserAccess(u) },
   // The side nav's order for everyone (NavOrderTab.jsx); saving needs manage_users too.
   { id: 'nav_order', label: 'Side Nav Order', section: 'admin', canSee: (u) => has(u, 'manage_users') }
 ];
