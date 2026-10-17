@@ -720,36 +720,74 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                 </div>
 
                                                 <div className="perm-popup-actions">
-                                                    {pagePopup.actions.map((action, i) => {
-                                                        const ActionIcon = action.icon;
-                                                        const implied = !!action.impliedBy && editedPermissions.includes(action.impliedBy);
-                                                        const isEnabled = editedPermissions.includes(action.key) || implied;
-                                                        const locked = implied || !allow.editRole;
-                                                        // A card with sections (Check In) heads each one.
-                                                        const startsSection = action.section && action.section !== pagePopup.actions[i - 1]?.section;
-                                                        return (
-                                                            <React.Fragment key={action.key}>
-                                                            {startsSection && <div className="perm-action-section">{action.section}</div>}
-                                                            <div
-                                                                className={`perm-action-row ${isEnabled ? 'enabled' : ''}`}
-                                                                onClick={() => { if (!locked) handlePermissionToggle(action.key); }}
-                                                                title={implied ? 'Included in Full access' : undefined}
-                                                                style={locked ? { cursor: 'default', opacity: implied ? 0.65 : 1 } : undefined}
-                                                            >
-                                                                <div className="perm-action-icon" style={{ color: isEnabled ? pagePopup.color : undefined }}>
-                                                                    <ActionIcon size={18} />
-                                                                </div>
-                                                                <div className="perm-action-text">
-                                                                    <span className="perm-action-label">{action.label}</span>
-                                                                    <span className="perm-action-desc">{action.desc}</span>
-                                                                </div>
-                                                                <div className={`perm-toggle ${isEnabled ? 'on' : 'off'}`} style={isEnabled ? { background: pagePopup.color } : {}}>
-                                                                    <div className="perm-toggle-knob" />
-                                                                </div>
-                                                            </div>
-                                                            </React.Fragment>
-                                                        );
-                                                    })}
+                                                    {(() => {
+                                                        // Group the card's switches by section heading. A switch implied by
+                                                        // another that is on (Full access) isn't listed: one note instead.
+                                                        const groups = [];
+                                                        for (const action of pagePopup.actions) {
+                                                            const last = groups[groups.length - 1];
+                                                            if (last && last.section === action.section) last.actions.push(action);
+                                                            else groups.push({ section: action.section, actions: [action] });
+                                                        }
+                                                        const fullOn = pagePopup.actions.some(x => x.impliedBy && editedPermissions.includes(x.impliedBy));
+                                                        return groups.map(group => {
+                                                            const listed = group.actions.filter(x => !(x.impliedBy && fullOn));
+                                                            if (listed.length === 0) return null;
+                                                            const onCount = listed.filter(x => editedPermissions.includes(x.key)).length;
+                                                            const setAll = (on) => setEditedPermissions(prev => {
+                                                                const keys = listed.map(x => x.key);
+                                                                return on ? [...new Set([...prev, ...keys])] : prev.filter(k => !keys.includes(k));
+                                                            });
+                                                            return (
+                                                                <React.Fragment key={group.section || 'main'}>
+                                                                    {group.section && (
+                                                                        <div className="perm-action-section">
+                                                                            <span>{group.section}</span>
+                                                                            {listed.length > 1 && (
+                                                                                <span className="perm-section-tools">
+                                                                                    {onCount} of {listed.length} on
+                                                                                    {allow.editRole && (
+                                                                                        <button type="button" onClick={() => setAll(onCount !== listed.length)}>
+                                                                                            {onCount === listed.length ? 'Turn all off' : 'Turn all on'}
+                                                                                        </button>
+                                                                                    )}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                    {listed.map(action => {
+                                                                        const ActionIcon = action.icon;
+                                                                        const isEnabled = editedPermissions.includes(action.key);
+                                                                        const locked = !allow.editRole;
+                                                                        return (
+                                                                            <div
+                                                                                key={action.key}
+                                                                                className={`perm-action-row ${isEnabled ? 'enabled' : ''}`}
+                                                                                onClick={() => { if (!locked) handlePermissionToggle(action.key); }}
+                                                                                style={locked ? { cursor: 'default' } : undefined}
+                                                                            >
+                                                                                <div className="perm-action-icon" style={{ color: isEnabled ? pagePopup.color : undefined }}>
+                                                                                    <ActionIcon size={18} />
+                                                                                </div>
+                                                                                <div className="perm-action-text">
+                                                                                    <span className="perm-action-label">{action.label}</span>
+                                                                                    <span className="perm-action-desc">{action.desc}</span>
+                                                                                </div>
+                                                                                <div className={`perm-toggle ${isEnabled ? 'on' : 'off'}`} style={isEnabled ? { background: pagePopup.color } : {}}>
+                                                                                    <div className="perm-toggle-knob" />
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                    {group.section === 'Everything' && fullOn && (
+                                                                        <div className="perm-full-note">
+                                                                            Full access includes every Users, Roles & Permissions, Locations and Side nav action, now and any added later. Turn it off to pick actions one by one.
+                                                                        </div>
+                                                                    )}
+                                                                </React.Fragment>
+                                                            );
+                                                        });
+                                                    })()}
                                                 </div>
 
                                                 <div className="perm-popup-footer">

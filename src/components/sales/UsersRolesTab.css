@@ -1147,7 +1147,7 @@ body.light-theme-active .online-status.idle,
     .perm-popup-card {
         width: 95% !important;
         max-width: 95% !important;
-        max-height: 90vh !important;
+        max-height: 88vh !important;
         border-radius: 16px;
     }
 
@@ -1314,6 +1314,10 @@ body.light-theme-active .online-status.idle,
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
     overflow: hidden;
     animation: slideUp 0.2s ease;
+    /* Header and Done stay put; only the list of switches scrolls. */
+    display: flex;
+    flex-direction: column;
+    max-height: 88vh;
 }
 
 @keyframes slideUp {
@@ -1370,11 +1374,26 @@ body.light-theme-active .online-status.idle,
 }
 
 .perm-popup-actions {
-    padding: 0.75rem 0;
+    padding: 0.5rem 0 0.75rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
 }
+.perm-popup-actions::-webkit-scrollbar { display: none; }
+.perm-popup-header, .perm-popup-footer { flex: 0 0 auto; }
 
-/* A section heading inside a card with sections (Check In). */
+/* A section heading inside a card with sections (Check In, Users & Roles). */
 .perm-action-section {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: #1c1c1e;
     padding: 0.9rem 1.5rem 0.35rem;
     font-size: 0.7rem;
     font-weight: 700;
@@ -1386,6 +1405,37 @@ body.light-theme-active .online-status.idle,
 .perm-action-section:first-child {
     padding-top: 0.25rem;
 }
+.perm-section-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: #64748b;
+}
+.perm-section-tools button {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    color: #93c5fd;
+    cursor: pointer;
+}
+.perm-full-note {
+    margin: 0.5rem 1.5rem 0.25rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: #94a3b8;
+}
+body.light-theme-active .perm-action-section,
+.light-theme-active .perm-action-section { background: #fff; }
+body.light-theme-active .perm-full-note,
+.light-theme-active .perm-full-note { background: #f1f5f9; color: #475569; }
 
 .perm-action-row {
     display: flex;
