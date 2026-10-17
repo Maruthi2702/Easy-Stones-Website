@@ -1,0 +1,25 @@
+/* Connect existing customers to SPS — colours come from FormModal's --fm-* tokens. */
+.spsc { display: grid; gap: 14px; color: var(--fm-tx); }
+.spsc-muted { color: var(--fm-mut); font-size: 13px; }
+.spsc-banner { border-radius: 10px; padding: 10px 12px; font-size: 13px; display: flex; gap: 8px; align-items: flex-start; background: var(--fm-gold-soft); }
+.spsc-banner.bad { background: var(--fm-err-bg); color: var(--fm-err); }
+.spsc-banner.ok { background: var(--fm-gold-soft); }
+.spsc-drop { display: grid; gap: 4px; justify-items: center; padding: 22px; border: 2px dashed var(--fm-bd); border-radius: 12px; background: transparent; color: var(--fm-mut); cursor: pointer; font: inherit; }
+.spsc-drop b { color: var(--fm-tx); }
+.spsc-drop:hover { border-color: var(--fm-gold); }
+.spsc-tally { display: grid; gap: 8px; }
+.spsc-eq { font-size: 13px; color: var(--fm-mut); }
+.spsc-eq b { color: var(--fm-tx); font-variant-numeric: tabular-nums; }
+.spsc-bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--fm-bd2); }
+.spsc-bar span { display: block; height: 100%; }
+.spsc-bar .s-connected { background: var(--fm-ok); }
+.spsc-bar .s-notin { background: var(--fm-bd); }
+.spsc-bar .s-auto { background: var(--fm-gold); }
+.spsc-bar .s-check { background: #f59e0b; }
+.spsc-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+.spsc-review { display: grid; gap: 12px; }
+.spsc-card { border: 1px solid var(--fm-bd2); border-radius: 10px; padding: 10px 12px; margin: 0; display: grid; gap: 6px; min-width: 0; }
+.spsc-card legend { padding: 0 6px; font-size: 14px; }
+.spsc-opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--fm-bd2); border-radius: 9px; padding: 8px 10px; cursor: pointer; font-size: 13px; }
+.spsc-opt.on { border-color: var(--fm-gold); background: var(--fm-gold-soft); }
+.spsc-opt input { margin-top: 3px; accent-color: var(--fm-gold); }

@@ -115,6 +115,7 @@ import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
 import { checkSheet, spsCoverage } from './src/utils/spsSheet.js';
+import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.js';
 import createCustomerBulkDeleteRouter, { backupAndDeleteCustomer } from './src/routes/customerBulkDelete.js';
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
@@ -4166,6 +4167,12 @@ app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticat
 // Bulk Delete from the customer list's selection bar, with Undo — every
 // customer saved whole first (src/routes/customerBulkDelete.js).
 app.use('/api/customers', createCustomerBulkDeleteRouter({ authenticate }));
+app.use('/api/customers', createCustomerSpsConnectRouter({
+  authenticate,
+  uploadMemory,
+  readSheet: (buffer) => runWorkbookParse('customer', buffer),
+  resolveMapping: resolveImportMapping
+}));
 
 // Bulk "Assign rep" / "Set status" from the customer list's selection bar.
 // Only these two fields, so a selection can't be used to rewrite anything else.
