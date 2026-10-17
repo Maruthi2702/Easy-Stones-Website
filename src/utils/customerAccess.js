@@ -99,7 +99,9 @@ export const canExportCustomers = withView(P.EXPORT);
 export const canAddCustomer = withView(P.ADD);
 export const canImportCustomers = withView(P.IMPORT);
 export const canEditCustomers = withView(P.EDIT);
-export const canDeleteCustomers = (user) => canEditCustomers(user) || withView(P.DELETE)(user);
+// Delete is its own switch: Edit no longer implies it (2026-10-17 — a manager
+// with Edit and Delete off was offered Delete customer…).
+export const canDeleteCustomers = withView(P.DELETE);
 
 /**
  * What a customer's basic card holds, for someone without Full profile: who
