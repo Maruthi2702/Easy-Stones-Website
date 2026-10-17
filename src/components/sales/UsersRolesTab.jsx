@@ -19,6 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { TEAM_PERMISSION, hasTeamUserAccess } from '../../utils/teamAccess';
 import { USERS, ROLES, LOCATIONS, can, canOpenArea, canReadRoles } from '../../utils/usersAccess';
 import { presenceById, onlineStatusOf, countOnline } from '../../utils/userPresence';
+import { withCustomerViewRule } from '../../utils/customerAccess';
 import RowMenu from '../shared/RowMenu';
 import FormModal from '../shared/form/FormModal';
 import { FormSection } from '../shared/form/FormControls';
@@ -251,14 +252,14 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
     };
 
     // Toggle permission checkbox
+    // Every change on the card goes through the Customers View rule: the other
+    // customer switches need View (src/utils/customerAccess.js).
+    const changePermissions = (change) => setEditedPermissions(prev => withCustomerViewRule(prev, change(prev)));
+
     const handlePermissionToggle = (permissionKey) => {
-        setEditedPermissions(prev => {
-            if (prev.includes(permissionKey)) {
-                return prev.filter(p => p !== permissionKey);
-            } else {
-                return [...prev, permissionKey];
-            }
-        });
+        changePermissions(prev => (prev.includes(permissionKey)
+            ? prev.filter(p => p !== permissionKey)
+            : [...prev, permissionKey]));
     };
 
     // Save updated permissions for a role
@@ -725,7 +726,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                     const listed = group.actions.filter(x => !(x.impliedBy && fullOn));
                                                     if (listed.length === 0) return null;
                                                     const onCount = listed.filter(x => editedPermissions.includes(x.key)).length;
-                                                    const setAll = (on) => setEditedPermissions(prev => {
+                                                    const setAll = (on) => changePermissions(prev => {
                                                         const keys = listed.map(x => x.key);
                                                         return on ? [...new Set([...prev, ...keys])] : prev.filter(k => !keys.includes(k));
                                                     });

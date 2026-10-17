@@ -4245,7 +4245,7 @@ app.post(['/api/customers/possible-duplicates', '/api/partners/possible-duplicat
 // old addresses of the two creates this replaced, kept until cached apps have
 // updated. The fields allowed and their defaults are in customerRecord.js;
 // the rep's name and the map point are derived here, never taken from the body.
-app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authenticate, requirePermission('add_customers'), async (req, res) => {
+app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authenticate, requirePermission('view_customers', 'add_customers'), async (req, res) => {
   try {
     const { fields, error } = newCustomerFields(req.body);
     if (error) return res.status(400).json({ message: error });
@@ -5555,7 +5555,7 @@ app.post(['/api/customers/duplicates/undo', '/api/admin/customers/duplicates/und
 });
 
 // Preview an import: parse, match, and report what would happen. Writes nothing.
-app.post(['/api/customers/import/preview', '/api/admin/customers/import/preview'], verifyToken, requirePermission('manage_customers'), uploadMemory.single('file'), async (req, res) => {
+app.post(['/api/customers/import/preview', '/api/admin/customers/import/preview'], verifyToken, requirePermission('view_customers', 'import_customers'), uploadMemory.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
@@ -5584,7 +5584,7 @@ app.post(['/api/customers/import/preview', '/api/admin/customers/import/preview'
 // Forget every remembered rep mapping, branch mapping and review decision —
 // the way back from one that turned out wrong, since a remembered answer
 // stops being asked about and so has no dropdown left to change it in.
-app.delete(['/api/customers/import/memory', '/api/admin/customers/import/memory'], verifyToken, requirePermission('manage_customers'), async (req, res) => {
+app.delete(['/api/customers/import/memory', '/api/admin/customers/import/memory'], verifyToken, requirePermission('view_customers', 'import_customers'), async (req, res) => {
   try {
     await ImportMemory.deleteOne({ kind: 'customer' });
     res.json({ success: true });
@@ -5599,9 +5599,10 @@ const IMPORT_WRITE_BATCH = 500;
 
 /**
  * Carry out an import. Rows flagged for review are never written — that is the
- * whole point of flagging them.
+ * whole point of flagging them. The Import switch covers both the new rows and
+ * the updates to matched ones (owner's call, 2026-10-17); Edit isn't needed.
  */
-app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], verifyToken, requirePermission('manage_customers'), uploadMemory.single('file'), async (req, res) => {
+app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], verifyToken, requirePermission('view_customers', 'import_customers'), uploadMemory.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 

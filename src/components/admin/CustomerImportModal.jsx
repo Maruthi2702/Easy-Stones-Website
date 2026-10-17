@@ -79,7 +79,9 @@ const describeFailure = async (res) => {
     return `HTTP ${res.status} — ${(body || '').trim().slice(0, 200) || res.statusText || 'no response body'}`;
 };
 
-const CustomerImportModal = ({ show, onClose, onImported }) => {
+// canResolveDuplicates: the "already in the database" duplicates section
+// merges and deletes records, so it needs Edit (manage_customers), not just Import.
+const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates = false }) => {
     const [file, setFile] = useState(null);
     const [plan, setPlan] = useState(null);
     const [mapping, setMapping] = useState({});
@@ -654,7 +656,7 @@ const CustomerImportModal = ({ show, onClose, onImported }) => {
                         </div>
                     )}
 
-                    {plan?.dbDuplicates?.length > 0 && (
+                    {canResolveDuplicates && plan?.dbDuplicates?.length > 0 && (
                         <section className="import-section import-section-warn">
                             <h3><AlertTriangle size={16} /> Possible duplicates already in the database</h3>
                             <p className="import-hint">

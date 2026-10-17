@@ -16,7 +16,8 @@
  *     export_customers       → the Export to Excel button. Same: Admin only for now.
  *   Add customers
  *     add_customers          → add one customer
- *     import_customers       → import new customers from Excel (add only)
+ *     import_customers       → import customers from Excel: adds new ones and
+ *                              updates the ones it matches
  *   Change customers
  *     manage_customers       → edit customers (kept its old name: it is stored
  *                              on every role)
@@ -26,6 +27,12 @@
  * gives add_customers and import_customers once to every role holding it, so
  * nobody loses anything the day they split. The profile and export switches
  * are not migrated: they start with Admin alone (CUSTOMER_ADMIN_GRANTS).
+ *
+ * Every other switch needs View (owner's call, 2026-10-17): Add and Import
+ * live on the Customers page, which View opens, so without it they had nowhere
+ * to be used. The card keeps them together (withCustomerViewRule) and every
+ * can… below checks View too, so a role saved before the rule can't use a
+ * switch it has no page for.
  *
  * The server and the screens call the same functions, so what a button offers
  * and what the API accepts can't drift apart.
@@ -65,13 +72,34 @@ export const CUSTOMER_ADMIN_GRANTS = Object.freeze([P.PROFILE, P.EXPORT, P.ADD, 
 const permsOf = (user) => (Array.isArray(user?.permissions) ? user.permissions : []);
 const has = (user, key) => permsOf(user).includes(key);
 
+/** The switches that need View on. */
+export const CUSTOMER_NEEDS_VIEW = Object.freeze(ALL_CUSTOMER_PERMISSIONS.filter((key) => key !== P.VIEW));
+
+/**
+ * A role's permissions after a change on the card, with the View rule kept:
+ * View turned off takes every other customer switch with it; any other one on
+ * without View turns View on. `before` and `after` are permission lists. A
+ * change on another card leaves the customer switches as they are, even on a
+ * role saved before the rule.
+ */
+export const withCustomerViewRule = (before, after) => {
+  const changed = ALL_CUSTOMER_PERMISSIONS.some((key) => before.includes(key) !== after.includes(key));
+  if (!changed) return after;
+  const wasOn = before.includes(P.VIEW);
+  const isOn = after.includes(P.VIEW);
+  if (wasOn && !isOn) return after.filter((key) => !CUSTOMER_NEEDS_VIEW.includes(key));
+  if (!isOn && after.some((key) => CUSTOMER_NEEDS_VIEW.includes(key))) return [...after, P.VIEW];
+  return after;
+};
+
 export const canViewCustomers = (user) => has(user, P.VIEW);
-export const canViewCustomerProfile = (user) => has(user, P.PROFILE);
-export const canExportCustomers = (user) => has(user, P.EXPORT);
-export const canAddCustomer = (user) => has(user, P.ADD);
-export const canImportCustomers = (user) => has(user, P.IMPORT);
-export const canEditCustomers = (user) => has(user, P.EDIT);
-export const canDeleteCustomers = (user) => canEditCustomers(user) || has(user, P.DELETE);
+const withView = (key) => (user) => canViewCustomers(user) && has(user, key);
+export const canViewCustomerProfile = withView(P.PROFILE);
+export const canExportCustomers = withView(P.EXPORT);
+export const canAddCustomer = withView(P.ADD);
+export const canImportCustomers = withView(P.IMPORT);
+export const canEditCustomers = withView(P.EDIT);
+export const canDeleteCustomers = (user) => canEditCustomers(user) || withView(P.DELETE)(user);
 
 /**
  * What a customer's basic card holds, for someone without Full profile: who

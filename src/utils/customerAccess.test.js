@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   CUSTOMER_PERMISSIONS as P, CUSTOMER_SECTIONS, ALL_CUSTOMER_PERMISSIONS, CUSTOMER_MIGRATION, CUSTOMER_ADMIN_GRANTS,
   canViewCustomers, canViewCustomerProfile, canExportCustomers, canAddCustomer, canImportCustomers,
-  canEditCustomers, canDeleteCustomers, BASIC_CUSTOMER_FIELDS, BASIC_CUSTOMER_PROJECTION, basicCustomer
+  canEditCustomers, canDeleteCustomers, BASIC_CUSTOMER_FIELDS, BASIC_CUSTOMER_PROJECTION, basicCustomer,
+  CUSTOMER_NEEDS_VIEW, withCustomerViewRule
 } from './customerAccess.js';
 import { PAGE_PERMISSIONS } from '../components/sales/users/pagePermissions.js';
 
@@ -61,8 +62,41 @@ describe('who may do what', () => {
   });
 
   it('keeps delete working for roles that only had Edit, as before', () => {
-    expect(canDeleteCustomers(as(P.EDIT))).toBe(true);
-    expect(canDeleteCustomers(as(P.DELETE))).toBe(true);
+    expect(canDeleteCustomers(as(P.VIEW, P.EDIT))).toBe(true);
+    expect(canDeleteCustomers(as(P.VIEW, P.DELETE))).toBe(true);
+  });
+
+  it('gives no other switch anything without View (a role saved before the rule)', () => {
+    const noView = as(...CUSTOMER_NEEDS_VIEW);
+    for (const can of [canViewCustomerProfile, canExportCustomers, canAddCustomer, canImportCustomers, canEditCustomers, canDeleteCustomers]) {
+      expect(can(noView), can.name).toBe(false);
+    }
+  });
+});
+
+describe('the card keeps the other switches with View', () => {
+  const on = (before, key) => withCustomerViewRule(before, [...before, key]);
+  const off = (before, key) => withCustomerViewRule(before, before.filter((k) => k !== key));
+
+  it('turns View on with any other switch', () => {
+    for (const key of CUSTOMER_NEEDS_VIEW) expect(on(['view_dashboard'], key).sort()).toEqual(['view_dashboard', key, P.VIEW].sort());
+  });
+
+  it('takes every other switch off with View, and leaves other cards alone', () => {
+    expect(off(['view_dashboard', ...ALL_CUSTOMER_PERMISSIONS], P.VIEW)).toEqual(['view_dashboard']);
+  });
+
+  it('leaves View on when another switch goes off', () => {
+    expect(off([P.VIEW, P.ADD, P.IMPORT], P.ADD)).toEqual([P.VIEW, P.IMPORT]);
+  });
+
+  it('works for a section turned on or off at once', () => {
+    expect(withCustomerViewRule([], [P.ADD, P.IMPORT]).sort()).toEqual([P.ADD, P.IMPORT, P.VIEW].sort());
+    expect(withCustomerViewRule([P.VIEW, P.PROFILE, P.EXPORT, P.ADD], [P.ADD])).toEqual([]);
+  });
+
+  it('changes nothing for a card other than Customers', () => {
+    expect(withCustomerViewRule([P.ADD], [P.ADD, 'view_dashboard'])).toEqual([P.ADD, 'view_dashboard']);
   });
 });
 

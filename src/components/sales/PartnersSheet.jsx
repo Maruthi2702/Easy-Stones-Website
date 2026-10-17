@@ -8,7 +8,7 @@ import Pagination from '../shared/Pagination';
 import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import AddCustomerModal from './AddCustomerModal';
 import CustomerImportModal from '../admin/CustomerImportModal';
-import { canAddCustomer, canEditCustomers, canDeleteCustomers, canViewCustomerProfile, canExportCustomers } from '../../utils/customerAccess';
+import { canAddCustomer, canImportCustomers, canEditCustomers, canDeleteCustomers, canViewCustomerProfile, canExportCustomers } from '../../utils/customerAccess';
 import { useAuth } from '../../context/AuthContext';
 import { toSalesRepList } from '../../utils/salesReps';
 import { API_URL } from '../../config/api';
@@ -117,6 +117,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
 
     const canEdit = canEditCustomers(user);
     const canAdd = canAddCustomer(user);
+    const canImport = canImportCustomers(user);
     // Full profile and Export are their own switches (customerAccess.js); the
     // server enforces both, this only decides what the screen offers.
     const canProfile = canViewCustomerProfile(user);
@@ -750,7 +751,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                         ? <button type="button" className="cl-ib" style={{ width: 26, height: 26 }} onClick={() => setSearchTerm('')} aria-label="Clear search"><X size={14} /></button>
                         : <kbd className="cl-kbd cl-hide-narrow">/</kbd>}
                 </label>
-                {(canExport || canEdit) && (
+                {(canExport || canImport) && (
                     <div className="cl-rowmenu" ref={moreRef}>
                         <button type="button" className="cl-ib box" aria-label="More actions" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(o => !o)}>
                             <MoreHorizontal size={18} />
@@ -763,7 +764,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                                         <button type="button" role="menuitem" className="cl-opt" onClick={emailAllContacts}><Mail size={16} aria-hidden="true" />Copy marketing emails</button>
                                     </>
                                 )}
-                                {canEdit && (
+                                {canImport && (
                                     <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); setShowImportModal(true); }}><Upload size={16} aria-hidden="true" />Import from Excel</button>
                                 )}
                             </div>
@@ -964,6 +965,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                 show={showImportModal}
                 onClose={() => setShowImportModal(false)}
                 onImported={refreshAll}
+                canResolveDuplicates={canEdit}
             />
         </div>
     );
