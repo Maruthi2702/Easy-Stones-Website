@@ -125,6 +125,18 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
       Group filter, and the group panel on a customer are not built. The
       import (step 5) is built without them: it shows no "possible groups"
       note and no new store joins a group. When groups ship, add both.
+- [ ] **The new import (build step 5) is on `feat/sps-connect`, not on
+      `main`, and hasn't run on real data.** Rehearse it read-only on live data
+      first (plan only, nothing started) and check the tally and the "Deleted
+      before" list; the old "Import from Excel" stays until step 6.
+- [ ] **New import, not built yet:** the Customer List's "Import: …" filter and
+      "New from SPS" badge, and the "See the new customers" button on the
+      results (the server answers `GET …/sps-import/runs/:id/customers`; the
+      list doesn't read it yet). A customer **merged** into another is not
+      recognised as "already handled" (the artifact's Deleted-before example):
+      merge records aren't read, so a merged-away SPS name shows as New or
+      Need a decision. Branch is still "SPS wins" and a blank SPS rep keeps
+      ours (the artifact's defaults 1 and 2, never answered by the owner).
 - [ ] **Step 3 hasn't been run on real data.** Do a dry run with the real SPS
       file and check the report before it goes to `main`; the new import
       (step 5) needs customers connected first.

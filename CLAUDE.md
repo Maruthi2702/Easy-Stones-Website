@@ -304,6 +304,31 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   Admin-only permissions to start (`view_permits`, `export_permits`,
   `refresh_permits`).
 
+## SPS customer import: one identity, one plan (2026-10-17, on `feat/sps-connect`)
+
+The plan is the claude.ai artifact **SPS Import Redesign**
+(https://claude.ai/artifact/BcFNBYMJE9fQz6bxjmMCte); what's built and what
+isn't is in KNOWN_ISSUES.md. A customer is an SPS customer by `sps.key` (its SPS
+Name, trimmed and lowercased, inner spaces kept — `spsKey` in
+`src/utils/spsSheet.js`), and the partial unique index refuses a name held
+twice; never write it from a request body (`PROTECTED_CUSTOMER_FIELDS`).
+**Connect existing customers** (Customers ⋯ → Connect customers to SPS,
+`src/utils/spsConnect.js`, `src/routes/customerSpsConnect.js`) gives today's
+customers their key: exact names unasked, the rest by a person. The **new
+import** (Customers ⋯ → Import from SPS, `SpsImportModal.jsx`) is five steps
+over saved runs (`SpsImportRun` / `SpsImportItem`): the planner
+`src/utils/spsImportPlan.js` gives every SPS name exactly one outcome (held
+key → update; exact name → connect; deleted before → asked, never silent;
+look-alike → "Need a decision" with Add as new pre-set; else new), the plan is
+**frozen into items** at Start and written in batches by
+`src/services/spsImportRunner.js` (an upsert on the key, so a retry or a
+restart never doubles; resumed at server start), then the checker looks every
+name up and the run is green only with none missing. Undo needs Delete; an
+undo's deletions are saved with source `sps-undo` so the next import doesn't
+ask about them. What an import may change: SPS sets the rep (a blank one keeps
+ours) and the branch, everything else only fills blanks. The old "Import from
+Excel" stays until the new one has had a green real import.
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,
