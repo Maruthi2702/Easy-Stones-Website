@@ -46,7 +46,8 @@ const CLEAN = {
     unitOverheadPct: (v) => v.replace(/[^\d.]/g, '')
 };
 
-export default function LocationForm({ location = null, locations = [], users = [], onClose, onSaved, onDelete }) {
+// readOnly: someone who may view locations but not edit them (Users & Roles → Locations).
+export default function LocationForm({ location = null, locations = [], users = [], onClose, onSaved, onDelete, readOnly = false }) {
     const isEdit = Boolean(location);
     const initial = useMemo(() => (isEdit ? locationToFormValues(location) : emptyLocationValues()), [isEdit, location]);
     const [values, setValues] = useState(initial);
@@ -232,7 +233,7 @@ export default function LocationForm({ location = null, locations = [], users = 
             submitLabel={isEdit ? 'Save changes' : 'Add location'}
             savingLabel="Saving…"
             saving={saving}
-            submitDisabled={isEdit && dirtyCount === 0}
+            submitDisabled={readOnly || (isEdit && dirtyCount === 0)}
             dirtyCount={dirtyCount}
             discardTitle={isEdit ? 'Discard your changes?' : 'Discard this location?'}
             errors={visibleErrors}
@@ -241,8 +242,9 @@ export default function LocationForm({ location = null, locations = [], users = 
             footerStart={footerStart}
             footerNote={formError
                 ? <span className="fm-error" role="alert"><AlertCircle size={13} aria-hidden="true" />{formError}</span>
-                : (isEdit ? lastChangedText(location) : null)}
+                : (readOnly ? 'View only — you can’t change this location.' : (isEdit ? lastChangedText(location) : null))}
         >
+          <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             <FormSection number={1} title="Which location is it?">
                 <FormRow>
                     {text('fullName', { required: true, placeholder: 'Easy Stones - Portland' })}
@@ -373,6 +375,7 @@ export default function LocationForm({ location = null, locations = [], users = 
                     </ul>
                 )}
             </FormSection>
+          </fieldset>
         </FormModal>
     );
 }

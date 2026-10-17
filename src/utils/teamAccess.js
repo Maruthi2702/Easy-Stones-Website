@@ -2,7 +2,8 @@
  * Team access (2026-10-16): a manager or director sees the people at their
  * own locations on the Users page, with who is online, and can deactivate,
  * reactivate or unlock them — nothing else. Add, edit, delete, passwords and
- * Roles & Permissions stay with `manage_users` (the admin).
+ * Roles & Permissions stay with the roles given those actions
+ * (src/utils/usersAccess.js).
  *
  * Two things decide who a team member can act on, both set by an admin:
  *   - the role's **manageableRoles** (Roles & Permissions → the role's "People
@@ -16,19 +17,18 @@
  * so what a button offers is what the server accepts.
  */
 
+import { canOpenArea } from './usersAccess.js';
+
 export const TEAM_PERMISSION = 'manage_team_users';
 
 const has = (user, perm) => !!user?.permissions?.includes(perm);
 const roleKey = (role) => String(role || '').trim().toLowerCase();
 
-/** Admin-level: every user, every action (the existing `manage_users`). */
-export const hasFullUserAccess = (user) => has(user, 'manage_users');
-
-/** Team access only — the narrower view. Full access wins when someone has both. */
-export const hasTeamUserAccess = (user) => has(user, TEAM_PERMISSION) && !hasFullUserAccess(user);
+/** Team access only — the narrower view. Any Users action of their own wins over it. */
+export const hasTeamUserAccess = (user) => has(user, TEAM_PERMISSION) && !canOpenArea(user, 'users');
 
 /** Opens the Users page. */
-export const canOpenUsersPage = (user) => hasFullUserAccess(user) || has(user, TEAM_PERMISSION);
+export const canOpenUsersPage = (user) => canOpenArea(user, 'users') || has(user, TEAM_PERMISSION);
 
 /** True when every location of `target` is one of `manager`'s. */
 export const locationsWithin = (managerLocations, targetLocations) => {

@@ -34,7 +34,7 @@ beforeAll(async () => {
   const { usersAccess, memberAllowed, teamUsers } = createTeamAccess({ Role, User });
   app = express();
   app.use(express.json());
-  app.get('/api/list', authenticate, usersAccess, async (req, res) => res.json(req.teamScope ? await teamUsers(req) : await User.find()));
+  app.get('/api/list', authenticate, usersAccess('view'), async (req, res) => res.json(req.teamScope ? await teamUsers(req) : await User.find()));
   app.use('/api', createUserOnboardingRouter({
     authenticate, requirePermission, loginLimiter: (q, r, n) => n(), jwtSecret: 's', usersAccess, memberAllowed
   }));
@@ -98,5 +98,26 @@ describe('unlocking', () => {
   });
   it('still works for an admin on anyone', async () => {
     await request(app).post(`/api/admin/users/${spokaneRep._id}/unlock`).set(as(adminActor)).expect(200);
+  });
+});
+
+describe('single actions (no master key)', () => {
+  it('unlock_users alone unlocks anyone, and can see the list', async () => {
+    const actor = { id: 'z', role: 'hr', permissions: ['unlock_users'], assignedLocations: ['Seattle'] };
+    await request(app).post(`/api/admin/users/${spokaneRep._id}/unlock`).set(as(actor)).expect(200);
+    const res = await request(app).get('/api/list').set(as(actor)).expect(200);
+    expect(res.body).toHaveLength(4);
+  });
+  it('another users action cannot unlock', async () => {
+    const actor = { id: 'z', role: 'hr', permissions: ['add_users'], assignedLocations: ['Seattle'] };
+    await request(app).post(`/api/admin/users/${rep._id}/unlock`).set(as(actor)).expect(403);
+  });
+  it('team access cannot reach an action outside view, deactivate and unlock', async () => {
+    const { usersAccess } = createTeamAccess({ Role, User });
+    const res = { status(c) { this.code = c; return this; }, json() { return this; } };
+    let passed = false;
+    await usersAccess('delete_users')({ user: teamActor }, res, () => { passed = true; });
+    expect(passed).toBe(false);
+    expect(res.code).toBe(403);
   });
 });

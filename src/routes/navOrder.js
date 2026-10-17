@@ -5,8 +5,8 @@ import { sanitizeNavOrder, isDefaultNavOrder } from '../utils/navPins.js';
 /**
  * The side nav's order, set by an admin for everyone (src/utils/navPins.js):
  * which section comes first on the rail, and the order of the pages inside
- * each. Everyone signed in reads it; saving needs manage_users, the same
- * people who run Users & Roles. Each person's pins still come first for
+ * each. Everyone signed in reads it; saving needs the `edit_nav_order` action
+ * (Users & Roles card; the master key manage_users holds it). Each person's pins still come first for
  * them on Home — this only orders the sections and their pages.
  *
  *   GET /api/nav-order   → { order }  (null = the default order)
@@ -17,7 +17,7 @@ import { sanitizeNavOrder, isDefaultNavOrder } from '../utils/navPins.js';
  */
 const KEY = 'navOrder';
 
-export default function createNavOrderRouter({ authenticate, requirePermission }) {
+export default function createNavOrderRouter({ authenticate, requirePermission, requireAction = () => requirePermission('manage_users') }) {
   const router = express.Router();
 
   router.get('/', authenticate, async (req, res) => {
@@ -30,7 +30,7 @@ export default function createNavOrderRouter({ authenticate, requirePermission }
     }
   });
 
-  router.put('/', authenticate, requirePermission('manage_users'), async (req, res) => {
+  router.put('/', authenticate, requireAction('edit_nav_order'), async (req, res) => {
     try {
       const requested = req.body?.order;
       const order = requested === null ? null : sanitizeNavOrder(requested);

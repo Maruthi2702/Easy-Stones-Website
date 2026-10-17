@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
-  TEAM_PERMISSION, hasFullUserAccess, hasTeamUserAccess, canOpenUsersPage,
+  TEAM_PERMISSION, hasTeamUserAccess, canOpenUsersPage,
   locationsWithin, canManageMember, cleanManageableRoles
 } from './teamAccess.js';
 
 describe('page access', () => {
   const team = { permissions: [TEAM_PERMISSION] };
   const admin = { permissions: ['manage_users'] };
-  it('full access wins over team access', () => {
-    expect(hasFullUserAccess(admin)).toBe(true);
+  it('their own Users action wins over team access', () => {
     expect(hasTeamUserAccess(admin)).toBe(false);
+    expect(hasTeamUserAccess({ permissions: [TEAM_PERMISSION, 'unlock_users'] })).toBe(false);
     expect(hasTeamUserAccess({ permissions: ['manage_users', TEAM_PERMISSION] })).toBe(false);
     expect(hasTeamUserAccess(team)).toBe(true);
   });

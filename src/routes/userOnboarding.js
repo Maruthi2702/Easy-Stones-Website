@@ -106,11 +106,11 @@ export const sendInviteEmail = async ({ to, name, username, link, invitedBy, res
 // with manage_users alone.
 export default function createUserOnboardingRouter({
   authenticate, requirePermission, loginLimiter, jwtSecret,
-  usersAccess = requirePermission('manage_users'), memberAllowed = () => true
+  usersAccess = () => requirePermission('manage_users'), memberAllowed = () => true
 }) {
   const router = express.Router();
 
-  router.get('/admin/users/username-available', authenticate, requirePermission('manage_users'), async (req, res) => {
+  router.get('/admin/users/username-available', authenticate, usersAccess('view'), async (req, res) => {
     const username = String(req.query.username || '').trim().toLowerCase();
     const problem = usernameProblem(username);
     if (problem) return res.json({ available: false, reason: problem });
@@ -279,7 +279,7 @@ export default function createUserOnboardingRouter({
   // Edit user → Unlock now: lifts a lock from too many wrong passwords
   // without waiting out its 15 minutes. Their password doesn't change and
   // they stay signed in wherever they already are.
-  router.post('/admin/users/:id/unlock', authenticate, usersAccess, async (req, res) => {
+  router.post('/admin/users/:id/unlock', authenticate, usersAccess('unlock_users'), async (req, res) => {
     try {
       if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'User not found' });
       const user = await User.findById(req.params.id);

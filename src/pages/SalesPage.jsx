@@ -29,7 +29,8 @@ import CustomerSidebar from '../components/sales/CustomerSidebar';
 import usePinnedTabs from '../components/sales/usePinnedTabs';
 import useNavOrder from '../components/sales/useNavOrder';
 import { pinnedDefaultTab } from '../utils/navPins';
-import { canOpenUsersPage, hasFullUserAccess } from '../utils/teamAccess';
+import { canOpenUsersPage } from '../utils/teamAccess';
+import { canOpenArea, can, NAV_ORDER } from '../utils/usersAccess';
 import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import VisitModal from '../components/sales/VisitModal';
@@ -1688,7 +1689,7 @@ const SalesPage = () => {
 
             if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist', 'users', 'roles', 'locations', 'profile'].includes(tabParam)) {
                 // Only switch to the tab if the user has permission for it
-                if (!tabPermMap[tabParam] || (tabParam === 'users' ? canOpenUsersPage(currentUser) : perms.includes(tabPermMap[tabParam]))) {
+                if (!tabPermMap[tabParam] || (tabParam === 'users' ? canOpenUsersPage(currentUser) : ['roles', 'locations'].includes(tabParam) ? canOpenArea(currentUser, tabParam) : perms.includes(tabPermMap[tabParam]))) {
                     setCrmTab(tabParam);
                     if (tabParam === 'dashboard') {
                         setShowDashboard(true);
@@ -3374,13 +3375,13 @@ const SalesPage = () => {
                 )}
 
                 {!authLoading && currentUser?.permissions && ['users', 'roles', 'locations'].includes(crmTab)
-                    && (crmTab === 'users' ? canOpenUsersPage(currentUser) : hasFullUserAccess(currentUser)) && (
+                    && (crmTab === 'users' ? canOpenUsersPage(currentUser) : canOpenArea(currentUser, crmTab)) && (
                     <ErrorBoundary key={`users-roles-view-${crmTab}`}>
                         {renderUsersRolesView(crmTab)}
                     </ErrorBoundary>
                 )}
 
-                {!authLoading && currentUser?.permissions && crmTab === 'nav_order' && currentUser.permissions.includes('manage_users') && (
+                {!authLoading && currentUser?.permissions && crmTab === 'nav_order' && can(currentUser, NAV_ORDER) && (
                     <ErrorBoundary key="nav-order-view">
                         <Suspense fallback={<TabLoader />}>
                             <NavOrderTab

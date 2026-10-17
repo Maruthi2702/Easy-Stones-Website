@@ -17,6 +17,7 @@ import { lockedUntilTime } from '../../utils/userForm';
 import { subscribePresence } from '../../api/presence';
 import { useAuth } from '../../context/AuthContext';
 import { TEAM_PERMISSION, hasTeamUserAccess } from '../../utils/teamAccess';
+import { USERS, ROLES, LOCATIONS, can, canOpenArea, canReadRoles } from '../../utils/usersAccess';
 import { presenceById, onlineStatusOf, countOnline } from '../../utils/userPresence';
 import RowMenu from '../shared/RowMenu';
 import LocationForm from './locations/LocationForm';
@@ -45,6 +46,13 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
     // A manager with team access: sees their own people and can only
     // deactivate, reactivate and unlock them (src/utils/teamAccess.js).
     const teamMode = hasTeamUserAccess(me);
+    // What this person may do on these pages, one switch per action.
+    const allow = {
+        addUser: can(me, USERS.ADD), editUser: can(me, USERS.EDIT), resetSignIn: can(me, USERS.RESET_SIGN_IN),
+        deactivate: teamMode || can(me, USERS.DEACTIVATE), unlock: teamMode || can(me, USERS.UNLOCK), deleteUser: can(me, USERS.DELETE),
+        addRole: can(me, ROLES.ADD), editRole: can(me, ROLES.EDIT), deleteRole: can(me, ROLES.DELETE),
+        addLocation: can(me, LOCATIONS.ADD), editLocation: can(me, LOCATIONS.EDIT), deleteLocation: can(me, LOCATIONS.DELETE)
+    };
     // Add / Edit location form: null (closed), 'new', or the location being edited.
     const [locationForm, setLocationForm] = useState(null);
     const [locationError, setLocationError] = useState('');
@@ -193,19 +201,23 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                 return;
             }
 
+            // Each page loads only what it shows (and what the person may read).
+            const wantUsers = section === 'users' || (section === 'locations' && canOpenArea(me, 'users'));
+            const wantRoles = section === 'roles' || (section === 'users' && canReadRoles(me));
             const [usersRes, rolesRes] = await Promise.all([
-                fetchWithAuth(`${API_URL}/api/admin/users`),
-                fetchWithAuth(`${API_URL}/api/admin/roles`)
+                wantUsers ? fetchWithAuth(`${API_URL}/api/admin/users`) : null,
+                wantRoles ? fetchWithAuth(`${API_URL}/api/admin/roles`) : null
             ]);
 
-            if (!usersRes.ok || !rolesRes.ok) {
-                // Get the actual error from the server for better debugging
-                const errBody = !usersRes.ok ? await usersRes.json().catch(() => ({})) : await rolesRes.json().catch(() => ({}));
-                throw new Error(errBody.error || errBody.message || 'Failed to fetch users or roles. Check your access permissions.');
+            for (const res of [usersRes, rolesRes]) {
+                if (res && !res.ok) {
+                    const errBody = await res.json().catch(() => ({}));
+                    throw new Error(errBody.error || errBody.message || 'Failed to load. Check your access permissions.');
+                }
             }
 
-            const usersData = await usersRes.json();
-            const rolesData = await rolesRes.json();
+            const usersData = usersRes ? await usersRes.json() : [];
+            const rolesData = rolesRes ? await rolesRes.json() : [];
 
             setUsers(usersData);
             setRoles(rolesData);
@@ -419,24 +431,25 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
         }
     };
 
-    // What a row's ⋯ menu offers. Team access: only the three it may do.
+    // What a row's ⋯ menu offers: one entry per action this person holds.
+    // Team access (managers) gets Unlock, Deactivate / Reactivate only.
     const rowMenuItems = (u) => {
-        const access = [
-            u.isActive === false
+        const items = [];
+        if (!teamMode) {
+            items.push({ key: 'view', label: allow.editUser ? 'Edit' : 'View details', icon: allow.editUser ? Edit2 : Eye, title: allow.editUser ? 'Edit user profile' : 'View user details', onClick: () => openEditUserModal(u) });
+        }
+        if (allow.unlock && lockedUntilTime(u)) {
+            items.push({ key: 'unlock', label: 'Unlock account', icon: Key, title: 'Let them try again now', onClick: () => unlockUser(u) });
+        }
+        if (allow.deactivate) {
+            items.push(u.isActive === false
                 ? { key: 'reactivate', label: 'Reactivate', icon: UserCheck, title: 'Let this person sign in again', onClick: () => changeUserAccess(u, 'reactivate') }
-                : { key: 'deactivate', label: 'Deactivate', icon: UserX, title: 'Stop this person signing in, keep their history', onClick: () => changeUserAccess(u, 'deactivate') }
-        ];
-        const unlock = lockedUntilTime(u)
-            ? [{ key: 'unlock', label: 'Unlock account', icon: Key, title: 'Let them try again now', onClick: () => unlockUser(u) }]
-            : [];
-        if (teamMode) return [...unlock, ...access];
-        return [
-            { key: 'view', label: 'View details', icon: Eye, title: 'View user details', onClick: () => openEditUserModal(u) },
-            { key: 'edit', label: 'Edit', icon: Edit2, title: 'Edit user profile', onClick: () => openEditUserModal(u) },
-            ...unlock,
-            ...access,
-            { key: 'delete', label: 'Delete', icon: Trash2, danger: true, divider: true, title: 'Delete user', onClick: () => handleDeleteUser(u) }
-        ];
+                : { key: 'deactivate', label: 'Deactivate', icon: UserX, title: 'Stop this person signing in, keep their history', onClick: () => changeUserAccess(u, 'deactivate') });
+        }
+        if (allow.deleteUser) {
+            items.push({ key: 'delete', label: 'Delete', icon: Trash2, danger: true, divider: true, title: 'Delete user', onClick: () => handleDeleteUser(u) });
+        }
+        return items;
     };
 
     const getRoleDisplayName = (roleName) => {
@@ -489,7 +502,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                     <span className="online-dot active" />
                                     Online now ({countOnline(users, live)})
                                 </button>
-                                {!teamMode && (
+                                {allow.addUser && (
                                     <button className="add-user-btn" onClick={openAddUserModal}>
                                         <Plus size={18} />
                                         Add User
@@ -574,9 +587,11 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                             <div className="roles-sidebar-list">
                                 <div className="sidebar-header-row">
                                     <h4>Roles</h4>
-                                    <button className="add-role-btn" onClick={() => setShowRoleModal(true)} title="Add Custom Role">
-                                        <Plus size={16} />
-                                    </button>
+                                    {allow.addRole && (
+                                        <button className="add-role-btn" onClick={() => setShowRoleModal(true)} title="Add Custom Role">
+                                            <Plus size={16} />
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="roles-scroll-container">
                                     {roles.map(r => (
@@ -589,7 +604,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                 <span className="role-display-name">{r.displayName}</span>
                                                 <span className="role-system-name">({r.name})</span>
                                             </div>
-                                            {!r.isSystem && (
+                                            {!r.isSystem && allow.deleteRole && (
                                                 <button 
                                                     className="delete-role-btn-icon" 
                                                     onClick={(e) => { e.stopPropagation(); handleDeleteRole(r); }}
@@ -610,14 +625,16 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                     <h3>{selectedRole.displayName} Access Permissions</h3>
                                                     <p className="subtitle">Click a page card to configure which actions this role can perform.</p>
                                                 </div>
-                                                <button 
-                                                    className="save-permissions-btn" 
-                                                    onClick={handleSavePermissions}
-                                                    disabled={savingPermissions}
-                                                >
-                                                    <Save size={16} />
-                                                    {savingPermissions ? 'Saving...' : 'Save Permissions'}
-                                                </button>
+                                                {allow.editRole && (
+                                                    <button 
+                                                        className="save-permissions-btn" 
+                                                        onClick={handleSavePermissions}
+                                                        disabled={savingPermissions}
+                                                    >
+                                                        <Save size={16} />
+                                                        {savingPermissions ? 'Saving...' : 'Save Permissions'}
+                                                    </button>
+                                                )}
                                             </div>
 
                                             <div className="page-permissions-grid">
@@ -704,7 +721,9 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                 <div className="perm-popup-actions">
                                                     {pagePopup.actions.map((action, i) => {
                                                         const ActionIcon = action.icon;
-                                                        const isEnabled = editedPermissions.includes(action.key);
+                                                        const implied = !!action.impliedBy && editedPermissions.includes(action.impliedBy);
+                                                        const isEnabled = editedPermissions.includes(action.key) || implied;
+                                                        const locked = implied || !allow.editRole;
                                                         // A card with sections (Check In) heads each one.
                                                         const startsSection = action.section && action.section !== pagePopup.actions[i - 1]?.section;
                                                         return (
@@ -712,7 +731,9 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                             {startsSection && <div className="perm-action-section">{action.section}</div>}
                                                             <div
                                                                 className={`perm-action-row ${isEnabled ? 'enabled' : ''}`}
-                                                                onClick={() => handlePermissionToggle(action.key)}
+                                                                onClick={() => { if (!locked) handlePermissionToggle(action.key); }}
+                                                                title={implied ? 'Included in Full access' : undefined}
+                                                                style={locked ? { cursor: 'default', opacity: implied ? 0.65 : 1 } : undefined}
                                                             >
                                                                 <div className="perm-action-icon" style={{ color: isEnabled ? pagePopup.color : undefined }}>
                                                                     <ActionIcon size={18} />
@@ -742,12 +763,14 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                     {/* ── SUB TAB 3: LOCATIONS MANAGEMENT ── */}
                     {subTab === 'locations' && (
                         <div className="locations-panel-layout">
-                            <div className="panel-actions-toolbar" style={{ justifyContent: 'flex-end' }}>
-                                <button type="button" className="add-user-btn" onClick={() => setLocationForm('new')} style={{ whiteSpace: 'nowrap' }}>
-                                    <Plus size={18} />
-                                    <span>Add location</span>
-                                </button>
-                            </div>
+                            {allow.addLocation && (
+                                <div className="panel-actions-toolbar" style={{ justifyContent: 'flex-end' }}>
+                                    <button type="button" className="add-user-btn" onClick={() => setLocationForm('new')} style={{ whiteSpace: 'nowrap' }}>
+                                        <Plus size={18} />
+                                        <span>Add location</span>
+                                    </button>
+                                </div>
+                            )}
 
                             {locationsMissingAddress.length > 0 && (
                                 <div className="location-missing-banner" role="status">
@@ -856,20 +879,22 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                                     type="button"
                                                                     className="action-icon-btn"
                                                                     onClick={() => setLocationForm(loc)}
-                                                                    title={`Edit ${loc.name}`}
-                                                                    aria-label={`Edit ${loc.name}`}
+                                                                    title={allow.editLocation ? `Edit ${loc.name}` : `View ${loc.name}`}
+                                                                    aria-label={allow.editLocation ? `Edit ${loc.name}` : `View ${loc.name}`}
                                                                 >
-                                                                    <Pencil size={16} />
+                                                                    {allow.editLocation ? <Pencil size={16} /> : <Eye size={16} />}
                                                                 </button>
-                                                                <button
-                                                                    type="button"
-                                                                    className="action-icon-btn delete"
-                                                                    onClick={() => handleDeleteLocation(loc)}
-                                                                    title={`Delete ${loc.name}`}
-                                                                    aria-label={`Delete ${loc.name}`}
-                                                                >
-                                                                    <Trash2 size={16} />
-                                                                </button>
+                                                                {allow.deleteLocation && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="action-icon-btn delete"
+                                                                        onClick={() => handleDeleteLocation(loc)}
+                                                                        title={`Delete ${loc.name}`}
+                                                                        aria-label={`Delete ${loc.name}`}
+                                                                    >
+                                                                        <Trash2 size={16} />
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -891,7 +916,8 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                     users={users}
                     onClose={() => setLocationForm(null)}
                     onSaved={(saved) => handleLocationSaved(saved, locationForm === 'new')}
-                    onDelete={handleDeleteLocation}
+                    onDelete={allow.deleteLocation ? handleDeleteLocation : undefined}
+                    readOnly={!allow.editLocation}
                 />
             )}
 
@@ -919,6 +945,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                     onClose={() => setEditingUser(null)}
                     onSaved={handleUserSaved}
                     onChangeAccess={changeUserAccess}
+                    access={{ edit: allow.editUser, resetSignIn: allow.resetSignIn, unlock: allow.unlock, deactivate: allow.deactivate }}
                 />
             )}
 

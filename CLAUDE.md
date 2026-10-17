@@ -185,6 +185,19 @@ active and unlock routes use `usersAccess` / `memberAllowed`. A new Users
 action for managers must go through them. Nobody holds the permission until
 an admin turns it on.
 
+**One permission per action (2026-10-16).** Every Users & Roles action has its
+own switch (`src/utils/usersAccess.js`: view/add/edit/reset sign-in/
+deactivate/unlock/delete users; view/edit/add/delete roles; view/add/edit/
+delete locations; side nav order), on the Users & Roles card in sections.
+`manage_users` is now **Full access**: it holds every one, so existing roles
+lost nothing. Any action in an area opens that area's page and loads its list
+(no separate "view" needed). Routes use `requireAction(key)` /
+`requireArea(area)` / `usersAccess(key)` (`src/services/teamAccess.js`), never
+a hand-typed `requirePermission('manage_users')`; screens use `can(user, key)`.
+A new Users & Roles action goes in that file's `USERS_ROLES_SECTIONS` (the
+card is built from it; `usersAccess.test.js` fails if a key has no switch).
+Left on `manage_users` on purpose: the Delivery Schedule's column arranging.
+
 ## Who is online (2026-10-16)
 
 Users & Roles → Users list has an **Online** column, a live "Online now (N)"

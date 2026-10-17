@@ -7,7 +7,8 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createPresence, deviceFromUserAgent } from './src/services/presence.js';
-import { createTeamAccess } from './src/services/teamAccess.js';
+import { createTeamAccess, requireAction, requireArea } from './src/services/teamAccess.js';
+import { USERS, ROLES, LOCATIONS, canOpenArea, can } from './src/utils/usersAccess.js';
 import { TEAM_PERMISSION, cleanManageableRoles } from './src/utils/teamAccess.js';
 import cors from 'cors';
 import mongoose from 'mongoose';
@@ -377,9 +378,10 @@ async function resolveSocketStaff(token) {
   const user = await User.findById(userId, 'role isActive mustChangePassword sessionVersion').lean();
   if (!user || user.isActive === false || user.mustChangePassword || !sessionIsCurrent(decoded, user)) return null;
   const role = await Role.findOne({ name: String(user.role || '').trim().toLowerCase() }, 'permissions').lean();
+  const asUser = { permissions: role?.permissions || [] };
   return {
     userId: String(user._id),
-    canSeePresence: !!(role?.permissions?.includes('manage_users') || role?.permissions?.includes(TEAM_PERMISSION))
+    canSeePresence: canOpenArea(asUser, 'users') || asUser.permissions.includes(TEAM_PERMISSION)
   };
 }
 
@@ -1669,12 +1671,12 @@ app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, lo
 
 // Who is online right now — the first load of Users & Roles' Online badges;
 // after that the list is pushed over the socket (presence_update).
-app.get('/api/admin/users/presence', authenticate, usersAccess, (req, res) => {
+app.get('/api/admin/users/presence', authenticate, usersAccess('view'), (req, res) => {
   res.json(presence.snapshot());
 });
 
 // Get all users (manage_users permission needed)
-app.get('/api/admin/users', authenticate, usersAccess, async (req, res) => {
+app.get('/api/admin/users', authenticate, usersAccess('view'), async (req, res) => {
   try {
     if (req.teamScope) {
       return res.json(await teamUsers(req));
@@ -1692,7 +1694,7 @@ app.get('/api/admin/users', authenticate, usersAccess, async (req, res) => {
 // the data. Sign-in is either a temporary password (mustChangePassword: they
 // pick their own at first sign-in) or an emailed invite link
 // (src/routes/userOnboarding.js).
-app.post('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
+app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req, res) => {
   try {
     const { displayName, email, role, location, assignedLocations, joiningDate, signInMethod = 'password', password } = req.body;
     const username = String(req.body.username || '').trim().toLowerCase();
@@ -1788,7 +1790,7 @@ app.post('/api/admin/users', authenticate, requirePermission('manage_users'), as
 });
 
 // Update user (manage_users permission needed)
-app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'), async (req, res) => {
+app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (req, res) => {
   try {
     const { username, displayName, email, role, password, location, assignedLocations, joiningDate, signInReset } = req.body;
     const userId = req.params.id;
@@ -1811,6 +1813,10 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
     if (role !== undefined) {
       nextRole = String(role || '').trim().toLowerCase();
       if (!nextRole || !(await Role.exists({ name: nextRole }))) return fail('role', 'Pick a role');
+    }
+    // A temporary password or an invite link is its own action (Reset sign-in).
+    if ((signInReset !== undefined || password !== undefined) && !can(req.user, USERS.RESET_SIGN_IN)) {
+      return res.status(403).json({ message: "You don't have permission to reset someone's sign-in." });
     }
     if (signInReset !== undefined && !['password', 'invite'].includes(signInReset)) return fail('signInReset', 'Choose how they sign in');
     if (signInReset === 'password' && String(password || '').length < PASSWORD_MIN) return fail('password', `At least ${PASSWORD_MIN} characters`);
@@ -2000,7 +2006,7 @@ const clearDriverHandover = async (req, res, user, verb) => {
 // open session ends on its next request, their calendar feed stops, and a
 // driver drops off the board's columns except on weeks they delivered. Kept,
 // not deleted, so their name stays on the history they made.
-app.patch('/api/admin/users/:id/active', authenticate, usersAccess, async (req, res) => {
+app.patch('/api/admin/users/:id/active', authenticate, usersAccess(USERS.DEACTIVATE), async (req, res) => {
   try {
     const active = req.body?.active !== false;
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'User not found' });
@@ -2025,7 +2031,7 @@ app.patch('/api/admin/users/:id/active', authenticate, usersAccess, async (req, 
   }
 });
 
-app.delete('/api/admin/users/:id', authenticate, requirePermission('manage_users'), async (req, res) => {
+app.delete('/api/admin/users/:id', authenticate, requireAction(USERS.DELETE), async (req, res) => {
   try {
     if (String(req.params.id) === String(req.user.id)) {
       return res.status(400).json({ message: "You can't delete your own account." });
@@ -2048,7 +2054,7 @@ app.delete('/api/admin/users/:id', authenticate, requirePermission('manage_users
 // ============================================
 
 // Get all roles (manage_users permission needed)
-app.get('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.get('/api/admin/roles', verifyAnyAuth, requireArea('roles', { alsoRoles: true }), async (req, res) => {
   try {
     const roles = await Role.find().sort({ name: 1 });
     res.json(roles);
@@ -2058,7 +2064,7 @@ app.get('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), asyn
 });
 
 // Create a new custom role (manage_users permission needed)
-app.post('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.post('/api/admin/roles', verifyAnyAuth, requireAction(ROLES.ADD), async (req, res) => {
   try {
     const { name, displayName, permissions } = req.body;
     if (!name || !displayName) {
@@ -2087,7 +2093,7 @@ app.post('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), asy
 });
 
 // Update role permissions (manage_users permission needed)
-app.put('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), async (req, res) => {
   try {
     const { permissions, displayName, manageableRoles } = req.body;
     const roleId = req.params.id;
@@ -2112,7 +2118,7 @@ app.put('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), 
 });
 
 // Delete custom role (manage_users permission needed)
-app.delete('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), async (req, res) => {
   try {
     const roleId = req.params.id;
     const role = await Role.findById(roleId);
@@ -2147,7 +2153,7 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'
 app.get('/api/admin/locations', verifyAnyAuth, async (req, res) => {
   try {
     const locations = await Location.find().sort({ name: 1 }).lean();
-    const full = req.user?.permissions?.includes('manage_users');
+    const full = canOpenArea(req.user, 'locations');
     const staff = req.user?.type !== 'customer';
     res.json(full ? locations : locations.map((l) => publicLocationFields(l, { staff })));
   } catch (error) {
@@ -2178,7 +2184,7 @@ const locationError = (res, errors) => {
 };
 
 // Create a new location (manage_users permission needed)
-app.post('/api/admin/locations', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.post('/api/admin/locations', verifyAnyAuth, requireAction(LOCATIONS.ADD), async (req, res) => {
   try {
     const others = await Location.find({}, { name: 1, shortCode: 1 }).lean();
     const { record, errors } = parseLocationBody(req.body, { others });
@@ -2204,7 +2210,7 @@ app.post('/api/admin/locations', verifyAnyAuth, checkPermission('manage_users'),
 // Update a location (manage_users permission needed). Everything but the
 // short name is editable — the name is the key stored on users, check-ins,
 // daily reports, etc., so renaming would orphan those records.
-app.patch('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDIT), async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(404).json({ message: 'Location not found' });
@@ -2230,7 +2236,7 @@ app.patch('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_use
 });
 
 // Delete a location (manage_users permission needed)
-app.delete('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.delete('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.DELETE), async (req, res) => {
   try {
     const locationId = req.params.id;
     const location = await Location.findById(locationId);
@@ -2359,7 +2365,7 @@ app.get('/api/user/me', authenticate, async (req, res) => {
 app.use('/api/user/me/route-planner-filters', createRoutePlannerFiltersRouter({ authenticate }));
 app.use('/api/user/me/pinned-tabs', createPinnedTabsRouter({ authenticate }));
 // The side nav's admin-set order, for everyone (src/routes/navOrder.js).
-app.use('/api/nav-order', createNavOrderRouter({ authenticate, requirePermission }));
+app.use('/api/nav-order', createNavOrderRouter({ authenticate, requirePermission, requireAction }));
 // The ZIP lookup calls Google (billed): staff with a Sales page only.
 app.use('/api/geocode', createGeocodeRouter({ authenticate: [authenticate, requireSalesPage] }));
 
