@@ -1,7 +1,9 @@
 // The delivery board's per-branch column order (GET / PUT
 // /api/delivery-columns) against a throwaway in-memory MongoDB: anyone who
-// sees the board reads it, only an admin (manage_users) sets it, a bad list
-// is refused, and open boards are told which branch changed.
+// sees the board reads it, only Arrange Driver Columns
+// (arrange_delivery_columns) sets it — and only for the person's own
+// locations — a bad list is refused, and open boards are told which branch
+// changed.
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
@@ -17,7 +19,11 @@ const emit = vi.fn();
 
 const VIEWER = { username: 'sam', permissions: ['view_delivery_schedule'] };
 const DISPATCHER = { username: 'dee', permissions: ['view_delivery_schedule', 'edit_delivery_schedule'] };
-const ADMIN = { username: 'krish', permissions: ['view_delivery_schedule', 'edit_delivery_schedule', 'manage_users'] };
+const ADMIN = { username: 'krish', permissions: ['view_delivery_schedule', 'edit_delivery_schedule', 'arrange_delivery_columns'], assignedLocations: ['*'] };
+// A manager an admin gave the switch to, for Seattle only.
+const MANAGER = { username: 'mo', permissions: ['view_delivery_schedule', 'edit_delivery_schedule', 'arrange_delivery_columns'], assignedLocations: ['Seattle'] };
+// manage_users used to be the check; sales reps hold it too.
+const USER_MANAGER = { username: 'rep', permissions: ['view_delivery_schedule', 'edit_delivery_schedule', 'manage_users'], assignedLocations: ['*'] };
 const as = (user) => ({ 'x-test-user': JSON.stringify(user) });
 const put = (location, body, user = ADMIN) =>
   request(app).put(`/api/delivery-columns/${encodeURIComponent(location)}`).set(as(user)).send(body);
@@ -79,11 +85,19 @@ describe('PUT /api/delivery-columns/:location', () => {
     expect((await Location.findOne({ name: 'Seattle' }).lean()).deliveryColumns).toEqual([]);
   });
 
-  it('is for admins only — a dispatcher or viewer can\'t change it', async () => {
+  it('needs Arrange Driver Columns — a dispatcher, viewer or user manager can\'t change it', async () => {
     await put('Seattle', { columns: ['drv_angel'] }, DISPATCHER).expect(403);
     await put('Seattle', { columns: ['drv_angel'] }, VIEWER).expect(403);
+    await put('Seattle', { columns: ['drv_angel'] }, USER_MANAGER).expect(403);
     expect((await Location.findOne({ name: 'Seattle' }).lean()).deliveryColumns).toEqual(['drv_brock', 'drv_angel']);
     expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('someone given the switch arranges their own locations only', async () => {
+    await put('Seattle', { columns: ['drv_angel', 'drv_brock'] }, MANAGER).expect(200);
+    const res = await put('Salt Lake City', { columns: ['drv_angel'] }, MANAGER).expect(403);
+    expect(res.body.error).toMatch(/your own locations/);
+    expect((await Location.findOne({ name: 'Salt Lake City' }).lean()).deliveryColumns ?? []).toEqual([]);
   });
 
   it('refuses a bad list and keeps the saved one', async () => {

@@ -152,7 +152,9 @@ export const PAGE_PERMISSIONS = [
             { key: 'delete_delivery_schedule', label: 'Delete', icon: Trash2, desc: 'Permanently delete delivery jobs (no undo)' },
             // Separate from Delete on purpose: voiding a proof the wrong customer
             // signed is a different level of trust from removing the job itself.
-            { key: 'clear_pod_signatures', label: 'Clear POD', icon: Eraser, desc: 'Delete the signed packing list and reset signatures for re-signing' }
+            { key: 'clear_pod_signatures', label: 'Clear POD', icon: Eraser, desc: 'Delete the signed packing list and reset signatures for re-signing' },
+            // src/utils/deliveryAccess.js ARRANGE_COLUMNS; admin only to start.
+            { key: 'arrange_delivery_columns', label: 'Arrange Driver Columns', icon: ArrowLeftRight, desc: 'Set the order of the driver columns for their locations' }
         ]
     },
     {

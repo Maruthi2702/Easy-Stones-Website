@@ -46,7 +46,7 @@ import {
 } from '../../utils/deliveryWeek';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
-import { deliveryViewMode } from '../../utils/deliveryAccess';
+import { deliveryViewMode, canArrangeDeliveryColumns } from '../../utils/deliveryAccess';
 import { reportDaysForMove, submittedDayLabel } from '../../utils/deliveryForm';
 import './DeliveryScheduleTab.css';
 
@@ -293,12 +293,13 @@ const DeliveryScheduleTab = ({
   }, [loadData, refreshScoped, locationFilter]);
 
   // Each branch's column order ({ Seattle: [ids] }; src/utils/deliveryColumns.js).
-  // Read once, and again whenever an admin changes one anywhere. Admins
-  // (manage_users) arrange the branch on screen from Search & filters; the
-  // All Locations board always uses the default order.
+  // Read once, and again whenever someone changes one anywhere. Arrange
+  // Drivers View (Users & Roles → Delivery Schedule) sets the branch on screen
+  // from Search & filters, below Location; the All Locations board always uses
+  // the default order.
   const [columnOrders, setColumnOrders] = useState({});
   const [arrangeOpen, setArrangeOpen] = useState(false);
-  const canArrangeColumns = role !== 'driver' && Boolean(currentUser?.permissions?.includes('manage_users'));
+  const canArrangeColumns = role !== 'driver' && canArrangeDeliveryColumns(currentUser);
   useEffect(() => {
     if (role === 'driver') return undefined;
     let alive = true;
@@ -626,37 +627,33 @@ const DeliveryScheduleTab = ({
               wide
               active={Boolean(searchQuery.trim())}
               onClear={() => setSearchQuery('')}
+              // Below Location, since it arranges the location picked there —
+              // so only once one is picked.
+              after={canArrangeColumns && locationFilter ? ({ close }) => (
+                <button
+                  type="button"
+                  className="delivery-arrange-btn"
+                  onClick={() => { close(); setArrangeOpen(true); }}
+                >
+                  <ArrowLeftRight size={14} aria-hidden="true" />
+                  Arrange Driver Columns
+                </button>
+              ) : null}
             >
               {({ close }) => (
-                <>
-                  <div className="lf-group">
-                    <span className="lf-group-label">Search orders</span>
-                    <DeliveryOrderSearch
-                      inline
-                      autoFocus
-                      value={searchQuery}
-                      onChange={setSearchQuery}
-                      onSelect={(result, info) => { close(); handleOrderSearchSelect(result, info); }}
-                      onViewPod={(delivery) => { close(); handleOpenPodViewer(delivery); }}
-                      trucks={trucks}
-                      viewerLocations={currentUser?.assignedLocations || []}
-                    />
-                  </div>
-                  {/* A branch's order, so only with one branch picked. */}
-                  {canArrangeColumns && locationFilter && (
-                    <div className="lf-group delivery-arrange-group">
-                      <span className="lf-group-label">Board columns</span>
-                      <button
-                        type="button"
-                        className="delivery-arrange-btn"
-                        onClick={() => { close(); setArrangeOpen(true); }}
-                      >
-                        <ArrowLeftRight size={14} aria-hidden="true" />
-                        Arrange columns for {locationFilter}
-                      </button>
-                    </div>
-                  )}
-                </>
+                <div className="lf-group">
+                  <span className="lf-group-label">Search orders</span>
+                  <DeliveryOrderSearch
+                    inline
+                    autoFocus
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    onSelect={(result, info) => { close(); handleOrderSearchSelect(result, info); }}
+                    onViewPod={(delivery) => { close(); handleOpenPodViewer(delivery); }}
+                    trucks={trucks}
+                    viewerLocations={currentUser?.assignedLocations || []}
+                  />
+                </div>
               )}
             </LocationFilter>
           ) : (

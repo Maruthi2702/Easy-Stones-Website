@@ -132,6 +132,9 @@ comment for the exact contract.
   Edit → View), never from the role's name.
 - `delete_delivery_schedule` — separate again; admin/director/manager only
   by default.
+- `arrange_delivery_columns` — "Arrange Driver Columns": set the order of
+  a branch's driver columns (Search & filters, below Location), for the
+  person's own locations only. Admin only by default (2026-10-15).
 - A driver's app calls exactly two write routes — `POST /api/deliveries`
   (for POD capture, sharing the general upsert endpoint) and
   `PATCH /:id/status` — and both accept `view_delivery_schedule` alone,

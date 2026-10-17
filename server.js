@@ -737,6 +737,7 @@ async function startServer() {
             'manage_easy_stones_colors',
             'view_inventory_analysis', 'import_inventory_analysis', 'view_inventory_prices',
             'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures',
+            'arrange_delivery_columns',
             'add_visits', 'edit_own_visits', 'delete_own_visits',
             'view_all_visits', 'edit_all_visits', 'delete_all_visits',
             ...ALL_ACCOUNTING_PERMISSIONS,
@@ -869,6 +870,9 @@ async function startServer() {
         // "Permission model" section for the intended split this corrects.
         { roles: ['admin', 'director', 'manager', 'sales_rep', 'csr'], permissions: ['view_delivery_schedule', 'edit_delivery_schedule'] },
         { roles: ['admin', 'director', 'manager'], permissions: ['delete_delivery_schedule', 'clear_pod_signatures'] },
+        // Arrange columns (the board's driver order per branch, 2026-10-15):
+        // admin only to start; an admin gives it to directors / managers.
+        { roles: ['admin'], permissions: ['arrange_delivery_columns'] },
         // PUT /api/checkin/:id used to accept view_checkins OR manage_checkins,
         // so "View" silently granted edit too. Now that it requires
         // manage_checkins outright, csr (which only had view_checkins) needs

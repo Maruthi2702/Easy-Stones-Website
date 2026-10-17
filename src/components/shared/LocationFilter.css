@@ -90,6 +90,11 @@
   margin-top: 1rem;
 }
 
+/* `after` (below the Location field) gets the same gap. */
+.lf-pop > .lf-after {
+  margin-top: 1rem;
+}
+
 @keyframes lf-pop {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }

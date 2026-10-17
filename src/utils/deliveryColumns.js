@@ -1,15 +1,16 @@
 /**
  * The left-to-right order of the delivery board's columns.
  *
- * Every branch can have its own order, set by an admin (Delivery Schedule →
- * Search & filters → Arrange columns) and stored on the Location as column ids
- * (`drv_<username>`, and WILL_CALL_COLUMN_ID for Will Call). A branch nobody
+ * Every branch can have its own order, set by someone with Arrange Driver
+ * Columns (Delivery Schedule → Search & filters, below Location) and stored on
+ * the Location as column ids (`drv_<username>`, and WILL_CALL_COLUMN_ID for
+ * Will Call). A branch nobody
  * has arranged, and the All Locations board, use the default: our own drivers
  * A–Z, then contract (3rd-party) trucks, then Will Call. It used to be the
  * order the logins were created in, which put "3rd Party - Contract" first.
  *
- * Shared by the board (BoardGrid), the Arrange columns window and the server's
- * save route, so all three agree on what an order is.
+ * Shared by the board (BoardGrid), the Arrange Driver Columns window and the
+ * server's save route, so all three agree on what an order is.
  */
 import { WILL_CALL_COLUMN_ID } from './deliveryTypes.js';
 import { isThirdPartyTruck } from './deliveryPickup.js';
