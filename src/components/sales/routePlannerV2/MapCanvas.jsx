@@ -690,17 +690,9 @@ const MapCanvas = ({
                         </div>
                         <div className="rpv2-panel-name-row">
                             <strong className="rpv2-panel-name">{nameOf(info)}</strong>
-                            {/* Edit and delete are gated by separate Users & Roles
-                                permissions now — "Edit / Add" (manage_customers) and
-                                "Delete" (delete_customers) — rather than one checkbox
-                                covering both, so a role can be granted one without the
-                                other. The wrapper's own either/or condition already
-                                covers delete's requirement, so the button inside just
-                                renders unconditionally once the wrapper is showing; the
-                                DELETE route accepts either permission too (see
-                                RoutePlannerV2.jsx's comment on can.deleteCustomers), so
-                                a manage_customers-only role still gets a working button
-                                rather than losing it now that delete has its own flag. */}
+                            {/* Edit and Delete are separate Users & Roles switches
+                                (canEditCustomers / canDeleteCustomers), so each icon
+                                checks its own. */}
                             {(can.manageCustomers || can.deleteCustomers) && (
                                 <div className="rpv2-panel-name-actions">
                                     {can.manageCustomers && (
@@ -715,9 +707,11 @@ const MapCanvas = ({
                                             <Pencil size={15} />
                                         </button>
                                     )}
-                                    <button type="button" className="rpv2-panel-icon-btn is-danger" onClick={() => onDeleteCustomer(info)} title="Delete customer" aria-label="Delete customer">
-                                        <Trash2 size={15} />
-                                    </button>
+                                    {can.deleteCustomers && (
+                                        <button type="button" className="rpv2-panel-icon-btn is-danger" onClick={() => onDeleteCustomer(info)} title="Delete customer" aria-label="Delete customer">
+                                            <Trash2 size={15} />
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>

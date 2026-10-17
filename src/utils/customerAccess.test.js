@@ -61,8 +61,8 @@ describe('who may do what', () => {
     expect(canDeleteCustomers(manager)).toBe(false);
   });
 
-  it('keeps delete working for roles that only had Edit, as before', () => {
-    expect(canDeleteCustomers(as(P.VIEW, P.EDIT))).toBe(true);
+  it('deletes only with the Delete switch, never through Edit', () => {
+    expect(canDeleteCustomers(as(P.VIEW, P.EDIT))).toBe(false);
     expect(canDeleteCustomers(as(P.VIEW, P.DELETE))).toBe(true);
   });
 

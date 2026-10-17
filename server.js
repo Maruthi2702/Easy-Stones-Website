@@ -105,7 +105,7 @@ import { createContractorRegistry } from './src/permits/contractors.js';
 import { ALL_PERMIT_PERMISSIONS } from './src/permits/permissions.js';
 import { CHECKIN_MIGRATION } from './src/utils/checkInAccess.js';
 import {
-  CUSTOMER_MIGRATION, CUSTOMER_ADMIN_GRANTS, canViewCustomerProfile, canExportCustomers,
+  CUSTOMER_MIGRATION, CUSTOMER_ADMIN_GRANTS, canViewCustomerProfile, canExportCustomers, canDeleteCustomers,
   basicCustomer, BASIC_CUSTOMER_PROJECTION
 } from './src/utils/customerAccess.js';
 import { seedSeattleRecipients } from './src/utils/dailyReportSubmissionEmail.js';
@@ -4343,12 +4343,11 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
   }
 });
 
-// Delete a lead (Customer) — manage_customers kept alongside delete_customers
-// so PartnersSheet.jsx's delete button (which has no client-side permission
-// check of its own, unlike the route planner's icon) keeps working for every
-// role that already had manage_customers before delete_customers existed as
-// its own permission.
-app.delete(['/api/customers/:id', '/api/partners/:id'], authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
+// Delete a lead (Customer) — the Delete switch only (canDeleteCustomers in
+// customerAccess.js, which the screens use too); Edit no longer implies it.
+app.delete(['/api/customers/:id', '/api/partners/:id'], authenticate, (req, res, next) => (
+  canDeleteCustomers(req.user) ? next() : res.status(403).json({ error: 'Access denied. Your role cannot delete customers.' })
+), async (req, res) => {
   try {
     const customer = await Customer.findByIdAndDelete(req.params.id);
 

@@ -19,6 +19,7 @@ import LeadSearchControl from './LeadSearchControl';
 import RunDrawer from './RunDrawer';
 import AddCustomerModal from '../AddCustomerModal';
 import { toCustomerOptions } from '../../../utils/customerOptions';
+import { canEditCustomers, canDeleteCustomers } from '../../../utils/customerAccess';
 import './RoutePlannerV2.css';
 
 /**
@@ -155,10 +156,9 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // Edit/delete for an existing customer from the detail panel — reusing
     // AddCustomerModal and the /api/customers/:id routes exactly as
     // PartnersSheet.jsx does, rather than building a second edit form. Edit
-    // (PUT) checks manage_customers; delete (DELETE) accepts either
-    // manage_customers or delete_customers, so a role can be granted delete
-    // without full edit/add rights — see can.manageCustomers/can.deleteCustomers
-    // gating the two icons separately in MapCanvas.
+    // (PUT) checks manage_customers; delete (DELETE) needs delete_customers —
+    // the same canEditCustomers / canDeleteCustomers rules as the Customers
+    // page, gating the two icons separately in MapCanvas.
     const [editingCustomer, setEditingCustomer] = useState(null);
     const [savingCustomerEdit, setSavingCustomerEdit] = useState(false);
     const [loadingEditCustomer, setLoadingEditCustomer] = useState(false);
@@ -199,8 +199,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             plan: held.includes('create_route_plan'),
             replace: held.includes('edit_route_plan'),
             clear: held.includes('delete_route_plan'),
-            manageCustomers: held.includes('manage_customers'),
-            deleteCustomers: held.includes('delete_customers')
+            manageCustomers: canEditCustomers(currentUser),
+            deleteCustomers: canDeleteCustomers(currentUser)
         };
     }, [currentUser]);
 
