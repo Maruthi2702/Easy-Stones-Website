@@ -6,8 +6,10 @@ import { CART, HOLDS } from '../../../holds/permissions';
 import { PERMITS } from '../../../permits/permissions';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import {
-    ArrowLeftRight, Boxes, CheckCheck, Download, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, Users
+    ArrowLeftRight, Boxes, CheckCheck, Download, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert
 } from 'lucide-react';
+import { TEAM_PERMISSION } from '../../../utils/teamAccess';
+import { FULL_ACCESS, USERS, ROLES, LOCATIONS, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
 
 // The Check In card's switches, by key. Which section each sits in, and the
 // order, is CHECKIN_SECTIONS'.
@@ -24,6 +26,14 @@ const CHECKIN_ACTIONS = {
 
 // Granular per-page permission definitions.
 // Each page has a set of "actions" that map to backend permission keys.
+const USERS_ROLES_ICONS = {
+    [USERS.VIEW]: Eye, [USERS.ADD]: Plus, [USERS.EDIT]: Pencil, [USERS.RESET_SIGN_IN]: Key,
+    [USERS.DEACTIVATE]: UserX, [USERS.UNLOCK]: Lock, [USERS.DELETE]: Trash2,
+    [ROLES.VIEW]: Eye, [ROLES.EDIT]: ShieldAlert, [ROLES.ADD]: Plus, [ROLES.DELETE]: Trash2,
+    [LOCATIONS.VIEW]: Eye, [LOCATIONS.ADD]: Plus, [LOCATIONS.EDIT]: Pencil, [LOCATIONS.DELETE]: Trash2,
+    [NAV_ORDER]: ArrowUpDown
+};
+
 export const PAGE_PERMISSIONS = [
     {
         id: 'dashboard',
@@ -268,7 +278,14 @@ export const PAGE_PERMISSIONS = [
         description: 'User accounts, roles, permissions',
         color: '#ae4132',
         actions: [
-            { key: 'manage_users', label: 'Manage', icon: ShieldCheck, desc: 'Add/edit users and customize role permissions' }
+            { key: FULL_ACCESS, label: 'Full access', icon: ShieldCheck, section: 'Everything', desc: 'Every action below, now and any added later' },
+            ...USERS_ROLES_SECTIONS.flatMap(({ section, actions }) => actions.map((a) => ({
+                ...a,
+                icon: USERS_ROLES_ICONS[a.key],
+                section,
+                impliedBy: FULL_ACCESS
+            }))),
+            { key: TEAM_PERMISSION, label: 'Team', icon: UserCheck, section: 'Team (managers)', desc: 'See the people at their own locations (roles chosen under Roles & Permissions), who is online, and deactivate, reactivate or unlock them. Nothing else.' }
         ]
     }
 ];

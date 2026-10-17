@@ -29,6 +29,8 @@ import CustomerSidebar from '../components/sales/CustomerSidebar';
 import usePinnedTabs from '../components/sales/usePinnedTabs';
 import useNavOrder from '../components/sales/useNavOrder';
 import { pinnedDefaultTab } from '../utils/navPins';
+import { canOpenUsersPage } from '../utils/teamAccess';
+import { canOpenArea, can, NAV_ORDER } from '../utils/usersAccess';
 import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import VisitModal from '../components/sales/VisitModal';
@@ -1675,7 +1677,9 @@ const SalesPage = () => {
                 customers: 'view_customers',
                 checkin: CHECKIN_PERMISSIONS.VIEW_LOG,
                 pricelist: 'view_pricelist',
-                users: 'manage_users'
+                users: 'manage_users',
+                roles: 'manage_users',
+                locations: 'manage_users'
             };
 
             const state = window.history.state;
@@ -1683,9 +1687,9 @@ const SalesPage = () => {
                 setCustomerOriginTab(state.originTab);
             }
 
-            if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist', 'users', 'profile'].includes(tabParam)) {
+            if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist', 'users', 'roles', 'locations', 'profile'].includes(tabParam)) {
                 // Only switch to the tab if the user has permission for it
-                if (!tabPermMap[tabParam] || perms.includes(tabPermMap[tabParam])) {
+                if (!tabPermMap[tabParam] || (tabParam === 'users' ? canOpenUsersPage(currentUser) : ['roles', 'locations'].includes(tabParam) ? canOpenArea(currentUser, tabParam) : perms.includes(tabPermMap[tabParam]))) {
                     setCrmTab(tabParam);
                     if (tabParam === 'dashboard') {
                         setShowDashboard(true);
@@ -3282,7 +3286,7 @@ const SalesPage = () => {
         );
     };
 
-    const renderUsersRolesView = () => {
+    const renderUsersRolesView = (section) => {
         const sidebarToggle = (!isSidebarOpen || isMobile) ? (
             <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
         ) : null;
@@ -3290,6 +3294,7 @@ const SalesPage = () => {
         return (
             <Suspense fallback={<TabLoader />}>
             <UsersRolesTab
+                section={section}
                 sidebarToggle={sidebarToggle}
                 locations={locations}
                 fetchLocations={fetchLocations}
@@ -3369,13 +3374,14 @@ const SalesPage = () => {
                     </ErrorBoundary>
                 )}
 
-                {!authLoading && currentUser?.permissions && crmTab === 'users' && currentUser.permissions.includes('manage_users') && (
-                    <ErrorBoundary key="users-roles-view">
-                        {renderUsersRolesView()}
+                {!authLoading && currentUser?.permissions && ['users', 'roles', 'locations'].includes(crmTab)
+                    && (crmTab === 'users' ? canOpenUsersPage(currentUser) : canOpenArea(currentUser, crmTab)) && (
+                    <ErrorBoundary key={`users-roles-view-${crmTab}`}>
+                        {renderUsersRolesView(crmTab)}
                     </ErrorBoundary>
                 )}
 
-                {!authLoading && currentUser?.permissions && crmTab === 'nav_order' && currentUser.permissions.includes('manage_users') && (
+                {!authLoading && currentUser?.permissions && crmTab === 'nav_order' && can(currentUser, NAV_ORDER) && (
                     <ErrorBoundary key="nav-order-view">
                         <Suspense fallback={<TabLoader />}>
                             <NavOrderTab

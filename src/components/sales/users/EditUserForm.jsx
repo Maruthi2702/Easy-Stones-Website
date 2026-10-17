@@ -41,7 +41,13 @@ const SIGN_IN_OPTIONS = [
     { value: 'invite', label: 'Email a link' }
 ];
 
-export default function EditUserForm({ user, roles, locations, describeRole, onClose, onSaved, onChangeAccess }) {
+// `access` (from the Users & Roles actions the signed-in person holds,
+// src/utils/usersAccess.js): edit = change details, role and locations;
+// resetSignIn = temporary password / invite link; unlock; deactivate. Without
+// edit the form is read-only. The server checks each again.
+const FULL_ACCESS_TO_USER = { edit: true, resetSignIn: true, unlock: true, deactivate: true };
+
+export default function EditUserForm({ user, roles, locations, describeRole, onClose, onSaved, onChangeAccess, access = FULL_ACCESS_TO_USER }) {
     const branchNames = useMemo(() => locationNames(locations), [locations]);
     const initial = useMemo(() => userToFormValues(user), [user]);
     const [values, setValues] = useState(initial);
@@ -160,7 +166,7 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
     }
 
     const inactive = user.isActive === false;
-    const footerStart = onChangeAccess ? (
+    const footerStart = onChangeAccess && access.deactivate ? (
         <button
             type="button"
             className="fm-btn fm-btn-text-danger"
@@ -185,7 +191,7 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
             submitLabel="Save changes"
             savingLabel="Saving…"
             saving={saving}
-            submitDisabled={!changed}
+            submitDisabled={!changed || !access.edit}
             dirtyCount={dirtyCount || (homeChanged ? 1 : 0)}
             discardTitle="Discard your changes?"
             errors={visibleErrors}
@@ -194,8 +200,9 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
             footerStart={footerStart}
             footerNote={formError
                 ? <span className="fm-error" role="alert"><AlertCircle size={13} aria-hidden="true" />{formError}</span>
-                : lastChangedText(user)}
+                : (access.edit ? lastChangedText(user) : 'View only — you can’t change this person.')}
         >
+          <fieldset disabled={!access.edit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             <FormSection number={1} title="Who are they?">
                 <FormRow>
                     <FormField name="displayName" id="eu-name" label="Full name" required error={shown('displayName')}>
@@ -283,10 +290,12 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
                     <div className="fm-note-box" role="status" style={{ flexWrap: 'wrap', borderColor: 'var(--fm-err-bd)' }}>
                         <Lock size={16} aria-hidden="true" style={{ flex: 'none', color: 'var(--fm-err-bd)' }} />
                         <span style={{ flex: '1 1 200px' }}>Locked after too many wrong passwords — unlocks by itself at {lockTime}.</span>
-                        <button type="button" className="fm-btn fm-btn-small" onClick={unlock} disabled={unlockState === 'busy'} aria-busy={unlockState === 'busy'}>
-                            <LockOpen size={14} aria-hidden="true" />
-                            {unlockState === 'busy' ? 'Unlocking…' : 'Unlock now'}
-                        </button>
+                        {access.unlock && (
+                            <button type="button" className="fm-btn fm-btn-small" onClick={unlock} disabled={unlockState === 'busy'} aria-busy={unlockState === 'busy'}>
+                                <LockOpen size={14} aria-hidden="true" />
+                                {unlockState === 'busy' ? 'Unlocking…' : 'Unlock now'}
+                            </button>
+                        )}
                     </div>
                 )}
                 {unlockState === 'done' && (
@@ -295,8 +304,8 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
                         <span>Unlocked — they can sign in now.</span>
                     </div>
                 )}
-                <SegmentedToggle label="Sign-in" value={values.signInMethod} onChange={chooseSignIn} options={SIGN_IN_OPTIONS} />
-                {values.signInMethod === 'password' && (
+                {access.resetSignIn && <SegmentedToggle label="Sign-in" value={values.signInMethod} onChange={chooseSignIn} options={SIGN_IN_OPTIONS} />}
+                {access.resetSignIn && values.signInMethod === 'password' && (
                     <FormField name="password" id="eu-password" label="Temporary password" required error={shown('password')}>
                         <div className="fm-inline">
                             <PasswordInput
@@ -310,13 +319,14 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
                         </div>
                     </FormField>
                 )}
-                {values.signInMethod === 'invite' && (
+                {access.resetSignIn && values.signInMethod === 'invite' && (
                     <div className="fm-note-box">
                         <Mail size={16} aria-hidden="true" style={{ flex: 'none' }} />
                         <span>Sends a link to <strong>{values.email.trim() || 'their work email'}</strong></span>
                     </div>
                 )}
             </FormSection>
+          </fieldset>
         </FormModal>
     );
 }

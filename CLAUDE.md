@@ -169,6 +169,52 @@ through them. Five wrong passwords lock an account for 15 minutes
 now** (`POST /api/admin/users/:id/unlock`, `manage_users`), and any password
 reset or chosen password also lifts it (`clearSignInLock`).
 
+## Users, Roles & Permissions, Locations; team access (2026-10-16)
+
+Users & Roles is three Admin-rail pages (`users`, `roles`, `locations` in
+`navPins.js`; one screen, `UsersRolesTab`, with a `section`). Users also opens
+for **team access**: the `manage_team_users` permission (Users & Roles card →
+Team) lets a manager/director see the people at their own locations, who is
+online, and **deactivate / reactivate / unlock** them — nothing else (no add,
+edit, delete, passwords, Roles, Locations; those stay `manage_users`). Which
+people: the role's `manageableRoles` (Roles & Permissions → "People … can
+manage", chosen per role by an admin), only those whose locations are **all**
+the manager's, never themselves or an admin. Rules in `src/utils/teamAccess.js`
+(shared), the guard in `src/services/teamAccess.js`; the Users list, presence,
+active and unlock routes use `usersAccess` / `memberAllowed`. A new Users
+action for managers must go through them. Nobody holds the permission until
+an admin turns it on.
+
+**One permission per action (2026-10-16).** Every Users & Roles action has its
+own switch (`src/utils/usersAccess.js`: view/add/edit/reset sign-in/
+deactivate/unlock/delete users; view/edit/add/delete roles; view/add/edit/
+delete locations; side nav order), on the Users & Roles card in sections.
+`manage_users` is now **Full access**: it holds every one, so existing roles
+lost nothing. Any action in an area opens that area's page and loads its list
+(no separate "view" needed). Routes use `requireAction(key)` /
+`requireArea(area)` / `usersAccess(key)` (`src/services/teamAccess.js`), never
+a hand-typed `requirePermission('manage_users')`; screens use `can(user, key)`.
+A new Users & Roles action goes in that file's `USERS_ROLES_SECTIONS` (the
+card is built from it; `usersAccess.test.js` fails if a key has no switch).
+Left on `manage_users` on purpose: the Delivery Schedule's column arranging.
+
+## Who is online (2026-10-16)
+
+Users & Roles → Users list has an **Online** column, a live "Online now (N)"
+filter and "Last seen …" for people who are away. Every signed-in tab opens a
+socket (`PresenceReporter` → `src/api/presence.js`) that says who it is
+(`presence_hello`, a staff token only — customers are refused) and, at most
+once a minute while the mouse/keys/touch are used in a visible tab,
+`presence_active`. The server keeps the list **in memory**
+(`src/services/presence.js`: one entry per tab, **Active** until 10 minutes
+without activity, then **Idle**; device from the browser's User-Agent) and
+pushes it (`presence_update`) only to sockets whose user has `manage_users`;
+`GET /api/admin/users/presence` is the first load. `lastSeenAt` (written at
+most every 5 min while online and on the last tab closing) and `lastLoginAt`
+are on the User record. One server instance only — two would each hold half
+the list. A phone's background tab disconnects, so it shows "Last seen". The
+display rules are `src/utils/userPresence.js`.
+
 ## Permits: sources and the accuracy rules (2026-10-11; King County 2026-10-14)
 
 Sales · Permits (`src/permits/`) pulls building permits each morning from 15

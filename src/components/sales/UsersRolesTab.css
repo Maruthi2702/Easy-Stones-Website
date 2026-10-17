@@ -527,6 +527,51 @@ body.light-theme-active .user-inactive-badge,
 body.light-theme-active .user-locked-badge,
 .light-theme-active .user-locked-badge { color: #92400e; background: #fef3c7; }
 
+/* ── ONLINE (Users list) ── */
+.online-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    color: #94a3b8;
+}
+.online-status.active { color: #34d399; font-weight: 600; }
+.online-status.idle { color: #fcd34d; font-weight: 600; }
+body.light-theme-active .online-status,
+.light-theme-active .online-status { color: #64748b; }
+body.light-theme-active .online-status.active,
+.light-theme-active .online-status.active { color: #047857; }
+body.light-theme-active .online-status.idle,
+.light-theme-active .online-status.idle { color: #92400e; }
+
+.online-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: #64748b;
+    flex-shrink: 0;
+}
+.online-dot.active { background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); }
+.online-dot.idle { background: #f59e0b; }
+.online-dot.never { background: transparent; border: 1.5px solid #64748b; }
+
+.online-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.online-filter-btn.active { border-color: #10b981; background: rgba(16, 185, 129, 0.14); }
+
 /* ── ROLES PANEL & SIDEBAR ── */
 .roles-panel-layout {
     display: grid;
@@ -1002,6 +1047,8 @@ body.light-theme-active .user-locked-badge,
         width: 100%;
         max-width: 100%;
     }
+
+    .online-filter-btn { justify-content: center; }
 
     .add-user-btn {
         width: 100%;
@@ -1911,3 +1958,25 @@ body.light-theme-active .location-missing-banner { background: #fffbeb; border-c
     align-items: center;
     gap: 0.4rem;
 }
+
+
+/* ── Page title (each of Users / Roles & Permissions / Locations is its own page) ── */
+.users-roles-title {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+/* ── Team access: which roles a role's people can manage ── */
+.team-roles-panel {
+    margin-top: 1.5rem;
+    padding: 1.1rem 1.25rem;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+.team-roles-panel h4 { margin: 0 0 0.25rem; }
+.team-roles-list { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-top: 0.75rem; }
+.team-role-option { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }

@@ -108,6 +108,16 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  // Users & Roles → "Last seen": the last time they used the app (written by
+  // the online tracking, src/services/presence.js) and their last sign-in.
+  lastSeenAt: {
+    type: Date,
+    default: null
+  },
+  lastLoginAt: {
+    type: Date,
+    default: null
+  },
   location: {
     type: String,
     trim: true

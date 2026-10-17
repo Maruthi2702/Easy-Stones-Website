@@ -6,6 +6,10 @@ import dns from 'dns';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { createPresence, deviceFromUserAgent } from './src/services/presence.js';
+import { createTeamAccess, requireAction, requireArea } from './src/services/teamAccess.js';
+import { USERS, ROLES, LOCATIONS, canOpenArea, can } from './src/utils/usersAccess.js';
+import { TEAM_PERMISSION, cleanManageableRoles } from './src/utils/teamAccess.js';
 import cors from 'cors';
 import mongoose from 'mongoose';
 
@@ -359,6 +363,63 @@ async function resolveSocketAssignedLocations(token) {
   return user.assignedLocations || [];
 }
 
+// ── Who is online ────────────────────────────────────────────────────────────
+const presence = createPresence();
+const PRESENCE_VIEWERS_ROOM = 'presence-viewers';
+
+// Like resolveSocketAssignedLocations: a customer token, a deactivated account,
+// a temporary password or an ended session is "nobody". Also says whether this
+// person may see the list (Users & Roles' own permission, manage_users).
+async function resolveSocketStaff(token) {
+  if (!token) return null;
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const userId = decoded.userId || decoded.id || decoded.sub;
+  if (!userId || decoded.type === 'customer' || !mongoose.isValidObjectId(userId)) return null;
+  const user = await User.findById(userId, 'role isActive mustChangePassword sessionVersion').lean();
+  if (!user || user.isActive === false || user.mustChangePassword || !sessionIsCurrent(decoded, user)) return null;
+  const role = await Role.findOne({ name: String(user.role || '').trim().toLowerCase() }, 'permissions').lean();
+  const asUser = { permissions: role?.permissions || [] };
+  return {
+    userId: String(user._id),
+    canSeePresence: canOpenArea(asUser, 'users') || asUser.permissions.includes(TEAM_PERMISSION)
+  };
+}
+
+const writeLastSeen = (userId, at) =>
+  User.updateOne({ _id: userId }, { $set: { lastSeenAt: at } }).catch(() => {});
+
+// While online, at most every few minutes (presence.dueToSave).
+const savePresenceLastSeen = (userId) => {
+  if (userId && presence.dueToSave(userId)) writeLastSeen(userId, new Date());
+};
+
+// The list changes on every tab opened, closed or used, and by itself as
+// people go idle; one push per second at most, and only to viewers.
+let presenceTimer = null;
+let lastPresenceSent = '';
+function announcePresence() {
+  if (presenceTimer) return;
+  presenceTimer = setTimeout(() => {
+    presenceTimer = null;
+    const list = presence.snapshot();
+    const sent = JSON.stringify(list.map(({ userId, status, device, tabs }) => [userId, status, device, tabs]));
+    if (sent === lastPresenceSent) return;
+    lastPresenceSent = sent;
+    io.to(PRESENCE_VIEWERS_ROOM).emit('presence_update', list);
+  }, 1000);
+}
+setInterval(announcePresence, 60 * 1000).unref();
+
+// A tab closed (or signed in as someone else). When it was their last one the
+// moment they last used the app is their "last seen".
+function forgetPresenceTab(socket) {
+  const gone = presence.disconnect(socket.id);
+  socket.data.presenceUserId = null;
+  if (!gone) return;
+  if (gone.offline) writeLastSeen(gone.userId, new Date(gone.lastActiveAt));
+  announcePresence();
+}
+
 io.on('connection', (socket) => {
   if (process.env.NODE_ENV === 'development') {
     console.log(`🔌 WebSockets: Client connected (${socket.id})`);
@@ -416,7 +477,37 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Who is online (Users & Roles). A tab says who it is once per connection
+  // (and again whenever its session changes); staff only — customer tokens are
+  // refused. Anyone who can open Users & Roles also joins the room the live
+  // list is pushed to. See src/services/presence.js.
+  socket.on('presence_hello', async (payload, ack) => {
+    const reply = typeof ack === 'function' ? ack : () => {};
+    try {
+      forgetPresenceTab(socket);
+      socket.leave(PRESENCE_VIEWERS_ROOM);
+      const who = await resolveSocketStaff(payload?.token);
+      if (!who) return reply({ ok: false });
+      presence.connect(socket.id, who.userId, deviceFromUserAgent(socket.handshake.headers['user-agent']));
+      socket.data.presenceUserId = who.userId;
+      if (who.canSeePresence) socket.join(PRESENCE_VIEWERS_ROOM);
+      savePresenceLastSeen(who.userId);
+      announcePresence();
+      reply({ ok: true });
+    } catch {
+      reply({ ok: false });
+    }
+  });
+
+  // Sent by the tab (about once a minute at most) while someone is using it.
+  socket.on('presence_active', () => {
+    if (!presence.activity(socket.id)) return;
+    savePresenceLastSeen(socket.data.presenceUserId);
+    announcePresence();
+  });
+
   socket.on('disconnect', () => {
+    forgetPresenceTab(socket);
     if (process.env.NODE_ENV === 'development') {
       console.log(`🔌 WebSockets: Client disconnected (${socket.id})`);
     }
@@ -1575,11 +1666,21 @@ const resolveHomeLocation = async ({ requested, current, assignedLocations }) =>
 };
 
 // Username check, first-sign-in password, emailed invites — see the module.
-app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter, jwtSecret: JWT_SECRET }));
+const { usersAccess, memberAllowed, teamUsers } = createTeamAccess({ Role, User });
+app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter, jwtSecret: JWT_SECRET, usersAccess, memberAllowed }));
+
+// Who is online right now — the first load of Users & Roles' Online badges;
+// after that the list is pushed over the socket (presence_update).
+app.get('/api/admin/users/presence', authenticate, usersAccess('view'), (req, res) => {
+  res.json(presence.snapshot());
+});
 
 // Get all users (manage_users permission needed)
-app.get('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
+app.get('/api/admin/users', authenticate, usersAccess('view'), async (req, res) => {
   try {
+    if (req.teamScope) {
+      return res.json(await teamUsers(req));
+    }
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     res.json(users);
   } catch {
@@ -1593,7 +1694,7 @@ app.get('/api/admin/users', authenticate, requirePermission('manage_users'), asy
 // the data. Sign-in is either a temporary password (mustChangePassword: they
 // pick their own at first sign-in) or an emailed invite link
 // (src/routes/userOnboarding.js).
-app.post('/api/admin/users', authenticate, requirePermission('manage_users'), async (req, res) => {
+app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req, res) => {
   try {
     const { displayName, email, role, location, assignedLocations, joiningDate, signInMethod = 'password', password } = req.body;
     const username = String(req.body.username || '').trim().toLowerCase();
@@ -1689,7 +1790,7 @@ app.post('/api/admin/users', authenticate, requirePermission('manage_users'), as
 });
 
 // Update user (manage_users permission needed)
-app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'), async (req, res) => {
+app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (req, res) => {
   try {
     const { username, displayName, email, role, password, location, assignedLocations, joiningDate, signInReset } = req.body;
     const userId = req.params.id;
@@ -1712,6 +1813,10 @@ app.put('/api/admin/users/:id', authenticate, requirePermission('manage_users'),
     if (role !== undefined) {
       nextRole = String(role || '').trim().toLowerCase();
       if (!nextRole || !(await Role.exists({ name: nextRole }))) return fail('role', 'Pick a role');
+    }
+    // A temporary password or an invite link is its own action (Reset sign-in).
+    if ((signInReset !== undefined || password !== undefined) && !can(req.user, USERS.RESET_SIGN_IN)) {
+      return res.status(403).json({ message: "You don't have permission to reset someone's sign-in." });
     }
     if (signInReset !== undefined && !['password', 'invite'].includes(signInReset)) return fail('signInReset', 'Choose how they sign in');
     if (signInReset === 'password' && String(password || '').length < PASSWORD_MIN) return fail('password', `At least ${PASSWORD_MIN} characters`);
@@ -1901,15 +2006,16 @@ const clearDriverHandover = async (req, res, user, verb) => {
 // open session ends on its next request, their calendar feed stops, and a
 // driver drops off the board's columns except on weeks they delivered. Kept,
 // not deleted, so their name stays on the history they made.
-app.patch('/api/admin/users/:id/active', authenticate, requirePermission('manage_users'), async (req, res) => {
+app.patch('/api/admin/users/:id/active', authenticate, usersAccess(USERS.DEACTIVATE), async (req, res) => {
   try {
     const active = req.body?.active !== false;
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'User not found' });
     if (!active && String(req.params.id) === String(req.user.id)) {
       return res.status(400).json({ message: "You can't deactivate your own account." });
     }
-    const user = await User.findById(req.params.id).select('username displayName isActive').lean();
+    const user = await User.findById(req.params.id).select('username displayName isActive role assignedLocations').lean();
     if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!memberAllowed(req, user)) return res.status(403).json({ message: "You can't change this person's account." });
 
     if (!active && !(await clearDriverHandover(req, res, user, 'deactivate'))) return;
 
@@ -1925,7 +2031,7 @@ app.patch('/api/admin/users/:id/active', authenticate, requirePermission('manage
   }
 });
 
-app.delete('/api/admin/users/:id', authenticate, requirePermission('manage_users'), async (req, res) => {
+app.delete('/api/admin/users/:id', authenticate, requireAction(USERS.DELETE), async (req, res) => {
   try {
     if (String(req.params.id) === String(req.user.id)) {
       return res.status(400).json({ message: "You can't delete your own account." });
@@ -1948,7 +2054,7 @@ app.delete('/api/admin/users/:id', authenticate, requirePermission('manage_users
 // ============================================
 
 // Get all roles (manage_users permission needed)
-app.get('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.get('/api/admin/roles', verifyAnyAuth, requireArea('roles', { alsoRoles: true }), async (req, res) => {
   try {
     const roles = await Role.find().sort({ name: 1 });
     res.json(roles);
@@ -1958,7 +2064,7 @@ app.get('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), asyn
 });
 
 // Create a new custom role (manage_users permission needed)
-app.post('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.post('/api/admin/roles', verifyAnyAuth, requireAction(ROLES.ADD), async (req, res) => {
   try {
     const { name, displayName, permissions } = req.body;
     if (!name || !displayName) {
@@ -1987,9 +2093,9 @@ app.post('/api/admin/roles', verifyAnyAuth, checkPermission('manage_users'), asy
 });
 
 // Update role permissions (manage_users permission needed)
-app.put('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), async (req, res) => {
   try {
-    const { permissions, displayName } = req.body;
+    const { permissions, displayName, manageableRoles } = req.body;
     const roleId = req.params.id;
 
     const role = await Role.findById(roleId);
@@ -1999,6 +2105,7 @@ app.put('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), 
 
     if (permissions !== undefined) role.permissions = permissions;
     if (displayName !== undefined) role.displayName = displayName;
+    if (manageableRoles !== undefined) role.manageableRoles = cleanManageableRoles(manageableRoles, role.name);
 
     await role.save();
     // A role's permissions decide who counts as a delivery driver in the
@@ -2011,7 +2118,7 @@ app.put('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), 
 });
 
 // Delete custom role (manage_users permission needed)
-app.delete('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), async (req, res) => {
   try {
     const roleId = req.params.id;
     const role = await Role.findById(roleId);
@@ -2046,7 +2153,7 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, checkPermission('manage_users'
 app.get('/api/admin/locations', verifyAnyAuth, async (req, res) => {
   try {
     const locations = await Location.find().sort({ name: 1 }).lean();
-    const full = req.user?.permissions?.includes('manage_users');
+    const full = canOpenArea(req.user, 'locations');
     const staff = req.user?.type !== 'customer';
     res.json(full ? locations : locations.map((l) => publicLocationFields(l, { staff })));
   } catch (error) {
@@ -2077,7 +2184,7 @@ const locationError = (res, errors) => {
 };
 
 // Create a new location (manage_users permission needed)
-app.post('/api/admin/locations', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.post('/api/admin/locations', verifyAnyAuth, requireAction(LOCATIONS.ADD), async (req, res) => {
   try {
     const others = await Location.find({}, { name: 1, shortCode: 1 }).lean();
     const { record, errors } = parseLocationBody(req.body, { others });
@@ -2103,7 +2210,7 @@ app.post('/api/admin/locations', verifyAnyAuth, checkPermission('manage_users'),
 // Update a location (manage_users permission needed). Everything but the
 // short name is editable — the name is the key stored on users, check-ins,
 // daily reports, etc., so renaming would orphan those records.
-app.patch('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDIT), async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(404).json({ message: 'Location not found' });
@@ -2129,7 +2236,7 @@ app.patch('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_use
 });
 
 // Delete a location (manage_users permission needed)
-app.delete('/api/admin/locations/:id', verifyAnyAuth, checkPermission('manage_users'), async (req, res) => {
+app.delete('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.DELETE), async (req, res) => {
   try {
     const locationId = req.params.id;
     const location = await Location.findById(locationId);
@@ -2258,7 +2365,7 @@ app.get('/api/user/me', authenticate, async (req, res) => {
 app.use('/api/user/me/route-planner-filters', createRoutePlannerFiltersRouter({ authenticate }));
 app.use('/api/user/me/pinned-tabs', createPinnedTabsRouter({ authenticate }));
 // The side nav's admin-set order, for everyone (src/routes/navOrder.js).
-app.use('/api/nav-order', createNavOrderRouter({ authenticate, requirePermission }));
+app.use('/api/nav-order', createNavOrderRouter({ authenticate, requirePermission, requireAction }));
 // The ZIP lookup calls Google (billed): staff with a Sales page only.
 app.use('/api/geocode', createGeocodeRouter({ authenticate: [authenticate, requireSalesPage] }));
 
@@ -2460,8 +2567,8 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
 
     // Clear failed attempts, and record a customer's sign-in IP — one write
     // at most. This used to be a resetLoginAttempts() write followed by a
-    // second update setting the same fields again, run on every sign-in; a
-    // staff account with nothing to clear now writes nothing at all.
+    // second update setting the same fields again, run on every sign-in. A
+    // staff sign-in also stamps lastLoginAt (Users & Roles' "Last seen").
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
     if (accountType === 'customer') {
@@ -2479,9 +2586,9 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
           }
         }
       });
-    } else if (account.loginAttempts > 0 || account.lockUntil) {
+    } else {
       await User.updateOne({ _id: account._id }, {
-        $set: { loginAttempts: 0 },
+        $set: { loginAttempts: 0, lastLoginAt: new Date() },
         $unset: { lockUntil: 1 }
       });
     }
