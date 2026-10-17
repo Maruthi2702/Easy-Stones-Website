@@ -51,7 +51,7 @@ const BulkBar = ({ count, canEdit, salesReps, onPlanRoute, onCopyEmails, onAssig
       <button type="button" className="cl-bb" onClick={onCopyEmails} disabled={busy}><Mail size={16} aria-hidden="true" />Copy emails</button>
       {canEdit && <PickOne icon={UserPlus} label="Assign rep" groups={repGroups} onPick={onAssignRep} disabled={busy} />}
       {canEdit && <PickOne icon={CircleDot} label="Set status" groups={statusGroups} onPick={onSetStatus} disabled={busy} />}
-      <button type="button" className="cl-bb" onClick={onExport} disabled={busy}><Download size={16} aria-hidden="true" />Export</button>
+      {onExport && <button type="button" className="cl-bb" onClick={onExport} disabled={busy}><Download size={16} aria-hidden="true" />Export</button>}
       <button type="button" className="cl-bb" aria-label="Clear selection" onClick={onClear}><X size={16} /></button>
     </div>
   );

@@ -8,6 +8,7 @@ import Pagination from '../shared/Pagination';
 import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import AddCustomerModal from './AddCustomerModal';
 import CustomerImportModal from '../admin/CustomerImportModal';
+import { canAddCustomer, canEditCustomers, canDeleteCustomers, canViewCustomerProfile, canExportCustomers } from '../../utils/customerAccess';
 import { useAuth } from '../../context/AuthContext';
 import { toSalesRepList } from '../../utils/salesReps';
 import { API_URL } from '../../config/api';
@@ -53,7 +54,7 @@ const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 const SORTS = [
     { value: 'company:asc', label: 'Company A–Z' },
     { value: 'company:desc', label: 'Company Z–A' },
-    { value: 'level:asc', label: 'Level 1 → 4' },
+    { value: 'level:asc', label: 'Level 1 → 4', profile: true },
     { value: 'city:asc', label: 'City' },
     { value: 'salesRep:asc', label: 'Sales rep' },
     { value: 'location:asc', label: 'Location' }
@@ -114,8 +115,13 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const phone = width < 600;
     const isMobile = width <= 1024; // the sales layout's own sidebar breakpoint
 
-    const canEdit = !!user?.permissions?.includes('manage_customers');
-    const canDelete = canEdit || !!user?.permissions?.includes('delete_customers');
+    const canEdit = canEditCustomers(user);
+    const canAdd = canAddCustomer(user);
+    // Full profile and Export are their own switches (customerAccess.js); the
+    // server enforces both, this only decides what the screen offers.
+    const canProfile = canViewCustomerProfile(user);
+    const canExport = canExportCustomers(user);
+    const canDelete = canDeleteCustomers(user);
 
     const [activeTab, setActiveTab] = useState('fabricators');
     const [partners, setPartners] = useState([]);
@@ -154,7 +160,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const [limit, setLimit] = useState(DEFAULT_ROWS_PER_PAGE);
-    const [sortBy, setSortBy] = useState('level');
+    const [sortBy, setSortBy] = useState(canProfile ? 'level' : 'company');
     const [sortOrder, setSortOrder] = useState('asc');
 
     // Selection persists across pages, so keep the rows themselves for copy/export.
@@ -565,7 +571,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     };
 
     // ── Opening customers ────────────────────────────────────────────────────
-    const openProfile = (row) => { setOpenCustomer(null); onSelectCustomer && onSelectCustomer(row); };
+    // Without Full profile there is no profile to open: the basic card (the drawer) is the most there is.
+    const openProfile = (row) => {
+        if (!canProfile) { setOpenCustomer(row); return; }
+        setOpenCustomer(null);
+        onSelectCustomer && onSelectCustomer(row);
+    };
     const openRow = (row, index) => {
         setOpenCustomer(row);
         if (index !== undefined) setFocusIndex(index);
@@ -639,15 +650,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                 />
             )}
             <FilterDropdown label="City" options={uniqueCities.map(c => ({ value: c, label: c }))} selected={filterCities} onChange={withReset(setFilterCities)} searchable />
-            <FilterDropdown label="Level" options={LEVELS.map(l => ({ value: l, label: l }))} selected={filterLevels} onChange={withReset(setFilterLevels)} />
+            {canProfile && <FilterDropdown label="Level" options={LEVELS.map(l => ({ value: l, label: l }))} selected={filterLevels} onChange={withReset(setFilterLevels)} />}
             {!isFabTab && (
                 <FilterDropdown label="Type" options={PARTNER_TYPES.map(t => ({ value: t, label: t }))} selected={filterTypes} onChange={withReset(setFilterTypes)} />
             )}
-            <FilterDropdown label="Moda Resources" options={MODA_OPTIONS} selected={filterModa} onChange={withReset(setFilterModa)} align="right" />
+            {canProfile && <FilterDropdown label="Moda Resources" options={MODA_OPTIONS} selected={filterModa} onChange={withReset(setFilterModa)} align="right" />}
         </>
     );
 
-    const viewPicker = <ViewPicker view={view} counts={viewCounts} onChange={(v) => { setView(v); resetPage(); }} />;
+    const viewPicker = !canProfile ? null : <ViewPicker view={view} counts={viewCounts} onChange={(v) => { setView(v); resetPage(); }} />;
     const letterChip = letter && (
         <button type="button" className="cl-dd-btn set" onClick={() => { setLetter(''); resetPage(); }} aria-label={`Clear starts-with ${letter}`}>
             Starts with {letter} <X size={13} aria-hidden="true" />
@@ -666,7 +677,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                 value={`${sortBy}:${sortOrder}`}
                 onChange={(e) => { const [by, order] = e.target.value.split(':'); setSortBy(by); setSortOrder(order); resetPage(); }}
             >
-                {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {SORTS.filter(s => canProfile || !s.profile).map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
         </label>
     );
@@ -692,7 +703,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
             <p>{anyNarrowing ? 'Try removing a filter, or search all customers.' : 'Add your first customer to get started.'}</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {anyNarrowing && <button type="button" className="cl-btn" onClick={() => { clearFilters(); setSearchTerm(''); setDebouncedSearch(''); }}><X size={15} aria-hidden="true" />Clear filters</button>}
-                <button type="button" className="cl-btn gold" onClick={() => { setEditingPartner(null); setViewingPartner(null); setShowAddModal(true); }}><Plus size={16} aria-hidden="true" />Add customer</button>
+                {canAdd && <button type="button" className="cl-btn gold" onClick={() => { setEditingPartner(null); setViewingPartner(null); setShowAddModal(true); }}><Plus size={16} aria-hidden="true" />Add customer</button>}
             </div>
         </div>
     );
@@ -739,24 +750,31 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                         ? <button type="button" className="cl-ib" style={{ width: 26, height: 26 }} onClick={() => setSearchTerm('')} aria-label="Clear search"><X size={14} /></button>
                         : <kbd className="cl-kbd cl-hide-narrow">/</kbd>}
                 </label>
-                <button type="button" className="cl-btn cl-hide-narrow" onClick={exportToExcel}><Download size={16} aria-hidden="true" />Export</button>
-                <div className="cl-rowmenu" ref={moreRef}>
-                    <button type="button" className="cl-ib box" aria-label="More actions" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(o => !o)}>
-                        <MoreHorizontal size={18} />
+                {(canExport || canEdit) && (
+                    <div className="cl-rowmenu" ref={moreRef}>
+                        <button type="button" className="cl-ib box" aria-label="More actions" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(o => !o)}>
+                            <MoreHorizontal size={18} />
+                        </button>
+                        {moreOpen && (
+                            <div className="cl-pop right" role="menu" style={{ minWidth: 250 }}>
+                                {canExport && (
+                                    <>
+                                        <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); exportToExcel(); }}><Download size={16} aria-hidden="true" />Export to Excel</button>
+                                        <button type="button" role="menuitem" className="cl-opt" onClick={emailAllContacts}><Mail size={16} aria-hidden="true" />Copy marketing emails</button>
+                                    </>
+                                )}
+                                {canEdit && (
+                                    <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); setShowImportModal(true); }}><Upload size={16} aria-hidden="true" />Import from Excel</button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+                {canAdd && (
+                    <button type="button" className="cl-btn gold cl-hide-phone" onClick={() => { setEditingPartner(null); setViewingPartner(null); setShowAddModal(true); }}>
+                        <Plus size={17} aria-hidden="true" />Add customer
                     </button>
-                    {moreOpen && (
-                        <div className="cl-pop right" role="menu" style={{ minWidth: 250 }}>
-                            <button type="button" role="menuitem" className="cl-opt cl-only-narrow" onClick={() => { setMoreOpen(false); exportToExcel(); }}><Download size={16} aria-hidden="true" />Export to Excel</button>
-                            <button type="button" role="menuitem" className="cl-opt" onClick={emailAllContacts}><Mail size={16} aria-hidden="true" />Copy marketing emails</button>
-                            {canEdit && (
-                                <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); setShowImportModal(true); }}><Upload size={16} aria-hidden="true" />Import from Excel</button>
-                            )}
-                        </div>
-                    )}
-                </div>
-                <button type="button" className="cl-btn gold cl-hide-phone" onClick={() => { setEditingPartner(null); setViewingPartner(null); setShowAddModal(true); }}>
-                    <Plus size={17} aria-hidden="true" />Add customer
-                </button>
+                )}
             </div>
 
             {/* ── Tabs + views/filters ── */}
@@ -843,6 +861,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                                 onDelete={handleDeletePartner}
                                 canEdit={canEdit}
                                 canDelete={canDelete}
+                                canProfile={canProfile}
                                 showType={showType}
                             />
                         )}
@@ -852,9 +871,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                 {(!nothingMatches || letter) && azStrip}
             </div>
 
-            <button type="button" className="cl-fab" aria-label="Add customer" onClick={() => { setEditingPartner(null); setViewingPartner(null); setShowAddModal(true); }}>
+            {canAdd && <button type="button" className="cl-fab" aria-label="Add customer" onClick={() => { setEditingPartner(null); setViewingPartner(null); setShowAddModal(true); }}>
                 <Plus size={26} />
-            </button>
+            </button>}
 
             {!narrow && (
                 <BulkBar
@@ -867,7 +886,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                     onCopyEmails={bulkCopyEmails}
                     onAssignRep={(repId) => bulkPatch({ salesRep: repId }, (n) => `${n} reassigned`)}
                     onSetStatus={(status) => bulkPatch({ status }, (n) => `${n} set to ${status}`)}
-                    onExport={() => exportRows(selectedRows, 'Selected_Customers')}
+                    onExport={canExport ? () => exportRows(selectedRows, 'Selected_Customers') : null}
                     onClear={() => setSelected(new Map())}
                 />
             )}
@@ -888,6 +907,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                     onStatusChange={handleStatusChange}
                     canEdit={canEdit}
                     canDelete={canDelete}
+                    canProfile={canProfile}
                 />
             )}
 

@@ -29,6 +29,7 @@ import CustomerSidebar from '../components/sales/CustomerSidebar';
 import usePinnedTabs from '../components/sales/usePinnedTabs';
 import useNavOrder from '../components/sales/useNavOrder';
 import { pinnedDefaultTab } from '../utils/navPins';
+import { canAddCustomer, canViewCustomerProfile } from '../utils/customerAccess';
 import { canOpenUsersPage } from '../utils/teamAccess';
 import { canOpenArea, can, NAV_ORDER } from '../utils/usersAccess';
 import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
@@ -1029,8 +1030,8 @@ const SalesPage = () => {
     };
 
     // "New customer" in a dropdown — only for people the server lets create one
-    // (POST /api/customers needs manage_customers); undefined hides the option.
-    const openNewCustomer = currentUser?.permissions?.includes('manage_customers')
+    // (POST /api/customers needs add_customers); undefined hides the option.
+    const openNewCustomer = canAddCustomer(currentUser)
         ? () => setShowAddCustomerModal(true)
         : undefined;
 
@@ -1640,7 +1641,12 @@ const SalesPage = () => {
     };
 
     // Use selectedCustomerDetail for the main view, fallback to list item (which might be partial)
-    const selectedCustomer = selectedCustomerDetail || customers.find(c => c._id === selectedCustomerId) || (selectedCustomerId ? { _id: selectedCustomerId } : null);
+    // The full profile (visits, resources, contacts, network, details) is Full
+    // profile's; without it every way of opening one — the list, a link, the
+    // dashboard, the route planner — lands on the customer list instead.
+    const selectedCustomer = !canViewCustomerProfile(currentUser)
+        ? null
+        : (selectedCustomerDetail || customers.find(c => c._id === selectedCustomerId) || (selectedCustomerId ? { _id: selectedCustomerId } : null));
 
     // Link a partner: the same customer options, minus this account and the
     // ones already linked, with the type in the line under the name.

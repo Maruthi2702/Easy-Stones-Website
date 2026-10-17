@@ -188,6 +188,8 @@ body.light-theme-active .cl {
 .cl-rowmenu { position: relative; }
 
 /* Columns that give way first as the screen narrows. */
+/* No Full profile: the server sends no level or Moda, so the columns go. */
+.cl-table.no-profile .c-level, .cl-table.no-profile .c-moda { display: none; }
 @media (max-width: 1380px) { .cl-table .c-level { display: none; } }
 @media (max-width: 1240px) { .cl-table .c-moda { display: none; } }
 @media (max-width: 1100px) { .cl-table .c-addr { display: none; } }

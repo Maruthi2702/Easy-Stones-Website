@@ -67,7 +67,10 @@ const CopyCard = ({ person }) => {
 
 const CustomerDrawer = ({
   customer, position, onPrev, onNext, onClose, onOpenProfile, onEdit, onDelete,
-  onStatusChange, canEdit, canDelete, overlay
+  onStatusChange, canEdit, canDelete, overlay,
+  // Without Full profile this is the basic card only: no profile link, level,
+  // follow-up, marketing, other contacts, Moda, visits or notes.
+  canProfile = true
 }) => {
   const [detail, setDetail] = useState(null);
   const [loadError, setLoadError] = useState('');
@@ -101,7 +104,7 @@ const CustomerDrawer = ({
 
   const id = customer?._id;
   useEffect(() => {
-    if (!id) return undefined;
+    if (!id || !canProfile) return undefined;
     // PartnersSheet remounts this per customer (key), so state starts fresh.
     let live = true;
     (async () => {
@@ -116,7 +119,7 @@ const CustomerDrawer = ({
       }
     })();
     return () => { live = false; };
-  }, [id]);
+  }, [id, canProfile]);
 
   // Focus the close button when a different customer opens, for keyboard users.
   useEffect(() => { closeRef.current?.focus({ preventScroll: true }); }, [id]);
@@ -177,9 +180,11 @@ const CustomerDrawer = ({
             </button>
             {menuOpen && (
               <div className="cl-pop cl-drawer-menu" role="menu" aria-label="Customer actions" style={{ minWidth: 210, ...menuPos }} onKeyDown={onMenuKey}>
-                <button type="button" role="menuitem" className="cl-opt" onClick={() => runMenu(() => onOpenProfile(customer))}>
-                  <ExternalLink size={16} aria-hidden="true" />Open profile
-                </button>
+                {canProfile && (
+                  <button type="button" role="menuitem" className="cl-opt" onClick={() => runMenu(() => onOpenProfile(customer))}>
+                    <ExternalLink size={16} aria-hidden="true" />Open profile
+                  </button>
+                )}
                 {canEdit && (
                   <button type="button" role="menuitem" className="cl-opt" onClick={() => runMenu(() => onEdit(customer))}>
                     <Pencil size={16} aria-hidden="true" />Edit customer
@@ -217,9 +222,11 @@ const CustomerDrawer = ({
             <div style={{ flex: 1, minWidth: 0 }}>
               {/* The name opens the full profile, as it does in the table. */}
               <h3>
-                <button type="button" className="cl-dh-name" title="Open profile" onClick={() => onOpenProfile(customer)}>
-                  {companyOf(c)}
-                </button>
+                {canProfile ? (
+                  <button type="button" className="cl-dh-name" title="Open profile" onClick={() => onOpenProfile(customer)}>
+                    {companyOf(c)}
+                  </button>
+                ) : companyOf(c)}
               </h3>
             </div>
             {canEdit ? (
@@ -235,7 +242,7 @@ const CustomerDrawer = ({
           </div>
           <div className="cl-dh-meta" style={{ marginTop: -6 }}>
             <TypeTag type={c.customerType} />
-            <LevelTag level={c.level || c.segment} />
+            {canProfile && <LevelTag level={c.level || c.segment} />}
             {/* No address here: it's in Account & address just below. */}
             <LocationTag customer={c} />
             <RepBadge name={c.salesRepName} />
@@ -258,11 +265,11 @@ const CustomerDrawer = ({
                 ) : <span className="cl-miss">No address</span>}
               </dd>
               <dt>Customer type</dt><dd>{c.customerType || 'Fabricator'}</dd>
-              <dt>Level</dt><dd>{c.level || c.segment || '—'}</dd>
+              {canProfile && <><dt>Level</dt><dd>{c.level || c.segment || '—'}</dd></>}
               <dt>Sales rep</dt><dd>{c.salesRepName || 'Unassigned'}</dd>
               <dt>Location</dt><dd><LocationTag customer={c} /></dd>
-              {nextFollowUp && (<><dt>Follow-up</dt><dd>{fmtDate(nextFollowUp)}</dd></>)}
-              <dt>Marketing email</dt><dd>{c.receiveMarketing === false ? 'Opted out' : 'Opted in'}</dd>
+              {canProfile && nextFollowUp && (<><dt>Follow-up</dt><dd>{fmtDate(nextFollowUp)}</dd></>)}
+              {canProfile && <><dt>Marketing email</dt><dd>{c.receiveMarketing === false ? 'Opted out' : 'Opted in'}</dd></>}
             </dl>
           </section>
 
@@ -280,7 +287,7 @@ const CustomerDrawer = ({
                     <span className="cl-grow" />
                     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flex: 'none' }}>
                       <CopyCard person={p} />
-                      <SaveContact customerId={customer?._id} person={p} />
+                      {canProfile && <SaveContact customerId={customer?._id} person={p} />}
                     </span>
                   </div>
                   <div className="cl-ct-vals">
@@ -297,6 +304,7 @@ const CustomerDrawer = ({
             {loadError && <div className="cl-err">{loadError}</div>}
           </section>
 
+          {canProfile && (
           <section className="cl-sec" aria-label="Moda Resources">
             <h4><Presentation size={15} aria-hidden="true" />Moda Resources</h4>
             <div className="cl-tiles">
@@ -304,7 +312,9 @@ const CustomerDrawer = ({
               <div className="cl-tile"><span className="cl-muted" style={{ fontSize: 12.5 }}>Binders</span><b>{binders}</b></div>
             </div>
           </section>
+          )}
 
+          {canProfile && (
           <section className="cl-sec" aria-label="Recent visits">
             <h4>
               <Clock size={15} aria-hidden="true" />Recent visits
@@ -324,11 +334,14 @@ const CustomerDrawer = ({
               </div>
             ))}
           </section>
+          )}
 
+          {canProfile && (
           <section className="cl-sec" aria-label="Notes">
             <h4><NotebookPen size={15} aria-hidden="true" />Notes</h4>
             {note ? <div className="cl-note">{note}</div> : <div className="cl-muted" style={{ fontSize: 13.5 }}>No notes yet.</div>}
           </section>
+          )}
         </div>
       </aside>
     </>
