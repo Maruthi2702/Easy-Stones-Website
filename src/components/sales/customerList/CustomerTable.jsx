@@ -20,7 +20,7 @@ const SortHeader = ({ label, field, sort, onSort, className }) => {
   );
 };
 
-const RowMenu = ({ row, onOpen, onOpenProfile, onEdit, onDelete, canEdit, canDelete }) => {
+const RowMenu = ({ row, onOpen, onOpenProfile, onEdit, onDelete, canEdit, canDelete, canProfile }) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(undefined);
   const ref = useRef(null);
@@ -34,7 +34,7 @@ const RowMenu = ({ row, onOpen, onOpenProfile, onEdit, onDelete, canEdit, canDel
       {open && (
         <div className="cl-pop right" role="menu" style={{ minWidth: 200, ...pos }}>
           <button type="button" role="menuitem" className="cl-opt" onClick={act(onOpen)}><Eye size={16} aria-hidden="true" />View details</button>
-          <button type="button" role="menuitem" className="cl-opt" onClick={act(onOpenProfile)}><ExternalLink size={16} aria-hidden="true" />Open profile</button>
+          {canProfile && <button type="button" role="menuitem" className="cl-opt" onClick={act(onOpenProfile)}><ExternalLink size={16} aria-hidden="true" />Open profile</button>}
           {canEdit && <button type="button" role="menuitem" className="cl-opt" onClick={act(onEdit)}><Pencil size={16} aria-hidden="true" />Edit customer</button>}
           {canDelete && (
             <>
@@ -64,14 +64,16 @@ const SkeletonRows = ({ count = 8 }) => Array.from({ length: count }, (_, i) => 
 
 const CustomerTable = ({
   rows, loading, sort, onSort, selectedIds, onToggle, onToggleAll, openId, focusIndex,
-  onOpen, onOpenProfile, onEdit, onDelete, canEdit, canDelete, showType, children
+  onOpen, onOpenProfile, onEdit, onDelete, canEdit, canDelete, showType, children,
+  // Without Full profile the Level and Moda columns are hidden (the server sends neither).
+  canProfile = true
 }) => {
   const allChecked = rows.length > 0 && rows.every(r => selectedIds.has(r._id));
   const someChecked = !allChecked && rows.some(r => selectedIds.has(r._id));
 
   return (
     <div className="cl-tablewrap">
-      <table className="cl-table" aria-busy={loading ? 'true' : 'false'}>
+      <table className={`cl-table${canProfile ? '' : ' no-profile'}`} aria-busy={loading ? 'true' : 'false'}>
         <colgroup>
           <col style={{ width: 44 }} />
           <col style={{ width: '22%' }} />
@@ -163,6 +165,7 @@ const CustomerTable = ({
                     row={row}
                     canEdit={canEdit}
                     canDelete={canDelete}
+                    canProfile={canProfile}
                     onOpen={() => onOpen(row, i)}
                     onOpenProfile={() => onOpenProfile(row)}
                     onEdit={() => onEdit(row)}

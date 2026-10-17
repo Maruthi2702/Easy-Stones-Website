@@ -8,6 +8,7 @@ import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAcc
 import {
     ArrowLeftRight, Boxes, CheckCheck, Download, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert
 } from 'lucide-react';
+import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
 import { FULL_ACCESS, USERS, ROLES, LOCATIONS, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
 
@@ -22,6 +23,19 @@ const CHECKIN_ACTIONS = {
     [C.DELETE]:       { label: 'Delete',       icon: Trash2,   desc: 'Delete check-in records' },
     [C.EDIT_SHEET]:   { label: 'Edit sheets',  icon: FileCog,  desc: 'Edit selection sheets: materials, prices, notes and sales rep' },
     [C.EMAIL_SHEET]:  { label: 'Email sheets', icon: MailIcon, desc: 'Email selection sheets to customers, and send the sales rep their copy' }
+};
+
+// The Customers card's switches, by key. Which section each sits in, and the
+// order, is CUSTOMER_SECTIONS'.
+const CU = CUSTOMER_PERMISSIONS;
+const CUSTOMER_ACTIONS = {
+    [CU.VIEW]:    { label: 'View',         icon: Eye,      desc: 'View the customer list and each customer’s basic card (name, contact, address, rep, branch, status)' },
+    [CU.PROFILE]: { label: 'Full profile', icon: UserCheck, desc: 'Open a customer’s full profile: visits, resources, contacts, network and details' },
+    [CU.EXPORT]:  { label: 'Export',       icon: Download, desc: 'Download the customer list to Excel' },
+    [CU.ADD]:     { label: 'Add',          icon: Plus,     desc: 'Add a customer (at the user’s own locations)' },
+    [CU.IMPORT]:  { label: 'Import',       icon: Upload,   desc: 'Import new customers from Excel (adds only, never changes existing ones)' },
+    [CU.EDIT]:    { label: 'Edit',         icon: Pencil,   desc: 'Edit customers and contacts (visits are under Visits)' },
+    [CU.DELETE]:  { label: 'Delete',       icon: Trash2,   desc: 'Delete customer records (visits are under Visits)' }
 };
 
 // Granular per-page permission definitions.
@@ -51,11 +65,7 @@ export const PAGE_PERMISSIONS = [
         icon: User,
         description: 'Customer database and contacts',
         color: '#82b366',
-        actions: [
-            { key: 'view_customers',   label: 'View',   icon: Eye,    desc: 'View customer list and details' },
-            { key: 'manage_customers', label: 'Edit / Add', icon: Pencil, desc: 'Add and edit customers and contacts (visits are under Visits)' },
-            { key: 'delete_customers', label: 'Delete', icon: Trash2, desc: 'Delete customer records (visits are under Visits)' }
-        ]
+        actions: CUSTOMER_SECTIONS.flatMap((section) => section.keys.map((key) => ({ key, section: section.title, ...CUSTOMER_ACTIONS[key] })))
     },
     {
         // Checked by src/utils/visitAccess.js, on the server and for which

@@ -104,6 +104,10 @@ import { createKingReports } from './src/permits/kingCountyReport.js';
 import { createContractorRegistry } from './src/permits/contractors.js';
 import { ALL_PERMIT_PERMISSIONS } from './src/permits/permissions.js';
 import { CHECKIN_MIGRATION } from './src/utils/checkInAccess.js';
+import {
+  CUSTOMER_MIGRATION, CUSTOMER_ADMIN_GRANTS, canViewCustomerProfile, canExportCustomers,
+  basicCustomer, BASIC_CUSTOMER_PROJECTION
+} from './src/utils/customerAccess.js';
 import { seedSeattleRecipients } from './src/utils/dailyReportSubmissionEmail.js';
 import { hasSalesPage } from './src/utils/navPins.js';
 import { canViewLostSales, canEditLostSales, canDeleteLostSales } from './src/utils/lostSaleAccess.js';
@@ -903,7 +907,11 @@ async function startServer() {
         { roles: ['admin'], permissions: [...ALL_HOLD_PERMISSIONS] },
         // Permits (src/permits/permissions.js, 2026-10-11): admin only to start
         // with; an admin decides under Users & Roles who else sees them.
-        { roles: ['admin'], permissions: [...ALL_PERMIT_PERMISSIONS] }
+        { roles: ['admin'], permissions: [...ALL_PERMIT_PERMISSIONS] },
+        // Customers (src/utils/customerAccess.js, 2026-10-17): the full profile
+        // and Export start with Admin alone (owner's call) while the profile is
+        // finished; every other role gets them under Users & Roles later.
+        { roles: ['admin'], permissions: [...CUSTOMER_ADMIN_GRANTS] }
       ];
 
       // Each grant reaches a role once. Its permissions are recorded in
@@ -944,7 +952,9 @@ async function startServer() {
       const ACTION_MIGRATIONS = [
         { from: 'manage_customers', grant: ['add_visits', 'edit_own_visits', 'delete_own_visits'] },
         { from: 'delete_customers', grant: ['delete_own_visits'] },
-        ...CHECKIN_MIGRATION
+        ...CHECKIN_MIGRATION,
+        // Customers (2026-10-17): add and import split from manage_customers.
+        ...CUSTOMER_MIGRATION
       ];
       const migratedPerms = [...new Set(ACTION_MIGRATIONS.flatMap(m => m.grant))];
       for (const role of await Role.find({})) {
@@ -1427,6 +1437,9 @@ const requirePermission = (...permissions) => (req, res, next) => {
 
   next();
 };
+
+// Routes that hand out a customer's full profile need the Full profile switch.
+const requireCustomerProfile = requirePermission('view_customer_profile');
 
 const requireAnyPermission = (...permissions) => (req, res, next) => {
   if (!req.user) {
@@ -3326,7 +3339,7 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
 // authenticates it. An iPhone shows the contact card (Create New Contact)
 // when it's served inline; everything else gets a download, so a laptop
 // browser doesn't just print the text.
-app.get('/api/customers/:id/vcard', authenticate, requirePermission('view_customers'), async (req, res) => {
+app.get('/api/customers/:id/vcard', authenticate, requirePermission('view_customers'), requireCustomerProfile, async (req, res) => {
   try {
     if (!/^[a-f0-9]{24}$/i.test(req.params.id)) return res.status(404).json({ message: 'Customer not found' });
     const customer = await Customer.findById(req.params.id)
@@ -3353,6 +3366,11 @@ app.get('/api/customers/:id/vcard', authenticate, requirePermission('view_custom
 const customerIdOnly = (req, res, next) => (/^[a-f0-9]{24}$/i.test(req.params.id) ? next() : next('route'));
 app.get('/api/customers/:id', customerIdOnly, authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
+    if (!canViewCustomerProfile(req.user)) {
+      const basic = await Customer.findById(req.params.id).select('-password').lean();
+      if (!basic) return res.status(404).json({ message: 'Customer not found' });
+      return res.json(basicCustomer(basic));
+    }
     const customerObj = await Customer.findById(req.params.id)
       .populate('associatedCustomers', 'contactName company customerType status phone visits')
       .select('-password')
@@ -3390,7 +3408,7 @@ app.get('/api/customers/:id', customerIdOnly, authenticate, requirePermission('v
 // ============================================
 
 // Link customer to a partner (bi-directional association)
-app.post('/api/customers/:customerId/associations', authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.post('/api/customers/:customerId/associations', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req, res) => {
   try {
     const { partnerId } = req.body;
     const { customerId } = req.params;
@@ -3430,7 +3448,7 @@ app.post('/api/customers/:customerId/associations', authenticate, requirePermiss
 // kept alongside delete_customers, same reasoning as DELETE /api/customers/:id
 // above: the client here has no permission check of its own, so dropping it
 // would silently break this for any role that predates delete_customers.
-app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), async (req, res) => {
+app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), requireCustomerProfile, async (req, res) => {
   try {
     const { customerId, partnerId } = req.params;
 
@@ -3452,7 +3470,7 @@ app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, r
 // ============================================
 
 // Add contact to customer
-app.post('/api/customers/:customerId/contacts', authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.post('/api/customers/:customerId/contacts', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req, res) => {
   try {
     const { customerId } = req.params;
     const { name, phone, email, role, notes } = req.body;
@@ -3531,7 +3549,7 @@ app.get('/api/salesreps', authenticate, requireSalesPage, async (req, res) => {
 });
 
 // Update contact
-app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req, res) => {
   try {
     const { customerId, contactId } = req.params;
     const fields = req.body;
@@ -3810,18 +3828,27 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
   try {
     const page = parseInt(req.query.page) || 1;
     const limitInput = parseInt(req.query.limit);
-    const limit = isNaN(limitInput) ? 50 : limitInput;
+    // Everyone sees the same list screen, but only Export holders may pull the
+    // whole list (limit -1) or more than a page of 100; Full profile holders
+    // alone may filter, sort or view by what the profile holds (level, Moda,
+    // follow-ups), since those would give the hidden data away.
+    const mayExport = canExportCustomers(req.user);
+    const mayProfile = canViewCustomerProfile(req.user);
+    if (limitInput === -1 && !mayExport) {
+      return res.status(403).json({ message: 'Exporting the customer list needs the Export permission.' });
+    }
+    const limit = isNaN(limitInput) ? 50 : (mayExport ? limitInput : Math.min(Math.max(limitInput, 1), 100));
     const search = req.query.search || '';
-    const filterLevel = req.query.level || '';
+    const filterLevel = mayProfile ? (req.query.level || '') : '';
     const filterType = req.query.type || '';
     const filterTypeExclude = req.query.typeExclude || ''; // comma-separated types to exclude
     const filterCity = req.query.city || '';
     const filterStatus = req.query.status || '';
     const filterSalesRep = req.query.salesRep || '';
     const filterLocation = req.query.location || '';
-    const filterView = isSavedView(req.query.view) ? req.query.view : '';
+    const filterView = mayProfile && isSavedView(req.query.view) ? req.query.view : '';
     const filterLetter = req.query.letter || '';
-    const filterModa = req.query.moda || '';
+    const filterModa = mayProfile ? (req.query.moda || '') : '';
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -3988,7 +4015,7 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
       query = filterConditions.length === 1 ? filterConditions[0] : { $and: filterConditions };
     }
 
-    const sortBy = req.query.sortBy || 'level';
+    const sortBy = mayProfile ? (req.query.sortBy || 'level') : (req.query.sortBy === 'level' || !req.query.sortBy ? 'company' : req.query.sortBy);
     const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
 
     // Build the dynamic sort stage. Low-priority statuses always float to the bottom,
@@ -4062,14 +4089,10 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
       }
     };
 
-    const hideHeavyFields = {
-      $project: {
-        password: 0,
-        contacts: 0,
-        visits: 0,
-        resources: 0
-      }
-    };
+    // Without Full profile a row is the basic card only (customerAccess.js).
+    const hideHeavyFields = mayProfile
+      ? { $project: { password: 0, contacts: 0, visits: 0, resources: 0 } }
+      : { $project: BASIC_CUSTOMER_PROJECTION };
 
     // The list shows "+N" for extra contacts without shipping the contacts
     // themselves, so count them before they're projected away.
@@ -4116,6 +4139,8 @@ const partnersTabQuery = (tab) => (tab === 'partners'
 // Counts for the customer list's saved views, within one tab.
 app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticate, requirePermission('view_customers'), async (req, res) => {
   try {
+    // Saved views read the profile (follow-ups, levels), so they're Full profile's.
+    if (!canViewCustomerProfile(req.user)) return res.json({});
     const base = partnersTabQuery(req.query.tab);
     const opts = {
       userId: req.userId,
@@ -4220,7 +4245,7 @@ app.post(['/api/customers/possible-duplicates', '/api/partners/possible-duplicat
 // old addresses of the two creates this replaced, kept until cached apps have
 // updated. The fields allowed and their defaults are in customerRecord.js;
 // the rep's name and the map point are derived here, never taken from the body.
-app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authenticate, requirePermission('add_customers'), async (req, res) => {
   try {
     const { fields, error } = newCustomerFields(req.body);
     if (error) return res.status(400).json({ message: error });
@@ -4264,7 +4289,10 @@ app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authentica
 // schema's bcrypt hook, so a password sent here used to be stored as typed.
 app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermission('manage_customers'), async (req, res) => {
   try {
-    const updateData = customerUpdateFields(req.body);
+    const allUpdates = customerUpdateFields(req.body);
+    // Without Full profile an edit can only change the basic card: a form that
+    // never saw level, Moda or marketing must not write them back.
+    const updateData = canViewCustomerProfile(req.user) ? allUpdates : basicCustomer(allUpdates);
 
     // Only touch the rep when the edit actually carried one, so a partial update
     // cannot silently unassign an account. When it did, both halves are rewritten
@@ -4341,7 +4369,7 @@ app.delete(['/api/customers/:id', '/api/partners/:id'], authenticate, requireAny
 // ============================================
 
 // Get single visit detail
-app.get('/api/customers/:customerId/visits/:visitId', authenticate, requirePermission('view_customers'), async (req, res) => {
+app.get('/api/customers/:customerId/visits/:visitId', authenticate, requirePermission('view_customers'), requireCustomerProfile, async (req, res) => {
   try {
     const { customerId, visitId } = req.params;
 
@@ -4368,7 +4396,7 @@ app.get('/api/customers/:customerId/visits/:visitId', authenticate, requirePermi
 });
 
 // Get single resource detail
-app.get('/api/customers/:customerId/resources/:resourceId', authenticate, requirePermission('view_customers'), async (req, res) => {
+app.get('/api/customers/:customerId/resources/:resourceId', authenticate, requirePermission('view_customers'), requireCustomerProfile, async (req, res) => {
   try {
     const { customerId, resourceId } = req.params;
 
@@ -5590,20 +5618,19 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
     // row against the remote database, so a 4,000-customer file ran for most
     // of an hour.
     //
-    // Every new customer gets the same starting password, so it's hashed once
-    // here. insertMany skips the model's pre('save') hook, which is also what
-    // stops it being hashed a second time: .save() used to re-hash this
-    // already-hashed value, so imported customers couldn't sign in with it.
+    // Imported customers get no website password, like one added by hand: the
+    // old shared starting password let anyone who knew an imported customer's
+    // email sign in as them (removed 2026-10-17). A login is set with the
+    // password reset in the customer's account panel.
     const creates = plan.planned.filter(r => r.action === 'create');
     const updates = plan.planned.filter(r => r.action === 'update');
     results.skipped = plan.planned.length - creates.length - updates.length;
 
     if (creates.length) {
-      const startingPassword = await bcrypt.hash('Welcome123!', 10);
       const docs = [];
       const docRows = [];
       for (const row of creates) {
-        const doc = new Customer({ ...row.create, password: startingPassword });
+        const doc = new Customer({ ...row.create });
         const invalid = doc.validateSync();
         if (invalid) { rowError(row, invalid.message); continue; }
         docs.push(doc);
@@ -5773,7 +5800,7 @@ app.put(['/api/customers/:id/password', '/api/admin/customers/:id'], verifyToken
 
 // Update customer quick note — the box on the customer's details, which
 // opens for view_customers (GET /api/customers/:id), so saving needs the same.
-app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('view_customers'), async (req, res) => {
+app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('view_customers'), requireCustomerProfile, async (req, res) => {
   try {
     const { quickNote } = req.body;
 
