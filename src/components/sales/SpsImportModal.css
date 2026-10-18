@@ -63,3 +63,12 @@
 /* Room below the last name, so its picker's list can open with the whole
    window to itself (liftRow in SpsImportModal.jsx scrolls the row up first). */
 .spsi-room { height: min(340px, 45vh); }
+
+/* Result tiles are buttons that open the customers behind the number. */
+button.spsi-tile { text-align: left; font: inherit; color: var(--fm-tx); background: transparent; cursor: pointer; border: 1px solid var(--fm-bd2); border-radius: 10px; padding: 9px 10px; display: grid; }
+button.spsi-tile:hover:not(:disabled) { border-color: var(--fm-gold); }
+button.spsi-tile.on { border-color: var(--fm-gold); background: var(--fm-gold-soft); }
+button.spsi-tile:disabled { opacity: .5; cursor: default; }
+button.spsi-tile b { font-size: 18px; font-variant-numeric: tabular-nums; }
+button.spsi-tile span { font-size: 12px; color: var(--fm-mut); }
+.spsi-items { display: grid; }

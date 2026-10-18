@@ -23,6 +23,7 @@ import { freezePlan, runItems, retryFailed, undoRun } from '../services/spsImpor
  *   POST   /runs/:id/undo                              put it all back (Import + Delete)
  *   DELETE /runs/:id                                   throw away a draft
  *   GET    /runs/:id/report.csv                        every SPS row and what happened to it
+ *   GET    /runs/:id/items?result=&page=&limit=       the customers of a run — added, updated (with what changed), … — a page at a time
  *   GET    /runs/:id/customers?outcome=added|updated   customer ids, for the Customer List filter
  *
  * Needs Import (with View). Connecting an existing customer also needs Edit,
@@ -255,6 +256,32 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="sps-import-${String(run._id).slice(-6)}.csv"`);
     res.send(`﻿${lines.join('\r\n')}`);
+  });
+
+  const RESULTS = ['added', 'updated', 'restored', 'keptDeleted', 'unchanged', 'failed'];
+  router.get(`${BASE}/:id/items`, authenticate, mayImport, async (req, res) => {
+    const run = await SpsImportRun.findById(req.params.id).select('_id').lean().catch(() => null);
+    if (!run) return bad(res, 404, 'No such import.');
+    const result = String(req.query.result || '');
+    if (result && !RESULTS.includes(result)) return bad(res, 400, 'Unknown result.');
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const filter = { runId: String(run._id), ...(result ? { result } : { result: { $ne: '' } }) };
+    const [total, items] = await Promise.all([
+      SpsImportItem.countDocuments(filter),
+      SpsImportItem.find(filter).sort({ seq: 1 }).skip((page - 1) * limit).limit(limit)
+        .select('rowNumber name result reason changes warnings createdId customerId connect create.company create.location create.salesRepName create.address.city').lean()
+    ]);
+    res.json({
+      total,
+      items: items.map((i) => ({
+        rowNumber: i.rowNumber, name: i.name, result: i.result, reason: i.reason || '',
+        customerId: i.createdId || i.customerId || '', connect: !!i.connect,
+        changes: (i.changes || []).map((c) => ({ field: c.field, from: c.from, to: c.to instanceof Object ? '' : String(c.to) })),
+        warnings: i.warnings || [],
+        added: i.create ? { city: i.create.address?.city || '', branch: i.create.location || '', rep: i.create.salesRepName || '' } : null
+      }))
+    });
   });
 
   router.get(`${BASE}/:id/customers`, authenticate, mayImport, async (req, res) => {

@@ -134,6 +134,15 @@ describe('sps-import', () => {
     const ids = (await request(app).get(`${BASE}/${body.run.id}/customers?outcome=added`).set(as(IMPORTER))).body.ids;
     expect(ids).toHaveLength(1);
 
+    const added = (await request(app).get(`${BASE}/${body.run.id}/items?result=added`).set(as(IMPORTER))).body;
+    expect(added.total).toBe(1);
+    expect(added.items[0]).toMatchObject({ name: 'Zed Tile', result: 'added', added: { city: '' } });
+    const all = (await request(app).get(`${BASE}/${body.run.id}/items?limit=1&page=2`).set(as(IMPORTER))).body;
+    expect(all.total).toBe(2);
+    expect(all.items).toHaveLength(1);
+    expect((await request(app).get(`${BASE}/${body.run.id}/items?result=bogus`).set(as(IMPORTER))).status).toBe(400);
+    expect((await request(app).get(`${BASE}/${body.run.id}/items`).set(as(NO_IMPORT))).status).toBe(403);
+
     expect((await request(app).post(`${BASE}/${body.run.id}/undo`).set(as(IMPORTER))).status).toBe(403);
     const undo = await request(app).post(`${BASE}/${body.run.id}/undo`).set(as(FULL));
     expect(undo.body).toMatchObject({ removed: 1 });

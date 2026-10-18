@@ -29,6 +29,7 @@ const FIELD_LABELS = {
     modaDisplay: 'MODA display', modaBinder: 'MODA binder', receiveMarketing: 'Receive marketing',
     quickNote: 'Quick note', deliveryInstructions: 'Delivery instructions', accountAlert: 'Account alert'
 };
+const fieldName = (f) => FIELD_LABELS[f] || f.replace(/([A-Z])/g, ' $1').toLowerCase();
 const SIGNAL_WORDS = { phone: 'same phone', email: 'same email', 'company name': 'similar name', 'email domain': 'same email domain', 'exact name': 'same name' };
 const n = (v) => Number(v || 0).toLocaleString();
 const when = (d) => (d ? new Date(d).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
@@ -57,6 +58,68 @@ const saveBlob = async (url, filename) => {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
+
+const RESULT_TILES = [['added', 'added'], ['updated', 'updated'], ['restored', 'brought back'], ['keptDeleted', 'kept deleted'], ['unchanged', 'no changes'], ['failed', 'failed']];
+
+// The result numbers, each one a button that shows the customers behind it.
+function ResultTiles({ counts = {}, selected, onSelect }) {
+    return (
+        <div className="spsi-counts">
+            {RESULT_TILES.map(([k, label]) => {
+                const c = Number(counts[k] || 0);
+                return (
+                    <button key={k} type="button" className={`spsi-tile${selected === k ? ' on' : ''}`} disabled={c === 0}
+                        aria-pressed={selected === k} onClick={() => onSelect(selected === k ? '' : k)}>
+                        <b>{n(c)}</b><span>{label}</span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+// The customers of one run, a page at a time (the server pages them).
+function RunItems({ runId, result }) {
+    const pager = usePagination();
+    const { currentPage, rowsPerPage, resetPage } = pager;
+    const [data, setData] = useState({ items: [], total: 0 });
+    const [state, setState] = useState('loading');
+    useEffect(() => { resetPage(); }, [runId, result, resetPage]);
+    useEffect(() => {
+        let alive = true;
+        setState('loading');
+        call(`${API}/${runId}/items?result=${result}&page=${currentPage}&limit=${rowsPerPage}`)
+            .then((r) => r.json())
+            .then((d) => { if (alive) { setData(d); setState('ok'); } })
+            .catch(() => { if (alive) setState('error'); });
+        return () => { alive = false; };
+    }, [runId, result, currentPage, rowsPerPage]);
+
+    if (state === 'error') return <div className="spsc-banner bad">Couldn’t load the customers. Try again.</div>;
+    return (
+        <div className="spsi-items" aria-busy={state === 'loading'}>
+            {state === 'ok' && data.items.length === 0 && <div className="spsc-muted">Nothing here.</div>}
+            {data.items.map((i) => (
+                <div key={`${i.rowNumber}-${i.name}`} className="spsi-row">
+                    <span className={`spsi-pill ${i.result === 'added' ? 'new' : i.result === 'updated' || i.result === 'restored' ? 'upd' : i.result === 'failed' ? 'bad' : ''}`}>
+                        {({ added: 'Added', updated: i.connect ? 'Connected' : 'Updated', restored: 'Brought back', keptDeleted: 'Kept deleted', unchanged: 'No changes', failed: 'Failed' })[i.result] || i.result}
+                    </span>
+                    <span className="spsi-row-main">
+                        <b>{i.name}</b>
+                        {i.added && <span className="spsc-muted">{[i.added.city, i.added.branch, i.added.rep].filter(Boolean).join(' · ') || 'New customer'}</span>}
+                        {i.changes.filter((c) => c.field !== 'sps').map((c, k) => <span key={k} className="spsi-chg">{fieldName(c.field)}: <s>{c.from || '—'}</s> → {c.to}</span>)}
+                        {i.reason && <span className="spsi-warn">⚠ {i.reason}</span>}
+                        {i.warnings.map((w, k) => <span key={k} className="spsi-warn">⚠ {w}</span>)}
+                    </span>
+                </div>
+            ))}
+            {data.total > 0 && (
+                <Pagination currentPage={currentPage} totalPages={pageCount(data.total, rowsPerPage)} onPageChange={pager.setCurrentPage}
+                    rowsPerPage={rowsPerPage} onRowsPerPageChange={pager.setRowsPerPage} totalCount={data.total} />
+            )}
+        </div>
+    );
+}
 
 // One side of the "same customer?" comparison — SPS and Easy Stones laid out
 // the same way, field by field, so the two read straight across.
@@ -107,6 +170,8 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
     const [progress, setProgress] = useState(null);
     const [history, setHistory] = useState([]);
     const [showMapping, setShowMapping] = useState(false);
+    const [viewResult, setViewResult] = useState('');   // step 5: which tile's customers are open
+    const [openRun, setOpenRun] = useState(null);       // history: { id, result }
     const planSeq = useRef(0);
     const pager = usePagination();
 
@@ -215,7 +280,11 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                 const out = await (await call(`${API}/${run.id}`)).json();
                 if (!alive) return;
                 setProgress(out.run);
-                if (out.run.status === 'done' || out.run.status === 'failed') { onChanged?.(); setStep(5); }
+                if (out.run.status === 'done' || out.run.status === 'failed') {
+                    onChanged?.();
+                    setViewResult((v) => v || (out.run.results?.added ? 'added' : out.run.results?.updated ? 'updated' : ''));
+                    setStep(5);
+                }
             } catch { /* keep trying */ }
         };
         const t = setInterval(tick, 1500);
@@ -332,9 +401,20 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                                     ? <span className="spsi-pill ok">✓ All {n(r.verify.expected)} accounted for</span>
                                     : <span className="spsi-pill bad">{n(r.verify.missingCount)} missing</span>)}
                                 <span className="spsi-grow" />
+                                {r.status !== 'undone' && r.total > 0 && (
+                                    <button type="button" className="spsi-link" onClick={() => setOpenRun(openRun?.id === r.id ? null : { id: r.id, result: r.results.added ? 'added' : 'updated' })}>
+                                        {openRun?.id === r.id ? 'Hide customers' : 'See customers'}
+                                    </button>
+                                )}
                                 <button type="button" className="spsi-link" onClick={() => report(r)}>Download report</button>
                                 {canDelete && r.status === 'done' && <button type="button" className="spsi-link danger" disabled={busy} onClick={() => undo(r)}>Undo</button>}
                             </div>
+                            {openRun?.id === r.id && (
+                                <>
+                                    <ResultTiles counts={r.results} selected={openRun.result} onSelect={(v) => setOpenRun({ id: r.id, result: v })} />
+                                    <RunItems runId={r.id} result={openRun.result} />
+                                </>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -540,7 +620,7 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                                         <span className={`spsi-pill ${tab === 'new' ? 'new' : tab === 'update' ? 'upd' : ''}`}>{tab === 'new' ? 'New' : tab === 'update' ? (r.restore ? 'Bring back' : r.connect ? 'Connect' : 'Update') : 'Same'}</span>
                                         <span className="spsi-row-main"><b>{r.name}</b>
                                             <span className="spsc-muted">{[r.city, r.branch, r.rep, r.customerLabel && r.customerLabel !== r.name ? `= ${r.customerLabel}` : ''].filter(Boolean).join(' · ')}</span>
-                                            {r.changes?.map((c, i) => <span key={i} className="spsi-chg">{c.field}: <s>{c.from || '—'}</s> → {String(c.to)}</span>)}
+                                            {r.changes?.map((c, i) => <span key={i} className="spsi-chg">{fieldName(c.field)}: <s>{c.from || '—'}</s> → {String(c.to)}</span>)}
                                             {r.warnings?.map((w, i) => <span key={i} className="spsi-warn">⚠ {w}</span>)}
                                         </span>
                                     </div>
@@ -585,11 +665,9 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                                 )}
                             </div>
                         )}
-                        <div className="spsi-counts">
-                            {[['added', 'added'], ['updated', 'updated'], ['restored', 'brought back'], ['keptDeleted', 'kept deleted'], ['unchanged', 'no changes'], ['failed', 'failed']].map(([k, label]) => (
-                                <div key={k}><b>{n(progress.results?.[k])}</b><span>{label}</span></div>
-                            ))}
-                        </div>
+                        <ResultTiles counts={progress.results} selected={viewResult} onSelect={setViewResult} />
+                        {!viewResult && <div className="spsc-muted">Select a number to see those customers — and what changed on each.</div>}
+                        {viewResult && <RunItems runId={progress.id} result={viewResult} />}
                         <div className="spsi-btnrow">
                             <button type="button" className="spsi-btn" onClick={() => report(progress)}><Download size={14} aria-hidden="true" /> Download report</button>
                             <button type="button" className="spsi-btn" onClick={openHistory}>Import history</button>
