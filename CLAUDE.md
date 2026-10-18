@@ -373,6 +373,19 @@ ask about them. What an import may change: SPS sets the rep (a blank one keeps
 ours) and the branch, everything else only fills blanks. The old "Import from
 Excel" stays until the new one has had a green real import.
 
+## No site header on the staff screens (2026-10-18)
+
+The site header (`Header.jsx`: Products, Live Inventory, Warranty, Contact,
+Login) is the public website's. `/sales` and the staff `/checkin` page don't
+show it (`hideHeader` in App.jsx, which puts `no-site-header` on `body`); the
+side nav's account menu and the phone tab bar sign out, and `/checkin` has its
+own Sales / Sign out row. Live Inventory moved into the side nav (Products,
+`live_inventory` in `navPins.js`: a link that opens StoneProfits, never
+pinned, never a Sales page). The old standalone `/checkin-log` keeps the
+header. **Offsets for the header use `var(--app-header-h)`** (App.css: 82px,
+0 without the header) — never a hard-coded 82px, which leaves an empty strip
+at the top of every staff screen.
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,

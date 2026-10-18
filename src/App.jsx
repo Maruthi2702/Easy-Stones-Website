@@ -100,6 +100,14 @@ function App() {
   // The login screen is a task, not a page to browse from — the full marketing
   // footer under a two-field form is twenty-odd links competing with one button.
   const isLoginPage = ['/login', '/customer/login', '/admin/login', '/set-password'].includes(location.pathname);
+  // The staff screens have their own navigation (the side nav's account menu
+  // signs out; the check-in page has Back to Sales / Sign out), so the site
+  // header is the public website's only (2026-10-18). The old standalone
+  // /checkin-log keeps it: nothing links there and it has no way out of its own.
+  const hideHeader = isSalesPage || isSelfCheckInPage || location.pathname === '/checkin';
+  useEffect(() => {
+    document.body.classList.toggle('no-site-header', hideHeader);
+  }, [hideHeader]);
 
   // Custom Alert Modal State
   const [customAlert, setCustomAlert] = useState(null);
@@ -147,7 +155,7 @@ function App() {
           <PresenceReporter />
           <ScrollToTop />
           <div className="bg-gradient"></div>
-          {!isSelfCheckInPage && <Header />}
+          {!hideHeader && <Header />}
           <main className={isSalesPage || isAdminPage || isSelfCheckInPage ? 'main-dashboard' : 'main-site'}>
             <ErrorBoundary>
               <Suspense fallback={<PageLoader />}>

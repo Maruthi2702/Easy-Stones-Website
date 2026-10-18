@@ -108,6 +108,14 @@ main.main-site {
   }
 }
 
+/* The fixed site header's height, for the staff screens that sit under it.
+   They have no site header since 2026-10-18 (App.jsx's hideHeader puts
+   no-site-header on body), so every offset that used to be a hard-coded
+   82px reads this instead. On body, not .app, so portaled drawers get it too. */
+:root { --app-header-h: 82px; }
+body.no-site-header { --app-header-h: 0px; }
+body.no-site-header main.main-site { padding-top: 0; }
+
 /* Fancy Custom Alert Modal Styling */
 .custom-alert-overlay {
   position: fixed;

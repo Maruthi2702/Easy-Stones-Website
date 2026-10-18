@@ -8,7 +8,7 @@
   background: var(--bg-primary, #000);
   color: var(--text-primary, #fff);
   font-family: var(--font-main, 'Inter', sans-serif);
-  padding-top: 82px;
+  padding-top: var(--app-header-h);
 }
 
 /* ── Hero Header ── */

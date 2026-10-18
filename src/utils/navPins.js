@@ -65,6 +65,17 @@ export const NAV_ITEMS = [
     id: 'crossover_sheet', label: 'Crossover Sheet', section: 'products',
     canSee: (u) => has(u, 'view_crossover_sheet') || isAdmin(u) || !u
   },
+  // Not a page here: StoneProfits' live inventory, opened in a new tab
+  // (SalesPage's handleCrmTabChange). It was a link in the site header until
+  // the header left the staff screens (2026-10-18). Shown beside the other
+  // Products pages, to whoever sees one — never a Products module of its own,
+  // which would take a phone tab-bar slot from everyone. A link never counts
+  // as a Sales page (hasSalesPage) and can't be pinned (sanitizePinnedTabs).
+  {
+    id: 'live_inventory', label: 'Live Inventory', section: 'products',
+    href: 'https://easystones.stoneprofitsweb.com/',
+    canSee: (u) => !!u && NAV_ITEMS.some((item) => item.section === 'products' && !item.href && item.canSee(u))
+  },
   // Accounting (src/accounting/): the permission is the only key, as with
   // every Accounting action.
   { id: 'freight', label: '3rd-Party Freight', section: 'accounting', canSee: (u) => has(u, 'view_freight_charges') },
@@ -153,7 +164,7 @@ export const visibleSections = (user, order = null) =>
  * (customers dropdown, staff list, product admin…) answer only these accounts
  * — never a customer's login or a check-in-only one (requireSalesPage).
  */
-export const hasSalesPage = (user) => !!user && visibleSections(user).length > 0;
+export const hasSalesPage = (user) => !!user && visibleSections(user).some((section) => section.items.some((item) => !item.href));
 
 /**
  * Someone whose only job here is checking visitors in — Users & Roles → Check
@@ -191,7 +202,7 @@ export const sanitizePinnedTabs = (value) => {
   if (!Array.isArray(value)) return null;
   const out = [];
   for (const id of value) {
-    if (typeof id !== 'string' || !ITEM_BY_ID.has(id) || out.includes(id)) continue;
+    if (typeof id !== 'string' || !ITEM_BY_ID.has(id) || ITEM_BY_ID.get(id).href || out.includes(id)) continue;
     out.push(id);
     if (out.length === MAX_PINNED_TABS) break;
   }
@@ -212,7 +223,7 @@ export const pinnedDefaultTab = (user, pins) => visiblePinnedTabs(user, pins)[0]
 export const togglePinnedTab = (pins, id) => {
   const list = sanitizePinnedTabs(pins) || [];
   if (list.includes(id)) return list.filter((p) => p !== id);
-  if (!ITEM_BY_ID.has(id) || list.length >= MAX_PINNED_TABS) return list;
+  if (!ITEM_BY_ID.has(id) || ITEM_BY_ID.get(id).href || list.length >= MAX_PINNED_TABS) return list;
   return [...list, id];
 };
 

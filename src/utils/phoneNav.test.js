@@ -26,7 +26,7 @@ describe('what sits on the bar', () => {
         const m = phoneNavModel(user('view_dashboard', 'view_pricelist'));
         expect(ids(m.bar)).toEqual(['products']);
         expect(m.more).toEqual([]);
-        expect(m.bar[0].items.map((i) => i.id)).toEqual(['pricelist']);
+        expect(m.bar[0].items.map((i) => i.id)).toEqual(['pricelist', 'live_inventory']);
     });
     it('follows the order an admin set', () => {
         const order = { sections: ['home', 'products', 'operations', 'sales', 'accounting', 'admin'], items: {} };
@@ -39,8 +39,8 @@ describe('what sits on the bar', () => {
         expect(m.pins).toEqual(['daily_report', 'customers']);
     });
     it('opens a one-page module directly', () => {
-        const m = phoneNavModel(user('view_dashboard', 'view_pricelist', 'view_customers'));
-        expect(opensDirectly(m.bar.find((s) => s.id === 'products'))).toBe(true);
+        const m = phoneNavModel(user('view_dashboard', 'view_daily_report', 'view_customers'));
+        expect(opensDirectly(m.bar.find((s) => s.id === 'operations'))).toBe(true);
         expect(opensDirectly(phoneNavModel(full).bar.find((s) => s.id === 'sales'))).toBe(false);
     });
 });

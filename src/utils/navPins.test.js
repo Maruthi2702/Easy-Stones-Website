@@ -14,7 +14,7 @@ describe('nav visibility', () => {
     expect(ids(rep)).toEqual(['customers', 'route_planner', 'daily_report']);
     expect(ids(admin)).toEqual([
       'dashboard', 'lost_sales', 'delivery_schedule', 'daily_report',
-      'inventory_analysis', 'crossover_sheet', 'users', 'roles', 'locations', 'nav_order'
+      'inventory_analysis', 'crossover_sheet', 'live_inventory', 'users', 'roles', 'locations', 'nav_order'
     ]);
   });
 
@@ -115,7 +115,7 @@ describe('admin nav order', () => {
       ['operations', ['checkin', 'delivery_schedule', 'daily_report']],
       ['sales', ['lost_sales', 'customers', 'route_planner', 'holds', 'permits']],
       ['home', ['dashboard']],
-      ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet']],
+      ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet', 'live_inventory']],
       ['accounting', ['freight']],
       ['admin', ['users', 'roles', 'locations', 'nav_order']]
     ]);
@@ -173,5 +173,23 @@ describe('hasSalesPage — who the shared server lists answer', () => {
     expect(hasSalesPage({ role: 'customer', type: 'customer', permissions: [] })).toBe(false);
     expect(hasSalesPage({ role: 'x', permissions: [] })).toBe(false);
     expect(hasSalesPage(null)).toBe(false);
+  });
+});
+
+describe('Live Inventory — a link, not a page', () => {
+  const ids = (user) => visibleSections(user).flatMap((s) => s.items.map((i) => i.id));
+  it('sits beside the other Products pages, for whoever sees one', () => {
+    expect(ids({ role: 'x', permissions: ['view_pricelist'] })).toEqual(['pricelist', 'live_inventory']);
+  });
+  it('never makes a Products module on its own', () => {
+    expect(ids({ role: 'x', permissions: ['view_customers'] })).toEqual(['customers']);
+    expect(ids(null)).not.toContain('live_inventory');
+  });
+  it('is never a Sales page, so a Kiosk login stays check-in only', () => {
+    expect(hasSalesPage({ role: 'kiosk', permissions: ['create_checkins'] })).toBe(false);
+  });
+  it('can’t be pinned', () => {
+    expect(sanitizePinnedTabs(['live_inventory', 'customers'])).toEqual(['customers']);
+    expect(togglePinnedTab(['customers'], 'live_inventory')).toEqual(['customers']);
   });
 });

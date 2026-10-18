@@ -10,7 +10,7 @@
   height: 100%;
   /* dvh over vh: a mobile browser's vh includes the collapsing address bar, so
      the last stop of a driver's day sat under it and could not be scrolled to. */
-  max-height: calc(100dvh - 82px);
+  max-height: calc(100dvh - var(--app-header-h));
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch;
   padding: 1.25rem 1.75rem;
@@ -22,7 +22,7 @@
 
 @supports not (height: 100dvh) {
   .delivery-schedule-container.high-density {
-    max-height: calc(100vh - 82px);
+    max-height: calc(100vh - var(--app-header-h));
   }
 }
 
@@ -556,7 +556,7 @@ body.light-theme-active .board-grid-scroll-container,
    Pending and Cancelled below; with contain it stopped dead (2026-10-14). */
 .board-grid-scroll-container {
   overflow: auto;
-  max-height: max(420px, calc(100dvh - 190px));
+  max-height: max(420px, calc(100dvh - 108px - var(--app-header-h)));
 }
 
 .manifest-dispatch-table thead th {

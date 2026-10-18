@@ -29,7 +29,7 @@ import PhoneTabBar from '../components/sales/PhoneTabBar';
 import useIsPhone from '../components/shared/form/useIsPhone';
 import usePinnedTabs from '../components/sales/usePinnedTabs';
 import useNavOrder from '../components/sales/useNavOrder';
-import { pinnedDefaultTab } from '../utils/navPins';
+import { pinnedDefaultTab, navItem } from '../utils/navPins';
 import { canAddCustomer, canViewCustomerProfile } from '../utils/customerAccess';
 import { canOpenUsersPage } from '../utils/teamAccess';
 import { canOpenArea, can, NAV_ORDER } from '../utils/usersAccess';
@@ -554,6 +554,14 @@ const SalesPage = () => {
     };
 
     const handleCrmTabChange = (tabName) => {
+        // A nav entry that's a link elsewhere (Live Inventory) opens in a new
+        // tab and leaves this page where it is.
+        const href = navItem(tabName)?.href;
+        if (href) {
+            window.open(href, '_blank', 'noopener,noreferrer');
+            if (isMobile) setIsSidebarOpen(false);
+            return;
+        }
         setCrmTab(tabName);
         setCustomerOriginTab(null);
         setSelectedCustomerId(null);

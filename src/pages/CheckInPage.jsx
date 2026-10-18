@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Phone, Building, CheckCircle2, ShieldCheck,
   Sun, Moon, ChevronRight, ChevronLeft, Home, Hammer, Palette, HardHat, Wrench, Store,
-  Send, Loader2, AlertTriangle, UserCheck, RotateCcw
+  Send, Loader2, AlertTriangle, UserCheck, RotateCcw, LogOut
 } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
@@ -11,6 +11,7 @@ import { formatTitleCase } from '../utils/textUtils';
 import { useAuth } from '../context/AuthContext';
 import { homeLocationOf } from '../utils/locationFilter';
 import { canCheckIn } from '../utils/checkInAccess';
+import { hasSalesPage } from '../utils/navPins';
 import LocationPicker from '../components/shared/form/LocationPicker';
 import { useNavigate } from 'react-router-dom';
 import './CheckInPage.css';
@@ -32,8 +33,9 @@ const formatTitleCaseInput = (value) => {
 };
 
 const CheckInPage = ({ isSelfCheckIn = false }) => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const navigate = useNavigate();
+  const handleSignOut = async () => { await logout(); navigate('/login'); };
 
   const urlParams = new URLSearchParams(window.location.search);
   const isSelf = isSelfCheckIn || urlParams.get('mode') === 'self' || urlParams.get('mode') === 'qr' || urlParams.get('mode') === 'nfc' || window.location.pathname === '/self-checkin';
@@ -587,6 +589,18 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
   if (!canCheckIn(user)) {
     return (
       <div className={`checkin-container ${theme}-theme`}>
+        {/* No site header here (App.jsx), so the way back and out is its own. A
+            check-in-only login (the Kiosk role) has no Sales to go back to. */}
+        <div className="checkin-topnav">
+          {hasSalesPage(user) ? (
+            <button type="button" className="checkin-topnav-btn" onClick={() => navigate('/sales')}>
+              <ChevronLeft size={16} aria-hidden="true" /> Sales
+            </button>
+          ) : <span />}
+          <button type="button" className="checkin-topnav-btn" onClick={handleSignOut}>
+            <LogOut size={15} aria-hidden="true" /> Sign out
+          </button>
+        </div>
         <div className="checkin-simple-header">
           <h1 className="checkin-title-text">Visitor Check-In</h1>
         </div>
@@ -606,6 +620,18 @@ const CheckInPage = ({ isSelfCheckIn = false }) => {
   // ═══════════════════════════════════════════════════════
   return (
     <div className={`checkin-container ${theme}-theme`}>
+      {/* No site header here (App.jsx), so the way back and out is its own. A
+          check-in-only login (the Kiosk role) has no Sales to go back to. */}
+      <div className="checkin-topnav">
+        {hasSalesPage(user) ? (
+          <button type="button" className="checkin-topnav-btn" onClick={() => navigate('/sales')}>
+            <ChevronLeft size={16} aria-hidden="true" /> Sales
+          </button>
+        ) : <span />}
+        <button type="button" className="checkin-topnav-btn" onClick={handleSignOut}>
+          <LogOut size={15} aria-hidden="true" /> Sign out
+        </button>
+      </div>
       <div className="checkin-simple-header">
         <h1 className="checkin-title-text">Visitor Check-In</h1>
         {hasMultipleLocations ? (

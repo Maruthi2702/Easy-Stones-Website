@@ -176,7 +176,7 @@ const CustomerSidebar = ({
                         <Home size={15} />
                     </button>
                 )}
-                {inPinned ? (
+                {item.href ? null : inPinned ? (
                     <button
                         type="button"
                         className="side-nav-row-action"

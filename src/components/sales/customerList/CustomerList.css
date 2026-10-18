@@ -276,11 +276,10 @@ body.light-theme-active .cl-bulk { background: #0f172a; border-color: #0f172a; }
 .cl-fab { position: fixed; right: 18px; bottom: 22px; width: 56px; height: 56px; border-radius: 16px; background: var(--cl-gold); color: #1a1400; display: none; align-items: center; justify-content: center; box-shadow: 0 10px 24px rgba(120, 90, 0, 0.35); border: 0; z-index: 65; cursor: pointer; }
 
 /* ── Drawer (customer quick view) ───────────────────────────────────────── */
-/* The sales pages sit under the fixed site header (82px, z-index 1100; see
-   .sales-container in SalesPage.css). Overlays start below it rather than
-   sliding underneath it. */
-.cl-scrim { position: fixed; top: var(--cl-top, 82px); left: 0; right: 0; bottom: 0; background: var(--cl-scrim); z-index: 880; }
-.cl-drawer { position: fixed; top: var(--cl-top, 82px); right: 0; bottom: 0; width: min(600px, 100vw); background: var(--cl-surface-2); border-left: 1px solid var(--cl-line); box-shadow: -24px 0 60px rgba(0, 0, 0, 0.3); z-index: 890; display: flex; flex-direction: column; color: var(--cl-text); }
+/* Overlays start at --app-header-h (App.css): 0 now that the sales pages
+   have no site header, 82px wherever one is still shown. */
+.cl-scrim { position: fixed; top: var(--cl-top, var(--app-header-h)); left: 0; right: 0; bottom: 0; background: var(--cl-scrim); z-index: 880; }
+.cl-drawer { position: fixed; top: var(--cl-top, var(--app-header-h)); right: 0; bottom: 0; width: min(600px, 100vw); background: var(--cl-surface-2); border-left: 1px solid var(--cl-line); box-shadow: -24px 0 60px rgba(0, 0, 0, 0.3); z-index: 890; display: flex; flex-direction: column; color: var(--cl-text); }
 body.light-theme-active .cl-drawer { background: #f5f6f8; }
 .cl-drawer-top { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--cl-line); background: var(--cl-surface); flex: none; }
 /* The panel's ⋯ menu (Open profile / Edit / Delete): roomier rows, and finger-
@@ -428,7 +427,7 @@ body.light-theme-active .cl-type.fabricator { background: rgba(15, 118, 110, 0.1
 }
 
 /* ── Phone filter sheet ─────────────────────────────────────────────────── */
-.cl-sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: calc(100vh - var(--cl-top, 82px) - 12px); max-height: calc(100dvh - var(--cl-top, 82px) - 12px); background: var(--cl-surface); border-radius: 20px 20px 0 0; z-index: 890; display: flex; flex-direction: column; color: var(--cl-text); box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.35); }
+.cl-sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: calc(100vh - var(--cl-top, var(--app-header-h)) - 12px); max-height: calc(100dvh - var(--cl-top, var(--app-header-h)) - 12px); background: var(--cl-surface); border-radius: 20px 20px 0 0; z-index: 890; display: flex; flex-direction: column; color: var(--cl-text); box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.35); }
 .cl-sheet-handle { width: 40px; height: 4px; border-radius: 9px; background: var(--cl-input-border); margin: 10px auto 0; }
 .cl-sheet-hd { display: flex; align-items: center; padding: 8px 8px 8px 20px; border-bottom: 1px solid var(--cl-line-soft); }
 .cl-sheet-hd h3 { margin: 0; flex: 1; font-size: 18px; font-weight: 750; }

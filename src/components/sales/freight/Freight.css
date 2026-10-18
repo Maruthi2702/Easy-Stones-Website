@@ -221,8 +221,8 @@ body.light-theme-active .fr {
 .fr-toast .ok { color: var(--fr-paid-ink); flex: none; }
 
 /* ── Side panels (charge, invoice, payment, carriers) ── */
-.fr-scrim { position: fixed; top: var(--fr-top, 82px); left: 0; right: 0; bottom: 0; background: var(--fr-scrim); z-index: 880; }
-.fr-drawer { position: fixed; top: var(--fr-top, 82px); right: 0; bottom: 0; width: min(540px, 100vw); background: var(--fr-bg); border-left: 1px solid var(--fr-line); box-shadow: -24px 0 60px rgba(0, 0, 0, 0.3); z-index: 890; display: flex; flex-direction: column; color: var(--fr-text); }
+.fr-scrim { position: fixed; top: var(--fr-top, var(--app-header-h)); left: 0; right: 0; bottom: 0; background: var(--fr-scrim); z-index: 880; }
+.fr-drawer { position: fixed; top: var(--fr-top, var(--app-header-h)); right: 0; bottom: 0; width: min(540px, 100vw); background: var(--fr-bg); border-left: 1px solid var(--fr-line); box-shadow: -24px 0 60px rgba(0, 0, 0, 0.3); z-index: 890; display: flex; flex-direction: column; color: var(--fr-text); }
 .fr-drawer.wide { width: min(760px, 100vw); }
 .fr-drawer-top { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--fr-surface); border-bottom: 1px solid var(--fr-line); flex: none; }
 .fr-drawer-top .fr-grow { font-size: 13px; color: var(--fr-muted); font-weight: 500; }

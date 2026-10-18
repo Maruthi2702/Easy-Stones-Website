@@ -952,6 +952,38 @@
   box-sizing: border-box;
 }
 
+.checkin-topnav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: -1.5rem 0 1.25rem;
+}
+
+.checkin-topnav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+.checkin-topnav-btn:hover {
+  opacity: 1;
+  border-color: #d4af37;
+}
+
+.checkin-container.light-theme .checkin-topnav-btn {
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
 .checkin-simple-header {
   display: flex;
   align-items: center;

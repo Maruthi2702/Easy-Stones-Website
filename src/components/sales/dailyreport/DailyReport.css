@@ -48,7 +48,7 @@
   /* .sales-main is a fixed-height shell that clips its overflow, so every tab
      scrolls inside its own root or not at all. */
   height: 100%;
-  max-height: calc(100vh - 82px);
+  max-height: calc(100vh - var(--app-header-h));
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;

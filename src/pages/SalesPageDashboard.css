@@ -1570,7 +1570,7 @@
 .crm-checkin-log-panel {
     padding: 2rem;
     background: var(--bg-primary);
-    height: calc(100vh - 136px);
+    height: calc(100vh - 54px - var(--app-header-h));
     overflow-y: auto;
 }
 
@@ -1785,7 +1785,7 @@
 /* CRM Map Panel */
 .crm-map-panel {
     background: var(--bg-primary);
-    min-height: calc(100vh - 120px);
+    min-height: calc(100vh - 38px - var(--app-header-h));
 }
 
 .sales-page-embedded {
