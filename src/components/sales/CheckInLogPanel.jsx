@@ -150,6 +150,22 @@ const CheckInLogPanel = ({
   const canSeeQrCodes = canSeeCheckInQr(user);
 
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const filterRef = useRef(null);
+  // A click or tap anywhere outside the filter button and its panel closes
+  // it (same as LocationFilter's panel on the other pages); Escape does too.
+  useEffect(() => {
+    if (!showFilterDropdown) return undefined;
+    const onDown = (e) => { if (!filterRef.current?.contains(e.target)) setShowFilterDropdown(false); };
+    const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) setShowFilterDropdown(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [showFilterDropdown]);
 
   // ── More menu (⋯): View as PDF, Download as PDF, Download as Excel ──
   // The PDFs are plain links to the server (GET /api/checkin/export.pdf), so
@@ -305,7 +321,7 @@ const CheckInLogPanel = ({
 
           {/* Location, Year & Month Filters */}
           {onFilterMonthChange && onFilterYearChange && (
-            <div className="clp-filter-container">
+            <div className="clp-filter-container" ref={filterRef}>
               <button
                 type="button"
                 className={`clp-filter-btn ${(filterMonth || filterYear || filterLocation) ? 'clp-filter-active' : ''}`}
