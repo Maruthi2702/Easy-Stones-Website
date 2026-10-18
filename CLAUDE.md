@@ -402,8 +402,18 @@ routes live in `src/routes/customerMap.js` (tested, in-memory MongoDB):
 (reps outside the scope return nothing), `/map/rep-counts` feeds the Filter's
 counts, and `/map/:id` returns one customer's contact details (404 outside the
 scope). A **pin is slim** — phone, email, address, notes arrive only when a
-customer is opened (the panel says "Loading details…"; `showDetails` caches them,
-`load()` clears the cache). Only **checked reps' customers are loaded** (ticking
+customer is opened: the panel is the Customers tab's own `CustomerDrawer`
+(**shared — a change to it changes both screens; check both**), which fetches
+the full record itself; `/map/:id` is only for a login without Full profile.
+What the map adds is `MapActions` in the drawer's `mapSection` slot (last-visit
+age, the stop or booking, Add to calendar / Remove / Reschedule, Add visit, Add
+resource). The drawer's ↑↓ steps through the day's route stops when the customer
+is on a planned day, and is absent otherwise. **Add to calendar** opens
+`ScheduleVisitSheet` (a FormModal with the shared DatePicker: Tomorrow / Next
+week / In 2 weeks, the first free start that day, what's already booked —
+`src/utils/visitSlots.js`, tested); it books that day, or moves the existing
+entry (`PUT /api/schedule/:id`). On a phone the panel leaves a strip of map at
+the top (`.cl-drawer.rpv2-host`). Only **checked reps' customers are loaded** (ticking
 one fetches just theirs). The Filter reads Sales reps → Customer type → Days since
 last visit; pins are map pins coloured by type (set A, `TYPE_COLORS` in
 `routePlannerV2/helpers.js`) or by last-visit age (the "Type colours | Visit

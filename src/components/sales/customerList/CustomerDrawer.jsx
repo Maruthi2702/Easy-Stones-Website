@@ -70,7 +70,12 @@ const CustomerDrawer = ({
   onStatusChange, canEdit, canDelete, overlay,
   // Without Full profile this is the basic card only: no profile link, level,
   // follow-up, marketing, other contacts, Moda, visits or notes.
-  canProfile = true
+  canProfile = true,
+  // For another screen that opens this panel (the Route Planner): a section drawn
+  // under the header (what that screen adds to a customer), and a class for that
+  // screen's own sizing. Both optional — the Customers tab passes neither.
+  mapSection = null,
+  className = ''
 }) => {
   const [detail, setDetail] = useState(null);
   const [loadError, setLoadError] = useState('');
@@ -165,7 +170,7 @@ const CustomerDrawer = ({
   return (
     <>
       {overlay && <div className="cl-scrim" onClick={onClose} aria-hidden="true" />}
-      <aside className="cl-drawer cl" role="dialog" aria-modal={overlay ? 'true' : 'false'} aria-label={`${companyOf(c)} details`}>
+      <aside className={`cl-drawer cl${className ? ` ${className}` : ''}`} role="dialog" aria-modal={overlay ? 'true' : 'false'} aria-label={`${companyOf(c)} details`}>
         <div className="cl-drawer-top">
           {/* The bar, the same on every screen (2026-10-08): ⋯ on the left, the
               ↑ "n of N" ↓ control in the middle, close on the right. The ⋯ holds
@@ -201,7 +206,9 @@ const CustomerDrawer = ({
               </div>
             )}
           </div>
-          {/* One joined control: ↑, where you are in the list, ↓. */}
+          {/* One joined control: ↑, where you are in the list, ↓ — only when there is a
+              list to move through (a customer opened on its own has none). */}
+          {(position || onPrev || onNext) ? (
           <div className="cl-pager" role="group" aria-label="Move between customers">
             <button type="button" className="cl-pager-btn" aria-label="Previous customer" title="Previous customer (↑)" disabled={!onPrev} onClick={onPrev}><ChevronUp size={18} /></button>
             {position && (
@@ -211,6 +218,7 @@ const CustomerDrawer = ({
             )}
             <button type="button" className="cl-pager-btn" aria-label="Next customer" title="Next customer (↓)" disabled={!onNext} onClick={onNext}><ChevronDown size={18} /></button>
           </div>
+          ) : <span />}
           {/* The form template's close button (shared/form/FormModal.css .fm-close). */}
           <button ref={closeRef} type="button" className="fm-close cl-drawer-close" aria-label="Close details" title="Close (Esc)" onClick={onClose}>
             <X size={18} strokeWidth={2.4} aria-hidden="true" />
@@ -248,6 +256,8 @@ const CustomerDrawer = ({
             <RepBadge name={c.salesRepName} />
           </div>
           {statusError && <div className="cl-err" role="alert">{statusError}</div>}
+
+          {mapSection}
 
           {/* No Call / Email / Directions buttons here (removed 2026-10-07): the
               same numbers, emails and address are right below, each one

@@ -1,23 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GoogleMap, Marker, DirectionsRenderer, TrafficLayer } from '@react-google-maps/api';
-import { MapPin, Phone, Mail, AlertTriangle, Calendar, CalendarPlus, CalendarX, FolderPlus, ExternalLink, X, Sparkles, Pencil, Trash2, Copy, Check, Lasso, LocateFixed } from 'lucide-react';
-import { FALLBACK_CENTER, RECENCY_DARK_TEXT, LEAD_PIN_COLOR, OPEN_PIN_COLOR, whenLabel, real, nameOf, isPlaceholderEmail, statusTone, typeColors, isNotInterested } from './helpers';
-import { isRoutablePrecision, milesBetween, pointInPolygon } from '../../../utils/routePlan';
+import { MapPin, Phone, X, Sparkles, Lasso, LocateFixed } from 'lucide-react';
+import { FALLBACK_CENTER, RECENCY_DARK_TEXT, LEAD_PIN_COLOR, OPEN_PIN_COLOR, nameOf, typeColors, isNotInterested } from './helpers';
+import { milesBetween, pointInPolygon } from '../../../utils/routePlan';
 import FilterPanel from './FilterPanel';
 import ToolsPanel from './ToolsPanel';
 import CustomersPanel from './CustomersPanel';
 import SchedulePanel from './SchedulePanel';
 import './MapCanvas.css';
-
-const hexToRgba = (hex, alpha) => {
-    const clean = hex.replace('#', '');
-    const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
-    const value = parseInt(full, 16);
-    const r = (value >> 16) & 255;
-    const g = (value >> 8) & 255;
-    const b = value & 255;
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
 
 // Chaikin's corner-cutting: each pass replaces every edge with two points a
 // quarter and three-quarters of the way along it, rounding every corner a
@@ -225,13 +215,13 @@ const PinLayer = React.memo(({ selectedPins, unselectedPins, orderById, openId, 
 });
 
 const MapCanvas = ({
-    mapRef, theme, colors, colorMode = 'type', onColorModeChange, scopeNote, infoLoading = false, lastKnownPosition = null,
+    mapRef, colors, colorMode = 'type', onColorModeChange, scopeNote, lastKnownPosition = null,
     isLoaded, loadError,
     showTraffic,
     origin,
     myPosition,
     unselectedPins, orderById,
-    info, onSelectPin, onCloseInfo, onEditCustomer, loadingEditCustomer, onDeleteCustomer,
+    info, onSelectPin,
     leadResults, leadInfo, onSelectLead, onCloseLeadInfo, onSaveLead, savingLead, canSaveLead, leadError,
     replaceExisting, onReplaceExistingChange, onClearPlannedDay,
     showFilterPanel, onCloseFilterPanel,
@@ -240,7 +230,7 @@ const MapCanvas = ({
     salesRepOptions, activeSalesReps, repCounts, onToggleSalesRep, onToggleAllSalesReps,
     date, onDateChange, startAt, onStartAtChange, stopMinutes, onStopMinutesChange,
     day, summary, onScheduleDay, saved,
-    scheduled, can, saving, onAddOne, onRemoveOne, onOpenCustomer, onAddVisit, onAddResource,
+    can, saving,
     loading, pinsCount, error,
     onMapClick,
     showToolsPanel, onCloseToolsPanel, drawMode, onArmRadius, onArmLasso, onLocateMe, onRadiusSelect, onLassoSelect,
@@ -271,21 +261,6 @@ const MapCanvas = ({
     // here rather than inside ToolsPanel since MapCanvas is what actually
     // renders the AreaScheduleSection block that toggling this shows.
     const [scheduleOpen, setScheduleOpen] = useState(false);
-    // Which field's copy button last fired, so its icon can flip to a
-    // checkmark briefly — a single field rather than a per-field boolean
-    // since only one copy can meaningfully be "just done" at a time.
-    const [copiedField, setCopiedField] = useState(null);
-
-    const handleCopy = useCallback((field, value) => {
-        if (!value || !navigator.clipboard) return;
-        navigator.clipboard.writeText(value)
-            .then(() => {
-                setCopiedField(field);
-                setTimeout(() => setCopiedField(prev => (prev === field ? null : prev)), 1800);
-            })
-            .catch(() => {});
-    }, []);
-
     // The padded area pins are drawn in; null until the map first reports its
     // bounds. Updated on 'idle' (the pan or zoom has settled — never mid-drag),
     // and only when the screen has actually left the area already drawn.
@@ -639,9 +614,6 @@ const MapCanvas = ({
         return made;
     }, [colors, colorMode]);
 
-    // The open customer's header colours, in whichever mode the pins are in.
-    const infoLook = info ? pinLook(colors, colorMode, info) : null;
-
     return (
         <div className="rpv2-map">
             {loadError && <div className="rpv2-map-empty"><p>Google Maps failed to load: {loadError.message}</p></div>}
@@ -776,269 +748,12 @@ const MapCanvas = ({
                 </GoogleMap>
             )}
 
-            {/* A fixed panel on the right rather than a popup anchored to the
-                pin (the old approach, via <InfoWindow>) — always in the same
-                place regardless of where on the map the pin sits, matching
-                Badger Maps' "lead details" panel. */}
-            {info && (
-                <div className="rpv2-panel" data-dialog="customer">
-                    {/* The wash fades top-to-bottom from the recency colour
-                        to nothing, rather than a flat tint — it's the org
-                        name/subtitle's backdrop as much as the badge row's,
-                        so it needs to still read as plain panel background
-                        by the time it reaches the body below. The badge
-                        pill itself carries the colour at full strength;
-                        this is just the header's "whose context is this"
-                        cue behind it. */}
-                    <div
-                        className="rpv2-panel-head"
-                        style={{
-                            background: `linear-gradient(180deg, ${hexToRgba(infoLook.color, theme === 'light' ? 0.1 : 0.35)}, ${hexToRgba(infoLook.color, 0)})`
-                        }}
-                    >
-                        <div className="rpv2-panel-head-top">
-                            <span
-                                className={`rpv2-panel-badge ${infoLook.ink === '#141414' ? 'is-dark-text' : ''}`}
-                                style={{ background: infoLook.color }}
-                            >
-                                {colorMode === 'type'
-                                    ? (real(info.customerType) || 'No type set')
-                                    : (info.recency.key === 'never' ? 'Never visited' : info.recency.label)}
-                            </span>
-                            {colorMode === 'type' && (
-                                <span className="rpv2-panel-badge-aside">
-                                    {info.recency.key === 'never' ? 'Never visited' : `Last visit ${info.recency.label}`}
-                                </span>
-                            )}
-                            {orderById.has(info._id) && (
-                                <span className="rpv2-panel-stop">Stop {orderById.get(info._id)}</span>
-                            )}
-                            <button type="button" className="rpv2-panel-close" onClick={onCloseInfo} aria-label="Close">
-                                <X size={18} />
-                            </button>
-                        </div>
-                        <div className="rpv2-panel-name-row">
-                            <strong className="rpv2-panel-name">{nameOf(info)}</strong>
-                            {/* Edit and Delete are separate Users & Roles switches
-                                (canEditCustomers / canDeleteCustomers), so each icon
-                                checks its own. */}
-                            {(can.manageCustomers || can.deleteCustomers) && (
-                                <div className="rpv2-panel-name-actions">
-                                    {can.manageCustomers && (
-                                        <button
-                                            type="button"
-                                            className="rpv2-panel-icon-btn"
-                                            onClick={() => onEditCustomer(info)}
-                                            disabled={loadingEditCustomer}
-                                            title="Edit customer"
-                                            aria-label="Edit customer"
-                                        >
-                                            <Pencil size={15} />
-                                        </button>
-                                    )}
-                                    {can.deleteCustomers && (
-                                        <button type="button" className="rpv2-panel-icon-btn is-danger" onClick={() => onDeleteCustomer(info)} title="Delete customer" aria-label="Delete customer">
-                                            <Trash2 size={15} />
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                        {/* Its own line under the name rather than buried as one row
-                            of the facts grid below — a lead/customer's pipeline stage
-                            is the thing a rep scans for first, so it gets the same
-                            visual weight as the recency badge up top, not the same
-                            treatment as "Moda Binders". Level rides along on the same
-                            row (right-aligned) rather than back in the grid — it's the
-                            other fact a rep checks in the same glance as pipeline stage. */}
-                        {(real(info.status) || real(info.level)) && (
-                            <div className="rpv2-panel-status-row">
-                                {real(info.status) && (
-                                    <div className={`rpv2-panel-status rpv2-status-${statusTone(info.status)}`}>
-                                        <span className="rpv2-panel-status-dot" aria-hidden="true" />
-                                        {real(info.status)}
-                                    </div>
-                                )}
-                                {real(info.level) && (
-                                    <span className="rpv2-panel-level">{real(info.level)}</span>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="rpv2-panel-body">
-                        <div className="rpv2-panel-contact">
-                            {/* Grouped with phone/email now, not under the company
-                                name up in the header — the contact person is who
-                                you'd actually be calling/emailing at that number
-                                and address, so it reads better beside them. */}
-                            {real(info.contactName) && real(info.company) && (
-                                <div className="rpv2-panel-contact-name">{real(info.contactName)}</div>
-                            )}
-                            {/* The contact details arrive after the panel opens (a pin
-                                is slim); until then say so, rather than claim there
-                                is no phone, email or address. */}
-                            {infoLoading ? (
-                                <span className="rpv2-panel-muted">Loading details…</span>
-                            ) : (
-                                <>
-                            {real(info.phone) && (
-                                <div className="rpv2-contact-row">
-                                    <a className="rpv2-contact-link" href={`tel:${real(info.phone)}`}>
-                                        <Phone size={14} /><span>{real(info.phone)}</span>
-                                    </a>
-                                    <button
-                                        type="button"
-                                        className={`rpv2-panel-icon-btn rpv2-copy-btn ${copiedField === 'phone' ? 'is-copied' : ''}`}
-                                        onClick={() => handleCopy('phone', real(info.phone))}
-                                        title={copiedField === 'phone' ? 'Copied' : 'Copy phone number'}
-                                        aria-label="Copy phone number"
-                                    >
-                                        {copiedField === 'phone' ? <Check size={13} /> : <Copy size={13} />}
-                                    </button>
-                                </div>
-                            )}
-                            {info.email && !isPlaceholderEmail(info.email) && (
-                                <div className="rpv2-contact-row">
-                                    <a className="rpv2-contact-link" href={`mailto:${info.email}`}>
-                                        <Mail size={14} /><span>{info.email}</span>
-                                    </a>
-                                    <button
-                                        type="button"
-                                        className={`rpv2-panel-icon-btn rpv2-copy-btn ${copiedField === 'email' ? 'is-copied' : ''}`}
-                                        onClick={() => handleCopy('email', info.email)}
-                                        title={copiedField === 'email' ? 'Copied' : 'Copy email address'}
-                                        aria-label="Copy email address"
-                                    >
-                                        {copiedField === 'email' ? <Check size={13} /> : <Copy size={13} />}
-                                    </button>
-                                </div>
-                            )}
-                            {info.marketingEmail && !isPlaceholderEmail(info.marketingEmail) ? (
-                                <div className="rpv2-contact-row">
-                                    <a className="rpv2-contact-link" href={`mailto:${info.marketingEmail}`}>
-                                        <Mail size={14} /><span>{info.marketingEmail}</span>
-                                    </a>
-                                    <button
-                                        type="button"
-                                        className={`rpv2-panel-icon-btn rpv2-copy-btn ${copiedField === 'marketingEmail' ? 'is-copied' : ''}`}
-                                        onClick={() => handleCopy('marketingEmail', info.marketingEmail)}
-                                        title={copiedField === 'marketingEmail' ? 'Copied' : 'Copy marketing email address'}
-                                        aria-label="Copy marketing email address"
-                                    >
-                                        {copiedField === 'marketingEmail' ? <Check size={13} /> : <Copy size={13} />}
-                                    </button>
-                                </div>
-                            ) : (
-                                <span className="rpv2-panel-muted"><Mail size={14} /> No marketing email on record</span>
-                            )}
-                            {[info.street, info.city, info.state].filter(Boolean).length > 0 ? (
-                                <a
-                                    className="is-address"
-                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([info.street, info.city, info.state].filter(Boolean).join(', '))}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    <MapPin size={14} />
-                                    <span>{[info.street, info.city, info.state].filter(Boolean).join(', ')}</span>
-                                </a>
-                            ) : (
-                                <span className="rpv2-panel-muted"><MapPin size={14} /> No address on record</span>
-                            )}
-                                </>
-                            )}
-                        </div>
-
-                        <dl className="rpv2-panel-facts">
-                            {[
-                                { label: 'Branch', value: real(info.location) },
-                                { label: 'Sales Rep', value: real(info.salesRepName) },
-                                { label: 'Visits', value: `${info.visitCount}` },
-                                { label: 'Type', value: real(info.customerType) },
-                                { label: 'Moda Display', value: real(info.modaDisplay) || 'No' },
-                                { label: 'Moda Binders', value: real(info.modaBinder) || '0' },
-                                // Always rendered, unlike the facts above — Notes is free text
-                                // that's often blank, and "blank" is itself worth showing here
-                                // rather than silently dropping the row.
-                                { label: 'Notes', value: real(info.notes), alwaysShow: !infoLoading }
-                            ].filter(f => f.value || f.alwaysShow).map(({ label, value, alwaysShow }) => {
-                                const isEmptyNotes = alwaysShow && !value;
-                                return (
-                                    <div key={label} className={label === 'Notes' ? 'is-notes' : ''}>
-                                        <dt>{label}</dt>
-                                        {label === 'Sales Rep' ? (
-                                            <dd className="rpv2-panel-rep">
-                                                <span className="rpv2-panel-avatar" aria-hidden="true">{value[0]?.toUpperCase()}</span>
-                                                {value}
-                                            </dd>
-                                        ) : (
-                                            <dd className={isEmptyNotes ? 'is-empty' : ''}>
-                                                {isEmptyNotes ? 'No notes on file' : value}
-                                            </dd>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </dl>
-
-                        {!isRoutablePrecision(info.precision) && (
-                            <p className="rpv2-panel-warn">
-                                <AlertTriangle size={13} />
-                                This pin is the middle of the town, not the address.
-                            </p>
-                        )}
-
-                        {scheduled.has(String(info._id)) && (
-                            <p className="rpv2-panel-booked">
-                                <Calendar size={13} />
-                                Scheduled {whenLabel(scheduled.get(String(info._id)).startTime)}
-                            </p>
-                        )}
-                    </div>
-
-                    {(onAddVisit || onAddResource) && (
-                        <div className="rpv2-panel-actions">
-                            {onAddVisit && (
-                                <button type="button" onClick={() => onAddVisit(info)}>
-                                    <CalendarPlus size={15} />
-                                    Add visit
-                                </button>
-                            )}
-                            {onAddResource && (
-                                <button type="button" onClick={() => onAddResource(info)}>
-                                    <FolderPlus size={15} />
-                                    Add resource
-                                </button>
-                            )}
-                        </div>
-                    )}
-
-                    <div className="rpv2-panel-actions">
-                        {scheduled.has(String(info._id)) ? (
-                            <button className="is-drop" disabled={saving} onClick={() => onRemoveOne(info)}>
-                                <CalendarX size={15} />
-                                Remove from schedule
-                            </button>
-                        ) : can.plan ? (
-                            <button disabled={saving} onClick={() => onAddOne(info)}>
-                                <Calendar size={15} />
-                                Add to calendar
-                            </button>
-                        ) : null}
-                        {onOpenCustomer && (
-                            <button className="is-primary" onClick={() => { onOpenCustomer(info._id); onCloseInfo(); }}>
-                                Open record
-                                <ExternalLink size={15} />
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
+            {/* The open customer's panel is the Customers tab's own, drawn by
+                RoutePlannerV2 (CustomerDrawer) — not here. */}
 
             {/* Same fixed right-column shell as the customer panel above —
                 a lead result isn't a Customer yet, so it gets its own
-                lightweight variant rather than being shoehorned through
-                the customer panel's recency/schedule-specific markup. */}
+                lightweight variant. */}
             {leadInfo && (
                 <div className="rpv2-panel" data-dialog="lead">
                     <div className="rpv2-panel-head" style={{ background: LEAD_PIN_COLOR }}>

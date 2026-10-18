@@ -9,7 +9,7 @@ import { UNASSIGNED, repsInScope, scopeLocationsOf } from '../../../utils/routeP
 import { readLastPosition, rememberPosition, forgetLocationOk, locationWasOk, locationPermission, shouldAutoLocate } from '../../../utils/geolocationAccess';
 import {
     orderStops, planDay, daySummary, visitRecency,
-    hasPoint, localISO, milesBetween, pointInPolygon, RECENCY_BUCKETS, DEFAULT_DAY
+    hasPoint, milesBetween, pointInPolygon, RECENCY_BUCKETS, DEFAULT_DAY
 } from '../../../utils/routePlan';
 import {
     RECENCY_COLORS, KNOWN_TYPES, PIN_COLOR_MODES, todayKey, pad, nameOf, whenLabel,
@@ -22,7 +22,10 @@ import RunDrawer from './RunDrawer';
 import MoreMenu from './MoreMenu';
 import AddCustomerModal from '../AddCustomerModal';
 import { toCustomerOptions } from '../../../utils/customerOptions';
-import { canEditCustomers, canDeleteCustomers } from '../../../utils/customerAccess';
+import { canEditCustomers, canDeleteCustomers, canViewCustomerProfile } from '../../../utils/customerAccess';
+import CustomerDrawer from '../customerList/CustomerDrawer';
+import MapActions from './MapActions';
+import ScheduleVisitSheet from './ScheduleVisitSheet';
 import './RoutePlannerV2.css';
 
 /**
@@ -32,9 +35,10 @@ import './RoutePlannerV2.css';
  * side-by-side comparison period; that file has since been removed and this
  * is now the only Route Planner screen.
  */
-// Echoed in MapCanvas.css's .rpv2-panel width — no shared constant across
-// JS/CSS, so both need to move together if this changes.
-const PANEL_WIDTH = 360;
+// The customer panel's width on desktop, echoed in MapActions.css's
+// .cl-drawer.rpv2-host — no shared constant across JS/CSS, so both need to move
+// together if this changes.
+const PANEL_WIDTH = 460;
 
 // Pure — doesn't close over anything component-specific — so it's hoisted
 // here rather than redefined every render inside the component body, which
@@ -191,7 +195,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // page, gating the two icons separately in MapCanvas.
     const [editingCustomer, setEditingCustomer] = useState(null);
     const [savingCustomerEdit, setSavingCustomerEdit] = useState(false);
-    const [loadingEditCustomer, setLoadingEditCustomer] = useState(false);
+    const [, setLoadingEditCustomer] = useState(false);
     const [salesReps, setSalesReps] = useState([]);
     const [locationOptions, setLocationOptions] = useState([]);
 
@@ -797,34 +801,31 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // a second fetch of the same data.
     const customerOptions = useMemo(() => toCustomerOptions(pins), [pins]);
 
-    const addOneToCalendar = async (customer) => {
-        if (saving) return;
+    // "Schedule a visit" (ScheduleVisitSheet): the customer being put on a day, or
+    // rescheduled. Books the chosen day and time — a new entry, or the customer's
+    // existing one moved — instead of the day set in the Tools panel.
+    const [scheduleSheet, setScheduleSheet] = useState(null);
+    const saveVisitSlot = async ({ customer, booking, startTime, endTime }) => {
+        if (saving) return false;
         setSaving(true);
         setError('');
         try {
-            const planned = day.find(stop => stop._id === customer._id);
-            const [hour, minute] = startAt.split(':').map(Number);
-            const fallbackStart = `${date}T${pad(hour || 9)}:${pad(minute || 0)}:00.000`;
-            const fallbackEnd = new Date(new Date(fallbackStart).getTime() + (Number(stopMinutes) || 45) * 60000);
-
-            const res = await authFetch(`${API_URL}/api/schedule/bulk`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    date,
-                    items: [{
-                        customerId: customer._id,
-                        startTime: planned?.startTime || fallbackStart,
-                        endTime: planned?.endTime || localISO(fallbackEnd),
-                        activityType: 'Visit',
-                        notes: ''
-                    }]
-                })
-            });
-            const body = await res.json();
-            if (!res.ok) throw new Error(body.message || 'Could not add to the calendar');
+            const res = booking
+                ? await authFetch(`${API_URL}/api/schedule/${booking.id}`, { method: 'PUT', body: JSON.stringify({ startTime, endTime }) })
+                : await authFetch(`${API_URL}/api/schedule/bulk`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        date: startTime.slice(0, 10),
+                        items: [{ customerId: customer._id, startTime, endTime, activityType: 'Visit', notes: '' }]
+                    })
+                });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(body.message || 'Could not save this visit');
             await loadScheduled();
+            return true;
         } catch (err) {
-            setError(err.message || 'Could not add to the calendar');
+            setError(err.message || 'Could not save this visit');
+            return false;
         } finally {
             setSaving(false);
         }
@@ -889,12 +890,12 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // load(), since an edit elsewhere changes them).
     const detailsCache = useRef(new Map());
     const detailsRequest = useRef(0);
-    const [infoLoading, setInfoLoading] = useState(false);
     const showDetails = useCallback((customer, origin = null) => {
         const cachedDetails = customer?._id ? detailsCache.current.get(String(customer._id)) : null;
-        if (customer?._id && !cachedDetails) {
+        // The shared panel fetches the full record itself; this is only for a login
+        // without Full profile, whose basic card needs the contact details.
+        if (customer?._id && !cachedDetails && !canViewCustomerProfile(currentUser)) {
             const request = ++detailsRequest.current;
-            setInfoLoading(true);
             authFetch(`${API_URL}/api/customers/map/${customer._id}`)
                 .then(res => (res.ok ? res.json() : null))
                 .then(details => {
@@ -902,11 +903,9 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                     if (request !== detailsRequest.current) return;
                     if (details) setInfo(prev => (prev && String(prev._id) === String(customer._id) ? { ...prev, ...details } : prev));
                 })
-                .catch(() => { /* the panel just shows what the pin has */ })
-                .finally(() => { if (request === detailsRequest.current) setInfoLoading(false); });
+                .catch(() => { /* the panel just shows what the pin has */ });
         } else {
             detailsRequest.current += 1;
-            setInfoLoading(false);
         }
         setLeadInfo(null);
         setShowFilterPanel(false);
@@ -917,12 +916,18 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         setInfo(cachedDetails ? { ...customer, ...cachedDetails } : customer);
         if (!mapRef.current || !customer?.coordinates) return;
         mapRef.current.panTo(customer.coordinates);
-        // The detail panel is a fixed column on the right (PANEL_WIDTH wide)
-        // rather than a popup anchored at the pin, so panTo alone would
-        // still centre the pin right where the panel is about to cover it.
-        // Shifting the view left by half that width keeps it clear.
-        mapRef.current.panBy(PANEL_WIDTH / 2, 0);
-    }, []);
+        // The customer panel covers part of the map, so panTo alone would centre
+        // the pin right where the panel is about to cover it. On desktop it's a
+        // column on the right (PANEL_WIDTH wide): shift the view left by half of
+        // it. On a phone it's a sheet from below that leaves a strip of map at
+        // the top: put the pin in that strip.
+        if (window.innerWidth >= 640) {
+            mapRef.current.panBy(PANEL_WIDTH / 2, 0);
+        } else {
+            const height = mapRef.current.getDiv?.().clientHeight || window.innerHeight;
+            mapRef.current.panBy(0, Math.max(0, height / 2 - 70));
+        }
+    }, [currentUser]);
 
     // Closes the customer detail popup the way a "back" action would: if it
     // was opened from a row inside Tools, Customers, or Schedule (see
@@ -931,6 +936,19 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // dropped whichever panel it had replaced, with no way back to it short
     // of redrawing a selection, re-searching, or re-finding the same day on
     // the calendar.
+    // The Status pill in the shared panel — the same request the Customers tab sends.
+    const changeStatus = async (id, status) => {
+        try {
+            const res = await authFetch(`${API_URL}/api/customers/${id}`, { method: 'PUT', body: JSON.stringify({ status }) });
+            if (!res.ok) return false;
+            setPins(prev => prev.map(p => (String(p._id) === String(id) ? { ...p, status } : p)));
+            setInfo(prev => (prev && String(prev._id) === String(id) ? { ...prev, status } : prev));
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
     const closeInfo = useCallback(() => {
         setInfo(null);
         if (returnPanel === 'tools') setShowToolsPanel(true);
@@ -938,6 +956,14 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         if (returnPanel === 'schedule') setShowSchedulePanel(true);
         setReturnPanel(null);
     }, [returnPanel]);
+
+    // Esc closes the open customer's panel, as it does on the Customers tab.
+    useEffect(() => {
+        if (!info) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) closeInfo(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [info, closeInfo]);
 
     // Same fixed-column treatment as showDetails, for a lead-search result
     // instead of a Customer — the two panels are mutually exclusive (opening
@@ -1528,10 +1554,6 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 orderById={orderById}
                 info={info}
                 onSelectPin={showDetails}
-                onCloseInfo={closeInfo}
-                onEditCustomer={openEditCustomer}
-                loadingEditCustomer={loadingEditCustomer}
-                onDeleteCustomer={deleteCustomer}
                 leadResults={leadResults}
                 leadInfo={leadInfo}
                 onSelectLead={showLeadDetails}
@@ -1554,7 +1576,6 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 onToggleAllSalesReps={toggleAllSalesReps}
                 colorMode={colorMode}
                 onColorModeChange={setColorMode}
-                infoLoading={infoLoading}
                 lastKnownPosition={lastKnownPosition}
                 scopeNote={scopeLocations ? `Your locations: ${scopeLocations.join(', ') || 'none'}` : ''}
                 replaceExisting={replaceExisting}
@@ -1574,14 +1595,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 savingLead={savingLead}
                 canSaveLead={can.manageCustomers}
                 leadError={leadError}
-                scheduled={scheduled}
                 can={can}
                 saving={saving}
-                onAddOne={addOneToCalendar}
-                onRemoveOne={removeFromCalendar}
-                onOpenCustomer={onOpenCustomer}
-                onAddVisit={onAddVisit}
-                onAddResource={onAddResource}
                 loading={loading}
                 pinsCount={pins.length}
                 error={error}
@@ -1626,6 +1641,66 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 areaControls={areaControls}
                 moreControl={moreControl}
             />
+
+            {/* The open customer: the Customers tab's own panel (so it changes with
+                that), plus what the map adds under the header. When the customer is on
+                the day being planned, the arrows step through that day's stops;
+                otherwise it's just this one customer. */}
+            {info && (() => {
+                const stopIndex = day.findIndex(stop => String(stop._id) === String(info._id));
+                const onRoute = stopIndex >= 0 && day.length > 1;
+                const goStop = (i) => {
+                    const pin = pinById.get(String(day[i]?._id));
+                    if (pin) showDetails({ ...pin, recency: visitRecency(pin.lastVisitAt) }, returnPanel);
+                };
+                const canProfile = canViewCustomerProfile(currentUser);
+                const booking = scheduled.get(String(info._id)) || null;
+                return (
+                    <CustomerDrawer
+                        key={String(info._id)}
+                        className="rpv2-host"
+                        customer={info}
+                        overlay={false}
+                        position={onRoute ? { index: stopIndex, total: day.length } : null}
+                        onPrev={onRoute && stopIndex > 0 ? () => goStop(stopIndex - 1) : null}
+                        onNext={onRoute && stopIndex < day.length - 1 ? () => goStop(stopIndex + 1) : null}
+                        onClose={closeInfo}
+                        onOpenProfile={(c) => { onOpenCustomer?.(c._id); closeInfo(); }}
+                        onEdit={(c) => openEditCustomer(c)}
+                        onDelete={() => deleteCustomer(info)}
+                        onStatusChange={changeStatus}
+                        canEdit={can.manageCustomers}
+                        canDelete={can.deleteCustomers}
+                        canProfile={canProfile && Boolean(onOpenCustomer)}
+                        mapSection={(
+                            <MapActions
+                                pin={info}
+                                colors={colors}
+                                stop={day.find(stop => String(stop._id) === String(info._id)) || null}
+                                booking={booking}
+                                canPlan={can.plan}
+                                saving={saving}
+                                onSchedule={() => setScheduleSheet(info)}
+                                onRemove={() => removeFromCalendar(info)}
+                                onAddVisit={onAddVisit ? () => onAddVisit(info) : null}
+                                onAddResource={onAddResource ? () => onAddResource(info) : null}
+                            />
+                        )}
+                    />
+                );
+            })()}
+
+            {scheduleSheet && (
+                <ScheduleVisitSheet
+                    customer={scheduleSheet}
+                    booking={scheduled.get(String(scheduleSheet._id)) || null}
+                    visitsByDate={visitsByDate}
+                    minutes={Number(stopMinutes) || 45}
+                    saving={saving}
+                    onClose={() => setScheduleSheet(null)}
+                    onSave={saveVisitSlot}
+                />
+            )}
 
             {/* Same modal PartnersSheet.jsx uses for editing a customer —
                 editingCustomer puts it in edit mode; passing it here rather
