@@ -361,7 +361,12 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         if (!navigator.geolocation) return;
         const poll = () => {
             navigator.geolocation.getCurrentPosition(
-                (pos) => setMyPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                // A fresh object every 15s re-rendered the whole map even when
+                // the rep hadn't moved; only a move of ~20 m or more updates it.
+                (pos) => {
+                    const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    setMyPosition((prev) => (prev && milesBetween(prev, next) < 0.0125 ? prev : next));
+                },
                 () => { /* denied/unavailable — the dot just stays at its last known spot */ },
                 { enableHighAccuracy: true, timeout: 8000 }
             );

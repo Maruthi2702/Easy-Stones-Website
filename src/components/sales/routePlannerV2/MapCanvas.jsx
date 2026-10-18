@@ -95,6 +95,134 @@ const leadMarkerIcon = () => {
     };
 };
 
+// Builds one pin's icon (cached by markerIcon in MapCanvas).
+const buildMarkerIcon = (colors, pin, order, isOpen = false) => {
+    const inRoute = Boolean(order);
+    const ring = '#20201f';
+
+    // The one pin whose detail panel (info, below) is currently open —
+    // same silhouette as a route stop, but a fixed coral fill and a
+    // hollow ring instead of a stop number, so it reads as "this is the
+    // one you have open" rather than blending into whatever recency
+    // colour or stop number it would otherwise be wearing. Takes
+    // priority over both the plain-dot and numbered-pin cases below
+    // regardless of `order` — closing the panel (isOpen goes back to
+    // false) falls straight through to whichever of those this pin
+    // would normally render as.
+    if (isOpen) {
+        const size = 34;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
+            `<path d="${PIN_PATH}" fill="${OPEN_PIN_COLOR}" stroke="${ring}" stroke-width="1.4"/>` +
+            `<circle cx="12" cy="9" r="3.3" fill="none" stroke="#ffffff" stroke-width="1.8"/>` +
+            `</svg>`;
+        return {
+            url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+            scaledSize: new window.google.maps.Size(size, size),
+            anchor: new window.google.maps.Point(size / 2, size * (22 / 24))
+        };
+    }
+
+    if (!inRoute) {
+        return {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: pin.recency.key === 'recent' ? 5 : 7,
+            fillColor: colors[pin.recency.key],
+            fillOpacity: 1,
+            strokeColor: ring,
+            strokeWeight: 2
+        };
+    }
+
+    const size = 34;
+    // The order number is drawn as real SVG text, not a separate
+    // google.maps.Marker `label` — see stopNumberFontSize's comment for
+    // why. (12, 9) is the round head's centre in the 24-unit viewBox;
+    // dominant-baseline="central" centres the glyphs on that point
+    // vertically the same way text-anchor="middle" does horizontally.
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
+        `<path d="${PIN_PATH}" fill="${colors[pin.recency.key]}" stroke="${ring}" stroke-width="1.4"/>` +
+        `<text x="12" y="9" text-anchor="middle" dominant-baseline="central" ` +
+        `font-family="Arial, Helvetica, sans-serif" font-size="${stopNumberFontSize(order)}" ` +
+        `font-weight="700" fill="#ffffff">${order}</text>` +
+        `</svg>`;
+    return {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new window.google.maps.Size(size, size),
+        // The tip (12,22 in the 24-unit viewBox) is the actual
+        // coordinate being marked, not the icon's centre.
+        anchor: new window.google.maps.Point(size / 2, size * (22 / 24))
+    };
+};
+
+// Gestures behave like the Google Maps app: one finger drags on a phone and the
+// wheel zooms on a desktop. The default ("auto") treats a map inside a
+// scrolling page as embedded and asks for Ctrl + scroll / two fingers.
+// clickableIcons off: tapping Google's own shop/park icons while panning opened
+// their popups. A constant, so the map isn't handed a new options object (and
+// asked to re-apply it) on every render.
+//
+// VITE_GOOGLE_MAP_ID (a Google Cloud "Map ID" set to the Vector renderer) turns
+// on the vector map: zoom glides between levels, pinch follows the fingers and
+// the view pans without tile pop-in. Without it the map is the raster one it
+// has always been. Tilt and rotate are switched off — a route planner stays
+// north-up, and a stray two-finger twist shouldn't turn the map.
+const MAP_ID = import.meta.env.VITE_GOOGLE_MAP_ID || '';
+const MAP_OPTIONS = {
+    streetViewControl: false, mapTypeControl: false, fullscreenControl: false,
+    gestureHandling: 'greedy', clickableIcons: false,
+    ...(MAP_ID ? { mapId: MAP_ID, tiltInteractionEnabled: false, headingInteractionEnabled: false } : {})
+};
+
+// How far past the screen a pin is still drawn, so a small pan finds its pins
+// already there instead of drawing them mid-drag.
+const VIEW_PAD = 0.35;
+const paddedBounds = (map) => {
+    const b = map.getBounds();
+    if (!b) return null;
+    const ne = b.getNorthEast();
+    const sw = b.getSouthWest();
+    const dLat = (ne.lat() - sw.lat()) * VIEW_PAD;
+    const dLng = (ne.lng() - sw.lng()) * VIEW_PAD;
+    return { north: ne.lat() + dLat, south: sw.lat() - dLat, east: ne.lng() + dLng, west: sw.lng() - dLng };
+};
+const insideBounds = (b, c) => c.lat <= b.north && c.lat >= b.south && c.lng <= b.east && c.lng >= b.west;
+
+/**
+ * Every customer pin. Its own memoised component so the map's other state (the
+ * lasso's live count, an open panel, the "You" dot, the route line) re-renders
+ * MapCanvas without handing 1,000-5,000 markers new props and redrawing them.
+ * Route stops always draw; the rest only while inside the padded viewport.
+ */
+const PinLayer = React.memo(({ selectedPins, unselectedPins, orderById, openId, bounds, iconFor, onSelect }) => {
+    // No bounds yet = the map hasn't settled on its first view: draw none rather than all of them.
+    const shown = bounds ? unselectedPins.filter((p) => insideBounds(bounds, p.coordinates)) : [];
+    return (
+        <>
+            {selectedPins.map((pin) => (
+                <Marker
+                    key={pin._id}
+                    position={pin.coordinates}
+                    icon={iconFor(pin, orderById.get(pin._id), openId === pin._id)}
+                    title={`${nameOf(pin)} — ${pin.recency.label}`}
+                    onClick={() => onSelect(pin)}
+                />
+            ))}
+            {/* Every other customer, always its own clickable pin — no cluster
+                badge standing in for several of them, so a rep can open or
+                lasso/radius-select any individual customer. */}
+            {shown.map((pin) => (
+                <Marker
+                    key={pin._id}
+                    position={pin.coordinates}
+                    icon={iconFor(pin, undefined, openId === pin._id)}
+                    title={`${nameOf(pin)} — ${pin.recency.label}`}
+                    onClick={() => onSelect(pin)}
+                />
+            ))}
+        </>
+    );
+});
+
 const MapCanvas = ({
     mapRef, theme, colors,
     isLoaded, loadError,
@@ -157,10 +285,52 @@ const MapCanvas = ({
             .catch(() => {});
     }, []);
 
+    // The padded area pins are drawn in; null until the map first reports its
+    // bounds. Updated on 'idle' (the pan or zoom has settled — never mid-drag),
+    // and only when the screen has actually left the area already drawn.
+    const [drawBounds, setDrawBounds] = useState(null);
+    const drawBoundsRef = useRef(null);
+    // The map opens centred here and is never re-centred by a prop afterwards:
+    // `center` used to follow `origin`, so the phone's location answer (up to
+    // 8 s late) yanked the map out from under a rep who had already started
+    // panning. See the effect below for the one allowed move.
+    const [initialCenter] = useState(() => origin || FALLBACK_CENTER);
+    const userMovedRef = useRef(false);
+
     const handleLoad = (map) => {
         mapRef.current = map;
+        map.addListener('dragstart', () => { userMovedRef.current = true; });
+        map.addListener('zoom_changed', () => { if (map.__ready) userMovedRef.current = true; });
+        map.addListener('idle', () => {
+            map.__ready = true;
+            const view = map.getBounds();
+            const drawn = drawBoundsRef.current;
+            if (view && drawn) {
+                const ne = view.getNorthEast();
+                const sw = view.getSouthWest();
+                const contained = insideBounds(drawn, { lat: ne.lat(), lng: ne.lng() }) && insideBounds(drawn, { lat: sw.lat(), lng: sw.lng() });
+                // Within the drawn area and not zoomed far in from it: keep it.
+                if (contained && (drawn.north - drawn.south) < (ne.lat() - sw.lat()) * 4) return;
+            }
+            const next = paddedBounds(map);
+            drawBoundsRef.current = next;
+            setDrawBounds(next);
+        });
         setMapReady(true);
     };
+
+    // The phone's location arriving is the only time the map moves itself, and
+    // only if nobody has touched the map yet.
+    useEffect(() => {
+        if (!mapReady || !origin || userMovedRef.current || !mapRef.current) return;
+        mapRef.current.panTo(origin);
+    }, [mapReady, origin, mapRef]);
+
+    // The pins' click handler, stable across renders so the memoised PinLayer
+    // isn't invalidated by it.
+    const onSelectPinRef = useRef(onSelectPin);
+    useEffect(() => { onSelectPinRef.current = onSelectPin; }, [onSelectPin]);
+    const selectPin = useCallback((pin) => onSelectPinRef.current(pin), []);
 
     // onRadiusSelect/onLassoSelect are recreated whenever `visible` changes
     // upstream in RoutePlannerV2 (new pins load, a filter toggles, etc.) —
@@ -284,6 +454,7 @@ const MapCanvas = ({
             setLassoPreviewCount(null);
         };
 
+        let countFrame = 0;
         const mouseDownListener = map.addListener('mousedown', (e) => {
             drawStateRef.current = { path: [e.latLng] };
             selectionPolygonRef.current = new window.google.maps.Polygon({
@@ -304,11 +475,17 @@ const MapCanvas = ({
             drawStateRef.current.path.push(e.latLng);
             selectionPolygonRef.current.setPath(drawStateRef.current.path);
 
-            if (drawStateRef.current.path.length >= 3) {
-                const livePath = drawStateRef.current.path.map(latLng => ({ lat: latLng.lat(), lng: latLng.lng() }));
-                const count = [...selectedPinsRef.current, ...unselectedPinsRef.current]
-                    .filter(p => pointInPolygon(p.coordinates, livePath)).length;
-                setLassoPreviewCount(count);
+            // Counting is a point-in-polygon sweep over every pin; at most once
+            // per frame, however fast the mouse reports.
+            if (drawStateRef.current.path.length >= 3 && !countFrame) {
+                countFrame = requestAnimationFrame(() => {
+                    countFrame = 0;
+                    if (!drawStateRef.current) return;
+                    const livePath = drawStateRef.current.path.map(latLng => ({ lat: latLng.lat(), lng: latLng.lng() }));
+                    const count = [...selectedPinsRef.current, ...unselectedPinsRef.current]
+                        .filter(p => pointInPolygon(p.coordinates, livePath)).length;
+                    setLassoPreviewCount(count);
+                });
             }
         });
 
@@ -329,6 +506,7 @@ const MapCanvas = ({
             window.google.maps.event.removeListener(mouseDownListener);
             window.google.maps.event.removeListener(mouseMoveListener);
             window.google.maps.event.removeListener(mouseUpListener);
+            if (countFrame) cancelAnimationFrame(countFrame);
             clearPreview();
             map.setOptions({ draggable: true });
         };
@@ -444,63 +622,19 @@ const MapCanvas = ({
     // gives an icon its "printed, deliberate" look on a map (see how every
     // pin in the Badger Maps reference has one, regardless of anything else
     // about the app around it).
+    // Icons are cached per look (recency colour × stop number × open): the same
+    // object every render, so Google isn't told "new icon" for every pin each
+    // time anything changes. A new `colors` (theme) starts a fresh cache.
+    const iconCache = useRef({ colors: null, icons: new Map() });
     const markerIcon = useCallback((pin, order, isOpen = false) => {
         if (!window.google) return undefined;
-        const inRoute = Boolean(order);
-        const ring = '#20201f';
-
-        // The one pin whose detail panel (info, below) is currently open —
-        // same silhouette as a route stop, but a fixed coral fill and a
-        // hollow ring instead of a stop number, so it reads as "this is the
-        // one you have open" rather than blending into whatever recency
-        // colour or stop number it would otherwise be wearing. Takes
-        // priority over both the plain-dot and numbered-pin cases below
-        // regardless of `order` — closing the panel (isOpen goes back to
-        // false) falls straight through to whichever of those this pin
-        // would normally render as.
-        if (isOpen) {
-            const size = 34;
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
-                `<path d="${PIN_PATH}" fill="${OPEN_PIN_COLOR}" stroke="${ring}" stroke-width="1.4"/>` +
-                `<circle cx="12" cy="9" r="3.3" fill="none" stroke="#ffffff" stroke-width="1.8"/>` +
-                `</svg>`;
-            return {
-                url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-                scaledSize: new window.google.maps.Size(size, size),
-                anchor: new window.google.maps.Point(size / 2, size * (22 / 24))
-            };
-        }
-
-        if (!inRoute) {
-            return {
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: pin.recency.key === 'recent' ? 5 : 7,
-                fillColor: colors[pin.recency.key],
-                fillOpacity: 1,
-                strokeColor: ring,
-                strokeWeight: 2
-            };
-        }
-
-        const size = 34;
-        // The order number is drawn as real SVG text, not a separate
-        // google.maps.Marker `label` — see stopNumberFontSize's comment for
-        // why. (12, 9) is the round head's centre in the 24-unit viewBox;
-        // dominant-baseline="central" centres the glyphs on that point
-        // vertically the same way text-anchor="middle" does horizontally.
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
-            `<path d="${PIN_PATH}" fill="${colors[pin.recency.key]}" stroke="${ring}" stroke-width="1.4"/>` +
-            `<text x="12" y="9" text-anchor="middle" dominant-baseline="central" ` +
-            `font-family="Arial, Helvetica, sans-serif" font-size="${stopNumberFontSize(order)}" ` +
-            `font-weight="700" fill="#ffffff">${order}</text>` +
-            `</svg>`;
-        return {
-            url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-            scaledSize: new window.google.maps.Size(size, size),
-            // The tip (12,22 in the 24-unit viewBox) is the actual
-            // coordinate being marked, not the icon's centre.
-            anchor: new window.google.maps.Point(size / 2, size * (22 / 24))
-        };
+        if (iconCache.current.colors !== colors) iconCache.current = { colors, icons: new Map() };
+        const key = `${pin.recency.key}|${order || ''}|${isOpen ? 1 : 0}`;
+        const hit = iconCache.current.icons.get(key);
+        if (hit) return hit;
+        const made = buildMarkerIcon(colors, pin, order, isOpen);
+        iconCache.current.icons.set(key, made);
+        return made;
     }, [colors]);
 
     return (
@@ -562,11 +696,11 @@ const MapCanvas = ({
             {isLoaded && !loadError && (
                 <GoogleMap
                     mapContainerClassName={`rpv2-map-canvas ${drawMode ? 'is-drawing' : ''}`}
-                    center={origin || FALLBACK_CENTER}
+                    center={initialCenter}
                     zoom={10}
                     onLoad={handleLoad}
                     onClick={onMapClick}
-                    options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
+                    options={MAP_OPTIONS}
                 >
                     {(myPosition || origin) && (
                         <Marker
@@ -612,32 +746,15 @@ const MapCanvas = ({
                         />
                     )}
 
-                    {selectedPins.map(pin => {
-                        const order = orderById.get(pin._id);
-                        return (
-                            <Marker
-                                key={pin._id}
-                                position={pin.coordinates}
-                                icon={markerIcon(pin, order, info?._id === pin._id)}
-                                title={`${nameOf(pin)} — ${pin.recency.label}`}
-                                onClick={() => onSelectPin(pin)}
-                            />
-                        );
-                    })}
-
-                    {/* Every other customer, always its own clickable pin —
-                        no cluster badge standing in for several of them, so
-                        a rep can open or lasso/radius-select any individual
-                        customer regardless of how many others sit nearby. */}
-                    {unselectedPins.map(pin => (
-                        <Marker
-                            key={pin._id}
-                            position={pin.coordinates}
-                            icon={markerIcon(pin, undefined, info?._id === pin._id)}
-                            title={`${nameOf(pin)} — ${pin.recency.label}`}
-                            onClick={() => onSelectPin(pin)}
-                        />
-                    ))}
+                    <PinLayer
+                        selectedPins={selectedPins}
+                        unselectedPins={unselectedPins}
+                        orderById={orderById}
+                        openId={info?._id}
+                        bounds={drawBounds}
+                        iconFor={markerIcon}
+                        onSelect={selectPin}
+                    />
 
                     {/* Lead-search results — a small, transient set, never
                         merged into selectedPins/unselectedPins since these
