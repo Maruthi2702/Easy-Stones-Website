@@ -60,6 +60,8 @@ describe('planSpsImport', () => {
     const asked = plan({ rows, customers });
     expect(one(asked, 'precision stone designs inc')).toMatchObject({ action: 'decision' });
     expect(asked.counts.decision).toBe(1);
+    // the screen lays the customer out field by field, so the fields travel separately
+    expect(one(asked, 'precision stone designs inc').matches[0]).toMatchObject({ company: 'Precision Stone Design', phone: '919-555-0142', email: 'p@x.com' });
 
     expect(one(plan({ rows, customers, finalize: true }), 'precision stone designs inc').action).toBe('new');
     expect(one(plan({ rows, customers, answers: { 'precision stone designs inc': ANSWER.NEW } }), 'precision stone designs inc').action).toBe('new');

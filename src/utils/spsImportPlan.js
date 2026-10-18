@@ -302,6 +302,7 @@ export const planSpsImport = ({
             const c = byId.get(m.id);
             return {
               id: m.id, label: importLabel(c), company: c.company, signals: m.signals, score: m.score,
+              contactName: c.contactName || '', phone: c.phone || '', email: c.email || '', city: c.address?.city || '',
               salesRepName: c.salesRepName || '', location: c.location || '', visits: c.visitCount || 0
             };
           }),

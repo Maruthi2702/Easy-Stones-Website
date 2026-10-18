@@ -58,6 +58,22 @@ const saveBlob = async (url, filename) => {
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 
+// One side of the "same customer?" comparison — SPS and Easy Stones laid out
+// the same way, field by field, so the two read straight across.
+const placeholder = (v) => (v && v !== 'N/A' ? v : null);
+function Side({ k, company, contact, phone, email, where }) {
+    return (
+        <div className="spsi-side">
+            <span className="k">{k}</span>
+            <b>{company}</b>
+            {placeholder(contact) && <span>{contact}</span>}
+            {placeholder(phone) && <span>{phone}</span>}
+            {placeholder(email) && <span>{email}</span>}
+            <span className="spsc-muted">{where.filter(Boolean).join(' · ')}</span>
+        </div>
+    );
+}
+
 /**
  * A picker opens its list inside the window's scrolling body, so on a short
  * screen a row near the bottom gets a list only a few lines tall. Bring the
@@ -470,9 +486,9 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                                         <fieldset key={r.key} className="spsc-card">
                                             <legend><b>{r.name}</b> <span className="spsc-muted">row {r.rowNumber}</span></legend>
                                             <div className="spsi-compare">
-                                                <div className="spsi-side"><span className="k">In SPS</span><b>{r.sheet.company}</b>{r.sheet.contactName !== 'N/A' && <span>{r.sheet.contactName}</span>}<span>{r.sheet.phone}</span><span>{r.sheet.email}</span><span className="spsc-muted">{[r.sheet.city, r.sheet.branch, r.sheet.rep].filter(Boolean).join(' · ')}</span></div>
+                                                <Side k="In SPS" company={r.sheet.company} contact={r.sheet.contactName} phone={r.sheet.phone} email={r.sheet.email} where={[r.sheet.city, r.sheet.branch, r.sheet.rep]} />
                                                 {r.matches.slice(0, 1).map((m) => (
-                                                    <div key={m.id} className="spsi-side"><span className="k">In Easy Stones</span><b>{m.company}</b><span className="spsc-muted">{m.label}</span><span className="spsc-muted">{[m.location, m.salesRepName].filter(Boolean).join(' · ')}</span></div>
+                                                    <Side key={m.id} k="In Easy Stones" company={m.company} contact={m.contactName} phone={m.phone} email={m.email} where={[m.city, m.location, m.salesRepName]} />
                                                 ))}
                                             </div>
                                             <label className={`spsc-opt${chosen === 'new' ? ' on' : ''}`}><input type="radio" name={`d-${r.key}`} checked={chosen === 'new'} onChange={() => answer('answers', r.key, 'new')} />
