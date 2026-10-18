@@ -23,11 +23,28 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
-        navigateFallbackDenylist: [/^\/api/, /\/api\//],
+        // Page loads come from the server first (2026-10-18). They used to be
+        // answered from the precached index.html — the build the worker saved
+        // last time — so the first visit after every deploy ran the old build,
+        // the new worker took over a second later and src/main.jsx reloaded the
+        // whole site: staff saw it load, then load again. Now a visit gets the
+        // current build straight away; the saved copy is only used offline or
+        // when the server takes longer than 4s.
+        navigateFallback: null,
+        globIgnores: ['**/index.html'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api'),
             handler: 'NetworkOnly'
+          },
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'pages',
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 20 }
+            }
           }
         ]
       },

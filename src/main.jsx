@@ -25,9 +25,23 @@ if ('serviceWorker' in navigator) {
   // pointless (and, if it ever loops, harmful) refresh.
   const hadController = Boolean(navigator.serviceWorker.controller);
   let reloading = false;
+  // The build this page started from: its main script, e.g. /assets/index-AbC123.js.
+  const bootScript = document.querySelector('script[type="module"][src*="/assets/"]')?.getAttribute('src') || '';
 
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
+  navigator.serviceWorker.addEventListener('controllerchange', async () => {
     if (!hadController || reloading) return;
+    // Page loads come from the server first (vite.config.js), so a page opened
+    // after the deploy is already on the new build — reloading it again is
+    // the "loads, then loads again" staff saw. Only a page still running an
+    // older build than the server's (a tab left open across a deploy) reloads.
+    // If the server can't be asked, leave the page alone.
+    try {
+      const res = await fetch(import.meta.env.BASE_URL, { cache: 'no-store' });
+      const html = await res.text();
+      if (!res.ok || !bootScript || html.includes(bootScript)) return;
+    } catch {
+      return;
+    }
     reloading = true;
     window.location.reload();
   });
