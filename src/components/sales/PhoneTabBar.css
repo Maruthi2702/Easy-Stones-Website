@@ -185,8 +185,10 @@ body.light-theme-active .pt-root { --pt-dim: #5a6574; }
 /* ── The page makes room for the bar (SalesPage's shell is a fixed-height,
       overflow-hidden column, so it ends above the bar rather than behind it) ── */
 
-body.has-phone-bar .sales-container { padding-bottom: var(--pt-bar-h); }
-/* The bar replaces the drawer's menu button on phones. */
-body.has-phone-bar .sidebar-toggle-btn { display: none; }
+body.phone-bar-up .sales-container { padding-bottom: var(--pt-bar-h); }
+/* The bar replaces the drawer on phones, so every page's menu button goes:
+   the shared SidebarToggleButton and the Dashboard's own. */
+body.has-phone-bar .sidebar-toggle-btn,
+body.has-phone-bar .dashboard-sidebar-toggle { display: none !important; }
 /* The "added to cart" toast sits above the bar, not on it. */
-body.has-phone-bar .cd-toast:not(.in-drawer) { bottom: calc(var(--pt-bar-h) + 12px); }
+body.phone-bar-up .cd-toast:not(.in-drawer) { bottom: calc(var(--pt-bar-h) + 12px); }

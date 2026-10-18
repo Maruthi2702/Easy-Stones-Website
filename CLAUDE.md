@@ -173,8 +173,11 @@ in `src/components/sales/navIcons.js`, shared with the desktop rail). Customers
 lives only inside Sales. More = account row (profile, cart, theme, sign out),
 a search box for pages, Pinned, then the other modules; pins are still set on
 desktop. Tablets and desktop keep the rail and the drawer. The bar sets
-`body.has-phone-bar`, which makes `.sales-container` end above it and hides the
-drawer's menu buttons; it steps aside while a text box has the keyboard. Its
+`body.has-phone-bar` (hides every page's drawer menu button —
+`.sidebar-toggle-btn` and the Dashboard's `.dashboard-sidebar-toggle`; a new
+page's own menu button needs adding there) and `body.phone-bar-up` while it's
+on screen (`.sales-container` ends above it); it steps aside while a text box
+has the keyboard. Its
 z-index (96–98) is below every form, modal and the cart, so those cover it.
 
 ## Check In permissions: one card, one file (2026-10-14)

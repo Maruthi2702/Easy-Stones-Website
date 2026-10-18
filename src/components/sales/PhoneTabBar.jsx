@@ -78,10 +78,16 @@ export default function PhoneTabBar({ crmTab, onNavigate, theme, toggleTheme, na
     }, []);
 
     const shown = !keyboard || sheet !== null;
-    // The page makes room for the bar (SalesPage.css) only while it is there.
+    // has-phone-bar: the bar replaces the drawer, so the drawer's menu buttons
+    // go (for as long as the bar is mounted). phone-bar-up: the page makes room
+    // for the bar only while it's on screen, not while the keyboard is up.
     useEffect(() => {
-        document.body.classList.toggle('has-phone-bar', shown);
+        document.body.classList.add('has-phone-bar');
         return () => document.body.classList.remove('has-phone-bar');
+    }, []);
+    useEffect(() => {
+        document.body.classList.toggle('phone-bar-up', shown);
+        return () => document.body.classList.remove('phone-bar-up');
     }, [shown]);
 
     // Focus the sheet so Esc and the keyboard work from the first key.
