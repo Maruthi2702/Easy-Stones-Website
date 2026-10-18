@@ -12,6 +12,7 @@ import FormModal from '../shared/form/FormModal';
 import RepPicker from '../shared/form/RepPicker';
 import LocationPicker from '../shared/form/LocationPicker';
 import Pagination from '../shared/Pagination';
+import SpsSide from './SpsSide';
 import { usePagination, pageCount } from '../shared/paginationConfig';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
@@ -117,22 +118,6 @@ function RunItems({ runId, result }) {
                 <Pagination currentPage={currentPage} totalPages={pageCount(data.total, rowsPerPage)} onPageChange={pager.setCurrentPage}
                     rowsPerPage={rowsPerPage} onRowsPerPageChange={pager.setRowsPerPage} totalCount={data.total} />
             )}
-        </div>
-    );
-}
-
-// One side of the "same customer?" comparison — SPS and Easy Stones laid out
-// the same way, field by field, so the two read straight across.
-const placeholder = (v) => (v && v !== 'N/A' ? v : null);
-function Side({ k, company, contact, phone, email, where }) {
-    return (
-        <div className="spsi-side">
-            <span className="k">{k}</span>
-            <b>{company}</b>
-            {placeholder(contact) && <span>{contact}</span>}
-            {placeholder(phone) && <span>{phone}</span>}
-            {placeholder(email) && <span>{email}</span>}
-            <span className="spsc-muted">{where.filter(Boolean).join(' · ')}</span>
         </div>
     );
 }
@@ -566,9 +551,9 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                                         <fieldset key={r.key} className="spsc-card">
                                             <legend><b>{r.name}</b> <span className="spsc-muted">row {r.rowNumber}</span></legend>
                                             <div className="spsi-compare">
-                                                <Side k="In SPS" company={r.sheet.company} contact={r.sheet.contactName} phone={r.sheet.phone} email={r.sheet.email} where={[r.sheet.city, r.sheet.branch, r.sheet.rep]} />
+                                                <SpsSide k="In SPS" company={r.sheet.company} contact={r.sheet.contactName} phone={r.sheet.phone} email={r.sheet.email} place={r.sheet.city} branch={r.sheet.branch} rep={r.sheet.rep} />
                                                 {r.matches.slice(0, 1).map((m) => (
-                                                    <Side key={m.id} k="In Easy Stones" company={m.company} contact={m.contactName} phone={m.phone} email={m.email} where={[m.city, m.location, m.salesRepName]} />
+                                                    <SpsSide key={m.id} k="In Easy Stones" company={m.company} contact={m.contactName} phone={m.phone} email={m.email} place={m.city} branch={m.location} rep={m.salesRepName} />
                                                 ))}
                                             </div>
                                             <label className={`spsc-opt${chosen === 'new' ? ' on' : ''}`}><input type="radio" name={`d-${r.key}`} checked={chosen === 'new'} onChange={() => answer('answers', r.key, 'new')} />

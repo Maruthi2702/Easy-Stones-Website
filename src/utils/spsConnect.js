@@ -39,8 +39,13 @@ export const spsRowsOf = ({ rows, mapping }) => {
       company: text(row[nameCol]),
       email: col('email') ? text(row[col('email')]) : '',
       phone: col('phone') ? text(row[col('phone')]) : '',
+      contactName: col('contactName') ? text(row[col('contactName')]) : '',
+      street: col('street') ? text(row[col('street')]) : '',
       city: col('city') ? text(row[col('city')]) : '',
-      branch: col('location') ? text(row[col('location')]) : ''
+      state: col('state') ? text(row[col('state')]) : '',
+      zipCode: col('zipCode') ? text(row[col('zipCode')]) : '',
+      branch: col('location') ? text(row[col('location')]) : '',
+      rep: col('salesRep') ? text(row[col('salesRep')]) : ''
     });
   });
   return [...seen.values()];
@@ -98,6 +103,14 @@ export const planConnect = ({ rows, mapping, customers }) => {
         customerId: String(c._id),
         company: text(c.company),
         location: text(c.location),
+        contactName: text(c.contactName),
+        email: text(c.email),
+        phone: text(c.phone),
+        street: text(c.address?.street),
+        city: text(c.address?.city),
+        state: text(c.address?.state),
+        zipCode: text(c.address?.zipCode),
+        salesRepName: text(c.salesRepName),
         twin: (wantedBy.get(spsKey(c.company)) || []).length > 1,
         candidates
       };

@@ -36,7 +36,7 @@ export default function createCustomerSpsConnectRouter({ authenticate, uploadMem
     const mapping = resolveMapping(headers, json(req.body.mapping));
     const fileCheck = checkSheet({ rows, mapping, parse });
     if (!fileCheck.ok) return { fileCheck };
-    const customers = await Customer.find({}, 'company email phone location sps').lean();
+    const customers = await Customer.find({}, 'company contactName email phone location address salesRepName sps').lean();
     const plan = planConnect({ rows, mapping, customers });
     const spsByKey = new Map(spsRowsOf({ rows, mapping }).map((r) => [r.key, r]));
     return { fileCheck, mapping, plan, spsByKey };

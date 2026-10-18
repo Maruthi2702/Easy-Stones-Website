@@ -10,9 +10,11 @@
 import React, { useRef, useState } from 'react';
 import { Upload, Check } from 'lucide-react';
 import FormModal from '../shared/form/FormModal';
+import SpsSide, { placeOf } from './SpsSide';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import './SpsConnectModal.css';
+import './SpsImportModal.css';
 
 const fail = async (res) => {
     const text = await res.text();
@@ -150,21 +152,29 @@ export default function SpsConnectModal({ onClose, onChanged }) {
                                 <fieldset key={c.customerId} className="spsc-card">
                                     <legend><b>{c.company}</b>{c.location && <span className="spsc-muted"> · {c.location}</span>}</legend>
                                     {c.twin && <div className="spsc-muted">Another customer here has this same name, so it wasn’t connected unasked.</div>}
+                                    <div className="spsi-compare">
+                                        <SpsSide k="In Easy Stones" company={c.company} contact={c.contactName} phone={c.phone} email={c.email}
+                                            street={c.street} place={placeOf(c.city, c.state, c.zipCode)} branch={c.location} rep={c.salesRepName} />
+                                        {c.candidates.map((s) => (
+                                            <SpsSide key={s.key} k="In SPS" company={s.name} contact={s.contactName} phone={s.phone} email={s.email}
+                                                street={s.street} place={placeOf(s.city, s.state, s.zipCode)} branch={s.branch} rep={s.rep} />
+                                        ))}
+                                    </div>
                                     {c.candidates.map((s) => (
                                         <label key={s.key} className={`spsc-opt${value === s.key ? ' on' : ''}`}>
                                             <input type="radio" name={`c-${c.customerId}`} checked={value === s.key} onChange={() => set(s.key)} />
-                                            <span><b>Same customer: {s.name}</b>
-                                                <span className="spsc-muted"> {[s.city, ...s.signals.map((x) => SIGNAL_WORDS[x] || x)].filter(Boolean).join(' · ')}</span>
+                                            <span><b>Same customer — connect to “{s.name}”</b>
+                                                <span className="spsc-muted"> {s.signals.map((x) => SIGNAL_WORDS[x] || x).join(' · ')}</span>
                                             </span>
                                         </label>
                                     ))}
                                     <label className={`spsc-opt${value === 'none' ? ' on' : ''}`}>
                                         <input type="radio" name={`c-${c.customerId}`} checked={value === 'none'} onChange={() => set('none')} />
-                                        <span><b>Not in SPS</b><span className="spsc-muted"> a lead, or a customer SPS doesn’t have</span></span>
+                                        <span><b>Different customer / not in SPS</b><span className="spsc-muted"> none of the above is this customer; it stays as it is and the SPS ones are added as new by the import</span></span>
                                     </label>
                                     <label className={`spsc-opt${value === 'later' ? ' on' : ''}`}>
                                         <input type="radio" name={`c-${c.customerId}`} checked={value === 'later'} onChange={() => set('later')} />
-                                        <span><b>Not sure</b><span className="spsc-muted"> decide later</span></span>
+                                        <span><b>Skip for now</b><span className="spsc-muted"> decide later</span></span>
                                     </label>
                                 </fieldset>
                             );
