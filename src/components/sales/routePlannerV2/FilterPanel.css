@@ -128,3 +128,35 @@
     text-transform: uppercase;
     opacity: 0.65;
 }
+
+/* ── Filter panel, 2026-10-18 redesign: reps → type → days, colour switch ── */
+.rpv2-filter-section-sum { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--cd2-muted); font-size: 0.75rem; }
+.rpv2-filter-actions { display: flex; align-items: center; gap: 0.2rem; padding: 0 0.1rem; }
+.rpv2-filter-spacer { flex: 1; }
+.rpv2-filter-scope { font-size: 0.74rem; color: var(--cd2-muted); }
+.rpv2-filter-pin { flex-shrink: 0; }
+.rpv2-filter-actions .rpv2-filter-toggle-all { padding: 0.3rem 0.4rem; }
+
+.rpv2-colour-switch {
+    margin-left: auto;
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 9px;
+    background: var(--cd2-hover);
+}
+.rpv2-colour-switch button {
+    height: 26px;
+    padding: 0 0.6rem;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--cd2-ink-2);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.rpv2-colour-switch button.is-on { background: #d4af37; color: #141414; }
+.rpv2-colour-switch + .rpv2-panel-close { margin-left: 0; }

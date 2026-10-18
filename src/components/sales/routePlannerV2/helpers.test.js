@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   RECENCY_COLORS,
+  TYPE_COLORS, NO_TYPE_COLOR, typeColors, KNOWN_TYPES, isNotInterested,
   RECENCY_DARK_TEXT,
   FALLBACK_CENTER,
   pad,
@@ -253,5 +254,31 @@ describe('constants', () => {
 
   it('FALLBACK_CENTER is a real lat/lng pair', () => {
     expect(FALLBACK_CENTER).toEqual({ lat: expect.any(Number), lng: expect.any(Number) });
+  });
+});
+
+describe('pin colours by type', () => {
+  it('has a colour for every known type, all different', () => {
+    const colours = KNOWN_TYPES.map(t => typeColors(t).color);
+    expect(new Set(colours).size).toBe(KNOWN_TYPES.length);
+    expect(Object.keys(TYPE_COLORS)).toHaveLength(KNOWN_TYPES.length);
+  });
+  it('matches a type however it is capitalised', () => {
+    expect(typeColors('Floor Covering')).toBe(typeColors('floor covering'));
+  });
+  it('greys out a blank or unknown type', () => {
+    expect(typeColors('')).toBe(NO_TYPE_COLOR);
+    expect(typeColors('(blank)')).toBe(NO_TYPE_COLOR);
+    expect(typeColors(undefined)).toBe(NO_TYPE_COLOR);
+    expect(typeColors('Architect')).toBe(NO_TYPE_COLOR);
+  });
+  it('never reuses the colours other map markers own', () => {
+    const taken = ['#2a78d6', '#e2543f', '#2e9e6c', ...Object.values(RECENCY_COLORS.dark)].map(c => c.toLowerCase());
+    for (const { color } of [...Object.values(TYPE_COLORS), NO_TYPE_COLOR]) expect(taken).not.toContain(color.toLowerCase());
+  });
+  it('fades a Not Interested customer only', () => {
+    expect(isNotInterested({ status: 'Not Interested' })).toBe(true);
+    expect(isNotInterested({ status: 'Onboarded' })).toBe(false);
+    expect(isNotInterested(null)).toBe(false);
   });
 });

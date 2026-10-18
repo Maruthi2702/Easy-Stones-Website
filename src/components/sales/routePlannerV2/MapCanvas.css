@@ -838,3 +838,6 @@ body.light-theme-active .rpv2-panel-avatar {
         transform: scale(0.97);
     }
 }
+
+/* The customer's last visit beside its type badge, when pins are coloured by type. */
+.rpv2-panel-badge-aside { font-size: 0.74rem; color: var(--cd2-ink-2); }

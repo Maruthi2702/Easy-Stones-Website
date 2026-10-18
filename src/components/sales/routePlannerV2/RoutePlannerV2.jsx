@@ -5,18 +5,20 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
 import { toSalesRepList, groupRepOptions } from '../../../utils/salesReps';
+import { UNASSIGNED, repsInScope, scopeLocationsOf } from '../../../utils/routePlannerScope';
 import {
     orderStops, planDay, daySummary, visitRecency,
     hasPoint, localISO, milesBetween, pointInPolygon, RECENCY_BUCKETS, DEFAULT_DAY
 } from '../../../utils/routePlan';
 import {
-    RECENCY_COLORS, todayKey, pad, nameOf, whenLabel,
+    RECENCY_COLORS, KNOWN_TYPES, PIN_COLOR_MODES, todayKey, pad, nameOf, whenLabel,
     parseAddressComponents, loadRecentLeadSearches, saveRecentLeadSearch, removeRecentLeadSearch
 } from './helpers';
 import MapCanvas from './MapCanvas';
 import FilterButton from './FilterButton';
 import LeadSearchControl from './LeadSearchControl';
 import RunDrawer from './RunDrawer';
+import MoreMenu from './MoreMenu';
 import AddCustomerModal from '../AddCustomerModal';
 import { toCustomerOptions } from '../../../utils/customerOptions';
 import { canEditCustomers, canDeleteCustomers } from '../../../utils/customerAccess';
@@ -55,6 +57,29 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // first time myId/salesReps are known (see the sync effect below), so
     // the default behaviour is unchanged even though the model isn't.
     const [activeSalesReps, setActiveSalesReps] = useState({});
+    // Which of the three saved filters have been loaded (seeded) yet. State,
+    // not a ref, so a save effect sees "ready" only in the render where the
+    // loaded value is already in place: with a ref, the save ran in the same
+    // pass as the seed, wrote the empty starting value, and raced the real one
+    // to the server, so a reopen often came back reset.
+    const [filtersReady, setFiltersReady] = useState({ reps: false, types: false, buckets: false, colors: false });
+    const markReady = useCallback((key) => setFiltersReady(prev => (prev[key] ? prev : { ...prev, [key]: true })), []);
+    // The last value each filter saved (JSON), so loading one doesn't save it
+    // straight back and only a real change goes to the server.
+    const savedFilterJson = useRef({});
+    const saveFilter = useCallback((key, value) => {
+        const json = JSON.stringify(value);
+        if (savedFilterJson.current[key] === json) return;
+        savedFilterJson.current[key] = json;
+        authFetch(`${API_URL}/api/user/me/route-planner-filters`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [key]: value })
+        }).catch(() => {
+            // Best-effort — losing a saved filter preference isn't worth
+            // surfacing an error over; the in-session toggle still works.
+        });
+    }, []);
     const [activeBuckets, setActiveBuckets] = useState({ never: true, overdue: true, due: true, recent: true });
     // Multi-select, not the single dropdown value this replaced — every type
     // (plus the synthetic '(blank)' bucket for pins with none set) defaults
@@ -62,6 +87,10 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // `types` below as new ones appear, since that list is data-driven and
     // can't be known up front.
     const [activeTypes, setActiveTypes] = useState({});
+    // What the pins' colour means — the customer's type or how long since the
+    // last visit (the Filter's "Type colours | Visit colours" switch). Saved
+    // with the other filters; type until someone chooses otherwise.
+    const [colorMode, setColorMode] = useState('type');
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     // Google's own live-conditions overlay (TrafficLayer) — purely a map
     // display toggle with nothing else in the app depending on it, so it
@@ -273,20 +302,65 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         }
     }, []);
 
-    const load = useCallback(async () => {
+    // Only the checked reps' customers are loaded (GET /api/customers/map?reps=…),
+    // and the server only ever answers for reps this person may see
+    // (src/utils/routePlannerScope.js). Ticking a rep fetches just that rep's
+    // customers, once; unticking only hides them. `replace` throws away what is
+    // held and starts over; an answer that arrives after a newer replace is dropped.
+    const loadEpoch = useRef(0);
+    const loadedRepsRef = useRef(new Set());
+    const wantedRepKeys = useMemo(
+        () => Object.keys(activeSalesReps).filter(k => activeSalesReps[k] === true).sort(),
+        [activeSalesReps]
+    );
+    const wantedRepKeysRef = useRef(wantedRepKeys);
+    useEffect(() => { wantedRepKeysRef.current = wantedRepKeys; }, [wantedRepKeys]);
+
+    const [repCountsAll, setRepCountsAll] = useState({});
+
+    const fetchPins = useCallback(async (keys, replace) => {
+        const epoch = replace ? ++loadEpoch.current : loadEpoch.current;
+        if (replace) loadedRepsRef.current = new Set(keys);
+        else keys.forEach(k => loadedRepsRef.current.add(k));
+        if (keys.length === 0) {
+            if (replace) { setPins([]); setLoading(false); }
+            return;
+        }
         setLoading(true);
         setError('');
         try {
-            const res = await authFetch(`${API_URL}/api/customers/map`);
+            const res = await authFetch(`${API_URL}/api/customers/map?reps=${encodeURIComponent(keys.join(','))}`);
             if (!res.ok) throw new Error(`Map data unavailable (${res.status})`);
             const data = await res.json();
-            setPins(Array.isArray(data) ? data : []);
+            if (epoch !== loadEpoch.current) return;
+            const got = Array.isArray(data) ? data : [];
+            setPins(prev => {
+                if (replace) return got;
+                const have = new Set(prev.map(p => p._id));
+                return [...prev, ...got.filter(p => !have.has(p._id))];
+            });
         } catch (err) {
+            if (epoch !== loadEpoch.current) return;
+            keys.forEach(k => loadedRepsRef.current.delete(k));
             setError(err.message || 'Could not load customer locations');
         } finally {
-            setLoading(false);
+            if (epoch === loadEpoch.current) setLoading(false);
         }
     }, []);
+
+    const loadRepCounts = useCallback(async () => {
+        try {
+            const res = await authFetch(`${API_URL}/api/customers/map/rep-counts`);
+            if (res.ok) setRepCountsAll(await res.json());
+        } catch {
+            /* the rep rows just show no counts */
+        }
+    }, []);
+
+    // Everything currently checked, again — after a customer is added or deleted.
+    const load = useCallback(async () => {
+        await Promise.all([fetchPins(wantedRepKeysRef.current, true), loadRepCounts()]);
+    }, [fetchPins, loadRepCounts]);
 
     // Keyed on isActive, not just mount: this view stays mounted-but-hidden
     // while another tab is open (see the comment on its usage in
@@ -296,7 +370,18 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // tab, a visit/resource save) would never show up here short of a full
     // page reload. Refetching every time the tab becomes active again keeps
     // it current without needing every other screen to know this one exists.
-    useEffect(() => { if (isActive) load(); }, [isActive, load]);
+    // Waits for the saved rep filter to load first (filtersReady.reps), or the
+    // first load would fetch everyone and then hide most of it.
+    useEffect(() => {
+        if (isActive && filtersReady.reps) load();
+    }, [isActive, filtersReady.reps, load]);
+
+    // A rep ticked since: fetch just their customers.
+    useEffect(() => {
+        if (!isActive || !filtersReady.reps) return;
+        const need = wantedRepKeys.filter(k => !loadedRepsRef.current.has(k));
+        if (need.length) fetchPins(need, false);
+    }, [isActive, filtersReady.reps, wantedRepKeys, fetchPins]);
     useEffect(() => { loadScheduled(); }, [loadScheduled]);
     // Backfills the current month's days before today — SchedulePanel opens
     // on this month by default, and loadScheduled above only ever covers
@@ -448,10 +533,16 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
 
     const summary = useMemo(() => daySummary(day), [day]);
 
-    const types = useMemo(
-        () => [...new Set(pins.map(p => p.customerType).filter(Boolean))].sort(),
-        [pins]
-    );
+    // The six types customers can be given are always offered, with or without
+    // customers loaded (they're also the colour key); any other type found in
+    // the data follows, A–Z.
+    const types = useMemo(() => {
+        const known = new Set(KNOWN_TYPES.map(t => t.toLowerCase()));
+        const others = [...new Set(pins.map(p => p.customerType).filter(Boolean))]
+            .filter(t => !known.has(String(t).toLowerCase()))
+            .sort();
+        return [...KNOWN_TYPES, ...others];
+    }, [pins]);
 
     const counts = useMemo(() => {
         const tally = { never: 0, overdue: 0, due: 0, recent: 0 };
@@ -474,18 +565,10 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         return tally;
     }, [pins, activeSalesReps]);
 
-    // Not scoped by activeSalesReps like the two tallies above — this is the
-    // rep picker's OWN counts, so it has to show how many pins each rep has
-    // regardless of who's currently checked, or unchecking someone would
-    // make their own count vanish along with their pins.
-    const repCounts = useMemo(() => {
-        const tally = {};
-        pins.filter(hasPoint).forEach(p => {
-            const key = repKey(p.salesRep);
-            tally[key] = (tally[key] || 0) + 1;
-        });
-        return tally;
-    }, [pins]);
+    // The rep picker's own counts, for every rep in scope whether or not their
+    // customers are loaded (the server counts them: GET /map/rep-counts), so
+    // unchecking someone leaves their count in place.
+    const repCounts = repCountsAll;
 
     // The rep picker's rows — driven off repCounts' keys (who actually has
     // pins right now), same as `types` is driven off the pins that actually
@@ -496,18 +579,19 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // Unassigned first, then reps grouped under their branch with you marked
     // "(you)" — the format every rep dropdown and filter shares
     // (groupRepOptions in src/utils/salesReps.js). `group` is the heading.
+    // The reps this person may see (routePlannerScope.js — the server applies the
+    // same rule), with how many customers each holds.
+    const scopedReps = useMemo(() => repsInScope(currentUser, salesReps), [currentUser, salesReps]);
     const salesRepOptions = useMemo(() => {
-        const byId = new Map(salesReps.map(r => [String(r._id), r]));
-        const keys = Object.keys(repCounts);
-        const reps = keys.filter(k => k !== 'unassigned').map(k => {
-            const r = byId.get(k);
-            return { value: k, id: k, label: r ? (r.name || 'Unnamed') : 'Former rep', location: r?.location || '' };
-        });
+        const reps = scopedReps.map(r => ({
+            value: String(r._id), id: String(r._id), label: r.name || 'Unnamed', location: r.location || ''
+        }));
         return [
-            ...(keys.includes('unassigned') ? [{ key: 'unassigned', label: 'Unassigned', group: null }] : []),
+            ...(repCounts[UNASSIGNED] ? [{ key: UNASSIGNED, label: 'Unassigned', group: null }] : []),
             ...groupRepOptions(reps, { you: myId }).flatMap(g => g.options.map(o => ({ key: o.value, label: o.label, group: g.group })))
         ];
-    }, [salesReps, repCounts, myId]);
+    }, [scopedReps, repCounts, myId]);
+    const scopeLocations = useMemo(() => scopeLocationsOf(currentUser), [currentUser]);
 
     // Seeds the rep filter once, without clobbering a toggle the rep already
     // made this session (filtersSeededRef guards that, same intent as the
@@ -533,8 +617,10 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         // the role default below.
         const saved = currentUser?.routePlannerFilters?.activeSalesReps;
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+            savedFilterJson.current.activeSalesReps = JSON.stringify(saved);
             setActiveSalesReps(saved);
             filtersSeededRef.current = true;
+            markReady('reps');
             return;
         }
 
@@ -548,45 +634,47 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             salesReps.forEach(r => { next[String(r._id)] = true; });
             setActiveSalesReps(next);
             filtersSeededRef.current = true;
+            markReady('reps');
         } else if (role === 'manager' || role === 'director') {
             if (salesReps.length === 0) return; // wait for the roster
-            const myLocations = new Set(
-                (currentUser?.assignedLocations?.length ? currentUser.assignedLocations : [currentUser?.location])
-                    .filter(Boolean)
-            );
+            // Every rep at their locations — scopedReps is exactly that list.
             const next = { [myId]: true }; // never hide the manager's own accounts
-            salesReps.forEach(r => {
-                const repLocations = r.assignedLocations?.length ? r.assignedLocations : [r.location];
-                if (repLocations.some(loc => myLocations.has(loc))) next[String(r._id)] = true;
-            });
+            scopedReps.forEach(r => { next[String(r._id)] = true; });
             setActiveSalesReps(next);
             filtersSeededRef.current = true;
+            markReady('reps');
         } else {
             setActiveSalesReps(prev => (myId in prev ? prev : { ...prev, [myId]: true }));
             filtersSeededRef.current = true;
+            markReady('reps');
         }
-    }, [myId, currentUser, salesReps]);
+    }, [myId, currentUser, salesReps, scopedReps, markReady]);
 
     // Persists every change back to the user's record so the next visit
-    // loads it instead of recomputing the role default. Fires immediately,
-    // not debounced: each toggle (including "Toggle all on/off", which is
-    // one state update, not one per row) is already a single request, and a
-    // debounce here previously meant refreshing within that window — exactly
-    // what testing "did this persist" looks like — silently discarded the
-    // pending save. Skipped until the seed effect above has run once, so the
-    // load-then-immediately-re-save round trip only happens on first mount,
-    // not on every render.
+    // loads it instead of recomputing the role default — immediately, not
+    // debounced (a refresh right after toggling must not lose it), and only
+    // once the saved value has loaded (filtersReady above).
     useEffect(() => {
-        if (!filtersSeededRef.current || !myId) return;
-        authFetch(`${API_URL}/api/user/me/route-planner-filters`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ activeSalesReps })
-        }).catch(() => {
-            // Best-effort — losing a saved filter preference isn't worth
-            // surfacing an error over; the in-session toggle still works.
-        });
-    }, [activeSalesReps, myId]);
+        if (!filtersReady.reps || !myId) return;
+        saveFilter('activeSalesReps', activeSalesReps);
+    }, [activeSalesReps, myId, filtersReady.reps, saveFilter]);
+
+    // The pins' colour mode: loaded once, saved on change.
+    const colorsSeededRef = useRef(false);
+    useEffect(() => {
+        if (colorsSeededRef.current || !myId) return;
+        const saved = currentUser?.routePlannerFilters?.pinColors?.mode;
+        if (PIN_COLOR_MODES.includes(saved)) {
+            savedFilterJson.current.pinColors = JSON.stringify({ mode: saved });
+            setColorMode(saved);
+        }
+        colorsSeededRef.current = true;
+        markReady('colors');
+    }, [myId, currentUser, markReady]);
+    useEffect(() => {
+        if (!filtersReady.colors || !myId) return;
+        saveFilter('pinColors', { mode: colorMode });
+    }, [colorMode, myId, filtersReady.colors, saveFilter]);
 
     // Loads a saved Customer Type filter once, same "don't clobber an
     // in-session toggle" guard as the sales-rep seed effect. Unlike that one
@@ -597,22 +685,20 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         if (typesSeededRef.current || !myId) return;
         const saved = currentUser?.routePlannerFilters?.activeTypes;
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+            savedFilterJson.current.activeTypes = JSON.stringify(saved);
             setActiveTypes(saved);
         }
         typesSeededRef.current = true;
-    }, [myId, currentUser]);
+        markReady('types');
+    }, [myId, currentUser, markReady]);
 
     // Persists every change, same immediate (non-debounced) save as the
     // sales-rep filter and for the same reason — a refresh shortly after
     // toggling must not lose it.
     useEffect(() => {
-        if (!typesSeededRef.current || !myId) return;
-        authFetch(`${API_URL}/api/user/me/route-planner-filters`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ activeTypes })
-        }).catch(() => {});
-    }, [activeTypes, myId]);
+        if (!filtersReady.types || !myId) return;
+        saveFilter('activeTypes', activeTypes);
+    }, [activeTypes, myId, filtersReady.types, saveFilter]);
 
     // New types (including '(blank)', once any pin lacks one) default to
     // shown the first time they're seen, without clobbering a toggle the
@@ -642,19 +728,17 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         if (bucketsSeededRef.current || !myId) return;
         const saved = currentUser?.routePlannerFilters?.activeBuckets;
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+            savedFilterJson.current.activeBuckets = JSON.stringify(saved);
             setActiveBuckets(saved);
         }
         bucketsSeededRef.current = true;
-    }, [myId, currentUser]);
+        markReady('buckets');
+    }, [myId, currentUser, markReady]);
 
     useEffect(() => {
-        if (!bucketsSeededRef.current || !myId) return;
-        authFetch(`${API_URL}/api/user/me/route-planner-filters`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ activeBuckets })
-        }).catch(() => {});
-    }, [activeBuckets, myId]);
+        if (!filtersReady.buckets || !myId) return;
+        saveFilter('activeBuckets', activeBuckets);
+    }, [activeBuckets, myId, filtersReady.buckets, saveFilter]);
 
     const orderById = useMemo(() => {
         const map = new Map();
@@ -1325,6 +1409,21 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // through RunDrawer just to re-render the exact same elements one file
     // over). Order matters here: lead search first, then locate at the very
     // bottom — adjusting the map itself is the last step, not the first.
+    // The phone bar's three-line menu: Find new leads and Live traffic, which
+    // only exist as separate icons on the desktop rail.
+    const moreControl = isLoaded && !loadError ? (
+        <MoreMenu
+            leadQuery={leadQuery}
+            onLeadQueryChange={setLeadQuery}
+            onLeadSearch={searchLeads}
+            leadSearching={leadSearching}
+            recentLeads={recentLeadSearches}
+            onRemoveRecent={(term) => setRecentLeadSearches(removeRecentLeadSearch(term))}
+            showTraffic={showTraffic}
+            onToggleTraffic={() => setShowTraffic(v => !v)}
+        />
+    ) : null;
+
     const areaControls = (
         <>
             {isLoaded && !loadError && (
@@ -1402,6 +1501,9 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 repCounts={repCounts}
                 onToggleSalesRep={toggleSalesRep}
                 onToggleAllSalesReps={toggleAllSalesReps}
+                colorMode={colorMode}
+                onColorModeChange={setColorMode}
+                scopeNote={scopeLocations ? `Your locations: ${scopeLocations.join(', ') || 'none'}` : ''}
                 replaceExisting={replaceExisting}
                 onReplaceExistingChange={setReplaceExisting}
                 onClearPlannedDay={clearPlannedDay}
@@ -1469,6 +1571,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 showSchedulePanel={showSchedulePanel}
                 onToggleSchedulePanel={toggleSchedulePanel}
                 areaControls={areaControls}
+                moreControl={moreControl}
             />
 
             {/* Same modal PartnersSheet.jsx uses for editing a customer —

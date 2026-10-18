@@ -389,6 +389,28 @@ header. **Offsets for the header use `var(--app-header-h)`** (App.css: 82px,
 0 without the header) — never a hard-coded 82px, which leaves an empty strip
 at the top of every staff screen.
 
+## Route Planner: scoped reps, loaded per rep (2026-10-18)
+
+Who the Route Planner offers is decided once, in `src/utils/routePlannerScope.js`,
+by the **locations assigned in Users & Roles** (not role name): admins and
+all-location ('*') logins see every rep; anyone else sees the reps working at
+their locations (a sales rep gets the same as a manager for now — the owner's
+call; narrowing it later is a change to `repsInScope`/`inScopePins` only), their
+customers, and the unowned ones at those locations ("Unassigned"). The server
+enforces it: `GET /api/customers/map?reps=<ids>,unassigned` sends only the named
+reps' customers (reps outside the scope return nothing), `GET /api/customers/map/rep-counts`
+feeds the Filter's counts; the screen builds its rep list from the same functions.
+Only **checked reps' customers are loaded** (ticking one fetches just theirs).
+The Filter reads Sales reps → Customer type → Days since last visit; pins are map
+pins coloured by type (set A, `TYPE_COLORS` in `routePlannerV2/helpers.js`) or by
+last-visit age (the "Type colours | Visit colours" switch, saved as
+`routePlannerFilters.pinColors`). Saved filters load once and save only on a real
+change (`saveFilter`) — saving the empty starting value before the real one loaded
+is what used to reset the rep ticks on every open. The design lives in the
+claude.ai artifact **Route Planner pin colours**
+(https://claude.ai/artifact/BQ5XYqB2SjbnbgjLYSbnyh). Not built from it yet: slimmer
+pins (phone/email/notes still ride along), and asking for the location only on tap.
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,

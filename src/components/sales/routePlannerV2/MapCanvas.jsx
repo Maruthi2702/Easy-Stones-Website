@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GoogleMap, Marker, DirectionsRenderer, TrafficLayer } from '@react-google-maps/api';
 import { MapPin, Phone, Mail, AlertTriangle, Calendar, CalendarPlus, CalendarX, FolderPlus, ExternalLink, X, Sparkles, Pencil, Trash2, Copy, Check, Lasso, LocateFixed } from 'lucide-react';
-import { FALLBACK_CENTER, RECENCY_DARK_TEXT, LEAD_PIN_COLOR, OPEN_PIN_COLOR, whenLabel, real, nameOf, isPlaceholderEmail, statusTone } from './helpers';
+import { FALLBACK_CENTER, RECENCY_DARK_TEXT, LEAD_PIN_COLOR, OPEN_PIN_COLOR, whenLabel, real, nameOf, isPlaceholderEmail, statusTone, typeColors, isNotInterested } from './helpers';
 import { isRoutablePrecision, milesBetween, pointInPolygon } from '../../../utils/routePlan';
 import FilterPanel from './FilterPanel';
 import ToolsPanel from './ToolsPanel';
@@ -95,63 +95,62 @@ const leadMarkerIcon = () => {
     };
 };
 
-// Builds one pin's icon (cached by markerIcon in MapCanvas).
-const buildMarkerIcon = (colors, pin, order, isOpen = false) => {
-    const inRoute = Boolean(order);
+// The fill and number colour a pin wears: its customer type, or how long since
+// the last visit, per the Filter's "colour pins by" switch.
+const pinLook = (colors, colorMode, pin) => {
+    if (colorMode === 'type') return typeColors(pin.customerType);
+    return { color: colors[pin.recency.key], ink: RECENCY_DARK_TEXT.has(pin.recency.key) ? '#141414' : '#ffffff' };
+};
+
+const PIN_SIZE = 24;       // every customer
+const OPEN_SIZE = 38;      // the one whose panel is open
+const STOP_SIZE = 44;      // a numbered route stop — large enough to read the number
+
+const svgIcon = (svg, size) => ({
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new window.google.maps.Size(size, size),
+    // The tip (12,22 in the 24-unit viewBox) is the coordinate being marked,
+    // not the icon's centre.
+    anchor: new window.google.maps.Point(size / 2, size * (22 / 24))
+});
+
+// Builds one pin's icon (cached by markerIcon in MapCanvas). Every customer is
+// a map pin in the type or visit colour; a route stop is the same pin, larger,
+// with a white outline and its number; the open customer is coral with a ring.
+const buildMarkerIcon = ({ color, ink }, order, isOpen) => {
     const ring = '#20201f';
 
-    // The one pin whose detail panel (info, below) is currently open —
-    // same silhouette as a route stop, but a fixed coral fill and a
-    // hollow ring instead of a stop number, so it reads as "this is the
-    // one you have open" rather than blending into whatever recency
-    // colour or stop number it would otherwise be wearing. Takes
-    // priority over both the plain-dot and numbered-pin cases below
-    // regardless of `order` — closing the panel (isOpen goes back to
-    // false) falls straight through to whichever of those this pin
-    // would normally render as.
+    // The one pin whose detail panel is open — a fixed coral fill and a hollow
+    // ring instead of a stop number, so it reads as "the one you have open"
+    // whatever colour or stop number it would otherwise wear. Closing the
+    // panel falls straight through to the cases below.
     if (isOpen) {
-        const size = 34;
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
+        return svgIcon(
+            `<svg xmlns="http://www.w3.org/2000/svg" width="${OPEN_SIZE}" height="${OPEN_SIZE}" viewBox="0 0 24 24">` +
             `<path d="${PIN_PATH}" fill="${OPEN_PIN_COLOR}" stroke="${ring}" stroke-width="1.4"/>` +
             `<circle cx="12" cy="9" r="3.3" fill="none" stroke="#ffffff" stroke-width="1.8"/>` +
-            `</svg>`;
-        return {
-            url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-            scaledSize: new window.google.maps.Size(size, size),
-            anchor: new window.google.maps.Point(size / 2, size * (22 / 24))
-        };
+            `</svg>`, OPEN_SIZE);
     }
 
-    if (!inRoute) {
-        return {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: pin.recency.key === 'recent' ? 5 : 7,
-            fillColor: colors[pin.recency.key],
-            fillOpacity: 1,
-            strokeColor: ring,
-            strokeWeight: 2
-        };
+    if (!order) {
+        return svgIcon(
+            `<svg xmlns="http://www.w3.org/2000/svg" width="${PIN_SIZE}" height="${PIN_SIZE}" viewBox="0 0 24 24">` +
+            `<path d="${PIN_PATH}" fill="${color}" stroke="${ring}" stroke-width="1.6"/>` +
+            `<circle cx="12" cy="9" r="2.6" fill="${ring}" fill-opacity="0.45"/>` +
+            `</svg>`, PIN_SIZE);
     }
 
-    const size = 34;
-    // The order number is drawn as real SVG text, not a separate
-    // google.maps.Marker `label` — see stopNumberFontSize's comment for
-    // why. (12, 9) is the round head's centre in the 24-unit viewBox;
-    // dominant-baseline="central" centres the glyphs on that point
-    // vertically the same way text-anchor="middle" does horizontally.
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
-        `<path d="${PIN_PATH}" fill="${colors[pin.recency.key]}" stroke="${ring}" stroke-width="1.4"/>` +
+    // The order number is real SVG text in the same image as the pin (see
+    // stopNumberFontSize for why not a Marker `label`). (12, 9) is the round
+    // head's centre in the 24-unit viewBox.
+    return svgIcon(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${STOP_SIZE}" height="${STOP_SIZE}" viewBox="0 0 24 24">` +
+        `<path d="${PIN_PATH}" fill="${color}" stroke="#ffffff" stroke-width="2.2"/>` +
+        `<path d="${PIN_PATH}" fill="none" stroke="${ring}" stroke-width="0.9"/>` +
         `<text x="12" y="9" text-anchor="middle" dominant-baseline="central" ` +
         `font-family="Arial, Helvetica, sans-serif" font-size="${stopNumberFontSize(order)}" ` +
-        `font-weight="700" fill="#ffffff">${order}</text>` +
-        `</svg>`;
-    return {
-        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-        scaledSize: new window.google.maps.Size(size, size),
-        // The tip (12,22 in the 24-unit viewBox) is the actual
-        // coordinate being marked, not the icon's centre.
-        anchor: new window.google.maps.Point(size / 2, size * (22 / 24))
-    };
+        `font-weight="700" fill="${ink}">${order}</text>` +
+        `</svg>`, STOP_SIZE);
 };
 
 // Gestures behave like the Google Maps app: one finger drags on a phone and the
@@ -204,6 +203,7 @@ const PinLayer = React.memo(({ selectedPins, unselectedPins, orderById, openId, 
                     position={pin.coordinates}
                     icon={iconFor(pin, orderById.get(pin._id), openId === pin._id)}
                     title={`${nameOf(pin)} — ${pin.recency.label}`}
+                    opacity={isNotInterested(pin) && openId !== pin._id ? 0.4 : 1}
                     onClick={() => onSelect(pin)}
                 />
             ))}
@@ -216,6 +216,7 @@ const PinLayer = React.memo(({ selectedPins, unselectedPins, orderById, openId, 
                     position={pin.coordinates}
                     icon={iconFor(pin, undefined, openId === pin._id)}
                     title={`${nameOf(pin)} — ${pin.recency.label}`}
+                    opacity={isNotInterested(pin) && openId !== pin._id ? 0.4 : 1}
                     onClick={() => onSelect(pin)}
                 />
             ))}
@@ -224,7 +225,7 @@ const PinLayer = React.memo(({ selectedPins, unselectedPins, orderById, openId, 
 });
 
 const MapCanvas = ({
-    mapRef, theme, colors,
+    mapRef, theme, colors, colorMode = 'type', onColorModeChange, scopeNote,
     isLoaded, loadError,
     showTraffic,
     origin,
@@ -622,20 +623,24 @@ const MapCanvas = ({
     // gives an icon its "printed, deliberate" look on a map (see how every
     // pin in the Badger Maps reference has one, regardless of anything else
     // about the app around it).
-    // Icons are cached per look (recency colour × stop number × open): the same
-    // object every render, so Google isn't told "new icon" for every pin each
-    // time anything changes. A new `colors` (theme) starts a fresh cache.
-    const iconCache = useRef({ colors: null, icons: new Map() });
+    // Icons are cached per look (fill × number colour × stop number × open): the
+    // same object every render, so Google isn't told "new icon" for every pin
+    // each time anything changes. Keyed by the look itself, so a theme or
+    // colour-mode change needs no invalidation.
+    const iconCache = useRef(new Map());
     const markerIcon = useCallback((pin, order, isOpen = false) => {
         if (!window.google) return undefined;
-        if (iconCache.current.colors !== colors) iconCache.current = { colors, icons: new Map() };
-        const key = `${pin.recency.key}|${order || ''}|${isOpen ? 1 : 0}`;
-        const hit = iconCache.current.icons.get(key);
+        const look = pinLook(colors, colorMode, pin);
+        const key = `${look.color}|${look.ink}|${order || ''}|${isOpen ? 1 : 0}`;
+        const hit = iconCache.current.get(key);
         if (hit) return hit;
-        const made = buildMarkerIcon(colors, pin, order, isOpen);
-        iconCache.current.icons.set(key, made);
+        const made = buildMarkerIcon(look, order, isOpen);
+        iconCache.current.set(key, made);
         return made;
-    }, [colors]);
+    }, [colors, colorMode]);
+
+    // The open customer's header colours, in whichever mode the pins are in.
+    const infoLook = info ? pinLook(colors, colorMode, info) : null;
 
     return (
         <div className="rpv2-map">
@@ -788,16 +793,23 @@ const MapCanvas = ({
                     <div
                         className="rpv2-panel-head"
                         style={{
-                            background: `linear-gradient(180deg, ${hexToRgba(colors[info.recency.key], theme === 'light' ? 0.1 : 0.35)}, ${hexToRgba(colors[info.recency.key], 0)})`
+                            background: `linear-gradient(180deg, ${hexToRgba(infoLook.color, theme === 'light' ? 0.1 : 0.35)}, ${hexToRgba(infoLook.color, 0)})`
                         }}
                     >
                         <div className="rpv2-panel-head-top">
                             <span
-                                className={`rpv2-panel-badge ${RECENCY_DARK_TEXT.has(info.recency.key) ? 'is-dark-text' : ''}`}
-                                style={{ background: colors[info.recency.key] }}
+                                className={`rpv2-panel-badge ${infoLook.ink === '#141414' ? 'is-dark-text' : ''}`}
+                                style={{ background: infoLook.color }}
                             >
-                                {info.recency.key === 'never' ? 'Never visited' : info.recency.label}
+                                {colorMode === 'type'
+                                    ? (real(info.customerType) || 'No type set')
+                                    : (info.recency.key === 'never' ? 'Never visited' : info.recency.label)}
                             </span>
+                            {colorMode === 'type' && (
+                                <span className="rpv2-panel-badge-aside">
+                                    {info.recency.key === 'never' ? 'Never visited' : `Last visit ${info.recency.label}`}
+                                </span>
+                            )}
                             {orderById.has(info._id) && (
                                 <span className="rpv2-panel-stop">Stop {orderById.get(info._id)}</span>
                             )}
@@ -1128,6 +1140,9 @@ const MapCanvas = ({
                     repCounts={repCounts}
                     onToggleSalesRep={onToggleSalesRep}
                     onToggleAllSalesReps={onToggleAllSalesReps}
+                    colorMode={colorMode}
+                    onColorModeChange={onColorModeChange}
+                    scopeNote={scopeNote}
                 />
             )}
 

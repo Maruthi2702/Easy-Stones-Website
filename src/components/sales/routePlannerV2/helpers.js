@@ -39,6 +39,34 @@ export const STATUS_TONE = {
 
 export const statusTone = (status) => STATUS_TONE[status] || 'muted';
 
+// Pin colours by customer type — set "A" of the Route Planner pin-colours
+// design (2026-10-18): a colour-blind-safe set, each also a different
+// lightness, kept clear of the "You" dot and route line (blue), the open pin
+// (coral), a new lead (green) and the visit-age colours above. `ink` is the
+// stop-number colour that reads on that fill. Keyed lowercase; a type not
+// listed (or none) takes the grey.
+export const TYPE_COLORS = {
+    'fabricator': { color: '#7B3FBF', ink: '#ffffff' },
+    'contractor': { color: '#E69F00', ink: '#141414' },
+    'dealer': { color: '#CC79A7', ink: '#141414' },
+    'floor covering': { color: '#56B4E9', ink: '#141414' },
+    'designer': { color: '#F0E442', ink: '#141414' },
+    'builder': { color: '#8C510A', ink: '#ffffff' }
+};
+export const NO_TYPE_COLOR = { color: '#9A9A95', ink: '#141414' };
+
+/** { color, ink } for a customer type ('(blank)' and unknown types → grey). */
+export const typeColors = (type) => TYPE_COLORS[String(type || '').trim().toLowerCase()] || NO_TYPE_COLOR;
+
+/** The six types customers can be given (Add customer's list) — always offered in the filter, with or without customers. */
+export const KNOWN_TYPES = ['Fabricator', 'Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder'];
+
+/** A customer who said no: its pin is drawn faded so it doesn't compete with live ones. */
+export const isNotInterested = (pin) => pin?.status === 'Not Interested';
+
+/** What the pins' colour means: the customer's type, or how long since the last visit. */
+export const PIN_COLOR_MODES = ['type', 'visit'];
+
 export const FALLBACK_CENTER = { lat: 47.6062, lng: -122.3321 };
 
 // The one pin whose detail panel (.rpv2-panel[data-dialog="customer"]) is

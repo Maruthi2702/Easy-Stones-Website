@@ -26,7 +26,8 @@ const RunDrawer = ({
     showToolsPanel, onToggleToolsPanel,
     showCustomersPanel, onToggleCustomersPanel,
     showSchedulePanel, onToggleSchedulePanel,
-    areaControls
+    areaControls,
+    moreControl
 }) => (
     <nav className="rpv2-drawer" aria-label="Map controls">
         {/* The app-wide nav toggle — moved in here from its own spot in
@@ -91,6 +92,10 @@ const RunDrawer = ({
         </button>
 
         {areaControls}
+
+        {/* The phone bar's three-line menu (MoreMenu.jsx): hidden on desktop,
+            where lead search and traffic are icons in areaControls. */}
+        {moreControl}
     </nav>
 );
 

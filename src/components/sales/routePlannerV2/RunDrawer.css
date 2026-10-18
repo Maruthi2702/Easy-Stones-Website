@@ -118,7 +118,10 @@ body.light-theme-active .rpv2-drawer-list-btn.is-on {
         border-radius: 16px 16px 0 0;
         box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.25);
     }
-    .rpv2-drawer-list-btn { width: 30px; height: 30px; }
+    /* Touch-sized, and the same size across the bar (the filter funnel and the
+       list buttons used to differ). */
+    .rpv2-drawer-list-btn,
+    .rpv2-drawer .rpv2-filter-btn { width: 40px; height: 40px; }
 
     /* Redeclared rather than reused: the light-theme rule above still casts
        its shadow rightward (6px 0 …) for the desktop side rail, so this
@@ -143,4 +146,11 @@ body.light-theme-active .rpv2-drawer-list-btn.is-on {
     .rpv2-drawer .rpv2-locate-btn {
         display: none;
     }
+}
+
+/* On phones the app's bottom tab bar replaces the side menu, so the drawer's own
+   menu button goes (only the narrower tablet range, where there is no tab bar,
+   keeps it). */
+@media (max-width: 639px) {
+    .rpv2-drawer .sidebar-toggle-btn { display: none; }
 }
