@@ -22,7 +22,6 @@ import './SalesPageChat.css';
 import './SalesPageChatImage.css';
 import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
-import CustomDatePicker from '../components/CustomDatePicker';
 import { formatForDateInput, formatDate, formatInstant, getLocalISOString, viewerTimeZone } from '../utils/dateUtils';
 import DashboardStats from '../components/sales/DashboardStats';
 import CustomerSidebar from '../components/sales/CustomerSidebar';

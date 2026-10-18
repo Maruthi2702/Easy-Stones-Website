@@ -133,6 +133,31 @@ Its list floats inside its field (never portaled), and it scrolls only
 itself to keep the highlighted row in view — `scrollIntoView` scrolls `body`
 too (it's a scroll box, index.css), which jumped the page when it opened.
 
+## Dates: one calendar, one folder (2026-10-17)
+
+Every date, month and year field is `src/components/shared/calendar/` (the
+user's call; design in the claude.ai artifact **Calendar picker canvas**,
+https://claude.ai/artifact/5kTECs8HvXNyPAnHTMHg3a): `DatePicker`, `MonthPicker`,
+`YearPicker` and `DateTimePicker` in `Calendar.jsx`, the look in `Calendar.css`,
+every date rule in `calendarDates.js` (tested). Values are plain strings
+(`YYYY-MM-DD`, `YYYY-MM`, `YYYY`, local `YYYY-MM-DDTHH:mm:ss.000`) and
+`onChange` gets the string, not an event. **Never use a native
+`<input type="date|month">` or build a picker by hand**, and don't do a
+picker's date arithmetic (shift a day/month, clamp the 31st, name a month)
+elsewhere — add it to `calendarDates.js`. A calendar bug is in those three
+files. The week starts on Monday (`WEEK_STARTS_ON`, matching the Delivery
+Schedule board). The popover floats inside its field (never portaled — the
+CustomSelect incident) and falls back to a bottom sheet on phones, or on
+desktop when the box around the field (modal body, scrolling panel) has no
+room (`choosePlacement`), so check a new use inside a short modal. Don't wrap a
+picker in a `<label>` (a click inside the open calendar is forwarded to its
+button and closes it) and don't put `overflow: hidden` on an ancestor of a
+bare picker (the Daily Report's `.dr-datenav` lost its). A screen on a branch's
+clock passes `today` (holds). The Check-In Log's Filters panel uses a
+`MonthPicker` (sets month + year) and a `YearPicker` (clearing the year clears
+the month). Not done: typing a date straight into the field (it was possible
+with the native inputs).
+
 ## Check In permissions: one card, one file (2026-10-14)
 
 Check In, the Check-In Log and the Selection Sheet share one Users & Roles
@@ -526,6 +551,11 @@ counties' report checks, the WA contractor registry, the API and its county
 filter with an in-memory MongoDB, and the list's PDF) and the screen's rules
 in `src/utils/permitView.js` (the county tree, the place filter, registry
 phones, and the PDF's rows, heading and link).
+The calendar's date rules are covered too
+(`src/components/shared/calendar/calendarDates.test.js`: parsing real days,
+shifting with the 31st clamped, the Monday-first grid, week bounds, limits,
+keyboard moves, the scheduler's date-time helpers); its rendering was checked by
+hand in a browser.
 Nothing else in the app has test coverage — no
 rendered components, no other routes, no other server.js endpoints.
 

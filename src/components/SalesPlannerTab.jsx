@@ -17,7 +17,8 @@ import {
     plannerRangeKey
 } from '../api/plannerSchedule';
 
-import GoogleStyleDateTimePicker from './GoogleStyleDateTimePicker';
+import { DateTimePicker, DatePicker, MonthPicker } from './shared/calendar/Calendar';
+import { withMonth } from './shared/calendar/calendarDates';
 
 /**
  * The sales planner.
@@ -63,6 +64,9 @@ const mondayOf = (d) => {
     const g = x.getDay();
     return addDays(x, g === 0 ? -6 : 1 - g);
 };
+
+/** 'YYYY-MM-DD' as local midnight. */
+const parseISOLocal = (iso) => new Date(`${iso}T00:00:00`);
 
 const isSameDay = (a, b) => dayKey(a) === dayKey(b);
 
@@ -206,11 +210,12 @@ const rangeFor = (date, mode) => {
         const s = mondayOf(date);
         return { start: s, end: addDays(s, 6) };
     }
+    // Weeks run Monday to Sunday here as everywhere else (WEEK_STARTS_ON).
     const first = new Date(date.getFullYear(), date.getMonth(), 1);
     const last = new Date(date.getFullYear(), date.getMonth() + 1, 0);
     return {
-        start: addDays(startOfDay(first), -first.getDay()),
-        end: addDays(startOfDay(last), 6 - last.getDay())
+        start: mondayOf(first),
+        end: addDays(mondayOf(last), 6)
     };
 };
 
@@ -1223,7 +1228,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     const renderMonth = () => (
         <div className="pl-month">
             <div className="pl-dowrow" aria-hidden="true">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => <div key={d}>{d}</div>)}
             </div>
             <div className="pl-monthgrid">
                 {monthWeeks.map((week, wi) => (
@@ -1332,7 +1337,32 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
                     <button type="button" className="pl-today" onClick={handleToday}>Today</button>
 
-                    <h3 className="pl-title">{titleLabel}</h3>
+                    {/* The title opens the calendar: pick any day (or month, in
+                        the Month view) to jump there. */}
+                    <div className="pl-title-wrap">
+                        {viewMode === 'month' ? (
+                            <MonthPicker
+                                variant="bare"
+                                triggerClassName="pl-title"
+                                value={dayKey(currentDate).slice(0, 7)}
+                                formatText={() => titleLabel}
+                                onChange={(ym) => ym && setCurrentDate(parseISOLocal(withMonth(dayKey(currentDate), ym)))}
+                                ariaLabel="Month shown"
+                                sheetTitle="Go to month"
+                            />
+                        ) : (
+                            <DatePicker
+                                variant="bare"
+                                triggerClassName="pl-title"
+                                value={dayKey(currentDate)}
+                                highlightWeek={viewMode === 'week'}
+                                formatText={() => titleLabel}
+                                onChange={(iso) => iso && setCurrentDate(parseISOLocal(iso))}
+                                ariaLabel={viewMode === 'week' ? 'Week shown' : 'Day shown'}
+                                sheetTitle="Go to date"
+                            />
+                        )}
+                    </div>
 
                     {todayCount !== null && todayCount > 0 && (
                         <span className="pl-chip">
@@ -1441,10 +1471,9 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                                 </div>
                                 <div className="form-group">
                                     <label>Start Time <span style={{ color: 'red' }}>*</span></label>
-                                    <GoogleStyleDateTimePicker
+                                    <DateTimePicker
                                         value={form.startTime}
                                         onChange={value => setForm({ ...form, startTime: value })}
-                                        required
                                     />
                                 </div>
                                 <div className="form-group">

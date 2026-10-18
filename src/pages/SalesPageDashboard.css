@@ -2326,26 +2326,22 @@ body.light-theme-active .selection-modal-container span {
     color: #334155 !important;
 }
 
-/* ── Custom DatePicker & Searchable Select Light Theme overrides ── */
-body.light-theme-active .searchable-select-trigger,
-body.light-theme-active .datepicker-input {
+/* ── Searchable Select Light Theme overrides ── */
+body.light-theme-active .searchable-select-trigger {
     background-color: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
     color: #1e293b !important;
 }
 
-body.light-theme-active .searchable-select-trigger span,
-body.light-theme-active .datepicker-input .has-value {
+body.light-theme-active .searchable-select-trigger span {
     color: #1e293b !important;
 }
 
-body.light-theme-active .searchable-select-trigger .placeholder,
-body.light-theme-active .datepicker-input .placeholder {
+body.light-theme-active .searchable-select-trigger .placeholder {
     color: #94a3b8 !important;
 }
 
-body.light-theme-active .searchable-select-trigger:hover,
-body.light-theme-active .datepicker-input:hover {
+body.light-theme-active .searchable-select-trigger:hover {
     border-color: #94a3b8 !important;
     background-color: #f8fafc !important;
 }

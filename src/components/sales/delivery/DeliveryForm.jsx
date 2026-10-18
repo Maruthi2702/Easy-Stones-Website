@@ -25,6 +25,7 @@ import {
     formWording, deliveryLastChangedText,
     reportDaysTouched, submittedDayLabel
 } from '../../../utils/deliveryForm';
+import { DatePicker } from '../../shared/calendar/Calendar';
 import './DeliveryForm.css';
 
 /*
@@ -256,14 +257,14 @@ function DeliveryFormBody({
     );
 
     // ── Field helpers ──
-    const text = (name, label, { required = false, placeholder, inputMode, asTyped = false, error, status, value, onChange, onBlur, inputType = 'text' } = {}) => {
+    const text = (name, label, { required = false, placeholder, inputMode, asTyped = false, error, status, value, onChange, onBlur } = {}) => {
         const id = `df-${name}`;
         return (
             <FormField name={name} id={id} label={label} required={required} error={error} status={status}>
                 <input
                     id={id}
                     className={`fm-input${asTyped ? ' no-capitalize' : ''}`}
-                    type={inputType}
+                    type="text"
                     inputMode={inputMode}
                     value={value ?? values[name] ?? ''}
                     placeholder={placeholder}
@@ -272,6 +273,25 @@ function DeliveryFormBody({
                     onChange={onChange || ((e) => set({ [name]: e.target.value }))}
                     onBlur={onBlur}
                     {...describedBy(id, error, status)}
+                />
+            </FormField>
+        );
+    };
+    // A day: the shared calendar (shared/calendar). Clearable when optional —
+    // a Pending delivery has no date yet.
+    const dateInput = (name, label, { required = false, error, status, onChange, onBlur } = {}) => {
+        const id = `df-${name}`;
+        return (
+            <FormField name={name} id={id} label={label} required={required} error={error} status={status}>
+                <DatePicker
+                    id={id}
+                    value={values[name] || ''}
+                    onChange={onChange || ((v) => set({ [name]: v }))}
+                    onBlur={onBlur}
+                    error={error}
+                    status={status}
+                    clearable={!required}
+                    sheetTitle={label}
                 />
             </FormField>
         );
@@ -306,16 +326,14 @@ function DeliveryFormBody({
         </FormField>
     );
 
-    const dateField = text('date', dateLabelFor(values), {
+    const dateField = dateInput('date', dateLabelFor(values), {
         required: !pending,
-        inputType: 'date',
-        asTyped: true,
         error: shown('date'),
         // Weekend work is rare but real, so this informs rather than blocks.
         status: isWeekendDate(values.date) ? (
             <><AlertTriangle size={12} aria-hidden="true" />{`${dayLabel(values.date).name} — weekend ${isTransfer ? 'transfer' : type === 'jobsite' ? 'delivery' : 'pickup'}`}</>
         ) : null,
-        onChange: (e) => setValues((v) => applyDateChange(v, e.target.value, { savedTicket: initialData, deliveries })),
+        onChange: (iso) => setValues((v) => applyDateChange(v, iso, { savedTicket: initialData, deliveries })),
         onBlur: () => touch('date')
     });
 
@@ -384,8 +402,8 @@ function DeliveryFormBody({
                             {branchPicker('transferDestination', 'To')}
                         </div>
                         <FormRow>
-                            {text('expectedArrivalDate', 'Expected arrival', {
-                                required: Boolean(values.date), inputType: 'date', asTyped: true, error: shown('expectedArrivalDate'),
+                            {dateInput('expectedArrivalDate', 'Expected arrival', {
+                                required: Boolean(values.date), error: shown('expectedArrivalDate'),
                                 onBlur: () => touch('expectedArrivalDate')
                             })}
                             {text('soNumber', 'Transfer #', { asTyped: true, placeholder: 'TRF-10482' })}

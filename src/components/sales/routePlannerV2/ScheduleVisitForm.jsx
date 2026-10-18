@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import SearchableSelect from '../../SearchableSelect';
-import GoogleStyleDateTimePicker from '../../GoogleStyleDateTimePicker';
+import { DateTimePicker } from '../../shared/calendar/Calendar';
 import CustomSelect from '../../shared/CustomSelect';
 import './ScheduleVisitForm.css';
 
@@ -55,10 +55,10 @@ const ScheduleVisitForm = ({
                     />
                 </label>
 
-                <label className="rpv2-schedule-form-field">
+                <div className="rpv2-schedule-form-field">
                     <span>Date &amp; time</span>
-                    <GoogleStyleDateTimePicker value={startTime} onChange={setStartTime} required />
-                </label>
+                    <DateTimePicker value={startTime} onChange={setStartTime} ariaLabel="Visit" />
+                </div>
 
                 <label className="rpv2-schedule-form-field">
                     <span>Activity type</span>

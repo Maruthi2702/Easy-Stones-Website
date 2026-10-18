@@ -15,6 +15,7 @@ import {
     countChangedFields, FIELD_LABELS
 } from '../../../utils/userForm';
 import './AddUserForm.css';
+import { DatePicker } from '../../shared/calendar/Calendar';
 
 /*
  * Users & Roles → Add user. Design A from the Add New User canvas, built on
@@ -248,14 +249,13 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
                         />
                     </FormField>
                     <FormField name="joiningDate" id="au-joining" label="Joining date" required error={shown('joiningDate')}>
-                        <input
+                        <DatePicker
                             id="au-joining"
-                            className="fm-input"
-                            type="date"
                             value={values.joiningDate}
-                            onChange={(e) => set({ joiningDate: e.target.value })}
+                            onChange={(joiningDate) => set({ joiningDate })}
                             onBlur={() => touch('joiningDate')}
-                            {...describedBy('au-joining', shown('joiningDate'))}
+                            error={shown('joiningDate')}
+                            sheetTitle="Joining date"
                         />
                     </FormField>
                 </FormRow>

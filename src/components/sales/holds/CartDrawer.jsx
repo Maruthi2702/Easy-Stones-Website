@@ -6,6 +6,7 @@ import {
 import { FormField, FormSearchPicker } from '../../shared/form/FormControls';
 import useIsPhone from '../../shared/form/useIsPhone';
 import LocationPicker from '../../shared/form/LocationPicker';
+import { DatePicker } from '../../shared/calendar/Calendar';
 import { FormLayerContext } from '../../shared/form/formLayer';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { holdsMeta, createHold } from '../../../api/holds';
@@ -343,7 +344,8 @@ function CheckoutView({ user, cart, chosen, customers, customersLoading, onBack,
             <button type="button" role="radio" aria-checked={days === 'date'} className={`cd-chip${days === 'date' ? ' on' : ''}`} onClick={() => setDays('date')}>Pick a date</button>
           </div>
           {days === 'date' && (
-            <input type="date" className="fm-input cd-date" value={customDate} min={today || undefined} onChange={(e) => setCustomDate(e.target.value)} aria-label="Hold until date" />
+            <DatePicker className="cd-date" value={customDate} min={today || ''} today={today || undefined} shortcuts={[]}
+              sheetTitle="Hold until" ariaLabel="Hold until date" onChange={setCustomDate} />
           )}
         </FormField>
 

@@ -5146,6 +5146,13 @@ body.light-theme-active .pl-wrap,
   letter-spacing: -0.01em;
 }
 
+/* The title is the calendar's trigger (shared/calendar). */
+.pl-title-wrap { display: inline-block; }
+.pl-title-wrap .pl-title.cal-bare { padding: 0.2rem 0.4rem; margin: 0 -0.4rem; border-radius: 8px; font-size: 1.2rem; font-weight: 800; color: var(--pl-text); letter-spacing: -0.01em; }
+.pl-title-wrap .pl-title.cal-bare:hover { background: rgba(255, 255, 255, 0.07); }
+.pl-title-wrap .pl-title.cal-bare:focus-visible { outline: 2px solid var(--pl-gold); outline-offset: 1px; }
+body.light-theme-active .pl-title-wrap .pl-title.cal-bare:hover { background: rgba(15, 23, 42, 0.06); }
+
 .pl-chip {
   display: inline-flex;
   align-items: center;

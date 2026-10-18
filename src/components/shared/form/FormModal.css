@@ -321,10 +321,7 @@ body.light-theme-active .fm-tokens {
 .fm-input[aria-invalid="true"] { border-color: var(--fm-err-bd); box-shadow: 0 0 0 3px var(--fm-err-bg); }
 .fm-input:disabled, .fm-input[readonly] { background: var(--fm-dis); color: var(--fm-dis-tx); border-style: dashed; }
 .fm-input-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-input.fm-input[type="date"] { color-scheme: dark; }
-/* iPhone centres a date field's value; every other field reads from the left. */
-input.fm-input[type="date"]::-webkit-date-and-time-value { text-align: left; }
-body.light-theme-active input.fm-input[type="date"] { color-scheme: light; }
+/* Dates are the shared calendar (shared/calendar), not a native date input. */
 
 .fm-error, .fm-status { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1.35; }
 .fm-error { color: var(--fm-err); }

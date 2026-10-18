@@ -7,6 +7,7 @@ import { formatForDateInput } from '../../utils/dateUtils';
 import { REASON_OPTIONS, getCustomerName } from '../../utils/lostSale';
 import { toCustomerOptions } from '../../utils/customerOptions';
 import { homeLocationOf } from '../../utils/locationFilter';
+import { DatePicker } from '../shared/calendar/Calendar';
 
 /**
  * The one list of loss reasons. `id` is what gets stored, so it has to match
@@ -242,11 +243,11 @@ const LostSaleModal = ({
               <label>
                 <Calendar size={14} /> Date of Lost Opportunity
               </label>
-              <input
-                type="date"
+              <DatePicker
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="modal-text-input"
+                onChange={setDate}
+                sheetTitle="Date of lost opportunity"
+                ariaLabel="Date of lost opportunity"
               />
             </div>
           </div>

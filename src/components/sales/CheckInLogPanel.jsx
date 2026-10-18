@@ -37,6 +37,8 @@ import Pagination from '../shared/Pagination';
 import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
 import { LocationField } from '../shared/LocationFilter';
 import LocationPicker from '../shared/form/LocationPicker';
+import { MonthPicker, YearPicker } from '../shared/calendar/Calendar';
+import { MONTH_NAMES } from '../shared/calendar/calendarDates';
 import { accessibleLocations } from '../../utils/locationFilter';
 import { useAuth } from '../../context/AuthContext';
 import { API_URL } from '../../config/api';
@@ -68,16 +70,6 @@ const getAvatarColor = (name) => {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 };
-
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
-
-const MONTH_SHORT_NAMES = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-];
 
 const getLocationBadgeStyle = (location, theme) => {
   const loc = (location || '').toLowerCase();
@@ -364,46 +356,37 @@ const CheckInLogPanel = ({
                       />
                     )}
 
+                    {/* Month and Year are the shared calendar (shared/calendar).
+                        A month is always inside a year, so picking one sets
+                        both; clearing the year clears the month with it. */}
                     <div className="filter-select-group">
-                      <label>Year</label>
-                      <select
-                        value={filterYear || ''}
-                        onChange={(e) => {
-                          const val = e.target.value ? Number(e.target.value) : null;
-                          onFilterYearChange(val);
+                      <label htmlFor="clp-filter-month">Month</label>
+                      <MonthPicker
+                        id="clp-filter-month"
+                        value={filterMonth && filterYear ? `${filterYear}-${String(filterMonth).padStart(2, '0')}` : ''}
+                        onChange={(ym) => {
+                          if (!ym) { onFilterMonthChange(null); return; }
+                          onFilterYearChange(Number(ym.slice(0, 4)));
+                          onFilterMonthChange(Number(ym.slice(5, 7)));
                         }}
-                        className="filter-dropdown-select"
-                      >
-                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((y) => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
+                        placeholder="Any month"
+                        clearable
+                        sheetTitle="Month"
+                      />
                     </div>
-
                     <div className="filter-select-group">
-                      <label>Month</label>
-                      <div className="filter-months-grid">
-                        {MONTH_SHORT_NAMES.map((m, idx) => {
-                          const monthVal = idx + 1;
-                          const isActive = filterMonth === monthVal;
-                          return (
-                            <button
-                              key={m}
-                              type="button"
-                              onClick={() => {
-                                onFilterMonthChange(isActive ? null : monthVal);
-                                // If activating a month but year is null, default to current year
-                                if (!isActive && !filterYear) {
-                                  onFilterYearChange(new Date().getFullYear());
-                                }
-                              }}
-                              className={`filter-month-cell ${isActive ? 'active' : ''}`}
-                            >
-                              {m}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <label htmlFor="clp-filter-year">Year</label>
+                      <YearPicker
+                        id="clp-filter-year"
+                        value={filterYear || ''}
+                        onChange={(y) => {
+                          if (!y) { onFilterYearChange(null); onFilterMonthChange(null); return; }
+                          onFilterYearChange(Number(y));
+                        }}
+                        placeholder="Any year"
+                        clearable
+                        sheetTitle="Year"
+                      />
                     </div>
                   </div>
                   <div className="clp-filter-popover-footer">

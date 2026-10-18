@@ -3,6 +3,7 @@ import { AlertCircle, Check, AlertTriangle } from 'lucide-react';
 import FormModal from '../../shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker } from '../../shared/form/FormControls';
 import { goToField } from '../../shared/form/formFocus';
+import { DatePicker } from '../../shared/calendar/Calendar';
 import { PAYMENT_TERMS } from '../../../accounting/freightRules';
 import { toCents, centsToPlain, formatCents, sumCents } from '../../../accounting/money';
 import { todayIso, shortDate } from '../../../utils/freightView';
@@ -139,8 +140,8 @@ export default function InvoiceForm({ invoice = null, carriers = [], carrierId: 
         </FormRow>
         <FormRow>
           <FormField name="invoiceDate" id="fr-inv-date" label="Invoice date" required error={shown('invoiceDate')}>
-            <input id="fr-inv-date" className="fm-input" type="date" value={values.invoiceDate} disabled={saving}
-              onChange={(e) => set({ invoiceDate: e.target.value })} />
+            <DatePicker id="fr-inv-date" value={values.invoiceDate} disabled={saving} error={shown('invoiceDate')} sheetTitle="Invoice date"
+              onChange={(invoiceDate) => set({ invoiceDate })} />
           </FormField>
           <FormField name="total" id="fr-inv-total" label="Invoice total" required error={shown('total')}>
             <input id="fr-inv-total" className="fm-input" value={values.total} inputMode="decimal" placeholder="0.00" disabled={saving}

@@ -28,6 +28,8 @@ import ShippedEarlierNote from './ShippedEarlierNote';
 import LocationFilter from '../../shared/LocationFilter';
 import { useLocationFilter } from '../../shared/useLocationFilter';
 import './DailyReport.css';
+import { DatePicker, MonthPicker } from '../../shared/calendar/Calendar';
+import { todayISO, monthOf, shiftDay, shiftMonth, withMonth } from '../../shared/calendar/calendarDates';
 
 /**
  * Daily Work Report — the spreadsheet the branches filled in every evening.
@@ -48,35 +50,9 @@ const ALL = 'all';
 // up as RESEND_FROM_EMAIL.
 const EMAIL_EXPORT_ENABLED = true;
 
-const isoOf = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-const todayISO = () => isoOf(new Date());
-
-const monthOf = (iso) => iso.slice(0, 7);
-
-const shiftDay = (iso, days) => {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return isoOf(d);
-};
-
-/**
- * One date carries both views, so moving a month keeps the day number where it
- * can — clamped, because 31 January a month back is the 28th, not the 3rd of
- * March, which is what Date's own rollover would have given.
- */
-const shiftMonth = (iso, months) => {
-  const [y, m, d] = iso.split('-').map(Number);
-  const lastOfTarget = new Date(y, m + months, 0).getDate();
-  return isoOf(new Date(y, m - 1 + months, Math.min(d, lastOfTarget)));
-};
-
-const withMonth = (iso, ym) => {
-  const [y, m] = ym.split('-').map(Number);
-  const lastOfTarget = new Date(y, m, 0).getDate();
-  return `${ym}-${String(Math.min(Number(iso.slice(8, 10)), lastOfTarget)).padStart(2, '0')}`;
-};
+// Date arithmetic for the day / month steppers lives with the calendar
+// (src/components/shared/calendar/calendarDates.js): one date carries both
+// views, so moving a month keeps the day number where it can (clamped).
 
 const longDate = (iso) => {
   const d = new Date(`${iso}T00:00:00`);
@@ -676,9 +652,15 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
             <button onClick={() => setDate(shiftDay(date, -1))} aria-label="Previous day"><ChevronLeft size={16} /></button>
             {/* No leading icon: the native picker indicator inside the field is
                 already a calendar, and two of them 130px apart is clutter. */}
-            <label className="dr-datepick">
-              <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
-            </label>
+            <DatePicker
+              className="dr-datepick"
+              variant="bare"
+              icon="none"
+              value={date}
+              onChange={(next) => next && setDate(next)}
+              ariaLabel="Report date"
+              sheetTitle="Report date"
+            />
             <button onClick={() => setDate(shiftDay(date, 1))} aria-label="Next day"><ChevronRight size={16} /></button>
             {date !== todayISO() && (
               <button className="dr-today" onClick={() => setDate(todayISO())}>Today</button>
@@ -689,15 +671,15 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
              stepper, a month at a time, over the one date both views share. */
           <div className="dr-datenav">
             <button onClick={() => setDate(shiftMonth(date, -1))} aria-label="Previous month"><ChevronLeft size={16} /></button>
-            <label className="dr-datepick">
-              {/* Safari has no month picker and renders this as a text box, so
-                  the value is checked rather than trusted. */}
-              <input
-                type="month"
-                value={monthOf(date)}
-                onChange={(e) => /^\d{4}-\d{2}$/.test(e.target.value) && setDate(withMonth(date, e.target.value))}
-              />
-            </label>
+            <MonthPicker
+              className="dr-datepick"
+              variant="bare"
+              icon="none"
+              value={monthOf(date)}
+              onChange={(ym) => ym && setDate(withMonth(date, ym))}
+              ariaLabel="Report month"
+              sheetTitle="Report month"
+            />
             <button onClick={() => setDate(shiftMonth(date, 1))} aria-label="Next month"><ChevronRight size={16} /></button>
             {monthOf(date) !== monthOf(todayISO()) && (
               <button className="dr-today" onClick={() => setDate(todayISO())}>This month</button>

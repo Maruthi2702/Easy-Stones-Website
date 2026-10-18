@@ -17,6 +17,7 @@ import {
     countChangedFields, FIELD_LABELS, lockedUntilTime
 } from '../../../utils/userForm';
 import './AddUserForm.css';
+import { DatePicker } from '../../shared/calendar/Calendar';
 
 /*
  * Users & Roles (and /admin) → Edit user. The same form as Add user in the
@@ -245,14 +246,13 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
                         />
                     </FormField>
                     <FormField name="joiningDate" id="eu-joining" label="Joining date" required error={shown('joiningDate')}>
-                        <input
+                        <DatePicker
                             id="eu-joining"
-                            className="fm-input"
-                            type="date"
                             value={values.joiningDate}
-                            onChange={(e) => set({ joiningDate: e.target.value })}
+                            onChange={(joiningDate) => set({ joiningDate })}
                             onBlur={() => touch('joiningDate')}
-                            {...describedBy('eu-joining', shown('joiningDate'))}
+                            error={shown('joiningDate')}
+                            sheetTitle="Joining date"
                         />
                     </FormField>
                 </FormRow>

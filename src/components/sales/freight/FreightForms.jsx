@@ -4,6 +4,7 @@ import FormModal from '../../shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, SegmentedToggle } from '../../shared/form/FormControls';
 import { goToField } from '../../shared/form/formFocus';
 import LocationPicker from '../../shared/form/LocationPicker';
+import { DatePicker } from '../../shared/calendar/Calendar';
 import useTouched from '../../shared/form/useTouched';
 import { PAYMENT_METHODS, PAYMENT_TERMS } from '../../../accounting/freightRules';
 import { toCents, centsToPlain, formatCents } from '../../../accounting/money';
@@ -81,8 +82,8 @@ export function PayForm({ title, kicker, cents, sub, oneStep, submitLabel, onPay
       </FormSection>
       <FormSection>
         <FormField name="paidOn" id="fr-paidOn" label="Paid on" required error={shown('paidOn')}>
-          <input id="fr-paidOn" className="fm-input" type="date" value={values.paidOn} disabled={saving}
-            onChange={(e) => set({ paidOn: e.target.value })} />
+          <DatePicker id="fr-paidOn" value={values.paidOn} disabled={saving} error={shown('paidOn')} sheetTitle="Paid on"
+            onChange={(paidOn) => set({ paidOn })} />
         </FormField>
         <FormField name="method" id="fr-method" label="Method" required>
           <SegmentedToggle label="Method" value={values.method} onChange={(method) => !saving && set({ method })}
@@ -252,8 +253,8 @@ export function ChargeForm({ charge = null, carriers = [], branches = [], defaul
                 placeholder="Choose a branch" disabled={saving} error={shown('location')} onChange={(location) => set({ location })} />
             </FormField>
             <FormField name="deliveryDate" id="fr-deliveryDate" label="Date" required error={shown('deliveryDate')}>
-              <input id="fr-deliveryDate" className="fm-input" type="date" value={values.deliveryDate} disabled={saving}
-                onChange={(e) => set({ deliveryDate: e.target.value })} onBlur={() => touch('deliveryDate')} />
+              <DatePicker id="fr-deliveryDate" value={values.deliveryDate} disabled={saving} error={shown('deliveryDate')} sheetTitle="Date"
+                onChange={(deliveryDate) => set({ deliveryDate })} onBlur={() => touch('deliveryDate')} />
             </FormField>
           </FormRow>
         ) : null}
@@ -267,8 +268,8 @@ export function ChargeForm({ charge = null, carriers = [], branches = [], defaul
         {isEdit ? (
           <FormRow>
             <FormField name="deliveryDate" id="fr-deliveryDate" label="Date" error={shown('deliveryDate')}>
-              <input id="fr-deliveryDate" className="fm-input" type="date" value={values.deliveryDate} disabled={saving}
-                onChange={(e) => set({ deliveryDate: e.target.value })} onBlur={() => touch('deliveryDate')} />
+              <DatePicker id="fr-deliveryDate" value={values.deliveryDate} disabled={saving} error={shown('deliveryDate')} sheetTitle="Date"
+                onChange={(deliveryDate) => set({ deliveryDate })} onBlur={() => touch('deliveryDate')} />
             </FormField>
             {text('bolNumber', { autoCapitalize: 'characters' })}
           </FormRow>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Route, Trash2, Check } from 'lucide-react';
 import { friendlyDate } from './helpers';
+import { DatePicker } from '../../shared/calendar/Calendar';
 import './AreaScheduleSection.css';
 
 /**
@@ -23,10 +24,12 @@ const AreaScheduleSection = ({
     return (
         <div className="rpv2-area-schedule-section">
             <div className="rpv2-area-schedule-fields">
-                <label className="rpv2-area-schedule-field">
+                {/* A div, not a label: a click inside the open calendar would
+                    otherwise be passed on to its button and close it. */}
+                <div className="rpv2-area-schedule-field">
                     <span>Date</span>
-                    <input type="date" value={date} onChange={(e) => onDateChange(e.target.value)} />
-                </label>
+                    <DatePicker value={date} onChange={onDateChange} ariaLabel="Date" sheetTitle="Date" />
+                </div>
                 <label className="rpv2-area-schedule-field">
                     <span>Start</span>
                     <input type="time" value={startAt} onChange={(e) => onStartAtChange(e.target.value)} />

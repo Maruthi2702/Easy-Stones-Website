@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Upload, AlertCircle, CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
+import { DatePicker } from '../shared/calendar/Calendar';
 
 const toInputDate = (d) => {
   if (!d) return '';
@@ -165,11 +166,11 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
                   </div>
                   <div className="invan-form-group">
                     <label>Period Start <span className="invan-req-star">*</span></label>
-                    <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="invan-text-input" />
+                    <DatePicker value={periodStart} onChange={setPeriodStart} sheetTitle="Period start" ariaLabel="Period start" />
                   </div>
                   <div className="invan-form-group">
                     <label>Period End <span className="invan-req-star">*</span></label>
-                    <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="invan-text-input" />
+                    <DatePicker value={periodEnd} onChange={setPeriodEnd} sheetTitle="Period end" ariaLabel="Period end" />
                   </div>
                 </div>
               )}

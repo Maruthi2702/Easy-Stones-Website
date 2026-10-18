@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Camera, FileText, Trash2, X } from 'lucide-react';
 import FormModal from '../shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker, SegmentedToggle } from '../shared/form/FormControls';
-import { goToField, describedBy } from '../shared/form/formFocus';
+import { goToField } from '../shared/form/formFocus';
 import useTouched from '../shared/form/useTouched';
 import { API_URL } from '../../config/api';
 import { isPdfSource } from '../../utils/attachments';
@@ -11,6 +11,7 @@ import {
     followUpShown, visitValuesToSave
 } from '../../utils/visitForm';
 import './VisitForm.css';
+import { DatePicker } from '../shared/calendar/Calendar';
 
 /*
  * Add visit / Edit visit, on the shared form template (FORM_TEMPLATE.md),
@@ -163,14 +164,13 @@ export default function VisitForm({
                         />
                     </FormField>
                     <FormField name="date" id="vf-date" label="Date" required error={shown('date')}>
-                        <input
+                        <DatePicker
                             id="vf-date"
-                            className="fm-input"
-                            type="date"
                             value={values.date || ''}
-                            onChange={(e) => set({ date: e.target.value })}
+                            onChange={(date) => set({ date })}
                             onBlur={() => touch('date')}
-                            {...describedBy('vf-date', shown('date'))}
+                            error={shown('date')}
+                            sheetTitle="Date"
                         />
                     </FormField>
                 </FormRow>
@@ -192,12 +192,12 @@ export default function VisitForm({
                 {showFollowUpFields && (
                     <FormRow>
                         <FormField name="followUpDate" id="vf-followUpDate" label="Follow-up date">
-                            <input
+                            <DatePicker
                                 id="vf-followUpDate"
-                                className="fm-input"
-                                type="date"
                                 value={values.followUpDate || ''}
-                                onChange={(e) => set({ followUpDate: e.target.value })}
+                                onChange={(followUpDate) => set({ followUpDate })}
+                                clearable
+                                sheetTitle="Follow-up date"
                             />
                         </FormField>
                         {textarea('followUp', 'Follow-up notes', { placeholder: 'What happens next?' })}

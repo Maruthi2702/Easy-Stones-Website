@@ -30,6 +30,7 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
 import { planPackingListAutofill } from '../../../utils/packingListPdf';
+import { DatePicker } from '../../shared/calendar/Calendar';
 
 // One option per stop a truck can actually hold. This stopped at 8 while a
 // truck takes MAX_TRUCK_CAPACITY, which was survivable while stop numbers were
@@ -708,20 +709,21 @@ const DeliveryModal = ({
                 <Calendar size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
                 Date {!isPendingOrder && <span className="req-star">*</span>}
               </label>
-              <input
-                type="date"
+              <DatePicker
                 value={date}
-                onChange={(e) => {
-                  setDate(e.target.value);
+                clearable={isPendingOrder}
+                ariaLabel="Date"
+                sheetTitle="Date"
+                onChange={(picked) => {
+                  setDate(picked);
                   // A transfer's arrival follows the ship date forward when
                   // it's still blank or would now be earlier than it — the
                   // same rule the server applies (transferArrivalFor).
                   if (isTransfer) {
-                    setExpectedArrivalDate(transferArrivalFor({ date: e.target.value, expectedArrivalDate }));
+                    setExpectedArrivalDate(transferArrivalFor({ date: picked, expectedArrivalDate }));
                   }
                   markDirty();
                 }}
-                required={!isPendingOrder}
               />
               {isPendingOrder && (
                 <span className="pending-order-note">
@@ -823,11 +825,12 @@ const DeliveryModal = ({
                   <Calendar size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
                   Expected Arrival {date && <span className="req-star">*</span>}
                 </label>
-                <input
-                  type="date"
+                <DatePicker
                   value={expectedArrivalDate}
-                  min={date || undefined}
-                  onChange={(e) => { setExpectedArrivalDate(e.target.value); markDirty(); }}
+                  min={date || ''}
+                  ariaLabel="Expected arrival"
+                  sheetTitle="Expected arrival"
+                  onChange={(picked) => { setExpectedArrivalDate(picked); markDirty(); }}
                 />
               </div>
             )}

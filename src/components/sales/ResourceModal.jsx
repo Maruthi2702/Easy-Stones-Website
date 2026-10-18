@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Link, Download, Plus, FileText } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
-import CustomDatePicker from '../CustomDatePicker';
+import { DatePicker } from '../shared/calendar/Calendar';
 
 const ResourceModal = ({
     showResourceModal,
@@ -176,10 +176,11 @@ const ResourceModal = ({
 
                         <div className="form-group">
                             <label>Date *</label>
-                            <CustomDatePicker
+                            <DatePicker
                                 value={resourceForm.date}
                                 onChange={(value) => setResourceForm({ ...resourceForm, date: value })}
-                                required
+                                ariaLabel="Date"
+                                sheetTitle="Date"
                             />
                         </div>
                         <div className="form-group">

@@ -48,6 +48,8 @@ import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { deliveryViewMode, canArrangeDeliveryColumns } from '../../utils/deliveryAccess';
 import { reportDaysForMove, submittedDayLabel } from '../../utils/deliveryForm';
+import { DatePicker } from '../shared/calendar/Calendar';
+import { isoOf, todayISO, shiftDay } from '../shared/calendar/calendarDates';
 import './DeliveryScheduleTab.css';
 
 // getWeekMonday / getWeekDates / formatWeekRangeText now live in
@@ -341,6 +343,11 @@ const DeliveryScheduleTab = ({
     setCurrentMonday(next);
   };
 
+  // A day picked in the calendar shows the week it falls in.
+  const handlePickWeek = (iso) => {
+    if (iso) setCurrentMonday(getWeekMonday(iso));
+  };
+
   // Today: this week, and the board brings today's day into view (BoardGrid).
   const [todayRequest, setTodayRequest] = useState(0);
   const handleTodayWeek = () => {
@@ -591,7 +598,21 @@ const DeliveryScheduleTab = ({
             </button>
           </div>
           <div className="pill-divider-line" />
-          <span className="week-range-label-text">{weekRangeText}</span>
+          {/* The week itself opens the calendar: pick any day to jump to its week. */}
+          <DatePicker
+            variant="bare"
+            triggerClassName="week-range-label-text"
+            value={isoOf(currentMonday)}
+            highlightWeek
+            formatText={() => weekRangeText}
+            onChange={handlePickWeek}
+            shortcuts={[
+              { label: 'This week', value: todayISO() },
+              { label: 'Next week', value: shiftDay(todayISO(), 7) }
+            ]}
+            ariaLabel="Week shown"
+            sheetTitle="Go to week"
+          />
         </div>
 
         {/* Right: Filters (order search + location) / New Ticket Action */}

@@ -369,6 +369,21 @@ body.light-theme-active .manifest-submitted-day > svg,
   white-space: nowrap;
 }
 
+/* The week label is the calendar's trigger (shared/calendar). */
+.header-glass-pill-nav .week-range-label-text.cal-bare {
+  padding: 0.25rem 0.4rem;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.header-glass-pill-nav .week-range-label-text.cal-bare:hover { background: rgba(255, 255, 255, 0.08); }
+.header-glass-pill-nav .week-range-label-text.cal-bare:focus-visible { outline: 2px solid #d4af37; outline-offset: 1px; }
+.header-glass-pill-nav .cal-wrap { flex-shrink: 0; }
+body.light-theme-active .header-glass-pill-nav .week-range-label-text.cal-bare:hover { background: rgba(15, 23, 42, 0.06); }
+
 /* Search box — inline in nav bar (sales role) */
 .search-box-wrap-header {
   display: flex;

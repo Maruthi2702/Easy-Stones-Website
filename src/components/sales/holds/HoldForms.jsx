@@ -3,6 +3,7 @@ import { AlertCircle } from 'lucide-react';
 import FormModal from '../../shared/form/FormModal';
 import { FormSection, FormField, FormPicker, FormSearchPicker } from '../../shared/form/FormControls';
 import { goToField } from '../../shared/form/formFocus';
+import { DatePicker } from '../../shared/calendar/Calendar';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { lotGroups, formatSf, priceCentsOf, todayIn, addDays, MAX_HOLD_DAYS } from '../../../holds/holdRules';
 import { branchZone } from '../../../config/branches';
@@ -128,7 +129,8 @@ export function ExtendForm({ hold, onSave, onClose }) {
               </button>
             ))}
           </div>
-          <input id="hx-date" className="fm-input" type="date" value={expiresOn} min={today} max={latest} disabled={saving} onChange={(e) => setExpiresOn(e.target.value)} />
+          <DatePicker id="hx-date" value={expiresOn} min={today} max={latest} today={today} disabled={saving} error={submitted ? error : ''}
+            sheetTitle="Hold until" shortcuts={[]} onChange={setExpiresOn} />
         </FormField>
       </FormSection>
     </FormModal>

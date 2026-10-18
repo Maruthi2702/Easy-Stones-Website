@@ -3046,56 +3046,6 @@ body.light-theme-active .clp-root .clp-subtitle {
   letter-spacing: 0.05em;
 }
 
-.filter-dropdown-select {
-  background: #27272a !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  border-radius: 8px;
-  padding: 0.5rem;
-  color: #fff !important;
-  font-size: 0.85rem;
-  font-family: inherit;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.2s;
-  width: 100%;
-}
-
-.filter-dropdown-select:focus {
-  border-color: #d4af37;
-}
-
-.filter-months-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.4rem;
-}
-
-.filter-month-cell {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
-  padding: 0.45rem 0;
-  color: #d1d5db;
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.15s ease-in-out;
-  font-family: inherit;
-}
-
-.filter-month-cell:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-
-.filter-month-cell.active {
-  background: #d4af37 !important;
-  border-color: #d4af37 !important;
-  color: #000 !important;
-  font-weight: 700 !important;
-}
-
 .clp-filter-popover-footer {
   display: flex;
   justify-content: space-between;
@@ -3180,35 +3130,6 @@ body.light-theme-active .clp-root .clp-subtitle {
 
 .clp-root.light-theme .filter-select-group label {
   color: #64748b !important;
-}
-
-.clp-root.light-theme .filter-dropdown-select {
-  background: #ffffff !important;
-  border: 1.5px solid #cbd5e1 !important;
-  color: #0f172a !important;
-  font-weight: 500 !important;
-}
-
-.clp-root.light-theme .filter-dropdown-select:focus {
-  border-color: #d4af37 !important;
-}
-
-.clp-root.light-theme .filter-month-cell {
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
-  color: #475569 !important;
-}
-
-.clp-root.light-theme .filter-month-cell:hover {
-  background: #e2e8f0 !important;
-  color: #0f172a !important;
-}
-
-.clp-root.light-theme .filter-month-cell.active {
-  background: #d4af37 !important;
-  border-color: #d4af37 !important;
-  color: #ffffff !important;
-  font-weight: 700 !important;
 }
 
 .clp-root.light-theme .clp-filter-popover-footer {
