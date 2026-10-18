@@ -11,7 +11,8 @@ import createHoldsRouter from './router.js';
 import { createHoldExpiry } from './expiry.js';
 import { Cart, Hold, SlabReservation, Counter, HoldHistory } from './models.js';
 import { ALL_HOLD_PERMISSIONS, CART, HOLDS } from './permissions.js';
-import { defaultExpiresOn, addDays } from './holdRules.js';
+import { defaultExpiresOn, addDays, MAX_CART_SLABS } from './holdRules.js';
+import { INDEXED_MODELS } from '../config/indexedModels.js';
 import InventoryItem from '../models/InventoryItem.js';
 import Customer from '../models/Customer.js';
 import { extractPdfTextItems } from '../utils/pdfTextItems.js';
@@ -90,6 +91,40 @@ describe('cart', () => {
     expect(res.body.skipped.map((s) => s.reason)).toEqual(['Only whole slabs can go in the cart', 'Not in stock']);
     expect(res.body.cart.lines).toHaveLength(2);
     expect(res.body.cart.lines[0].slab).toMatchObject({ product: 'Taj Mahal 3CM', sfHundredths: 6446 });
+  });
+
+  it('adds a whole bundle in one go, finds serials in any case, and keeps their order', async () => {
+    await InventoryItem.collection.insertOne(slab('xyz-9'));
+    const res = await api('post', '/cart/slabs').send({ slabKeys: ['14744-31', '14744-29', 'XYZ-9', '14744-30'] }).expect(200);
+    expect(res.body.added).toEqual(['14744-31', '14744-29', 'XYZ-9', '14744-30']);
+    expect(res.body.skipped).toEqual([]);
+    expect(res.body.cart.lines.map((l) => l.slabKey)).toEqual(['14744-31', '14744-29', 'XYZ-9', '14744-30']);
+    // Asking again adds nothing and says why.
+    const again = await api('post', '/cart/slabs').send({ slabKeys: ['14744-31', '14744-32'] }).expect(200);
+    expect(again.body.added).toEqual(['14744-32']);
+    expect(again.body.skipped).toEqual([{ slabKey: '14744-31', reason: 'Already in your cart' }]);
+  });
+
+  it('two tabs adding the same slab at once: it goes in once', async () => {
+    const [a, b] = await Promise.all([
+      api('post', '/cart/slabs').send({ slabKeys: ['14744-29', '14744-30'] }),
+      api('post', '/cart/slabs').send({ slabKeys: ['14744-29', '14744-30'] })
+    ]);
+    expect([a.status, b.status]).toEqual([200, 200]);
+    const cart = (await api('get', '/cart').expect(200)).body;
+    expect(cart.lines.map((l) => l.slabKey).sort()).toEqual(['14744-29', '14744-30']);
+    expect([...a.body.added, ...b.body.added].sort()).toEqual(['14744-29', '14744-30']);
+  });
+
+  it('stops at the cart’s limit and says so', async () => {
+    const many = Array.from({ length: MAX_CART_SLABS + 3 }, (_, i) => `BULK-${i}`);
+    await InventoryItem.collection.insertMany(many.map((k) => slab(k)));
+    const first = await api('post', '/cart/slabs').send({ slabKeys: many.slice(0, MAX_CART_SLABS) }).expect(200);
+    expect(first.body.added).toHaveLength(MAX_CART_SLABS);
+    const over = await api('post', '/cart/slabs').send({ slabKeys: many.slice(MAX_CART_SLABS) }).expect(200);
+    expect(over.body.added).toEqual([]);
+    expect(over.body.skipped).toHaveLength(3);
+    expect(over.body.skipped[0].reason).toMatch(/holds up to/);
   });
 
   it('scans by barcode (any case) or serial #', async () => {
@@ -331,3 +366,16 @@ describe('history and PDF', () => {
 });
 
 async function load1() { return Hold.findOne({ number: 1 }).lean(); }
+
+describe('indexes', () => {
+  it('the serial # lookup has its index, and every holds collection is in the startup list', () => {
+    expect(InventoryItem.schema.indexes().some(([keys, opts]) => keys.serialNumber === 1 && opts.collation?.strength === 2)).toBe(true);
+    const listed = INDEXED_MODELS.map(([, model]) => model);
+    for (const model of [Cart, Hold, SlabReservation, Counter, HoldHistory]) expect(listed).toContain(model);
+  });
+  it('one slab can only be reserved once — the unique index is real', async () => {
+    await SlabReservation.syncIndexes();
+    const indexes = await SlabReservation.collection.indexes();
+    expect(indexes.some((i) => i.key.slabKey === 1 && i.unique)).toBe(true);
+  });
+});

@@ -3,7 +3,7 @@ import { Lock } from 'lucide-react';
 import { SLAB_STATUS_BUCKET as statusBucket } from '../../utils/inventoryStatus';
 import { fmtMoney, fmtNum, fmtRate, ageDays, STATUS_LABEL } from './inventoryFormat';
 import { slabKeyOf, isHoldableSlab } from '../../holds/holdRules';
-import { useCart, cartActions } from './holds/cartStore';
+import { useCart, cartActions, cartKeysOf } from './holds/cartStore';
 import useSlabLocks from './holds/useSlabLocks';
 
 /**
@@ -34,8 +34,14 @@ const readGrouping = () => {
 
 export default function InventorySlabList({ items, total, canViewPrices, canUseCart }) {
   const [grouping, setGrouping] = useState(readGrouping);
-  const { cart } = useCart();
-  const inCart = useMemo(() => new Set(cart.lines.map((l) => l.slabKey)), [cart.lines]);
+  const cartState = useCart();
+  // What the checkboxes show: the cart, plus what is being added right now and minus
+  // what is being removed — so a tick shows at once, not after the server answers.
+  const inCart = useMemo(
+    () => cartKeysOf(cartState),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cartState.cart.lines, cartState.pendingAdd, cartState.pendingRemove]
+  );
   const holdableKeys = useMemo(() => items.filter(isHoldableSlab).map((s) => slabKeyOf(s.serialNumber)), [items]);
   const locks = useSlabLocks(canUseCart ? holdableKeys : []);
 
@@ -63,7 +69,7 @@ export default function InventorySlabList({ items, total, canViewPrices, canUseC
     const keys = freeKeysOf(list);
     const missing = keys.filter((k) => !inCart.has(k));
     if (missing.length) cartActions.add(missing);
-    else keys.forEach((k) => cartActions.remove(k, { silent: true }));
+    else cartActions.removeMany(keys, { silent: true });
   };
 
   const cartCell = (s) => {

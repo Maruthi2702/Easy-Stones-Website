@@ -429,6 +429,21 @@ leads, Live traffic — a new map option is another row there). The design lives
 the claude.ai artifact **Route Planner pin colours**
 (https://claude.ai/artifact/BQ5XYqB2SjbnbgjLYSbnyh).
 
+## Cart ticks are instant (2026-10-18)
+
+An inventory checkbox shows the slab in the cart the moment it is clicked
+(`pendingAdd`/`pendingRemove` in `holds/cartStore.js`; `cartKeysOf` is what the
+checkboxes read) and the server's answer replaces it — a refusal takes it back with
+the reason. Your own change's socket echo is ignored and other people's events are
+joined into one refresh of just the slabs that changed (`useSlabLocks`). The cart's
+customer also shows at once, and Create hold follows the cart's customer rather than
+copying it when it opens. Server: `findSlabs` reads the serial # through a
+case-insensitive index (`InventoryItem.js`), and `addToCart` / bundle removal are one
+write each. **Every Cart & Holds model is in `INDEXED_MODELS`** — autoIndex is off,
+and until 2026-10-18 they weren't, so the unique indexes that stop two holds on one
+slab were never created in production (a startup log line names any that fail, e.g.
+on duplicates already there).
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,

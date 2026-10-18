@@ -15,6 +15,7 @@ const inventoryItemSchema = new mongoose.Schema({
   subCategory: { type: String, default: '' },
   group: { type: String, default: '' },
   kind: { type: String, default: '' },
+  // Indexed below (case-insensitively): the cart and holds look slabs up by serial #.
   serialNumber: { type: String, default: '' },
   // Not indexed — never filtered/sorted on anywhere (display-only), and
   // every index here has to be updated on every one of the ~11k rows in a
@@ -54,6 +55,13 @@ const inventoryItemSchema = new mongoose.Schema({
   timestamps: true,
   collection: 'InventoryItems'
 });
+
+// The one lookup that needs it: Cart & Holds find slabs by serial # (src/holds/router.js
+// findSlabs) on every tick of the inventory checkbox. Without this each tick read all ~11k
+// rows, twice. Case-insensitive (the same collation the query asks for) because stock
+// serials aren't consistently capitalised. The write-time cost on a full import is the
+// price of making a tick take milliseconds.
+inventoryItemSchema.index({ serialNumber: 1 }, { collation: { locale: 'en', strength: 2 } });
 
 // A text index used to exist here for product/supplier search, but nothing
 // in the app ever issues a $text query — the actual search (buildInventoryItemQuery

@@ -4,7 +4,8 @@
  *   app.use('/api/holds', createHoldsRouter({ authenticate }));
  *
  * Cart:  GET /cart · POST /cart/slabs · POST /cart/scan · PATCH /cart/customer
- *        PATCH /cart/slabs/:slabKey (note) · DELETE /cart/slabs/:slabKey · DELETE /cart
+ *        PATCH /cart/slabs/:slabKey (note) · DELETE /cart/slabs/:slabKey
+ *        POST /cart/slabs/remove (several at once) · DELETE /cart
  * Slabs: POST /slabs/status — locks and carts for the inventory screen
  * Holds: GET /meta · GET / · GET /:id · GET /:id/pdf · POST /
  *        PATCH /:id/details · POST /:id/slabs · POST /:id/swap · PATCH /:id/prices
@@ -44,6 +45,7 @@ const DAY_MS = 86400000;
 
 // ── Slabs ────────────────────────────────────────────────────────────────
 
+const SERIAL_COLLATION = { locale: 'en', strength: 2 };
 const SLAB_FIELDS = 'type serialNumber barcodeId product category bundle slabNumber block bin location dimensions instockQty slabStatus';
 
 /** Slabs by key. Most serials are stored exactly as their key; the rest are matched normalised. */
@@ -51,7 +53,8 @@ async function findSlabs(keys) {
   const wanted = [...new Set(keys.map(slabKeyOf).filter(Boolean))];
   if (!wanted.length) return new Map();
   const found = new Map();
-  for (const item of await InventoryItem.find({ serialNumber: { $in: wanted } }, SLAB_FIELDS).lean()) {
+  // Case-insensitive on the serial # index (InventoryItem.js), so one indexed read finds them.
+  for (const item of await InventoryItem.find({ serialNumber: { $in: wanted } }, SLAB_FIELDS).collation(SERIAL_COLLATION).lean()) {
     found.set(slabKeyOf(item.serialNumber), item);
   }
   const missing = wanted.filter((k) => !found.has(k));
@@ -239,16 +242,28 @@ export default function createHoldsRouter({ authenticate }) {
     { upsert: true }
   );
 
-  /** Add slabs to the person's cart; returns what was added and why anything wasn't. */
+  /**
+   * Add slabs to the person's cart; returns what was added and why anything wasn't.
+   * Everything that can be read at once is (slabs, locks and the cart's keys — one
+   * upsert that also makes the cart), and the slabs that pass go in with a single
+   * write. If a second tab added one of them in the meantime that write matches
+   * nothing, and each is then added on its own, as before, so none is doubled.
+   */
   async function addToCart(req, keys) {
-    const slabs = await findSlabs(keys);
-    const locks = await reservationsFor(keys);
-    await ensureCart(req);
-    const cart = await Cart.findOne({ userId: userIdOf(req) }, 'lines.slabKey').lean();
+    const userId = userIdOf(req);
+    const [slabs, locks, cart] = await Promise.all([
+      findSlabs(keys),
+      reservationsFor(keys),
+      Cart.findOneAndUpdate(
+        { userId },
+        { $setOnInsert: { userId, lines: [] }, $set: { userName: req.user?.displayName || req.user?.username || '' } },
+        { upsert: true, new: true, projection: 'lines.slabKey' }
+      ).lean()
+    ]);
     const already = new Set((cart?.lines || []).map((l) => l.slabKey));
     let room = MAX_CART_SLABS - already.size;
-    const added = [];
     const skipped = [];
+    const wanted = [];
     for (const key of [...new Set(keys)]) {
       const item = slabs.get(key);
       if (already.has(key)) { skipped.push({ slabKey: key, reason: 'Already in your cart' }); continue; }
@@ -256,11 +271,24 @@ export default function createHoldsRouter({ authenticate }) {
       if (!isHoldableSlab(item)) { skipped.push({ slabKey: key, reason: 'Only whole slabs can go in the cart' }); continue; }
       if (locks.has(key)) { skipped.push({ slabKey: key, reason: lockedReason(locks.get(key)) }); continue; }
       if (room <= 0) { skipped.push({ slabKey: key, reason: `The cart holds up to ${MAX_CART_SLABS} slabs` }); continue; }
-      const res = await Cart.updateOne(
-        { userId: userIdOf(req), 'lines.slabKey': { $ne: key } },
-        { $push: { lines: { slabKey: key, product: item.product || '', note: '', addedAt: new Date() } } }
+      wanted.push({ key, line: { slabKey: key, product: item.product || '', note: '', addedAt: new Date() } });
+      room -= 1;
+    }
+
+    let added = [];
+    if (wanted.length) {
+      const all = await Cart.updateOne(
+        { userId, 'lines.slabKey': { $nin: wanted.map((w) => w.key) } },
+        { $push: { lines: { $each: wanted.map((w) => w.line) } } }
       );
-      if (res.modifiedCount) { added.push(key); room -= 1; } else skipped.push({ slabKey: key, reason: 'Already in your cart' });
+      if (all.modifiedCount) {
+        added = wanted.map((w) => w.key);
+      } else {
+        for (const { key, line } of wanted) {
+          const one = await Cart.updateOne({ userId, 'lines.slabKey': { $ne: key } }, { $push: { lines: line } });
+          if (one.modifiedCount) added.push(key); else skipped.push({ slabKey: key, reason: 'Already in your cart' });
+        }
+      }
     }
     if (added.length) announce(req, added);
     return { added, skipped };
@@ -302,6 +330,15 @@ export default function createHoldsRouter({ authenticate }) {
     const key = slabKeyOf(req.params.slabKey);
     const r = await Cart.updateOne({ userId: userIdOf(req), 'lines.slabKey': key }, { $set: { 'lines.$.note': body.note } });
     if (!r.matchedCount) throw new HttpError(404, `${key} isn’t in your cart.`);
+    res.json(await presentCart(req));
+  }));
+
+  // Several at once (a bundle ticked off): one write and one answer instead of one each.
+  router.post('/cart/slabs/remove', requireAll(CART.USE), h(async (req, res) => {
+    const body = parse(S.cartAdd, req.body);
+    const keys = [...new Set(body.slabKeys.map(slabKeyOf))].filter(Boolean);
+    await Cart.updateOne({ userId: userIdOf(req) }, { $pull: { lines: { slabKey: { $in: keys } } } });
+    announce(req, keys);
     res.json(await presentCart(req));
   }));
 

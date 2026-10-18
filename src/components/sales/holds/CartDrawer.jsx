@@ -106,7 +106,7 @@ function CartView({ cart, lines, selected, setSelected, expanded, customers, cus
           <FormSearchPicker
             id="cart-customer"
             value={cart.customer?.id || ''}
-            onChange={(v) => cartActions.setCustomer(v)}
+            onChange={(v) => cartActions.setCustomer(v, customers.find((o) => o.value === v)?.label || '')}
             options={customers}
             loading={customersLoading && customers.length === 0}
             selectedLabel={cart.customer?.name || ''}
@@ -240,7 +240,11 @@ const HOLD_LENGTHS = [7, 14, 30];
 function CheckoutView({ user, cart, chosen, customers, customersLoading, onBack, onDone }) {
   const canExtend = can(user, HOLDS.EXTEND);
   const [meta, setMeta] = useState(null);
-  const [customerId, setCustomerId] = useState(cart.customer?.id || '');
+  // The cart's customer unless one is picked here. Not copied at open: the cart's
+  // customer is saved on the server first and can arrive after this window opens,
+  // which used to open it empty and say "Pick the customer" for one already picked.
+  const [pickedHere, setPickedHere] = useState(null);
+  const customerId = pickedHere ?? (cart.customer?.id || '');
   const [branch, setBranch] = useState('');
   const [days, setDays] = useState(DEFAULT_HOLD_DAYS);
   const [customDate, setCustomDate] = useState('');
@@ -306,10 +310,10 @@ function CheckoutView({ user, cart, chosen, customers, customersLoading, onBack,
           <FormSearchPicker
             id="co-customer"
             value={customerId}
-            onChange={setCustomerId}
+            onChange={setPickedHere}
             options={customers}
             loading={customersLoading && customers.length === 0}
-            selectedLabel={cart.customer?.name || ''}
+            selectedLabel={cart.customer?.name || customers.find((o) => o.value === customerId)?.label || ''}
             placeholder="Search customers"
             sheetTitle="Customer"
             error={shown('customer')}

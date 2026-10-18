@@ -44,6 +44,7 @@ import SalesDashboardResource from '../models/SalesDashboardResource.js';
 import ImportMemory from '../models/ImportMemory.js';
 import CustomerMergeBackup from '../models/CustomerMergeBackup.js';
 import CustomerDeleteBackup from '../models/CustomerDeleteBackup.js';
+import { Cart, Hold, SlabReservation, Counter, HoldHistory } from '../holds/models.js';
 
 export const INDEXED_MODELS = [
   ['Customer', Customer],
@@ -67,5 +68,13 @@ export const INDEXED_MODELS = [
   ['SalesDashboardResource', SalesDashboardResource],
   ['ImportMemory', ImportMemory],
   ['CustomerMergeBackup', CustomerMergeBackup],
-  ['CustomerDeleteBackup', CustomerDeleteBackup]
+  ['CustomerDeleteBackup', CustomerDeleteBackup],
+  // Cart & Holds (src/holds/): the unique indexes here are what stop two people holding
+  // the same slab (SalesSlabReservation.slabKey), duplicate hold numbers and a second
+  // cart per person — they were missing from this list, so never created.
+  ['SalesCart', Cart],
+  ['SalesHold', Hold],
+  ['SalesSlabReservation', SlabReservation],
+  ['SalesCounter', Counter],
+  ['SalesHoldHistory', HoldHistory]
 ];

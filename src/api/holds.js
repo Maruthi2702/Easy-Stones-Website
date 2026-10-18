@@ -31,6 +31,7 @@ export const addToCart = (slabKeys) => call('/cart/slabs', { method: 'POST', bod
 export const scanIntoCart = (code) => call('/cart/scan', { method: 'POST', body: { code } });
 export const setCartCustomer = (customerId) => call('/cart/customer', { method: 'PATCH', body: { customerId } });
 export const setCartNote = (slabKey, note) => call(`/cart/slabs/${enc(slabKey)}`, { method: 'PATCH', body: { note } });
+export const removeManyFromCart = (slabKeys) => call('/cart/slabs/remove', { method: 'POST', body: { slabKeys } });
 export const removeFromCart = (slabKey) => call(`/cart/slabs/${enc(slabKey)}`, { method: 'DELETE' });
 export const clearCart = () => call('/cart', { method: 'DELETE' });
 export const slabStatuses = (slabKeys) => call('/slabs/status', { method: 'POST', body: { slabKeys } });
