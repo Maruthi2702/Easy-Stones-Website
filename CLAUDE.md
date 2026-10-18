@@ -158,6 +158,25 @@ clock passes `today` (holds). The Check-In Log's Filters panel uses a
 the month). Not done: typing a date straight into the field (it was possible
 with the native inputs).
 
+## Phone tab bar (2026-10-18)
+
+Under 640px SalesPage shows a bottom tab bar instead of the drawer
+(`src/components/sales/PhoneTabBar.jsx` + `.css`; owner's design: claude.ai
+artifacts **Phone tab bar canvas** https://claude.ai/artifact/Qxs7fJxBs6MGJYiXowkirQ
+and **Phone menu search** https://claude.ai/artifact/GZ622Er9juw3MXzr6JjySA).
+Dashboard · two modules (Sales, Operations by default) · **More**. What sits
+on the bar, which tab is lit and what the page search finds are in
+`src/utils/phoneNav.js` (tested): the bar takes the first two modules the login
+can open in the admin's Side Nav Order and More lists the rest, so a new page
+or module in `navPins.js` shows up with no phone-specific change (its icon goes
+in `src/components/sales/navIcons.js`, shared with the desktop rail). Customers
+lives only inside Sales. More = account row (profile, cart, theme, sign out),
+a search box for pages, Pinned, then the other modules; pins are still set on
+desktop. Tablets and desktop keep the rail and the drawer. The bar sets
+`body.has-phone-bar`, which makes `.sales-container` end above it and hides the
+drawer's menu buttons; it steps aside while a text box has the keyboard. Its
+z-index (96–98) is below every form, modal and the cart, so those cover it.
+
 ## Check In permissions: one card, one file (2026-10-14)
 
 Check In, the Check-In Log and the Selection Sheet share one Users & Roles

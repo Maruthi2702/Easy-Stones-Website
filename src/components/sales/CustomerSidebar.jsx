@@ -1,44 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    LayoutDashboard, User, Clock, Truck, Map as MapIcon, ClipboardList, Tag, TrendingDown, ArrowLeftRight, Boxes,
-    Users, Briefcase, Warehouse, Layers, Shield, Home, Pin, PinOff, PanelLeftClose, X,
-    Sun, Moon, LogOut, UserCheck, ArrowUpDown, Receipt, Calculator, Lock, HardHat, ShieldCheck, MapPin
+    LayoutDashboard, Home, Pin, PinOff, PanelLeftClose, X, Sun, Moon, LogOut, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS, isOnePageSection } from '../../utils/navPins';
 import CartRailButton from './holds/CartRailButton';
+import { ITEM_ICONS, SECTION_ICONS } from './navIcons';
 import './CustomerSidebar.css';
-
-// Pages, sections and who sees what live in src/utils/navPins.js; only the
-// icons are here. A page added there needs an icon added here.
-const ITEM_ICONS = {
-    dashboard: LayoutDashboard,
-    customers: User,
-    checkin: Clock,
-    route_planner: MapIcon,
-    holds: Lock,
-    permits: HardHat,
-    lost_sales: TrendingDown,
-    delivery_schedule: Truck,
-    daily_report: ClipboardList,
-    pricelist: Tag,
-    inventory_analysis: Boxes,
-    crossover_sheet: ArrowLeftRight,
-    users: Users,
-    roles: ShieldCheck,
-    locations: MapPin,
-    nav_order: ArrowUpDown,
-    freight: Receipt
-};
-const SECTION_ICONS = {
-    home: LayoutDashboard,
-    sales: Briefcase,
-    operations: Warehouse,
-    products: Layers,
-    accounting: Calculator,
-    admin: Shield
-};
 
 // New staff: until someone pins a page or taps "Got it", the pin buttons
 // show faintly on every page and a short tip explains them. Per device.

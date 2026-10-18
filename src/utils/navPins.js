@@ -4,7 +4,7 @@
  * pinned page someone can still see is where /sales opens for them.
  *
  * One list on purpose: adding a page is one entry here (plus its icon in
- * CustomerSidebar.jsx and its screen in SalesPage.jsx), and the server checks
+ * navIcons.js and its screen in SalesPage.jsx), and the server checks
  * saved pins against the same ids (src/routes/pinnedTabs.js).
  *
  * The canSee rules are copied as-is from the hand-written nav they replace,

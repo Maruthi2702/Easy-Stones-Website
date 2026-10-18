@@ -25,6 +25,8 @@ import SearchableSelect from '../components/SearchableSelect';
 import { formatForDateInput, formatDate, formatInstant, getLocalISOString, viewerTimeZone } from '../utils/dateUtils';
 import DashboardStats from '../components/sales/DashboardStats';
 import CustomerSidebar from '../components/sales/CustomerSidebar';
+import PhoneTabBar from '../components/sales/PhoneTabBar';
+import useIsPhone from '../components/shared/form/useIsPhone';
 import usePinnedTabs from '../components/sales/usePinnedTabs';
 import useNavOrder from '../components/sales/useNavOrder';
 import { pinnedDefaultTab } from '../utils/navPins';
@@ -1305,6 +1307,8 @@ const SalesPage = () => {
     // it's a drawer opened by each tab's SidebarToggleButton.
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
+    // Under 640px the bottom tab bar replaces the drawer (PhoneTabBar.jsx).
+    const isPhone = useIsPhone();
 
     useEffect(() => {
         const handleResize = () => {
@@ -3347,6 +3351,18 @@ const SalesPage = () => {
                 onMakeDefault={makeDefaultTab}
                 navOrder={navOrder}
             />
+
+            {/* Phones get the bottom tab bar instead of the drawer (PhoneTabBar.jsx). */}
+            {isPhone && currentUser && (
+                <PhoneTabBar
+                    crmTab={crmTab}
+                    onNavigate={handleCrmTabChange}
+                    theme={theme}
+                    toggleTheme={toggleTheme}
+                    pinnedTabs={pinnedTabs}
+                    navOrder={navOrder}
+                />
+            )}
 
             {/* The cart drawer (opened from the side rail) and its "added · Open cart" bar. */}
             <CartDrawer user={currentUser} onOpenHold={openHoldFromCart} />
