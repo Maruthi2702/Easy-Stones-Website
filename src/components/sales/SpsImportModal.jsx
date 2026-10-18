@@ -58,6 +58,23 @@ const saveBlob = async (url, filename) => {
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 
+/**
+ * A picker opens its list inside the window's scrolling body, so on a short
+ * screen a row near the bottom gets a list only a few lines tall. Bring the
+ * row to the top of the body first (the body has room below it — .spsi-asks)
+ * and the list gets all the space there is. Runs on click (capture), which is
+ * after the press — scrolling on mouse-down moves the trigger from under the
+ * pointer and the click never lands — and before the picker measures its space.
+ * Scrolls the body only, never the page (scrollIntoView would — see LocationPicker).
+ */
+const liftRow = (e) => {
+    const row = e.currentTarget;
+    const body = row.closest('.fm-body');
+    if (!body) return;
+    const delta = row.getBoundingClientRect().top - body.getBoundingClientRect().top - 8;
+    if (Math.abs(delta) > 4) body.scrollTop += delta;
+};
+
 export default function SpsImportModal({ onClose, onChanged, salesReps = [], locations = [], user = null, canEdit = false, canAdd = false, canDelete = false }) {
     const fileInput = useRef(null);
     const [view, setView] = useState('loading');   // loading | wizard | history
@@ -391,12 +408,12 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                             </div>
                         )}
                         {data.unresolvedReps.length > 0 && (
-                            <div>
+                            <div className="spsi-asks">
                                 <div className="sect-title">{data.unresolvedReps.length} sales {data.unresolvedReps.length === 1 ? 'person' : 'people'} we don’t recognise</div>
                                 {data.unresolvedReps.map((u) => {
                                     const suggestion = (data.reps || []).find((r) => r.name === u.suggestion);
                                     return (
-                                        <div key={u.given} className="spsi-ask">
+                                        <div key={u.given} className="spsi-ask" onClickCapture={liftRow}>
                                             <div><b>{u.given}</b><div className="spsc-muted">{n(u.rowCount)} customer{u.rowCount === 1 ? '' : 's'}{suggestion ? ` · suggested: ${suggestion.name}` : ''}</div></div>
                                             <RepPicker id={`rep-${u.given}`} value={draft.repAliases[u.given] || ''} onChange={(v) => answer('repAliases', u.given, v)} options={repOptions}
                                                 placeholder={suggestion ? `Use ${suggestion.name}?` : 'Choose a rep or “No sales rep”'} you={user?.id || user?._id} error={draft.repAliases[u.given] ? '' : ' '} />
@@ -406,10 +423,10 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                             </div>
                         )}
                         {data.unresolvedBranches.length > 0 && (
-                            <div>
+                            <div className="spsi-asks">
                                 <div className="sect-title">{data.unresolvedBranches.length} branch{data.unresolvedBranches.length === 1 ? '' : 'es'} we don’t recognise</div>
                                 {data.unresolvedBranches.map((u) => (
-                                    <div key={u.given} className="spsi-ask">
+                                    <div key={u.given} className="spsi-ask" onClickCapture={liftRow}>
                                         <div><b>{u.given}</b><div className="spsc-muted">{n(u.rowCount)} customer{u.rowCount === 1 ? '' : 's'}</div></div>
                                         <LocationPicker id={`br-${u.given}`} value={draft.branchAliases[u.given] || ''} onChange={(v) => answer('branchAliases', u.given, v)} options={branchNames}
                                             labelOf={(b) => (b === DEFAULT_BRANCH ? 'Use the default branch' : b)} user={user} placeholder="Choose a branch" error={draft.branchAliases[u.given] ? '' : ' '} />
@@ -417,7 +434,9 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                                 ))}
                             </div>
                         )}
-                        {unanswered === 0 && <div className="spsc-muted">Every name is recognised. Continue to review.</div>}
+                        {unanswered === 0
+                            ? <div className="spsc-muted">Every name is recognised. Continue to review.</div>
+                            : <div className="spsi-room" aria-hidden="true" />}
                     </>
                 )}
 

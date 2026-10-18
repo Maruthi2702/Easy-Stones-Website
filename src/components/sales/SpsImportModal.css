@@ -60,3 +60,6 @@
 .spsi-missing { margin: 4px 0; padding-left: 18px; font-size: 13px; display: grid; gap: 3px; }
 .spsi-hist { gap: 4px; }
 .spsi-hist-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+/* Room below the last name, so its picker's list can open with the whole
+   window to itself (liftRow in SpsImportModal.jsx scrolls the row up first). */
+.spsi-room { height: min(340px, 45vh); }
