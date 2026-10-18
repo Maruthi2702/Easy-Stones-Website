@@ -225,7 +225,7 @@ const PinLayer = React.memo(({ selectedPins, unselectedPins, orderById, openId, 
 });
 
 const MapCanvas = ({
-    mapRef, theme, colors, colorMode = 'type', onColorModeChange, scopeNote,
+    mapRef, theme, colors, colorMode = 'type', onColorModeChange, scopeNote, infoLoading = false, lastKnownPosition = null,
     isLoaded, loadError,
     showTraffic,
     origin,
@@ -295,7 +295,7 @@ const MapCanvas = ({
     // `center` used to follow `origin`, so the phone's location answer (up to
     // 8 s late) yanked the map out from under a rep who had already started
     // panning. See the effect below for the one allowed move.
-    const [initialCenter] = useState(() => origin || FALLBACK_CENTER);
+    const [initialCenter] = useState(() => origin || lastKnownPosition || FALLBACK_CENTER);
     const userMovedRef = useRef(false);
 
     const handleLoad = (map) => {
@@ -875,6 +875,13 @@ const MapCanvas = ({
                             {real(info.contactName) && real(info.company) && (
                                 <div className="rpv2-panel-contact-name">{real(info.contactName)}</div>
                             )}
+                            {/* The contact details arrive after the panel opens (a pin
+                                is slim); until then say so, rather than claim there
+                                is no phone, email or address. */}
+                            {infoLoading ? (
+                                <span className="rpv2-panel-muted">Loading details…</span>
+                            ) : (
+                                <>
                             {real(info.phone) && (
                                 <div className="rpv2-contact-row">
                                     <a className="rpv2-contact-link" href={`tel:${real(info.phone)}`}>
@@ -938,6 +945,8 @@ const MapCanvas = ({
                             ) : (
                                 <span className="rpv2-panel-muted"><MapPin size={14} /> No address on record</span>
                             )}
+                                </>
+                            )}
                         </div>
 
                         <dl className="rpv2-panel-facts">
@@ -951,7 +960,7 @@ const MapCanvas = ({
                                 // Always rendered, unlike the facts above — Notes is free text
                                 // that's often blank, and "blank" is itself worth showing here
                                 // rather than silently dropping the row.
-                                { label: 'Notes', value: real(info.notes), alwaysShow: true }
+                                { label: 'Notes', value: real(info.notes), alwaysShow: !infoLoading }
                             ].filter(f => f.value || f.alwaysShow).map(({ label, value, alwaysShow }) => {
                                 const isEmptyNotes = alwaysShow && !value;
                                 return (

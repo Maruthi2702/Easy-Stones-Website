@@ -6,6 +6,7 @@ import { authFetch } from '../../../api/authFetch';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
 import { toSalesRepList, groupRepOptions } from '../../../utils/salesReps';
 import { UNASSIGNED, repsInScope, scopeLocationsOf } from '../../../utils/routePlannerScope';
+import { readLastPosition, rememberPosition, forgetLocationOk, locationWasOk, locationPermission, shouldAutoLocate } from '../../../utils/geolocationAccess';
 import {
     orderStops, planDay, daySummary, visitRecency,
     hasPoint, localISO, milesBetween, pointInPolygon, RECENCY_BUCKETS, DEFAULT_DAY
@@ -359,6 +360,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
 
     // Everything currently checked, again — after a customer is added or deleted.
     const load = useCallback(async () => {
+        detailsCache.current.clear();
         await Promise.all([fetchPins(wantedRepKeysRef.current, true), loadRepCounts()]);
     }, [fetchPins, loadRepCounts]);
 
@@ -412,16 +414,26 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         })();
     }, []);
 
+    // Location, without asking on every visit (src/utils/geolocationAccess.js).
+    // Nothing prompts on its own: the map opens on the last known spot, and only
+    // a tap on Locate asks. Once the browser has it allowed (or an earlier fix
+    // worked on a browser that can't say) the position is followed quietly.
+    const [lastKnownPosition] = useState(() => readLastPosition());
+    const [autoLocate, setAutoLocate] = useState(false);
     useEffect(() => {
-        if (!navigator.geolocation) return;
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                setOrigin(here);
-            },
-            () => { /* denied — the fallback centre still works */ },
-            { enableHighAccuracy: true, timeout: 8000 }
-        );
+        let gone = false;
+        let status = null;
+        (async () => {
+            const state = await locationPermission();
+            if (gone) return;
+            if (shouldAutoLocate(state, locationWasOk())) setAutoLocate(true);
+            try {
+                // Allowed or switched off in the browser's settings while this is open.
+                status = await navigator.permissions.query({ name: 'geolocation' });
+                status.onchange = () => setAutoLocate(status.state === 'granted');
+            } catch { /* a browser that can't say: the first branch above decided */ }
+        })();
+        return () => { gone = true; if (status) status.onchange = null; };
     }, []);
 
     // The blue "You" dot on the map (see MapCanvas) — kept separate from
@@ -432,7 +444,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // and the Directions API shouldn't get re-billed every time the phone
     // reports a new fix. This polls for the device's live position instead,
     // purely for display, so the dot itself still moves with the rep while
-    // they drive.
+    // they drive — but only while this screen is the one showing and the tab
+    // is visible, so a screen left in the background isn't reading the GPS.
     //
     // Deliberately setInterval + getCurrentPosition rather than
     // watchPosition: this app installs as a PWA (see vite.config.js), and
@@ -443,23 +456,33 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // dot" this effect exists to fix. Re-polling on a plain timer sidesteps
     // that instead of depending on it.
     useEffect(() => {
-        if (!navigator.geolocation) return;
+        if (!autoLocate || !isActive || !navigator.geolocation) return undefined;
         const poll = () => {
+            if (document.visibilityState === 'hidden') return;
             navigator.geolocation.getCurrentPosition(
                 // A fresh object every 15s re-rendered the whole map even when
                 // the rep hadn't moved; only a move of ~20 m or more updates it.
                 (pos) => {
                     const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    rememberPosition(next);
+                    setOrigin(prev => prev || next);
                     setMyPosition((prev) => (prev && milesBetween(prev, next) < 0.0125 ? prev : next));
                 },
-                () => { /* denied/unavailable — the dot just stays at its last known spot */ },
+                (err) => {
+                    // Refused (code 1): stop trying until Locate is tapped again.
+                    if (err?.code === 1) { forgetLocationOk(); setAutoLocate(false); }
+                },
                 { enableHighAccuracy: true, timeout: 8000 }
             );
         };
         poll();
         const intervalId = setInterval(poll, 15000);
-        return () => clearInterval(intervalId);
-    }, []);
+        document.addEventListener('visibilitychange', poll);
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', poll);
+        };
+    }, [autoLocate, isActive]);
 
     // This component stays mounted behind display:none when you navigate
     // away (see SalesPage.jsx), so the map instance survives.
@@ -838,13 +861,18 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                rememberPosition(here);
+                setAutoLocate(true); // allowed now: follow quietly from here on
                 setOrigin(here);
                 setMyPosition(here);
                 if (!mapRef.current) return;
                 mapRef.current.panTo(here);
                 mapRef.current.setZoom(12);
             },
-            () => setError('Location is switched off for this site — turn it on in the browser’s site settings.'),
+            () => {
+                forgetLocationOk();
+                setError('Location is switched off for this site — turn it on in the browser’s site settings.');
+            },
             { enableHighAccuracy: true, timeout: 8000 }
         );
     };
@@ -856,14 +884,37 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // ('tools' | 'customers' | 'schedule'), so closeInfo knows what to bring
     // back — left null for a plain pin click on the map, which has nothing
     // to return to.
+    // A pin is slim (src/routes/customerMap.js): phone, email, address, notes… are
+    // fetched when a customer is opened, and kept for the next time (cleared by
+    // load(), since an edit elsewhere changes them).
+    const detailsCache = useRef(new Map());
+    const detailsRequest = useRef(0);
+    const [infoLoading, setInfoLoading] = useState(false);
     const showDetails = useCallback((customer, origin = null) => {
+        const cachedDetails = customer?._id ? detailsCache.current.get(String(customer._id)) : null;
+        if (customer?._id && !cachedDetails) {
+            const request = ++detailsRequest.current;
+            setInfoLoading(true);
+            authFetch(`${API_URL}/api/customers/map/${customer._id}`)
+                .then(res => (res.ok ? res.json() : null))
+                .then(details => {
+                    if (details) detailsCache.current.set(String(customer._id), details);
+                    if (request !== detailsRequest.current) return;
+                    if (details) setInfo(prev => (prev && String(prev._id) === String(customer._id) ? { ...prev, ...details } : prev));
+                })
+                .catch(() => { /* the panel just shows what the pin has */ })
+                .finally(() => { if (request === detailsRequest.current) setInfoLoading(false); });
+        } else {
+            detailsRequest.current += 1;
+            setInfoLoading(false);
+        }
         setLeadInfo(null);
         setShowFilterPanel(false);
         setShowToolsPanel(false);
         setShowCustomersPanel(false);
         setShowSchedulePanel(false);
         setReturnPanel(origin);
-        setInfo(customer);
+        setInfo(cachedDetails ? { ...customer, ...cachedDetails } : customer);
         if (!mapRef.current || !customer?.coordinates) return;
         mapRef.current.panTo(customer.coordinates);
         // The detail panel is a fixed column on the right (PANEL_WIDTH wide)
@@ -1503,6 +1554,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 onToggleAllSalesReps={toggleAllSalesReps}
                 colorMode={colorMode}
                 onColorModeChange={setColorMode}
+                infoLoading={infoLoading}
+                lastKnownPosition={lastKnownPosition}
                 scopeNote={scopeLocations ? `Your locations: ${scopeLocations.join(', ') || 'none'}` : ''}
                 replaceExisting={replaceExisting}
                 onReplaceExistingChange={setReplaceExisting}

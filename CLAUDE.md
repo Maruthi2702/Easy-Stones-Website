@@ -397,19 +397,27 @@ all-location ('*') logins see every rep; anyone else sees the reps working at
 their locations (a sales rep gets the same as a manager for now — the owner's
 call; narrowing it later is a change to `repsInScope`/`inScopePins` only), their
 customers, and the unowned ones at those locations ("Unassigned"). The server
-enforces it: `GET /api/customers/map?reps=<ids>,unassigned` sends only the named
-reps' customers (reps outside the scope return nothing), `GET /api/customers/map/rep-counts`
-feeds the Filter's counts; the screen builds its rep list from the same functions.
-Only **checked reps' customers are loaded** (ticking one fetches just theirs).
-The Filter reads Sales reps → Customer type → Days since last visit; pins are map
-pins coloured by type (set A, `TYPE_COLORS` in `routePlannerV2/helpers.js`) or by
-last-visit age (the "Type colours | Visit colours" switch, saved as
-`routePlannerFilters.pinColors`). Saved filters load once and save only on a real
-change (`saveFilter`) — saving the empty starting value before the real one loaded
-is what used to reset the rep ticks on every open. The design lives in the
-claude.ai artifact **Route Planner pin colours**
-(https://claude.ai/artifact/BQ5XYqB2SjbnbgjLYSbnyh). Not built from it yet: slimmer
-pins (phone/email/notes still ride along), and asking for the location only on tap.
+routes live in `src/routes/customerMap.js` (tested, in-memory MongoDB):
+`GET /api/customers/map?reps=<ids>,unassigned` sends only the named reps' pins
+(reps outside the scope return nothing), `/map/rep-counts` feeds the Filter's
+counts, and `/map/:id` returns one customer's contact details (404 outside the
+scope). A **pin is slim** — phone, email, address, notes arrive only when a
+customer is opened (the panel says "Loading details…"; `showDetails` caches them,
+`load()` clears the cache). Only **checked reps' customers are loaded** (ticking
+one fetches just theirs). The Filter reads Sales reps → Customer type → Days since
+last visit; pins are map pins coloured by type (set A, `TYPE_COLORS` in
+`routePlannerV2/helpers.js`) or by last-visit age (the "Type colours | Visit
+colours" switch, saved as `routePlannerFilters.pinColors`). Saved filters load
+once and save only on a real change (`saveFilter`) — saving the empty starting
+value before the real one loaded is what used to reset the rep ticks on every
+open. **Location** (`src/utils/geolocationAccess.js`): nothing prompts on its own;
+the map opens on the last known spot, only a tap on Locate asks, and once the
+browser has it allowed the position is followed quietly (only while the screen
+and tab are showing). The permission itself is the browser's, not ours to keep.
+The phone bar is icons plus a three-line More menu (`MoreMenu.jsx`: Find new
+leads, Live traffic — a new map option is another row there). The design lives in
+the claude.ai artifact **Route Planner pin colours**
+(https://claude.ai/artifact/BQ5XYqB2SjbnbgjLYSbnyh).
 
 ## Forms: one template, everywhere
 

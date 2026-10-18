@@ -112,7 +112,7 @@ import { seedSeattleRecipients } from './src/utils/dailyReportSubmissionEmail.js
 import { hasSalesPage } from './src/utils/navPins.js';
 import { canViewLostSales, canEditLostSales, canDeleteLostSales } from './src/utils/lostSaleAccess.js';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js';
-import { inScopePins, pinsForReps, repCountsOf, parseRepKeys } from './src/utils/routePlannerScope.js';
+import createCustomerMapRouter from './src/routes/customerMap.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
 import { checkSheet, spsCoverage } from './src/utils/spsSheet.js';
@@ -2843,97 +2843,14 @@ app.get('/api/customers/dropdown', authenticate, requireSalesPage, async (req, r
   }
 });
 
-/**
- * Every customer we hold a point for, as pins.
- *
- * Carries when each was last visited, because the question a rep actually asks
- * of a map is not "who is in Bellingham" but "who in Bellingham am I overdue
- * with" — and that answer is computed here, where the visits already live,
- * rather than by shipping 300-odd visit logs (with their photos) to the browser
- * to be reduced to one date each.
- *
- * Cached like the dropdown and busted by the same customer writes, which
- * includes logging a visit — the one write that changes what this returns.
- */
-/**
- * Every customer pin, built once and shared (customerMap cache). The routes
- * below narrow it per person with src/utils/routePlannerScope.js.
- */
-const buildCustomerMapPins = async () => {
-    const cached = cacheHit('customerMap');
-    if (cached) return cached;
-
-    const pins = await Customer.aggregate([
-      { $match: { 'coordinates.lat': { $ne: null } } },
-      {
-        $project: {
-          company: 1,
-          contactName: 1,
-          phone: 1,
-          email: 1,
-          marketingEmail: 1,
-          street: '$address.street',
-          city: '$address.city',
-          state: '$address.state',
-          coordinates: 1,
-          precision: '$geocode.precision',
-          salesRep: 1,
-          salesRepName: 1,
-          customerType: 1,
-          status: 1,
-          level: 1,
-          location: 1,
-          modaDisplay: 1,
-          modaBinder: 1,
-          notes: '$quickNote',
-          // Visit dates are 'YYYY-MM-DD', so the newest is the largest string.
-          lastVisitAt: { $max: '$visits.date' },
-          visitCount: { $size: { $ifNull: ['$visits', []] } }
-        }
-      },
-      { $sort: { company: 1, contactName: 1 } }
-    ]);
-
-    return cachePut('customerMap', pins);
-};
-
-/** The signed-in person as the scope rule reads them, plus the staff directory it checks reps against. */
-const routePlannerScopeFor = async (req) => {
-  const me = req.authUserDoc || {};
-  const staff = await User.find({}, 'username role location assignedLocations').lean();
-  return {
-    user: { id: req.userId, role: req.userRole, assignedLocations: me.assignedLocations || req.user?.assignedLocations || [], location: me.location || '' },
-    staff
-  };
-};
-
-// ?reps=<rep id>,<rep id>,unassigned names whose customers to send; without it,
-// everyone in the person's scope (what an app that hasn't updated still asks).
-// Reps outside the person's scope are simply not found: the scope is applied
-// first, so naming one returns nothing.
-app.get('/api/customers/map', authenticate, requirePermission('view_route_planner'), async (req, res) => {
-  try {
-    const [all, { user, staff }] = await Promise.all([buildCustomerMapPins(), routePlannerScopeFor(req)]);
-    const scoped = inScopePins(all, user, staff);
-    const keys = parseRepKeys(req.query.reps);
-    res.json(keys ? pinsForReps(scoped, keys) : scoped);
-  } catch (error) {
-    console.error('Error building customer map:', error);
-    res.status(500).json({ message: 'Failed to load customer map', error: error.message });
-  }
-});
-
-// How many customers each rep in the person's scope has, so the Filter can show
-// "Dana R. 310" without loading Dana's customers.
-app.get('/api/customers/map/rep-counts', authenticate, requirePermission('view_route_planner'), async (req, res) => {
-  try {
-    const [all, { user, staff }] = await Promise.all([buildCustomerMapPins(), routePlannerScopeFor(req)]);
-    res.json(repCountsOf(inScopePins(all, user, staff)));
-  } catch (error) {
-    console.error('Error counting customer map pins:', error);
-    res.status(500).json({ message: 'Failed to count customers' });
-  }
-});
+// The Route Planner's map: pins per rep, rep counts and a customer's details,
+// all narrowed to the person's scope (src/routes/customerMap.js). Mounted here, ahead
+// of the /api/customers/:id routes below, so "map" is never read as an id.
+app.use('/api/customers', createCustomerMapRouter({
+  authenticate,
+  requirePermission,
+  cache: { get: () => cacheHit('customerMap'), put: (pins) => cachePut('customerMap', pins) }
+}));
 
 // Get dashboard statistics (optimized aggregation)
 app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'), async (req, res) => {
