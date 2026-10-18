@@ -113,6 +113,10 @@ main.main-site {
    no-site-header on body), so every offset that used to be a hard-coded
    82px reads this instead. On body, not .app, so portaled drawers get it too. */
 :root { --app-header-h: 82px; }
+/* The phone tab bar's height while it's on screen (PhoneTabBar.css sets it on
+   body.phone-bar-up), 0 everywhere else: a screen sized to the viewport
+   subtracts it as well as the header, or its bottom ends up behind the bar. */
+:root { --app-bottom-h: 0px; }
 body.no-site-header { --app-header-h: 0px; }
 body.no-site-header main.main-site { padding-top: 0; }
 

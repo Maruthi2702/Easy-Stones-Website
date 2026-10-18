@@ -207,7 +207,7 @@ body.light-theme-active .fr {
 .fr-pager { margin-top: 4px; }
 
 /* ── Selection bar ── */
-.fr-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 22px; display: flex; align-items: center; gap: 10px; background: #0f172a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 8px 8px 8px 18px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.35); z-index: 70; max-width: calc(100vw - 24px); }
+.fr-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(22px + var(--app-bottom-h, 0px)); display: flex; align-items: center; gap: 10px; background: #0f172a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 8px 8px 8px 18px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.35); z-index: 70; max-width: calc(100vw - 24px); }
 .fr-bar-sum { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .fr-bar-note { font-size: 12.5px; color: #cbd5e1; max-width: 260px; }
 .fr-bar .fr-btn { height: 36px; }
@@ -217,7 +217,7 @@ body.light-theme-active .fr {
 .fr-bar-actions { display: inline-flex; gap: 8px; }
 
 /* ── Toast ── */
-.fr-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 88px; display: flex; align-items: center; gap: 12px; background: var(--fr-surface); color: var(--fr-text); border: 1px solid var(--fr-line); border-radius: 12px; padding: 10px 10px 10px 14px; box-shadow: var(--fr-shadow); z-index: 75; max-width: calc(100vw - 24px); font-size: 14px; }
+.fr-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(88px + var(--app-bottom-h, 0px)); display: flex; align-items: center; gap: 12px; background: var(--fr-surface); color: var(--fr-text); border: 1px solid var(--fr-line); border-radius: 12px; padding: 10px 10px 10px 14px; box-shadow: var(--fr-shadow); z-index: 75; max-width: calc(100vw - 24px); font-size: 14px; }
 .fr-toast .ok { color: var(--fr-paid-ink); flex: none; }
 
 /* ── Side panels (charge, invoice, payment, carriers) ── */

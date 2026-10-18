@@ -243,7 +243,7 @@ body.light-theme-active .hl {
 .hl-ev.extended .hl-ev-dot { background: var(--hl-ok-ink); }
 
 /* Selection bar and toast */
-.hl-selbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 22px; display: flex; align-items: center; gap: 10px; background: #0f172a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 8px 8px 8px 18px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.35); z-index: 70; max-width: calc(100vw - 24px); }
+.hl-selbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(22px + var(--app-bottom-h, 0px)); display: flex; align-items: center; gap: 10px; background: #0f172a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 8px 8px 8px 18px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.35); z-index: 70; max-width: calc(100vw - 24px); }
 .hl-selbar-sum { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .hl-selbar-note { font-size: 12.5px; color: #cbd5e1; }
 .hl-selbar .hl-btn { height: 36px; }
@@ -251,7 +251,7 @@ body.light-theme-active .hl {
 .hl-selbar .hl-btn.ghost:hover:not(:disabled) { background: #1e293b; }
 .hl-selbar .hl-btn.dark { background: #1e293b; color: #fff; border-color: #475569; }
 .hl-selbar .hl-btn.danger-solid { background: #dc2626; border-color: #b91c1c; color: #fff; }
-.hl-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 88px; display: flex; align-items: center; gap: 12px; background: var(--hl-surface); color: var(--hl-text); border: 1px solid var(--hl-line); border-radius: 12px; padding: 10px 10px 10px 14px; box-shadow: var(--hl-shadow); z-index: 75; max-width: calc(100vw - 24px); font-size: 14px; }
+.hl-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(88px + var(--app-bottom-h, 0px)); display: flex; align-items: center; gap: 12px; background: var(--hl-surface); color: var(--hl-text); border: 1px solid var(--hl-line); border-radius: 12px; padding: 10px 10px 10px 14px; box-shadow: var(--hl-shadow); z-index: 75; max-width: calc(100vw - 24px); font-size: 14px; }
 .hl-toast .ok { color: var(--hl-ok-ink); flex: none; }
 .hl-toast.error { border-color: var(--hl-exp-line); color: var(--hl-exp-ink); }
 

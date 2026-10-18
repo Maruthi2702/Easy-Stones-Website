@@ -6,8 +6,8 @@
  */
 
 .rpv2-outer {
-    height: calc(100vh - var(--app-header-h));
-    height: calc(100dvh - var(--app-header-h));
+    height: calc(100vh - var(--app-header-h) - var(--app-bottom-h));
+    height: calc(100dvh - var(--app-header-h) - var(--app-bottom-h));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -37,8 +37,8 @@
 
 .rpv2-shell {
     position: relative;
-    height: calc(100vh - var(--app-header-h));
-    height: calc(100dvh - var(--app-header-h));
+    height: calc(100vh - var(--app-header-h) - var(--app-bottom-h));
+    height: calc(100dvh - var(--app-header-h) - var(--app-bottom-h));
     overflow: hidden;
     font-family: var(--font-main, 'Inter', system-ui, sans-serif);
     background: #121212;

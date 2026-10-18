@@ -185,6 +185,7 @@ body.light-theme-active .pt-root { --pt-dim: #5a6574; }
 /* ── The page makes room for the bar (SalesPage's shell is a fixed-height,
       overflow-hidden column, so it ends above the bar rather than behind it) ── */
 
+body.phone-bar-up { --app-bottom-h: var(--pt-bar-h); }
 body.phone-bar-up .sales-container { padding-bottom: var(--pt-bar-h); }
 /* The bar replaces the drawer on phones, so every page's menu button goes:
    the shared SidebarToggleButton and the Dashboard's own. */
