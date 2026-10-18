@@ -110,6 +110,11 @@ const ViewPicker = ({ view, counts, onChange }) => {
     );
 };
 
+// The old "Import from Excel" window is hidden (owner's call, 2026-10-17) now
+// that Import from SPS is the import in use. Set to true to show it again; it
+// is also where the "Possible duplicates already in the database" list lives.
+const SHOW_EXCEL_IMPORT = false;
+
 const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, customerRefreshTrigger, onPlanRoute }) => {
     const { user } = useAuth();
     const width = useWindowWidth();
@@ -818,7 +823,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                                         <button type="button" role="menuitem" className="cl-opt" onClick={emailAllContacts}><Mail size={16} aria-hidden="true" />Copy marketing emails</button>
                                     </>
                                 )}
-                                {canImport && (
+                                {SHOW_EXCEL_IMPORT && canImport && (
                                     <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); setShowImportModal(true); }}><Upload size={16} aria-hidden="true" />Import from Excel</button>
                                 )}
                                 {canImport && (

@@ -137,6 +137,11 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
       merge records aren't read, so a merged-away SPS name shows as New or
       Need a decision. Branch is still "SPS wins" and a blank SPS rep keeps
       ours (the artifact's defaults 1 and 2, never answered by the owner).
+- [ ] **The old "Import from Excel" menu item is hidden** (owner, 2026-10-17;
+      `SHOW_EXCEL_IMPORT` in `PartnersSheet.jsx`). Its window also held the
+      **"Possible duplicates already in the database"** list (merge / delete /
+      keep separate), which now has no way in. Move that list somewhere of its
+      own before the old import is deleted (step 6).
 - [ ] **Step 3 hasn't been run on real data.** Do a dry run with the real SPS
       file and check the report before it goes to `main`; the new import
       (step 5) needs customers connected first.
