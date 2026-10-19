@@ -72,7 +72,7 @@ export const zonedTimeToUtc = (naiveLocalString, timeZone) => {
 };
 
 // Helper to treat UTC strings as Local (stripping Z)
-const parseAsLocal = (date) => {
+export const parseAsLocal = (date) => {
     if (!date) return null;
     if (date instanceof Date) return date;
     if (typeof date === 'string') {

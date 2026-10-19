@@ -1,18 +1,19 @@
 import React from 'react';
 import { Calendar } from 'lucide-react';
-import { todayStops, topFollowUps } from './dashboardFocus';
+import { todayStops, panelFollowUps } from './dashboardFocus';
 import './DashboardFocus.css';
 
 /**
  * The Focus board's right-hand panels (design "Option A"): Today's calendar
- * stops and the most pressing follow-ups. Both are read from what the page
- * already loaded — nothing is fetched here. Under 640px they sit below the
+ * stops and the follow-ups worth a glance. Today's stops are read from what the
+ * page already loaded; the follow-ups arrive already picked by the server
+ * (GET /api/dashboard/followups/panel). Nothing is fetched here. Under 640px they sit below the
  * visit list.
  */
 const DashboardAside = ({ schedules, customerName, followUps, followUpCount, onOpenPlanner, onOpenFollowUps, onOpenCustomer }) => {
     const now = new Date();
     const stops = todayStops(schedules, customerName, now);
-    const rows = topFollowUps(followUps, 6, now);
+    const rows = panelFollowUps(followUps, now);
     return (
         <aside className="dfx-aside" aria-label="Needs attention">
             <section className="dfx-panel" aria-label="Today">

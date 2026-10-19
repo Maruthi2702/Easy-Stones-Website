@@ -1,3 +1,5 @@
+import { parseAsLocal } from '../../utils/dateUtils';
+
 /**
  * Pure rules for the Dashboard's Focus board (design "Option A", the Dashboard
  * canvas artifact): the Today list, the Follow-ups list and the time-range
@@ -46,7 +48,8 @@ export const todayStops = (schedules = [], customerName = () => '', now = new Da
 
 /** How a follow-up's date reads, and how urgent it is: 'late' | 'today' | 'later'. */
 export const dueLabel = (value, now = new Date()) => {
-  const d = new Date(value);
+  // A plain saved day is that day here, not UTC midnight (the evening before).
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseAsLocal(value) : new Date(value);
   if (!Number.isFinite(d.getTime())) return { text: '', tone: 'later' };
   const days = Math.round((startOfDay(d) - startOfDay(now)) / 86400000);
   if (days < 0) return { text: days === -1 ? '1 day late' : `${-days} days late`, tone: 'late' };
@@ -55,16 +58,14 @@ export const dueLabel = (value, now = new Date()) => {
   return { text: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), tone: 'later' };
 };
 
-/** The most pressing follow-ups first (late, then soonest), at most `limit`. */
-export const topFollowUps = (items = [], limit = 6, now = new Date()) => items
-  .map((v) => ({ v, at: new Date(v.followUpDate || v.displayDate || v.date).getTime() }))
-  .filter(({ at }) => Number.isFinite(at))
-  .sort((a, b) => a.at - b.at)
-  .slice(0, limit)
-  .map(({ v, at }) => ({
-    id: v._id,
-    customerId: v.customerId,
-    company: v.company || v.customerName || 'Unknown customer',
-    note: (v.followUp || v.nextAction || v.displayNote || '').trim(),
-    ...dueLabel(at, now)
-  }));
+/**
+ * The Follow-ups panel's rows: the server picks and orders them
+ * (src/utils/followUpPanel.js); this only words how late or soon each one is.
+ */
+export const panelFollowUps = (rows = [], now = new Date()) => rows.map((r) => ({
+  id: r.id,
+  customerId: r.customerId,
+  company: r.company,
+  note: r.note,
+  ...dueLabel(r.dueDate, now)
+}));

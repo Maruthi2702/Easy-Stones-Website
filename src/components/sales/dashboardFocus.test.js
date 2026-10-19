@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { todayStops, dueLabel, topFollowUps } from './dashboardFocus.js';
+import { todayStops, dueLabel, panelFollowUps } from './dashboardFocus.js';
 
 const now = new Date(2026, 9, 18, 12, 0, 0);
 const at = (day, h) => new Date(2026, 9, day, h, 0, 0).toISOString();
@@ -34,15 +34,13 @@ describe('dueLabel', () => {
   });
 });
 
-describe('topFollowUps', () => {
-  it('sorts earliest first, limits, and skips undated ones', () => {
-    const rows = topFollowUps([
-      { _id: '1', followUpDate: at(22, 9), followUp: 'later' },
-      { _id: '2', followUpDate: at(16, 9), nextAction: 'late one' },
-      { _id: '3' },
-      { _id: '4', followUpDate: at(19, 9) }
-    ], 2, now);
-    expect(rows.map((r) => r.id)).toEqual(['2', '4']);
-    expect(rows[0]).toMatchObject({ note: 'late one', tone: 'late' });
+describe('panelFollowUps', () => {
+  it('keeps the server order and words each due day', () => {
+    const rows = panelFollowUps([
+      { id: '1', company: 'A', note: 'x', dueDate: '2026-10-18' },
+      { id: '2', company: 'B', note: 'y', dueDate: '2026-10-19' },
+      { id: '3', company: 'C', note: 'z', dueDate: '2026-10-16' }
+    ], now);
+    expect(rows.map((r) => [r.id, r.text, r.tone])).toEqual([['1', 'Today', 'today'], ['2', 'Tomorrow', 'later'], ['3', '2 days late', 'late']]);
   });
 });

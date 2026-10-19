@@ -130,6 +130,7 @@ import {
   getAggregationRangeMatch, getFollowUpRangeMatch, rangePrefilter, followUpDatePrefilter, slimForUnwind,
   dashboardScope, scopeBranchPrefilter, scopeVisitUserMatch, narrowScopeToLocation
 } from './src/utils/dashboardMatch.js';
+import { pickPanelFollowUps } from './src/utils/followUpPanel.js';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.js';
 import createUserOnboardingRouter, { newInvite, inviteLinkFor, sendInviteEmail } from './src/routes/userOnboarding.js';
@@ -3058,9 +3059,10 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
 });
 
 // Get dashboard visits (returns a flat list for all customers in range)
-app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard'), async (req, res) => {
-  try {
-    const { timeRange = 'all', localDate, filterType } = req.query;
+// The dashboard's visit rows for the caller's scope, range and location; filterType 'followup'
+// swaps the date rule for the follow-up one. Shared by the list and the Follow-ups panel.
+const loadDashboardVisits = async (req, filterType) => {
+    const { timeRange = 'all', localDate } = req.query;
     const now = new Date();
 
     // Determine "Today" based on localDate from client or server now
@@ -3173,10 +3175,28 @@ app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard
       { $sort: { date: -1, createdAt: -1 } }
     ]);
 
-    res.json(visits);
+    return visits;
+};
+
+app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard'), async (req, res) => {
+  try {
+    res.json(await loadDashboardVisits(req, req.query.filterType));
   } catch (error) {
     console.error('Error fetching dashboard visits:', error);
     res.status(500).json({ message: 'Failed to fetch dashboard visits' });
+  }
+});
+
+// The Visits tab's Follow-ups panel: just the few follow-ups worth a glance, picked by
+// src/utils/followUpPanel.js (due soonest, then recently overdue) — the browser no longer sorts them.
+app.get('/api/dashboard/followups/panel', authenticate, requirePermission('view_dashboard'), async (req, res) => {
+  try {
+    const rows = await loadDashboardVisits(req, 'followup');
+    const today = /^\d{4}-\d{2}-\d{2}$/.test(req.query.localDate || '') ? req.query.localDate : undefined;
+    res.json(pickPanelFollowUps(rows, today));
+  } catch (error) {
+    console.error('Error fetching follow-up panel:', error);
+    res.status(500).json({ message: 'Failed to fetch follow-ups' });
   }
 });
 

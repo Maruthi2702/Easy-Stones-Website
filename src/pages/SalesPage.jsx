@@ -400,6 +400,9 @@ const SalesPage = () => {
     const [dashboardVisits, setDashboardVisits] = useState([]);
     const [dashboardResources, setDashboardResources] = React.useState([]);
     const [dashboardFollowups, setDashboardFollowups] = React.useState([]);
+    // The Visits tab's Follow-ups panel: the few rows the server picked (own request, so it never holds the table up).
+    const [followUpPanel, setFollowUpPanel] = React.useState([]);
+    const followUpPanelReqRef = React.useRef(0);
     const [dashboardDataLoading, setDashboardDataLoading] = React.useState(false);
     // False until the first fetchDashboardData finishes. dashboardDataLoading
     // starts false (other logic keys off it), so on its own the tables showed
@@ -460,10 +463,24 @@ const SalesPage = () => {
         }
     }, [dashboardTimeRange, dashboardLocationParam]);
 
+    const fetchFollowUpPanel = useCallback(async () => {
+        const reqId = ++followUpPanelReqRef.current;
+        try {
+            const localDateStr = new Date().toLocaleDateString('en-CA');
+            const res = await authFetch(`${API_URL}/api/dashboard/followups/panel?timeRange=${dashboardTimeRange}&localDate=${localDateStr}${dashboardLocationParam}`);
+            if (!res.ok) return;
+            const rows = await res.json();
+            if (reqId === followUpPanelReqRef.current) setFollowUpPanel(Array.isArray(rows) ? rows : []);
+        } catch (error) {
+            console.error('Error fetching follow-up panel:', error);
+        }
+    }, [dashboardTimeRange, dashboardLocationParam]);
+
     // Fetch Independent Dashboard Data
     const fetchDashboardData = useCallback(async () => {
         const reqId = ++dashboardDataReqRef.current;
         setDashboardDataLoading(true);
+        fetchFollowUpPanel(); // not awaited: the table doesn't wait for the panel
         try {
             const localDateStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
             const [visitsRes, resourcesRes, followupsRes] = await Promise.all([
@@ -487,7 +504,7 @@ const SalesPage = () => {
                 setDashboardLoaded(true);
             }
         }
-    }, [dashboardTimeRange, dashboardLocationParam]);
+    }, [dashboardTimeRange, dashboardLocationParam, fetchFollowUpPanel]);
 
     // A dashboard table with no rows yet while its data is still on the way
     // says so, instead of claiming there's nothing there.
@@ -4051,7 +4068,7 @@ const SalesPage = () => {
                                                 const src = c || sch.customerId || {};
                                                 return src.company || src.contactName || '';
                                             }}
-                                            followUps={memoizedFollowups}
+                                            followUps={followUpPanel}
                                             followUpCount={stats.followUp}
                                             onOpenPlanner={() => setActiveDashboardTab('planner')}
                                             onOpenFollowUps={() => setActiveDashboardTab('followups')}
