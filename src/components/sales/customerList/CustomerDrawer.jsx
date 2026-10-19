@@ -131,7 +131,7 @@ const CustomerDrawer = ({
 
   // The list row is the fast first paint; the full record fills in behind it.
   const c = useMemo(() => ({ ...customer, ...(detail || {}) }), [customer, detail]);
-  const people = useMemo(() => peopleOf(customer || {}, detail), [customer, detail]);
+  const people = useMemo(() => peopleOf(c, detail), [c, detail]);
   // For the Contacts list, extra addresses packed into the email field belong
   // on the primary contact's card, not as nameless contacts of their own.
   const cards = useMemo(() => {
