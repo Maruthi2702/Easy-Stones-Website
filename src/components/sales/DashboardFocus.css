@@ -190,3 +190,42 @@ body:not(.light-theme-active) .dfx-btn--dark { background: #f1f5f9; border-color
 .dfx-visit-date { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 .dfx-modal-body .post-text { margin: 0; }
 .dfx-modal-body .post-details-ext { margin-top: 0 !important; }
+
+/* Phone header (<640px): one tidy toolbar. Row 1 is the range (takes the
+   leftover width) with the filter circle and More button beside it, both
+   the same 44px; row 2 is Add Resource + Add Visit sharing the width.
+   Scoped to .dashboard-actions so the shared LocationFilter / RowMenu are
+   untouched everywhere else. Beats the older grid / column rules above by
+   specificity, not !important (except the filter circle, which already
+   forces its own size). */
+@media (max-width: 639px) {
+  .dashboard-header-v2 .dashboard-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .dashboard-header-v2 .dashboard-actions .dfx-range-phone { flex: 1 1 calc(100% - 118px); }
+  .dashboard-header-v2 .dashboard-actions .lf { flex: 0 0 auto; }
+  .dashboard-header-v2 .dashboard-actions .lf .lf-btn { width: 44px !important; height: 44px !important; }
+  .dashboard-header-v2 .dashboard-actions .row-menu-btn {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border-color: var(--border-color);
+  }
+  .dashboard-header-v2 .dashboard-actions .btn-primary,
+  .dashboard-header-v2 .dashboard-actions .btn-secondary {
+    flex: 1 1 calc(50% - 5px);
+    width: auto;
+    min-width: 0;
+    height: 48px;
+    padding: 0 12px;
+    justify-content: center;
+    white-space: nowrap;
+  }
+}
