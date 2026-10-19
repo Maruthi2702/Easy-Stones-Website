@@ -1,113 +1,99 @@
-import React from 'react';
-import { UserPlus, FolderPlus, Clock, Calendar, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { UserPlus, FolderPlus, Clock, Calendar, ChevronDown } from 'lucide-react';
+import { RANGES, rangeFooter } from './dashboardFocus';
+import './DashboardFocus.css';
+
+/**
+ * The Dashboard's time range (design "Option A"): a segmented control in the
+ * header on wide screens, one button opening a bottom sheet under 640px.
+ */
+export const DashboardRange = ({ value, onChange }) => {
+    const [open, setOpen] = useState(false);
+    const current = RANGES.find(r => r.id === value) || RANGES[0];
+    return (
+        <>
+            <div className="dfx-range" role="group" aria-label="Time range">
+                {RANGES.map(r => (
+                    <button
+                        key={r.id}
+                        type="button"
+                        aria-pressed={value === r.id}
+                        className={value === r.id ? 'is-on' : ''}
+                        onClick={() => onChange(r.id)}
+                    >{r.short}</button>
+                ))}
+            </div>
+            <button
+                type="button"
+                className="dfx-range-phone"
+                aria-haspopup="dialog"
+                aria-label={`Time range: ${current.label}`}
+                onClick={() => setOpen(true)}
+            >
+                <Calendar size={16} aria-hidden="true" />
+                <span>{current.label}</span>
+                <ChevronDown size={16} aria-hidden="true" />
+            </button>
+            {open && (
+                <div className="dfx-sheet-wrap">
+                    <button type="button" className="dfx-sheet-backdrop" aria-label="Close" onClick={() => setOpen(false)} />
+                    <div className="dfx-sheet" role="dialog" aria-modal="true" aria-label="Time range">
+                        <div className="dfx-sheet-grip" aria-hidden="true" />
+                        <h2>Show visits from</h2>
+                        {RANGES.map(r => (
+                            <button
+                                key={r.id}
+                                type="button"
+                                role="radio"
+                                aria-checked={value === r.id}
+                                className={value === r.id ? 'is-on' : ''}
+                                onClick={() => { onChange(r.id); setOpen(false); }}
+                            >
+                                <span>{r.label}</span>
+                                <span className="dfx-sheet-ring" aria-hidden="true" />
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
 
 const DashboardStats = ({
     stats,
     statsLoading,
     dashboardTimeRange,
-    setDashboardTimeRange,
     activeDashboardTab,
     setActiveDashboardTab,
-
     todayScheduleCount
 }) => {
-    const currentStats = statsLoading ? { visits: '...', followUp: '...', resources: '...' } : stats;
-
-    const timeLabels = {
-        '1day': 'Today',
-        '7days': 'Last 7 Days',
-        '30days': 'Last 30 Days',
-        'year': 'Year-to-date',
-        'all': 'All'
-    };
-
-    const timeLabel = {
-        '1day': 'Today',
-        '7days': 'Last 7 Days',
-        '30days': 'Last 30 Days',
-        'year': 'Year-to-date',
-        'all': 'All Time'
-    }[dashboardTimeRange];
-
+    const footer = rangeFooter(dashboardTimeRange);
+    const cards = [
+        { id: 'visits', title: 'SALES VISITS', Icon: UserPlus, value: stats.visits, footer },
+        { id: 'resources', title: 'RESOURCES', short: 'RESOURCES', Icon: FolderPlus, value: stats.resources, footer },
+        { id: 'followups', title: 'FOLLOW-UP', Icon: Clock, value: stats.followUp, footer },
+        { id: 'planner', title: 'CALENDAR', Icon: Calendar, value: todayScheduleCount, footer: 'Today' }
+    ];
     return (
-        <>
-            {/* Time Filters */}
-            <div className="time-range-filters">
-                {['1day', '7days', '30days', 'year', 'all'].map(range => (
-                    <button
-                        key={range}
-                        className={`time-filter-btn ${dashboardTimeRange === range ? 'active' : ''}`}
-                        onClick={() => setDashboardTimeRange(range)}
-                    >
-                        {timeLabels[range]}
-                    </button>
-                ))}
-            </div>
-
-            {/* Stats Grid */}
-            <div className="stats-grid">
-                <div
-                    className={`stat-card ${activeDashboardTab === 'visits' ? 'active-tab' : ''}`}
-                    onClick={() => setActiveDashboardTab('visits')}
-                    style={{ cursor: 'pointer' }}
+        <div className="dfx-cards">
+            {cards.map(({ id, title, short, Icon, value, footer: foot }) => (
+                <button
+                    key={id}
+                    type="button"
+                    className={`dfx-card${activeDashboardTab === id ? ' is-on' : ''}`}
+                    aria-pressed={activeDashboardTab === id}
+                    onClick={() => setActiveDashboardTab(id)}
                 >
-                    <div className="stat-icon-wrapper">
-                        <UserPlus size={20} />
-                    </div>
-                    <div className="stat-info">
-                        <div className="stat-title">SALES VISITS</div>
-                    </div>
-                    <div className="stat-value">{statsLoading ? '...' : currentStats.visits}</div>
-                    <div className="stat-footer">{timeLabel}</div>
-                </div>
-
-                <div
-                    className={`stat-card ${activeDashboardTab === 'resources' ? 'active-tab' : ''}`}
-                    onClick={() => setActiveDashboardTab('resources')}
-                    style={{ cursor: 'pointer' }}
-                >
-                    <div className="stat-icon-wrapper">
-                        <FolderPlus size={20} />
-                    </div>
-                    <div className="stat-info">
-                        <div className="stat-title">RESOURCES</div>
-                        <div className="stat-desc">(Assignment & Updates)</div>
-                    </div>
-                    <div className="stat-value">{statsLoading ? '...' : currentStats.resources}</div>
-                    <div className="stat-footer">{timeLabel}</div>
-                </div>
-
-                <div
-                    className={`stat-card ${activeDashboardTab === 'followups' ? 'active-tab' : ''}`}
-                    onClick={() => setActiveDashboardTab('followups')}
-                    style={{ cursor: 'pointer' }}
-                >
-                    <div className="stat-icon-wrapper">
-                        <Clock size={20} />
-                    </div>
-                    <div className="stat-info">
-                        <div className="stat-title">FOLLOW-UP</div>
-                    </div>
-                    <div className="stat-value">{statsLoading ? '...' : currentStats.followUp}</div>
-                    <div className="stat-footer">{timeLabel}</div>
-                </div>
-
-                <div
-                    className={`stat-card ${activeDashboardTab === 'planner' ? 'active-tab' : ''}`}
-                    onClick={() => setActiveDashboardTab('planner')}
-                    style={{ cursor: 'pointer' }}
-                >
-                    <div className="stat-icon-wrapper">
-                        <Calendar size={20} />
-                    </div>
-                    <div className="stat-info">
-                        <div className="stat-title">CALENDAR</div>
-                    </div>
-                    <div className="stat-value">{statsLoading ? '...' : todayScheduleCount}</div>
-                </div>
-
-            </div>
-        </>
+                    <span className="dfx-card-icon" aria-hidden="true"><Icon size={19} /></span>
+                    <span className="dfx-card-text">
+                        <span className="dfx-card-title">{title === 'SALES VISITS' ? <><span className="dfx-long">SALES </span>VISITS</> : (short || title)}</span>
+                        <span className="dfx-card-value">{statsLoading ? '…' : value}</span>
+                    </span>
+                    <span className="dfx-card-foot">{foot}</span>
+                </button>
+            ))}
+        </div>
     );
 };
 

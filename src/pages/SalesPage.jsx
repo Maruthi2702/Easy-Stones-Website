@@ -23,7 +23,8 @@ import './SalesPageChatImage.css';
 import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
 import { formatForDateInput, formatDate, formatInstant, getLocalISOString, viewerTimeZone } from '../utils/dateUtils';
-import DashboardStats from '../components/sales/DashboardStats';
+import DashboardStats, { DashboardRange } from '../components/sales/DashboardStats';
+import DashboardAside from '../components/sales/DashboardAside';
 import CustomerSidebar from '../components/sales/CustomerSidebar';
 import PhoneTabBar from '../components/sales/PhoneTabBar';
 import useIsPhone from '../components/shared/form/useIsPhone';
@@ -44,8 +45,9 @@ import { DEFAULT_ROWS_PER_PAGE } from '../components/shared/paginationConfig';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput } from '../utils/phoneUtils';
 import { isPdfSource } from '../utils/attachments';
-import VisitsListDetail from '../components/sales/VisitsListDetail';
+import VisitsFocusList from '../components/sales/VisitsFocusList';
 import LocationFilter from '../components/shared/LocationFilter';
+import RowMenu from '../components/shared/RowMenu';
 import LocationPicker from '../components/shared/form/LocationPicker';
 import { useLocationFilter } from '../components/shared/useLocationFilter';
 import { accessibleLocations } from '../utils/locationFilter';
@@ -3925,17 +3927,26 @@ const SalesPage = () => {
                                                 <div className="dashboard-title-group">
                                                     <h1>Dashboard</h1>
                                                     <div className="dashboard-breadcrumbs">
-                                                        <span className="link" onClick={() => {
-                                                            if (folderPath.length > 0) {
-                                                                handleBreadcrumbClick(-1);
-                                                            }
-                                                        }}>Home</span>
-                                                        <span className="separator">/</span>
-                                                        <span className="current">Dashboard</span>
+                                                        {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="dashboard-actions">
+                                                <DashboardRange value={dashboardTimeRange} onChange={setDashboardTimeRange} />
+                                                {activeDashboardTab === 'visits' && (
+                                                    <>
+                                                        <LocationFilter
+                                                            options={dashboardLocationOptions}
+                                                            value={dashboardLocation}
+                                                            onChange={handleDashboardLocationChange}
+                                                            user={currentUser}
+                                                        />
+                                                        <RowMenu
+                                                            label="More"
+                                                            items={[{ key: 'export', label: 'Export to Excel', icon: Download, onClick: () => handleExportVisits() }]}
+                                                        />
+                                                    </>
+                                                )}
                                                 {activeDashboardTab === 'planner' && (
                                                     <button 
                                                         className="btn-secondary" 
@@ -3964,7 +3975,6 @@ const SalesPage = () => {
                                         stats={stats}
                                         statsLoading={statsLoading}
                                         dashboardTimeRange={dashboardTimeRange}
-                                        setDashboardTimeRange={setDashboardTimeRange}
                                         activeDashboardTab={activeDashboardTab}
                                         setActiveDashboardTab={setActiveDashboardTab}
                                         todayScheduleCount={todayScheduleCount}
@@ -3990,19 +4000,11 @@ const SalesPage = () => {
                                     )}
 
                                     {activeDashboardTab === 'visits' && (
+                                        <div className="dfx-board">
                                         <div className="visits-table-section">
                                             <div className="section-header">
                                                 <h2>Sales Visits</h2>
                                                 <div className="table-controls">
-                                                    <LocationFilter
-                                                        options={dashboardLocationOptions}
-                                                        value={dashboardLocation}
-                                                        onChange={handleDashboardLocationChange}
-                                                        user={currentUser}
-                                                    />
-                                                    <button className="export-btn" onClick={() => handleExportVisits()}>
-                                                        <Download size={18} /> Excel
-                                                    </button>
                                                     <div className="table-search">
                                                          <Search className="search-icon" size={18} />
                                                          <input
@@ -4015,13 +4017,11 @@ const SalesPage = () => {
                                                 </div>
                                             </div>
 
-                                            {/* List + detail (design option C): a visit list with the
-                                                selected visit beside it, one pane at a time on phones. */}
-                                            <VisitsListDetail
+                                            <VisitsFocusList
                                                 visits={pagedDashboardVisits}
-                                                dataVersion={dashboardVisits}
                                                 canModify={(visit) => canModifyVisit({ ...currentUser, id: currentUserId }, visit, visit.location)}
                                                 canDelete={(visit) => canDeleteVisit({ ...currentUser, id: currentUserId }, visit, visit.location)}
+                                                canOpenCustomer={currentUser?.permissions?.includes('view_customers')}
                                                 loading={dashboardTableLoading}
                                                 busyVisitId={loadingVisitId}
                                                 onOpenCustomer={(visit) => {
@@ -4042,6 +4042,25 @@ const SalesPage = () => {
                                                  onRowsPerPageChange={handleVisitsPerPageChange}
                                                  totalCount={memoizedFilteredVisits.length}
                                              />
+                                        </div>
+                                        <DashboardAside
+                                            schedules={allSchedules}
+                                            customerName={(sch) => {
+                                                const id = sch.customerId?._id || sch.customerId;
+                                                const c = customers.find(x => String(x._id) === String(id));
+                                                const src = c || sch.customerId || {};
+                                                return src.company || src.contactName || '';
+                                            }}
+                                            followUps={memoizedFollowups}
+                                            followUpCount={stats.followUp}
+                                            onOpenPlanner={() => setActiveDashboardTab('planner')}
+                                            onOpenFollowUps={() => setActiveDashboardTab('followups')}
+                                            onOpenCustomer={(f) => {
+                                                if (!f.customerId) return;
+                                                handleSelectCustomer({ _id: f.customerId });
+                                                setShowDashboard(false);
+                                            }}
+                                        />
                                         </div>
                                     )}
 
