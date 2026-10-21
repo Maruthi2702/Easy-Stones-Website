@@ -104,7 +104,11 @@ const destroyCloudinaryAsset = async (publicId, resourceType = 'raw') => {
 // that directory is wiped by every deploy, which is why the warning is loud.
 const storeDeliveryPdf = async (buffer, publicId, diskName) => {
   if (cloudinaryReady()) {
-    const result = await uploadBufferToCloudinary(buffer, publicId, 'raw');
+    // A raw asset is served with the content type of its extension, and the
+    // extensionless id (…/tmp_1792…_5544) came back as octet-stream, so View
+    // downloaded the file instead of opening it. The id keeps ".pdf".
+    const rawId = /\.pdf$/i.test(publicId) ? publicId : `${publicId}.pdf`;
+    const result = await uploadBufferToCloudinary(buffer, rawId, 'raw');
     return { url: result.secure_url, publicId: result.public_id };
   }
 
