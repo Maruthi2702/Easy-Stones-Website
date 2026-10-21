@@ -68,7 +68,7 @@ export function energovPermit(rule, row, detail = null) {
     issuedOn: dayOf(row.IssueDate),
     finaledOn: dayOf(row.FinalDate),
     expiresOn: dayOf(row.ExpireDate),
-    address: cleanText([a.AddressLine1, a.PreDirection, a.AddressLine2, a.StreetTypeName, a.PostDirection, a.UnitOrSuite && `#${a.UnitOrSuite}`].filter(Boolean).join(' ')) || cleanText(row.AddressDisplay),
+    address: cleanText([a.AddressLine1, a.PreDirection, a.AddressLine2, a.StreetTypeName, a.PostDirection, a.UnitOrSuite && `#${a.UnitOrSuite}`].filter(Boolean).join(' ').replace(/\s*#\s*$/, '')) || cleanText(row.AddressDisplay),
     city: cleanText(a.City),
     zip: cleanText(a.PostalCode),
     parcel: cleanText(row.MainParcel),

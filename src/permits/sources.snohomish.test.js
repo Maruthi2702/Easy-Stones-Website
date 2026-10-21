@@ -9,6 +9,9 @@ import rule, { parseSnohomishArchive, snohomishFilesSince, rowBelongsToFile, sno
 import { RULES, categoryFor, isUnsortedBuildingType, SOURCES, sourcesInCounties } from './permitRules.js';
 import { createSnohomishCountySource, reportRows } from './sources/snohomishCounty.js';
 import { marysvillePermit } from './rules/marysville.js';
+import { createEnergovSource } from './sources/energov.js';
+import { monroePermit, parseMonroeReports, monroeReportRows } from './rules/monroe.js';
+import { createMonroeSource } from './sources/monroe.js';
 
 const row = (over) => ({
   Project_File_Number: '25-102950 RBP', Permit_Description: 'Residential Building Permit', Sub_Type: 'Single Family Residential', Work_Type: 'New',
@@ -207,7 +210,7 @@ describe('Snohomish County cities', () => {
   it('sits under the Snohomish filter, after the county’s own office, and stamps times', () => {
     expect(SOURCES.edmonds).toMatchObject({ county: 'snohomish', countyLabel: 'Snohomish County', kind: 'city' });
     expect(RULES.edmonds.stampsTime).toBe(true);
-    expect(sourcesInCounties(['snohomish'])).toEqual(['snohomish_county', 'edmonds', 'marysville']);
+    expect(sourcesInCounties(['snohomish'])).toEqual(['snohomish_county', 'edmonds', 'marysville', 'monroe', 'snohomish_city']);
   });
 });
 
@@ -250,5 +253,120 @@ describe('Marysville', () => {
   it('is under the Snohomish filter and reads through the shared eTRAKiT reader with its own columns', () => {
     expect(SOURCES.marysville).toMatchObject({ county: 'snohomish', kind: 'city' });
     expect(rule).toBeTruthy();
+  });
+});
+
+describe('City of Snohomish', () => {
+  const cat = (t) => categoryFor('snohomish_city', t);
+  it('files the city’s exact building types', () => {
+    expect(cat('Single-Family New Construction')).toBe('new_home');
+    expect(cat('Accessory Dwelling Unit')).toBe('adu');
+    expect(cat('Residential Addition/Alteration')).toBe('remodel');
+    expect(cat('Commercial New Construction')).toBe('commercial_new');
+    expect(cat('Commercial Addition/Alteration')).toBe('commercial_remodel');
+    expect(cat('Tenant Improvement')).toBe('commercial_remodel');
+  });
+  it('skips trades, roofs, signs, utilities and site work, and reports a new building type', () => {
+    for (const t of ['Mechanical permit', 'Plumbing', 'Roof, Residential', 'Sign', 'Sewer Repair', 'Water Connection', 'Fire Alarm', 'Right-of-Way Disturbance',
+      'Single-Family Landscape Plan/Tree Removal', 'Demolition, Commercial', 'Fence Permit', 'Retaining Wall (Residential Type 2)', 'Site Civil (Commercial/Multi-Family)']) {
+      expect(cat(t), t).toBeNull();
+      expect(isUnsortedBuildingType('snohomish_city', t), t).toBe(false);
+    }
+    expect(isUnsortedBuildingType('snohomish_city', 'Multi-Family New Construction')).toBe(true);
+    expect(isUnsortedBuildingType('snohomish_city', 'Townhouse New Construction')).toBe(true);
+  });
+  it('reads a newer EnerGov site’s permit and its people into the shape the older sites send', async () => {
+    const calls = [];
+    const fetchImpl = async (url, init = {}) => {
+      calls.push([init.method || 'GET', new URL(url).pathname]);
+      const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (url.endsWith('/api/energov/permits/abc')) return json({ Success: true, Result: { PermitNumber: 'BR26-1', Value: 196859.72, SquareFeet: 1584, Description: 'ADU' } });
+      if (url.endsWith('/api/energov/entity/contacts/search/search')) {
+        expect(JSON.parse(init.body)).toMatchObject({ EntityId: 'abc', ModuleId: 1 });
+        return json({ Success: true, Result: [{ ContactTypeName: 'Owner', GlobalEntityName: '', FirstName: 'Rachel', LastName: 'Jones' }] });
+      }
+      return new Response('no', { status: 404 });
+    };
+    const src = createEnergovSource({ name: 'City of Snohomish', tenant: 'T', base: 'https://x.test/apps/SelfService', modern: true, fetchImpl, sleep: async () => {} });
+    const d = await src.details('abc');
+    expect(d).toMatchObject({ PermitNumber: 'BR26-1', ValuationValue: 196859.72, SquareFeet: 1584, Contacts: [{ ContactTypeName: 'Owner', FirstName: 'Rachel', LastName: 'Jones' }] });
+    expect(calls).toEqual([['GET', '/apps/SelfService/api/energov/permits/abc'], ['POST', '/apps/SelfService/api/energov/entity/contacts/search/search']]);
+    const p = RULES.snohomish_city.toPermit({ CaseId: 'abc', CaseNumber: 'BR26-1', CaseType: 'Accessory Dwelling Unit', IssueDate: '2026-10-16T15:13:37Z', Address: { AddressLine1: '421', StreetTypeName: 'AVENUE A', UnitOrSuite: '' } }, d);
+    expect(p).toMatchObject({ category: 'adu', valuation: 196859.72, sqft: 1584, address: '421 AVENUE A', issuedOn: '2026-10-16' });
+    expect(p.contacts).toEqual([expect.objectContaining({ kind: 'owner', name: 'Rachel Jones' })]);
+  });
+  it('is under the Snohomish filter', () => {
+    expect(SOURCES.snohomish_city).toMatchObject({ county: 'snohomish', kind: 'city', readsDetails: true });
+  });
+});
+
+describe('Monroe', () => {
+  const cat = (t, u = '') => categoryFor('monroe', t, u);
+  const HEAD = ['Permit No', 'Permit Class', 'Permit Type', 'Permit Description', 'Proposed Use', 'Tax Lot', 'Address', 'Applicant', 'Contractor Name', 'Contractor Phone', 'Issue Date', 'Permit Status', 'Valuation', 'Balance', 'Total Fees'];
+  const line = (over = {}) => ['26-ADD-0119', 'Building', 'Addition', 'Expands the office', 'Industrial', '00751800000700', '17350 TYE ST', '2812 Architecture', 'New Vision Construction Inc', '(425) 361-5661', '09/29/2026', 'Inspections Complete', '1529392.35', 0, 4847.04]
+    .map((v, i) => (over[HEAD[i]] !== undefined ? over[HEAD[i]] : v));
+  const grid = (lines, period = '9/1/2026 - 9/30/2026') => [['Issued Permits '], [period], HEAD, ...lines];
+
+  it('files the city’s building types by their proposed use', () => {
+    expect(cat('Building - New Building', 'Single Family Detached')).toBe('new_home');
+    expect(cat('Building - New Building', 'Duplex')).toBe('multifamily');
+    expect(cat('Building - New Building', 'Retail')).toBe('commercial_new');
+    expect(cat('Building - ADU', 'Single Family Detached')).toBe('adu');
+    expect(cat('Building - Remodel', 'Single Family Detached')).toBe('remodel');
+    expect(cat('Building - Remodel', 'Office/Bank/Professional')).toBe('commercial_remodel');
+    expect(cat('Building - Addition', 'Single Family Detached')).toBe('addition');
+    expect(cat('Building - Addition', 'Industrial')).toBe('commercial_remodel');
+    expect(cat('Building - Remodel', '')).toBe('building_other');
+  });
+  it('skips trades, roofs, signs, other departments, and reports an unsorted building type or use', () => {
+    for (const [t, u] of [['Building - Mechanical', 'Single Family Detached'], ['Building - Re-Roof', 'Retail'], ['Building - Sign', 'Retail'], ['Building - Deck', 'Duplex'],
+      ['Building - Garage/Carport', 'Single Family Detached'], ['Engineering - Fence', 'Industrial'], ['Fire - Fire Sprinkler', 'Retail'], ['Planning - Temporary Use', 'Retail']]) {
+      expect(cat(t, u), `${t} ${u}`).toBeNull();
+      expect(isUnsortedBuildingType('monroe', t, u), `${t} ${u}`).toBe(false);
+    }
+    expect(isUnsortedBuildingType('monroe', 'Building - Tower', 'Retail')).toBe(true);
+    expect(isUnsortedBuildingType('monroe', 'Building - New Building', 'Cannabis')).toBe(true);
+  });
+  it('lists the reports on the city’s page, newest first', () => {
+    const html = '<a href="/DocumentCenter/View/18528/Issued-Permits-Report---May-2026">Issued Permits Report - May 2026</a><a href="/DocumentCenter/View/18936/x">Issued Permits Report - September 2026</a><a href="/DocumentCenter/View/1/x">Council Rules</a>';
+    expect(parseMonroeReports(html)).toEqual([
+      { id: '18936', title: 'Issued Permits Report - September 2026', url: 'https://monroewa.gov/DocumentCenter/View/18936/x', month: '2026-09' },
+      { id: '18528', title: 'Issued Permits Report - May 2026', url: 'https://monroewa.gov/DocumentCenter/View/18528/Issued-Permits-Report---May-2026', month: '2026-05' }
+    ]);
+  });
+  it('adds a permit’s valuation lines into one row, and stops on a changed layout', () => {
+    const { rows, period } = monroeReportRows(grid([line(), line({ Valuation: '156000' }), line({ 'Permit No': '26-X', Valuation: '10' })]));
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ 'Permit No': '26-ADD-0119', Valuation: 1685392.35 });
+    expect(period).toBe('9/1/2026 - 9/30/2026');
+    expect(() => monroeReportRows([['x']])).toThrow(/no “Permit No” header/);
+    expect(() => monroeReportRows([['Permit No', 'Permit Class']])).toThrow(/no Permit Type/);
+  });
+  it('copies the row: contractor with phone, applicant, value, no invented dates', () => {
+    const p = monroePermit(monroeReportRows(grid([line()])).rows[0]);
+    expect(p).toMatchObject({ source: 'monroe', permitNumber: '26-ADD-0119', category: 'commercial_remodel', type: 'Building - Addition', subtype: 'Industrial', issuedOn: '2026-09-29', valuation: 1529392.35, address: '17350 TYE ST', appliedOn: null });
+    expect(p.contacts).toEqual([expect.objectContaining({ kind: 'contractor', company: 'New Vision Construction Inc', phone: '(425) 361-5661' }), expect.objectContaining({ kind: 'applicant', company: '2812 Architecture' })]);
+    expect(monroePermit(monroeReportRows(grid([line({ Address: 'Parcel: 00834300000100' })])).rows[0]).address).toBe('00834300000100');
+  });
+  it('reads the months since a day, and stops on a permit from another month or a non-spreadsheet', async () => {
+    const sheet = (rows) => {
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(grid(rows)), 'Sheet1');
+      return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+    };
+    const page = '<a href="/DocumentCenter/View/2/x">Issued Permits Report - September 2026</a><a href="/DocumentCenter/View/1/x">Issued Permits Report - August 2026</a>';
+    const server = (files) => async (url) => {
+      if (url.includes('/1355/')) return new Response(page, { status: 200, headers: { 'content-type': 'text/html' } });
+      const f = files[url.match(/View\/(\d+)/)[1]];
+      return new Response(f.body, { status: 200, headers: { 'content-type': f.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } });
+    };
+    const ok = await createMonroeSource({ fetchImpl: server({ 2: { body: sheet([line(), line({ 'Permit No': '26-B', 'Issue Date': '09/05/2026' })]) }, 1: { body: sheet([line({ 'Issue Date': '08/10/2026' })]) } }) }).issuedSince('2026-09-10');
+    expect(ok.rows.map((r) => r['Permit No'])).toEqual(['26-ADD-0119']);
+    expect(ok.pages).toBe(1);
+    await expect(createMonroeSource({ fetchImpl: server({ 2: { body: sheet([line({ 'Issue Date': '10/01/2026' })]) }, 1: { body: sheet([]) } }) }).issuedSince('2026-09-01')).rejects.toThrow(/stopped so nothing is missed/);
+    await expect(createMonroeSource({ fetchImpl: server({ 2: { body: '<html>', type: 'text/html' }, 1: { body: '' } }) }).issuedSince('2026-09-01')).rejects.toThrow(/not a spreadsheet/);
+  });
+  it('is under the Snohomish filter and keeps phones', () => {
+    expect(SOURCES.monroe).toMatchObject({ county: 'snohomish', kind: 'city', phones: true });
   });
 });

@@ -288,7 +288,7 @@ display rules are `src/utils/userPresence.js`.
 
 ## Permits: sources and the accuracy rules (2026-10-11; King County 2026-10-14)
 
-Sales · Permits (`src/permits/`) pulls building permits each morning from 18
+Sales · Permits (`src/permits/`) pulls building permits each morning from 20
 offices in King, Snohomish and Whatcom counties. **One file per source** in
 `src/permits/rules/` (who it is, its county, its exact lead type names, how a
 record copies) plus a reader in `src/permits/sources/`, listed in `RULES`
@@ -335,11 +335,21 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   and **Marysville** through its open eTRAKiT search
   (`rules/marysville.js`) — Shoreline's reader with Marysville's export columns
   (`createShorelineSource({ label, columns })`); contractor/applicant names,
-  job value and description, no phone. **Not covered yet** (checked 2026-10-20):
-  Everett (eTRAKiT, but its search needs a login), Bothell (MyBuildingPermit
-  has only inspections), Lynnwood (SmartGov portal — `/Public/ReportsView` not
-  yet looked at), Lake Stevens (Citizens Connect, may need an account), Mill
-  Creek (OpenGov), and the rest not looked at. The month-so-far check is a re-read of the
+  job value and description, no phone. **Monroe** reads the city's monthly "Issued Permits Report"
+  spreadsheets (`rules/monroe.js`; the page lists only the last few months; a
+  permit's valuation lines are added up; contractor phone is in the report) and
+  the **City of Snohomish** (`snohomish_city`) reads its Tyler EnerGov site
+  through the same reader as Renton in `modern` mode (newer EnerGov: the
+  permit and its contacts are separate calls, names only, no phone).
+  **Not covered yet** (checked 2026-10-21): Everett (eTRAKiT, login needed —
+  my one scripted sign-in with the owner's account was refused, cause unknown),
+  Lynnwood and Mukilteo (SmartGov Community portals; Lynnwood's public
+  "Issued Permits By Department" report is at `/Public/ReportsView` but I
+  couldn't get its form to open by script), Arlington and Stanwood (iWorQ,
+  blocks scripts), Lake Stevens (Bitco PermitTrax, script-driven app), Mill
+  Creek (OpenGov), Bothell (MyBuildingPermit has only inspections), Sultan
+  (MyGov), and Mountlake Terrace, Brier, Granite Falls, Gold Bar, Darrington,
+  Woodway (nothing public found). The month-so-far check is a re-read of the
   same report (no second source exists) and finds nothing until the month's file is out.
 - **Not covered** (no public data, checked 2026-10-14): Kent (login-only
   portal), Redmond (no public search), Federal Way and Bothell (nothing on

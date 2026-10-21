@@ -37,7 +37,7 @@ describe('the sources', () => {
   it('lists King County’s sources first, the county office before its cities', () => {
     expect(SOURCE_IDS).toEqual([
       'king_county', 'auburn', 'bellevue', 'burien', 'issaquah', 'kenmore', 'kirkland', 'mercer_island', 'renton', 'sammamish', 'seattle', 'shoreline', 'snoqualmie',
-      'snohomish_county', 'edmonds', 'marysville',
+      'snohomish_county', 'edmonds', 'marysville', 'monroe', 'snohomish_city',
       'whatcom', 'bellingham'
     ]);
     expect(SOURCES.king_county.kind).toBe('county');
@@ -46,7 +46,7 @@ describe('the sources', () => {
 
   it('knows which counties are covered and which sources are in them', () => {
     expect(COVERED_COUNTY_IDS).toEqual(['king', 'snohomish', 'whatcom']);
-    expect(sourcesInCounties(['snohomish'])).toEqual(['snohomish_county', 'edmonds', 'marysville']);
+    expect(sourcesInCounties(['snohomish'])).toEqual(['snohomish_county', 'edmonds', 'marysville', 'monroe', 'snohomish_city']);
     expect(sourcesInCounties(['whatcom'])).toEqual(['whatcom', 'bellingham']);
     expect(sourcesInCounties(['king'])).toHaveLength(13);
     expect(sourcesInCounties([])).toEqual(SOURCE_IDS);

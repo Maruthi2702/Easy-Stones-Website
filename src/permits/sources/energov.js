@@ -36,7 +36,7 @@ const MAX_PAGES = 400;
  * One EnerGov site's reader. `name` is how errors name it ("Renton answered
  * 503…"); `tenant` is the site's Tyler tenant (its /api/tenants list).
  */
-export function createEnergovSource({ name, tenant, base, fetchImpl = globalThis.fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), pauseMs = 250 }) {
+export function createEnergovSource({ name, tenant, base, modern = false, fetchImpl = globalThis.fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), pauseMs = 250 }) {
   const HEADERS = headersFor(tenant);
   const call = (path, { method = 'GET', body } = {}) => fetchJson(`${base}${path}`, {
     fetchImpl, sleep, pauseMs, name,
@@ -103,8 +103,31 @@ export function createEnergovSource({ name, tenant, base, fetchImpl = globalThis
     throw new Error(`${name}: still finding permits after ${MAX_PAGES} pages — stopped`);
   }
 
-  /** One permit's full record (valuation, square feet, contacts). */
+  /**
+   * One permit's full record (valuation, square feet, contacts). A `modern`
+   * site (the City of Snohomish's newer EnerGov) keeps them apart: the permit
+   * at /api/energov/permits/:id (`Value`, `SquareFeet`, no contacts) and its
+   * people from /api/energov/entity/contacts/search/search (names and roles,
+   * no phone or email) — both read here into the shape the older sites send.
+   */
+  async function modernDetails(caseId) {
+    await sleep(pauseMs);
+    const data = await call(`/api/energov/permits/${encodeURIComponent(caseId)}`);
+    if (!data?.Result || data.Result.PermitNumber === undefined) throw new Error(`${name} had no record for permit ${caseId}`);
+    await sleep(pauseMs);
+    const people = await call('/api/energov/entity/contacts/search/search', { method: 'POST', body: { EntityId: caseId, ModuleId: 1, PageNumber: 1, PageSize: 100 } })
+      .catch((err) => { if (/answered 200/.test(err.message)) return { Result: [] }; throw err; });
+    return {
+      ...data.Result,
+      ValuationValue: data.Result.Value,
+      Contacts: (people?.Result || []).map((c) => ({
+        ContactTypeName: c.ContactTypeName, GlobalEntityName: c.GlobalEntityName, FirstName: c.FirstName, LastName: c.LastName
+      }))
+    };
+  }
+
   async function details(caseId) {
+    if (modern) return modernDetails(caseId);
     await sleep(pauseMs);
     const data = await call(`/api/energov/permits/permit/${encodeURIComponent(caseId)}`);
     if (!data?.Result || data.Result.PermitNumber === undefined) throw new Error(`${name} had no record for permit ${caseId}`);

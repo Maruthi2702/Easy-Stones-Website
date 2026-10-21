@@ -5,8 +5,10 @@
  *
  * Server-only.
  */
-import { createWhatcomSource, createRentonSource } from './sources/energov.js';
+import { createWhatcomSource, createRentonSource, createEnergovSource } from './sources/energov.js';
+import { SNOHOMISH_CITY_PORTAL, SNOHOMISH_CITY_TENANT } from './rules/snohomishCity.js';
 import { createSnohomishCountySource } from './sources/snohomishCounty.js';
+import { createMonroeSource } from './sources/monroe.js';
 import { createBellinghamSource } from './sources/bellingham.js';
 import { createSeattleSource } from './sources/seattle.js';
 import { createBellevueSource } from './sources/bellevue.js';
@@ -34,6 +36,8 @@ export function createPermitReaders() {
     // Marysville's eTRAKiT is Shoreline's page with its own export columns.
     marysville: createShorelineSource({ url: MARYSVILLE_SEARCH, label: 'Marysville', columns: MARYSVILLE_COLUMNS }),
     snohomish_county: createSnohomishCountySource(),
+    monroe: createMonroeSource(),
+    snohomish_city: createEnergovSource({ name: 'City of Snohomish', tenant: SNOHOMISH_CITY_TENANT, base: SNOHOMISH_CITY_PORTAL, modern: true }),
     whatcom: createWhatcomSource(),
     bellingham: createBellinghamSource()
   };
