@@ -17,6 +17,7 @@ import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
 import { isWeekendDate, dayLabel } from '../../../utils/deliveryWeek';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
 import { planPackingListAutofill } from '../../../utils/packingListPdf';
+import { openPdfInline } from '../../../utils/packingList';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import {
     DELIVERY_TYPE_OPTIONS, STATUS_OPTIONS, isPendingOrder, dateLabelFor, needsFreightDetails, fieldLabelsFor,
@@ -506,16 +507,15 @@ function DeliveryFormBody({
                             </span>
                             {/* The signed copy only while this is still the packing list it was
                                 signed on; a newly attached file opens itself. */}
-                            <a
+                            <button
+                                type="button"
                                 className="fm-btn fm-btn-small"
-                                href={initialData?.pod?.signedPdfUrl && values.packingListUrl === initialData?.packingListUrl
+                                onClick={() => openPdfInline(initialData?.pod?.signedPdfUrl && values.packingListUrl === initialData?.packingListUrl
                                     ? initialData.pod.signedPdfUrl
-                                    : values.packingListUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                    : values.packingListUrl)}
                             >
                                 View
-                            </a>
+                            </button>
                             <button type="button" className="df-icon-btn" aria-label="Remove packing list" title="Remove" onClick={removePdf}>
                                 <X size={16} aria-hidden="true" />
                             </button>
