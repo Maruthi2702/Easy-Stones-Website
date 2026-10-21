@@ -45,6 +45,7 @@ import { DEFAULT_ROWS_PER_PAGE } from '../components/shared/paginationConfig';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput } from '../utils/phoneUtils';
 import { isPdfSource } from '../utils/attachments';
+import { openPdfInline } from '../utils/packingList';
 import VisitsFocusList from '../components/sales/VisitsFocusList';
 import LocationFilter from '../components/shared/LocationFilter';
 import RowMenu from '../components/shared/RowMenu';
@@ -3823,10 +3824,7 @@ const SalesPage = () => {
                                                                                         {(Array.isArray(resource.image) ? resource.image : (resource.image ? [resource.image] : [])).length > 0 ? (
                                                                                             (Array.isArray(resource.image) ? resource.image : [resource.image]).map((img, idx) => (
                                                                                                 isPdfSource(img) ? (
-                                                                                                    <div key={idx} style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => {
-                                                                                                        const win = window.open();
-                                                                                                        win.document.write('<iframe src="' + img + '" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>');
-                                                                                                    }}>
+                                                                                                    <div key={idx} style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => openPdfInline(img)}>
                                                                                                         <FileText size={40} color="#E5C04A" />
                                                                                                         <div style={{ fontSize: '10px' }}>PDF</div>
                                                                                                     </div>
@@ -4599,6 +4597,13 @@ const SalesPage = () => {
                                         rel="noopener noreferrer"
                                         className="icon-btn-ghost preview-action-btn"
                                         title="Open in New Tab"
+                                        onClick={(e) => {
+                                            const c = previewDashboardResource.content || '';
+                                            const isPdf = c.startsWith('data:application/pdf') || previewDashboardResource.contentType === 'application/pdf' || /\.pdf$/i.test(previewDashboardResource.name || '');
+                                            if (!isPdf) return;
+                                            e.preventDefault();
+                                            openPdfInline(c.startsWith('http') || c.startsWith('data:') ? c : `${API_URL}${c}`);
+                                        }}
                                     >
                                         <ExternalLink size={20} />
                                     </a>

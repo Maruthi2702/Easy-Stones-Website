@@ -12,6 +12,7 @@
 // server-side validation/location-scoping rules this form's payload has to
 // satisfy, and src/components/sales/delivery/README.md for the bigger picture.
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { openPdfInline } from '../../../utils/packingList';
 import { X, Save, Trash2, Calendar, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle, Navigation, Activity, Layers } from 'lucide-react';
 import SearchableSelect from '../../SearchableSelect';
 import CustomSelect from '../../shared/CustomSelect';
@@ -1269,15 +1270,14 @@ const DeliveryModal = ({
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                    <a
-                      href={initialData?.pod?.signedPdfUrl || packingListUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => openPdfInline(initialData?.pod?.signedPdfUrl || packingListUrl)}
                       className="btn-view-pdf"
-                      style={{ background: 'linear-gradient(135deg, #d4af37, #c5a028)', color: '#000000', padding: '0.35rem 0.7rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      style={{ background: 'linear-gradient(135deg, #d4af37, #c5a028)', color: '#000000', padding: '0.35rem 0.7rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, textDecoration: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                     >
                       View PDF
-                    </a>
+                    </button>
                     <button
                       type="button"
                       onClick={() => { setPackingListUrl(''); setPackingListFilename(''); setPdfAutofill(null); markDirty(); }}
