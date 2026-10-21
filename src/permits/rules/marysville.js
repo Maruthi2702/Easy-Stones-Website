@@ -28,6 +28,7 @@ const TYPES = typeMap([
   [['RESIDENTIAL ADDITION', 'SINGLE FAMILY'], 'addition'],
   [['RESIDENTIAL REMODEL', 'SINGLE FAMILY'], 'remodel'],
   [['MULTI FAMILY APARTMENT NEW', ''], 'multifamily'],
+  [['MULTI FAMILY TOWNHOME NEW', ''], 'multifamily'],
   [['COMMERCIAL NEW', ''], 'commercial_new'],
   [['COMMERCIAL TENANT IMPROVEMENT', ''], 'commercial_remodel']
 ]);
@@ -37,6 +38,10 @@ const SKIPPED = typeSet([
   ['RESIDENTIAL REMODEL', 'ADULT FAMILY HOME'],
   ['RESIDENTIAL ADULT FAMILY HOME NO CONSTRUCTION', ''],
   ['RESIDENTIAL DECKS', ''],
+  // Gazebos and patio covers; and the city's unfilled "USE DROP DOWN TO SELECT" placeholder, which in
+  // every permit seen (2026-10-21) was a $0 grinder pump — a future one that isn't should be looked at.
+  ['RESIDENTIAL OTHER', 'COVERED PATIO OR DECK'],
+  ['RESIDENTIAL OTHER', 'USE DROP DOWN TO SELECT'],
   ['RESIDENTIAL OUTBUILDING', 'SINGLE FAMILY'],
   ['RESIDENTIAL OUTBUILDING', 'MULTI-FAMILY'],
   ['RESIDENTIAL REPAIR', 'SINGLE FAMILY'],

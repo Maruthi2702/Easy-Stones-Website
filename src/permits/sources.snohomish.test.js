@@ -228,17 +228,19 @@ describe('Marysville', () => {
     expect(cat('RESIDENTIAL ADDITION', 'SINGLE FAMILY')).toBe('addition');
     expect(cat('RESIDENTIAL REMODEL', 'SINGLE FAMILY')).toBe('remodel');
     expect(cat('MULTI FAMILY APARTMENT NEW')).toBe('multifamily');
+    expect(cat('MULTI FAMILY TOWNHOME NEW')).toBe('multifamily');
     expect(cat('COMMERCIAL NEW')).toBe('commercial_new');
     expect(cat('COMMERCIAL TENANT IMPROVEMENT')).toBe('commercial_remodel');
     expect(cat('RESIDENTIAL BASIC')).toBe('building_other');
   });
   it('skips what is not a lead and reports a new building type', () => {
     for (const [t, s] of [['BLS', 'HOME OCC - OFFICE'], ['ANIMAL LICENSE', 'NEW LICENSE'], ['RESIDENTIAL MECHANICAL', 'RESIDENTIAL'], ['COMMERCIAL REROOF', ''],
-      ['RESIDENTIAL DECKS', ''], ['RESIDENTIAL REPAIR', 'SINGLE FAMILY'], ['RESIDENTIAL REMODEL', 'ADULT FAMILY HOME'], ['DEMO', ''], ['COMMERCIAL ELECTRICAL', '']]) {
+      ['RESIDENTIAL DECKS', ''], ['RESIDENTIAL OTHER', 'COVERED PATIO OR DECK'], ['RESIDENTIAL OTHER', 'USE DROP DOWN TO SELECT'], ['RESIDENTIAL REPAIR', 'SINGLE FAMILY'], ['RESIDENTIAL REMODEL', 'ADULT FAMILY HOME'], ['DEMO', ''], ['COMMERCIAL ELECTRICAL', '']]) {
       expect(cat(t, s), `${t} ${s}`).toBeNull();
       expect(isUnsortedBuildingType('marysville', t, s), `${t} ${s}`).toBe(false);
     }
     expect(isUnsortedBuildingType('marysville', 'RESIDENTIAL NEW', 'CASTLE')).toBe(true);
+    expect(isUnsortedBuildingType('marysville', 'RESIDENTIAL OTHER', 'GREENHOUSE')).toBe(true);
     expect(isUnsortedBuildingType('marysville', 'COMMERCIAL ADDITION', '')).toBe(true);
   });
   it('copies the export’s figures, with the contractor once when they also applied', () => {
