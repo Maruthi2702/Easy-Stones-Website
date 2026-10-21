@@ -214,6 +214,24 @@ describe('Shoreline reader', () => {
     await expect(createShorelineSource({ fetchImpl: e.fetchImpl, sleep: noSleep, today: () => '2026-10-13' }).issuedSince('2026-10-13')).rejects.toThrow(/answered a permit issued 10\/12\/2026/);
   });
 
+  it('reads another city’s eTRAKiT through its own column names (Marysville), naming the city in its errors', async () => {
+    const head = '"PERMIT_NO","APPLIED","ISSUED","FINALED","Permit Type","Permit Sub Type","STATUS","JOBVALUE","CONTRACTOR_NAME"';
+    const mk = (issued) => async (url, init = {}) => {
+      if (init.method !== 'POST') return res(PAGE, { type: 'text/html', cookies: ['ASP.NET_SessionId=s1; path=/'] });
+      const body = new URLSearchParams(init.body);
+      if (body.get('ctl00$cplMain$btnSearch')) return res(RESULTS(1), { type: 'text/html' });
+      return res(`${head}\r\n"B26-1","10/01/2026","${issued}","","RESIDENTIAL NEW","SINGLE FAMILY","ISSUED","400000","ACME"`, { type: 'text/csv' });
+    };
+    const columns = { number: 'PERMIT_NO', issued: 'ISSUED', type: 'Permit Type' };
+    const ok = await createShorelineSource({ fetchImpl: mk('10/13/2026'), sleep: noSleep, today: () => '2026-10-13', label: 'Marysville', columns }).issuedSince('2026-10-13');
+    expect(ok.rows[0]).toMatchObject({ PERMIT_NO: 'B26-1', 'Permit Sub Type': 'SINGLE FAMILY', JOBVALUE: '400000' });
+    await expect(createShorelineSource({ fetchImpl: mk('10/12/2026'), sleep: noSleep, today: () => '2026-10-13', label: 'Marysville', columns }).issuedSince('2026-10-13'))
+      .rejects.toThrow(/Marysville’s search for 10\/13\/2026 answered a permit issued 10\/12\/2026/);
+    // Shoreline's own column names are not Marysville's: the layout check names the city.
+    await expect(createShorelineSource({ fetchImpl: mk('10/13/2026'), sleep: noSleep, today: () => '2026-10-13', label: 'Marysville' }).issuedSince('2026-10-13'))
+      .rejects.toThrow(/Marysville’s export has changed — no PERMIT NUMBER/);
+  });
+
   it('reads CSV with quotes, commas and a byte-order mark, and WebForms hidden fields', () => {
     expect(parseCsv('\uFEFF"A","B"\r\n"1, two","say ""hi"""\r\n')).toEqual([{ A: '1, two', B: 'say "hi"' }]);
     expect(parseCsv('')).toEqual([]);

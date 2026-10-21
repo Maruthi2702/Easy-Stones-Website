@@ -207,16 +207,17 @@ describe('the county filter', () => {
     expect(wa.counties.find((c) => c.id === 'king')).toMatchObject({ name: 'King', covered: true, checked: false });
     expect(wa.counties.find((c) => c.id === 'adams')).toMatchObject({ covered: false });
     expect(countyTree(['king'])[0].state).toBe('some');
-    expect(countyTree(['king', 'whatcom'])[0].state).toBe('all');
+    expect(countyTree(['king', 'whatcom'])[0].state).toBe('some');
+    expect(countyTree(['king', 'snohomish', 'whatcom'])[0].state).toBe('all');
   });
 
   it('ticks a county on and off, and the state ticks every covered county or none', () => {
     expect(toggleCounty([], 'whatcom')).toEqual(['whatcom']);
     expect(toggleCounty(['whatcom'], 'king')).toEqual(['king', 'whatcom']);
     expect(toggleCounty(['king', 'whatcom'], 'king')).toEqual(['whatcom']);
-    expect(toggleState([], 'wa')).toEqual(['king', 'whatcom']);
-    expect(toggleState(['king'], 'wa')).toEqual(['king', 'whatcom']);
-    expect(toggleState(['king', 'whatcom'], 'wa')).toEqual([]);
+    expect(toggleState([], 'wa')).toEqual(['king', 'snohomish', 'whatcom']);
+    expect(toggleState(['king'], 'wa')).toEqual(['king', 'snohomish', 'whatcom']);
+    expect(toggleState(['king', 'snohomish', 'whatcom'], 'wa')).toEqual([]);
   });
 
   it('says what’s picked in words, and forgets counties that no longer exist', () => {
@@ -249,7 +250,7 @@ describe('the place filter', () => {
     ]);
     expect(groups[1].options[1]).toEqual({ value: 'city:Ferndale', label: 'Ferndale' });
     expect(placeGroups().map((g) => g.label)).toEqual(['Issued by']);
-    expect(placeGroups()[0].options).toHaveLength(15);
+    expect(placeGroups()[0].options).toHaveLength(18);
   });
 
   it('reads a pick as the list query — an issuer or a city, never both', () => {

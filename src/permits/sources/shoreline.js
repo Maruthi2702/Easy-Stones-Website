@@ -62,7 +62,15 @@ export function parseCsv(text) {
   return rest.map((l) => Object.fromEntries(head.map((h, i) => [h.trim(), (l[i] ?? '').trim()])));
 }
 
-export function createShorelineSource({ url = SHORELINE_SEARCH, fetchImpl = globalThis.fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), pauseMs = 400, today = () => pacificNow().day } = {}) {
+/** The export columns Shoreline's eTRAKiT uses; other cities' exports name theirs differently. */
+export const SHORELINE_COLUMNS = Object.freeze({ number: 'PERMIT NUMBER', issued: 'ISSUED DATE', type: 'Permit Type' });
+
+/**
+ * `label` and `columns` let another city's eTRAKiT (Marysville) use the same
+ * walk: the search is the same ASP.NET page, only the export's column names
+ * and the words in the errors differ.
+ */
+export function createShorelineSource({ url = SHORELINE_SEARCH, label = 'Shoreline', columns = SHORELINE_COLUMNS, fetchImpl = globalThis.fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), pauseMs = 400, today = () => pacificNow().day } = {}) {
   let cookies = '';
   const keep = (res) => {
     const set = (res.headers.getSetCookie?.() || []).map((c) => c.split(';')[0]);
@@ -83,7 +91,7 @@ export function createShorelineSource({ url = SHORELINE_SEARCH, fetchImpl = glob
     const us = `${d.slice(5, 7)}/${d.slice(8, 10)}/${d.slice(0, 4)}`;
     cookies = '';
     const page = await call({});
-    if (!page.ok) throw new Error(`Shoreline’s permit search answered ${page.status}`);
+    if (!page.ok) throw new Error(`${label}’s permit search answered ${page.status}`);
     let html = await page.text();
     const post = (extra) => call({
       method: 'POST',
@@ -97,23 +105,23 @@ export function createShorelineSource({ url = SHORELINE_SEARCH, fetchImpl = glob
       })
     });
     const searched = await post({ 'ctl00$cplMain$btnSearch': 'Search' });
-    if (!searched.ok) throw new Error(`Shoreline’s permit search answered ${searched.status}`);
+    if (!searched.ok) throw new Error(`${label}’s permit search answered ${searched.status}`);
     html = await searched.text();
-    if (!/btnExportToExcel/.test(html)) throw new Error('Shoreline’s permit search has changed — no Export button after searching');
+    if (!/btnExportToExcel/.test(html)) throw new Error(`${label}’s permit search has changed — no Export button after searching`);
     // The results grid's rows on the page (its first page of them); none → nothing issued that day.
     const shown = (html.match(/<tr[^>]*class="rg(?:Alt)?Row/g) || []).length;
     if (!shown) return [];
     const exported = await post({ 'ctl00$cplMain$btnExportToExcel': 'Export' });
     const type = exported.headers.get('content-type') || '';
-    if (!exported.ok || !/csv|text\/plain/i.test(type)) throw new Error(`Shoreline’s export answered ${exported.status} (${type || 'no type'}) — not a CSV`);
+    if (!exported.ok || !/csv|text\/plain/i.test(type)) throw new Error(`${label}’s export answered ${exported.status} (${type || 'no type'}) — not a CSV`);
     const rows = parseCsv(await exported.text());
-    if (rows.length && !('PERMIT NUMBER' in rows[0] && 'ISSUED DATE' in rows[0] && 'Permit Type' in rows[0])) {
-      throw new Error('Shoreline’s export has changed — no PERMIT NUMBER / ISSUED DATE / Permit Type columns');
+    if (rows.length && !(columns.number in rows[0] && columns.issued in rows[0] && columns.type in rows[0])) {
+      throw new Error(`${label}’s export has changed — no ${columns.number} / ${columns.issued} / ${columns.type} columns`);
     }
-    if (rows.length < shown) throw new Error(`Shoreline’s export for ${us} had ${rows.length} permits but its page showed ${shown} — stopped so nothing is missed`);
-    if (rows.length >= EXPORT_PAGE) throw new Error(`Shoreline issued ${rows.length}+ permits on ${d} — more than its export holds, so the pull stopped`);
+    if (rows.length < shown) throw new Error(`${label}’s export for ${us} had ${rows.length} permits but its page showed ${shown} — stopped so nothing is missed`);
+    if (rows.length >= EXPORT_PAGE) throw new Error(`${label} issued ${rows.length}+ permits on ${d} — more than its export holds, so the pull stopped`);
     for (const r of rows) {
-      if (r['ISSUED DATE'] !== us) throw new Error(`Shoreline’s search for ${us} answered a permit issued ${r['ISSUED DATE'] || 'on no date'} — stopped so nothing is missed`);
+      if (r[columns.issued] !== us) throw new Error(`${label}’s search for ${us} answered a permit issued ${r[columns.issued] || 'on no date'} — stopped so nothing is missed`);
     }
     return rows;
   }

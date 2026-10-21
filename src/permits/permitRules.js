@@ -11,6 +11,9 @@
  *                   (EnerGov), Shoreline (eTRAKiT), and Auburn, Burien,
  *                   Issaquah, Kenmore, Kirkland, Mercer Island, Sammamish and
  *                   Snoqualmie via MyBuildingPermit
+ *   Snohomish County  Snohomish County (outside cities, from the county's monthly
+ *                   spreadsheets of issued permits), Edmonds via MyBuildingPermit,
+ *                   Marysville (eTRAKiT)
  *   Whatcom County  Whatcom County (outside cities, EnerGov), Bellingham
  *
  * Accuracy rules: every figure is the source's own value, copied, never
@@ -26,6 +29,9 @@
 import { cleanText } from './common.js';
 import { COUNTIES, countyLabel } from './places.js';
 import whatcom, { WHATCOM_PORTAL, whatcomPermitUrl, energovPermit } from './rules/whatcom.js';
+import snohomishCounty from './rules/snohomishCounty.js';
+import { edmonds } from './rules/snohomishCities.js';
+import marysville from './rules/marysville.js';
 import bellingham, { BELLINGHAM_PERMIT_SEARCH, BELLINGHAM_LAYER, BELLINGHAM_FIELDS, BELLINGHAM_PERMIT_TYPES, bellinghamPermit } from './rules/bellingham.js';
 import seattle from './rules/seattle.js';
 import kingCounty from './rules/kingCounty.js';
@@ -43,6 +49,7 @@ export { WHATCOM_PORTAL, whatcomPermitUrl, BELLINGHAM_PERMIT_SEARCH, BELLINGHAM_
  */
 export const RULES = Object.freeze(Object.fromEntries([
   kingCounty, auburn, bellevue, burien, issaquah, kenmore, kirkland, mercerIsland, renton, sammamish, seattle, shoreline, snoqualmie,
+  snohomishCounty, edmonds, marysville,
   whatcom, bellingham
 ].map((r) => [r.id, r])));
 

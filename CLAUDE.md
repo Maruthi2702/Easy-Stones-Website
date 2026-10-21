@@ -288,8 +288,8 @@ display rules are `src/utils/userPresence.js`.
 
 ## Permits: sources and the accuracy rules (2026-10-11; King County 2026-10-14)
 
-Sales · Permits (`src/permits/`) pulls building permits each morning from 15
-offices in King and Whatcom counties. **One file per source** in
+Sales · Permits (`src/permits/`) pulls building permits each morning from 18
+offices in King, Snohomish and Whatcom counties. **One file per source** in
 `src/permits/rules/` (who it is, its county, its exact lead type names, how a
 record copies) plus a reader in `src/permits/sources/`, listed in `RULES`
 (`permitRules.js`) and `readers.js` under the same id. `sync.js`, the API and
@@ -314,6 +314,33 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   at a time, 100-row cap → fails loudly). Bellevue's own ArcGIS layer lags
   on status (new homes "Pending" for days after issue), so its list comes
   from MyBuildingPermit and the layer only adds value/owner/units per permit.
+- **Snohomish** (2026-10-20, on `feat/snohomish-permits`): the county outside
+  cities, read from its own monthly **Issued Residential / Commercial Permits**
+  spreadsheets (`snohomishcountywa.gov/Archive.aspx?AMID=132` / `133`, no
+  login; rules `rules/snohomishCounty.js`, reader `sources/snohomishCounty.js`).
+  The PDS Permit Portal (Amanda) was checked: its public search only finds one
+  permit by number or address (it's for scheduling inspections), so it's the
+  "Look it up" link, not a source. Each file holds only its own month (a row
+  from another month, a missing column or a non-spreadsheet stops the run), is
+  posted around the 1st of the next month, so permits are up to a month
+  behind. The applicant (name, company, mailing address) is the only contact —
+  no phone or email; the report's `PDS_Contact_*` columns are the county's own
+  staff and are never copied. Trade, land-disturbing and sign reports aren't
+  read. My defaults on categories: duplex/townhouse → Multifamily, guesthouse
+  → Other building, repairs/outbuildings/decks/foundation-only skipped. **The
+  county's page says the data may not be used commercially** (RCW
+  42.56.070(8)); the owner chose to use it for leads anyway (2026-10-20). Its
+  cities sit under the same county filter (`county: 'snohomish'`): **Edmonds**
+  through MyBuildingPermit (`rules/snohomishCities.js`, stamps a time of issue),
+  and **Marysville** through its open eTRAKiT search
+  (`rules/marysville.js`) — Shoreline's reader with Marysville's export columns
+  (`createShorelineSource({ label, columns })`); contractor/applicant names,
+  job value and description, no phone. **Not covered yet** (checked 2026-10-20):
+  Everett (eTRAKiT, but its search needs a login), Bothell (MyBuildingPermit
+  has only inspections), Lynnwood (SmartGov portal — `/Public/ReportsView` not
+  yet looked at), Lake Stevens (Citizens Connect, may need an account), Mill
+  Creek (OpenGov), and the rest not looked at. The month-so-far check is a re-read of the
+  same report (no second source exists) and finds nothing until the month's file is out.
 - **Not covered** (no public data, checked 2026-10-14): Kent (login-only
   portal), Redmond (no public search), Federal Way and Bothell (nothing on
   MyBuildingPermit), the smaller cities, and every other WA county.
