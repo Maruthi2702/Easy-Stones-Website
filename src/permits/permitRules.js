@@ -29,6 +29,7 @@
 import { cleanText } from './common.js';
 import { COUNTIES, countyLabel } from './places.js';
 import whatcom, { WHATCOM_PORTAL, whatcomPermitUrl, energovPermit } from './rules/whatcom.js';
+import skagitCounty from './rules/skagitCounty.js';
 import snohomishCounty from './rules/snohomishCounty.js';
 import { edmonds } from './rules/snohomishCities.js';
 import marysville from './rules/marysville.js';
@@ -51,6 +52,7 @@ export { WHATCOM_PORTAL, whatcomPermitUrl, BELLINGHAM_PERMIT_SEARCH, BELLINGHAM_
  */
 export const RULES = Object.freeze(Object.fromEntries([
   kingCounty, auburn, bellevue, burien, issaquah, kenmore, kirkland, mercerIsland, renton, sammamish, seattle, shoreline, snoqualmie,
+  skagitCounty,
   snohomishCounty, edmonds, marysville, monroe, snohomishCity,
   whatcom, bellingham
 ].map((r) => [r.id, r])));
