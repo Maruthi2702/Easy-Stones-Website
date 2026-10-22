@@ -36,7 +36,7 @@ describe('Skagit County', () => {
 
   it('is its own county, listed before Snohomish', () => {
     expect(SOURCES.skagit_county).toMatchObject({ county: 'skagit', kind: 'county', readsDetails: true, phones: true });
-    expect(sourcesInCounties(['skagit'])).toEqual(['skagit_county']);
+    expect(sourcesInCounties(['skagit'])).toEqual(['skagit_county', 'anacortes']);
     expect(Object.keys(createPermitReaders())).toContain('skagit_county');
   });
 

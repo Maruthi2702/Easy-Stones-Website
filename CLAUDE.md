@@ -351,7 +351,7 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   (MyGov), and Mountlake Terrace, Brier, Granite Falls, Gold Bar, Darrington,
   Woodway (nothing public found). The month-so-far check is a re-read of the
   same report (no second source exists) and finds nothing until the month's file is out.
-- **Skagit** (2026-10-21, on `feat/skagit-permits`): the county outside cities,
+- **Skagit** (2026-10-21, on `main`): the county outside cities,
   Tyler EnerGov (`rules/skagitCounty.js`, the Whatcom/Renton reader, tenant
   `skagitcountywa`; contractor/owner/applicant with phone and email — an all-zero
   phone is dropped as a placeholder). Leads: Single Family Residence and Modular
@@ -360,14 +360,30 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   accessory buildings/structures (shops, garages), manufactured homes, and trades.
   No monthly report exists to check against, so the month-so-far check is a second
   read of the same search. The county's data has one flood permit dated 2028.
-  **Not covered** (checked 2026-10-21): Anacortes (SmartGov — its public "Issued
-  Permits with Valuation" report opens in an Exago 2021 viewer — an interactive
-  filter builder (Date Issued etc.) behind a session, not a download; its ajax
-  (`wrajax/*.ashx`) answers only "Error" to scripted calls, so it would need a
-  headless Chrome driving the UI on the server. Checked 2026-10-21 and left: fragile
-  for a small city, and the report's columns weren't confirmed to include contacts), Mount Vernon (SmartGov, no public reports — the city
-  could publish one), Burlington (email applications), Sedro-Woolley (paper), the
-  small towns.
+  **Anacortes** (2026-10-22, `rules/anacortes.js`, `sources/anacortes.js`): the
+  city's SmartGov portal publishes an **"Issued Permits with Valuation"** report
+  (Reports page, no login) — an Exago report that asks for a Date Issued range. The
+  reader runs it the way the page's own scripts do, **with no browser**: post the
+  portal's form for the report (redirects into `reports-new.smartgovcommunity.com`),
+  read the start-up settings from its page, then `wrajax/*.ashx` calls
+  (`BaseExecuteCtrl.LoadCallback` → `StartExecute` with the filter string
+  `Permits.Date Issued|^|bt|^|from|~|to|…` and export type `csv` → `GetStatus` until
+  done → `TransmitExecution` → `ExecuteExport.aspx?eid=…`, a CSV). The range's end is
+  midnight and leaves out its own day, so it asks to tomorrow; a row outside the
+  window, a missing column or a non-CSV stops the run. If the city or Granicus
+  changes that page, the run fails loudly and this is the first place to look. The
+  report has the type and address in one cell (types are matched by the city's exact
+  names), the applicant's name and the contractor's *name* — no phone or email (the
+  WA L&I lookup supplies phones by contractor name), a value, no status. Leads:
+  Single Family Building → New home, Cottage Unit and ADU → ADU (my default for
+  cottages), Remodel with new sq ft → Addition, without → Remodel, Commercial Tenant
+  Improvement → Commercial remodel, the broad "Commercial" → Other building; trades,
+  re-roofs, siding, fences, decks, garages/accessory structures, solar, signs,
+  right-of-way and land-use applications are skipped. About 100 permits and 10 leads
+  a month. The month-so-far check is a second read of the same report.
+  **Not covered** (checked 2026-10-21): Mount Vernon (SmartGov, no public reports —
+  the city could publish one like Anacortes has), Burlington (email applications),
+  Sedro-Woolley (paper), the small towns.
 - **Not covered** (no public data, checked 2026-10-14): Kent (login-only
   portal), Redmond (no public search), Federal Way and Bothell (nothing on
   MyBuildingPermit), the smaller cities, and every other WA county.
