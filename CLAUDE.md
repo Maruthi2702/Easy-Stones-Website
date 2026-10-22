@@ -384,6 +384,29 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   **Not covered** (checked 2026-10-21): Mount Vernon (SmartGov, no public reports —
   the city could publish one like Anacortes has), Burlington (email applications),
   Sedro-Woolley (paper), the small towns.
+- **Pierce** (2026-10-22, on `feat/pierce-permits`): the county outside cities, from
+  the county's public ArcGIS layer `Permits_Pierce_County` (fed from PALS+;
+  `rules/pierceCounty.js`, reader `sources/pierceCounty.js` on the shared ArcGIS
+  reader). Type, status, valuation, units, sq ft, address, description and a link
+  to the permit — **no contractor, owner or applicant**, so no contacts and no
+  registry phones. No city or ZIP (the layer is the county's own permits; its
+  cities — Tacoma, Lakewood, Puyallup… — aren't in it and aren't checked yet).
+  Same skips as Skagit (garages, decks/sheds, farm buildings, pools, walls, cell
+  towers, demolitions); a blank work type or "Replacement Permit" is reported as
+  unsorted. About 25 new homes a week. **The county's GIS data terms of use were
+  not read** (the PDF wouldn't open) — read them before merging. The
+  month-so-far check is a second read of the same layer.
+  **Tacoma** (same branch): the city's open-data Accela layer
+  (`rules/tacoma.js`, `sources/tacoma.js`), updated daily, one row per permit, with
+  an **applicant name** (homeowner, contractor or solar company — it doesn't say)
+  and no phone. Its types are broad, so Residential/Commercial **Alteration** is
+  filed as Other building (never guessed from the description) and **New
+  Building** as New home / Commercial new (a backyard cottage or a 6-unit
+  houseplex is a "New Building" too — `units` says). Mechanical, plumbing, fire
+  protection, demolitions and every non-Building permit are skipped. The layer's
+  dates are midnight UTC, read as UTC (Pierce County's are real times, read as
+  Pacific). About 7 new homes a week. No terms of use found on the layer beyond the
+  city's open-data disclaimer.
 - **Not covered** (no public data, checked 2026-10-14): Kent (login-only
   portal), Redmond (no public search), Federal Way and Bothell (nothing on
   MyBuildingPermit), the smaller cities, and every other WA county.
