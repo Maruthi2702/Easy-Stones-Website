@@ -199,7 +199,8 @@ export function tidyContacts(contacts) {
       kind: contactKind(c.role),
       company: cleanText(c.company),
       name: cleanText(c.name),
-      phone: cleanText(c.phone),
+      // An all-zero number is a form's placeholder (Skagit shows "(000) 000-0000"), not a phone.
+      phone: /^[0\D]*$/.test(String(c.phone ?? '')) ? '' : cleanText(c.phone),
       email: cleanText(c.email).toLowerCase(),
       address: cleanText(c.address),
       ...(licenseKey(c.license) && { license: licenseKey(c.license) })

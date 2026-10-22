@@ -351,6 +351,20 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   (MyGov), and Mountlake Terrace, Brier, Granite Falls, Gold Bar, Darrington,
   Woodway (nothing public found). The month-so-far check is a re-read of the
   same report (no second source exists) and finds nothing until the month's file is out.
+- **Skagit** (2026-10-21, on `feat/skagit-permits`): the county outside cities,
+  Tyler EnerGov (`rules/skagitCounty.js`, the Whatcom/Renton reader, tenant
+  `skagitcountywa`; contractor/owner/applicant with phone and email — an all-zero
+  phone is dropped as a placeholder). Leads: Single Family Residence and Modular
+  Building → New home, ADU, Residential Addition/Alteration, Duplex/Townhouse →
+  Multifamily, Commercial New/Alteration/Addition. **Skipped by the owner's call:**
+  accessory buildings/structures (shops, garages), manufactured homes, and trades.
+  No monthly report exists to check against, so the month-so-far check is a second
+  read of the same search. The county's data has one flood permit dated 2028.
+  **Not covered** (checked 2026-10-21): Anacortes (SmartGov — its public "Issued
+  Permits with Valuation" report opens in an Exago viewer I couldn't drive by
+  script; a spike is left), Mount Vernon (SmartGov, no public reports — the city
+  could publish one), Burlington (email applications), Sedro-Woolley (paper), the
+  small towns.
 - **Not covered** (no public data, checked 2026-10-14): Kent (login-only
   portal), Redmond (no public search), Federal Way and Bothell (nothing on
   MyBuildingPermit), the smaller cities, and every other WA county.
