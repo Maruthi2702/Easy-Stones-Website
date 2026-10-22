@@ -37,7 +37,7 @@ describe('the sources', () => {
   it('lists King County’s sources first, the county office before its cities', () => {
     expect(SOURCE_IDS).toEqual([
       'king_county', 'auburn', 'bellevue', 'burien', 'issaquah', 'kenmore', 'kirkland', 'mercer_island', 'renton', 'sammamish', 'seattle', 'shoreline', 'snoqualmie',
-      'pierce_county',
+      'pierce_county', 'tacoma',
       'skagit_county', 'anacortes',
       'snohomish_county', 'edmonds', 'marysville', 'monroe', 'snohomish_city',
       'whatcom', 'bellingham'

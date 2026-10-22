@@ -250,7 +250,7 @@ describe('the place filter', () => {
     ]);
     expect(groups[1].options[1]).toEqual({ value: 'city:Ferndale', label: 'Ferndale' });
     expect(placeGroups().map((g) => g.label)).toEqual(['Issued by']);
-    expect(placeGroups()[0].options).toHaveLength(23);
+    expect(placeGroups()[0].options).toHaveLength(24);
   });
 
   it('reads a pick as the list query — an issuer or a city, never both', () => {
