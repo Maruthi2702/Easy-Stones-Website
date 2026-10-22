@@ -8,6 +8,7 @@
 import { createWhatcomSource, createRentonSource, createEnergovSource } from './sources/energov.js';
 import { SKAGIT_PORTAL, SKAGIT_TENANT } from './rules/skagitCounty.js';
 import { SNOHOMISH_CITY_PORTAL, SNOHOMISH_CITY_TENANT } from './rules/snohomishCity.js';
+import { createAnacortesSource } from './sources/anacortes.js';
 import { createSnohomishCountySource } from './sources/snohomishCounty.js';
 import { createMonroeSource } from './sources/monroe.js';
 import { createBellinghamSource } from './sources/bellingham.js';
@@ -37,6 +38,7 @@ export function createPermitReaders() {
     // Marysville's eTRAKiT is Shoreline's page with its own export columns.
     marysville: createShorelineSource({ url: MARYSVILLE_SEARCH, label: 'Marysville', columns: MARYSVILLE_COLUMNS }),
     skagit_county: createEnergovSource({ name: 'Skagit County', tenant: SKAGIT_TENANT, base: SKAGIT_PORTAL }),
+    anacortes: createAnacortesSource(),
     snohomish_county: createSnohomishCountySource(),
     monroe: createMonroeSource(),
     snohomish_city: createEnergovSource({ name: 'City of Snohomish', tenant: SNOHOMISH_CITY_TENANT, base: SNOHOMISH_CITY_PORTAL, modern: true }),
