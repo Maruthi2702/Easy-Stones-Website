@@ -48,6 +48,8 @@ const SKIPPED = typeSet([
   ['RESIDENTIAL REPAIR', 'DUPLEX'],
   ['RETAINING WALL', 'RESIDENTIAL'],
   ['DEMO', ''],
+  // A manufactured home is set down, not built — skipped for the counties too.
+  ['RESIDENTIAL MANUFACTURED HOME', ''],
   ['COMMERCIAL CERTIFICATE OF OCCUPANCY', ''],
   ['COMMERCIAL WCF AND CELL TOWERS', '']
 ]);

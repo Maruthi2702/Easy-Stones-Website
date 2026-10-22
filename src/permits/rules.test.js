@@ -296,6 +296,11 @@ describe('the cities on MyBuildingPermit', () => {
   it('reports a city’s new building types, never its trades', () => {
     expect(isUnsortedBuildingType('burien', 'Residential - Pool')).toBe(true);
     expect(isUnsortedBuildingType('burien', 'Residential - Electric')).toBe(false);
+    // Demolitions are never leads (a commercial one was reported 2026-10-21).
+    for (const t of ['Building - Demolition', 'Multi-Family/Commercial - Demolition', 'Residential - Demolition']) {
+      expect(categoryFor('burien', t), t).toBeNull();
+      expect(isUnsortedBuildingType('burien', t), t).toBe(false);
+    }
     expect(isUnsortedBuildingType('sammamish', 'BLDG RESIDENTIAL - TINY HOME')).toBe(true);
     expect(isUnsortedBuildingType('sammamish', 'ELECTRICAL - RESIDENTIAL ELECTRICAL')).toBe(false);
     expect(isUnsortedBuildingType('kirkland', 'BAC')).toBe(true);   // a new B… (building) code

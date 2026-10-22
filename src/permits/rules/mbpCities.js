@@ -48,7 +48,7 @@ export const burien = city('Burien', {
     'Residential - Re-Roof', 'Residential - Deck - New', 'Residential - Garage/Carport',
     'Multi-Family/Commercial - Electric', 'Multi-Family/Commercial - Low Voltage', 'Multi-Family/Commercial - Plumbing',
     'Multi-Family/Commercial - Mechanical', 'Multi-Family/Commercial - Re-Roof', 'Multi-Family/Commercial - Land Clearing',
-    'Building - Demolition'
+    'Building - Demolition', 'Multi-Family/Commercial - Demolition', 'Residential - Demolition'
   ],
   building: /^(Residential|Multi-Family|Building)\b/i
 });

@@ -235,7 +235,7 @@ describe('Marysville', () => {
   });
   it('skips what is not a lead and reports a new building type', () => {
     for (const [t, s] of [['BLS', 'HOME OCC - OFFICE'], ['ANIMAL LICENSE', 'NEW LICENSE'], ['RESIDENTIAL MECHANICAL', 'RESIDENTIAL'], ['COMMERCIAL REROOF', ''],
-      ['RESIDENTIAL DECKS', ''], ['RESIDENTIAL OTHER', 'COVERED PATIO OR DECK'], ['RESIDENTIAL OTHER', 'USE DROP DOWN TO SELECT'], ['RESIDENTIAL REPAIR', 'SINGLE FAMILY'], ['RESIDENTIAL REMODEL', 'ADULT FAMILY HOME'], ['DEMO', ''], ['COMMERCIAL ELECTRICAL', '']]) {
+      ['RESIDENTIAL DECKS', ''], ['RESIDENTIAL MANUFACTURED HOME', ''], ['RESIDENTIAL OTHER', 'COVERED PATIO OR DECK'], ['RESIDENTIAL OTHER', 'USE DROP DOWN TO SELECT'], ['RESIDENTIAL REPAIR', 'SINGLE FAMILY'], ['RESIDENTIAL REMODEL', 'ADULT FAMILY HOME'], ['DEMO', ''], ['COMMERCIAL ELECTRICAL', '']]) {
       expect(cat(t, s), `${t} ${s}`).toBeNull();
       expect(isUnsortedBuildingType('marysville', t, s), `${t} ${s}`).toBe(false);
     }
