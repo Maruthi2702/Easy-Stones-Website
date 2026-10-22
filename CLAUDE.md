@@ -361,8 +361,11 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   No monthly report exists to check against, so the month-so-far check is a second
   read of the same search. The county's data has one flood permit dated 2028.
   **Not covered** (checked 2026-10-21): Anacortes (SmartGov — its public "Issued
-  Permits with Valuation" report opens in an Exago viewer I couldn't drive by
-  script; a spike is left), Mount Vernon (SmartGov, no public reports — the city
+  Permits with Valuation" report opens in an Exago 2021 viewer — an interactive
+  filter builder (Date Issued etc.) behind a session, not a download; its ajax
+  (`wrajax/*.ashx`) answers only "Error" to scripted calls, so it would need a
+  headless Chrome driving the UI on the server. Checked 2026-10-21 and left: fragile
+  for a small city, and the report's columns weren't confirmed to include contacts), Mount Vernon (SmartGov, no public reports — the city
   could publish one), Burlington (email applications), Sedro-Woolley (paper), the
   small towns.
 - **Not covered** (no public data, checked 2026-10-14): Kent (login-only
