@@ -14,6 +14,8 @@
  *   Snohomish County  Snohomish County (outside cities, from the county's monthly
  *                   spreadsheets of issued permits), Edmonds via MyBuildingPermit,
  *                   Marysville (eTRAKiT)
+ *   Clark County    Clark County, Vancouver and the other cities (the county's one layer)
+ *   Kitsap County   Kitsap County (outside cities, the county's ArcGIS layer; no contacts)
  *   Pierce County   Pierce County (outside cities, the county's ArcGIS layer; no contacts),
  *                   Tacoma (the city's open data layer)
  *   Whatcom County  Whatcom County (outside cities, EnerGov), Bellingham
@@ -34,6 +36,8 @@ import whatcom, { WHATCOM_PORTAL, whatcomPermitUrl, energovPermit } from './rule
 import skagitCounty from './rules/skagitCounty.js';
 import pierceCounty from './rules/pierceCounty.js';
 import tacoma from './rules/tacoma.js';
+import kitsapCounty from './rules/kitsapCounty.js';
+import clarkCounty from './rules/clarkCounty.js';
 import anacortes from './rules/anacortes.js';
 import snohomishCounty from './rules/snohomishCounty.js';
 import { edmonds } from './rules/snohomishCities.js';
@@ -57,6 +61,8 @@ export { WHATCOM_PORTAL, whatcomPermitUrl, BELLINGHAM_PERMIT_SEARCH, BELLINGHAM_
  */
 export const RULES = Object.freeze(Object.fromEntries([
   kingCounty, auburn, bellevue, burien, issaquah, kenmore, kirkland, mercerIsland, renton, sammamish, seattle, shoreline, snoqualmie,
+  clarkCounty,
+  kitsapCounty,
   pierceCounty, tacoma,
   skagitCounty, anacortes,
   snohomishCounty, edmonds, marysville, monroe, snohomishCity,

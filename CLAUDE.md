@@ -407,6 +407,29 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   dates are midnight UTC, read as UTC (Pierce County's are real times, read as
   Pacific). About 7 new homes a week. No terms of use found on the layer beyond the
   city's open-data disclaimer.
+- **Kitsap** (2026-10-22, on `feat/thurston-kitsap-clark-permits`): the county's
+  Department of Community Development layer behind its Permit Explorer map
+  (`rules/kitsapCounty.js`, the shared ArcGIS reader). Unincorporated land and its
+  UGAs only — Bremerton, Port Orchard, Poulsbo and Bainbridge have their own
+  offices and aren't read. Value, units, square feet and address, a SmartGov
+  link, **no contacts**, no city/ZIP. Same skips as Skagit; ADUs and guest houses
+  are ADU / detached; `R-SFR/REPLACE` and `C-DAMAGE` are reported as unsorted.
+  The county refreshes the layer in batches (last edit 12 days old when checked).
+  About 25 new homes a month. Its GIS terms weren't read.
+- **Clark** (same branch): the county's one "Permits - Building" layer for every
+  office in Clark County (`rules/clarkCounty.js`, `sources/clarkCounty.js`).
+  Clark County and Vancouver refresh weekly, **the other cities (Camas, Battle
+  Ground, Ridgefield…) only quarterly**. The layer has no address, so the reader
+  looks each lead's address/city/ZIP up by parcel serial number in the county's
+  address layer (a failed lookup fails the run). Contact is the applicant's name
+  (person, builder or architect — not said); no value, size or units. Case types
+  RES / NHC / SFR / CMI; re-roofs, solar, signs, racks, cell and inspection-only
+  skipped. About 90 new homes a month, ~150 of them Vancouver. Not read: its GIS terms.
+- **Thurston** (checked 2026-10-22, **not built**): the only public data is
+  Thurston Regional Planning Council's annual residential-permit layer (last
+  edited 2024-11, 2019–2023 — useless for leads). The county's Accela portal is
+  being replaced by a new Permit Customer Portal (launch announced 14 Oct 2026);
+  recheck once it has a public search. Olympia, Lacey and Tumwater not checked.
 - **Not covered** (no public data, checked 2026-10-14): Kent (login-only
   portal), Redmond (no public search), Federal Way and Bothell (nothing on
   MyBuildingPermit), the smaller cities, and every other WA county.

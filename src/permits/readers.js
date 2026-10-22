@@ -12,6 +12,8 @@ import { createAnacortesSource } from './sources/anacortes.js';
 import { createSnohomishCountySource } from './sources/snohomishCounty.js';
 import { createMonroeSource } from './sources/monroe.js';
 import { createPierceCountySource } from './sources/pierceCounty.js';
+import { createKitsapCountySource } from './sources/kitsapCounty.js';
+import { createClarkCountySource } from './sources/clarkCounty.js';
 import { createTacomaSource } from './sources/tacoma.js';
 import { createBellinghamSource } from './sources/bellingham.js';
 import { createSeattleSource } from './sources/seattle.js';
@@ -39,6 +41,8 @@ export function createPermitReaders() {
     shoreline: createShorelineSource(),
     // Marysville's eTRAKiT is Shoreline's page with its own export columns.
     marysville: createShorelineSource({ url: MARYSVILLE_SEARCH, label: 'Marysville', columns: MARYSVILLE_COLUMNS }),
+    clark_county: createClarkCountySource(),
+    kitsap_county: createKitsapCountySource(),
     pierce_county: createPierceCountySource(),
     tacoma: createTacomaSource(),
     skagit_county: createEnergovSource({ name: 'Skagit County', tenant: SKAGIT_TENANT, base: SKAGIT_PORTAL }),
