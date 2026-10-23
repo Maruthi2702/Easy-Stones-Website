@@ -37,6 +37,10 @@ body.light-theme-active, .light-theme-active { --dfx-gold-text: #7a5c0b; --dfx-s
 .dfx-empty { display: flex; align-items: center; justify-content: center; min-height: 160px; color: var(--text-muted); }
 .dfx-row { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 62px; box-sizing: border-box; padding: 12px 20px; border: 0; background: transparent; color: var(--text-primary); text-align: left; font: inherit; cursor: pointer; }
 .dfx-row:hover { background: var(--dfx-hover); }
+/* The chevron and the customer's name are buttons of their own (a button can't sit inside one). */
+.dfx-chev-btn { display: flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
+.dfx-name-link { display: block; max-width: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: 14.5px; font-weight: 600; color: var(--dfx-gold-text); text-align: left; cursor: pointer; }
+.dfx-name-link:hover { text-decoration: underline; }
 .dfx-date { flex-shrink: 0; width: 46px; height: 46px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-card); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
 .dfx-date span { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--dfx-gold-text); }
 .dfx-date strong { font-size: 18px; margin-top: 3px; }
@@ -70,7 +74,6 @@ body:not(.light-theme-active) .dfx-btn--dark { background: #f1f5f9; border-color
 .dfx-btn--soft { border-color: #ecdcae; background: #fbf3dc; color: #7a5c0b; }
 .dfx-link { display: inline-flex; align-items: center; min-height: 36px; padding: 0; border: 0; background: none; color: var(--dfx-gold-text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-align: left; }
 .dfx-link:hover { text-decoration: underline; }
-.dfx-open-customer { margin-left: 6px; }
 .dfx-muted { color: var(--text-secondary); font-size: 13px; margin: 0; }
 
 /* ── Aside panels ── */
@@ -163,7 +166,6 @@ body:not(.light-theme-active) .dfx-btn--dark { background: #f1f5f9; border-color
   .dfx-open { padding: 0 14px 14px; gap: 10px; }
   .dfx-open p { font-size: 14px; line-height: 1.5; }
   .dfx-actions .dfx-btn { min-height: 44px; flex: 1; }
-  .dfx-open-customer { flex-basis: 100%; margin-left: 0; min-height: 44px; }
   .dfx-modal-wrap { align-items: flex-end; }
   .dfx-modal { width: 100%; max-width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; }
   .dfx-modal-head { padding: 14px 16px 12px; }
