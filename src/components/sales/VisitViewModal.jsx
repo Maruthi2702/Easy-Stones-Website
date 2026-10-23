@@ -66,7 +66,7 @@ const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDel
                     <div className="dfx-modal-title">
                         <h2 id="dfx-view-title">
                             {onOpenCustomer
-                                ? <button type="button" className="dfx-link" title="Open customer profile" onClick={() => onOpenCustomer(visit)}>{company}</button>
+                                ? <button type="button" className="dfx-link" title="Open customer" onClick={() => onOpenCustomer(visit)}>{company}</button>
                                 : <span>{company}</span>}
                         </h2>
                         <span>{[contact, visit.location].filter(Boolean).join(' · ')}</span>

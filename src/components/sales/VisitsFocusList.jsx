@@ -11,9 +11,9 @@ import './DashboardFocus.css';
  * Dashboard Sales Visits, the Focus board's list (design "Option A"): one row
  * per visit — date chip, company over contact, branch — that opens in place
  * to the visit's type, who logged it, follow-up and notes, with View / Edit /
- * Delete / Open customer. View opens VisitViewModal, which reads the photos
+ * Delete; the customer's name opens their card. View opens VisitViewModal, which reads the photos
  * and manager / HQ comments from the single-visit route (the list carries
- * neither). Edit / Delete / the customer link are the page's own handlers.
+ * neither). Edit / Delete / the name link are the page's own handlers.
  * canModify / canDelete say whether to offer them per visit; canOpenCustomer
  * is view_customers.
  */
@@ -72,18 +72,31 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
                     const valid = Number.isFinite(d.getTime());
                     return (
                         <li key={visit._id} className={open ? 'is-open' : ''}>
-                            <button type="button" className="dfx-row" aria-expanded={open} onClick={() => setOpenId(open ? null : visit._id)}>
+                            <div className="dfx-row" onClick={() => setOpenId(open ? null : visit._id)}>
                                 <span className="dfx-date" aria-hidden="true">
                                     <span>{valid ? d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase() : ''}</span>
                                     <strong>{valid ? d.getDate() : ''}</strong>
                                 </span>
                                 <span className="dfx-row-text">
-                                    <span className="dfx-row-company">{company}</span>
+                                    {canOpenCustomer && visit.customerId ? (
+                                        <button
+                                            type="button" className="dfx-row-company dfx-name-link" title="Open customer"
+                                            onClick={(e) => { e.stopPropagation(); onOpenCustomer?.(visit); }}
+                                        >{company}</button>
+                                    ) : (
+                                        <span className="dfx-row-company">{company}</span>
+                                    )}
                                     <span className="dfx-row-contact">{contact || ' '}{visit.location && <span className="dfx-phone-only"> · {visit.location}</span>}</span>
                                 </span>
                                 {visit.location && <span className="dfx-pill"><MapPin size={11} aria-hidden="true" />{visit.location}</span>}
-                                <ChevronDown size={18} className="dfx-chev" aria-hidden="true" />
-                            </button>
+                                <button
+                                    type="button" className="dfx-chev-btn" aria-expanded={open}
+                                    aria-label={open ? 'Hide visit details' : 'Show visit details'}
+                                    onClick={(e) => { e.stopPropagation(); setOpenId(open ? null : visit._id); }}
+                                >
+                                    <ChevronDown size={18} className="dfx-chev" aria-hidden="true" />
+                                </button>
+                            </div>
                             {open && (
                                 <div className="dfx-open">
                                     <div className="dfx-chips">
@@ -99,9 +112,6 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
                                         )}
                                         {allowedDelete(visit) && (
                                             <button type="button" className="dfx-btn dfx-btn--danger" onClick={() => onDelete?.(visit)}>Delete</button>
-                                        )}
-                                        {canOpenCustomer && (
-                                            <button type="button" className="dfx-link dfx-open-customer" onClick={() => onOpenCustomer?.(visit)}>Open customer →</button>
                                         )}
                                     </div>
                                 </div>

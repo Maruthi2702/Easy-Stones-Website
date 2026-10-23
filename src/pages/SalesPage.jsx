@@ -37,6 +37,7 @@ import { canOpenArea, can, NAV_ORDER } from '../utils/usersAccess';
 import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import { newVisitId } from '../utils/visitForm';
+import VisitCustomerCard from '../components/sales/VisitCustomerCard';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
@@ -1326,6 +1327,8 @@ const SalesPage = () => {
     const [isSaving, setIsSaving] = useState(false);
     // Visit photos go up the moment they are picked, and Save is sent behind the
     // closed form (handleSaveVisit), so the form never waits on either.
+    // The visit whose customer's basic card is open (dashboard Sales Visits).
+    const [visitCardFor, setVisitCardFor] = useState(null);
     const [visitUploading, setVisitUploading] = useState(false);
     const visitUploadsRef = useRef(new Set());   // uploads still going
     const visitUploadedRef = useRef(new Map());  // picked photo data → stored link
@@ -4124,10 +4127,7 @@ const SalesPage = () => {
                                                 canOpenCustomer={currentUser?.permissions?.includes('view_customers')}
                                                 loading={dashboardTableLoading}
                                                 busyVisitId={loadingVisitId}
-                                                onOpenCustomer={(visit) => {
-                                                    handleSelectCustomer({ _id: visit.customerId });
-                                                    setShowDashboard(false);
-                                                }}
+                                                onOpenCustomer={(visit) => setVisitCardFor(visit)}
                                                 onEdit={handleEditVisit}
                                                 onDelete={(visit) => handleDeleteVisit(visit._id, visit.customerId)}
                                                 onOpenGallery={handleOpenGallery}
@@ -4834,7 +4834,19 @@ const SalesPage = () => {
                     )
                 }
 
-                {/* Visit Modal */}
+                {/* Visit Modal, and the basic card from a dashboard visit's customer name */}
+                {visitCardFor && (
+                    <VisitCustomerCard
+                        visit={visitCardFor}
+                        canProfile={canViewCustomerProfile(currentUser)}
+                        onClose={() => setVisitCardFor(null)}
+                        onOpenProfile={(c) => {
+                            setVisitCardFor(null);
+                            handleSelectCustomer({ _id: c._id });
+                            setShowDashboard(false);
+                        }}
+                    />
+                )}
                 <VisitModal
                     showVisitModal={showVisitModal}
                     isViewingVisit={isViewingVisit}
