@@ -41,6 +41,9 @@ body.light-theme-active, .light-theme-active { --dfx-gold-text: #7a5c0b; --dfx-s
 .dfx-chev-btn { display: flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
 .dfx-name-link { display: block; max-width: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: 14.5px; font-weight: 600; color: var(--dfx-gold-text); text-align: left; cursor: pointer; }
 .dfx-name-link:hover { text-decoration: underline; }
+/* A visit shown before the server has confirmed it. */
+.dfx-saving { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: var(--dfx-gold-bg, rgba(122, 92, 11, .12)); color: var(--dfx-gold-text); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.dfx-btn:disabled { opacity: .5; cursor: default; }
 .dfx-date { flex-shrink: 0; width: 46px; height: 46px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-card); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
 .dfx-date span { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--dfx-gold-text); }
 .dfx-date strong { font-size: 18px; margin-top: 3px; }

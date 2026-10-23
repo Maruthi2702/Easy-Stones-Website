@@ -38,6 +38,7 @@ import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import { newVisitId } from '../utils/visitForm';
 import VisitCustomerCard from '../components/sales/VisitCustomerCard';
+import Toast from '../components/shared/Toast';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
@@ -1329,6 +1330,10 @@ const SalesPage = () => {
     // closed form (handleSaveVisit), so the form never waits on either.
     // The visit whose customer's basic card is open (dashboard Sales Visits).
     const [visitCardFor, setVisitCardFor] = useState(null);
+    // A short message at the bottom: "Visit saved", or why a save failed.
+    const [saveToast, setSaveToast] = useState(null);
+    const showSaveToast = (text, kind = 'ok') => setSaveToast({ id: Date.now(), text, kind });
+    const dismissSaveToast = useCallback(() => setSaveToast(null), []);
     const [visitUploading, setVisitUploading] = useState(false);
     const visitUploadsRef = useRef(new Set());   // uploads still going
     const visitUploadedRef = useRef(new Map());  // picked photo data → stored link
@@ -1966,6 +1971,19 @@ const SalesPage = () => {
         });
     };
 
+    // The dashboard's Sales Visits list is its own copy (fetchDashboardData), so a
+    // saved visit is put in it too, tagged _saving until the server confirms.
+    // `insert` false only updates a row that is already there (an edit).
+    const patchDashboardVisit = (visit, insert = true) => {
+        if (!visit?._id) return;
+        setDashboardVisits(prev => {
+            const has = prev.some(v => v._id === visit._id);
+            if (has) return prev.map(v => (v._id === visit._id ? { ...v, ...visit } : v));
+            return insert ? [visit, ...prev] : prev;
+        });
+    };
+    const removeDashboardVisit = (visitId) => setDashboardVisits(prev => prev.filter(v => v._id !== visitId));
+
     const handleSaveContact = async () => {
         try {
             setIsSaving(true);
@@ -2467,6 +2485,25 @@ const SalesPage = () => {
                 ? { ...editing, ...payload, _id: visitId }
                 : { ...payload, createdBy: currentUser?._id || currentUser?.id, createdByName: currentUser?.displayName || currentUser?.username }
         );
+        // The dashboard's list needs the customer's name and branch (the form
+        // only has an id), from whatever is already loaded.
+        const known = (selectedCustomer && String(selectedCustomer._id) === String(targetCustomerId) && selectedCustomer)
+            || customers.find(c => String(c._id) === String(targetCustomerId)) || {};
+        const optionLabel = (customerOptions || []).find(o => o.value === targetCustomerId)?.label || '';
+        patchDashboardVisit(
+            editing
+                ? { ...payload, _id: visitId, _saving: true }
+                : {
+                    ...payload,
+                    customerId: targetCustomerId,
+                    company: known.company || known.contactName || optionLabel,
+                    contactName: known.company ? (known.contactName || '') : '',
+                    location: known.location || '',
+                    createdByName: currentUser?.displayName || currentUser?.username,
+                    _saving: true
+                },
+            !editing
+        );
         setCurrentFollowUpPage(1);
         handleCloseVisitModal();
 
@@ -2518,6 +2555,8 @@ const SalesPage = () => {
             // Both answer with the stored visit (image links and all).
             const saved = await response.json().catch(() => null);
             if (saved?.visit) patchOpenCustomerVisits(targetCustomerId, saved.visit);
+            patchDashboardVisit({ ...(saved?.visit || {}), _id: visitId, _saving: false }, false);
+            showSaveToast('Visit saved');
             (Array.isArray(payload.image) ? payload.image : [payload.image]).forEach(img => stored.delete(img));
 
             // Logging a visit can add a drop-in to the calendar, hence schedules.
@@ -2529,16 +2568,21 @@ const SalesPage = () => {
                 payload: form
             });
             // Take the visit back off the screen and give the form back.
-            if (editing) patchOpenCustomerVisits(targetCustomerId, editing);
-            else removeOpenCustomerVisit(targetCustomerId, visitId);
+            if (editing) {
+                patchOpenCustomerVisits(targetCustomerId, editing);
+                patchDashboardVisit({ ...editing, _saving: false }, false);
+            } else {
+                removeOpenCustomerVisit(targetCustomerId, visitId);
+                removeDashboardVisit(visitId);
+            }
             if (!visitModalOpenRef.current) {
                 setVisitForm(form);
                 setEditingVisit(editing);
                 setIsViewingVisit(false);
                 setShowVisitModal(true);
             }
-            const why = error.fromServer ? error.message : 'Please check your connection and try again.';
-            alert(`The visit wasn’t saved. ${why}${visitModalOpenRef.current ? '' : ' What you entered is back in the form.'}`);
+            const why = error.fromServer ? error.message : 'Check your connection and try again.';
+            showSaveToast(`Couldn’t save the visit — ${why}${visitModalOpenRef.current ? '' : ' Your entries are back in the form.'}`, 'error');
         } finally {
             visitSavesInFlight.current -= 1;
         }
@@ -4834,6 +4878,7 @@ const SalesPage = () => {
                     )
                 }
 
+                <Toast toast={saveToast} onDismiss={dismissSaveToast} />
                 {/* Visit Modal, and the basic card from a dashboard visit's customer name */}
                 {visitCardFor && (
                     <VisitCustomerCard
