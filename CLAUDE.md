@@ -554,6 +554,21 @@ the request goes behind it, a failure takes the visit back off and reopens the
 form with what was typed, and closing the tab mid-send asks first
 (`beforeunload`). A photo uploaded and then never saved stays in Cloudinary.
 
+## Code layout: one folder per module, props between them (2026-10-23)
+
+The design and its order are `MIGRATION_NOTES.md` §4 (owner's ask: no more
+5,000-line files). New and moved screen code lives in `src/features/<module>/`
+(page, `components/`, a `use<Module>Data` hook, `<module>Api.ts`, pure rules +
+tests, and an `index.ts` that is the only thing other code imports). Data goes
+down as props and changes come back as `on…` callbacks; when one module's save
+must show in another, `SalesPage` wires the callbacks — modules never import
+each other's internals or reach into the shell's state. Context only for
+auth, theme and the toast. Files stay under ~300 lines (hard stop 500). A move
+changes no DOM, class names or CSS. Each extracted module gets a render smoke
+test (`*.test.tsx`, React Testing Library). `server.js` is being split the same
+way into `src/routes/<area>.js` routers, checked against a route-table
+snapshot so no path, middleware or order changes.
+
 ## TypeScript: browser files only until Node 24 (2026-10-23, on `feat/typescript`)
 
 The plan is `MIGRATION_NOTES.md` §1. A file **only the browser loads** may be
