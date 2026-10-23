@@ -137,7 +137,11 @@ export const formatInstant = (value, options = { month: 'short', day: 'numeric',
   return new Intl.DateTimeFormat('en-US', options).format(d);
 };
 
-/** Time-of-day of an instant, in the viewer's local zone. */
+/**
+ * Time-of-day of an instant, in the viewer's local zone.
+ * @param {any} value
+ * @param {Intl.DateTimeFormatOptions} [options]
+ */
 export const formatInstantTime = (value, options = { hour: '2-digit', minute: '2-digit' }) =>
   formatInstant(value, options);
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
-import { createPortal } from 'react-dom';
 import {
     Calendar, MapPin, Phone, Mail, Clock, Plus, Search,
     Filter, X, Upload, Home, ArrowLeft,
@@ -40,6 +39,7 @@ import { newVisitId } from '../utils/visitForm';
 import VisitCustomerCard from '../components/sales/VisitCustomerCard';
 import Toast from '../components/shared/Toast';
 import { CalendarSyncModal, useCalendarSync } from '../features/calendarSync';
+import { CheckInLogTab, CheckInDetailModal, useCheckInLog } from '../features/checkin';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
@@ -55,7 +55,6 @@ import LocationFilter from '../components/shared/LocationFilter';
 import RowMenu from '../components/shared/RowMenu';
 import LocationPicker from '../components/shared/form/LocationPicker';
 import { useLocationFilter } from '../components/shared/useLocationFilter';
-import { accessibleLocations } from '../utils/locationFilter';
 import CustomerProfileHeader from '../components/sales/customerList/CustomerProfileHeader';
 import CustomerDetailsTab from '../components/sales/customerList/CustomerDetailsTab';
 import CustomerContactsTab from '../components/sales/customerList/CustomerContactsTab';
@@ -83,7 +82,6 @@ import { PERMITS } from '../permits/permissions';
 const SalesPlannerTab = lazyRetry(() => import('../components/SalesPlannerTab'));
 const RoutePlannerV2 = lazyRetry(() => import('../components/sales/routePlannerV2/RoutePlannerV2'));
 const PartnersSheet = lazyRetry(() => import('../components/sales/PartnersSheet'));
-const CheckInLogPanel = lazyRetry(() => import('../components/sales/CheckInLogPanel'));
 const PriceListPanel = lazyRetry(() => import('../components/sales/PriceListPanel'));
 const UsersRolesTab = lazyRetry(() => import('../components/sales/UsersRolesTab'));
 const NavOrderTab = lazyRetry(() => import('../components/sales/NavOrderTab'));
@@ -227,65 +225,8 @@ const SalesPage = () => {
         return 'checkin'; // safe fallback
     };
     const [crmTab, setCrmTab] = useState(getDefaultTab); // 'dashboard', 'customers', 'checkin', 'pricelist', 'delivery_schedule'
-    const [checkIns, setCheckIns] = useState([]);
-    const [checkInsLoading, setCheckInsLoading] = useState(false);
-    const [checkInSearch, setCheckInSearch] = useState('');
-    const [checkInPage, setCheckInPage] = useState(1);
-    const [checkInTotalPages, setCheckInTotalPages] = useState(1);
-    const [checkInTotalCount, setCheckInTotalCount] = useState(0);
-    const [checkInLimit, setCheckInLimit] = useState(DEFAULT_ROWS_PER_PAGE);
-    const currentSalesDate = new Date();
-    const [checkInFilterMonth, setCheckInFilterMonth] = useState(currentSalesDate.getMonth() + 1);
-    const [checkInFilterYear, setCheckInFilterYear] = useState(currentSalesDate.getFullYear());
-    // null = every branch they're assigned; opens on their home location.
-    const checkInLocationOptions = React.useMemo(() => accessibleLocations(currentUser, locations), [currentUser, locations]);
-    const [checkInLocationPick, setCheckInLocationPick] = useLocationFilter('checkInLog', currentUser, checkInLocationOptions);
-    const checkInFilterLocation = checkInLocationPick || null;
-    const setCheckInFilterLocation = (val) => setCheckInLocationPick(val || '');
-    const [selectedCheckIn, setSelectedCheckIn] = useState(null);
-    const [checkInModalMode, setCheckInModalMode] = useState(null); // 'view' | 'edit'
-    const [checkInForm, setCheckInForm] = useState({
-        name: '',
-        phone: '',
-        email: '',
-        fabricatorCompany: '',
-        fabricatorName: '',
-        fabricatorPhone: '',
-        location: 'Seattle'
-    });
-    const [checkInTodayCount, setCheckInTodayCount] = useState(0);
-    const [checkInMonthCount, setCheckInMonthCount] = useState(0);
-    const [checkInAllTimeCount, setCheckInAllTimeCount] = useState(0);
-    const [checkInRefreshTrigger] = useState(0);
-    const [checkInExporting, setCheckInExporting] = useState(false);
-    // Each check-in request is numbered; a response that arrives after a newer
-    // one was sent (the filters or page changed meanwhile) is dropped, so a
-    // slow old answer can't replace the rows or counts for what's selected now.
-    const checkInListSeq = useRef(0);
-    const checkInStatsSeq = useRef(0);
-
-    const fetchCheckInStats = async () => {
-        const seq = ++checkInStatsSeq.current;
-        try {
-            const params = new URLSearchParams({
-                ...(checkInFilterLocation && { location: checkInFilterLocation })
-            });
-            const res = await authFetch(`${API_URL}/api/checkin/stats?${params}`);
-            if (res.status === 401) {
-                logout();
-                return;
-            }
-            if (res.ok) {
-                const data = await res.json();
-                if (seq !== checkInStatsSeq.current) return;
-                setCheckInTodayCount(data.todayCount || 0);
-                setCheckInMonthCount(data.monthCount || 0);
-                setCheckInAllTimeCount(data.allTimeCount || 0);
-            }
-        } catch (err) {
-            console.error('Error fetching check-in stats:', err);
-        }
-    };
+    // The Check-In Log tab: src/features/checkin (its list, filters, counts, export, view/edit/delete).
+    const checkInLog = useCheckInLog({ active: crmTab === 'checkin', currentUser, locations, onUnauthorized: logout });
 
     // Staff who can own a customer account, for the Add Customer form's Sales Rep
     // picker. Who qualifies is decided in utils/salesReps.js, so this and the
@@ -615,156 +556,8 @@ const SalesPage = () => {
         openHoldLink(String(holdId));
     } : undefined;
 
-    const fetchCheckIns = useCallback(async (silent = false) => {
-        const seq = ++checkInListSeq.current;
-        const cacheKey = `checkins_${checkInPage}_${checkInLimit}_${checkInSearch}_${checkInFilterMonth}_${checkInFilterYear}_${checkInFilterLocation}`;
-        const cached = getCachedData(cacheKey);
-
-        if (cached && !silent) {
-            setCheckIns(cached.checkIns);
-            setCheckInTotalPages(cached.totalPages);
-            setCheckInTotalCount(cached.totalCount);
-            setCheckInsLoading(false);
-            if (isCacheValid(cacheKey, 120000)) return;
-        } else if (!cached && !silent) {
-            setCheckInsLoading(true);
-        }
-
-        try {
-            fetchCheckInStats();
-            const params = new URLSearchParams({
-                page: checkInPage,
-                limit: checkInLimit,
-                ...(checkInSearch && { search: checkInSearch }),
-                ...(checkInFilterMonth && { month: checkInFilterMonth }),
-                ...(checkInFilterYear && { year: checkInFilterYear }),
-                ...(checkInFilterLocation && { location: checkInFilterLocation }),
-            });
-            const response = await authFetch(`${API_URL}/api/checkin?${params}`);
-            if (response.status === 401) {
-                logout();
-                return;
-            }
-            if (response.ok) {
-                const data = await response.json();
-                if (seq !== checkInListSeq.current) return;
-                let list = [];
-                let totalPages = 1;
-                let totalCount = 0;
-                if (Array.isArray(data)) {
-                    list = data;
-                    totalCount = data.length;
-                } else {
-                    list = data.checkIns || data.data || [];
-                    totalPages = data.totalPages || 1;
-                    totalCount = data.total || 0;
-                }
-                setCheckIns(list);
-                setCheckInTotalPages(totalPages);
-                setCheckInTotalCount(totalCount);
-                setCachedData(cacheKey, { checkIns: list, totalPages, totalCount });
-            }
-        } catch (error) {
-            console.error('Error fetching check-ins:', error);
-        } finally {
-            // A newer request owns the spinner now.
-            if (seq === checkInListSeq.current) setCheckInsLoading(false);
-        }
-    }, [checkInPage, checkInLimit, checkInSearch, checkInFilterMonth, checkInFilterYear, checkInFilterLocation, logout]);
     // What a live check-in update runs: always the current filters' fetch.
-    refreshCheckInsRef.current = () => fetchCheckIns(true);
-
-    // Every row matching the tab's filters, not just the page on screen —
-    // shared with the /checkin-log page (exportCheckInLog). A failed page stops
-    // the export with a message instead of writing a partial file.
-    const handleExportCheckIns = async () => {
-        if (checkInExporting) return;
-        setCheckInExporting(true);
-        try {
-            // Loaded on click, like the other exports here, so xlsx stays out of the page bundle.
-            const { exportCheckInLog, truncatedExportNote } = await import('../components/sales/exportCheckInLog');
-            const result = await exportCheckInLog({
-                search: checkInSearch, month: checkInFilterMonth, year: checkInFilterYear,
-                location: checkInFilterLocation
-            });
-            if (result.truncated) alert(truncatedExportNote(result));
-        } catch (err) {
-            console.error('Error exporting check-ins:', err);
-            if (err.code === 'auth') logout();
-            else alert(err.message || 'Couldn’t export the check-ins. Try again.');
-        } finally {
-            setCheckInExporting(false);
-        }
-    };
-
-    const handleViewCheckIn = (checkIn) => {
-        setSelectedCheckIn(checkIn);
-        setCheckInModalMode('view');
-    };
-
-    const handleEditCheckIn = (checkIn) => {
-        setSelectedCheckIn(checkIn);
-        setCheckInModalMode('edit');
-        setCheckInForm({
-            name: checkIn.name || '',
-            phone: checkIn.phone || '',
-            email: checkIn.email || '',
-            fabricatorCompany: checkIn.fabricatorCompany || '',
-            fabricatorName: checkIn.fabricatorName || '',
-            fabricatorPhone: checkIn.fabricatorPhone || '',
-            location: checkIn.location || 'Seattle'
-        });
-    };
-
-    const handleDeleteCheckIn = async (checkIn) => {
-        if (window.confirm(`Are you sure you want to delete the check-in record for ${checkIn.name}?`)) {
-            try {
-                const response = await authFetch(`${API_URL}/api/checkin/${checkIn._id}`, {
-                    method: 'DELETE'
-                });
-                if (response.ok) {
-                    fetchCheckIns();
-                } else {
-                    const data = await response.json();
-                    alert(data.message || 'Failed to delete check-in');
-                }
-            } catch (err) {
-                console.error(err);
-                alert('Network error. Please try again.');
-            }
-        }
-    };
-
-    const handleSaveCheckIn = async (e) => {
-        e.preventDefault();
-        if (!checkInForm.name || !checkInForm.phone || !checkInForm.fabricatorCompany || !checkInForm.fabricatorPhone) {
-            alert('Name, Phone Number, Company Name, and Company Phone Number are mandatory');
-            return;
-        }
-        try {
-            const response = await authFetch(`${API_URL}/api/checkin/${selectedCheckIn._id}`, {
-                method: 'PUT',
-                body: JSON.stringify(checkInForm)
-            });
-            if (response.ok) {
-                setCheckInModalMode(null);
-                setSelectedCheckIn(null);
-                fetchCheckIns();
-            } else {
-                const data = await response.json();
-                alert(data.message || 'Failed to save check-in');
-            }
-        } catch (err) {
-            console.error(err);
-            alert('Network error. Please try again.');
-        }
-    };
-
-    useEffect(() => {
-        if (crmTab === 'checkin') {
-            fetchCheckIns();
-        }
-    }, [crmTab, checkInPage, checkInLimit, checkInSearch, checkInFilterMonth, checkInFilterYear, checkInFilterLocation, checkInRefreshTrigger]);
+    refreshCheckInsRef.current = () => checkInLog.refresh(true);
 
     // Modal states
     const [showContactModal, setShowContactModal] = useState(false);
@@ -3067,49 +2860,14 @@ const SalesPage = () => {
 
 
 
-    const renderCheckInLogView = () => {
-        const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-            <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
-        ) : null;
-
-        return (
-            <Suspense fallback={<TabLoader />}>
-            <CheckInLogPanel
-                checkIns={checkIns}
-                loading={checkInsLoading && checkIns.length === 0}
-                refreshing={checkInsLoading && checkIns.length > 0}
-                onRefresh={fetchCheckIns}
-                searchTerm={checkInSearch}
-                onSearchChange={(val) => { setCheckInSearch(val); setCheckInPage(1); }}
-                lastUpdated={null}
-                totalCount={checkInTotalCount}
-                todayCount={checkInTodayCount}
-                monthCount={checkInMonthCount}
-                allTimeCount={checkInAllTimeCount}
-                currentPage={checkInPage}
-                totalPages={checkInTotalPages}
-                onPageChange={setCheckInPage}
-                rowsPerPage={checkInLimit}
-                onRowsPerPageChange={(val) => { setCheckInLimit(val); setCheckInPage(1); }}
-                filterMonth={checkInFilterMonth}
-                filterYear={checkInFilterYear}
-                onFilterMonthChange={(val) => { setCheckInFilterMonth(val); setCheckInPage(1); }}
-                onFilterYearChange={(val) => { setCheckInFilterYear(val); setCheckInPage(1); }}
-                filterLocation={checkInFilterLocation}
-                onFilterLocationChange={(val) => { setCheckInFilterLocation(val); setCheckInPage(1); }}
-                embedded={true}
-                sidebarToggle={sidebarToggle}
-                onView={handleViewCheckIn}
-                onEdit={handleEditCheckIn}
-                onDelete={handleDeleteCheckIn}
-                locations={locations}
-                onExport={handleExportCheckIns}
-                isExporting={checkInExporting}
-                exportFilters={{ search: checkInSearch, month: checkInFilterMonth, year: checkInFilterYear, location: checkInFilterLocation }}
-            />
-            </Suspense>
-        );
-    };
+    const renderCheckInLogView = () => (
+        <CheckInLogTab
+            log={checkInLog}
+            locations={locations}
+            sidebarToggle={(!isSidebarOpen || isMobile) ? <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} /> : null}
+            fallback={<TabLoader />}
+        />
+    );
 
     const renderNetworkTab = () => {
         if (!selectedCustomer) return null;
@@ -4957,127 +4715,8 @@ const SalesPage = () => {
                     )
                 }
 
-                {/* Check-In Detail/Edit Modal */}
-                {selectedCheckIn && checkInModalMode && createPortal(
-                    <div className="modal-overlay" onClick={() => { setSelectedCheckIn(null); setCheckInModalMode(null); }}>
-                        <div className="modal-content animate-slide-up" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                            <div className="modal-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                    {checkInModalMode === 'view' ? 'Check-In Details' : 'Edit Check-In'}
-                                </h2>
-                                <button className="close-btn" onClick={() => { setSelectedCheckIn(null); setCheckInModalMode(null); }} style={{ color: 'var(--text-secondary)' }}>
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <form onSubmit={handleSaveCheckIn}>
-                                <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
-                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Visitor Name <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
-                                        <input
-                                            type="text"
-                                            value={checkInModalMode === 'view' ? (selectedCheckIn.name || '') : checkInForm.name}
-                                            onChange={(e) => setCheckInForm({ ...checkInForm, name: e.target.value })}
-                                            readOnly={checkInModalMode === 'view'}
-                                            placeholder="e.g. John Doe"
-                                            required
-                                            style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: checkInModalMode === 'view' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: checkInModalMode === 'view' ? 'rgba(255,255,255,0.7)' : '#fff', fontSize: '0.9rem', outline: 'none' }}
-                                        />
-                                    </div>
-                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Phone Number <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
-                                        <input
-                                            type="text"
-                                            value={checkInModalMode === 'view' ? (selectedCheckIn.phone || '') : checkInForm.phone}
-                                            onChange={(e) => setCheckInForm({ ...checkInForm, phone: formatPhoneInput(e.target.value) })}
-                                            readOnly={checkInModalMode === 'view'}
-                                            placeholder="e.g. (555) 000-0000"
-                                            required
-                                            style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: checkInModalMode === 'view' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: checkInModalMode === 'view' ? 'rgba(255,255,255,0.7)' : '#fff', fontSize: '0.9rem', outline: 'none' }}
-                                        />
-                                    </div>
-                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Company/Contact Name <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
-                                        <input
-                                            type="text"
-                                            value={checkInModalMode === 'view' ? (selectedCheckIn.fabricatorCompany || '') : checkInForm.fabricatorCompany}
-                                            onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorCompany: e.target.value })}
-                                            readOnly={checkInModalMode === 'view'}
-                                            placeholder="e.g. Premier Builders / Jane Smith"
-                                            required
-                                            style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: checkInModalMode === 'view' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: checkInModalMode === 'view' ? 'rgba(255,255,255,0.7)' : '#fff', fontSize: '0.9rem', outline: 'none' }}
-                                        />
-                                    </div>
-                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Company Phone Number <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
-                                        <input
-                                            type="text"
-                                            value={checkInModalMode === 'view' ? (selectedCheckIn.fabricatorPhone || '') : checkInForm.fabricatorPhone}
-                                            onChange={(e) => setCheckInForm({ ...checkInForm, fabricatorPhone: formatPhoneInput(e.target.value) })}
-                                            readOnly={checkInModalMode === 'view'}
-                                            placeholder="e.g. (555) 000-0000"
-                                            required
-                                            style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: checkInModalMode === 'view' ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: checkInModalMode === 'view' ? 'rgba(255,255,255,0.7)' : '#fff', fontSize: '0.9rem', outline: 'none' }}
-                                        />
-                                    </div>
-                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Branch Location <span style={{ color: 'var(--status-danger, #ef4444)' }}>*</span></label>
-                                        {checkInModalMode === 'view' ? (
-                                            <input
-                                                type="text"
-                                                value={selectedCheckIn.location || 'Seattle'}
-                                                readOnly
-                                                style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', outline: 'none' }}
-                                            />
-                                        ) : (
-                                            <LocationPicker
-                                                id="sp-checkin-location"
-                                                value={checkInForm.location || ''}
-                                                onChange={(location) => setCheckInForm({ ...checkInForm, location })}
-                                                options={locations.length > 0 ? locations : ['Seattle', 'Spokane', 'Salt Lake City']}
-                                                user={currentUser}
-                                                sheetTitle="Branch location"
-                                            />
-                                        )}
-                                    </div>
-                                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Logged By</label>
-                                        <input
-                                            type="text"
-                                            value={
-                                                typeof selectedCheckIn.loggedBy === 'string' && selectedCheckIn.loggedBy.trim()
-                                                    ? selectedCheckIn.loggedBy
-                                                    : selectedCheckIn.loggedBy?.displayName || selectedCheckIn.loggedBy?.username || (selectedCheckIn.isSelfCheckIn || selectedCheckIn.source === 'self' || selectedCheckIn.loggedBy === 'Self Check-In (QR/NFC)' ? '📱 Self Check-In (QR/NFC)' : 'Staff')
-                                            }
-                                            readOnly
-                                            disabled
-                                            style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', outline: 'none', cursor: 'not-allowed' }}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="modal-footer" style={{ padding: '1.25rem 1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                                    <button
-                                        type="button"
-                                        className="btn-secondary"
-                                        onClick={() => { setSelectedCheckIn(null); setCheckInModalMode(null); }}
-                                        style={{ padding: '0.65rem 1.25rem', borderRadius: '8px', cursor: 'pointer', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '0.875rem' }}
-                                    >
-                                        Close
-                                    </button>
-                                    {checkInModalMode === 'edit' && (
-                                        <button
-                                            type="submit"
-                                            className="btn-primary"
-                                            style={{ padding: '0.65rem 1.25rem', borderRadius: '8px', cursor: 'pointer', background: 'linear-gradient(135deg, #d4af37, #b8961f)', color: '#000', border: 'none', fontWeight: 700, fontSize: '0.875rem' }}
-                                        >
-                                            Save Changes
-                                        </button>
-                                    )}
-                                </div>
-                            </form>
-                        </div>
-                    </div>,
-                    document.body
-                )}
+                {/* Check-In Detail/Edit Modal (src/features/checkin) */}
+                <CheckInDetailModal log={checkInLog} locations={locations} currentUser={currentUser} />
             </div >
         </div >
     );

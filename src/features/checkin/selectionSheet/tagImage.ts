@@ -12,10 +12,11 @@ const MEASURE_DIM = 800;
 // A canvas bigger than this fails silently on iOS (16.7M px); stay under it.
 const MAX_CANVAS_PX = 12_000_000;
 const WHITE = '#ffffff';
-const FULL_BOX = Object.freeze({ x: 0, y: 0, width: 100, height: 100 });
+type Box = { x: number; y: number; width: number; height: number };
+const FULL_BOX: Readonly<Box> = Object.freeze({ x: 0, y: 0, width: 100, height: 100 });
 
 /** The photo as an <img>, turned upright by the browser from its camera orientation. */
-export function loadImage(file) {
+export function loadImage(file: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
@@ -25,13 +26,13 @@ export function loadImage(file) {
   });
 }
 
-export const toBlob = (canvas, quality = 0.92) => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+export const toBlob = (canvas: HTMLCanvasElement, quality = 0.92): Promise<Blob | null> => new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
 
-export const newCanvas = (width, height) => {
+export const newCanvas = (width: number, height: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } => {
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(width));
   canvas.height = Math.max(1, Math.round(height));
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
   ctx.imageSmoothingQuality = 'high';
   ctx.fillStyle = WHITE; // corners white like the tag, not black edges for OCR to read
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -43,7 +44,7 @@ export const newCanvas = (width, height) => {
  * onto a white canvas big enough for the corners — or, with `box` (percent of
  * that turned picture), just that part of it.
  */
-export function drawTurned(img, { degrees = 0, scale = 1, box = FULL_BOX } = {}) {
+export function drawTurned(img: CanvasImageSource & { width: number; height: number }, { degrees = 0, scale = 1, box = FULL_BOX }: { degrees?: number; scale?: number; box?: Readonly<Box> } = {}): HTMLCanvasElement {
   const w = img.width * scale;
   const h = img.height * scale;
   const turned = rotatedSize(w, h, degrees);
@@ -56,22 +57,22 @@ export function drawTurned(img, { degrees = 0, scale = 1, box = FULL_BOX } = {})
   return canvas;
 }
 
-export function greyPixels(canvas) {
+export function greyPixels(canvas: HTMLCanvasElement): Uint8Array {
   const { width, height } = canvas;
-  const { data } = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, width, height);
+  const { data } = canvas.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, width, height);
   const gray = new Uint8Array(width * height);
   for (let i = 0, p = 0; i < gray.length; i++, p += 4) gray[i] = (data[p] * 299 + data[p + 1] * 587 + data[p + 2] * 114) / 1000;
   return gray;
 }
 
-export const fitScale = (w, h, max) => Math.min(1, max / Math.max(w, h));
+export const fitScale = (w: number, h: number, max: number): number => Math.min(1, max / Math.max(w, h));
 
 /**
  * For a photo whose barcode couldn't be read: how far to turn it to level
  * the tag, and the area around anything barcode-like (else the whole photo),
  * cut from the full-resolution photo for the OCR fallback.
  */
-export async function levelledTagArea(img) {
+export async function levelledTagArea(img: HTMLImageElement): Promise<Blob | null> {
   const small = drawTurned(img, { scale: fitScale(img.width, img.height, MEASURE_DIM) });
   const turn = -levelBy(estimateSkew(greyPixels(small), small.width, small.height).angle);
   const turnedSize = rotatedSize(img.width, img.height, turn);
@@ -89,7 +90,7 @@ const OCR_DIM = 1600;
 const MAX_UPSCALE = 2;
 
 /** One OCR pass's image, sized for Tesseract and turned by `degrees`. */
-export async function preprocessImage(file, degrees = 0) {
+export async function preprocessImage(file: Blob, degrees = 0): Promise<Blob | null> {
   const img = await loadImage(file);
   const scale = Math.min(MAX_UPSCALE, OCR_DIM / Math.max(img.width, img.height));
   return toBlob(drawTurned(img, { degrees, scale }), 0.9);

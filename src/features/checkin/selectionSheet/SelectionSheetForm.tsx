@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Check, Lock, Mail, MoreHorizontal, Plus, Printer, Trash2, X } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
-import { FormField, FormPicker } from '../../shared/form/FormControls';
-import useIsPhone from '../../shared/form/useIsPhone';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormField, FormPicker } from '../../../components/shared/form/FormControls';
+import useIsPhone from '../../../components/shared/form/useIsPhone';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { useSalesRepOptions } from '../../../api/salesRepOptions';
@@ -10,10 +10,12 @@ import { formatInstant } from '../../../utils/dateUtils';
 import { letterheadFor } from '../../../utils/locationForm';
 import {
     SHEET_ROWS, emptyRow, sheetValuesFromCheckIn, countSheetChanges, sheetPayload,
-    buildSelectionSheetHtml, tidyPrice, formatSlabSize, sheetPriceErrors, sheetPriceSummary, PRICE_ERROR
+    buildSelectionSheetHtml, formatSlabSize, sheetPriceErrors, sheetPriceSummary, PRICE_ERROR,
+    type SheetValues, type SheetCheckIn
 } from '../../../utils/selectionSheet';
-import MaterialInput from './MaterialInput';
-import RepPicker from '../../shared/form/RepPicker';
+import SheetMaterials, { type RowNotice } from './SheetMaterials';
+import type { Loose } from '../../../types/records';
+import RepPicker from '../../../components/shared/form/RepPicker';
 import { EmailDialog, PrintDialog } from './SheetDialogs';
 import { placeTagRows } from '../../../utils/tagLine';
 import './SelectionSheetForm.css';
@@ -43,39 +45,55 @@ import './SelectionSheetForm.css';
 export const SHEET_DRAFT_KEY = 'active_selection_sheet';
 const UNREADABLE = 'Unable to read the tag. Try again a little closer, with the tag in focus.';
 
-export default function SelectionSheetForm({ checkIn, draft = null, owner, locations = [], canEdit, canEmail, onClose, onSaved }) {
+/** Unsaved work kept for its owner, so a refresh reopens it. */
+export type SheetDraft = { owner: string; checkIn: SheetCheckIn; values: SheetValues; loadedAt: string | null };
+
+export type SelectionSheetFormProps = {
+    checkIn: SheetCheckIn;
+    draft?: Loose | null;
+    /** Who is editing: the draft's owner, and "(you)" in the rep list. */
+    owner: string;
+    /** Location documents (for the letterhead) or names. */
+    locations?: unknown[];
+    canEdit: boolean;
+    canEmail: boolean;
+    onClose: () => void;
+    onSaved?: (saved: SheetCheckIn) => void;
+};
+
+export default function SelectionSheetForm({ checkIn, draft = null, owner, locations = [], canEdit, canEmail, onClose, onSaved }: SelectionSheetFormProps) {
     const isPhone = useIsPhone();
     const [record, setRecord] = useState(checkIn);
     const baseline = useMemo(() => sheetValuesFromCheckIn(record), [record]);
-    const [values, setValues] = useState(() => draft?.values || sheetValuesFromCheckIn(checkIn));
+    const [values, setValues] = useState<SheetValues>(() => draft?.values || sheetValuesFromCheckIn(checkIn));
     // A tag scan takes seconds; it places its rows against the sheet as it is when it finishes.
     const valuesRef = useRef(values);
     valuesRef.current = values;
-    const [loadedAt, setLoadedAt] = useState(() => draft?.loadedAt || checkIn.updatedAt || null);
+    const [loadedAt, setLoadedAt] = useState<string | null>(() => draft?.loadedAt || checkIn.updatedAt || null);
 
-    const [products, setProducts] = useState([]);
+    const [products, setProducts] = useState<Loose[]>([]);
     const [saving, setSaving] = useState(false);
     const [note, setNote] = useState('');
     const [formError, setFormError] = useState('');
-    const [conflict, setConflict] = useState(null);
-    const [notices, setNotices] = useState({});
-    const [scanning, setScanning] = useState(null); // { idx, progress }
+    const [conflict, setConflict] = useState<SheetCheckIn | null>(null);
+    const [notices, setNotices] = useState<Record<number, RowNotice>>({});
+    const [scanning, setScanning] = useState<{ idx: number; progress: number } | null>(null);
     const [emailOpen, setEmailOpen] = useState(false);
     const [printOpen, setPrintOpen] = useState(false);
-    const [sending, setSending] = useState(null); // null | 'plain' | 'priced'
+    const [sending, setSending] = useState<'plain' | 'priced' | null>(null);
     // Rows whose price box has been left (or a save tried) — a price is only
     // marked wrong after that, not while "12." is still being typed.
-    const [priceTouched, setPriceTouched] = useState({});
+    const [priceTouched, setPriceTouched] = useState<Record<number, boolean>>({});
     const [emailError, setEmailError] = useState('');
     const [moreOpen, setMoreOpen] = useState(false);
-    const fileRef = useRef(null);
-    const scanIdx = useRef(null);
-    const focusAfterAdd = useRef(null);
+    const fileRef = useRef<HTMLInputElement>(null);
+    const scanIdx = useRef<number | null>(null);
+    const focusAfterAdd = useRef<number | null>(null);
 
     const dirty = canEdit ? countSheetChanges(values, baseline) : 0;
     const priceErrors = useMemo(() => sheetPriceErrors(values), [values]);
     const priceSummary = useMemo(() => sheetPriceSummary(values), [values]);
-    const priceError = (i) => (priceTouched[i] ? priceErrors[i] || '' : '');
+    const priceError = (i: number): string => (priceTouched[i] ? priceErrors[i] || '' : '');
 
     useEffect(() => {
         let alive = true;
@@ -102,7 +120,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
     });
 
     const touch = () => { setNote(''); setFormError(''); };
-    const setRow = (i, patch) => {
+    const setRow = (i: number, patch: Partial<SheetValues['rows'][number]>) => {
         touch();
         setValues((v) => ({ ...v, rows: v.rows.map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
     };
@@ -112,7 +130,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         focusAfterAdd.current = values.rows.length;
         setValues((v) => ({ ...v, rows: [...v.rows, emptyRow()] }));
     };
-    const removeRow = (i) => {
+    const removeRow = (i: number) => {
         // A tag scan writes its result to the row it started on, by position;
         // removing a row mid-scan would shift it onto a different item.
         if (scanning != null) return;
@@ -132,15 +150,15 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         branches: record.location ? [record.location] : [],
         current: { name: values.salesRep, email: values.salesRepEmail }
     });
-    const chooseRep = (name) => {
+    const chooseRep = (name: string) => {
         const opt = repList.find((o) => o.value === name);
         touch();
         setValues((v) => ({ ...v, salesRep: name, salesRepEmail: name ? (opt?.email || '') : '' }));
     };
 
     // PUT what's on screen. Returns 'saved' | 'conflict'; throws a message otherwise.
-    const persist = async (expectedUpdatedAt) => {
-        let res;
+    const persist = async (expectedUpdatedAt: string | null): Promise<'saved' | 'conflict'> => {
+        let res: Response;
         try {
             res = await authFetch(`${API_URL}/api/checkin/${record._id}`, {
                 method: 'PUT',
@@ -172,7 +190,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
     // A price that can't be read would otherwise be saved as no price. → the
     // first bad row's number, or 0 when every price is fine.
     // (Not focused from the Email pop-up — the box is behind it.)
-    const firstBadPrice = ({ focus = true } = {}) => {
+    const firstBadPrice = ({ focus = true }: { focus?: boolean } = {}): number => {
         const bad = Object.keys(priceErrors).map(Number).sort((a, b) => a - b);
         if (!bad.length) return 0;
         setPriceTouched((t) => ({ ...t, ...Object.fromEntries(bad.map((i) => [i, true])) }));
@@ -180,7 +198,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         return bad[0] + 1;
     };
 
-    const save = async (expectedUpdatedAt = loadedAt) => {
+    const save = async (expectedUpdatedAt: string | null = loadedAt) => {
         if (!canEdit || saving) return;
         const bad = firstBadPrice();
         if (bad) { setFormError(`${PRICE_ERROR} (item ${bad}).`); return; }
@@ -191,13 +209,14 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             // onSaved). A conflict or an error keeps it open with what's typed.
             if ((await persist(expectedUpdatedAt)) === 'saved') onClose?.();
         } catch (err) {
-            setFormError(err.message);
+            setFormError((err as Error).message);
         } finally {
             setSaving(false);
         }
     };
 
     const loadTheirs = () => {
+        if (!conflict) return;
         setPriceTouched({});
         setRecord(conflict);
         setValues(sheetValuesFromCheckIn(conflict));
@@ -206,7 +225,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         setNotices({});
     };
 
-    const sendEmail = async (to, withPrices) => {
+    const sendEmail = async (to: string, withPrices: boolean) => {
         setEmailError('');
         if (canEdit && dirty > 0) {
             const bad = firstBadPrice({ focus: false });
@@ -228,20 +247,20 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             setEmailOpen(false);
             setNote(`✓ Emailed to ${to}${withPrices ? ' with prices' : ''}`);
         } catch (err) {
-            setEmailError(err.message || 'Couldn’t send the email. Try again.');
+            setEmailError((err as Error).message || 'Couldn’t send the email. Try again.');
         } finally {
             setSending(null);
         }
     };
 
     // What's on screen, saved or not. With prices, every price has to read.
-    const printSheet = (showPrices) => {
+    const printSheet = (showPrices: boolean) => {
         setPrintOpen(false);
         if (showPrices) {
             const bad = firstBadPrice();
             if (bad) { setFormError(`${PRICE_ERROR} (item ${bad}).`); return; }
         }
-        const location = (Array.isArray(locations) ? locations : []).find((l) => l && typeof l === 'object' && l.name === record.location);
+        const location = (Array.isArray(locations) ? locations : []).find((l): l is Loose => Boolean(l) && typeof l === 'object' && (l as Loose).name === record.location);
         const html = buildSelectionSheetHtml({ checkIn: record, dateStr: formatInstant(record.createdAt), values, letterhead: letterheadFor(location), showPrices });
         const win = window.open('', '_blank', 'width=800,height=800');
         if (!win) { setFormError('Your browser blocked the print window. Allow pop-ups for this site, then try again.'); return; }
@@ -258,8 +277,8 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
     // ── Tag scanning: scan icon → camera → photo → rows filled ──
     // The tags' barcodes find each printed line; one row per lot, its slabs
     // together (readTagPhoto, src/utils/tagLine.js). Nothing to frame or confirm.
-    const startScan = (i) => { scanIdx.current = i; fileRef.current?.click(); };
-    const onPhoto = async (e) => {
+    const startScan = (i: number) => { scanIdx.current = i; fileRef.current?.click(); };
+    const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         e.target.value = '';
         const idx = scanIdx.current;
@@ -276,7 +295,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             const scanned = result.rows.map((r) => ({ ...r, size: r.size ? formatSlabSize(r.size) : '' }));
             const placed = placeTagRows(valuesRef.current.rows, idx, scanned, SHEET_ROWS, emptyRow);
             touch();
-            setValues((v) => ({ ...v, rows: placed.rows }));
+            setValues((v) => ({ ...v, rows: placed.rows as SheetValues['rows'] }));
             const extra = [
                 result.unread ? `${result.unread} tag${result.unread === 1 ? '' : 's'} in the photo couldn’t be read.` : '',
                 placed.dropped ? `${placed.dropped} more lot${placed.dropped === 1 ? '' : 's'} didn’t fit — the sheet holds ${SHEET_ROWS} items.` : '',
@@ -297,94 +316,6 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         }
     };
 
-    const notice = (i) => {
-        const n = notices[i];
-        if (!n) return null;
-        return (
-            <div className={`ss-notice ss-notice-${n.tone}`} role="status">
-                {n.tone === 'ok' ? <Check size={13} aria-hidden="true" /> : <AlertTriangle size={13} aria-hidden="true" />}
-                <div className="ss-notice-text">{n.lines.map((l) => <div key={l}>{l}</div>)}</div>
-                <button type="button" className="ss-notice-close" aria-label="Dismiss" onClick={() => setNotices((m) => ({ ...m, [i]: null }))}>
-                    <X size={12} aria-hidden="true" />
-                </button>
-            </div>
-        );
-    };
-
-    const materialBox = (row, i) => (
-        <MaterialInput
-            id={`ss-mat-${i}`}
-            value={row.material}
-            onChange={(material) => setRow(i, { material })}
-            products={products}
-            disabled={!canEdit}
-            ariaLabel={`Material, item ${i + 1}`}
-            onScan={canEdit ? () => startScan(i) : undefined}
-            scanning={scanning?.idx === i}
-            progress={scanning?.idx === i ? scanning.progress : 0}
-        />
-    );
-    // No example text in these boxes (2026-10-10): the same "13845 · 1, 2 ·
-    // 126 × 63 · $0.00" on every row read as real data nobody had entered.
-    // The column headings (cards: the labels) say what goes where.
-    const smallInput = (row, i, key, label, inputMode) => (
-        <input
-            id={`ss-${key}-${i}`}
-            className="fm-input no-capitalize"
-            type="text"
-            inputMode={inputMode}
-            aria-label={`${label}, item ${i + 1}`}
-            value={row[key]}
-            disabled={!canEdit}
-            onChange={(e) => setRow(i, { [key]: e.target.value })}
-            // Size: "142 79", "142x79", a pasted "142" x 79"" → "142 * 79"
-            // once you leave the box (formatSlabSize) — not while typing.
-            onBlur={key === 'size' ? (e) => {
-                const tidy = formatSlabSize(e.target.value);
-                if (tidy !== row.size) setRow(i, { size: tidy });
-            } : undefined}
-        />
-    );
-    const priceInput = (row, i) => {
-        const err = priceError(i);
-        return (
-            <span className="ss-price-cell">
-                <span className="ss-price">
-                    <span className="ss-price-sign" aria-hidden="true">$</span>
-                    <input
-                        id={`ss-price-${i}`}
-                        className="fm-input no-capitalize ss-price-input"
-                        type="text"
-                        inputMode="decimal"
-                        aria-label={`Price per square foot, item ${i + 1}`}
-                        aria-invalid={err ? 'true' : undefined}
-                        aria-describedby={err ? `ss-price-${i}-msg` : undefined}
-                        value={row.price}
-                        disabled={!canEdit}
-                        onChange={(e) => setRow(i, { price: e.target.value })}
-                        onBlur={(e) => {
-                            setPriceTouched((t) => ({ ...t, [i]: true }));
-                            const tidy = tidyPrice(e.target.value);
-                            if (tidy !== row.price) setRow(i, { price: tidy });
-                        }}
-                    />
-                </span>
-                {err && <span className="fm-error" id={`ss-price-${i}-msg`}><AlertCircle size={13} aria-hidden="true" />{err}</span>}
-            </span>
-        );
-    };
-    const removeButton = (i) => (canEdit && values.rows.length > 1 ? (
-        <button
-            type="button"
-            className="ss-remove"
-            onClick={() => removeRow(i)}
-            disabled={scanning != null}
-            aria-label={`Remove item ${i + 1}`}
-            title={scanning != null ? 'Wait for the tag scan to finish' : 'Remove this item'}
-        >
-            {isPhone ? <X size={15} aria-hidden="true" /> : <Trash2 size={16} aria-hidden="true" />}
-        </button>
-    ) : <span className="ss-remove-spacer" aria-hidden="true" />);
 
     // Customer and their phone under the title — on phones only, where the
     // body doesn't show the visit details (desktop/tablet list them in the
@@ -438,10 +369,10 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             ? <span className="ss-saved-note">{note}</span>
             : (!canEdit ? 'View only — you can’t edit selection sheets' : null);
 
-    const fact = (label, value) => (
+    const fact = (label: string, value: unknown) => (
         <div className="fm-field">
             <span className="fm-label">{label}</span>
-            <span className="ss-fact">{value || '—'}</span>
+            <span className="ss-fact">{(value as React.ReactNode) || '—'}</span>
         </div>
     );
 
@@ -498,55 +429,21 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             </section>
 
             <section className="fm-section">
-                {!isPhone ? (
-                    <div className="ss-table">
-                        <div className="ss-row ss-row-head" aria-hidden="true">
-                            <span>#</span><span>Material</span>
-                            <span className="ss-trio"><span>Lot #</span><span>Slabs</span><span>Size</span><span>Price / SF</span></span>
-                            <span />
-                        </div>
-                        {values.rows.map((row, i) => (
-                            <div className="ss-row" key={i}>
-                                <span className="ss-row-num">{i + 1}</span>
-                                <div className="ss-row-mat">{materialBox(row, i)}{notice(i)}</div>
-                                <div className="ss-trio">
-                                    {smallInput(row, i, 'lot', 'Lot or bundle number', 'numeric')}
-                                    {smallInput(row, i, 'details', 'Slab numbers')}
-                                    {smallInput(row, i, 'size', 'Size')}
-                                    {priceInput(row, i)}
-                                </div>
-                                {removeButton(i)}
-                            </div>
-                        ))}
-                        {canEdit && values.rows.length < SHEET_ROWS && (
-                            <button type="button" className="fm-btn fm-btn-small ss-add-row" onClick={addRow}>
-                                <Plus size={16} aria-hidden="true" />Add material row
-                            </button>
-                        )}
-                    </div>
-                ) : (
-                    <div className="ss-cards">
-                        {values.rows.map((row, i) => (
-                            <div className="ss-card" key={i}>
-                                <div className="ss-card-top">
-                                    <span className="ss-card-num" aria-hidden="true">{i + 1}</span>
-                                    {materialBox(row, i)}
-                                    {removeButton(i)}
-                                </div>
-                                {notice(i)}
-                                <div className="ss-card-trio">
-                                    <label className="ss-card-field"><span>Lot #</span>{smallInput(row, i, 'lot', 'Lot or bundle number', 'numeric')}</label>
-                                    <label className="ss-card-field"><span>Slabs</span>{smallInput(row, i, 'details', 'Slab numbers')}</label>
-                                    <label className="ss-card-field"><span>Size</span>{smallInput(row, i, 'size', 'Size')}</label>
-                                    <label className="ss-card-field"><span>Price / SF</span>{priceInput(row, i)}</label>
-                                </div>
-                            </div>
-                        ))}
-                        {canEdit && values.rows.length < SHEET_ROWS && (
-                            <button type="button" className="ss-add-card" onClick={addRow}>+ Add Another Item</button>
-                        )}
-                    </div>
-                )}
+                <SheetMaterials
+                    rows={values.rows}
+                    products={products}
+                    canEdit={canEdit}
+                    isPhone={isPhone}
+                    scanning={scanning}
+                    notices={notices}
+                    priceError={priceError}
+                    onRowChange={setRow}
+                    onPriceLeft={(i) => setPriceTouched((t) => ({ ...t, [i]: true }))}
+                    onRemove={removeRow}
+                    onAdd={addRow}
+                    onScan={startScan}
+                    onDismissNotice={(i) => setNotices((m) => ({ ...m, [i]: null }))}
+                />
             </section>
 
             <section className="fm-section">

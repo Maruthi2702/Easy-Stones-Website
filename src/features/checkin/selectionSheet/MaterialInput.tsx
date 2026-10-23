@@ -10,10 +10,24 @@ import { Loader2, Scan } from 'lucide-react';
  * Keyboard: ↑/↓ move through the list, Enter picks (and never submits the
  * sheet), Esc closes the list without closing the sheet.
  */
+export type MaterialInputProps = {
+    id: string;
+    value: string;
+    onChange: (value: string) => void;
+    /** The catalog (/api/products) whose names are suggested. */
+    products?: { name?: string }[];
+    disabled?: boolean;
+    ariaLabel?: string;
+    onScan?: () => void;
+    scanning?: boolean;
+    progress?: number;
+    placeholder?: string;
+};
+
 export default function MaterialInput({
     id, value, onChange, products = [], disabled = false, ariaLabel,
     onScan, scanning = false, progress = 0, placeholder = 'Search material…'
-}) {
+}: MaterialInputProps) {
     const listId = useId();
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState(-1);
@@ -26,13 +40,13 @@ export default function MaterialInput({
     }, [products, query]);
     const showList = open && !disabled && suggestions.length > 0;
 
-    const pick = (name) => {
+    const pick = (name: string) => {
         onChange(name.toUpperCase());
         setOpen(false);
         setActive(-1);
     };
 
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             if (!suggestions.length) return;
             e.preventDefault();

@@ -11,14 +11,18 @@ import { EXPORT_PAGE_SIZE, collectAllCheckIns, checkInExportRows, checkInExportF
  * shown as is (code 'auth' when the session has ended); nothing is written
  * then, rather than a file that silently stops partway.
  */
-export async function exportCheckInLog({ search = '', month = null, year = null, location = null }) {
-  const fetchPage = async (page) => {
+type Filter = string | number | null | undefined;
+
+export async function exportCheckInLog({ search = '', month = null, year = null, location = null }: {
+  search?: string; month?: Filter; year?: Filter; location?: string | null;
+}): Promise<{ count: number; total: number; truncated: boolean }> {
+  const fetchPage = async (page: number) => {
     const params = new URLSearchParams({
-      page,
-      limit: EXPORT_PAGE_SIZE,
+      page: String(page),
+      limit: String(EXPORT_PAGE_SIZE),
       ...(search && { search }),
-      ...(month && { month }),
-      ...(year && { year }),
+      ...(month ? { month: String(month) } : {}),
+      ...(year ? { year: String(year) } : {}),
       ...(location && { location })
     });
     let res;
@@ -28,7 +32,7 @@ export async function exportCheckInLog({ search = '', month = null, year = null,
       throw new Error('Couldn’t reach the server, so nothing was exported. Check your connection and try again.');
     }
     if (res.status === 401) {
-      const err = new Error('Your session has ended. Log in again to export.');
+      const err: Error & { code?: string } = new Error('Your session has ended. Log in again to export.');
       err.code = 'auth';
       throw err;
     }
@@ -47,5 +51,5 @@ export async function exportCheckInLog({ search = '', month = null, year = null,
 }
 
 /** What to tell the person when the export stopped at the page limit. */
-export const truncatedExportNote = ({ count, total }) =>
+export const truncatedExportNote = ({ count, total }: { count: number; total: number }): string =>
   `Exported the first ${count.toLocaleString()} of ${total.toLocaleString()} check-ins. Pick a month or a branch to export the rest.`;

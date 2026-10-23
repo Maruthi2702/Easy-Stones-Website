@@ -8,6 +8,7 @@ import {
   ORIENTATIONS, readStoneLabel, resolveLabelRead, scoreLabelRead, isUsableRead, isConfidentRead,
 } from '../../../utils/stoneLabel';
 import { preprocessImage } from './tagImage';
+import type { Loose } from '../../../types/records';
 
 // Tesseract page modes: 6 = one block of text, 3 = find the layout itself.
 const PAGE_MODES = ['6', '3'];
@@ -18,8 +19,10 @@ const PAGE_MODES = ['6', '3'];
  * @param {(percent: number) => void} [onProgress]
  * @returns {Promise<{ ok: true, row: {material, lot, details, size}, notes: string[] } | { ok: false, message: string }>}
  */
-export async function scanTag(croppedBlob, productList = [], onProgress) {
-  let worker = null;
+export type ScanResult = { ok: true; row: { material: string; lot: string; details: string; size: string }; notes: string[] } | { ok: false; message: string };
+
+export async function scanTag(croppedBlob: Blob, productList: Loose[] = [], onProgress?: (percent: number) => void): Promise<ScanResult> {
+  let worker: import('tesseract.js').Worker | null = null;
   let pass = 0;
   try {
     const { createWorker } = await import('tesseract.js');
@@ -40,12 +43,12 @@ export async function scanTag(croppedBlob, productList = [], onProgress) {
     // Each rotation is read as one block of text first (a tight tag crop),
     // then with Tesseract's own layout finding: on an angled tag the latter
     // found no text at all.
-    let best = null;
+    let best: { read: ReturnType<typeof readStoneLabel>; score: number; confidence: number } | null = null;
     passes: for (let turn = 0; turn < ORIENTATIONS.length; turn++) {
       const processed = await preprocessImage(croppedBlob, ORIENTATIONS[turn]);
       for (const mode of PAGE_MODES) {
-        await worker.setParameters({ tessedit_pageseg_mode: mode });
-        const { data } = await worker.recognize(processed);
+        await worker.setParameters({ tessedit_pageseg_mode: mode as import('tesseract.js').PSM });
+        const { data } = await worker.recognize(processed as Blob);
         pass++;
         const read = readStoneLabel(data.text, productList);
         const score = scoreLabelRead(read, data.confidence);
@@ -57,11 +60,11 @@ export async function scanTag(croppedBlob, productList = [], onProgress) {
     if (!best || !isUsableRead(best.read, best.confidence)) {
       return { ok: false, message: "Couldn't read this tag. Try a closer photo and fit the box around just one tag." };
     }
-    const { material, lot, details, size, notes } = resolveLabelRead(best.read, productList);
+    const { material, lot, details, size, notes } = resolveLabelRead(best.read!, productList);
     return { ok: true, row: { material, lot, details, size }, notes };
   } catch (err) {
     console.error('Tag scan failed:', err);
-    return { ok: false, message: `Couldn't scan the tag: ${err.message}` };
+    return { ok: false, message: `Couldn't scan the tag: ${(err as Error).message}` };
   } finally {
     if (worker) worker.terminate().catch(() => {});
   }

@@ -24,8 +24,8 @@ both Sales CRM → Users & Roles and the /admin page. **Add / Edit location**
 no section headings, follow-up behind a toggle, and **no Cancel button**
 (owner's call, 2026-10-04: the ✕ closes, with the unsaved-changes check).
 Since 2026-10-05 no form has a Cancel button (see Footer below).
-The **Selection Sheet** (`src/components/sales/selectionSheet/SelectionSheetForm.jsx`,
-size L; rules in `src/utils/selectionSheet.js`; design on the
+The **Selection Sheet** (`src/features/checkin/selectionSheet/SelectionSheetForm.tsx`,
+size L; rules in `src/utils/selectionSheet.ts`; design on the
 [Selection Sheet canvas](https://claude.ai/artifact/VjjzPT6QRMaDWa3G9WVCCd)) is
 on it too, with one deliberate phone exception (owner's call, 2026-10-04): no
 footer — Save selection is a full-width button at the end of the body, and

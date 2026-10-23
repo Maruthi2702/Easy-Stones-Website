@@ -5,7 +5,7 @@ import {
   canCheckIn, canSeeCheckInQr, canViewCheckInLog, canEditCheckInDetails, canDeleteCheckIn,
   canEditSelectionSheet, canEmailSelectionSheet
 } from './checkInAccess.js';
-import { sheetPayload, sheetValuesFromCheckIn } from './selectionSheet.js';
+import { sheetPayload, sheetValuesFromCheckIn } from './selectionSheet.ts';
 import { PAGE_PERMISSIONS } from '../components/sales/users/pagePermissions.js';
 
 const as = (...permissions) => ({ role: 'custom', permissions });

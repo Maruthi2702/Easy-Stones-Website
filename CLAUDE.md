@@ -44,7 +44,7 @@ Customer List design, which the user preferred over the old "Page n of T" bar.
 On phones (<600px) the same pager shows only the page numbers, centred,
 after the last card and scrolling with the list — never pinned to the screen,
 and with no box of its own. A screen whose list scrolls inside a panel must
-let the pager scroll with it on phones (see the end of `CheckInLogPanel.css`).
+let the pager scroll with it on phones (see the end of `src/features/checkin/log/CheckInLogPanel.css`).
 
 When adding a list, don't hand-roll a pager or a different size set (the
 Customer List had its own until 2026-10-03). Check the server endpoint's
@@ -708,7 +708,7 @@ says, how the tags in one photo combine — lot copies cross-checked, one row
 per lot with its slabs together — and which sheet rows they fill;
 `src/utils/tagPhoto.ts`: a photo's tilt, the printed line in a strip cut
 beside a barcode, and the levelling score). The scan itself
-(`selectionSheet/readTagPhoto.js`: barcodes with zxing-wasm, then each
+(`src/features/checkin/selectionSheet/readTagPhoto.ts`: barcodes with zxing-wasm, then each
 tag's line with Tesseract) is checked by hand on real tag photos — and Add / Edit location's rules (`src/utils/locationForm.js`:
 required fields and formats, unique short name/code, which locations can be
 an RDC, the record ↔ form conversion the API also runs, what non-managers
@@ -716,7 +716,7 @@ may read, and the selection-sheet letterhead with its Kent fallback), and
 Add / Edit visit's rules (`src/utils/visitForm.js`: the visit types and
 their stored values, which fields each type uses, required fields, the
 change count, and the "Last changed by" note), and the Selection Sheet's
-rules (`src/utils/selectionSheet.js`: rows, the change count behind the
+rules (`src/utils/selectionSheet.ts`: rows, the change count behind the
 unsaved-changes check, the save body with its stale-save
 `expectedUpdatedAt`, the escaped print page,
 price per SF in cents and when it prints, internal vs printed notes, and

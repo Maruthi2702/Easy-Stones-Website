@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { io } from 'socket.io-client';
-import { getCachedData, setCachedData, isCacheValid, expireCacheKeys } from '../utils/dataCache';
-import { API_URL } from '../config/api';
-import { authFetch } from '../api/authFetch';
-import { getAuthToken } from '../api/authToken';
-import { Sun, Moon } from 'lucide-react';
-import CheckInLogPanel from '../components/sales/CheckInLogPanel';
-import { exportCheckInLog, truncatedExportNote } from '../components/sales/exportCheckInLog';
-import { useAuth } from '../context/AuthContext';
-import { usePagination } from '../components/shared/paginationConfig';
-import { useLocationFilter } from '../components/shared/useLocationFilter';
-import { accessibleLocations } from '../utils/locationFilter';
+import { getCachedData, setCachedData, isCacheValid, expireCacheKeys } from '../../utils/dataCache';
+import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
+import { getAuthToken } from '../../api/authToken';
+import CheckInLogPanel from './log/CheckInLogPanel';
+import { exportCheckInLog, truncatedExportNote } from './exportCheckInLog';
+import { useAuth } from '../../context/AuthContext';
+import { usePagination } from '../../components/shared/paginationConfig';
+import { useLocationFilter } from '../../components/shared/useLocationFilter';
+import { accessibleLocations } from '../../utils/locationFilter';
+import type { Loose } from '../../types/records';
 
 
 const CheckInLogPage = () => {
@@ -23,17 +23,6 @@ const CheckInLogPage = () => {
       return 'light';
     }
   });
-
-  const toggleTheme = () => {
-    const nextTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(nextTheme);
-    try {
-      localStorage.setItem('checkin_theme', nextTheme);
-      window.dispatchEvent(new Event('checkin_theme_changed'));
-    } catch (err) {
-      console.error('Failed to save check-in theme:', err);
-    }
-  };
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -50,14 +39,14 @@ const CheckInLogPage = () => {
     };
   }, []);
 
-  const [checkIns, setCheckIns] = useState([]);
+  const [checkIns, setCheckIns] = useState<Loose[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const { currentPage, setCurrentPage, rowsPerPage: limit, setRowsPerPage: setLimit } = usePagination();
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [todayCount, setTodayCount] = useState(0);
   const [monthCount, setMonthCount] = useState(0);
   const [allTimeCount, setAllTimeCount] = useState(0);
@@ -67,7 +56,7 @@ const CheckInLogPage = () => {
   // back to CheckInLogPanel's 3-branch default prop, silently hiding every
   // other real location from this standalone page (the embedded /sales
   // instance of this same panel already fetches and passes it correctly).
-  const [locations, setLocations] = useState([]);
+  const [locations, setLocations] = useState<unknown[]>([]);
   useEffect(() => {
     authFetch(`${API_URL}/api/admin/locations`)
       .then(res => res.ok ? res.json() : [])
@@ -77,14 +66,14 @@ const CheckInLogPage = () => {
 
   // Default to current month and year
   const currentDate = new Date();
-  const [filterMonth, setFilterMonth] = useState(currentDate.getMonth() + 1); // 1-12, null = All Months
-  const [filterYear, setFilterYear] = useState(currentDate.getFullYear()); // null = All Years
+  const [filterMonth, setFilterMonth] = useState<number | null>(currentDate.getMonth() + 1); // 1-12, null = All Months
+  const [filterYear, setFilterYear] = useState<number | null>(currentDate.getFullYear()); // null = All Years
   // null = every branch they're assigned; opens on their home location.
   // Shares its remembered pick with the Check-In Log tab inside /sales.
   const locationOptions = useMemo(() => accessibleLocations(user, locations), [user, locations]);
   const [locationPick, setLocationPick] = useLocationFilter('checkInLog', user, locationOptions);
   const filterLocation = locationPick || null;
-  const setFilterLocation = (val) => setLocationPick(val || '');
+  const setFilterLocation = (val: string | null) => setLocationPick(val || '');
 
   // The input stays instant, but only settled input reaches the API — typing a
   // name used to fire one list request and one stats request per keystroke.
@@ -167,7 +156,7 @@ const CheckInLogPage = () => {
   const fetchCheckIns = async (silent = false) => {
     const seq = ++listSeq.current;
     const cacheKey = `page_checkins_${currentPage}_${limit}_${debouncedSearch}_${filterMonth}_${filterYear}_${filterLocation}`;
-    const cached = getCachedData(cacheKey);
+    const cached = getCachedData<{ checkIns: Loose[]; totalPages: number; totalCount: number }>(cacheKey);
 
     if (cached && !silent) {
       setCheckIns(cached.checkIns);
@@ -183,11 +172,11 @@ const CheckInLogPage = () => {
 
     try {
       const params = new URLSearchParams({
-        page: currentPage,
-        limit: limit,
+        page: String(currentPage),
+        limit: String(limit),
         ...(debouncedSearch && { search: debouncedSearch }),
-        ...(filterMonth && { month: filterMonth }),
-        ...(filterYear && { year: filterYear }),
+        ...(filterMonth ? { month: String(filterMonth) } : {}),
+        ...(filterYear ? { year: String(filterYear) } : {}),
         ...(filterLocation && { location: filterLocation }),
       });
       const response = await authFetch(`${API_URL}/api/checkin?${params}`);
@@ -198,7 +187,7 @@ const CheckInLogPage = () => {
       if (response.ok) {
         const data = await response.json();
         if (seq !== listSeq.current) return;
-        let list = [];
+        let list: Loose[] = [];
         let tPages = 1;
         let tCount = 0;
         if (Array.isArray(data)) {
@@ -239,8 +228,8 @@ const CheckInLogPage = () => {
       if (result.truncated) alert(truncatedExportNote(result));
     } catch (err) {
       console.error('Error exporting check-ins:', err);
-      if (err.code === 'auth') logout();
-      else alert(err.message || 'Couldn’t export the check-ins. Try again.');
+      if ((err as { code?: string }).code === 'auth') logout();
+      else alert((err as Error).message || 'Couldn’t export the check-ins. Try again.');
     } finally {
       setIsExporting(false);
     }
@@ -277,7 +266,6 @@ const CheckInLogPage = () => {
           exportFilters={{ search: debouncedSearch, month: filterMonth, year: filterYear, location: filterLocation }}
           embedded={false}
           theme={theme}
-          onToggleTheme={toggleTheme}
         />
       </div>
     </div>

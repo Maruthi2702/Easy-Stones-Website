@@ -109,8 +109,8 @@ Decided to leave as they are (owner, 2026-10-15): the status pill size on board 
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
 | O19 | Changing the rep's email on a check-in emails the Selection Sheet to that address, even for users without the send-email permission. | PUT `/checkin/:id` in `src/routes/checkIn.js` | Require `send_checkin_email` (and a staff address) for the email | Fixed `c0a0205` |
-| O20 | Fast filter or page changes can show another filter's rows (no request sequencing). | `fetchCheckIns` in `src/pages/CheckInLogPage.jsx` | Ignore stale responses | Fixed `c0a0205` |
-| O21 | The export is silently cut short if a page fails or past 50 pages, and has no Location column for all-branch exports. | export loop in `src/pages/CheckInLogPage.jsx` (~line 247) | Fail loudly / warn on truncation; add Location | Fixed `c0a0205` |
+| O20 | Fast filter or page changes can show another filter's rows (no request sequencing). | `fetchCheckIns` in `src/features/checkin/CheckInLogPage.tsx` | Ignore stale responses | Fixed `c0a0205` |
+| O21 | The export is silently cut short if a page fails or past 50 pages, and has no Location column for all-branch exports. | export loop in `src/features/checkin/CheckInLogPage.tsx` (~line 247) | Fail loudly / warn on truncation; add Location | Fixed `c0a0205` |
 
 ## Customer import (SPS redesign)
 

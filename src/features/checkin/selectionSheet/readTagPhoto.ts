@@ -19,10 +19,18 @@ import { textBand, stretchContrast, rowSharpness } from '../../../utils/tagPhoto
 import { combineTagReads, closestProduct } from '../../../utils/tagLine';
 import { loadImage, newCanvas, greyPixels, drawTurned, fitScale, levelledTagArea } from './tagImage';
 import { scanTag } from './scanTag';
+import type { Loose } from '../../../types/records';
+import type { ScannedRow } from '../../../utils/tagLine';
+
+type Point = { x: number; y: number };
+/** A barcode found in the photo: what it says and three corners, in photo pixels. */
+type Code = { text: string; topLeft: Point; topRight: Point; bottomLeft: Point };
+/** A strip cut beside a barcode, with where the barcode's columns are in it. */
+type Strip = HTMLCanvasElement & { bars?: [number, number] };
 
 // The reader's .wasm ships with the app (Vite copies it), not from a CDN.
 prepareZXingModule({
-  overrides: { locateFile: (path, prefix) => (path.endsWith('.wasm') ? zxingWasmUrl : prefix + path) },
+  overrides: { locateFile: (path: string, prefix: string) => (path.endsWith('.wasm') ? zxingWasmUrl : prefix + path) },
 });
 
 // Sizes (longest side) the photo is searched for barcodes at: a far-off tag
@@ -32,15 +40,15 @@ const DETECT_DIMS = [2000, 3000, 1200];
 // Characters a tag line is printed with; anything else OCR "sees" is noise.
 const TAG_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/()-x. ';
 
-async function findBarcodes(img) {
-  const byText = new Map();
+async function findBarcodes(img: HTMLImageElement): Promise<Code[]> {
+  const byText = new Map<string, Code>();
   for (const scale of [...new Set(DETECT_DIMS.map((d) => fitScale(img.width, img.height, d)))]) {
     const canvas = drawTurned(img, { scale });
-    const imageData = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height);
+    const imageData = canvas.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, canvas.width, canvas.height);
     const found = await readBarcodes(imageData, { tryHarder: true, tryRotate: true, tryInvert: false, maxNumberOfSymbols: 12 });
     for (const r of found) {
       if (!r.isValid || !r.text || byText.has(r.text)) continue;
-      const at = (p) => ({ x: p.x / scale, y: p.y / scale });
+      const at = (p: Point) => ({ x: p.x / scale, y: p.y / scale });
       const { topLeft, topRight, bottomLeft } = r.position;
       byText.set(r.text, { text: r.text, topLeft: at(topLeft), topRight: at(topRight), bottomLeft: at(bottomLeft) });
     }
@@ -49,7 +57,7 @@ async function findBarcodes(img) {
 }
 
 /** Draws the photo in a barcode's frame: u along it from `origin`, v across it, `s` px per photo px. */
-function inBarcodeFrame(img, origin, angle, { u0, u1, v0, v1, s }) {
+function inBarcodeFrame(img: HTMLImageElement, origin: Point, angle: number, { u0, u1, v0, v1, s }: { u0: number; u1: number; v0: number; v1: number; s: number }): Strip {
   const { canvas, ctx } = newCanvas((u1 - u0) * s, (v1 - v0) * s);
   ctx.translate(-u0 * s, -v0 * s);
   ctx.scale(s, s);
@@ -64,7 +72,7 @@ function inBarcodeFrame(img, origin, angle, { u0, u1, v0, v1, s }) {
  * tall: below the barcode (where the line is printed) or, as a second
  * try, above it.
  */
-function cutStrip(img, code, side) {
+function cutStrip(img: HTMLImageElement, code: Code, side: 'below' | 'above'): Strip {
   const { topLeft: tl, topRight: tr, bottomLeft: bl } = code;
   const len = Math.hypot(tr.x - tl.x, tr.y - tl.y);
   const thick = Math.hypot(bl.x - tl.x, bl.y - tl.y);
@@ -98,7 +106,7 @@ function cutStrip(img, code, side) {
 }
 
 /** The strip trimmed to its printed line (`pad` of the line's height around it), contrast stretched. */
-function lineImage(strip, pad, from) {
+function lineImage(strip: Strip, pad: number, from: 'top' | 'bottom'): HTMLCanvasElement {
   const gray = greyPixels(strip);
   // Print is ~45px tall at the strip's scale; anything under 18 rows isn't a line of it.
   const band = textBand(gray, strip.width, strip.height, { pad, bars: strip.bars, from, minHeight: 18 }) || { top: 0, bottom: strip.height - 1 };
@@ -114,7 +122,7 @@ function lineImage(strip, pad, from) {
   return canvas;
 }
 
-const hasLotAndSlab = (text) => /\d{4,6}\s*-\s*\d{1,3}/.test(text);
+const hasLotAndSlab = (text: string): boolean => /\d{4,6}\s*-\s*\d{1,3}/.test(text);
 
 /**
  * @param {File|Blob} file  the photo
@@ -122,7 +130,9 @@ const hasLotAndSlab = (text) => /\d{4,6}\s*-\s*\d{1,3}/.test(text);
  * @param {(percent: number) => void} [onProgress]
  * @returns {Promise<{ ok: true, rows: {material, lot, details, size, notes: string[]}[], unread: number } | { ok: false }>}
  */
-export async function readTagPhoto(file, productList = [], onProgress) {
+export type TagPhotoResult = { ok: true; rows: ScannedRow[]; unread: number } | { ok: false };
+
+export async function readTagPhoto(file: Blob, productList: Loose[] = [], onProgress?: (percent: number) => void): Promise<TagPhotoResult> {
   const img = await loadImage(file);
   onProgress?.(5);
   const codes = await findBarcodes(img);
@@ -132,11 +142,11 @@ export async function readTagPhoto(file, productList = [], onProgress) {
     const { createWorker } = await import('tesseract.js');
     const worker = await createWorker('eng');
     try {
-      await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: TAG_CHARS });
-      const tags = [];
+      await worker.setParameters({ tessedit_pageseg_mode: '7' as import('tesseract.js').PSM, tessedit_char_whitelist: TAG_CHARS });
+      const tags: { code: string; texts: string[] }[] = [];
       for (const [n, code] of codes.entries()) {
-        const texts = [];
-        for (const side of ['below', 'above']) {
+        const texts: string[] = [];
+        for (const side of ['below', 'above'] as const) {
           const strip = cutStrip(img, code, side);
           for (const pad of [0.35, 0.8]) {
             const { data } = await worker.recognize(lineImage(strip, pad, side === 'below' ? 'top' : 'bottom'));
@@ -156,7 +166,7 @@ export async function readTagPhoto(file, productList = [], onProgress) {
 
   // No barcode, or none of the lines read: OCR the whole tag area instead.
   const area = await levelledTagArea(img);
-  const result = await scanTag(area, productList, (p) => onProgress?.(25 + Math.round(p * 0.75)));
+  const result = await scanTag(area as Blob, productList, (p) => onProgress?.(25 + Math.round(p * 0.75)));
   if (!result.ok) return { ok: false };
   const product = closestProduct(result.row.material, productList);
   const material = product ? String(product.name).toUpperCase() : result.row.material;
